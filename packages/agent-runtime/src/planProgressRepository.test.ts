@@ -37,6 +37,7 @@ describe('branch plan progress repositories', () => {
 
     const firstRead = await repository.getOrCreate({ planId: 'plan-1', agentId, createdAt: 999 });
     const secondRead = await repository.getOrCreate({ planId: 'plan-1', agentId, createdAt: 999 });
+    const readonlyRead = await repository.get({ planId: 'plan-1', agentId });
 
     expect(created).toEqual({
       planId: 'plan-1',
@@ -47,7 +48,13 @@ describe('branch plan progress repositories', () => {
     });
     expect(firstRead).toEqual(blocked);
     expect(secondRead).toEqual(blocked);
+    expect(readonlyRead).toEqual(blocked);
     expect(firstRead).not.toBe(secondRead);
+    expect(readonlyRead).not.toBe(firstRead);
+    await expect(repository.get({ planId: 'missing-plan', agentId })).resolves.toBeUndefined();
+    await expect(
+      repository.getOrCreate({ planId: 'missing-plan', agentId, createdAt: 777 }),
+    ).resolves.toMatchObject({ planId: 'missing-plan', updatedAt: 777 });
   });
 
   test('in-memory repository isolates agents and plan ids', async () => {
@@ -103,6 +110,19 @@ describe('branch plan progress repositories', () => {
 
     const restarted = new FileBranchPlanProgressRepository({ rootDir });
 
+    await expect(restarted.get({ planId: 'plan-1', agentId })).resolves.toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [
+        {
+          subtaskId: 'study',
+          reason: 'major-context-shift: market changed',
+          blockedAt: 300,
+        },
+      ],
+      updatedAt: 300,
+    });
     await expect(
       restarted.getOrCreate({ planId: 'plan-1', agentId, createdAt: 999 }),
     ).resolves.toEqual({

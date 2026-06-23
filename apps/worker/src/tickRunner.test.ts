@@ -198,6 +198,31 @@ describe('worker tick runner', () => {
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
   });
 
+  test('advances simulation time when no agents are scheduled', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-empty-agent-phase',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [],
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+    ]);
+    expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
+    expect(result.streamVersion).toBe(1);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(1);
+  });
+
   test('saves the final projection snapshot and checkpoint when checkpointing is configured', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

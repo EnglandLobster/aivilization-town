@@ -1,7 +1,9 @@
 import {
   createBranchPlan,
+  createBranchPlanProgress,
   InMemoryBranchPlanProgressRepository,
   InMemoryBranchPlanRepository,
+  markSubtaskCompleted,
 } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
@@ -110,6 +112,42 @@ describe('canonical active-plan worker tick', () => {
     });
   });
 
+  test('skips completed active durable plans and advances time only', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createObjective(agentA));
+    await repositories.planRepository.save(createStudyPlanRecord(agentA));
+    await planProgressRepository.save(
+      markSubtaskCompleted(
+        createBranchPlanProgress({
+          planId: 'objective-study',
+          agentId: agentA,
+          createdAt: 100,
+        }),
+        { subtaskId: 'study-step', completedAt: 200 },
+      ),
+    );
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-completed-plan',
+      simulationId,
+      issuedAt: 300,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+    expect(result.projection.clock.now).toBe(1000);
+    expect(result.projection.agents[agentA]?.educationScore).toBe(0);
+    expect(result.streamVersion).toBe(1);
+  });
+
   test('hydrates projection before scheduling the next active-plan tick', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
@@ -144,23 +182,26 @@ describe('canonical active-plan worker tick', () => {
     expect(second.streamVersion).toBe(first.streamVersion + 3);
   });
 
-  test('does not schedule agents without active objectives or saved plans', async () => {
+  test('advances time when no active plans can be scheduled', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
     await repositories.intentionRepository.setObjective(agentA, createObjective(agentA));
 
-    await expect(
-      runCanonicalWorkerActivePlanTick({
-        tickId: 'tick-empty',
-        simulationId,
-        issuedAt: 100,
-        projection: createProjection(),
-        policies,
-        eventStore,
-        streamName: partition.eventStreamName,
-        ...repositories,
-      }),
-    ).rejects.toThrow('worker tick requires at least one agent');
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-empty',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+    expect(result.projection.clock.now).toBe(1000);
+    expect(result.streamVersion).toBe(1);
   });
 });
 

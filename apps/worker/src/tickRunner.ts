@@ -123,9 +123,6 @@ export async function runWorkerSimulationTick(
   input: WorkerTickBaseInput & WorkerTickProjectionInput,
 ): Promise<WorkerTickResult> {
   assertNonEmpty(input.tickId, 'tickId');
-  if (input.agents.length === 0) {
-    throw new Error('worker tick requires at least one agent');
-  }
 
   const startingProjection = resolveStartingProjection(input);
   let projection = startingProjection.projection;

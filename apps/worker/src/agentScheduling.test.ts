@@ -1,6 +1,9 @@
 import {
   createBranchPlan,
+  createBranchPlanProgress,
   InMemoryBranchPlanRepository,
+  InMemoryBranchPlanProgressRepository,
+  markSubtaskCompleted,
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
@@ -138,6 +141,48 @@ describe('worker agent scheduling', () => {
     });
     expect(agents[1]?.microPlanners).toBe(tradeRuntime.microPlanners);
     expect(agents[1]?.simulate).toBe(tradeRuntime.simulate);
+  });
+
+  test('skips active durable plans with no selectable subtasks', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const projection = createWorldProjection({
+      agents: [createProjectedAgent({ agentId: agentA })],
+    });
+    await intentionRepository.setObjective(
+      agentA,
+      createObjective({
+        id: 'objective-study',
+        agentId: agentA,
+        statement: 'Study before working.',
+        priority: 3,
+        affinityTags: ['study'],
+      }),
+    );
+    await planRepository.save(createPlanRecord({ planId: 'objective-study', agentId: agentA }));
+    await planProgressRepository.save(
+      markSubtaskCompleted(
+        createBranchPlanProgress({
+          planId: 'objective-study',
+          agentId: agentA,
+          createdAt: 100,
+        }),
+        { subtaskId: 'pursue-objective', completedAt: 200 },
+      ),
+    );
+
+    const agents = await buildWorkerTickAgentsFromActivePlans({
+      projection,
+      intentionRepository,
+      planRepository,
+      planProgressRepository,
+      resolveRuntime: () => {
+        throw new Error('runtime should not be resolved for completed plans');
+      },
+    });
+
+    expect(agents).toEqual([]);
   });
 });
 

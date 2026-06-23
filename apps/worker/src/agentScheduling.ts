@@ -1,9 +1,11 @@
-import type {
-  BranchPlanRecord,
-  BranchPlanRepository,
-  CycleActionSimulator,
-  CycleRepairPolicy,
-  DomainMicroPlanner,
+import {
+  hasSelectableSubtasks,
+  type BranchPlanRecord,
+  type BranchPlanProgressRepository,
+  type BranchPlanRepository,
+  type CycleActionSimulator,
+  type CycleRepairPolicy,
+  type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import type { AgentIntentionRepository, LongHorizonObjective } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
@@ -28,6 +30,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly projection: WorldProjection;
   readonly intentionRepository: AgentIntentionRepository;
   readonly planRepository: BranchPlanRepository;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
   const agents: WorkerTickAgentInput[] = [];
@@ -49,6 +52,19 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       agentId: agent.agentId,
     });
     if (planRecord === undefined) {
+      continue;
+    }
+    const progress =
+      input.planProgressRepository === undefined
+        ? undefined
+        : await input.planProgressRepository.get({
+            planId: activeObjective.id,
+            agentId: agent.agentId,
+          });
+    if (
+      progress !== undefined &&
+      !hasSelectableSubtasks({ plan: planRecord.plan, progress })
+    ) {
       continue;
     }
 

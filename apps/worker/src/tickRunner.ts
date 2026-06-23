@@ -1,4 +1,6 @@
 import type {
+  BranchPlan,
+  BranchPlanRepository,
   CycleActionSimulator,
   CycleRepairPolicy,
   DomainMicroPlanner,
@@ -31,15 +33,24 @@ import {
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 
+type WorkerTickAgentPlanInput =
+  | {
+      readonly plan: BranchPlan;
+      readonly planId?: string;
+    }
+  | {
+      readonly plan?: undefined;
+      readonly planId: string;
+    };
+
 export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
   readonly observedStateSummary: string;
-  readonly plan: Parameters<typeof runWorkerAgentCycle>[0]['plan'];
   readonly signals: Parameters<typeof runWorkerAgentCycle>[0]['signals'];
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
-};
+} & WorkerTickAgentPlanInput;
 
 export type WorkerTickResult = {
   readonly tickId: string;
@@ -78,6 +89,7 @@ type WorkerTickBaseInput = {
   readonly intentionRepository: AgentIntentionRepository;
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+  readonly planRepository?: BranchPlanRepository;
   readonly agents: readonly WorkerTickAgentInput[];
   readonly timeDeltaMs?: number;
   readonly expectedVersion?: number;
@@ -133,7 +145,7 @@ export async function runWorkerSimulationTick(
       agentId: agent.agentId,
       issuedAt: input.issuedAt,
       observedStateSummary: agent.observedStateSummary,
-      plan: agent.plan,
+      ...resolveCyclePlanInput({ agent, planRepository: input.planRepository }),
       signals: agent.signals,
       projection,
       policies: input.policies,
@@ -172,6 +184,21 @@ export async function runWorkerSimulationTick(
       ? {}
       : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),
   };
+}
+
+function resolveCyclePlanInput(input: {
+  readonly agent: WorkerTickAgentInput;
+  readonly planRepository: BranchPlanRepository | undefined;
+}):
+  | { readonly plan: BranchPlan }
+  | { readonly planRepository: BranchPlanRepository; readonly planId: string } {
+  if (input.agent.plan !== undefined) {
+    return { plan: input.agent.plan };
+  }
+  if (input.planRepository === undefined) {
+    throw new Error('planRepository is required when tick agent uses planId');
+  }
+  return { planRepository: input.planRepository, planId: input.agent.planId };
 }
 
 function createCycleId(tickId: string, index: number, agentId: AgentId): string {

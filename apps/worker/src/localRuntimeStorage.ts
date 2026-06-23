@@ -1,4 +1,7 @@
-import { FileBranchPlanProgressRepository } from '@aivilization/agent-runtime';
+import {
+  FileBranchPlanProgressRepository,
+  FileBranchPlanRepository,
+} from '@aivilization/agent-runtime';
 import {
   FileAgentIntentionRepository,
   FileLongTermProfileRepository,
@@ -34,6 +37,7 @@ export type LocalWorldRuntimeRepositories = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
 };
 
@@ -45,6 +49,7 @@ export type LocalWorldRuntimeStorage = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
@@ -80,6 +85,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const shortTermMemoryRepository = new FileShortTermMemoryRepository({
     rootDir: paths.memoryDir,
   });
+  const planRepository = new FileBranchPlanRepository({
+    rootDir: paths.planningDir,
+  });
   const planProgressRepository = new FileBranchPlanProgressRepository({
     rootDir: paths.planningDir,
   });
@@ -87,6 +95,7 @@ export function createLocalWorldRuntimeStorage(input: {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    planRepository,
     planProgressRepository,
   };
   const checkpointing = {
@@ -103,6 +112,7 @@ export function createLocalWorldRuntimeStorage(input: {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    planRepository,
     planProgressRepository,
     repositories,
     checkpointing,

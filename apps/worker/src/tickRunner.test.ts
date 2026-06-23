@@ -1,5 +1,6 @@
 import {
   createBranchPlan,
+  InMemoryBranchPlanRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
@@ -456,5 +457,96 @@ describe('worker tick runner', () => {
       'rejected',
       'accepted',
     ]);
+  });
+
+  test('loads per-agent branch plans through a shared repository', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const planRepository = new InMemoryBranchPlanRepository();
+    await planRepository.save({
+      planId: 'study-plan',
+      agentId: agentOne,
+      plan: createStudyPlan(),
+      createdAt: 50,
+      updatedAt: 50,
+    });
+    await planRepository.save({
+      planId: 'study-plan',
+      agentId: agentTwo,
+      plan: createStudyPlan(),
+      createdAt: 50,
+      updatedAt: 50,
+    });
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-plan-repository',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      planRepository,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 education=10',
+          planId: 'study-plan',
+          signals: [],
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-1',
+              description: 'agent 1 studies',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+        {
+          agentId: agentTwo,
+          observedStateSummary: 'agent-2 education=20',
+          planId: 'study-plan',
+          signals: [],
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-2',
+              description: 'agent 2 studies',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'EducationChanged'],
+      [3, 'ShortTermMemoryRecorded'],
+      [4, 'EducationChanged'],
+      [5, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(
+      result.agentResults.map((agentResult) => agentResult.cycleResult.selectedSubtask),
+    ).toEqual([
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        description: 'self study',
+        score: 5,
+      },
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        description: 'self study',
+        score: 5,
+      },
+    ]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
   });
 });

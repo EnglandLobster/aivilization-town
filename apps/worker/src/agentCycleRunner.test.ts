@@ -1,6 +1,7 @@
 import {
   createBranchPlan,
   createBranchPlanProgress,
+  InMemoryBranchPlanRepository,
   InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
@@ -494,5 +495,71 @@ describe('worker agent cycle runner', () => {
         createdAt: 999,
       }),
     ).resolves.toEqual(result.progressUpdate);
+  });
+
+  test('loads branch plans through a repository when only plan id is provided', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const planRepository = new InMemoryBranchPlanRepository();
+    await planRepository.save({
+      planId: 'sleep-plan',
+      agentId,
+      plan: createBranchPlan({
+        objective: 'restore energy',
+        branches: [
+          {
+            id: 'recovery',
+            objective: 'recover energy',
+            subtasks: [{ id: 'sleep', description: 'sleep to recover', basePriority: 10 }],
+          },
+        ],
+      }),
+      createdAt: 50,
+      updatedAt: 50,
+    });
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-plan-repository',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      planRepository,
+      planId: 'sleep-plan',
+      signals: [],
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-plan-repository',
+      commandIdPrefix: 'cycle-plan-repository-command',
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...repositories,
+    });
+
+    expect(result.cycleResult.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'sleep',
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.agents['agent-1']?.physiology.energy).toBe(100);
   });
 });

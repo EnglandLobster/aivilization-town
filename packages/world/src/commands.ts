@@ -8,6 +8,10 @@ export type AgentStudyPayload = {
   readonly educationRatePerSecond: number;
 };
 
+export type AgentSleepPayload = {
+  readonly durationSeconds: number;
+};
+
 export type AgentWorkPayload = {
   readonly occupationName: string;
   readonly laborSeconds: number;
@@ -58,6 +62,18 @@ export function assertAgentStudyPayload(payload: unknown): AgentStudyPayload {
   return {
     durationSeconds,
     educationRatePerSecond,
+  };
+}
+
+export function assertAgentSleepPayload(payload: unknown): AgentSleepPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentSleep payload must be an object');
+  }
+  const durationSeconds = payload['durationSeconds'];
+  assertNonNegativeFinite(durationSeconds, 'AgentSleep durationSeconds');
+
+  return {
+    durationSeconds,
   };
 }
 

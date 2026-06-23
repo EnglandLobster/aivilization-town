@@ -13,6 +13,7 @@ import {
 import {
   accumulateEducation,
   applyLaborPhysiologyCost,
+  applyEnergyRecovery,
   calculateApplicationQuota,
   isIncapacitated,
   isEligibleForOccupation,
@@ -21,6 +22,7 @@ import {
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentProducePayload,
+  assertAgentSleepPayload,
   assertAgentStudyPayload,
   assertAgentTradePayload,
   assertAgentWorkPayload,
@@ -39,6 +41,10 @@ export type WorldCommandPolicies = {
   readonly criticalThresholds: {
     readonly energy: number;
     readonly health: number;
+  };
+  readonly sleep?: {
+    readonly energyRecoveryPerSecond: number;
+    readonly maxEnergy: number;
   };
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
@@ -65,6 +71,17 @@ export function dispatchWorldCommand(input: {
       return handleAgentStudyCommand({
         command: input.command as CommandEnvelope<'AgentStudy', unknown>,
         projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentSleep':
+      if (input.policies.sleep === undefined) {
+        return rejectCommand(input, 'AgentSleep', 'missing sleep policy');
+      }
+      return handleAgentSleepCommand({
+        command: input.command as CommandEnvelope<'AgentSleep', unknown>,
+        projection: input.projection,
+        energyRecoveryPerSecond: input.policies.sleep.energyRecoveryPerSecond,
+        maxEnergy: input.policies.sleep.maxEnergy,
         nextSequence: input.nextSequence,
       });
     case 'AgentWork':
@@ -200,6 +217,51 @@ export function handleAgentStudyCommand(input: {
         kind: 'habit',
         patternKey: 'study',
         statement: 'Studies to improve education score.',
+      },
+    }),
+  ];
+}
+
+export function handleAgentSleepCommand(input: {
+  readonly command: CommandEnvelope<'AgentSleep', unknown>;
+  readonly projection: WorldProjection;
+  readonly energyRecoveryPerSecond: number;
+  readonly maxEnergy: number;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentSleepPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSleep', payloadResult.reason);
+  }
+
+  const physiologyResult = parsePayload(() =>
+    applyEnergyRecovery({
+      ...agent.physiology,
+      durationSeconds: payloadResult.payload.durationSeconds,
+      energyRecoveryPerSecond: input.energyRecoveryPerSecond,
+      maxEnergy: input.maxEnergy,
+    }),
+  );
+  if (physiologyResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSleep', physiologyResult.reason);
+  }
+
+  return [
+    makeEvent(input, 0, 'PhysiologyChanged', {
+      agentId: agent.agentId,
+      previous: agent.physiology,
+      next: physiologyResult.payload,
+      reason: 'sleep',
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Slept for ${payloadResult.payload.durationSeconds} seconds.`,
+      status: 'succeeded',
+      tags: ['sleep'],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: 'sleep',
+        statement: 'Sleeps to restore energy.',
       },
     }),
   ];

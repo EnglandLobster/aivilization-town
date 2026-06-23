@@ -5,6 +5,7 @@ import {
   applyWorldEvent,
   createWorldProjection,
   dispatchWorldCommand,
+  handleAgentSleepCommand,
   handleAgentEatCommand,
   handleAgentApplyJobCommand,
   handleAgentProduceCommand,
@@ -146,6 +147,182 @@ describe('agent action command handlers', () => {
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.inventory).toEqual({});
     expect(updated.rejectedActions).toHaveLength(1);
+  });
+});
+
+describe('agent sleep command handling', () => {
+  test('AgentSleep restores energy, keeps other physiology stable, and records STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSleepCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      energyRecoveryPerSecond: 0.05,
+      maxEnergy: 100,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      previous: { energy: 40, satiety: 70, health: 90 },
+      next: { energy: 100, satiety: 70, health: 90 },
+      reason: 'sleep',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.physiology.energy).toBe(100);
+    expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentSleep rejects invalid payloads without changing physiology', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSleepCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: -1 },
+        issuedAt: 25,
+      }),
+      projection,
+      energyRecoveryPerSecond: 0.05,
+      maxEnergy: 100,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSleep',
+      reason: 'AgentSleep durationSeconds must be non-negative',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.physiology.energy).toBe(40);
+  });
+
+  test('AgentSleep rejects invalid recovery policy as an observable failed action', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSleepCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: 10 },
+        issuedAt: 25,
+      }),
+      projection,
+      energyRecoveryPerSecond: -1,
+      maxEnergy: 100,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSleep',
+      reason: 'energyRecoveryPerSecond must be non-negative',
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentSleep through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: 10 },
+        issuedAt: 25,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        sleep: {
+          energyRecoveryPerSecond: 1,
+          maxEnergy: 100,
+        },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
   });
 });
 

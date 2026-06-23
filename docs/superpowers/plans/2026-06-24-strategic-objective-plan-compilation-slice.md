@@ -39,7 +39,7 @@ It does not call an LLM, replace existing plans during adaptive re-planning, or 
 
 - Add: `packages/agent-runtime/src/strategicPlanning.test.ts`
 
-- [ ] **Step 1: Write failing tests for objective-to-plan compilation**
+- [x] **Step 1: Write failing tests for objective-to-plan compilation**
 
 Create tests that require:
 
@@ -56,13 +56,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because strategic planning APIs are missing.
 
+Observed: test failed before implementation because `compileStrategicObjectiveToBranchPlan` was missing. It now passes after adding the compiler.
+
 ## Task 2: Worker Steering Plan Persistence Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/steering.test.ts`
 
-- [ ] **Step 2: Write failing tests for strategic steering plan persistence**
+- [x] **Step 2: Write failing tests for strategic steering plan persistence**
 
 Create tests that require:
 
@@ -80,13 +82,15 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because steering does not accept or save plan repositories.
 
+Observed: test failed before implementation because the plan repository had no `objective-study` record after steering. It now passes after steering saves `planRecord`.
+
 ## Task 3: Local Runtime Steering Wiring Test
 
 **Files:**
 
 - Modify: `apps/worker/src/localRuntimeStorage.test.ts`
 
-- [ ] **Step 3: Write failing test for storage repositories and steering**
+- [x] **Step 3: Write failing test for storage repositories and steering**
 
 Extend the restart test so it:
 
@@ -101,6 +105,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because steering ignores `planRepository`.
 
+Observed: test failed before implementation because `restarted.planRepository` could not find the generated objective plan. It now passes after steering consumes the storage repository bundle.
+
 ## Task 4: Implementation
 
 **Files:**
@@ -109,7 +115,7 @@ Expected before implementation: tests fail because steering ignores `planReposit
 - Modify: `packages/agent-runtime/src/index.ts`
 - Modify: `apps/worker/src/steering.ts`
 
-- [ ] **Step 4: Implement strategic plan compiler and worker wiring**
+- [x] **Step 4: Implement strategic plan compiler and worker wiring**
 
 Behavior:
 
@@ -129,7 +135,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -143,3 +149,5 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed: focused package tests and typechecks passed. Full `pnpm check` passed with 47 test files and 205 tests. Full `pnpm build` passed.

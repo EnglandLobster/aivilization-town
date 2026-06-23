@@ -1,10 +1,14 @@
 import {
+  compileStrategicObjectiveToBranchPlan,
   runReactiveSteeringRoute,
+  type BranchPlanRecord,
+  type BranchPlanRepository,
   type CommandDraft,
   type ReactiveActionSimulator,
   type ReactiveLocalizedPlanner,
   type ReactiveRepairPolicy,
   type ReactiveSteeringResult,
+  type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -24,6 +28,7 @@ export type WorkerSteeringResult =
   | {
       readonly kind: 'long-horizon-objective-set';
       readonly intentionState: AgentIntentionState;
+      readonly planRecord?: BranchPlanRecord;
       readonly commandDrafts: readonly CommandDraft[];
       readonly shortTermMemoryRecords: readonly ShortTermMemoryRecord[];
     }
@@ -40,6 +45,8 @@ export async function handleWorkerSteeringCommand(input: {
   readonly command: WorkerSteeringCommand;
   readonly intentionRepository: AgentIntentionRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+  readonly planRepository?: BranchPlanRepository;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly localizedPlanners: readonly ReactiveLocalizedPlanner[];
   readonly simulate: ReactiveActionSimulator;
   readonly repair?: ReactiveRepairPolicy;
@@ -56,9 +63,18 @@ export async function handleWorkerSteeringCommand(input: {
         issuedAt: input.command.issuedAt,
       });
       const intentionState = await input.intentionRepository.setObjective(agentId, objective);
+      const planRecord = await createAndSaveStrategicPlanRecord({
+        objective,
+        issuedAt: input.command.issuedAt,
+        ...(input.planRepository === undefined ? {} : { planRepository: input.planRepository }),
+        ...(input.strategicPlanCompiler === undefined
+          ? {}
+          : { strategicPlanCompiler: input.strategicPlanCompiler }),
+      });
       return {
         kind: 'long-horizon-objective-set',
         intentionState,
+        ...(planRecord === undefined ? {} : { planRecord }),
         commandDrafts: [],
         shortTermMemoryRecords: [],
       };
@@ -88,6 +104,29 @@ export async function handleWorkerSteeringCommand(input: {
     default:
       throw new Error(`unsupported steering command ${input.command.type}`);
   }
+}
+
+async function createAndSaveStrategicPlanRecord(input: {
+  readonly objective: LongHorizonObjective;
+  readonly issuedAt: number;
+  readonly planRepository?: BranchPlanRepository;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
+}): Promise<BranchPlanRecord | undefined> {
+  if (input.planRepository === undefined) {
+    return undefined;
+  }
+
+  const compile = input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
+  const plan = await compile({ objective: input.objective, issuedAt: input.issuedAt });
+  const planRecord = {
+    planId: input.objective.id,
+    agentId: input.objective.agentId,
+    plan,
+    createdAt: input.issuedAt,
+    updatedAt: input.issuedAt,
+  };
+  await input.planRepository.save(planRecord);
+  return planRecord;
 }
 
 function requireActorId(command: WorkerSteeringCommand): AgentId {

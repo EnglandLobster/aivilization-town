@@ -35,7 +35,7 @@ It does not implement file-backed event storage, SQLite projection persistence, 
 
 - Modify: `apps/worker/src/commandDispatch.test.ts`
 
-- [ ] **Step 1: Write failing tests for worker event-stream append behavior**
+- [x] **Step 1: Write failing tests for worker event-stream append behavior**
 
 Add these imports to `apps/worker/src/commandDispatch.test.ts`:
 
@@ -207,7 +207,7 @@ Add these tests inside `describe('worker command dispatch seam', () => { ... })`
   });
 ```
 
-- [ ] **Step 2: Run worker tests and verify RED**
+- [x] **Step 2: Run worker tests and verify RED**
 
 Run:
 
@@ -223,7 +223,7 @@ Expected: FAIL because `dispatchCommandDraftsToWorldEventStream` is not exported
 
 - Modify: `apps/worker/src/commandDispatch.ts`
 
-- [ ] **Step 1: Add event-store dispatch result type and function**
+- [x] **Step 1: Add event-store dispatch result type and function**
 
 Modify the `@aivilization/sim-core` import in `apps/worker/src/commandDispatch.ts`:
 
@@ -288,7 +288,7 @@ export function dispatchCommandDraftsToWorldEventStream(input: {
 }
 ```
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 Run:
 
@@ -299,7 +299,7 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -314,10 +314,10 @@ git commit -m "feat: append worker dispatch events"
 
 - Modify: `docs/superpowers/plans/2026-06-23-worker-event-stream-dispatch-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

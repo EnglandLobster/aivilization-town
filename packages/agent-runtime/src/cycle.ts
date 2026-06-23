@@ -1,4 +1,5 @@
 import type { AgentId, CommandSource, CoreCommandType, SimulationId } from '@aivilization/sim-core';
+import type { LongTermAgentProfile } from '@aivilization/memory';
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
@@ -8,6 +9,7 @@ import type {
 import { simulateActionWithRepair } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import { selectPrioritizedSubtask } from './planner';
+import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 
 export type DomainMicroPlanner = {
   readonly domain: string;
@@ -49,6 +51,7 @@ export function runAgentPlanningCycle(input: {
   readonly issuedAt: number;
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly longTermProfile?: LongTermAgentProfile;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
@@ -56,6 +59,9 @@ export function runAgentPlanningCycle(input: {
   const selectedSubtask = selectPrioritizedSubtask({
     plan: input.plan,
     signals: input.signals,
+    ...(input.longTermProfile === undefined
+      ? {}
+      : { profileInfluence: buildProfileInfluenceBySubtask(input.plan, input.longTermProfile) }),
   });
   const microPlanner = input.microPlanners.find((planner) => planner.supports(selectedSubtask));
   if (microPlanner === undefined) {
@@ -87,6 +93,23 @@ export function runAgentPlanningCycle(input: {
     ),
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function buildProfileInfluenceBySubtask(
+  plan: BranchPlan,
+  profile: LongTermAgentProfile,
+): Readonly<Record<string, ProfileInfluenceScore>> {
+  return Object.fromEntries(
+    plan.branches.flatMap((branch) =>
+      branch.subtasks.map((subtask) => [
+        subtask.id,
+        scoreProfileInfluence({
+          profile,
+          affinityTags: subtask.profileAffinityTags ?? [],
+        }),
+      ]),
+    ),
+  );
 }
 
 function adaptRepairPolicy(

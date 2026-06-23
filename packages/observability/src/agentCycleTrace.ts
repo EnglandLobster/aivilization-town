@@ -3,6 +3,26 @@ export type SimulatorTraceResult =
   | { readonly status: 'rejected'; readonly reason: string }
   | { readonly status: 'repaired'; readonly reason: string };
 
+export type ReplanningTraceDecision =
+  | {
+      readonly kind: 'none';
+    }
+  | {
+      readonly kind: 'memory-guided-correction';
+      readonly trigger: 'simulator-rejection';
+      readonly reason: string;
+      readonly failedActionIds: readonly string[];
+      readonly evidenceRecordIds: readonly string[];
+    }
+  | {
+      readonly kind: 'full-replan';
+      readonly trigger: 'major-context-shift' | 'repeated-failure';
+      readonly reason: string;
+      readonly failedActionIds: readonly string[];
+      readonly evidenceRecordIds: readonly string[];
+      readonly matchingFailureCount: number;
+    };
+
 export type AgentCycleTrace = {
   readonly traceId: string;
   readonly simulationId: string;
@@ -12,6 +32,7 @@ export type AgentCycleTrace = {
   readonly selectedBranch: string;
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
+  readonly replanningDecision: ReplanningTraceDecision;
   readonly emittedCommandIds: readonly string[];
   readonly memoryContextIds: readonly string[];
   readonly memoryWriteIds: readonly string[];

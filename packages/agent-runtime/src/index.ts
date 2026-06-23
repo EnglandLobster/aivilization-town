@@ -6,6 +6,7 @@ export * from './planner';
 export * from './planProgress';
 export * from './profileInfluence';
 export * from './reactiveSteering';
+export * from './replanning';
 
 export type AgentRuntimeModuleStatus = {
   readonly packageName: '@aivilization/agent-runtime';

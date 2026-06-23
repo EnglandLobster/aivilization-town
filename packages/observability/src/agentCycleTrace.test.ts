@@ -12,6 +12,13 @@ describe('createAgentCycleTrace', () => {
       selectedBranch: 'production-resource-management',
       candidateActions: ['craft Transistor 1', 'buy Fish 1'],
       simulatorResult: { status: 'repaired', reason: 'missing Iron Ingot, buy first' },
+      replanningDecision: {
+        kind: 'memory-guided-correction',
+        trigger: 'simulator-rejection',
+        reason: 'missing Iron Ingot',
+        failedActionIds: ['craft-1'],
+        evidenceRecordIds: ['stm-context-1'],
+      },
       emittedCommandIds: ['cmd-1', 'cmd-2'],
       memoryContextIds: ['stm-context-1'],
       memoryWriteIds: ['stm-1'],
@@ -19,6 +26,7 @@ describe('createAgentCycleTrace', () => {
 
     expect(trace.selectedBranch).toBe('production-resource-management');
     expect(trace.simulatorResult.status).toBe('repaired');
+    expect(trace.replanningDecision.kind).toBe('memory-guided-correction');
     expect(trace.emittedCommandIds).toEqual(['cmd-1', 'cmd-2']);
     expect(trace.memoryContextIds).toEqual(['stm-context-1']);
   });

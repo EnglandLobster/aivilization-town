@@ -296,6 +296,19 @@ describe('worker agent cycle runner', () => {
   test('records a rejected trace and skips event append when simulator requires replanning', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'study-energy-failure',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Failed to study because energy was too low.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study', 'energy'],
+      }),
+    );
 
     const result = await runWorkerAgentCycle({
       cycleId: 'cycle-replan',
@@ -305,6 +318,8 @@ describe('worker agent cycle runner', () => {
       observedStateSummary: 'energy=0 satiety=80 health=100 education=10',
       plan: createStudyPlan(),
       signals: [],
+      memoryRetrievalLimit: 10,
+      replanningPolicy: { consecutiveFailureThreshold: 2 },
       projection: createProjection(),
       policies,
       eventStore,
@@ -331,7 +346,15 @@ describe('worker agent cycle runner', () => {
     expect(result.trace).toMatchObject({
       traceId: 'cycle-replan',
       simulatorResult: { status: 'rejected', reason: 'energy too low' },
+      replanningDecision: {
+        kind: 'memory-guided-correction',
+        trigger: 'simulator-rejection',
+        reason: 'energy too low',
+        failedActionIds: ['study-1'],
+        evidenceRecordIds: ['study-energy-failure'],
+      },
       emittedCommandIds: [],
+      memoryContextIds: ['study-energy-failure'],
       memoryWriteIds: [],
     });
   });

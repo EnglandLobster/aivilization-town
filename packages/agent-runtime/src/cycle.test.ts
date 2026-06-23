@@ -107,6 +107,167 @@ describe('agent planning cycle', () => {
     });
   });
 
+  test('returns no replanning decision after successful local repair', () => {
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const repairedAction = {
+      id: 'eat-before-work',
+      description: 'eat before work',
+      commandType: 'AgentEat' as const,
+      payload: { commodityName: 'Bread', quantity: 1 },
+    };
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      replanningPolicy: { consecutiveFailureThreshold: 2 },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      repair: () => repairedAction,
+      simulate: ({ action }) =>
+        action.id === 'eat-before-work'
+          ? { status: 'accepted', action }
+          : { status: 'rejected', action, reason: 'satiety too low' },
+    });
+
+    expect(result.replanningDecision).toEqual({ kind: 'none' });
+    expect(result.needsReplan).toBe(false);
+  });
+
+  test('uses STM evidence for cycle-level memory-guided correction', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [],
+      replanningPolicy: { consecutiveFailureThreshold: 2 },
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'stm-energy-failure',
+          agentId,
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to work because energy was too low.',
+          occurredAt: 90,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['work', 'energy'],
+        }),
+      ],
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+    });
+
+    expect(result.replanningDecision).toEqual({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'energy too low',
+      failedActionIds: ['work-1'],
+      evidenceRecordIds: ['stm-energy-failure'],
+    });
+  });
+
+  test('escalates major context shifts to full replanning during a cycle', () => {
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      replanningPolicy: {
+        consecutiveFailureThreshold: 2,
+        majorContextShift: {
+          key: 'market-crash',
+          reason: 'Food prices doubled since the plan was created.',
+        },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.replanningDecision).toEqual({
+      kind: 'full-replan',
+      trigger: 'major-context-shift',
+      reason: 'Food prices doubled since the plan was created.',
+      failedActionIds: [],
+      evidenceRecordIds: [],
+      matchingFailureCount: 0,
+    });
+  });
+
   test('uses long-term profile influence during subtask selection', () => {
     const plan = createBranchPlan({
       objective: 'balance survival and development',

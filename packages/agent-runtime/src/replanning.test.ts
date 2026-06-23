@@ -175,6 +175,30 @@ describe('adaptive replanning decision', () => {
     expect(progress.blockedSubtasks).toEqual([]);
   });
 
+  test('marks selected subtask completed when no replanning is needed', () => {
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 100,
+    });
+
+    expect(
+      applyReplanningDecisionToProgress({
+        progress,
+        selectedSubtask,
+        decision: { kind: 'none' },
+        at: 200,
+      }),
+    ).toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: ['work'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
+    expect(progress.completedSubtaskIds).toEqual([]);
+  });
+
   test('marks selected subtask blocked for full replanning decisions', () => {
     const progress = createBranchPlanProgress({
       planId: 'plan-1',

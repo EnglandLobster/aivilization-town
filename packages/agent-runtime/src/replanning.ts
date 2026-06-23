@@ -1,6 +1,6 @@
 import type { MemoryRecordId, ShortTermMemoryRecord } from '@aivilization/memory';
 import type { ActionWithRepairResult, AtomicActionProposal } from './actions';
-import { markSubtaskBlocked, type BranchPlanProgress } from './planProgress';
+import { markSubtaskBlocked, markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
 import type { PrioritizedSubtask } from './planner';
 
 export type ReplanningMajorContextShift = {
@@ -99,6 +99,13 @@ export function applyReplanningDecisionToProgress(input: {
   readonly decision: ReplanningDecision;
   readonly at: number;
 }): BranchPlanProgress | undefined {
+  if (input.decision.kind === 'none') {
+    return markSubtaskCompleted(input.progress, {
+      subtaskId: input.selectedSubtask.subtaskId,
+      completedAt: input.at,
+    });
+  }
+
   if (input.decision.kind !== 'full-replan') {
     return undefined;
   }

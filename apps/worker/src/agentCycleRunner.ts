@@ -121,9 +121,6 @@ export async function runWorkerAgentCycle(
     ...(input.repair === undefined ? {} : { repair: input.repair }),
     ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
   });
-  if (cycleResult.progressUpdate !== undefined && input.planProgressRepository !== undefined) {
-    await input.planProgressRepository.save(cycleResult.progressUpdate);
-  }
 
   const dispatchResult =
     cycleResult.commandDrafts.length === 0
@@ -146,6 +143,9 @@ export async function runWorkerAgentCycle(
       : extractShortTermMemoryRecords(dispatchResult.events);
   if (shortTermMemoryRecords.length > 0) {
     await input.shortTermMemoryRepository.appendMany(shortTermMemoryRecords);
+  }
+  if (cycleResult.progressUpdate !== undefined && input.planProgressRepository !== undefined) {
+    await input.planProgressRepository.save(cycleResult.progressUpdate);
   }
 
   const trace = createAgentCycleTrace({

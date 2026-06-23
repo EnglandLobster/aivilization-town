@@ -1,4 +1,8 @@
-import { createBranchPlan, InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
+import {
+  createBranchPlan,
+  InMemoryBranchPlanProgressRepository,
+  InMemoryBranchPlanRepository,
+} from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
@@ -70,6 +74,40 @@ describe('canonical active-plan worker tick', () => {
     ]);
     expect(result.projection.clock.now).toBe(1000);
     expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+  });
+
+  test('saves progress for active durable plans', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createObjective(agentA));
+    await repositories.planRepository.save(createStudyPlanRecord(agentA));
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-progress',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      ...repositories,
+    });
+
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-study',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-study',
+      agentId: agentA,
+      completedSubtaskIds: ['study-step'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
   });
 
   test('hydrates projection before scheduling the next active-plan tick', async () => {

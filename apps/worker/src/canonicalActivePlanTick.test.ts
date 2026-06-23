@@ -80,6 +80,61 @@ describe('canonical active-plan worker tick', () => {
     expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
   });
 
+  test('runs production subtasks through the canonical active-plan pipeline', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createProductionObjective(agentA));
+    await repositories.planRepository.save(createProductionPlanRecord(agentA));
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-production',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentProduce',
+      payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'CommodityProduced',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.events.find((event) => event.type === 'CommodityProduced')?.payload).toEqual({
+      agentId: agentA,
+      produced: { Apple: 1 },
+      consumedInputs: {},
+      energyCost: 2,
+      satietyCost: 0,
+      laborSeconds: 0.1,
+    });
+    expect(result.projection.agents[agentA]?.inventory).toEqual({ Apple: 1 });
+    expect(result.projection.agents[agentA]?.physiology).toEqual({
+      energy: 48,
+      satiety: 50,
+      health: 100,
+    });
+    expect(result.traces[0]?.actionSynthesis.acceptedActions).toMatchObject([
+      {
+        id: 'canonical-production-produce-step',
+        commandType: 'AgentProduce',
+        resourceEstimate: {
+          actionSeconds: 0.1,
+          energyCost: 2,
+          satietyCost: 0,
+        },
+      },
+    ]);
+  });
+
   test('renews idle agents with autonomous objectives before scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
@@ -406,6 +461,19 @@ function createObjective(agentId: AgentId): LongHorizonObjective {
   };
 }
 
+function createProductionObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-production',
+    agentId,
+    statement: 'Produce food for the town routine.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['production'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
 function createStudyPlanRecord(agentId: AgentId) {
   return {
     planId: 'objective-study',
@@ -422,6 +490,32 @@ function createStudyPlanRecord(agentId: AgentId) {
               description: 'Attend planned activity.',
               basePriority: 5,
               intentionAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createProductionPlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-production',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Produce food for the town routine.',
+      branches: [
+        {
+          id: 'production-lane',
+          objective: 'Keep basic supplies available.',
+          subtasks: [
+            {
+              id: 'produce-step',
+              description: 'Produce staple food.',
+              basePriority: 5,
+              intentionAffinityTags: ['production'],
             },
           ],
         },

@@ -1,8 +1,11 @@
 import type { CommandDraft } from '@aivilization/agent-runtime';
 import {
   createCommandEnvelope,
+  type AppendToEventStreamResult,
   type CommandEnvelope,
   type CoreCommandType,
+  type EventStore,
+  type EventStreamName,
 } from '@aivilization/sim-core';
 import {
   applyWorldEvent,
@@ -16,6 +19,10 @@ export type DispatchCommandDraftsResult = {
   readonly commands: readonly CommandEnvelope<CoreCommandType, unknown>[];
   readonly events: readonly WorldEvent[];
   readonly projection: WorldProjection;
+};
+
+export type DispatchCommandDraftsToEventStreamResult = DispatchCommandDraftsResult & {
+  readonly appendResult: AppendToEventStreamResult<WorldEvent>;
 };
 
 export function createCommandEnvelopeFromDraft(input: {
@@ -73,6 +80,44 @@ export function dispatchCommandDraftsToWorld(input: {
   });
 
   return { commands, events, projection };
+}
+
+export function dispatchCommandDraftsToWorldEventStream(input: {
+  readonly commandDrafts: readonly CommandDraft[];
+  readonly projection: WorldProjection;
+  readonly policies: WorldCommandPolicies;
+  readonly eventStore: EventStore<WorldEvent>;
+  readonly streamName: EventStreamName;
+  readonly appendIdempotencyKey: string;
+  readonly commandIdPrefix: string;
+  readonly expectedVersion?: number;
+}): DispatchCommandDraftsToEventStreamResult {
+  assertNonEmpty(input.appendIdempotencyKey, 'appendIdempotencyKey');
+
+  const expectedVersion =
+    input.expectedVersion ?? input.eventStore.getStreamVersion(input.streamName);
+  const dispatched = dispatchCommandDraftsToWorld({
+    commandDrafts: input.commandDrafts,
+    projection: input.projection,
+    policies: input.policies,
+    startingSequence: expectedVersion + 1,
+    commandIdPrefix: input.commandIdPrefix,
+    expectedVersion,
+  });
+  const appendResult = input.eventStore.appendToStream({
+    streamName: input.streamName,
+    expectedVersion,
+    idempotencyKey: input.appendIdempotencyKey,
+    events: dispatched.events,
+  });
+  const projection = appendResult.appendedEvents.reduce(applyWorldEvent, input.projection);
+
+  return {
+    commands: dispatched.commands,
+    events: appendResult.appendedEvents,
+    projection,
+    appendResult,
+  };
 }
 
 function assertPositiveInteger(value: number, name: string): void {

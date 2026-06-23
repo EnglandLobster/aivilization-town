@@ -1,5 +1,9 @@
 import type { AgentId, CommandSource, CoreCommandType, SimulationId } from '@aivilization/sim-core';
-import type { AgentIntentionState, LongTermAgentProfile } from '@aivilization/memory';
+import type {
+  AgentIntentionState,
+  LongTermAgentProfile,
+  ShortTermMemoryRecord,
+} from '@aivilization/memory';
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
@@ -10,6 +14,7 @@ import { simulateActionWithRepair } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import { selectPrioritizedSubtask } from './planner';
 import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
+import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 
 export type DomainMicroPlanner = {
@@ -53,6 +58,7 @@ export function runAgentPlanningCycle(input: {
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
   readonly intentionState?: AgentIntentionState;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
@@ -67,6 +73,15 @@ export function runAgentPlanningCycle(input: {
           intentionInfluence: buildIntentionInfluenceBySubtask(
             input.plan,
             input.intentionState,
+            input.issuedAt,
+          ),
+        }),
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : {
+          memoryInfluence: buildMemoryInfluenceBySubtask(
+            input.plan,
+            input.shortTermMemoryContext,
             input.issuedAt,
           ),
         }),
@@ -118,6 +133,25 @@ function buildIntentionInfluenceBySubtask(
         scoreIntentionInfluence({
           intentionState,
           affinityTags: subtask.intentionAffinityTags ?? [],
+          at,
+        }),
+      ]),
+    ),
+  );
+}
+
+function buildMemoryInfluenceBySubtask(
+  plan: BranchPlan,
+  records: readonly ShortTermMemoryRecord[],
+  at: number,
+): Readonly<Record<string, MemoryInfluenceScore>> {
+  return Object.fromEntries(
+    plan.branches.flatMap((branch) =>
+      branch.subtasks.map((subtask) => [
+        subtask.id,
+        scoreMemoryInfluence({
+          records,
+          affinityTags: subtask.memoryAffinityTags ?? [],
           at,
         }),
       ]),

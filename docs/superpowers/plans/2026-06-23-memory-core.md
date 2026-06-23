@@ -47,7 +47,7 @@ It does not cover vector embeddings, durable storage, LLM summarization, API end
 - Create: `packages/memory/src/records.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] Write failing tests for STM record creation and validation:
+- [x] Write failing tests for STM record creation and validation:
 
 ```ts
 import { asAgentId, asCommandId, asEventId } from '@aivilization/sim-core';
@@ -107,10 +107,10 @@ describe('short-term memory records', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/memory test` and confirm the new APIs are missing.
-- [ ] Implement `MemoryRecordId`, `ShortTermMemoryRecord`, `MemoryConsolidationHint`, and `createShortTermMemoryRecord`.
-- [ ] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
-- [ ] Commit with `git commit -m "feat: add short-term memory records"`.
+- [x] Run `pnpm --filter @aivilization/memory test` and confirm the new APIs are missing.
+- [x] Implement `MemoryRecordId`, `ShortTermMemoryRecord`, `MemoryConsolidationHint`, and `createShortTermMemoryRecord`.
+- [x] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
+- [x] Commit with `git commit -m "feat: add short-term memory records"`.
 
 ### Task 2: Retrieval And Repository Port
 

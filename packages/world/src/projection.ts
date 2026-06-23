@@ -147,6 +147,13 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...agent,
         job: event.payload.occupationName,
       }));
+    case 'ResidentialTierUpgraded':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        balance: agent.balance - event.payload.currencyCost,
+        residentialTier: event.payload.nextResidentialTier,
+        inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
+      }));
     case 'SocialInteractionCompleted':
       return {
         ...projection,

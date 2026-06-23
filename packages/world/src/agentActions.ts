@@ -18,14 +18,17 @@ import {
   applySocialInteraction,
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
+  evaluateResidentialTierUpgrade,
   isIncapacitated,
   isEligibleForOccupation,
+  type ResidentialTierUpgradePolicy,
 } from '@aivilization/society';
 import {
   assertAdvanceSimulationTimePayload,
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentProducePayload,
+  assertAgentUpgradeResidentialTierPayload,
   assertAgentSleepPayload,
   assertAgentSocializePayload,
   assertAgentStudyPayload,
@@ -55,6 +58,7 @@ export type WorldCommandPolicies = {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
   };
+  readonly residentialTierUpgrade?: ResidentialTierUpgradePolicy;
 };
 
 export function dispatchWorldCommand(input: {
@@ -125,6 +129,20 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         populationEducationScores: input.policies.jobApplication.populationEducationScores,
         quotaByResidentialTier: input.policies.jobApplication.quotaByResidentialTier,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentUpgradeResidentialTier':
+      if (input.policies.residentialTierUpgrade === undefined) {
+        return rejectCommand(
+          input,
+          'AgentUpgradeResidentialTier',
+          'missing residential tier upgrade policy',
+        );
+      }
+      return handleAgentUpgradeResidentialTierCommand({
+        command: input.command as CommandEnvelope<'AgentUpgradeResidentialTier', unknown>,
+        projection: input.projection,
+        policy: input.policies.residentialTierUpgrade,
         nextSequence: input.nextSequence,
       });
     case 'AgentSocialize':
@@ -575,6 +593,59 @@ export function handleAgentApplyJobCommand(input: {
         kind: 'habit',
         patternKey: `apply-job:${payload.occupationName}`,
         statement: `Applies for ${payload.occupationName} when qualified.`,
+      },
+    }),
+  ];
+}
+
+export function handleAgentUpgradeResidentialTierCommand(input: {
+  readonly command: CommandEnvelope<'AgentUpgradeResidentialTier', unknown>;
+  readonly projection: WorldProjection;
+  readonly policy: ResidentialTierUpgradePolicy;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() =>
+    assertAgentUpgradeResidentialTierPayload(input.command.payload),
+  );
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentUpgradeResidentialTier', payloadResult.reason);
+  }
+
+  const decision = evaluateResidentialTierUpgrade({
+    agent: {
+      residentialTier: agent.residentialTier,
+      balance: agent.balance,
+      educationScore: agent.educationScore,
+      inventory: agent.inventory,
+    },
+    targetResidentialTier: payloadResult.payload.targetResidentialTier,
+    policy: input.policy,
+  });
+  if (decision.status === 'rejected') {
+    return rejectCommand(
+      input,
+      'AgentUpgradeResidentialTier',
+      `${decision.reason}: ${decision.detail}`,
+    );
+  }
+
+  return [
+    makeEvent(input, 0, 'ResidentialTierUpgraded', {
+      agentId: agent.agentId,
+      previousResidentialTier: decision.previousResidentialTier,
+      nextResidentialTier: decision.nextResidentialTier,
+      currencyCost: decision.currencyCost,
+      consumedInventory: decision.consumedInventory,
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Upgraded residential tier from ${decision.previousResidentialTier} to ${decision.nextResidentialTier}.`,
+      status: 'succeeded',
+      tags: ['upgrade-residential-tier', String(decision.nextResidentialTier)],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: `upgrade-residential-tier:${decision.nextResidentialTier}`,
+        statement: `Invests in residential tier ${decision.nextResidentialTier} when upgrade requirements are met.`,
       },
     }),
   ];

@@ -17,6 +17,7 @@ export type CoreEventType =
   | 'EducationChanged'
   | 'JobApplicationSubmitted'
   | 'JobAssigned'
+  | 'ResidentialTierUpgraded'
   | 'WagePaid'
   | 'SocialInteractionCompleted'
   | 'ShortTermMemoryRecorded'

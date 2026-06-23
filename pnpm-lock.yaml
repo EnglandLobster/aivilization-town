@@ -116,6 +116,21 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
+  packages/world:
+    dependencies:
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
+      '@aivilization/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+      '@aivilization/society':
+        specifier: workspace:*
+        version: link:../society
+
 packages:
 
   '@esbuild/aix-ppc64@0.27.7':

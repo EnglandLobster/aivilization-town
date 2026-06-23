@@ -5,11 +5,13 @@
   "private": true,
   "scripts": {
     "build": "tsup src/index.ts --format esm",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aivilization/agent-runtime": "workspace:*",
     "@aivilization/content": "workspace:*",
+    "@aivilization/memory": "workspace:*",
     "@aivilization/observability": "workspace:*",
     "@aivilization/sim-core": "workspace:*"
   }

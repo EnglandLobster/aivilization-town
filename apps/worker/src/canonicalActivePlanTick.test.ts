@@ -45,6 +45,10 @@ const policies: WorldCommandPolicies = {
     populationEducationScores: [0],
     quotaByResidentialTier: [1, 1, 1, 1, 1],
   },
+  residentialTierUpgrade: {
+    maxResidentialTier: 4,
+    costs: [{ targetResidentialTier: 2, currencyCost: 100 }],
+  },
 };
 
 describe('canonical active-plan worker tick', () => {
@@ -131,6 +135,74 @@ describe('canonical active-plan worker tick', () => {
           energyCost: 2,
           satietyCost: 0,
         },
+      },
+    ]);
+  });
+
+  test('runs residential upgrades through the canonical active-plan pipeline', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createResidentialObjective(agentA));
+    await repositories.planRepository.save(createResidentialPlanRecord(agentA));
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-residential-upgrade',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentUpgradeResidentialTier',
+      payload: { targetResidentialTier: 2 },
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'ResidentialTierUpgraded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.events.find((event) => event.type === 'ResidentialTierUpgraded')?.payload).toEqual(
+      {
+        agentId: agentA,
+        previousResidentialTier: 1,
+        nextResidentialTier: 2,
+        currencyCost: 100,
+        consumedInventory: {},
+      },
+    );
+    expect(result.projection.agents[agentA]).toMatchObject({
+      residentialTier: 2,
+      balance: 900,
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-residential',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-residential',
+      agentId: agentA,
+      completedSubtaskIds: ['residential-upgrade-step'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toEqual([
+      {
+        objective: createResidentialObjective(agentA),
+        completedAt: 100,
+        reason: 'plan-completed',
+        planId: 'objective-residential',
       },
     ]);
   });
@@ -646,6 +718,19 @@ function createProductionObjective(agentId: AgentId): LongHorizonObjective {
   };
 }
 
+function createResidentialObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-residential',
+    agentId,
+    statement: 'Upgrade residential tier to unlock advanced town opportunities.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['residential'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
 function createBookProductionObjective(agentId: AgentId): LongHorizonObjective {
   return {
     id: 'objective-book-production',
@@ -701,6 +786,32 @@ function createProductionPlanRecord(agentId: AgentId) {
               description: 'Produce staple food.',
               basePriority: 5,
               intentionAffinityTags: ['production'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createResidentialPlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-residential',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Upgrade residential tier to unlock advanced town opportunities.',
+      branches: [
+        {
+          id: 'residential-lane',
+          objective: 'Invest in residential access.',
+          subtasks: [
+            {
+              id: 'residential-upgrade-step',
+              description: 'Upgrade residential tier.',
+              basePriority: 5,
+              intentionAffinityTags: ['residential'],
             },
           ],
         },

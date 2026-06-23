@@ -50,12 +50,12 @@ It does not cover LLM-generated dialogue, social micro-planners, group conversat
 - Create: `packages/society/src/social.test.ts`
 - Modify: `packages/society/src/index.ts`
 
-- [ ] Write failing tests for clamped relation updates, relation labels, directed keys, and invalid delta rejection.
-- [ ] Run `pnpm --filter @aivilization/society test` and confirm the social APIs are missing.
-- [ ] Implement `applySocialInteraction`, `classifyRelation`, and `createDirectedSocialRelationKey`.
-- [ ] Export the social APIs from `packages/society/src/index.ts`.
-- [ ] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
-- [ ] Commit with `git commit -m "feat: add social relationship rules"`.
+- [x] Write failing tests for clamped relation updates, relation labels, directed keys, and invalid delta rejection.
+- [x] Run `pnpm --filter @aivilization/society test` and confirm the social APIs are missing.
+- [x] Implement `applySocialInteraction`, `classifyRelation`, and `createDirectedSocialRelationKey`.
+- [x] Export the social APIs from `packages/society/src/index.ts`.
+- [x] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
+- [x] Commit with `git commit -m "feat: add social relationship rules"`.
 
 ### Task 2: Social Projection Events
 
@@ -65,11 +65,11 @@ It does not cover LLM-generated dialogue, social micro-planners, group conversat
 - Modify: `packages/world/src/projection.ts`
 - Modify: `packages/world/src/projection.test.ts`
 
-- [ ] Write failing tests for replaying `SocialInteractionCompleted` into directed social relation state.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
-- [ ] Implement the social event payload and projection replay.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add world social projection events"`.
+- [x] Write failing tests for replaying `SocialInteractionCompleted` into directed social relation state.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
+- [x] Implement the social event payload and projection replay.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add world social projection events"`.
 
 ### Task 3: AgentSocialize Command Handler
 
@@ -79,15 +79,15 @@ It does not cover LLM-generated dialogue, social micro-planners, group conversat
 - Modify: `packages/world/src/agentActions.ts`
 - Modify: `packages/world/src/agentActions.test.ts`
 
-- [ ] Write failing tests for `AgentSocialize` success, unknown target rejection, self-target rejection, invalid delta rejection, and dispatcher routing.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
-- [ ] Implement payload validation and handler orchestration.
-- [ ] Use `applySocialInteraction` from `society` instead of duplicating relationship math.
-- [ ] Emit `SocialInteractionCompleted` and social-interaction STM for accepted commands.
-- [ ] Emit `ActionRejected` and failed STM for rejected commands.
-- [ ] Route `AgentSocialize` through `dispatchWorldCommand`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add socialize command handler"`.
+- [x] Write failing tests for `AgentSocialize` success, unknown target rejection, self-target rejection, invalid delta rejection, and dispatcher routing.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
+- [x] Implement payload validation and handler orchestration.
+- [x] Use `applySocialInteraction` from `society` instead of duplicating relationship math.
+- [x] Emit `SocialInteractionCompleted` and social-interaction STM for accepted commands.
+- [x] Emit `ActionRejected` and failed STM for rejected commands.
+- [x] Route `AgentSocialize` through `dispatchWorldCommand`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add socialize command handler"`.
 
 ### Task 4: Whole-Repo Verification
 
@@ -95,10 +95,10 @@ It does not cover LLM-generated dialogue, social micro-planners, group conversat
 
 - Modify: `docs/superpowers/plans/2026-06-23-world-social-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update if needed.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update if needed.
 
 ## Acceptance Criteria
 

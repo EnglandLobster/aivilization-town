@@ -14,7 +14,6 @@ import {
   InMemoryProjectionCheckpointStore,
   asAgentId,
   asSimulationId,
-  createProjectionCheckpoint,
   createSimulationPartition,
 } from '@aivilization/sim-core';
 import {
@@ -197,6 +196,56 @@ describe('worker tick runner', () => {
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
   });
 
+  test('saves the final projection snapshot and checkpoint when checkpointing is configured', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      checkpointing: {
+        partitionKey: partition.partitionKey,
+        checkpointStore,
+        snapshotStore,
+      },
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    if (result.snapshot === undefined || result.checkpoint === undefined) {
+      throw new Error('expected tick checkpointing to save a snapshot and checkpoint');
+    }
+    expect(result.snapshot).toMatchObject({
+      simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: result.streamVersion,
+      createdAt: 100,
+    });
+    expect(result.checkpoint).toEqual({
+      simulationId,
+      partitionKey: partition.partitionKey,
+      lastAppliedSequence: result.streamVersion,
+      snapshot: result.snapshot,
+    });
+    expect(
+      checkpointStore.getLatestCheckpoint({
+        simulationId,
+        partitionKey: partition.partitionKey,
+      }),
+    ).toEqual(result.checkpoint);
+    expect(snapshotStore.loadSnapshot(result.snapshot)).toEqual(result.projection);
+  });
+
   test('replays a whole tick idempotently from the same starting expected version', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();
@@ -296,6 +345,10 @@ describe('worker tick runner', () => {
   test('hydrates the starting projection from a checkpoint snapshot when available', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
     const firstResult = await runWorkerSimulationTick({
       tickId: 'tick-1',
       simulationId,
@@ -305,26 +358,19 @@ describe('worker tick runner', () => {
       eventStore,
       streamName: partition.eventStreamName,
       expectedVersion: 0,
+      checkpointing: {
+        partitionKey: partition.partitionKey,
+        checkpointStore,
+        snapshotStore,
+      },
       agents: createTickAgents(),
       ...repositories,
     });
-    const checkpointStore = new InMemoryProjectionCheckpointStore();
-    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
-      rootDir: createRootDir(),
-    });
-    const snapshot = snapshotStore.saveSnapshot({
-      simulationId,
-      partitionKey: partition.partitionKey,
-      sequence: firstResult.streamVersion,
-      createdAt: 150,
-      projection: firstResult.projection,
-    });
-    checkpointStore.saveCheckpoint(
-      createProjectionCheckpoint({
+
+    expect(firstResult.checkpoint).toEqual(
+      checkpointStore.getLatestCheckpoint({
         simulationId,
         partitionKey: partition.partitionKey,
-        lastAppliedSequence: firstResult.streamVersion,
-        snapshot,
       }),
     );
 

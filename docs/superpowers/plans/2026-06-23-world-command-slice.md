@@ -243,7 +243,7 @@ describe('agent action command handlers', () => {
 - Modify: `packages/world/src/agentActions.test.ts`
 - Modify: `packages/world/src/index.ts`
 
-- [ ] Write failing tests for `AgentWork` and dispatcher routing:
+- [x] Write failing tests for `AgentWork` and dispatcher routing:
 
 ```ts
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
@@ -336,11 +336,11 @@ describe('agent work command handling', () => {
 });
 ```
 
-- [ ] Add a failing test proving incapacitated agents cannot work and receive `ActionRejected` plus failed STM only.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm work/dispatcher APIs are missing.
-- [ ] Implement `WorldCommandPolicies`, `dispatchWorldCommand`, and `handleAgentWorkCommand`.
-- [ ] Run `pnpm --filter @aivilization/world test`, `pnpm --filter @aivilization/world typecheck`, `pnpm check`, and `pnpm build`.
-- [ ] Commit with `git commit -m "feat: add work command dispatcher"`.
+- [x] Add a failing test proving incapacitated agents cannot work and receive `ActionRejected` plus failed STM only.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm work/dispatcher APIs are missing.
+- [x] Implement `WorldCommandPolicies`, `dispatchWorldCommand`, and `handleAgentWorkCommand`.
+- [x] Run `pnpm --filter @aivilization/world test`, `pnpm --filter @aivilization/world typecheck`, `pnpm check`, and `pnpm build`.
+- [x] Commit with `git commit -m "feat: add work command dispatcher"`.
 
 ## Self-Review
 

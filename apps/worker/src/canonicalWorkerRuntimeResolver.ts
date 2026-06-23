@@ -19,10 +19,12 @@ import {
 } from '@aivilization/world';
 import {
   createCanonicalDomainRuntimeRegistrations,
+  resolveProductionTargetCommodityName,
   type CanonicalDomainRuntimeConfig,
 } from './canonicalDomainRuntimes';
 import {
   createDomainRuntimeResolver,
+  type WorkerDomainRuntimeFactoryInput,
   type WorkerDomainRuntimeRegistration,
 } from './domainRuntimeRegistry';
 import type { WorkerAgentRuntimeResolver } from './agentScheduling';
@@ -98,18 +100,26 @@ export function createCanonicalWorkerRuntimeResolver(
           : { commandIdPrefix: config.commandIdPrefix }),
       }),
       ...(config.repair === undefined ? {} : { repair: config.repair }),
-      subtaskCompletion: createCanonicalProductionSubtaskCompletionPolicy(
-        config.domainConfig?.production,
-      ),
+      subtaskCompletion: createCanonicalProductionSubtaskCompletionPolicy({
+        context,
+        ...(config.domainConfig?.production === undefined
+          ? {}
+          : { config: config.domainConfig.production }),
+      }),
     };
   };
 }
 
-function createCanonicalProductionSubtaskCompletionPolicy(
-  config: CanonicalDomainRuntimeConfig['production'],
-): CycleSubtaskCompletionPolicy {
-  const targetCommodityName = config?.commodityName ?? 'Apple';
-  return ({ simulationResults }) => {
+function createCanonicalProductionSubtaskCompletionPolicy(input: {
+  readonly config?: CanonicalDomainRuntimeConfig['production'];
+  readonly context: WorkerDomainRuntimeFactoryInput;
+}): CycleSubtaskCompletionPolicy {
+  return ({ selectedSubtask, simulationResults }) => {
+    const targetCommodityName = resolveProductionTargetCommodityName({
+      context: input.context,
+      selectedSubtask,
+      ...(input.config === undefined ? {} : { config: input.config }),
+    });
     const productionAction = simulationResults
       .map((result) => acceptedActionFromSimulationResult(result))
       .find(isAgentProduceAction);

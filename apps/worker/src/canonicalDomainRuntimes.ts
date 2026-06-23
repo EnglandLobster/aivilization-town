@@ -5,10 +5,12 @@ import type {
   DomainMicroPlanner,
   PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
+import { commodities } from '@aivilization/content';
 import {
   buyFromPool,
   planProduction,
   planProductionChain,
+  resolveProductionDefinition,
   type ProductionChainStep,
 } from '@aivilization/economy';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
@@ -66,6 +68,12 @@ export type ProductionDomainRuntimeConfig = {
   readonly commodityName?: string;
   readonly quantity?: number;
   readonly availableLaborSeconds?: number;
+};
+
+export type ProductionTargetResolutionInput = {
+  readonly config?: ProductionDomainRuntimeConfig;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
 };
 
 export type CanonicalDomainRuntimeConfig = {
@@ -272,7 +280,11 @@ export function createProductionDomainRuntimeRegistration(
         domain: 'production',
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
-          const commodityName = config.commodityName ?? DEFAULT_PRODUCTION_COMMODITY;
+          const commodityName = resolveProductionTargetCommodityName({
+            config,
+            context,
+            selectedSubtask,
+          });
           const quantity = config.quantity ?? DEFAULT_PRODUCTION_QUANTITY;
           const availableLaborSeconds =
             config.availableLaborSeconds ?? DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS;
@@ -311,6 +323,23 @@ export function createProductionDomainRuntimeRegistration(
       }),
     ],
   };
+}
+
+export function resolveProductionTargetCommodityName(
+  input: ProductionTargetResolutionInput,
+): string {
+  if (input.config?.commodityName !== undefined) {
+    return input.config.commodityName;
+  }
+
+  for (const text of collectProductionTargetTexts(input)) {
+    const commodityName = findProducibleCommodityNameInText(text);
+    if (commodityName !== undefined) {
+      return commodityName;
+    }
+  }
+
+  return DEFAULT_PRODUCTION_COMMODITY;
 }
 
 type ContextualDomainMicroPlannerInput = {
@@ -376,6 +405,118 @@ function selectedSubtaskMatchesDomain(input: {
 
 function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): string {
   return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
+}
+
+type ProductionTargetCandidate = {
+  readonly name: string;
+  readonly tokens: readonly string[];
+};
+
+const PRODUCIBLE_PRODUCTION_TARGETS: readonly ProductionTargetCandidate[] = commodities
+  .map((commodity) => ({
+    name: commodity.name,
+    tokens: tokenizeText(commodity.name),
+  }))
+  .filter(
+    (candidate) =>
+      candidate.tokens.length > 0 && resolveProductionDefinition(candidate.name) !== undefined,
+  )
+  .sort(
+    (left, right) =>
+      right.tokens.length - left.tokens.length ||
+      right.name.length - left.name.length ||
+      left.name.localeCompare(right.name),
+  );
+
+function collectProductionTargetTexts(
+  input: ProductionTargetResolutionInput,
+): readonly string[] {
+  const texts: string[] = [];
+  const addText = (text: string | undefined): void => {
+    if (text !== undefined && text.trim().length > 0) {
+      texts.push(text);
+    }
+  };
+  const selectedSubtask = input.selectedSubtask;
+
+  addText(selectedSubtask?.description);
+
+  const branch =
+    selectedSubtask === undefined
+      ? undefined
+      : input.context.planRecord.plan.branches.find(
+          (candidate) => candidate.id === selectedSubtask.branchId,
+        );
+  const subtask =
+    branch === undefined || selectedSubtask === undefined
+      ? undefined
+      : branch.subtasks.find((candidate) => candidate.id === selectedSubtask.subtaskId);
+
+  addText(subtask?.description);
+  addText(branch?.objective);
+  addText(input.context.planRecord.plan.objective);
+  addText(input.context.activeObjective.statement);
+  addText(selectedSubtask?.subtaskId);
+  addText(selectedSubtask?.branchId);
+  addText(subtask?.id);
+  addText(branch?.id);
+  for (const tag of subtask?.intentionAffinityTags ?? []) {
+    addText(tag);
+  }
+  for (const tag of subtask?.memoryAffinityTags ?? []) {
+    addText(tag);
+  }
+  for (const tag of subtask?.profileAffinityTags ?? []) {
+    addText(tag);
+  }
+
+  return texts;
+}
+
+function findProducibleCommodityNameInText(text: string): string | undefined {
+  const textTokens = tokenizeText(text);
+  if (textTokens.length === 0) {
+    return undefined;
+  }
+
+  return PRODUCIBLE_PRODUCTION_TARGETS.find((candidate) =>
+    containsTokenPhrase(textTokens, candidate.tokens),
+  )?.name;
+}
+
+function containsTokenPhrase(
+  textTokens: readonly string[],
+  candidateTokens: readonly string[],
+): boolean {
+  if (candidateTokens.length === 0 || candidateTokens.length > textTokens.length) {
+    return false;
+  }
+
+  for (let start = 0; start <= textTokens.length - candidateTokens.length; start += 1) {
+    const matches = candidateTokens.every((candidateToken, index) =>
+      productionTargetTokenMatches({
+        candidateToken,
+        textToken: textTokens[start + index] ?? '',
+        isLastToken: index === candidateTokens.length - 1,
+      }),
+    );
+    if (matches) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function productionTargetTokenMatches(input: {
+  readonly candidateToken: string;
+  readonly textToken: string;
+  readonly isLastToken: boolean;
+}): boolean {
+  return (
+    input.textToken === input.candidateToken ||
+    (input.isLastToken && input.textToken === `${input.candidateToken}s`)
+  );
 }
 
 function createLaborResourceEstimate(
@@ -522,9 +663,11 @@ function addTagTokens(tags: readonly string[] | undefined, tokens: Set<string>):
 }
 
 function addTextTokens(text: string, tokens: Set<string>): void {
-  for (const token of text.toLowerCase().split(/[^a-z0-9]+/)) {
-    if (token.length > 0) {
-      tokens.add(token);
-    }
+  for (const token of tokenizeText(text)) {
+    tokens.add(token);
   }
+}
+
+function tokenizeText(text: string): readonly string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }

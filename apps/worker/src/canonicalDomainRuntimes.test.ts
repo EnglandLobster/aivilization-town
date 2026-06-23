@@ -13,7 +13,11 @@ import {
   type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { createCanonicalDomainRuntimeRegistrations, createDomainRuntimeResolver } from './index';
+import {
+  createCanonicalDomainRuntimeRegistrations,
+  createDomainRuntimeResolver,
+  resolveProductionTargetCommodityName,
+} from './index';
 
 const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
@@ -184,6 +188,55 @@ describe('canonical domain runtimes', () => {
       payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 3600 },
     });
   });
+
+  test('infers production target from durable plan text when config omits commodity', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, inventory: { Wood: 1 } }),
+      activeObjective: createBookProductionObjective(agentA),
+      planRecord: createBookProductionPlanRecord(agentA),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
+      commandType: 'AgentProduce',
+      payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 3600 },
+      resourceEstimate: {
+        actionSeconds: 1.6,
+        energyCost: 32,
+        satietyCost: 8,
+        inventoryCosts: { Wood: 1 },
+      },
+    });
+  });
+
+  test('prefers longest producible commodity phrase and simple plural mentions', () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA }),
+    });
+
+    expect(
+      resolveProductionTargetCommodityName({
+        context,
+        selectedSubtask: {
+          branchId: 'lane-f',
+          subtaskId: 'step-f',
+          description: 'Bake Apple Pies for the bakery.',
+          score: 10,
+        },
+      }),
+    ).toBe('Apple Pie');
+    expect(
+      resolveProductionTargetCommodityName({
+        context,
+        selectedSubtask: {
+          branchId: 'lane-f',
+          subtaskId: 'step-f',
+          description: 'Craft chips efficiently.',
+          score: 10,
+        },
+      }),
+    ).toBe('Chip');
+  });
 });
 
 async function resolveCanonicalBinding(
@@ -230,6 +283,8 @@ type WorkerResolverTestContext = {
 function createRuntimeContext(input: {
   readonly agent: WorldAgentState;
   readonly projection?: WorldProjection;
+  readonly activeObjective?: LongHorizonObjective;
+  readonly planRecord?: BranchPlanRecord;
 }): WorkerResolverTestContext {
   const projection =
     input.projection ??
@@ -245,8 +300,8 @@ function createRuntimeContext(input: {
     agentId: input.agent.agentId,
     agent: input.agent,
     projection,
-    activeObjective: createObjective(input.agent.agentId),
-    planRecord: createPlanRecord(input.agent.agentId),
+    activeObjective: input.activeObjective ?? createObjective(input.agent.agentId),
+    planRecord: input.planRecord ?? createPlanRecord(input.agent.agentId),
   };
 }
 
@@ -267,6 +322,7 @@ function createProjection(input: {
 function createAgent(input: {
   readonly agentId: AgentId;
   readonly job?: string | null;
+  readonly inventory?: WorldAgentState['inventory'];
 }): WorldAgentState {
   return {
     agentId: input.agentId,
@@ -275,7 +331,7 @@ function createAgent(input: {
     balance: 1000,
     residentialTier: 1,
     job: input.job ?? null,
-    inventory: { Book: 3, Wood: 1 },
+    inventory: input.inventory ?? { Book: 3, Wood: 1 },
   };
 }
 
@@ -310,6 +366,45 @@ function createPlanRecord(agentId: AgentId): BranchPlanRecord {
           },
         ],
       })),
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createBookProductionObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-book-production',
+    agentId,
+    statement: 'Craft Book for the town library.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['production'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createBookProductionPlanRecord(agentId: AgentId): BranchPlanRecord {
+  return {
+    planId: 'objective-book-production',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Craft Book for the town library.',
+      branches: [
+        {
+          id: 'lane-f',
+          objective: 'Produce Book for the library shelves.',
+          subtasks: [
+            {
+              id: 'step-f',
+              description: 'Craft Book for the library.',
+              basePriority: 5,
+              intentionAffinityTags: ['production'],
+            },
+          ],
+        },
+      ],
     }),
     createdAt: 100,
     updatedAt: 100,

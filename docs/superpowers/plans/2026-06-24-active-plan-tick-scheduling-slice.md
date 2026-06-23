@@ -37,7 +37,7 @@ It does not execute the tick, own micro-planner registration, decide partition m
 
 - Add: `apps/worker/src/agentScheduling.test.ts`
 
-- [ ] **Step 1: Write failing tests for active objective scheduling**
+- [x] **Step 1: Write failing tests for active objective scheduling**
 
 Create tests that require:
 
@@ -57,6 +57,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `buildWorkerTickAgentsFromActivePlans` does not exist.
 
+Observed: test failed before implementation because `buildWorkerTickAgentsFromActivePlans` was missing. It now passes after adding the scheduling module.
+
 ## Task 2: Scheduler Implementation
 
 **Files:**
@@ -64,7 +66,7 @@ Expected before implementation: tests fail because `buildWorkerTickAgentsFromAct
 - Add: `apps/worker/src/agentScheduling.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement active plan scheduler**
+- [x] **Step 2: Implement active plan scheduler**
 
 Behavior:
 
@@ -89,7 +91,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -100,13 +102,15 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected after implementation: worker tests and typecheck pass.
 
+Observed: focused worker tests and typecheck passed.
+
 ## Task 4: Full Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run:
 
@@ -116,3 +120,5 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed: full `pnpm check` passed with 48 test files and 206 tests. Full `pnpm build` passed.

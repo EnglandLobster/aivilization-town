@@ -2,6 +2,7 @@ import type { AgentRuntimeModuleStatus } from '@aivilization/agent-runtime';
 import type { CommodityConfig } from '@aivilization/content';
 
 export * from './commandDispatch';
+export * from './agentScheduling';
 export * from './agentCycleRunner';
 export * from './localRuntimeStorage';
 export * from './memoryConsolidation';

@@ -204,3 +204,63 @@ describe('world job projection', () => {
     expect(projection.agents['agent-1']?.job).toBe('Cleaner');
   });
 });
+
+describe('world social projection', () => {
+  test('replays social interactions into directed relation state', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: agent1,
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: agent2,
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const nextRelation = {
+      sourceAgentId: agent1,
+      targetAgentId: agent2,
+      relationScore: 0.25,
+      attitudeScore: 0.5,
+      relationLabel: 'acquaintance' as const,
+      interactionCount: 1,
+      lastInteractionSummary: 'Shared food after work.',
+    };
+    const events = [
+      createEventEnvelope({
+        id: 'event-social',
+        simulationId: 'sim-1',
+        commandId: 'command-social',
+        type: 'SocialInteractionCompleted',
+        payload: {
+          sourceAgentId: agent1,
+          targetAgentId: agent2,
+          summary: 'Shared food after work.',
+          relationDelta: 0.25,
+          attitudeDelta: 0.5,
+          nextRelation,
+        },
+        occurredAt: 80,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.socialRelations['agent-1->agent-2']).toEqual(nextRelation);
+  });
+});

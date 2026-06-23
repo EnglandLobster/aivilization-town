@@ -1,7 +1,11 @@
 import { addInventory, removeInventory, type AmmPool, type Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
-import type { PhysiologicalState } from '@aivilization/society';
+import {
+  createDirectedSocialRelationKey,
+  type PhysiologicalState,
+  type SocialRelationState,
+} from '@aivilization/society';
 import type { WorldEvent } from './events';
 
 export type WorldAgentState = {
@@ -25,6 +29,7 @@ export type WorldProjection = {
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
   readonly jobApplications: readonly WorldJobApplicationState[];
+  readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
     readonly agentId: AgentId;
@@ -38,6 +43,7 @@ export function createWorldProjection(input: {
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
   readonly jobApplications?: readonly WorldJobApplicationState[];
+  readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
   const agents: Record<string, WorldAgentState> = {};
   for (const agent of input.agents) {
@@ -58,11 +64,17 @@ export function createWorldProjection(input: {
     marketPools[pool.commodity] = { ...pool };
   }
 
+  const socialRelations: Record<string, SocialRelationState> = {};
+  for (const relation of input.socialRelations ?? []) {
+    socialRelations[createDirectedSocialRelationKey(relation)] = relation;
+  }
+
   return {
     agents,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
     jobApplications: [...(input.jobApplications ?? [])],
+    socialRelations,
     memoryRecords: [],
     rejectedActions: [],
   };
@@ -132,6 +144,14 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...agent,
         job: event.payload.occupationName,
       }));
+    case 'SocialInteractionCompleted':
+      return {
+        ...projection,
+        socialRelations: {
+          ...projection.socialRelations,
+          [createDirectedSocialRelationKey(event.payload.nextRelation)]: event.payload.nextRelation,
+        },
+      };
     case 'InventoryChanged':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

@@ -1,3 +1,5 @@
+import { asAgentId, type AgentId } from '@aivilization/sim-core';
+
 export type AgentEatPayload = {
   readonly commodityName: string;
   readonly quantity: number;
@@ -31,6 +33,13 @@ export type AgentTradePayload = {
 
 export type AgentApplyJobPayload = {
   readonly occupationName: string;
+};
+
+export type AgentSocializePayload = {
+  readonly targetAgentId: AgentId;
+  readonly summary: string;
+  readonly relationDelta: number;
+  readonly attitudeDelta: number;
 };
 
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
@@ -150,6 +159,32 @@ export function assertAgentApplyJobPayload(payload: unknown): AgentApplyJobPaylo
   };
 }
 
+export function assertAgentSocializePayload(payload: unknown): AgentSocializePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentSocialize payload must be an object');
+  }
+  const targetAgentId = payload['targetAgentId'];
+  const summary = payload['summary'];
+  const relationDelta = payload['relationDelta'];
+  const attitudeDelta = payload['attitudeDelta'];
+
+  if (typeof targetAgentId !== 'string') {
+    throw new Error('AgentSocialize targetAgentId must be a string');
+  }
+  if (typeof summary !== 'string' || summary.trim().length === 0) {
+    throw new Error('AgentSocialize summary must not be empty');
+  }
+  assertFinite(relationDelta, 'AgentSocialize relationDelta');
+  assertFinite(attitudeDelta, 'AgentSocialize attitudeDelta');
+
+  return {
+    targetAgentId: asAgentId(targetAgentId),
+    summary,
+    relationDelta,
+    attitudeDelta,
+  };
+}
+
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -169,5 +204,11 @@ function assertPositiveInteger(value: unknown, name: string): asserts value is n
 function assertNonNegativeFinite(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be non-negative`);
+  }
+}
+
+function assertFinite(value: unknown, name: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be finite`);
   }
 }

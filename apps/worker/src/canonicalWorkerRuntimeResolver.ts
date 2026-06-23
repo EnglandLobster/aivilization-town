@@ -1,4 +1,10 @@
-import type { CycleActionSimulator, CycleRepairPolicy } from '@aivilization/agent-runtime';
+import type {
+  ActionWithRepairResult,
+  AtomicActionProposal,
+  CycleActionSimulator,
+  CycleRepairPolicy,
+  CycleSubtaskCompletionPolicy,
+} from '@aivilization/agent-runtime';
 import {
   createCommandEnvelope,
   type AgentId,
@@ -7,6 +13,7 @@ import {
 } from '@aivilization/sim-core';
 import {
   dispatchWorldCommand,
+  type AgentProducePayload,
   type WorldCommandPolicies,
   type WorldProjection,
 } from '@aivilization/world';
@@ -91,8 +98,54 @@ export function createCanonicalWorkerRuntimeResolver(
           : { commandIdPrefix: config.commandIdPrefix }),
       }),
       ...(config.repair === undefined ? {} : { repair: config.repair }),
+      subtaskCompletion: createCanonicalProductionSubtaskCompletionPolicy(
+        config.domainConfig?.production,
+      ),
     };
   };
+}
+
+function createCanonicalProductionSubtaskCompletionPolicy(
+  config: CanonicalDomainRuntimeConfig['production'],
+): CycleSubtaskCompletionPolicy {
+  const targetCommodityName = config?.commodityName ?? 'Apple';
+  return ({ simulationResults }) => {
+    const productionAction = simulationResults
+      .map((result) => acceptedActionFromSimulationResult(result))
+      .find(isAgentProduceAction);
+    if (productionAction === undefined) {
+      return { status: 'completed' };
+    }
+
+    const producedCommodityName = productionAction.payload.commodityName;
+    if (producedCommodityName === targetCommodityName) {
+      return { status: 'completed' };
+    }
+
+    return {
+      status: 'in-progress',
+      reason: `produced upstream material ${producedCommodityName} for target ${targetCommodityName}`,
+    };
+  };
+}
+
+function acceptedActionFromSimulationResult(
+  result: ActionWithRepairResult,
+): AtomicActionProposal | undefined {
+  switch (result.status) {
+    case 'accepted':
+      return result.action;
+    case 'repaired':
+      return result.repairedAction;
+    case 'needs-replan':
+      return undefined;
+  }
+}
+
+function isAgentProduceAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<'AgentProduce', AgentProducePayload> {
+  return action !== undefined && action.commandType === 'AgentProduce';
 }
 
 export function createWorldCommandDryRunSimulator(

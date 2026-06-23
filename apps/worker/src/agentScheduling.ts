@@ -6,6 +6,7 @@ import {
   type BranchPlanRepository,
   type CycleActionSimulator,
   type CycleRepairPolicy,
+  type CycleSubtaskCompletionPolicy,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import type { AgentIntentionRepository, LongHorizonObjective } from '@aivilization/memory';
@@ -18,6 +19,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly actionSynthesis?: ActionSynthesisPolicy;
+  readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
 };
 
 export type WorkerAgentRuntimeResolver = (input: {
@@ -95,6 +97,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
         : { actionSynthesis: runtime.actionSynthesis }),
       simulate: runtime.simulate,
       ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
+      ...(runtime.subtaskCompletion === undefined
+        ? {}
+        : { subtaskCompletion: runtime.subtaskCompletion }),
     });
   }
 

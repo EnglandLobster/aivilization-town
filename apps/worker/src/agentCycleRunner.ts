@@ -8,6 +8,7 @@ import {
   type BranchPlanRepository,
   type BranchPlanProgress,
   type BranchPlanProgressRepository,
+  type CycleSubtaskCompletionPolicy,
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
@@ -85,6 +86,7 @@ export async function runWorkerAgentCycle(
     readonly simulate: CycleActionSimulator;
     readonly repair?: CycleRepairPolicy;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
+    readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
     readonly expectedVersion?: number;
     readonly traceSink?: WorkerAgentCycleTraceSink;
   } & WorkerAgentCyclePlanInput,
@@ -127,6 +129,9 @@ export async function runWorkerAgentCycle(
     simulate: input.simulate,
     ...(input.repair === undefined ? {} : { repair: input.repair }),
     ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
+    ...(input.subtaskCompletion === undefined
+      ? {}
+      : { subtaskCompletion: input.subtaskCompletion }),
   });
 
   const dispatchResult =

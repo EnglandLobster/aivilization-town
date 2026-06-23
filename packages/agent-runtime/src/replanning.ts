@@ -34,6 +34,15 @@ export type ReplanningDecision =
       readonly matchingFailureCount: number;
     };
 
+export type SubtaskCompletionDecision =
+  | {
+      readonly status: 'completed';
+    }
+  | {
+      readonly status: 'in-progress';
+      readonly reason: string;
+    };
+
 export function decideAdaptiveReplanning(input: {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly simulationResults: readonly ActionWithRepairResult[];
@@ -97,9 +106,14 @@ export function applyReplanningDecisionToProgress(input: {
   readonly progress: BranchPlanProgress;
   readonly selectedSubtask: PrioritizedSubtask;
   readonly decision: ReplanningDecision;
+  readonly completionDecision?: SubtaskCompletionDecision;
   readonly at: number;
 }): BranchPlanProgress | undefined {
   if (input.decision.kind === 'none') {
+    if (input.completionDecision?.status === 'in-progress') {
+      return undefined;
+    }
+
     return markSubtaskCompleted(input.progress, {
       subtaskId: input.selectedSubtask.subtaskId,
       completedAt: input.at,

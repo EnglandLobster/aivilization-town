@@ -829,4 +829,63 @@ describe('agent planning cycle', () => {
       availableLaborSeconds: 60,
     });
   });
+
+  test('keeps successful actions in progress when the completion policy is not satisfied', () => {
+    const agentId = asAgentId('agent-1');
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 100 });
+    const plan = createBranchPlan({
+      objective: 'produce book',
+      branches: [
+        {
+          id: 'production',
+          objective: 'craft the target commodity',
+          subtasks: [
+            {
+              id: 'produce-book',
+              description: 'produce Book',
+              basePriority: 5,
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 150,
+      plan,
+      progress,
+      signals: [],
+      microPlanners: [
+        {
+          domain: 'production',
+          supports: ({ subtaskId }) => subtaskId === 'produce-book',
+          propose: () => [
+            {
+              id: 'produce-wood-for-book',
+              description: 'produce upstream Wood for Book',
+              commandType: 'AgentProduce',
+              payload: {
+                commodityName: 'Wood',
+                quantity: 1,
+                availableLaborSeconds: 60,
+              },
+            },
+          ],
+        },
+      ],
+      subtaskCompletion: () => ({
+        status: 'in-progress',
+        reason: 'produced upstream material Wood for target Book',
+      }),
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.subtaskCompletionDecision).toEqual({
+      status: 'in-progress',
+      reason: 'produced upstream material Wood for target Book',
+    });
+    expect(result.progressUpdate).toBeUndefined();
+  });
 });

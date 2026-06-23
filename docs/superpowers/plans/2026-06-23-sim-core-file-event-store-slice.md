@@ -34,7 +34,7 @@ It does not implement SQLite projections, event-log compaction, snapshots, cross
 
 - Add: `packages/sim-core/src/fileEventStore.test.ts`
 
-- [ ] **Step 1: Write failing tests for local durable event streams**
+- [x] **Step 1: Write failing tests for local durable event streams**
 
 Create tests that require:
 
@@ -60,7 +60,7 @@ Expected before implementation: tests fail because `FileEventStore` is not expor
 - Add: `packages/sim-core/src/fileEventStore.ts`
 - Modify: `packages/sim-core/src/index.ts`
 
-- [ ] **Step 2: Implement the file-backed EventStore**
+- [x] **Step 2: Implement the file-backed EventStore**
 
 Add `FileEventStore<TEvent extends EventEnvelope>` with constructor:
 
@@ -83,7 +83,7 @@ Implementation requirements:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -95,3 +95,11 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+## Verification Results
+
+- `pnpm --filter @aivilization/sim-core test` failed before implementation because `FileEventStore` was not exported.
+- `pnpm --filter @aivilization/sim-core test` passed after implementation.
+- `pnpm --filter @aivilization/sim-core typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

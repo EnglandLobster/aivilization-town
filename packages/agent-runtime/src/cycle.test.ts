@@ -158,6 +158,88 @@ describe('agent planning cycle', () => {
     expect(result.commandDrafts[0]?.type).toBe('AgentWork');
   });
 
+  test('returns replan results when action synthesis rejects every proposal', () => {
+    const plan = createBranchPlan({
+      objective: 'study within available energy',
+      branches: [
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'study carefully', basePriority: 5 }],
+        },
+      ],
+    });
+    const simulatedActionIds: string[] = [];
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      actionSynthesis: { budget: { energyBudget: 0 } },
+      microPlanners: [
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-expensive',
+              description: 'study with high energy cost',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 3,
+              resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => {
+        simulatedActionIds.push(action.id);
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(simulatedActionIds).toEqual([]);
+    expect(result.needsReplan).toBe(true);
+    expect(result.candidateActions).toEqual([]);
+    expect(result.commandDrafts).toEqual([]);
+    expect(result.actionSynthesisResult).toMatchObject({
+      acceptedActions: [],
+      rejectedActions: [
+        {
+          action: { id: 'study-expensive' },
+          reason: 'energy budget exceeded',
+        },
+      ],
+    });
+    expect(result.simulationResults).toEqual([
+      {
+        status: 'needs-replan',
+        action: {
+          id: 'study-expensive',
+          description: 'study with high energy cost',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+          priority: 3,
+          resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+        },
+        reason: 'action synthesis rejected action: energy budget exceeded',
+      },
+    ]);
+    expect(result.replanningDecision).toEqual({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'action synthesis rejected action: energy budget exceeded',
+      failedActionIds: ['study-expensive'],
+      evidenceRecordIds: [],
+    });
+    expect(result.subtaskCompletionDecision).toEqual({
+      status: 'in-progress',
+      reason: 'cycle requires replanning',
+    });
+  });
+
   test('does not create command drafts when simulator rejection cannot be repaired', () => {
     const plan = createBranchPlan({
       objective: 'survive',

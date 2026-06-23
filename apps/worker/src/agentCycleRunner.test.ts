@@ -238,6 +238,76 @@ describe('worker agent cycle runner', () => {
     expect(result.dispatchResult?.commands.map((command) => command.type)).toEqual(['AgentStudy']);
   });
 
+  test('records all-rejected action synthesis cycles without dispatching commands', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActionIds: string[] = [];
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-action-synthesis-blocked',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=0 satiety=80 health=100 education=10',
+      plan: createStudyPlan(),
+      signals: [],
+      actionSynthesis: { budget: { energyBudget: 0 } },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-action-synthesis-blocked',
+      commandIdPrefix: 'cycle-action-synthesis-blocked-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-expensive',
+          description: 'study with high energy cost',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+          priority: 3,
+          resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+        }),
+      ],
+      simulate: ({ action }) => {
+        simulatedActionIds.push(action.id);
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActionIds).toEqual([]);
+    expect(result.cycleResult.needsReplan).toBe(true);
+    expect(result.dispatchResult).toBeUndefined();
+    expect(result.events).toEqual([]);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(0);
+    expect(result.trace).toMatchObject({
+      traceId: 'cycle-action-synthesis-blocked',
+      actionSynthesis: {
+        acceptedActions: [],
+        rejectedActions: [
+          {
+            action: {
+              id: 'study-expensive',
+              description: 'study with high energy cost',
+              commandType: 'AgentStudy',
+              priority: 3,
+              resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+            },
+            reason: 'energy budget exceeded',
+          },
+        ],
+      },
+      candidateActions: [],
+      simulatorResult: {
+        status: 'rejected',
+        reason: 'action synthesis rejected action: energy budget exceeded',
+      },
+      emittedCommandIds: [],
+      memoryWriteIds: [],
+    });
+  });
+
   test('replays idempotent event appends without duplicating STM repository writes', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

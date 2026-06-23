@@ -109,6 +109,9 @@ importers:
 
   packages/society:
     dependencies:
+      '@aivilization/content':
+        specifier: workspace:*
+        version: link:../content
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core

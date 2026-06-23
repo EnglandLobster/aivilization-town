@@ -11,6 +11,7 @@ describe('intention influence scoring', () => {
         intentionState: {
           agentId,
           updatedAt: 20,
+          completedObjectives: [],
           activeObjective: {
             id: 'objective-study',
             agentId,
@@ -72,6 +73,7 @@ describe('intention influence scoring', () => {
         intentionState: {
           agentId,
           updatedAt: 20,
+          completedObjectives: [],
           scheduledIntentions: [
             {
               id: 'old-study',
@@ -113,6 +115,7 @@ describe('intention influence scoring', () => {
         intentionState: {
           agentId,
           updatedAt: 20,
+          completedObjectives: [],
           activeObjective: {
             id: 'objective-b',
             agentId,

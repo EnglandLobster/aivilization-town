@@ -1,6 +1,7 @@
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
+  completeLongHorizonObjective,
   createEmptyAgentIntentionState,
   selectActiveScheduledIntentions,
   setLongHorizonObjective,
@@ -14,6 +15,7 @@ describe('agent intention state', () => {
     expect(createEmptyAgentIntentionState(asAgentId('agent-1'))).toEqual({
       agentId: 'agent-1',
       updatedAt: 0,
+      completedObjectives: [],
       scheduledIntentions: [],
     });
   });
@@ -35,8 +37,107 @@ describe('agent intention state', () => {
       agentId: 'agent-1',
       activeObjective: objective,
       updatedAt: 20,
+      completedObjectives: [],
       scheduledIntentions: [],
     });
+  });
+
+  test('completes the active objective and objective-linked scheduled intentions', () => {
+    const agentId = asAgentId('agent-1');
+    const objective: LongHorizonObjective = {
+      id: 'objective-study',
+      agentId,
+      statement: 'Study before taking advanced production work.',
+      priority: 2,
+      source: 'human',
+      affinityTags: ['study', 'education'],
+      createdAt: 10,
+      updatedAt: 20,
+    };
+    const state = upsertScheduledIntentions(
+      setLongHorizonObjective(createEmptyAgentIntentionState(agentId), objective),
+      [
+        {
+          id: 'study-block',
+          agentId,
+          objectiveId: 'objective-study',
+          description: 'Study toward the objective.',
+          priority: 2,
+          startsAt: 100,
+          endsAt: 200,
+          status: 'active',
+          affinityTags: ['study'],
+          createdAt: 30,
+          updatedAt: 30,
+        },
+        {
+          id: 'work-block',
+          agentId,
+          objectiveId: 'objective-work',
+          description: 'Unrelated work.',
+          priority: 1,
+          startsAt: 200,
+          endsAt: 260,
+          status: 'planned',
+          affinityTags: ['work'],
+          createdAt: 30,
+          updatedAt: 30,
+        },
+      ],
+    );
+
+    const completed = completeLongHorizonObjective(state, {
+      objectiveId: 'objective-study',
+      completedAt: 300,
+      reason: 'plan-completed',
+      planId: 'objective-study',
+    });
+
+    expect(completed.activeObjective).toBeUndefined();
+    expect(completed.completedObjectives).toEqual([
+      {
+        objective,
+        completedAt: 300,
+        reason: 'plan-completed',
+        planId: 'objective-study',
+      },
+    ]);
+    expect(completed.scheduledIntentions).toEqual([
+      {
+        id: 'study-block',
+        agentId,
+        objectiveId: 'objective-study',
+        description: 'Study toward the objective.',
+        priority: 2,
+        startsAt: 100,
+        endsAt: 200,
+        status: 'completed',
+        affinityTags: ['study'],
+        createdAt: 30,
+        updatedAt: 300,
+      },
+      {
+        id: 'work-block',
+        agentId,
+        objectiveId: 'objective-work',
+        description: 'Unrelated work.',
+        priority: 1,
+        startsAt: 200,
+        endsAt: 260,
+        status: 'planned',
+        affinityTags: ['work'],
+        createdAt: 30,
+        updatedAt: 30,
+      },
+    ]);
+    expect(completed.updatedAt).toBe(300);
+    expect(() =>
+      completeLongHorizonObjective(completed, {
+        objectiveId: 'objective-study',
+        completedAt: 400,
+        reason: 'plan-completed',
+      }),
+    ).toThrow('active objective objective-study is required before completion');
   });
 
   test('upserts and sorts scheduled intentions deterministically', () => {

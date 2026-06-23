@@ -49,7 +49,7 @@ It does not generate replacement objectives, delete plan records, or write world
 - Create: `apps/worker/src/objectiveLifecycle.test.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.test.ts`
 
-- [ ] **Step 1: Write failing tests for objective completion lifecycle**
+- [x] **Step 1: Write failing tests for objective completion lifecycle**
 
 Add tests that require:
 
@@ -67,6 +67,14 @@ pnpm test -- packages/memory/src/intentions.test.ts packages/memory/src/intentio
 
 Expected before implementation: tests fail because objective completion records, repository completion methods, and worker lifecycle finalizer do not exist.
 
+Observed red failures:
+
+- `completeLongHorizonObjective` was not exported.
+- `completeObjective` was missing from in-memory and file-backed intention repositories.
+- `completeFinishedActiveObjectives` was not exported.
+- Canonical active-plan ticks left completed objectives active after plan completion.
+- Existing empty intention states lacked `completedObjectives: []`.
+
 ## Task 2: Memory Domain And Repository Implementation
 
 **Files:**
@@ -75,7 +83,7 @@ Expected before implementation: tests fail because objective completion records,
 - Modify: `packages/memory/src/intentionRepository.ts`
 - Modify: `packages/memory/src/fileRepositories.ts`
 
-- [ ] **Step 2: Implement objective completion in memory**
+- [x] **Step 2: Implement objective completion in memory**
 
 Behavior:
 
@@ -100,7 +108,7 @@ Behavior:
 - Modify: `apps/worker/src/canonicalActivePlanTick.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 3: Implement lifecycle finalization after canonical ticks**
+- [x] **Step 3: Implement lifecycle finalization after canonical ticks**
 
 Behavior:
 
@@ -117,7 +125,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -131,3 +139,13 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm test -- packages/memory/src/intentions.test.ts packages/memory/src/intentionRepository.test.ts packages/memory/src/fileRepositories.test.ts apps/worker/src/objectiveLifecycle.test.ts apps/worker/src/canonicalActivePlanTick.test.ts`
+- `pnpm --filter @aivilization/memory test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm --filter @aivilization/memory typecheck`
+- `pnpm check`
+- `pnpm build`

@@ -459,6 +459,7 @@ describe('agent planning cycle', () => {
       intentionState: {
         agentId,
         updatedAt: 20,
+        completedObjectives: [],
         activeObjective: {
           id: 'objective-study',
           agentId,

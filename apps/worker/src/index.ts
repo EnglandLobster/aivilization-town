@@ -10,6 +10,7 @@ export * from './canonicalWorkerRuntimeResolver';
 export * from './domainRuntimeRegistry';
 export * from './localRuntimeStorage';
 export * from './memoryConsolidation';
+export * from './objectiveLifecycle';
 export * from './projectionHydration';
 export * from './steering';
 export * from './tickRunner';

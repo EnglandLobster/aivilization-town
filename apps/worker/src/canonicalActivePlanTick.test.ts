@@ -110,6 +110,16 @@ describe('canonical active-plan worker tick', () => {
       blockedSubtasks: [],
       updatedAt: 100,
     });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toEqual([
+      {
+        objective: createObjective(agentA),
+        completedAt: 100,
+        reason: 'plan-completed',
+        planId: 'objective-study',
+      },
+    ]);
   });
 
   test('skips completed active durable plans and advances time only', async () => {
@@ -146,6 +156,16 @@ describe('canonical active-plan worker tick', () => {
     expect(result.projection.clock.now).toBe(1000);
     expect(result.projection.agents[agentA]?.educationScore).toBe(0);
     expect(result.streamVersion).toBe(1);
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toEqual([
+      {
+        objective: createObjective(agentA),
+        completedAt: 300,
+        reason: 'plan-completed',
+        planId: 'objective-study',
+      },
+    ]);
   });
 
   test('hydrates projection before scheduling the next active-plan tick', async () => {

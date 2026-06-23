@@ -158,7 +158,7 @@ describe('world economy projection', () => {
 - Modify: `packages/world/src/agentActions.ts`
 - Modify: `packages/world/src/agentActions.test.ts`
 
-- [ ] Write failing tests for `AgentProduce` success and rejection:
+- [x] Write failing tests for `AgentProduce` success and rejection:
 
 ```ts
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
@@ -242,10 +242,10 @@ describe('agent produce command handling', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm produce APIs are missing.
-- [ ] Implement `assertAgentProducePayload` and `handleAgentProduceCommand`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add produce command handler"`.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm produce APIs are missing.
+- [x] Implement `assertAgentProducePayload` and `handleAgentProduceCommand`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add produce command handler"`.
 
 ### Task 3: Trade Command Handler And Dispatcher
 

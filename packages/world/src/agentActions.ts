@@ -1,4 +1,4 @@
-import { getInventoryQuantity } from '@aivilization/economy';
+import { getInventoryQuantity, planProduction } from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
   createEventEnvelope,
@@ -10,7 +10,12 @@ import {
   applyLaborPhysiologyCost,
   isIncapacitated,
 } from '@aivilization/society';
-import { assertAgentEatPayload, assertAgentStudyPayload, assertAgentWorkPayload } from './commands';
+import {
+  assertAgentEatPayload,
+  assertAgentProducePayload,
+  assertAgentStudyPayload,
+  assertAgentWorkPayload,
+} from './commands';
 import type { WorldEvent } from './events';
 import type { WorldProjection } from './projection';
 
@@ -235,6 +240,60 @@ export function handleAgentWorkCommand(input: {
         kind: 'habit',
         patternKey: `work:${payload.occupationName}`,
         statement: `Works as ${payload.occupationName} when conditions allow.`,
+      },
+    }),
+  ];
+}
+
+export function handleAgentProduceCommand(input: {
+  readonly command: CommandEnvelope<'AgentProduce', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentProducePayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentProduce', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  const productionPlan = planProduction({
+    commodityName: payload.commodityName,
+    quantity: payload.quantity,
+    agent: {
+      residentialTier: agent.residentialTier,
+      energy: agent.physiology.energy,
+      satiety: agent.physiology.satiety,
+      availableLaborSeconds: payload.availableLaborSeconds,
+      inventory: agent.inventory,
+    },
+  });
+
+  if (productionPlan.status === 'rejected') {
+    return rejectCommand(
+      input,
+      'AgentProduce',
+      `${productionPlan.reason}: ${productionPlan.detail}`,
+    );
+  }
+
+  return [
+    makeEvent(input, 0, 'CommodityProduced', {
+      agentId: agent.agentId,
+      produced: productionPlan.produced,
+      consumedInputs: productionPlan.consumedInputs,
+      energyCost: productionPlan.energyCost,
+      satietyCost: productionPlan.satietyCost,
+      laborSeconds: productionPlan.laborSeconds,
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Produced ${payload.quantity} ${payload.commodityName}.`,
+      status: 'succeeded',
+      tags: ['produce', payload.commodityName],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: `produce:${payload.commodityName}`,
+        statement: `Produces ${payload.commodityName} when resources are available.`,
       },
     }),
   ];

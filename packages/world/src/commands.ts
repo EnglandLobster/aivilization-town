@@ -13,6 +13,12 @@ export type AgentWorkPayload = {
   readonly laborSeconds: number;
 };
 
+export type AgentProducePayload = {
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly availableLaborSeconds: number;
+};
+
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentEat payload must be an object');
@@ -62,6 +68,26 @@ export function assertAgentWorkPayload(payload: unknown): AgentWorkPayload {
   };
 }
 
+export function assertAgentProducePayload(payload: unknown): AgentProducePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentProduce payload must be an object');
+  }
+  const commodityName = payload['commodityName'];
+  const quantity = payload['quantity'];
+  const availableLaborSeconds = payload['availableLaborSeconds'];
+  if (typeof commodityName !== 'string' || commodityName.trim().length === 0) {
+    throw new Error('AgentProduce commodityName must not be empty');
+  }
+  assertPositiveInteger(quantity, 'AgentProduce quantity');
+  assertNonNegativeFinite(availableLaborSeconds, 'AgentProduce availableLaborSeconds');
+
+  return {
+    commodityName,
+    quantity,
+    availableLaborSeconds,
+  };
+}
+
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -69,6 +95,12 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 function assertPositiveFinite(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     throw new Error(`${name} must be positive`);
+  }
+}
+
+function assertPositiveInteger(value: unknown, name: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
   }
 }
 

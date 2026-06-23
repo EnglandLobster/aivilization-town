@@ -198,7 +198,7 @@ describe('action simulator repair', () => {
 - Create: `packages/agent-runtime/src/cycle.test.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] Write failing tests for deterministic micro-planner selection and command drafts:
+- [x] Write failing tests for deterministic micro-planner selection and command drafts:
 
 ```ts
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
@@ -256,11 +256,11 @@ describe('agent planning cycle', () => {
 });
 ```
 
-- [ ] Add a test in the same file proving rejected and unrepaired actions produce no command drafts and set `needsReplan` to `true`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm cycle APIs are missing.
-- [ ] Implement `DomainMicroPlanner`, `CommandDraft`, `AgentCycleResult`, and `runAgentPlanningCycle`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test`, `pnpm --filter @aivilization/agent-runtime typecheck`, `pnpm check`, and `pnpm build`.
-- [ ] Commit with `git commit -m "feat: add agent planning cycle core"`.
+- [x] Add a test in the same file proving rejected and unrepaired actions produce no command drafts and set `needsReplan` to `true`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm cycle APIs are missing.
+- [x] Implement `DomainMicroPlanner`, `CommandDraft`, `AgentCycleResult`, and `runAgentPlanningCycle`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test`, `pnpm --filter @aivilization/agent-runtime typecheck`, `pnpm check`, and `pnpm build`.
+- [x] Commit with `git commit -m "feat: add agent planning cycle core"`.
 
 ## Self-Review
 

@@ -1,5 +1,6 @@
 export * from './consolidation';
 export * from './profile';
+export * from './profileRepository';
 export * from './records';
 export * from './repository';
 export * from './retrieval';

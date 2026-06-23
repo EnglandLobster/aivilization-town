@@ -1,0 +1,98 @@
+import { createCommandEnvelope } from '@aivilization/sim-core';
+import { describe, expect, test } from 'vitest';
+import {
+  applyWorldEvent,
+  assertAdvanceSimulationTimePayload,
+  createWorldProjection,
+  dispatchWorldCommand,
+  type WorldCommandPolicies,
+} from './index';
+
+const policies: WorldCommandPolicies = {
+  satietyRecoveryByCommodity: {},
+  maxSatiety: 100,
+  wageCalculator: () => 0,
+  laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+  criticalThresholds: { energy: 0, health: 0 },
+};
+
+describe('world simulation time', () => {
+  test('creates a server-authoritative default clock on the world projection', () => {
+    const projection = createWorldProjection({ agents: [] });
+
+    expect(projection.clock).toEqual({ now: 0, tickDurationMs: 1000 });
+  });
+
+  test('allows simulations to seed the world projection clock', () => {
+    const projection = createWorldProjection({
+      agents: [],
+      clock: { now: 1000, tickDurationMs: 250 },
+    });
+
+    expect(projection.clock).toEqual({ now: 1000, tickDurationMs: 250 });
+  });
+
+  test('dispatches AdvanceSimulationTime into a replayable SimulationTimeAdvanced event', () => {
+    const projection = createWorldProjection({
+      agents: [],
+      clock: { now: 1000, tickDurationMs: 250 },
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-time-1',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 250 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies,
+      nextSequence: 7,
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      id: 'command-time-1:event:0',
+      commandId: 'command-time-1',
+      type: 'SimulationTimeAdvanced',
+      payload: {
+        previous: { now: 1000, tickDurationMs: 250 },
+        next: { now: 1250, tickDurationMs: 250 },
+        deltaMs: 250,
+      },
+      occurredAt: 1000,
+      sequence: 7,
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.clock).toEqual({ now: 1250, tickDurationMs: 250 });
+    expect(updated.agents).toEqual(projection.agents);
+    expect(updated.rejectedActions).toEqual([]);
+  });
+
+  test('rejects invalid AdvanceSimulationTime payloads before mutating projection time', () => {
+    expect(() => assertAdvanceSimulationTimePayload({ deltaMs: -1 })).toThrow(
+      /AdvanceSimulationTime deltaMs/,
+    );
+
+    const projection = createWorldProjection({ agents: [] });
+    expect(() =>
+      dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: 'command-time-invalid',
+          simulationId: 'sim-1',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: Number.POSITIVE_INFINITY },
+          issuedAt: 0,
+        }),
+        projection,
+        policies,
+        nextSequence: 1,
+      }),
+    ).toThrow(/AdvanceSimulationTime deltaMs/);
+    expect(projection.clock).toEqual({ now: 0, tickDurationMs: 1000 });
+  });
+});

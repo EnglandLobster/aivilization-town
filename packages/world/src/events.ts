@@ -1,6 +1,11 @@
 import type { AmmPool, Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
-import type { AgentId, CoreCommandType, EventEnvelope } from '@aivilization/sim-core';
+import type {
+  AgentId,
+  CoreCommandType,
+  EventEnvelope,
+  SimulationClock,
+} from '@aivilization/sim-core';
 import type { PhysiologicalState, SocialRelationState } from '@aivilization/society';
 
 export type InventoryChangedPayload = {
@@ -81,6 +86,12 @@ export type ShortTermMemoryRecordedPayload = {
   readonly record: ShortTermMemoryRecord;
 };
 
+export type SimulationTimeAdvancedPayload = {
+  readonly previous: SimulationClock;
+  readonly next: SimulationClock;
+  readonly deltaMs: number;
+};
+
 export type WorldEventPayloadByType = {
   readonly CommodityProduced: CommodityProducedPayload;
   readonly TradeExecuted: TradeExecutedPayload;
@@ -93,6 +104,7 @@ export type WorldEventPayloadByType = {
   readonly WagePaid: WagePaidPayload;
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
+  readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;
 };
 
 export type WorldEventType = keyof WorldEventPayloadByType;

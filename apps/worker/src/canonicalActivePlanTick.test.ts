@@ -9,6 +9,7 @@ import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  createShortTermMemoryRecord,
   type LongHorizonObjective,
 } from '@aivilization/memory';
 import {
@@ -121,6 +122,55 @@ describe('canonical active-plan worker tick', () => {
       plan: {
         objective: 'Improve education to qualify for better town opportunities.',
       },
+    });
+  });
+
+  test('passes memory context into objective renewal before canonical scheduling', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'memory-canonical-study',
+        agentId: agentA,
+        kind: 'observation',
+        status: 'observed',
+        summary: 'The school has a quiet study room available.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study', 'education'],
+      }),
+    );
+    const seenMemoryIds: string[][] = [];
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-from-memory',
+      simulationId,
+      issuedAt: 100,
+      projection: createWorldProjection({
+        agents: [createAgent(agentA)],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      objectiveMemoryRetrievalLimit: 1,
+      objectiveProposer: (input) => {
+        const memoryContext = input.shortTermMemoryContext;
+        seenMemoryIds.push(memoryContext.map((record) => record.id));
+        if (!memoryContext.some((record) => record.id === 'memory-canonical-study')) {
+          return undefined;
+        }
+
+        return createObjective(input.agentId);
+      },
+      ...repositories,
+    });
+
+    expect(seenMemoryIds).toEqual([['memory-canonical-study']]);
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentStudy',
     });
   });
 

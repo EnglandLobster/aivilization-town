@@ -2,7 +2,10 @@ import { InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
+  InMemoryShortTermMemoryRepository,
+  createShortTermMemoryRecord,
   type LongHorizonObjective,
+  type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
@@ -27,14 +30,8 @@ describe('worker objective renewal', () => {
           scheduledIntentions: [],
           updatedAt: 0,
         },
-        longTermProfile: {
-          agentId: agentA,
-          beliefs: [],
-          habits: [],
-          values: [],
-          personality: [],
-          socialRecords: [],
-        },
+        longTermProfile: createProfile(agentA),
+        shortTermMemoryContext: [],
         issuedAt: 100,
       }),
     ).toEqual({
@@ -52,6 +49,7 @@ describe('worker objective renewal', () => {
   test('renews missing active objectives and saves durable branch plans', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const planRepository = new InMemoryBranchPlanRepository();
     const projection = createProjection([
       createAgent({ agentId: agentA, educationScore: 12 }),
@@ -65,6 +63,7 @@ describe('worker objective renewal', () => {
         projection,
         intentionRepository,
         longTermProfileRepository,
+        shortTermMemoryRepository,
         planRepository,
         issuedAt: 100,
       }),
@@ -98,6 +97,172 @@ describe('worker objective renewal', () => {
     await expect(intentionRepository.getOrCreate(agentB)).resolves.toMatchObject({
       activeObjective: existingObjective,
     });
+  });
+
+  test('uses recent failed memories to recover before pursuing education growth', () => {
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+
+    const objective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [
+        createMemory({
+          id: 'memory-work-failed',
+          agentId: agentA,
+          status: 'failed',
+          summary: 'Work failed because the agent was too tired and low on energy.',
+          tags: ['work', 'failed', 'energy'],
+          importanceScore: 0.95,
+        }),
+      ],
+      issuedAt: 100,
+    });
+
+    expect(objective).toMatchObject({
+      id: 'auto-objective-agent-a-100',
+      agentId: agentA,
+      statement: 'Recover from recent setbacks before pursuing new growth.',
+      priority: 3,
+      source: 'agent',
+      affinityTags: ['recover', 'maintain', 'health', 'energy'],
+    });
+  });
+
+  test('can choose a profile-aligned routine when no urgent pressure exists', () => {
+    const projection = createProjection([
+      createAgent({
+        agentId: agentA,
+        educationScore: 150,
+        balance: 200,
+      }),
+    ]);
+
+    const objective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA, {
+        habits: [
+          {
+            key: 'creative-routine',
+            statement: 'Keeps a creative studio routine after basic needs are stable.',
+            confidence: 0.9,
+            updatedAt: 80,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+
+    expect(objective).toMatchObject({
+      id: 'auto-objective-agent-a-100',
+      agentId: agentA,
+      statement: 'Maintain a creative routine aligned with long-term profile.',
+      priority: 1,
+      source: 'agent',
+      affinityTags: ['maintain', 'routine', 'profile', 'creative'],
+    });
+  });
+
+  test('does not immediately repeat a just-completed objective when another candidate is viable', () => {
+    const projection = createProjection([
+      createAgent({
+        agentId: agentA,
+        educationScore: 12,
+        balance: 20,
+      }),
+    ]);
+    const completedStudyObjective: LongHorizonObjective = {
+      id: 'completed-study',
+      agentId: agentA,
+      statement: 'Improve education to qualify for better town opportunities.',
+      priority: 2,
+      source: 'agent',
+      affinityTags: ['study', 'education'],
+      createdAt: 50,
+      updatedAt: 50,
+    };
+
+    const objective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [
+          {
+            objective: completedStudyObjective,
+            completedAt: 90,
+            reason: 'plan-completed',
+            planId: completedStudyObjective.id,
+          },
+        ],
+        scheduledIntentions: [],
+        updatedAt: 90,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+
+    expect(objective).toMatchObject({
+      id: 'auto-objective-agent-a-100',
+      agentId: agentA,
+      statement: 'Earn enough money to stay economically stable.',
+      priority: 2,
+      source: 'agent',
+      affinityTags: ['work', 'income'],
+    });
+  });
+
+  test('passes retrieved short-term memory context to custom objective proposers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+    await shortTermMemoryRepository.append(
+      createMemory({
+        id: 'memory-study-observed',
+        agentId: agentA,
+        status: 'observed',
+        summary: 'The agent noticed the school was open and easy to reach.',
+        tags: ['study', 'education'],
+        importanceScore: 0.8,
+      }),
+    );
+    const seenMemoryIds: string[][] = [];
+
+    await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 100,
+      objectiveProposer: (input) => {
+        seenMemoryIds.push(input.shortTermMemoryContext.map((record) => record.id));
+        return createObjective(input.agentId, 'objective-from-custom-proposer');
+      },
+    });
+
+    expect(seenMemoryIds).toEqual([['memory-study-observed']]);
   });
 });
 
@@ -139,4 +304,40 @@ function createObjective(agentId: AgentId, id: string): LongHorizonObjective {
     createdAt: 50,
     updatedAt: 50,
   };
+}
+
+function createProfile(
+  agentId: AgentId,
+  partial: Partial<Omit<LongTermAgentProfile, 'agentId'>> = {},
+): LongTermAgentProfile {
+  return {
+    agentId,
+    beliefs: [],
+    habits: [],
+    values: [],
+    personality: [],
+    socialRecords: [],
+    ...partial,
+  };
+}
+
+function createMemory(input: {
+  readonly id: string;
+  readonly agentId: AgentId;
+  readonly status: 'succeeded' | 'failed' | 'repaired' | 'observed';
+  readonly summary: string;
+  readonly tags: readonly string[];
+  readonly importanceScore: number;
+}) {
+  return createShortTermMemoryRecord({
+    id: input.id,
+    agentId: input.agentId,
+    kind: 'action',
+    status: input.status,
+    summary: input.summary,
+    occurredAt: 90,
+    importanceScore: input.importanceScore,
+    source: { eventIds: [] },
+    tags: input.tags,
+  });
 }

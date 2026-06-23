@@ -33,6 +33,7 @@ merged.
 - Create `package.json`: root scripts and dev dependencies.
 - Create `pnpm-workspace.yaml`: workspace package discovery.
 - Create `tsconfig.base.json`: shared TypeScript defaults.
+- Create `tsconfig.eslint.json`: root files and workspace globs for type-aware linting.
 - Create `.prettierrc.json`: formatting contract.
 - Create `eslint.config.js`: linting contract.
 - Create `vitest.workspace.ts`: test workspace.
@@ -65,6 +66,7 @@ merged.
 - Create: `package.json`
 - Create: `pnpm-workspace.yaml`
 - Create: `tsconfig.base.json`
+- Create: `tsconfig.eslint.json`
 - Create: `.prettierrc.json`
 - Create: `eslint.config.js`
 - Create: `vitest.workspace.ts`
@@ -132,6 +134,20 @@ Create `tsconfig.base.json`:
 }
 ```
 
+Create `tsconfig.eslint.json`:
+
+```json
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": ["eslint.config.js", "vitest.workspace.ts", "apps/**/*.ts", "packages/**/*.ts"]
+}
+```
+
 Create `.prettierrc.json`:
 
 ```json
@@ -154,7 +170,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.eslint.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -204,7 +220,7 @@ Expected: FAIL because workspace packages have not been created.
 Run:
 
 ```bash
-git add package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json .prettierrc.json eslint.config.js vitest.workspace.ts
+git add package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json eslint.config.js vitest.workspace.ts
 git commit -m "chore: add workspace tooling"
 ```
 
@@ -1358,7 +1374,7 @@ Expected:
 Run:
 
 ```bash
-git add README.md package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json .prettierrc.json eslint.config.js vitest.workspace.ts apps packages
+git add README.md package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json eslint.config.js vitest.workspace.ts apps packages
 git commit -m "docs: document workspace verification"
 ```
 

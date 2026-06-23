@@ -1,5 +1,5 @@
 import type { AgentId, CommandSource, CoreCommandType, SimulationId } from '@aivilization/sim-core';
-import type { LongTermAgentProfile } from '@aivilization/memory';
+import type { AgentIntentionState, LongTermAgentProfile } from '@aivilization/memory';
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
@@ -9,6 +9,7 @@ import type {
 import { simulateActionWithRepair } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import { selectPrioritizedSubtask } from './planner';
+import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 
 export type DomainMicroPlanner = {
@@ -51,6 +52,7 @@ export function runAgentPlanningCycle(input: {
   readonly issuedAt: number;
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly intentionState?: AgentIntentionState;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
@@ -59,6 +61,15 @@ export function runAgentPlanningCycle(input: {
   const selectedSubtask = selectPrioritizedSubtask({
     plan: input.plan,
     signals: input.signals,
+    ...(input.intentionState === undefined
+      ? {}
+      : {
+          intentionInfluence: buildIntentionInfluenceBySubtask(
+            input.plan,
+            input.intentionState,
+            input.issuedAt,
+          ),
+        }),
     ...(input.longTermProfile === undefined
       ? {}
       : { profileInfluence: buildProfileInfluenceBySubtask(input.plan, input.longTermProfile) }),
@@ -93,6 +104,25 @@ export function runAgentPlanningCycle(input: {
     ),
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function buildIntentionInfluenceBySubtask(
+  plan: BranchPlan,
+  intentionState: AgentIntentionState,
+  at: number,
+): Readonly<Record<string, IntentionInfluenceScore>> {
+  return Object.fromEntries(
+    plan.branches.flatMap((branch) =>
+      branch.subtasks.map((subtask) => [
+        subtask.id,
+        scoreIntentionInfluence({
+          intentionState,
+          affinityTags: subtask.intentionAffinityTags ?? [],
+          at,
+        }),
+      ]),
+    ),
+  );
 }
 
 function buildProfileInfluenceBySubtask(

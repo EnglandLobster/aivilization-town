@@ -183,4 +183,75 @@ describe('agent planning cycle', () => {
     });
     expect(result.commandDrafts[0]?.type).toBe('AgentStudy');
   });
+
+  test('uses intention state during subtask selection', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'follow strategic steering',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 4 }],
+        },
+        {
+          id: 'development',
+          objective: 'study',
+          subtasks: [
+            {
+              id: 'study',
+              description: 'study now',
+              basePriority: 1,
+              intentionAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 150,
+      plan,
+      signals: [],
+      intentionState: {
+        agentId,
+        updatedAt: 20,
+        activeObjective: {
+          id: 'objective-study',
+          agentId,
+          statement: 'Study before production.',
+          priority: 2,
+          source: 'human',
+          affinityTags: ['study'],
+          createdAt: 10,
+          updatedAt: 20,
+        },
+        scheduledIntentions: [],
+      },
+      microPlanners: [
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'self study',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.selectedSubtask).toMatchObject({
+      branchId: 'development',
+      subtaskId: 'study',
+      score: 5,
+    });
+    expect(result.commandDrafts[0]?.type).toBe('AgentStudy');
+  });
 });

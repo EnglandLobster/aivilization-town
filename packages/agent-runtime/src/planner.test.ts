@@ -113,4 +113,39 @@ describe('branch-thinking planner', () => {
       score: 5,
     });
   });
+
+  test('adds intention influence when selecting prioritized subtasks', () => {
+    const plan = createBranchPlan({
+      objective: 'follow long-term goal',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 4 }],
+        },
+        {
+          id: 'development',
+          objective: 'study',
+          subtasks: [
+            {
+              id: 'study',
+              description: 'study now',
+              basePriority: 2,
+              intentionAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      selectPrioritizedSubtask({
+        plan,
+        signals: [],
+        intentionInfluence: {
+          study: { score: 3, matches: [] },
+        },
+      }),
+    ).toMatchObject({ branchId: 'development', subtaskId: 'study', score: 5 });
+  });
 });

@@ -148,19 +148,30 @@ describe('worker tick runner', () => {
 
     expect(result.agentResults).toHaveLength(2);
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
-      [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
-      [3, 'EducationChanged'],
-      [4, 'ShortTermMemoryRecorded'],
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'EducationChanged'],
+      [3, 'ShortTermMemoryRecorded'],
+      [4, 'EducationChanged'],
+      [5, 'ShortTermMemoryRecorded'],
     ]);
+    expect(result.events[0]).toMatchObject({
+      id: 'tick-1-advance-time:event:0',
+      commandId: 'tick-1-advance-time',
+      payload: {
+        previous: { now: 0, tickDurationMs: 1000 },
+        next: { now: 1000, tickDurationMs: 1000 },
+        deltaMs: 1000,
+      },
+    });
+    expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
-    expect(result.streamVersion).toBe(4);
+    expect(result.streamVersion).toBe(5);
     expect(result.traces.map((trace) => trace.traceId)).toEqual([
       'tick-1:cycle:1:agent-1',
       'tick-1:cycle:2:agent-2',
     ]);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
   });
 
   test('replays a whole tick idempotently from the same starting expected version', async () => {
@@ -185,7 +196,13 @@ describe('worker tick runner', () => {
     expect(
       replay.agentResults.map((result) => result.dispatchResult?.appendResult.idempotentReplay),
     ).toEqual([true, true]);
-    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(4);
+    expect(eventStore.readStream(partition.eventStreamName).map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
     await expect(
       repositories.shortTermMemoryRepository.retrieve({
         agentId: agentOne,
@@ -234,10 +251,15 @@ describe('worker tick runner', () => {
 
     expect(result.agentResults[0]?.dispatchResult).toBeUndefined();
     expect(result.agentResults[0]?.cycleResult.needsReplan).toBe(true);
-    expect(result.events.map((event) => event.sequence)).toEqual([1, 2]);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'EducationChanged'],
+      [3, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(result.projection.agents['agent-1']?.educationScore).toBe(10);
     expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
-    expect(result.streamVersion).toBe(2);
+    expect(result.streamVersion).toBe(3);
     expect(result.traces.map((trace) => trace.simulatorResult.status)).toEqual([
       'rejected',
       'accepted',

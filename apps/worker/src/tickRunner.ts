@@ -9,13 +9,20 @@ import type {
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
 import type { AgentCycleTrace } from '@aivilization/observability';
-import type { AgentId, EventStore, EventStreamName, SimulationId } from '@aivilization/sim-core';
+import {
+  createCommandEnvelope,
+  type AgentId,
+  type EventStore,
+  type EventStreamName,
+  type SimulationId,
+} from '@aivilization/sim-core';
 import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
 import {
   runWorkerAgentCycle,
   type WorkerAgentCycleResult,
   type WorkerAgentCycleTraceSink,
 } from './agentCycleRunner';
+import { dispatchWorldCommandToEventStream } from './commandDispatch';
 
 export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
@@ -50,6 +57,7 @@ export async function runWorkerSimulationTick(input: {
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly agents: readonly WorkerTickAgentInput[];
+  readonly timeDeltaMs?: number;
   readonly expectedVersion?: number;
   readonly traceSink?: WorkerAgentCycleTraceSink;
 }): Promise<WorkerTickResult> {
@@ -61,6 +69,24 @@ export async function runWorkerSimulationTick(input: {
   let projection = input.projection;
   let expectedVersion =
     input.expectedVersion ?? input.eventStore.getStreamVersion(input.streamName);
+  const timeAdvanceResult = dispatchWorldCommandToEventStream({
+    command: createCommandEnvelope({
+      id: `${input.tickId}-advance-time`,
+      simulationId: input.simulationId,
+      source: 'system',
+      type: 'AdvanceSimulationTime',
+      payload: { deltaMs: input.timeDeltaMs ?? projection.clock.tickDurationMs },
+      issuedAt: input.issuedAt,
+    }),
+    projection,
+    policies: input.policies,
+    eventStore: input.eventStore,
+    streamName: input.streamName,
+    appendIdempotencyKey: `${input.tickId}:append:time`,
+    expectedVersion,
+  });
+  projection = timeAdvanceResult.projection;
+  expectedVersion = timeAdvanceResult.appendResult.streamVersion;
   const agentResults: WorkerAgentCycleResult[] = [];
 
   for (const [index, agent] of input.agents.entries()) {
@@ -93,12 +119,14 @@ export async function runWorkerSimulationTick(input: {
     expectedVersion = cycleResult.dispatchResult?.appendResult.streamVersion ?? expectedVersion;
   }
 
+  const agentEvents = agentResults.flatMap((result) => result.events);
+
   return {
     tickId: input.tickId,
     simulationId: input.simulationId,
     issuedAt: input.issuedAt,
     agentResults,
-    events: agentResults.flatMap((result) => result.events),
+    events: [...timeAdvanceResult.events, ...agentEvents],
     projection,
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,

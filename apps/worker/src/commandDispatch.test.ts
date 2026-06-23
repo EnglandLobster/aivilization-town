@@ -4,6 +4,7 @@ import {
   InMemoryEventStore,
   asAgentId,
   asSimulationId,
+  createCommandEnvelope,
   createSimulationPartition,
 } from '@aivilization/sim-core';
 import {
@@ -16,6 +17,7 @@ import {
   createCommandEnvelopeFromDraft,
   dispatchCommandDraftsToWorld,
   dispatchCommandDraftsToWorldEventStream,
+  dispatchWorldCommandToEventStream,
 } from './index';
 
 const policies: WorldCommandPolicies = {
@@ -190,6 +192,45 @@ describe('worker command dispatch seam', () => {
       'draft-command-1:event:1',
     ]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+  });
+
+  test('appends pre-built system world commands to the target event stream idempotently', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const projection = createWorldProjection({
+      agents: [],
+      clock: { now: 1000, tickDurationMs: 250 },
+    });
+    const input = {
+      command: createCommandEnvelope({
+        id: 'advance-time',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 250 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'time-append',
+    } satisfies Parameters<typeof dispatchWorldCommandToEventStream>[0];
+
+    const result = dispatchWorldCommandToEventStream(input);
+    const replay = dispatchWorldCommandToEventStream(input);
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+    ]);
+    expect(result.projection.clock).toEqual({ now: 1250, tickDurationMs: 250 });
+    expect(result.appendResult).toMatchObject({
+      streamVersion: 1,
+      idempotentReplay: false,
+    });
+    expect(replay.appendResult.idempotentReplay).toBe(true);
+    expect(replay.projection.clock).toEqual({ now: 1250, tickDurationMs: 250 });
+    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(1);
   });
 
   test('derives event sequence numbers from the current event stream version when expectedVersion is omitted', () => {

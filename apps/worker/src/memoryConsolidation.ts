@@ -24,6 +24,19 @@ export type WorkerMemoryConsolidationResult = {
   readonly profile: LongTermAgentProfile;
 };
 
+export type WorkerMemoryConsolidationBatchInput = Omit<
+  WorkerMemoryConsolidationInput,
+  'agentId'
+> & {
+  readonly agentIds: readonly AgentId[];
+};
+
+export type WorkerMemoryConsolidationBatchResult = {
+  readonly agentIds: readonly AgentId[];
+  readonly results: readonly WorkerMemoryConsolidationResult[];
+  readonly patchCount: number;
+};
+
 export async function runWorkerMemoryConsolidation(
   input: WorkerMemoryConsolidationInput,
 ): Promise<WorkerMemoryConsolidationResult> {
@@ -48,4 +61,33 @@ export async function runWorkerMemoryConsolidation(
     patches,
     profile,
   };
+}
+
+export async function runWorkerMemoryConsolidationBatch(
+  input: WorkerMemoryConsolidationBatchInput,
+): Promise<WorkerMemoryConsolidationBatchResult> {
+  const agentIds = dedupeAgentIds(input.agentIds);
+  const results: WorkerMemoryConsolidationResult[] = [];
+  for (const agentId of agentIds) {
+    results.push(
+      await runWorkerMemoryConsolidation({
+        agentId,
+        shortTermMemoryRepository: input.shortTermMemoryRepository,
+        longTermProfileRepository: input.longTermProfileRepository,
+        retrievalLimit: input.retrievalLimit,
+        minPatternCount: input.minPatternCount,
+        proposedAt: input.proposedAt,
+      }),
+    );
+  }
+
+  return {
+    agentIds,
+    results,
+    patchCount: results.reduce((count, result) => count + result.patches.length, 0),
+  };
+}
+
+function dedupeAgentIds(agentIds: readonly AgentId[]): readonly AgentId[] {
+  return [...new Set(agentIds)];
 }

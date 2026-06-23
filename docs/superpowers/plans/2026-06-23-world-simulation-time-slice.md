@@ -37,7 +37,7 @@ It does not implement durable schedulers, wall-clock loops, distributed locks, t
 
 - Add: `packages/world/src/simulationTime.test.ts`
 
-- [ ] **Step 1: Write failing tests for world time advancement**
+- [x] **Step 1: Write failing tests for world time advancement**
 
 Test the desired contract before implementation:
 
@@ -54,7 +54,7 @@ Test the desired contract before implementation:
 - Modify: `packages/world/src/commands.ts`
 - Modify: `packages/world/src/events.ts`
 
-- [ ] **Step 2: Add explicit world payload types**
+- [x] **Step 2: Add explicit world payload types**
 
 Add `AdvanceSimulationTimePayload` and `assertAdvanceSimulationTimePayload` beside the other world command payload contracts. Add `SimulationTimeAdvancedPayload` to `WorldEventPayloadByType` with enough data to audit the transition:
 
@@ -68,7 +68,7 @@ Add `AdvanceSimulationTimePayload` and `assertAdvanceSimulationTimePayload` besi
 
 - Modify: `packages/world/src/projection.ts`
 
-- [ ] **Step 3: Make the world projection time-aware**
+- [x] **Step 3: Make the world projection time-aware**
 
 Add a `clock: SimulationClock` field to `WorldProjection`, default it in `createWorldProjection`, and update it in `applyWorldEvent` for `SimulationTimeAdvanced`.
 
@@ -78,7 +78,7 @@ Add a `clock: SimulationClock` field to `WorldProjection`, default it in `create
 
 - Modify: `packages/world/src/agentActions.ts`
 
-- [ ] **Step 4: Route AdvanceSimulationTime through the world dispatcher**
+- [x] **Step 4: Route AdvanceSimulationTime through the world dispatcher**
 
 Add a system-command handler that validates payload, advances the projection clock via `advanceClock`, and emits the `SimulationTimeAdvanced` event. This command has no actor and must not go through agent rejection or memory recording.
 
@@ -88,7 +88,7 @@ Add a system-command handler that validates payload, advances the projection clo
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -100,3 +100,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+## Verification Results
+
+- `pnpm --filter @aivilization/world test` passed.
+- `pnpm --filter @aivilization/world typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

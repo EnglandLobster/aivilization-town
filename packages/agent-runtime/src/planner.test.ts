@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   createBranchPlan,
   createBranchPlanProgress,
+  hasSelectableSubtasks,
   markSubtaskCompleted,
   selectPrioritizedSubtask,
 } from './index';
@@ -206,6 +207,44 @@ describe('branch-thinking planner', () => {
       description: 'craft copper ingot',
       score: 10,
     });
+  });
+
+  test('reports whether progress leaves any selectable subtasks', () => {
+    const plan = createBranchPlan({
+      objective: 'produce copper ingot',
+      branches: [
+        {
+          id: 'production',
+          objective: 'craft components',
+          subtasks: [
+            { id: 'gather-ore', description: 'gather copper ore', basePriority: 2 },
+            {
+              id: 'craft-ingot',
+              description: 'craft copper ingot',
+              basePriority: 10,
+              dependsOnSubtaskIds: ['gather-ore'],
+            },
+          ],
+        },
+      ],
+    });
+    const initial = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId: asAgentId('agent-1'),
+      createdAt: 100,
+    });
+    const gathered = markSubtaskCompleted(initial, {
+      subtaskId: 'gather-ore',
+      completedAt: 200,
+    });
+    const completed = markSubtaskCompleted(gathered, {
+      subtaskId: 'craft-ingot',
+      completedAt: 300,
+    });
+
+    expect(hasSelectableSubtasks({ plan, progress: initial })).toBe(true);
+    expect(hasSelectableSubtasks({ plan, progress: gathered })).toBe(true);
+    expect(hasSelectableSubtasks({ plan, progress: completed })).toBe(false);
   });
 
   test('rejects dependency ids outside the current branch or ahead in sequence', () => {

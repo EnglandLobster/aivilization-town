@@ -70,6 +70,9 @@ export async function runCanonicalWorkerActivePlanTick(
     projection,
     intentionRepository: input.intentionRepository,
     planRepository: input.planRepository,
+    ...(input.planProgressRepository === undefined
+      ? {}
+      : { planProgressRepository: input.planProgressRepository }),
     resolveRuntime: createCanonicalWorkerRuntimeResolver({
       simulationId: input.simulationId,
       policies: input.policies,

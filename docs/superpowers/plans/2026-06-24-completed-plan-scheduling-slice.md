@@ -47,7 +47,7 @@ It does not clear objectives, generate replacement plans, or choose a new long-h
 - Modify: `apps/worker/src/tickRunner.test.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.test.ts`
 
-- [ ] **Step 1: Write failing tests for completed-plan scheduling**
+- [x] **Step 1: Write failing tests for completed-plan scheduling**
 
 Add tests that require:
 
@@ -65,6 +65,14 @@ pnpm test -- packages/agent-runtime/src/planner.test.ts packages/agent-runtime/s
 
 Expected before implementation: tests fail because progress repositories lack read-only `get`, schedulers do not inspect progress, and worker ticks reject empty agent batches.
 
+Observed red failures:
+
+- `hasSelectableSubtasks` was not exported.
+- Progress repositories did not expose `get`.
+- Active-plan scheduling still resolved runtime for completed plans.
+- Worker and canonical ticks rejected empty agent batches.
+- Canonical completed-plan ticks reached `selectPrioritizedSubtask` and threw `branch plan produced no selectable subtasks`.
+
 ## Task 2: Implementation
 
 **Files:**
@@ -75,7 +83,7 @@ Expected before implementation: tests fail because progress repositories lack re
 - Modify: `apps/worker/src/tickRunner.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.ts`
 
-- [ ] **Step 2: Add completed-plan scheduling support**
+- [x] **Step 2: Add completed-plan scheduling support**
 
 Behavior:
 
@@ -93,7 +101,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -107,3 +115,12 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm test -- packages/agent-runtime/src/planner.test.ts packages/agent-runtime/src/planProgressRepository.test.ts apps/worker/src/agentScheduling.test.ts apps/worker/src/tickRunner.test.ts apps/worker/src/canonicalActivePlanTick.test.ts`
+- `pnpm --filter @aivilization/agent-runtime test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm check`
+- `pnpm build`

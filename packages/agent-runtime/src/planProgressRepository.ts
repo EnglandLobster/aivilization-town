@@ -4,6 +4,10 @@ import { join } from 'node:path';
 import { createBranchPlanProgress, type BranchPlanProgress } from './planProgress';
 
 export type BranchPlanProgressRepository = {
+  readonly get: (input: {
+    readonly planId: string;
+    readonly agentId: AgentId;
+  }) => Promise<BranchPlanProgress | undefined>;
   readonly getOrCreate: (input: {
     readonly planId: string;
     readonly agentId: AgentId;
@@ -15,20 +19,27 @@ export type BranchPlanProgressRepository = {
 export class InMemoryBranchPlanProgressRepository implements BranchPlanProgressRepository {
   private readonly progressByKey = new Map<string, BranchPlanProgress>();
 
-  getOrCreate(input: {
+  get(input: { readonly planId: string; readonly agentId: AgentId }): Promise<
+    BranchPlanProgress | undefined
+  > {
+    const existing = this.progressByKey.get(progressKey(input.planId, input.agentId));
+    return Promise.resolve(existing === undefined ? undefined : cloneProgress(existing));
+  }
+
+  async getOrCreate(input: {
     readonly planId: string;
     readonly agentId: AgentId;
     readonly createdAt: number;
   }): Promise<BranchPlanProgress> {
-    const key = progressKey(input.planId, input.agentId);
-    const existing = this.progressByKey.get(key);
+    const existing = await this.get(input);
     if (existing !== undefined) {
-      return Promise.resolve(cloneProgress(existing));
+      return existing;
     }
 
+    const key = progressKey(input.planId, input.agentId);
     const progress = createBranchPlanProgress(input);
     this.progressByKey.set(key, cloneProgress(progress));
-    return Promise.resolve(progress);
+    return progress;
   }
 
   save(progress: BranchPlanProgress): Promise<void> {
@@ -46,14 +57,21 @@ export class FileBranchPlanProgressRepository implements BranchPlanProgressRepos
     ensureFile(this.progressPath, input.rootDir);
   }
 
+  get(input: { readonly planId: string; readonly agentId: AgentId }): Promise<
+    BranchPlanProgress | undefined
+  > {
+    const existing = this.getLatestProgress(input.planId, input.agentId);
+    return Promise.resolve(existing === undefined ? undefined : cloneProgress(existing));
+  }
+
   async getOrCreate(input: {
     readonly planId: string;
     readonly agentId: AgentId;
     readonly createdAt: number;
   }): Promise<BranchPlanProgress> {
-    const existing = this.getLatestProgress(input.planId, input.agentId);
+    const existing = await this.get(input);
     if (existing !== undefined) {
-      return cloneProgress(existing);
+      return existing;
     }
 
     const progress = createBranchPlanProgress(input);

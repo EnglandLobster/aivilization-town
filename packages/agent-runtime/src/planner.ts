@@ -153,6 +153,14 @@ export function selectPrioritizedSubtask(input: {
   return selected;
 }
 
+export function hasSelectableSubtasks(input: {
+  readonly plan: BranchPlan;
+  readonly progress?: BranchPlanProgress;
+}): boolean {
+  const progressFilter = createProgressFilter(input.progress);
+  return input.plan.branches.some((branch) => branch.subtasks.some(progressFilter));
+}
+
 function assertDependenciesAppearEarlier(input: {
   readonly branchId: string;
   readonly subtaskId: string;

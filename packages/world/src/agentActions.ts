@@ -5,15 +5,63 @@ import {
   type CommandEnvelope,
   type CoreCommandType,
 } from '@aivilization/sim-core';
-import { accumulateEducation } from '@aivilization/society';
 import {
-  assertAgentEatPayload,
-  assertAgentStudyPayload,
-  type AgentEatPayload,
-  type AgentStudyPayload,
-} from './commands';
+  accumulateEducation,
+  applyLaborPhysiologyCost,
+  isIncapacitated,
+} from '@aivilization/society';
+import { assertAgentEatPayload, assertAgentStudyPayload, assertAgentWorkPayload } from './commands';
 import type { WorldEvent } from './events';
 import type { WorldProjection } from './projection';
+
+export type WorldCommandPolicies = {
+  readonly satietyRecoveryByCommodity: Readonly<Record<string, number>>;
+  readonly maxSatiety: number;
+  readonly wageCalculator: (occupationName: string) => number;
+  readonly laborCost: {
+    readonly energyCostPerHour: number;
+    readonly satietyCostPerHour: number;
+  };
+  readonly criticalThresholds: {
+    readonly energy: number;
+    readonly health: number;
+  };
+};
+
+export function dispatchWorldCommand(input: {
+  readonly command: CommandEnvelope<CoreCommandType, unknown>;
+  readonly projection: WorldProjection;
+  readonly policies: WorldCommandPolicies;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  switch (input.command.type) {
+    case 'AgentEat':
+      return handleAgentEatCommand({
+        command: input.command as CommandEnvelope<'AgentEat', unknown>,
+        projection: input.projection,
+        satietyRecoveryByCommodity: input.policies.satietyRecoveryByCommodity,
+        maxSatiety: input.policies.maxSatiety,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentStudy':
+      return handleAgentStudyCommand({
+        command: input.command as CommandEnvelope<'AgentStudy', unknown>,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentWork':
+      return handleAgentWorkCommand({
+        command: input.command as CommandEnvelope<'AgentWork', unknown>,
+        projection: input.projection,
+        wageCalculator: input.policies.wageCalculator,
+        laborCost: input.policies.laborCost,
+        criticalThresholds: input.policies.criticalThresholds,
+        nextSequence: input.nextSequence,
+      });
+    default:
+      throw new Error(`unsupported world command ${input.command.type}`);
+  }
+}
 
 export function handleAgentEatCommand(input: {
   readonly command: CommandEnvelope<'AgentEat', unknown>;
@@ -111,6 +159,82 @@ export function handleAgentStudyCommand(input: {
         kind: 'habit',
         patternKey: 'study',
         statement: 'Studies to improve education score.',
+      },
+    }),
+  ];
+}
+
+export function handleAgentWorkCommand(input: {
+  readonly command: CommandEnvelope<'AgentWork', unknown>;
+  readonly projection: WorldProjection;
+  readonly wageCalculator: (occupationName: string) => number;
+  readonly laborCost: {
+    readonly energyCostPerHour: number;
+    readonly satietyCostPerHour: number;
+  };
+  readonly criticalThresholds: {
+    readonly energy: number;
+    readonly health: number;
+  };
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentWorkPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentWork', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  if (agent.job !== payload.occupationName) {
+    return rejectCommand(
+      input,
+      'AgentWork',
+      `agent job ${agent.job ?? 'none'} does not match ${payload.occupationName}`,
+    );
+  }
+
+  if (
+    isIncapacitated({
+      energy: agent.physiology.energy,
+      health: agent.physiology.health,
+      energyCriticalThreshold: input.criticalThresholds.energy,
+      healthCriticalThreshold: input.criticalThresholds.health,
+    })
+  ) {
+    return rejectCommand(input, 'AgentWork', 'agent is incapacitated');
+  }
+
+  const wage = input.wageCalculator(payload.occupationName);
+  if (!Number.isFinite(wage) || wage < 0) {
+    return rejectCommand(input, 'AgentWork', 'wageCalculator must return a non-negative wage');
+  }
+  const nextPhysiology = applyLaborPhysiologyCost({
+    ...agent.physiology,
+    laborSeconds: payload.laborSeconds,
+    energyCostPerHour: input.laborCost.energyCostPerHour,
+    satietyCostPerHour: input.laborCost.satietyCostPerHour,
+  });
+
+  return [
+    makeEvent(input, 0, 'WagePaid', {
+      agentId: agent.agentId,
+      occupationName: payload.occupationName,
+      amount: wage,
+    }),
+    makeEvent(input, 1, 'PhysiologyChanged', {
+      agentId: agent.agentId,
+      previous: agent.physiology,
+      next: nextPhysiology,
+      reason: 'work',
+    }),
+    makeMemoryEvent(input, 2, {
+      summary: `Worked as ${payload.occupationName} for ${payload.laborSeconds} seconds.`,
+      status: 'succeeded',
+      tags: ['work', payload.occupationName],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: `work:${payload.occupationName}`,
+        statement: `Works as ${payload.occupationName} when conditions allow.`,
       },
     }),
   ];

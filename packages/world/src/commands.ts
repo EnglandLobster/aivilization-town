@@ -45,6 +45,23 @@ export function assertAgentStudyPayload(payload: unknown): AgentStudyPayload {
   };
 }
 
+export function assertAgentWorkPayload(payload: unknown): AgentWorkPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentWork payload must be an object');
+  }
+  const occupationName = payload['occupationName'];
+  const laborSeconds = payload['laborSeconds'];
+  if (typeof occupationName !== 'string' || occupationName.trim().length === 0) {
+    throw new Error('AgentWork occupationName must not be empty');
+  }
+  assertPositiveFinite(laborSeconds, 'AgentWork laborSeconds');
+
+  return {
+    occupationName,
+    laborSeconds,
+  };
+}
+
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

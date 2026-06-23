@@ -3,8 +3,10 @@ import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
   createWorldProjection,
+  dispatchWorldCommand,
   handleAgentEatCommand,
   handleAgentStudyCommand,
+  handleAgentWorkCommand,
 } from './index';
 
 describe('agent action command handlers', () => {
@@ -140,5 +142,139 @@ describe('agent action command handlers', () => {
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.inventory).toEqual({});
     expect(updated.rejectedActions).toHaveLength(1);
+  });
+});
+
+describe('agent work command handling', () => {
+  test('AgentWork pays wages, depletes physiology, and records STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentWorkCommand({
+      command: createCommandEnvelope({
+        id: 'command-work',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+        issuedAt: 30,
+      }),
+      projection,
+      wageCalculator: () => 300,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 20 },
+      criticalThresholds: { energy: 1, health: 1 },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'WagePaid',
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({ agentId: 'agent-1', amount: 300 });
+    expect(events[1]?.payload).toMatchObject({
+      next: { energy: 90, satiety: 60, health: 100 },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBe(350);
+    expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('dispatchWorldCommand routes AgentStudy commands through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-study',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 10, educationRatePerSecond: 1 },
+        issuedAt: 40,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+
+  test('incapacitated agents cannot work and receive rejection plus failed STM only', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 0, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentWorkCommand({
+      command: createCommandEnvelope({
+        id: 'command-work',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+        issuedAt: 30,
+      }),
+      projection,
+      wageCalculator: () => 300,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 20 },
+      criticalThresholds: { energy: 1, health: 1 },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentWork',
+      reason: 'agent is incapacitated',
+    });
+    expect(events[1]).toMatchObject({
+      type: 'ShortTermMemoryRecorded',
+      payload: { record: { status: 'failed' } },
+    });
   });
 });

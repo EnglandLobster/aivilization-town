@@ -1,5 +1,6 @@
 export * from './actions';
 export * from './cycle';
+export * from './intentionInfluence';
 export * from './planner';
 export * from './profileInfluence';
 

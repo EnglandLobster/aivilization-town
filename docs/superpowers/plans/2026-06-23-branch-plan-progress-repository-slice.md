@@ -40,7 +40,7 @@ It does not persist full `BranchPlan` definitions, generate new plans, or coordi
 
 - Add: `packages/agent-runtime/src/planProgressRepository.test.ts`
 
-- [ ] **Step 1: Write failing tests for progress repositories**
+- [x] **Step 1: Write failing tests for progress repositories**
 
 Create tests that require:
 
@@ -57,13 +57,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because progress repositories are missing.
 
+Observed: test failed before implementation because `InMemoryBranchPlanProgressRepository` and `FileBranchPlanProgressRepository` did not exist. It now passes after repository implementation.
+
 ## Task 2: Worker Persistence Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 2: Write failing tests for worker progress repository wiring**
+- [x] **Step 2: Write failing tests for worker progress repository wiring**
 
 Create tests that require:
 
@@ -79,13 +81,15 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because worker does not know plan progress repositories.
 
+Observed: test failed before implementation because worker cycle input could not load or save through a plan progress repository. It now passes after worker wiring.
+
 ## Task 3: Local Runtime Storage Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/localRuntimeStorage.test.ts`
 
-- [ ] **Step 3: Write failing tests for local file-backed progress storage**
+- [x] **Step 3: Write failing tests for local file-backed progress storage**
 
 Create tests that require:
 
@@ -101,6 +105,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because local runtime storage does not create a plan progress repository.
 
+Observed: test failed before implementation because local runtime storage did not expose `planProgressRepository` or `planningDir`. It now passes after local storage wiring.
+
 ## Task 4: Implementation
 
 **Files:**
@@ -110,7 +116,7 @@ Expected before implementation: tests fail because local runtime storage does no
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 - Modify: `apps/worker/src/localRuntimeStorage.ts`
 
-- [ ] **Step 4: Implement repositories and worker wiring**
+- [x] **Step 4: Implement repositories and worker wiring**
 
 Behavior:
 
@@ -128,7 +134,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -142,3 +148,5 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed: focused package tests and typechecks passed. Full `pnpm check` passed with 45 test files and 198 tests. Full `pnpm build` passed.

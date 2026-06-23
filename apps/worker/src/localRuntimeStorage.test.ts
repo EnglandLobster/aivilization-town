@@ -1,5 +1,6 @@
 import {
   createBranchPlan,
+  markSubtaskBlocked,
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
@@ -152,6 +153,19 @@ describe('local world runtime storage', () => {
       agents: createTickAgents(),
       ...storage.repositories,
     });
+    const progress = await storage.planProgressRepository.getOrCreate({
+      planId: 'plan-1',
+      agentId: agentOne,
+      createdAt: 100,
+    });
+    await storage.planProgressRepository.save(
+      markSubtaskBlocked(progress, {
+        subtaskId: 'study',
+        reason: 'repeated-failure: energy too low',
+        blockedAt: 150,
+      }),
+    );
+
     const restarted = createLocalWorldRuntimeStorage({
       rootDir,
       simulationId,
@@ -160,7 +174,27 @@ describe('local world runtime storage', () => {
 
     expect(first.streamVersion).toBe(5);
     expect(storage.paths.partitionDir).toContain('simulations');
+    expect(storage.paths.planningDir).toContain('planning');
     expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(5);
+    await expect(
+      restarted.planProgressRepository.getOrCreate({
+        planId: 'plan-1',
+        agentId: agentOne,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'plan-1',
+      agentId: agentOne,
+      completedSubtaskIds: [],
+      blockedSubtasks: [
+        {
+          subtaskId: 'study',
+          reason: 'repeated-failure: energy too low',
+          blockedAt: 150,
+        },
+      ],
+      updatedAt: 150,
+    });
     expect(
       restarted.checkpointStore.getLatestCheckpoint({
         simulationId,

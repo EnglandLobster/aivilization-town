@@ -3,11 +3,6 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
-import {
-  InMemoryAgentIntentionRepository,
-  InMemoryLongTermProfileRepository,
-  InMemoryShortTermMemoryRepository,
-} from '@aivilization/memory';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
@@ -100,14 +95,6 @@ function createStudyPlanner(action: AtomicActionProposal): DomainMicroPlanner {
   };
 }
 
-function createRepositories() {
-  return {
-    intentionRepository: new InMemoryAgentIntentionRepository(),
-    longTermProfileRepository: new InMemoryLongTermProfileRepository(),
-    shortTermMemoryRepository: new InMemoryShortTermMemoryRepository(),
-  };
-}
-
 function createTickAgents() {
   return [
     {
@@ -151,7 +138,6 @@ describe('local world runtime storage', () => {
       simulationId,
       partitionKey: 'world-main',
     });
-    const repositories = createRepositories();
 
     const first = await runWorkerSimulationTick({
       tickId: 'tick-1',
@@ -164,7 +150,7 @@ describe('local world runtime storage', () => {
       expectedVersion: 0,
       checkpointing: storage.checkpointing,
       agents: createTickAgents(),
-      ...repositories,
+      ...storage.repositories,
     });
     const restarted = createLocalWorldRuntimeStorage({
       rootDir,
@@ -181,6 +167,14 @@ describe('local world runtime storage', () => {
         partitionKey: restarted.partition.partitionKey,
       })?.lastAppliedSequence,
     ).toBe(5);
+    await expect(
+      restarted.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        statuses: ['succeeded'],
+        requiredTags: ['study'],
+        limit: 10,
+      }),
+    ).resolves.toHaveLength(1);
 
     const second = await runWorkerSimulationTick({
       tickId: 'tick-2',
@@ -195,7 +189,7 @@ describe('local world runtime storage', () => {
       streamName: restarted.partition.eventStreamName,
       checkpointing: restarted.checkpointing,
       agents: createTickAgents(),
-      ...repositories,
+      ...restarted.repositories,
     });
 
     expect(second.events.map((event: WorldEvent) => [event.sequence, event.type])).toEqual([
@@ -220,5 +214,13 @@ describe('local world runtime storage', () => {
       throw new Error('expected second tick to write a snapshot');
     }
     expect(restarted.snapshotStore.loadSnapshot(second.snapshot)).toEqual(second.projection);
+    await expect(
+      restarted.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        statuses: ['succeeded'],
+        requiredTags: ['study'],
+        limit: 10,
+      }),
+    ).resolves.toHaveLength(2);
   });
 });

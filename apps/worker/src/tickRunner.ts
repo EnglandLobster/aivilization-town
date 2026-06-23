@@ -10,14 +10,17 @@ import type {
 } from '@aivilization/memory';
 import type { AgentCycleTrace } from '@aivilization/observability';
 import {
+  createProjectionCheckpoint,
   createCommandEnvelope,
   type AgentId,
   type EventStore,
   type EventStreamName,
   type PartitionKey,
+  type ProjectionCheckpoint,
   type ProjectionCheckpointStore,
   type ProjectionSnapshotStore,
   type SimulationId,
+  type SnapshotReference,
 } from '@aivilization/sim-core';
 import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
 import {
@@ -47,13 +50,17 @@ export type WorkerTickResult = {
   readonly projection: WorldProjection;
   readonly traces: readonly AgentCycleTrace[];
   readonly streamVersion: number;
+  readonly checkpoint?: ProjectionCheckpoint;
+  readonly snapshot?: SnapshotReference;
 };
 
-export type WorkerTickProjectionCheckpointHydrationInput = {
+export type WorkerTickProjectionCheckpointingInput = {
   readonly partitionKey: PartitionKey;
   readonly checkpointStore: ProjectionCheckpointStore;
   readonly snapshotStore: ProjectionSnapshotStore<WorldProjection>;
 };
+
+export type WorkerTickProjectionCheckpointHydrationInput = WorkerTickProjectionCheckpointingInput;
 
 export type WorkerTickProjectionHydrationInput = {
   readonly initialProjection: WorldProjection;
@@ -74,6 +81,7 @@ type WorkerTickBaseInput = {
   readonly agents: readonly WorkerTickAgentInput[];
   readonly timeDeltaMs?: number;
   readonly expectedVersion?: number;
+  readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
 };
 
@@ -149,6 +157,7 @@ export async function runWorkerSimulationTick(
   }
 
   const agentEvents = agentResults.flatMap((result) => result.events);
+  const checkpointResult = saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
 
   return {
     tickId: input.tickId,
@@ -159,6 +168,9 @@ export async function runWorkerSimulationTick(
     projection,
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,
+    ...(checkpointResult === undefined
+      ? {}
+      : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),
   };
 }
 
@@ -217,4 +229,48 @@ function resolveStartingProjection(input: WorkerTickBaseInput & WorkerTickProjec
     projection: hydration.projection,
     streamVersion: hydration.lastAppliedSequence,
   };
+}
+
+type SavedProjectionCheckpoint = {
+  readonly checkpoint: ProjectionCheckpoint;
+  readonly snapshot: SnapshotReference;
+};
+
+function saveProjectionCheckpointIfConfigured(
+  input: WorkerTickBaseInput,
+  projection: WorldProjection,
+  streamVersion: number,
+): SavedProjectionCheckpoint | undefined {
+  if (input.checkpointing === undefined) {
+    return undefined;
+  }
+
+  const lookup = {
+    simulationId: input.simulationId,
+    partitionKey: input.checkpointing.partitionKey,
+  };
+  const current = input.checkpointing.checkpointStore.getLatestCheckpoint(lookup);
+  if (current !== undefined && streamVersion < current.lastAppliedSequence) {
+    throw new Error(
+      `checkpoint sequence ${streamVersion} is older than current sequence ${current.lastAppliedSequence}`,
+    );
+  }
+
+  const snapshot = input.checkpointing.snapshotStore.saveSnapshot({
+    simulationId: input.simulationId,
+    partitionKey: input.checkpointing.partitionKey,
+    sequence: streamVersion,
+    createdAt: input.issuedAt,
+    projection,
+  });
+  const checkpoint = input.checkpointing.checkpointStore.saveCheckpoint(
+    createProjectionCheckpoint({
+      simulationId: input.simulationId,
+      partitionKey: input.checkpointing.partitionKey,
+      lastAppliedSequence: streamVersion,
+      snapshot,
+    }),
+  );
+
+  return { checkpoint, snapshot };
 }

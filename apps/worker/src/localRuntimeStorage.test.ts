@@ -308,4 +308,46 @@ describe('local world runtime storage', () => {
       }),
     ).resolves.toHaveLength(2);
   });
+
+  test('persists worker tick traces through local trace repository storage', async () => {
+    const rootDir = createRootDir();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId,
+      partitionKey: 'world-main',
+    });
+
+    await runWorkerSimulationTick({
+      tickId: 'tick-trace',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore: storage.eventStore,
+      streamName: storage.partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createTickAgents()[0]!],
+      traceSink: storage.agentCycleTraceRepository,
+      ...storage.repositories,
+    });
+
+    const restarted = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId,
+      partitionKey: 'world-main',
+    });
+
+    expect(storage.paths.observabilityDir).toContain('observability');
+    await expect(restarted.agentCycleTraceRepository.query({ simulationId })).resolves.toMatchObject([
+      {
+        traceId: 'tick-trace:cycle:1:agent-1',
+        simulationId: 'sim-1',
+        agentId: 'agent-1',
+        selectedBranch: 'development',
+        selectionEvidence: {
+          selectedSubtaskId: 'study',
+        },
+      },
+    ]);
+  });
 });

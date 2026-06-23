@@ -15,6 +15,7 @@ import {
   type PartitionKey,
   type SimulationPartition,
 } from '@aivilization/sim-core';
+import { FileAgentCycleTraceRepository } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { join, resolve } from 'node:path';
 import type {
@@ -31,6 +32,7 @@ export type LocalWorldRuntimeStoragePaths = {
   readonly snapshotStoreDir: string;
   readonly memoryDir: string;
   readonly planningDir: string;
+  readonly observabilityDir: string;
 };
 
 export type LocalWorldRuntimeRepositories = {
@@ -51,6 +53,7 @@ export type LocalWorldRuntimeStorage = {
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
+  readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
   readonly checkpointHydration: WorkerTickProjectionCheckpointHydrationInput;
@@ -91,6 +94,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const planProgressRepository = new FileBranchPlanProgressRepository({
     rootDir: paths.planningDir,
   });
+  const agentCycleTraceRepository = new FileAgentCycleTraceRepository({
+    rootDir: paths.observabilityDir,
+  });
   const repositories = {
     intentionRepository,
     longTermProfileRepository,
@@ -114,6 +120,7 @@ export function createLocalWorldRuntimeStorage(input: {
     shortTermMemoryRepository,
     planRepository,
     planProgressRepository,
+    agentCycleTraceRepository,
     repositories,
     checkpointing,
     checkpointHydration: checkpointing,
@@ -139,6 +146,7 @@ function createLocalWorldRuntimeStoragePaths(input: {
     snapshotStoreDir: join(partitionDir, 'snapshots'),
     memoryDir: join(partitionDir, 'memory'),
     planningDir: join(partitionDir, 'planning'),
+    observabilityDir: join(partitionDir, 'observability'),
   };
 }
 

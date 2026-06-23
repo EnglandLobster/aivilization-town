@@ -4,7 +4,7 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
-import { asAgentId, asSimulationId } from '@aivilization/sim-core';
+import { createCommandEnvelope, asAgentId, asSimulationId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldCommandPolicies,
@@ -14,7 +14,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { createLocalWorldRuntimeStorage, runWorkerSimulationTick } from './index';
+import {
+  createLocalWorldRuntimeStorage,
+  handleWorkerSteeringCommand,
+  runWorkerSimulationTick,
+} from './index';
 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
@@ -173,6 +177,25 @@ describe('local world runtime storage', () => {
       updatedAt: 100,
     };
     await storage.planRepository.save(planRecord);
+    await handleWorkerSteeringCommand({
+      command: createCommandEnvelope({
+        id: 'cmd-objective-study',
+        simulationId,
+        actorId: agentOne,
+        source: 'human',
+        type: 'SetLongHorizonObjective',
+        payload: {
+          objectiveId: 'objective-study',
+          statement: 'Do not work yet; study until education score exceeds 100.',
+          priority: 2,
+          affinityTags: ['study', 'education'],
+        },
+        issuedAt: 175,
+      }),
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...storage.repositories,
+    });
 
     const restarted = createLocalWorldRuntimeStorage({
       rootDir,
@@ -189,6 +212,20 @@ describe('local world runtime storage', () => {
         agentId: agentOne,
       }),
     ).resolves.toEqual(planRecord);
+    await expect(
+      restarted.planRepository.require({
+        planId: 'objective-study',
+        agentId: agentOne,
+      }),
+    ).resolves.toMatchObject({
+      planId: 'objective-study',
+      agentId: agentOne,
+      createdAt: 175,
+      updatedAt: 175,
+      plan: {
+        objective: 'Do not work yet; study until education score exceeds 100.',
+      },
+    });
     expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(5);
     await expect(
       restarted.planProgressRepository.getOrCreate({

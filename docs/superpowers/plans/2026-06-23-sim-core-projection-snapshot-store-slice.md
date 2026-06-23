@@ -19,6 +19,7 @@ This slice adds durable projection snapshot blob storage:
 - Save snapshots under a partition-scoped path and return a `SnapshotReference`.
 - Load snapshots by `SnapshotReference` across store instances.
 - Detect corrupt files whose embedded reference does not match the requested reference.
+- Reject file URIs outside this store's snapshot root.
 
 It does not wire snapshots into worker hydration, compact event logs, schedule automatic checkpoint creation, add cross-process locking, add schema migration, or implement remote/object storage adapters.
 
@@ -35,7 +36,7 @@ It does not wire snapshots into worker hydration, compact event logs, schedule a
 
 - Add: `packages/sim-core/src/projectionSnapshotStore.test.ts`
 
-- [ ] **Step 1: Write failing tests for projection snapshot blob storage**
+- [x] **Step 1: Write failing tests for projection snapshot blob storage**
 
 Create tests that require:
 
@@ -43,6 +44,7 @@ Create tests that require:
 - A restarted file store can load the projection by the returned reference.
 - Loading a missing file-backed snapshot returns `undefined`.
 - Loading a non-file URI is rejected.
+- Loading a file URI outside this store's snapshot root is rejected.
 - Loading a corrupt snapshot file whose embedded reference differs from the requested reference is rejected.
 
 Run:
@@ -60,7 +62,7 @@ Expected before implementation: tests fail because projection snapshot store exp
 - Add: `packages/sim-core/src/projectionSnapshotStore.ts`
 - Modify: `packages/sim-core/src/index.ts`
 
-- [ ] **Step 2: Implement projection snapshot store port and file adapter**
+- [x] **Step 2: Implement projection snapshot store port and file adapter**
 
 Add:
 
@@ -76,6 +78,7 @@ File store requirements:
 - Load projection blobs by `SnapshotReference`.
 - Return `undefined` for missing snapshot files.
 - Reject snapshot references that do not use a `file://` URI.
+- Reject snapshot references whose file path is outside `rootDir/projection-snapshots`.
 - Reject snapshot files whose embedded reference does not match the requested reference.
 
 ## Task 3: Verification
@@ -84,7 +87,7 @@ File store requirements:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -97,3 +100,13 @@ pnpm build
 
 Commit the implementation and update this plan when the checks pass.
 
+## Verification Results
+
+- `pnpm --filter @aivilization/sim-core test` failed before implementation because `FileProjectionSnapshotStore` was not exported.
+- `pnpm --filter @aivilization/sim-core test` passed after implementation.
+- `pnpm --filter @aivilization/sim-core typecheck` passed.
+- First full `pnpm check` run caught and fixed one unnecessary type assertion.
+- `pnpm --filter @aivilization/sim-core test` passed after the lint fix.
+- `pnpm --filter @aivilization/sim-core typecheck` passed after the lint fix.
+- `pnpm check` passed.
+- `pnpm build` passed.

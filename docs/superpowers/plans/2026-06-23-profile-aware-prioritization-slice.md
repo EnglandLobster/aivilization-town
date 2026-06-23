@@ -45,12 +45,12 @@ It does not cover LLM-derived semantic matching, vector embeddings, social targe
 - Create: `packages/agent-runtime/src/profileInfluence.test.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] Write failing tests for habit/value/personality/social record keyword influence, section weights, and deterministic tie ordering.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm profile influence APIs are missing.
-- [ ] Implement `scoreProfileInfluence` and profile influence types.
-- [ ] Export the profile influence APIs from `packages/agent-runtime/src/index.ts`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
-- [ ] Commit with `git commit -m "feat: add profile influence scoring"`.
+- [x] Write failing tests for habit/value/personality/social record keyword influence, section weights, and deterministic tie ordering.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm profile influence APIs are missing.
+- [x] Implement `scoreProfileInfluence` and profile influence types.
+- [x] Export the profile influence APIs from `packages/agent-runtime/src/index.ts`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
+- [x] Commit with `git commit -m "feat: add profile influence scoring"`.
 
 ### Task 2: Planner Selection Integration
 
@@ -59,13 +59,13 @@ It does not cover LLM-derived semantic matching, vector embeddings, social targe
 - Modify: `packages/agent-runtime/src/planner.ts`
 - Modify: `packages/agent-runtime/src/planner.test.ts`
 
-- [ ] Write failing tests proving profile influence can select a lower-base-priority subtask and is reported in the selected score.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm planner integration is missing.
-- [ ] Add optional `profileAffinityTags` to `PlannerSubtask`.
-- [ ] Add optional `profileInfluence` input to `selectPrioritizedSubtask`.
-- [ ] Combine base priority, context signals, and profile influence deterministically.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
-- [ ] Commit with `git commit -m "feat: add profile-aware planner selection"`.
+- [x] Write failing tests proving profile influence can select a lower-base-priority subtask and is reported in the selected score.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm planner integration is missing.
+- [x] Add optional `profileAffinityTags` to `PlannerSubtask`.
+- [x] Add optional `profileInfluence` input to `selectPrioritizedSubtask`.
+- [x] Combine base priority, context signals, and profile influence deterministically.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
+- [x] Commit with `git commit -m "feat: add profile-aware planner selection"`.
 
 ### Task 3: Planning Cycle Integration
 
@@ -74,13 +74,13 @@ It does not cover LLM-derived semantic matching, vector embeddings, social targe
 - Modify: `packages/agent-runtime/src/cycle.ts`
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] Write failing tests proving `runAgentPlanningCycle` passes an optional long-term profile into prioritization.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm cycle integration is missing.
-- [ ] Add optional `longTermProfile` to `runAgentPlanningCycle`.
-- [ ] Use `scoreProfileInfluence` before selecting a subtask.
-- [ ] Keep existing no-profile callers behavior unchanged.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
-- [ ] Commit with `git commit -m "feat: connect profile to planning cycle"`.
+- [x] Write failing tests proving `runAgentPlanningCycle` passes an optional long-term profile into prioritization.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm cycle integration is missing.
+- [x] Add optional `longTermProfile` to `runAgentPlanningCycle`.
+- [x] Use `scoreProfileInfluence` before selecting a subtask.
+- [x] Keep existing no-profile callers behavior unchanged.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
+- [x] Commit with `git commit -m "feat: connect profile to planning cycle"`.
 
 ### Task 4: Whole-Repo Verification
 
@@ -88,10 +88,10 @@ It does not cover LLM-derived semantic matching, vector embeddings, social targe
 
 - Modify: `docs/superpowers/plans/2026-06-23-profile-aware-prioritization-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update if needed.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update if needed.
 
 ## Acceptance Criteria
 

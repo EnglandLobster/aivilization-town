@@ -1,6 +1,7 @@
 import {
   createBranchPlan,
   createBranchPlanProgress,
+  InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
@@ -422,5 +423,76 @@ describe('worker agent cycle runner', () => {
       ],
       updatedAt: 100,
     });
+  });
+
+  test('loads and saves progress updates through a repository', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    await planProgressRepository.getOrCreate({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 50,
+    });
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'study-energy-failure',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Failed to study because energy was too low.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study', 'energy'],
+      }),
+    );
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-repo-progress',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=0 satiety=80 health=100 education=10',
+      plan: createStudyPlan(),
+      planProgressRepository,
+      planProgressId: 'plan-1',
+      signals: [],
+      memoryRetrievalLimit: 10,
+      replanningPolicy: { consecutiveFailureThreshold: 1 },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-repo-progress',
+      commandIdPrefix: 'cycle-repo-progress-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-1',
+          description: 'study for one minute',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+        }),
+      ],
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+      ...repositories,
+    });
+
+    expect(result.events).toEqual([]);
+    expect(result.progressUpdate?.blockedSubtasks).toEqual([
+      {
+        subtaskId: 'study',
+        reason: 'repeated-failure: energy too low',
+        blockedAt: 100,
+      },
+    ]);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'plan-1',
+        agentId,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual(result.progressUpdate);
   });
 });

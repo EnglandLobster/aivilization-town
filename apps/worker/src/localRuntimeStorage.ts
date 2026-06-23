@@ -1,3 +1,4 @@
+import { FileBranchPlanProgressRepository } from '@aivilization/agent-runtime';
 import {
   FileAgentIntentionRepository,
   FileLongTermProfileRepository,
@@ -26,12 +27,14 @@ export type LocalWorldRuntimeStoragePaths = {
   readonly checkpointStoreDir: string;
   readonly snapshotStoreDir: string;
   readonly memoryDir: string;
+  readonly planningDir: string;
 };
 
 export type LocalWorldRuntimeRepositories = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly planProgressRepository: FileBranchPlanProgressRepository;
 };
 
 export type LocalWorldRuntimeStorage = {
@@ -42,6 +45,7 @@ export type LocalWorldRuntimeStorage = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
   readonly checkpointHydration: WorkerTickProjectionCheckpointHydrationInput;
@@ -76,10 +80,14 @@ export function createLocalWorldRuntimeStorage(input: {
   const shortTermMemoryRepository = new FileShortTermMemoryRepository({
     rootDir: paths.memoryDir,
   });
+  const planProgressRepository = new FileBranchPlanProgressRepository({
+    rootDir: paths.planningDir,
+  });
   const repositories = {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    planProgressRepository,
   };
   const checkpointing = {
     partitionKey: partition.partitionKey,
@@ -95,6 +103,7 @@ export function createLocalWorldRuntimeStorage(input: {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    planProgressRepository,
     repositories,
     checkpointing,
     checkpointHydration: checkpointing,
@@ -119,6 +128,7 @@ function createLocalWorldRuntimeStoragePaths(input: {
     checkpointStoreDir: join(partitionDir, 'checkpoints'),
     snapshotStoreDir: join(partitionDir, 'snapshots'),
     memoryDir: join(partitionDir, 'memory'),
+    planningDir: join(partitionDir, 'planning'),
   };
 }
 

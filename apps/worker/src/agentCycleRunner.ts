@@ -3,6 +3,7 @@ import {
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
   type BranchPlanProgress,
+  type BranchPlanProgressRepository,
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
@@ -47,6 +48,8 @@ export async function runWorkerAgentCycle(input: {
   readonly observedStateSummary: string;
   readonly plan: Parameters<typeof runAgentPlanningCycle>[0]['plan'];
   readonly progress?: BranchPlanProgress;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
+  readonly planProgressId?: string;
   readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
   readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicies;
@@ -75,12 +78,19 @@ export async function runWorkerAgentCycle(input: {
           limit: input.memoryRetrievalLimit,
         }),
   ]);
+  const progress = await resolvePlanProgress({
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    progress: input.progress,
+    planProgressRepository: input.planProgressRepository,
+    planProgressId: input.planProgressId,
+  });
   const cycleResult = runAgentPlanningCycle({
     simulationId: input.simulationId,
     agentId: input.agentId,
     issuedAt: input.issuedAt,
     plan: input.plan,
-    ...(input.progress === undefined ? {} : { progress: input.progress }),
+    ...(progress === undefined ? {} : { progress }),
     signals: input.signals,
     intentionState,
     longTermProfile,
@@ -90,6 +100,9 @@ export async function runWorkerAgentCycle(input: {
     ...(input.repair === undefined ? {} : { repair: input.repair }),
     ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
   });
+  if (cycleResult.progressUpdate !== undefined && input.planProgressRepository !== undefined) {
+    await input.planProgressRepository.save(cycleResult.progressUpdate);
+  }
 
   const dispatchResult =
     cycleResult.commandDrafts.length === 0
@@ -143,6 +156,29 @@ export async function runWorkerAgentCycle(input: {
       : { progressUpdate: cycleResult.progressUpdate }),
     trace,
   };
+}
+
+async function resolvePlanProgress(input: {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly progress: BranchPlanProgress | undefined;
+  readonly planProgressRepository: BranchPlanProgressRepository | undefined;
+  readonly planProgressId: string | undefined;
+}): Promise<BranchPlanProgress | undefined> {
+  if (input.progress !== undefined) {
+    return input.progress;
+  }
+  if (input.planProgressRepository === undefined) {
+    return undefined;
+  }
+  if (input.planProgressId === undefined) {
+    throw new Error('planProgressId is required when planProgressRepository is provided');
+  }
+  return input.planProgressRepository.getOrCreate({
+    planId: input.planProgressId,
+    agentId: input.agentId,
+    createdAt: input.issuedAt,
+  });
 }
 
 function extractShortTermMemoryRecords(

@@ -4,6 +4,7 @@ export * from './intentionInfluence';
 export * from './memoryInfluence';
 export * from './planner';
 export * from './planProgress';
+export * from './planProgressRepository';
 export * from './profileInfluence';
 export * from './reactiveSteering';
 export * from './replanning';

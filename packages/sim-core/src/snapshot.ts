@@ -17,6 +17,34 @@ export type ProjectionCheckpoint = {
   readonly snapshot?: SnapshotReference;
 };
 
+export function createProjectionCheckpoint(input: {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly lastAppliedSequence: number;
+  readonly snapshot?: SnapshotReference;
+}): ProjectionCheckpoint {
+  if (!Number.isInteger(input.lastAppliedSequence) || input.lastAppliedSequence < 0) {
+    throw new Error('checkpoint lastAppliedSequence must be a non-negative integer');
+  }
+  const simulationId = asSimulationId(input.simulationId);
+  if (
+    input.snapshot !== undefined &&
+    (input.snapshot.simulationId !== simulationId || input.snapshot.partitionKey !== input.partitionKey)
+  ) {
+    throw new Error('checkpoint snapshot must belong to the same simulation partition');
+  }
+  if (input.snapshot !== undefined && input.snapshot.sequence > input.lastAppliedSequence) {
+    throw new Error('checkpoint snapshot sequence must not exceed lastAppliedSequence');
+  }
+
+  return {
+    simulationId,
+    partitionKey: input.partitionKey,
+    lastAppliedSequence: input.lastAppliedSequence,
+    ...(input.snapshot === undefined ? {} : { snapshot: input.snapshot }),
+  };
+}
+
 export function createSnapshotReference(input: {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;

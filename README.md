@@ -20,4 +20,27 @@ The repository is in the design phase. The authoritative starting spec is:
 
 - `docs/superpowers/specs/2026-06-23-aivilization-town-design.md`
 
-Implementation begins after that spec is reviewed and approved.
+Implementation has started with the architecture skeleton plan:
+
+- `docs/superpowers/plans/2026-06-23-architecture-skeleton.md`
+
+## Development
+
+Install dependencies:
+
+```sh
+corepack enable
+pnpm install
+```
+
+Run all checks:
+
+```sh
+pnpm check
+```
+
+Build all packages and apps:
+
+```sh
+pnpm build
+```

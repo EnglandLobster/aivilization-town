@@ -4,6 +4,7 @@ import type { CommodityConfig } from '@aivilization/content';
 export * from './commandDispatch';
 export * from './agentScheduling';
 export * from './agentCycleRunner';
+export * from './canonicalActivePlanTick';
 export * from './canonicalDomainRuntimes';
 export * from './canonicalWorkerRuntimeResolver';
 export * from './domainRuntimeRegistry';

@@ -48,9 +48,9 @@ merged.
 - Create `packages/sim-core/src/snapshot.ts`: replay checkpoint and snapshot reference contracts.
 - Create `packages/sim-core/src/replay.ts`: deterministic replay helper.
 - Create `packages/sim-core/src/replay.test.ts`: replay determinism tests.
-- Create `packages/content/src/commodities.ts`: paper commodity config subset and source metadata.
+- Create `packages/content/src/commodities.ts`: full paper commodity and recipe config with source metadata.
 - Create `packages/content/src/activities.ts`: paper activity config.
-- Create `packages/content/src/jobs.ts`: paper job tier and occupation config subset.
+- Create `packages/content/src/jobs.ts`: full paper job tier and occupation config with source metadata.
 - Create `packages/content/src/index.ts`: content exports.
 - Create `packages/content/src/content.test.ts`: source-derived config tests.
 - Create `packages/observability/src/agentCycleTrace.ts`: trace contract.
@@ -63,6 +63,7 @@ merged.
 ## Task 1: Workspace Tooling
 
 **Files:**
+
 - Create: `package.json`
 - Create: `pnpm-workspace.yaml`
 - Create: `tsconfig.base.json`
@@ -107,8 +108,8 @@ Create `pnpm-workspace.yaml`:
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 ```
 
 Create `tsconfig.base.json`:
@@ -227,6 +228,7 @@ git commit -m "chore: add workspace tooling"
 ## Task 2: Package Shells
 
 **Files:**
+
 - Create: `packages/sim-core/package.json`
 - Create: `packages/economy/package.json`
 - Create: `packages/society/package.json`
@@ -404,6 +406,7 @@ git commit -m "chore: add package shells"
 ## Task 3: Deterministic Sim Core Contracts
 
 **Files:**
+
 - Create: `packages/sim-core/src/ids.ts`
 - Create: `packages/sim-core/src/time.ts`
 - Create: `packages/sim-core/src/partition.ts`
@@ -654,7 +657,8 @@ export function createCommandEnvelope<TType extends string, TPayload>(input: {
     issuedAt: input.issuedAt,
   };
 
-  const withActor = input.actorId === undefined ? base : { ...base, actorId: asAgentId(input.actorId) };
+  const withActor =
+    input.actorId === undefined ? base : { ...base, actorId: asAgentId(input.actorId) };
   return input.expectedVersion === undefined
     ? withActor
     : { ...withActor, expectedVersion: input.expectedVersion };
@@ -666,7 +670,14 @@ export function createCommandEnvelope<TType extends string, TPayload>(input: {
 Create `packages/sim-core/src/event.ts`:
 
 ```ts
-import { asCommandId, asEventId, asSimulationId, type CommandId, type EventId, type SimulationId } from './ids';
+import {
+  asCommandId,
+  asEventId,
+  asSimulationId,
+  type CommandId,
+  type EventId,
+  type SimulationId,
+} from './ids';
 import type { PartitionKey } from './partition';
 import type { SimulationTimestamp } from './time';
 
@@ -789,7 +800,10 @@ export function replayEvents<TProjection, TEvent extends EventEnvelope>(
   apply: (projection: TProjection, event: TEvent) => TProjection,
 ): TProjection {
   const ordered = [...events].sort((left, right) => left.sequence - right.sequence);
-  return ordered.reduce<TProjection>((projection, event) => apply(projection, event), initialProjection);
+  return ordered.reduce<TProjection>(
+    (projection, event) => apply(projection, event),
+    initialProjection,
+  );
 }
 ```
 
@@ -830,11 +844,16 @@ git commit -m "feat: add deterministic sim core contracts"
 ## Task 4: Source-Derived Content Contracts
 
 **Files:**
+
 - Create: `packages/content/src/commodities.ts`
 - Create: `packages/content/src/activities.ts`
 - Create: `packages/content/src/jobs.ts`
 - Create: `packages/content/src/index.ts`
 - Create: `packages/content/src/content.test.ts`
+
+Executor update: implement the full Appendix B catalog anchors in this task, not a sample subset:
+25 commodities from Table 7, 24 production recipes from Table 9, 7 activities from Table 8,
+6 job tiers from Table 10, and 17 occupations from Table 11.
 
 - [ ] **Step 1: Write failing content test**
 
@@ -915,42 +934,256 @@ export type ProductionRecipe = {
 const appendixSource = 'AIvilization v0 Appendix B Tables 7 and 9';
 
 export const commodities = [
-  { name: 'Apple', tier: 'Primary', minResidentialTier: 1, role: 'Food processing input / Basic consumption good', source: appendixSource },
-  { name: 'Wheat', tier: 'Primary', minResidentialTier: 1, role: 'Food processing input / Basic consumption good', source: appendixSource },
-  { name: 'Rice', tier: 'Primary', minResidentialTier: 1, role: 'Food processing input / Basic consumption good', source: appendixSource },
-  { name: 'Wood', tier: 'Primary', minResidentialTier: 1, role: 'Industrial raw material', source: appendixSource },
-  { name: 'Book', tier: 'Primary', minResidentialTier: 1, role: 'Basic consumption good', source: appendixSource },
-  { name: 'Copper Ore', tier: 'Primary', minResidentialTier: 1, role: 'Industrial raw material', source: appendixSource },
-  { name: 'Iron Ore', tier: 'Primary', minResidentialTier: 1, role: 'Industrial raw material', source: appendixSource },
-  { name: 'Silicon Ore', tier: 'Primary', minResidentialTier: 1, role: 'Industrial raw material', source: appendixSource },
-  { name: 'Beef', tier: 'SecondaryProcessedFood', minResidentialTier: 2, role: 'Food processing input / Secondary consumption good', source: appendixSource },
-  { name: 'Chicken', tier: 'SecondaryProcessedFood', minResidentialTier: 2, role: 'Food processing input / Secondary consumption good', source: appendixSource },
-  { name: 'Fish', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Food processing input / Secondary consumption good', source: appendixSource },
-  { name: 'Flour', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Food processing input / Secondary consumption good', source: appendixSource },
-  { name: 'Bread', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Secondary consumption good', source: appendixSource },
-  { name: 'Sushi', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Secondary consumption good', source: appendixSource },
-  { name: 'Apple Pie', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Secondary consumption good', source: appendixSource },
-  { name: 'Chicken Salad', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Secondary consumption good', source: appendixSource },
-  { name: 'Beef Rice', tier: 'SecondaryProcessedFood', minResidentialTier: 3, role: 'Secondary consumption good', source: appendixSource },
-  { name: 'Coal', tier: 'SecondaryRefiningMaterial', minResidentialTier: 4, role: 'Industrial intermediate', source: appendixSource },
-  { name: 'Copper Ingot', tier: 'SecondaryRefiningMaterial', minResidentialTier: 4, role: 'Industrial intermediate', source: appendixSource },
-  { name: 'Iron Ingot', tier: 'SecondaryRefiningMaterial', minResidentialTier: 4, role: 'Industrial intermediate', source: appendixSource },
-  { name: 'Pure Silicon', tier: 'SecondaryRefiningMaterial', minResidentialTier: 4, role: 'Industrial intermediate', source: appendixSource },
-  { name: 'Transistor', tier: 'TertiaryHighTech', minResidentialTier: 5, role: 'High-tech intermediate', source: appendixSource },
-  { name: 'Circuit Board', tier: 'TertiaryHighTech', minResidentialTier: 5, role: 'High-tech intermediate', source: appendixSource },
-  { name: 'Chip', tier: 'TertiaryHighTech', minResidentialTier: 5, role: 'High-tech consumption goods', source: appendixSource },
-  { name: 'Gold Apple', tier: 'SpecialReward', minResidentialTier: null, role: 'Rare reward item, not a regular production target', source: appendixSource },
+  {
+    name: 'Apple',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Food processing input / Basic consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Wheat',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Food processing input / Basic consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Rice',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Food processing input / Basic consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Wood',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Industrial raw material',
+    source: appendixSource,
+  },
+  {
+    name: 'Book',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Basic consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Copper Ore',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Industrial raw material',
+    source: appendixSource,
+  },
+  {
+    name: 'Iron Ore',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Industrial raw material',
+    source: appendixSource,
+  },
+  {
+    name: 'Silicon Ore',
+    tier: 'Primary',
+    minResidentialTier: 1,
+    role: 'Industrial raw material',
+    source: appendixSource,
+  },
+  {
+    name: 'Beef',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 2,
+    role: 'Food processing input / Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Chicken',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 2,
+    role: 'Food processing input / Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Fish',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Food processing input / Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Flour',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Food processing input / Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Bread',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Sushi',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Apple Pie',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Chicken Salad',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Beef Rice',
+    tier: 'SecondaryProcessedFood',
+    minResidentialTier: 3,
+    role: 'Secondary consumption good',
+    source: appendixSource,
+  },
+  {
+    name: 'Coal',
+    tier: 'SecondaryRefiningMaterial',
+    minResidentialTier: 4,
+    role: 'Industrial intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Copper Ingot',
+    tier: 'SecondaryRefiningMaterial',
+    minResidentialTier: 4,
+    role: 'Industrial intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Iron Ingot',
+    tier: 'SecondaryRefiningMaterial',
+    minResidentialTier: 4,
+    role: 'Industrial intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Pure Silicon',
+    tier: 'SecondaryRefiningMaterial',
+    minResidentialTier: 4,
+    role: 'Industrial intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Transistor',
+    tier: 'TertiaryHighTech',
+    minResidentialTier: 5,
+    role: 'High-tech intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Circuit Board',
+    tier: 'TertiaryHighTech',
+    minResidentialTier: 5,
+    role: 'High-tech intermediate',
+    source: appendixSource,
+  },
+  {
+    name: 'Chip',
+    tier: 'TertiaryHighTech',
+    minResidentialTier: 5,
+    role: 'High-tech consumption goods',
+    source: appendixSource,
+  },
+  {
+    name: 'Gold Apple',
+    tier: 'SpecialReward',
+    minResidentialTier: null,
+    role: 'Rare reward item, not a regular production target',
+    source: appendixSource,
+  },
 ] as const satisfies readonly CommodityConfig[];
 
 export const productionRecipes = [
-  { output: 'Apple', inputs: {}, energyCost: 2, satietyCost: 0, timeCostSeconds: 0.1, rewardProbabilityPercent: 0, source: appendixSource },
-  { output: 'Book', inputs: { Wood: 1 }, energyCost: 32, satietyCost: 8, timeCostSeconds: 1.6, rewardProbabilityPercent: 0, source: appendixSource },
-  { output: 'Copper Ingot', inputs: { Wood: 1, 'Copper Ore': 1 }, energyCost: 48, satietyCost: 12, timeCostSeconds: 2.4, rewardProbabilityPercent: 0, source: appendixSource },
-  { output: 'Iron Ingot', inputs: { 'Iron Ore': 1, Coal: 1 }, energyCost: 52, satietyCost: 13, timeCostSeconds: 2.6, rewardProbabilityPercent: 0, source: appendixSource },
-  { output: 'Pure Silicon', inputs: { 'Silicon Ore': 1, Coal: 1 }, energyCost: 56, satietyCost: 14, timeCostSeconds: 2.8, rewardProbabilityPercent: 0, source: appendixSource },
-  { output: 'Transistor', inputs: { 'Copper Ingot': 1, 'Iron Ingot': 1 }, energyCost: 60, satietyCost: 15, timeCostSeconds: 3, rewardProbabilityPercent: 1, source: appendixSource },
-  { output: 'Circuit Board', inputs: { 'Copper Ingot': 1, 'Pure Silicon': 1 }, energyCost: 80, satietyCost: 20, timeCostSeconds: 4, rewardProbabilityPercent: 2, source: appendixSource },
-  { output: 'Chip', inputs: { Transistor: 1, 'Circuit Board': 1 }, energyCost: 100, satietyCost: 25, timeCostSeconds: 5, rewardProbabilityPercent: 5, source: appendixSource },
+  {
+    output: 'Apple',
+    inputs: {},
+    energyCost: 2,
+    satietyCost: 0,
+    timeCostSeconds: 0.1,
+    rewardProbabilityPercent: 0,
+    source: appendixSource,
+  },
+  {
+    output: 'Book',
+    inputs: { Wood: 1 },
+    energyCost: 32,
+    satietyCost: 8,
+    timeCostSeconds: 1.6,
+    rewardProbabilityPercent: 0,
+    source: appendixSource,
+  },
+  {
+    output: 'Copper Ingot',
+    inputs: { Wood: 1, 'Copper Ore': 1 },
+    energyCost: 48,
+    satietyCost: 12,
+    timeCostSeconds: 2.4,
+    rewardProbabilityPercent: 0,
+    source: appendixSource,
+  },
+  {
+    output: 'Iron Ingot',
+    inputs: { 'Iron Ore': 1, Coal: 1 },
+    energyCost: 52,
+    satietyCost: 13,
+    timeCostSeconds: 2.6,
+    rewardProbabilityPercent: 0,
+    source: appendixSource,
+  },
+  {
+    output: 'Pure Silicon',
+    inputs: { 'Silicon Ore': 1, Coal: 1 },
+    energyCost: 56,
+    satietyCost: 14,
+    timeCostSeconds: 2.8,
+    rewardProbabilityPercent: 0,
+    source: appendixSource,
+  },
+  {
+    output: 'Transistor',
+    inputs: { 'Copper Ingot': 1, 'Iron Ingot': 1 },
+    energyCost: 60,
+    satietyCost: 15,
+    timeCostSeconds: 3,
+    rewardProbabilityPercent: 1,
+    source: appendixSource,
+  },
+  {
+    output: 'Circuit Board',
+    inputs: { 'Copper Ingot': 1, 'Pure Silicon': 1 },
+    energyCost: 80,
+    satietyCost: 20,
+    timeCostSeconds: 4,
+    rewardProbabilityPercent: 2,
+    source: appendixSource,
+  },
+  {
+    output: 'Chip',
+    inputs: { Transistor: 1, 'Circuit Board': 1 },
+    energyCost: 100,
+    satietyCost: 25,
+    timeCostSeconds: 5,
+    rewardProbabilityPercent: 5,
+    source: appendixSource,
+  },
 ] as const satisfies readonly ProductionRecipe[];
 ```
 
@@ -977,7 +1210,11 @@ export type ActivityConfig = {
 const appendixSource = 'AIvilization v0 Appendix B Table 8';
 
 export const activities = [
-  { type: 'ReceiveEducation', names: ['paid learning', 'reading', 'self study'], source: appendixSource },
+  {
+    type: 'ReceiveEducation',
+    names: ['paid learning', 'reading', 'self study'],
+    source: appendixSource,
+  },
   { type: 'RecoverHealth', names: ['see doctor'], source: appendixSource },
   { type: 'RecoverEnergy', names: ['sleep'], source: appendixSource },
   { type: 'RecoverSatiety', names: ['eat'], source: appendixSource },
@@ -1017,23 +1254,135 @@ export type OccupationConfig = {
 const appendixSource = 'AIvilization v0 Appendix B Tables 10 and 11';
 
 export const jobTiers = [
-  { tier: 1, tierName: 'Entry', minResidentialTier: 1, minEducationScore: 0, prerequisiteCommodity: null, wageType: 'static', source: appendixSource },
-  { tier: 2, tierName: 'Skilled', minResidentialTier: 2, minEducationScore: 20, prerequisiteCommodity: 'Beef', wageType: 'static', source: appendixSource },
-  { tier: 3, tierName: 'Backbone', minResidentialTier: 3, minEducationScore: 70, prerequisiteCommodity: 'Sushi', wageType: 'static', source: appendixSource },
-  { tier: 4, tierName: 'Expert', minResidentialTier: 4, minEducationScore: 110, prerequisiteCommodity: 'Pure Silicon', wageType: 'dynamic', source: appendixSource },
-  { tier: 5, tierName: 'Management', minResidentialTier: 5, minEducationScore: 180, prerequisiteCommodity: 'Transistor', wageType: 'dynamic', source: appendixSource },
-  { tier: 6, tierName: 'Leadership', minResidentialTier: 6, minEducationScore: 320, prerequisiteCommodity: 'Circuit Board', wageType: 'dynamic', source: appendixSource },
+  {
+    tier: 1,
+    tierName: 'Entry',
+    minResidentialTier: 1,
+    minEducationScore: 0,
+    prerequisiteCommodity: null,
+    wageType: 'static',
+    source: appendixSource,
+  },
+  {
+    tier: 2,
+    tierName: 'Skilled',
+    minResidentialTier: 2,
+    minEducationScore: 20,
+    prerequisiteCommodity: 'Beef',
+    wageType: 'static',
+    source: appendixSource,
+  },
+  {
+    tier: 3,
+    tierName: 'Backbone',
+    minResidentialTier: 3,
+    minEducationScore: 70,
+    prerequisiteCommodity: 'Sushi',
+    wageType: 'static',
+    source: appendixSource,
+  },
+  {
+    tier: 4,
+    tierName: 'Expert',
+    minResidentialTier: 4,
+    minEducationScore: 110,
+    prerequisiteCommodity: 'Pure Silicon',
+    wageType: 'dynamic',
+    source: appendixSource,
+  },
+  {
+    tier: 5,
+    tierName: 'Management',
+    minResidentialTier: 5,
+    minEducationScore: 180,
+    prerequisiteCommodity: 'Transistor',
+    wageType: 'dynamic',
+    source: appendixSource,
+  },
+  {
+    tier: 6,
+    tierName: 'Leadership',
+    minResidentialTier: 6,
+    minEducationScore: 320,
+    prerequisiteCommodity: 'Circuit Board',
+    wageType: 'dynamic',
+    source: appendixSource,
+  },
 ] as const satisfies readonly JobTierConfig[];
 
 export const occupations = [
-  { name: 'Cleaner', jobTier: 1, minResidentialTier: 1, educationFloor: 0, eligibilityShare: 1.0, baseWage: 250, source: appendixSource },
-  { name: 'Waiter', jobTier: 1, minResidentialTier: 1, educationFloor: 13, eligibilityShare: 0.9, baseWage: 253, source: appendixSource },
-  { name: 'Stock Clerk', jobTier: 2, minResidentialTier: 2, educationFloor: 0, eligibilityShare: 0.832, baseWage: 260, source: appendixSource },
-  { name: 'Teacher', jobTier: 4, minResidentialTier: 4, educationFloor: 176, eligibilityShare: 0.32, baseWage: 380, source: appendixSource },
-  { name: 'Doctor', jobTier: 5, minResidentialTier: 5, educationFloor: 207, eligibilityShare: 0.28, baseWage: 429, source: appendixSource },
-  { name: 'Principal', jobTier: 6, minResidentialTier: 6, educationFloor: 357, eligibilityShare: 0.15, baseWage: 734, source: appendixSource },
-  { name: 'Hospital Director', jobTier: 6, minResidentialTier: 6, educationFloor: 421, eligibilityShare: 0.12, baseWage: 961, source: appendixSource },
-  { name: 'CEO', jobTier: 6, minResidentialTier: 6, educationFloor: 604, eligibilityShare: 0.065, baseWage: 1411, source: appendixSource },
+  {
+    name: 'Cleaner',
+    jobTier: 1,
+    minResidentialTier: 1,
+    educationFloor: 0,
+    eligibilityShare: 1.0,
+    baseWage: 250,
+    source: appendixSource,
+  },
+  {
+    name: 'Waiter',
+    jobTier: 1,
+    minResidentialTier: 1,
+    educationFloor: 13,
+    eligibilityShare: 0.9,
+    baseWage: 253,
+    source: appendixSource,
+  },
+  {
+    name: 'Stock Clerk',
+    jobTier: 2,
+    minResidentialTier: 2,
+    educationFloor: 0,
+    eligibilityShare: 0.832,
+    baseWage: 260,
+    source: appendixSource,
+  },
+  {
+    name: 'Teacher',
+    jobTier: 4,
+    minResidentialTier: 4,
+    educationFloor: 176,
+    eligibilityShare: 0.32,
+    baseWage: 380,
+    source: appendixSource,
+  },
+  {
+    name: 'Doctor',
+    jobTier: 5,
+    minResidentialTier: 5,
+    educationFloor: 207,
+    eligibilityShare: 0.28,
+    baseWage: 429,
+    source: appendixSource,
+  },
+  {
+    name: 'Principal',
+    jobTier: 6,
+    minResidentialTier: 6,
+    educationFloor: 357,
+    eligibilityShare: 0.15,
+    baseWage: 734,
+    source: appendixSource,
+  },
+  {
+    name: 'Hospital Director',
+    jobTier: 6,
+    minResidentialTier: 6,
+    educationFloor: 421,
+    eligibilityShare: 0.12,
+    baseWage: 961,
+    source: appendixSource,
+  },
+  {
+    name: 'CEO',
+    jobTier: 6,
+    minResidentialTier: 6,
+    educationFloor: 604,
+    eligibilityShare: 0.065,
+    baseWage: 1411,
+    source: appendixSource,
+  },
 ] as const satisfies readonly OccupationConfig[];
 ```
 
@@ -1070,6 +1419,7 @@ git commit -m "feat: add source-derived content contracts"
 ## Task 5: Observability Trace Contract
 
 **Files:**
+
 - Create: `packages/observability/src/agentCycleTrace.ts`
 - Create: `packages/observability/src/index.ts`
 - Create: `packages/observability/src/agentCycleTrace.test.ts`
@@ -1176,6 +1526,7 @@ git commit -m "feat: add agent cycle trace contract"
 ## Task 6: App Shells
 
 **Files:**
+
 - Create: `apps/api/package.json`
 - Create: `apps/api/tsconfig.json`
 - Create: `apps/api/src/index.ts`
@@ -1322,6 +1673,7 @@ git commit -m "chore: add app shells"
 ## Task 7: Whole-Workspace Verification
 
 **Files:**
+
 - Modify: `README.md`
 
 - [ ] **Step 1: Document development commands**

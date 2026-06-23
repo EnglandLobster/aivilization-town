@@ -5,6 +5,7 @@ export * from './eventStore';
 export * from './fileEventStore';
 export * from './ids';
 export * from './partition';
+export * from './projectionSnapshotStore';
 export * from './random';
 export * from './replay';
 export * from './snapshot';

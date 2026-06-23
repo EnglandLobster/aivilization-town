@@ -1,6 +1,6 @@
 import { addInventory, removeInventory, type AmmPool, type Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
-import type { AgentId } from '@aivilization/sim-core';
+import type { AgentId, SimulationClock } from '@aivilization/sim-core';
 import {
   createDirectedSocialRelationKey,
   type PhysiologicalState,
@@ -25,6 +25,7 @@ export type WorldJobApplicationState = {
 };
 
 export type WorldProjection = {
+  readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
@@ -40,6 +41,7 @@ export type WorldProjection = {
 
 export function createWorldProjection(input: {
   readonly agents: readonly WorldAgentState[];
+  readonly clock?: SimulationClock;
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
   readonly jobApplications?: readonly WorldJobApplicationState[];
@@ -70,6 +72,7 @@ export function createWorldProjection(input: {
   }
 
   return {
+    clock: input.clock === undefined ? { now: 0, tickDurationMs: 1000 } : { ...input.clock },
     agents,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
@@ -179,6 +182,11 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
       return {
         ...projection,
         memoryRecords: [...projection.memoryRecords, event.payload.record],
+      };
+    case 'SimulationTimeAdvanced':
+      return {
+        ...projection,
+        clock: { ...event.payload.next },
       };
     case 'ActionRejected':
       return {

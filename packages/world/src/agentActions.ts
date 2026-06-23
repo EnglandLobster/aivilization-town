@@ -6,6 +6,7 @@ import {
 } from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
+  advanceClock,
   createEventEnvelope,
   type CommandEnvelope,
   type CoreCommandType,
@@ -21,6 +22,7 @@ import {
   isEligibleForOccupation,
 } from '@aivilization/society';
 import {
+  assertAdvanceSimulationTimePayload,
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentProducePayload,
@@ -62,6 +64,12 @@ export function dispatchWorldCommand(input: {
   readonly nextSequence: number;
 }): WorldEvent[] {
   switch (input.command.type) {
+    case 'AdvanceSimulationTime':
+      return handleAdvanceSimulationTimeCommand({
+        command: input.command as CommandEnvelope<'AdvanceSimulationTime', unknown>,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
     case 'AgentEat':
       return handleAgentEatCommand({
         command: input.command as CommandEnvelope<'AgentEat', unknown>,
@@ -128,6 +136,24 @@ export function dispatchWorldCommand(input: {
     default:
       throw new Error(`unsupported world command ${input.command.type}`);
   }
+}
+
+export function handleAdvanceSimulationTimeCommand(input: {
+  readonly command: CommandEnvelope<'AdvanceSimulationTime', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const payload = assertAdvanceSimulationTimePayload(input.command.payload);
+  const previous = input.projection.clock;
+  const next = advanceClock(previous, payload.deltaMs);
+
+  return [
+    makeEvent(input, 0, 'SimulationTimeAdvanced', {
+      previous: { ...previous },
+      next: { ...next },
+      deltaMs: payload.deltaMs,
+    }),
+  ];
 }
 
 export function handleAgentEatCommand(input: {

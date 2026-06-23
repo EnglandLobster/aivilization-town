@@ -42,6 +42,10 @@ export type AgentSocializePayload = {
   readonly attitudeDelta: number;
 };
 
+export type AdvanceSimulationTimePayload = {
+  readonly deltaMs: number;
+};
+
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentEat payload must be an object');
@@ -182,6 +186,20 @@ export function assertAgentSocializePayload(payload: unknown): AgentSocializePay
     summary,
     relationDelta,
     attitudeDelta,
+  };
+}
+
+export function assertAdvanceSimulationTimePayload(
+  payload: unknown,
+): AdvanceSimulationTimePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AdvanceSimulationTime payload must be an object');
+  }
+  const deltaMs = payload['deltaMs'];
+  assertNonNegativeFinite(deltaMs, 'AdvanceSimulationTime deltaMs');
+
+  return {
+    deltaMs,
   };
 }
 

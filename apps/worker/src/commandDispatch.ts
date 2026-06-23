@@ -25,6 +25,13 @@ export type DispatchCommandDraftsToEventStreamResult = DispatchCommandDraftsResu
   readonly appendResult: AppendToEventStreamResult<WorldEvent>;
 };
 
+export type DispatchWorldCommandToEventStreamResult = {
+  readonly command: CommandEnvelope<CoreCommandType, unknown>;
+  readonly events: readonly WorldEvent[];
+  readonly projection: WorldProjection;
+  readonly appendResult: AppendToEventStreamResult<WorldEvent>;
+};
+
 export function createCommandEnvelopeFromDraft(input: {
   readonly draft: CommandDraft;
   readonly commandId: string;
@@ -114,6 +121,41 @@ export function dispatchCommandDraftsToWorldEventStream(input: {
 
   return {
     commands: dispatched.commands,
+    events: appendResult.appendedEvents,
+    projection,
+    appendResult,
+  };
+}
+
+export function dispatchWorldCommandToEventStream(input: {
+  readonly command: CommandEnvelope<CoreCommandType, unknown>;
+  readonly projection: WorldProjection;
+  readonly policies: WorldCommandPolicies;
+  readonly eventStore: EventStore<WorldEvent>;
+  readonly streamName: EventStreamName;
+  readonly appendIdempotencyKey: string;
+  readonly expectedVersion?: number;
+}): DispatchWorldCommandToEventStreamResult {
+  assertNonEmpty(input.appendIdempotencyKey, 'appendIdempotencyKey');
+
+  const expectedVersion =
+    input.expectedVersion ?? input.eventStore.getStreamVersion(input.streamName);
+  const events = dispatchWorldCommand({
+    command: input.command,
+    projection: input.projection,
+    policies: input.policies,
+    nextSequence: expectedVersion + 1,
+  });
+  const appendResult = input.eventStore.appendToStream({
+    streamName: input.streamName,
+    expectedVersion,
+    idempotencyKey: input.appendIdempotencyKey,
+    events,
+  });
+  const projection = appendResult.appendedEvents.reduce(applyWorldEvent, input.projection);
+
+  return {
+    command: input.command,
     events: appendResult.appendedEvents,
     projection,
     appendResult,

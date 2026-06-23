@@ -48,7 +48,7 @@ It does not implement LLM policy selection, utility scoring, map navigation, rel
 
 - Add: `apps/worker/src/canonicalDomainRuntimes.test.ts`
 
-- [ ] **Step 1: Write failing tests for canonical domain adapters**
+- [x] **Step 1: Write failing tests for canonical domain adapters**
 
 Create tests that require:
 
@@ -69,6 +69,9 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `createCanonicalDomainRuntimeRegistrations` does not exist.
 
+Observed before implementation: `pnpm --filter @aivilization/worker test` failed because
+`createCanonicalDomainRuntimeRegistrations` was not exported.
+
 ## Task 2: Canonical Adapter Implementation
 
 **Files:**
@@ -76,7 +79,7 @@ Expected before implementation: tests fail because `createCanonicalDomainRuntime
 - Add: `apps/worker/src/canonicalDomainRuntimes.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement canonical domain adapters**
+- [x] **Step 2: Implement canonical domain adapters**
 
 Behavior:
 
@@ -105,13 +108,18 @@ Behavior:
   - throw `social domain requires targetAgentId or another projected agent` when no target is available.
 - Action ids must be deterministic: `canonical-${domain}-${selectedSubtask.subtaskId}`.
 
+Observed after implementation:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+
 ## Task 3: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -123,3 +131,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed verification:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

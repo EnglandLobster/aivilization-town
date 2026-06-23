@@ -45,7 +45,7 @@ It does not implement LLM-generated decomposition, recurring daily schedule synt
 - Modify: `packages/memory/src/index.ts`
 - Test: `packages/memory/src/intentions.test.ts`
 
-- [ ] **Step 1: Write failing tests for objective and schedule state**
+- [x] **Step 1: Write failing tests for objective and schedule state**
 
 Create `packages/memory/src/intentions.test.ts` with tests that:
 
@@ -162,13 +162,13 @@ describe('agent intention state', () => {
 });
 ```
 
-- [ ] **Step 2: Run memory tests and verify RED**
+- [x] **Step 2: Run memory tests and verify RED**
 
 Run: `pnpm --filter @aivilization/memory test`
 
 Expected: FAIL because `createEmptyAgentIntentionState`, `setLongHorizonObjective`, `upsertScheduledIntentions`, and `selectActiveScheduledIntentions` do not exist.
 
-- [ ] **Step 3: Implement intention state contracts**
+- [x] **Step 3: Implement intention state contracts**
 
 Create `packages/memory/src/intentions.ts` with exported types:
 
@@ -219,11 +219,11 @@ selectActiveScheduledIntentions(state, at);
 
 Validation must reject mismatched agent ids, empty ids/statements/descriptions/tags, non-finite priorities/timestamps, and schedule windows where `endsAt <= startsAt`.
 
-- [ ] **Step 4: Export the intention APIs**
+- [x] **Step 4: Export the intention APIs**
 
 Modify `packages/memory/src/index.ts` to export `./intentions`.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run:
 
@@ -234,7 +234,7 @@ pnpm --filter @aivilization/memory typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -251,7 +251,7 @@ git commit -m "feat: add agent intention state"
 - Create: `packages/memory/src/intentionRepository.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Create `packages/memory/src/intentionRepository.test.ts`:
 
@@ -345,13 +345,13 @@ describe('agent intention repository', () => {
 });
 ```
 
-- [ ] **Step 2: Run memory tests and verify RED**
+- [x] **Step 2: Run memory tests and verify RED**
 
 Run: `pnpm --filter @aivilization/memory test`
 
 Expected: FAIL because `InMemoryAgentIntentionRepository` does not exist.
 
-- [ ] **Step 3: Implement repository**
+- [x] **Step 3: Implement repository**
 
 Create `AgentIntentionRepository` and `InMemoryAgentIntentionRepository` with methods:
 
@@ -364,11 +364,11 @@ upsertScheduledIntentions(agentId, scheduledIntentions);
 
 Clone `activeObjective`, `scheduledIntentions`, and tag arrays on every repository boundary.
 
-- [ ] **Step 4: Export repository**
+- [x] **Step 4: Export repository**
 
 Modify `packages/memory/src/index.ts` to export `./intentionRepository`.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run:
 
@@ -379,7 +379,7 @@ pnpm --filter @aivilization/memory typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -396,7 +396,7 @@ git commit -m "feat: add agent intention repository"
 - Create: `packages/agent-runtime/src/intentionInfluence.test.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] **Step 1: Write failing scoring tests**
+- [x] **Step 1: Write failing scoring tests**
 
 Create `packages/agent-runtime/src/intentionInfluence.test.ts`:
 
@@ -504,13 +504,13 @@ describe('intention influence scoring', () => {
 });
 ```
 
-- [ ] **Step 2: Run agent-runtime tests and verify RED**
+- [x] **Step 2: Run agent-runtime tests and verify RED**
 
 Run: `pnpm --filter @aivilization/agent-runtime test`
 
 Expected: FAIL because `scoreIntentionInfluence` does not exist.
 
-- [ ] **Step 3: Implement scoring**
+- [x] **Step 3: Implement scoring**
 
 Create `scoreIntentionInfluence(input)` with:
 
@@ -531,11 +531,11 @@ Weights:
 
 Return `{ score, matches }` with score rounded to 6 decimals and matches sorted deterministically.
 
-- [ ] **Step 4: Export scoring**
+- [x] **Step 4: Export scoring**
 
 Modify `packages/agent-runtime/src/index.ts` to export `./intentionInfluence`.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run:
 
@@ -546,7 +546,7 @@ pnpm --filter @aivilization/agent-runtime typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -564,7 +564,7 @@ git commit -m "feat: add intention influence scoring"
 - Modify: `packages/agent-runtime/src/cycle.ts`
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] **Step 1: Write failing planner and cycle tests**
+- [x] **Step 1: Write failing planner and cycle tests**
 
 Add planner coverage to `packages/agent-runtime/src/planner.test.ts`:
 
@@ -680,13 +680,13 @@ test('uses intention state during subtask selection', () => {
 });
 ```
 
-- [ ] **Step 2: Run agent-runtime tests and verify RED**
+- [x] **Step 2: Run agent-runtime tests and verify RED**
 
 Run: `pnpm --filter @aivilization/agent-runtime test`
 
 Expected: FAIL because `PlannerSubtask.intentionAffinityTags`, `selectPrioritizedSubtask.intentionInfluence`, and `runAgentPlanningCycle.intentionState` are missing.
 
-- [ ] **Step 3: Implement planner integration**
+- [x] **Step 3: Implement planner integration**
 
 Modify `PlannerSubtask` to include optional `intentionAffinityTags`.
 
@@ -694,13 +694,13 @@ Modify `createBranchPlan` to clone `intentionAffinityTags`.
 
 Modify `selectPrioritizedSubtask` to accept optional `intentionInfluence` and add `intentionInfluence[subtask.id]?.score ?? 0`.
 
-- [ ] **Step 4: Implement cycle integration**
+- [x] **Step 4: Implement cycle integration**
 
 Modify `runAgentPlanningCycle` input to include optional `intentionState`.
 
 Build an intention influence record for every subtask using `scoreIntentionInfluence({ intentionState, affinityTags: subtask.intentionAffinityTags ?? [], at: issuedAt })`.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run:
 
@@ -711,7 +711,7 @@ pnpm --filter @aivilization/agent-runtime typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
@@ -726,10 +726,10 @@ git commit -m "feat: connect intentions to planning cycle"
 
 - Modify: `docs/superpowers/plans/2026-06-23-intention-schedule-prioritization-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update completed checkboxes in this plan.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update completed checkboxes in this plan.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

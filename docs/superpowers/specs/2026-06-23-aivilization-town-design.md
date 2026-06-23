@@ -224,6 +224,32 @@ Owns user-facing gameplay and inspection:
 
 The web app reads projections and sends commands. It does not own simulation rules.
 
+## Large Game Backend Requirements
+
+The new project is a full rebuild. The two older repositories are references for product intent and
+paper lineage only; their architecture must not be inherited as the foundation.
+
+AIvilization Town should be built as a server-authoritative simulation backend from the first
+milestone:
+
+- All world mutations flow through validated commands and immutable events.
+- API, worker, web UI, and LLM providers never mutate projections or domain state directly.
+- Event streams are scoped by simulation id and partition key so larger worlds can later shard by
+  town, region, activity type, or agent cohort.
+- Commands carry idempotency keys and expected stream versions so retries, duplicated client
+  requests, and worker restarts do not create duplicate facts.
+- Query views are projections rebuilt from event streams, not primary truth.
+- Snapshots and replay checkpoints are first-class contracts, not later migration chores.
+- Persistence starts with local event-log files and SQLite projections behind repository
+  interfaces; Postgres, Redis, queue workers, object storage, and vector stores must enter through
+  adapters.
+- Simulation workers own ticks, agent cycles, consolidation jobs, and experiment runners. The web
+  app is an observer and command surface.
+- Observability is part of the backend contract: every agent cycle, simulator decision, command
+  rejection, repair, memory write, and projection checkpoint must be traceable.
+- LLM output is untrusted proposal data. It can create candidate plans or command drafts only after
+  schema validation; domain packages decide whether those drafts become accepted commands.
+
 ## Primary Data Flow
 
 ```text

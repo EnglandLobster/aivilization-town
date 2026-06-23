@@ -36,7 +36,7 @@ It does not implement timed loops, queue leasing, distributed locks, parallel pa
 
 - Create: `apps/worker/src/tickRunner.test.ts`
 
-- [ ] **Step 1: Write failing tests for deterministic tick orchestration**
+- [x] **Step 1: Write failing tests for deterministic tick orchestration**
 
 Create `apps/worker/src/tickRunner.test.ts`:
 
@@ -285,7 +285,7 @@ describe('worker tick runner', () => {
 });
 ```
 
-- [ ] **Step 2: Run worker tests and verify RED**
+- [x] **Step 2: Run worker tests and verify RED**
 
 Run:
 
@@ -302,7 +302,7 @@ Expected: FAIL because `runWorkerSimulationTick` is not exported.
 - Create: `apps/worker/src/tickRunner.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 1: Implement tick runner contracts and orchestration**
+- [x] **Step 1: Implement tick runner contracts and orchestration**
 
 Create `apps/worker/src/tickRunner.ts`:
 
@@ -436,7 +436,7 @@ function assertNonEmpty(value: string, name: string): void {
 }
 ```
 
-- [ ] **Step 2: Export tick runner**
+- [x] **Step 2: Export tick runner**
 
 Modify `apps/worker/src/index.ts`:
 
@@ -444,7 +444,7 @@ Modify `apps/worker/src/index.ts`:
 export * from './tickRunner';
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -455,7 +455,7 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -470,10 +470,10 @@ git commit -m "feat: add worker tick runner"
 
 - Modify: `docs/superpowers/plans/2026-06-23-worker-tick-runner-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

@@ -19,6 +19,12 @@ export type AgentProducePayload = {
   readonly availableLaborSeconds: number;
 };
 
+export type AgentTradePayload = {
+  readonly side: 'buy' | 'sell';
+  readonly commodityName: string;
+  readonly quantity: number;
+};
+
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentEat payload must be an object');
@@ -85,6 +91,28 @@ export function assertAgentProducePayload(payload: unknown): AgentProducePayload
     commodityName,
     quantity,
     availableLaborSeconds,
+  };
+}
+
+export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentTrade payload must be an object');
+  }
+  const side = payload['side'];
+  const commodityName = payload['commodityName'];
+  const quantity = payload['quantity'];
+  if (side !== 'buy' && side !== 'sell') {
+    throw new Error('AgentTrade side must be buy or sell');
+  }
+  if (typeof commodityName !== 'string' || commodityName.trim().length === 0) {
+    throw new Error('AgentTrade commodityName must not be empty');
+  }
+  assertPositiveFinite(quantity, 'AgentTrade quantity');
+
+  return {
+    side,
+    commodityName,
+    quantity,
   };
 }
 

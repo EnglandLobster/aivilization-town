@@ -1,3 +1,4 @@
+import { createAmmPool } from '@aivilization/economy';
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -7,6 +8,7 @@ import {
   handleAgentEatCommand,
   handleAgentProduceCommand,
   handleAgentStudyCommand,
+  handleAgentTradeCommand,
   handleAgentWorkCommand,
 } from './index';
 
@@ -353,5 +355,170 @@ describe('agent produce command handling', () => {
     ]);
     expect(events[0]?.payload).toMatchObject({ commandType: 'AgentProduce' });
     expect(events[1]).toMatchObject({ payload: { record: { status: 'failed' } } });
+  });
+});
+
+describe('agent trade command handling', () => {
+  test('AgentTrade buy updates balance, inventory, AMM pool, money supply, and STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+        issuedAt: 60,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({ Apple: 10 });
+    expect(updated.agents['agent-1']?.balance).toBeCloseTo(888.8888888889);
+    expect(updated.marketPools['Apple']?.commodityReserve).toBe(90);
+  });
+
+  test('dispatchWorldCommand routes AgentTrade commands through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 1 },
+        issuedAt: 60,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
+  });
+
+  test('AgentTrade rejects insufficient balance on buy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+        issuedAt: 60,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({ commandType: 'AgentTrade' });
+  });
+
+  test('AgentTrade rejects insufficient inventory on sell', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'sell', commodityName: 'Apple', quantity: 1 },
+        issuedAt: 60,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentTrade',
+      reason: 'insufficient Apple: required 1, available 0',
+    });
   });
 });

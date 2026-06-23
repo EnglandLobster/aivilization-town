@@ -255,7 +255,7 @@ describe('agent produce command handling', () => {
 - Modify: `packages/world/src/agentActions.ts`
 - Modify: `packages/world/src/agentActions.test.ts`
 
-- [ ] Write failing tests for `AgentTrade` and dispatcher routing:
+- [x] Write failing tests for `AgentTrade` and dispatcher routing:
 
 ```ts
 import { createAmmPool } from '@aivilization/economy';
@@ -353,11 +353,11 @@ describe('agent trade command handling', () => {
 });
 ```
 
-- [ ] Add tests proving `AgentTrade` rejects insufficient balance on buy and insufficient inventory on sell.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm trade APIs are missing.
-- [ ] Implement `assertAgentTradePayload`, `handleAgentTradeCommand`, and dispatcher route.
-- [ ] Run `pnpm --filter @aivilization/world test`, `pnpm --filter @aivilization/world typecheck`, `pnpm check`, and `pnpm build`.
-- [ ] Commit with `git commit -m "feat: add trade command dispatcher"`.
+- [x] Add tests proving `AgentTrade` rejects insufficient balance on buy and insufficient inventory on sell.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm trade APIs are missing.
+- [x] Implement `assertAgentTradePayload`, `handleAgentTradeCommand`, and dispatcher route.
+- [x] Run `pnpm --filter @aivilization/world test`, `pnpm --filter @aivilization/world typecheck`, `pnpm check`, and `pnpm build`.
+- [x] Commit with `git commit -m "feat: add trade command dispatcher"`.
 
 ## Self-Review
 

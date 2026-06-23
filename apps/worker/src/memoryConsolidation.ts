@@ -1,8 +1,11 @@
 import {
+  convertReflectiveInsightsToLongTermMemoryPatches,
   proposeLongTermMemoryPatches,
+  proposeReflectiveInsights,
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
   type LongTermProfileRepository,
+  type ReflectiveInsightRecord,
   type ShortTermMemoryOrder,
   type ShortTermMemoryRecord,
   type ShortTermMemoryRepository,
@@ -25,6 +28,7 @@ export type WorkerMemoryConsolidationInput = {
 export type WorkerMemoryConsolidationResult = {
   readonly agentId: AgentId;
   readonly records: readonly ShortTermMemoryRecord[];
+  readonly reflectiveInsights: readonly ReflectiveInsightRecord[];
   readonly patches: readonly LongTermMemoryPatch[];
   readonly profile: LongTermAgentProfile;
 };
@@ -111,12 +115,22 @@ export async function runWorkerMemoryConsolidation(
     ...(input.occurredAfter === undefined ? {} : { occurredAfter: input.occurredAfter }),
     ...(input.orderBy === undefined ? {} : { orderBy: input.orderBy }),
   });
-  const patches = proposeLongTermMemoryPatches({
+  const hintPatches = proposeLongTermMemoryPatches({
     agentId: input.agentId,
     records,
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
   });
+  const reflectiveInsights = proposeReflectiveInsights({
+    agentId: input.agentId,
+    records,
+    minEvidenceCount: input.minPatternCount,
+    generatedAt: input.proposedAt,
+  });
+  const patches = [
+    ...hintPatches,
+    ...convertReflectiveInsightsToLongTermMemoryPatches({ insights: reflectiveInsights }),
+  ];
   const profile =
     patches.length === 0
       ? await input.longTermProfileRepository.getOrCreate(input.agentId)
@@ -125,6 +139,7 @@ export async function runWorkerMemoryConsolidation(
   return {
     agentId: input.agentId,
     records,
+    reflectiveInsights,
     patches,
     profile,
   };

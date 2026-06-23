@@ -221,6 +221,55 @@ describe('worker tick runner', () => {
     ).resolves.toHaveLength(1);
   });
 
+  test('hydrates the starting projection from the event stream when no explicit projection is provided', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    await runWorkerSimulationTick({
+      tickId: 'tick-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-2',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection: createProjection() },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [6, 'SimulationTimeAdvanced'],
+      [7, 'EducationChanged'],
+      [8, 'ShortTermMemoryRecorded'],
+      [9, 'EducationChanged'],
+      [10, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.events[0]).toMatchObject({
+      payload: {
+        previous: { now: 1000, tickDurationMs: 1000 },
+        next: { now: 2000, tickDurationMs: 1000 },
+        deltaMs: 1000,
+      },
+    });
+    expect(result.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(130);
+    expect(result.projection.agents['agent-2']?.educationScore).toBe(80);
+    expect(result.streamVersion).toBe(10);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(10);
+  });
+
   test('continues later agents when an earlier agent requires replanning', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

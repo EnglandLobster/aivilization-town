@@ -23,6 +23,7 @@ import {
   type WorkerAgentCycleTraceSink,
 } from './agentCycleRunner';
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
+import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 
 export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
@@ -45,11 +46,15 @@ export type WorkerTickResult = {
   readonly streamVersion: number;
 };
 
-export async function runWorkerSimulationTick(input: {
+export type WorkerTickProjectionHydrationInput = {
+  readonly initialProjection: WorldProjection;
+  readonly fromSequence?: number;
+};
+
+type WorkerTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
   readonly issuedAt: number;
-  readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicies;
   readonly eventStore: EventStore<WorldEvent>;
   readonly streamName: EventStreamName;
@@ -60,15 +65,29 @@ export async function runWorkerSimulationTick(input: {
   readonly timeDeltaMs?: number;
   readonly expectedVersion?: number;
   readonly traceSink?: WorkerAgentCycleTraceSink;
-}): Promise<WorkerTickResult> {
+};
+
+type WorkerTickProjectionInput =
+  | {
+      readonly projection: WorldProjection;
+      readonly projectionHydration?: never;
+    }
+  | {
+      readonly projection?: never;
+      readonly projectionHydration: WorkerTickProjectionHydrationInput;
+    };
+
+export async function runWorkerSimulationTick(
+  input: WorkerTickBaseInput & WorkerTickProjectionInput,
+): Promise<WorkerTickResult> {
   assertNonEmpty(input.tickId, 'tickId');
   if (input.agents.length === 0) {
     throw new Error('worker tick requires at least one agent');
   }
 
-  let projection = input.projection;
-  let expectedVersion =
-    input.expectedVersion ?? input.eventStore.getStreamVersion(input.streamName);
+  const startingProjection = resolveStartingProjection(input);
+  let projection = startingProjection.projection;
+  let expectedVersion = input.expectedVersion ?? startingProjection.streamVersion;
   const timeAdvanceResult = dispatchWorldCommandToEventStream({
     command: createCommandEnvelope({
       id: `${input.tickId}-advance-time`,
@@ -149,4 +168,30 @@ function assertNonEmpty(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
   }
+}
+
+function resolveStartingProjection(
+  input: WorkerTickBaseInput & WorkerTickProjectionInput,
+): { readonly projection: WorldProjection; readonly streamVersion: number } {
+  if (input.projection !== undefined) {
+    return {
+      projection: input.projection,
+      streamVersion: input.eventStore.getStreamVersion(input.streamName),
+    };
+  }
+
+  const hydration = hydrateWorldProjectionFromEventStream({
+    initialProjection: input.projectionHydration.initialProjection,
+    eventStore: input.eventStore,
+    streamName: input.streamName,
+    ...(input.projectionHydration.fromSequence === undefined
+      ? {}
+      : { fromSequence: input.projectionHydration.fromSequence }),
+    ...(input.expectedVersion === undefined ? {} : { toSequence: input.expectedVersion }),
+  });
+
+  return {
+    projection: hydration.projection,
+    streamVersion: hydration.lastAppliedSequence,
+  };
 }

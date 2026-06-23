@@ -13,6 +13,7 @@ export type AgentCycleTrace = {
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
   readonly emittedCommandIds: readonly string[];
+  readonly memoryContextIds: readonly string[];
   readonly memoryWriteIds: readonly string[];
 };
 

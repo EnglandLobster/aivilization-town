@@ -1,3 +1,4 @@
+import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { createBranchPlan, runAgentPlanningCycle } from './index';
@@ -253,5 +254,86 @@ describe('agent planning cycle', () => {
       score: 5,
     });
     expect(result.commandDrafts[0]?.type).toBe('AgentStudy');
+  });
+
+  test('uses short-term memory influence during subtask selection', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'avoid repeating recent failures',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 4 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'restore energy',
+          subtasks: [
+            {
+              id: 'sleep',
+              description: 'rest before working',
+              basePriority: 1,
+              memoryAffinityTags: ['energy'],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 1000,
+      plan,
+      signals: [],
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'recent-energy-failure',
+          agentId,
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to work because energy was too low.',
+          occurredAt: 1000,
+          importanceScore: 0.8,
+          source: { eventIds: [] },
+          tags: ['work', 'energy'],
+        }),
+      ],
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+            },
+          ],
+        },
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'sleep',
+      score: 4.2,
+    });
+    expect(result.commandDrafts[0]?.type).toBe('AgentSleep');
   });
 });

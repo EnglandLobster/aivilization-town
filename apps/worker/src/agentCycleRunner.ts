@@ -53,15 +53,22 @@ export async function runWorkerAgentCycle(input: {
   readonly intentionRepository: AgentIntentionRepository;
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+  readonly memoryRetrievalLimit?: number;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly expectedVersion?: number;
   readonly traceSink?: WorkerAgentCycleTraceSink;
 }): Promise<WorkerAgentCycleResult> {
-  const [intentionState, longTermProfile] = await Promise.all([
+  const [intentionState, longTermProfile, shortTermMemoryContext] = await Promise.all([
     input.intentionRepository.getOrCreate(input.agentId),
     input.longTermProfileRepository.getOrCreate(input.agentId),
+    input.memoryRetrievalLimit === undefined
+      ? Promise.resolve<ShortTermMemoryRecord[]>([])
+      : input.shortTermMemoryRepository.retrieve({
+          agentId: input.agentId,
+          limit: input.memoryRetrievalLimit,
+        }),
   ]);
   const cycleResult = runAgentPlanningCycle({
     simulationId: input.simulationId,
@@ -71,6 +78,7 @@ export async function runWorkerAgentCycle(input: {
     signals: input.signals,
     intentionState,
     longTermProfile,
+    ...(input.memoryRetrievalLimit === undefined ? {} : { shortTermMemoryContext }),
     microPlanners: input.microPlanners,
     simulate: input.simulate,
     ...(input.repair === undefined ? {} : { repair: input.repair }),
@@ -109,6 +117,7 @@ export async function runWorkerAgentCycle(input: {
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
     emittedCommandIds: dispatchResult?.commands.map((command) => command.id) ?? [],
+    memoryContextIds: shortTermMemoryContext.map((record) => record.id),
     memoryWriteIds: extractShortTermMemoryRecords(dispatchResult?.events ?? []).map(
       (record) => record.id,
     ),

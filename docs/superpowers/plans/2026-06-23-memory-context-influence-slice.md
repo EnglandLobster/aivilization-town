@@ -42,7 +42,7 @@ It does not add embeddings, hybrid search, cross-agent memory sharing, reflectio
 
 - Add: `packages/agent-runtime/src/memoryInfluence.test.ts`
 
-- [ ] **Step 1: Write failing tests for STM influence scoring**
+- [x] **Step 1: Write failing tests for STM influence scoring**
 
 Create tests that require:
 
@@ -58,6 +58,8 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because memory influence scoring is missing.
 
+Observed red test: `pnpm --filter @aivilization/agent-runtime test` failed because `scoreMemoryInfluence` was not implemented/exported.
+
 ## Task 2: Agent Runtime Planning Tests
 
 **Files:**
@@ -65,7 +67,7 @@ Expected before implementation: tests fail because memory influence scoring is m
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 - Modify: `packages/agent-runtime/src/planner.ts`
 
-- [ ] **Step 2: Write failing tests for memory-aware subtask selection**
+- [x] **Step 2: Write failing tests for memory-aware subtask selection**
 
 Create tests that require:
 
@@ -80,6 +82,8 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because subtasks do not accept memory affinity and cycles ignore STM context.
 
+Observed red test: agent cycle selected the higher-base-priority work subtask instead of the memory-informed recovery subtask.
+
 ## Task 3: Worker Trace Tests
 
 **Files:**
@@ -87,7 +91,7 @@ Expected before implementation: tests fail because subtasks do not accept memory
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 - Modify: `packages/observability/src/agentCycleTrace.test.ts`
 
-- [ ] **Step 3: Write failing tests for worker memory context wiring**
+- [x] **Step 3: Write failing tests for worker memory context wiring**
 
 Create tests that require:
 
@@ -103,6 +107,8 @@ pnpm --filter @aivilization/observability test
 
 Expected before implementation: tests fail because worker does not retrieve planning memory and traces do not expose memory context ids.
 
+Observed red test: worker cycle selected work and had no memory context trace wiring.
+
 ## Task 4: Implementation
 
 **Files:**
@@ -114,7 +120,7 @@ Expected before implementation: tests fail because worker does not retrieve plan
 - Modify: `packages/observability/src/agentCycleTrace.ts`
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 
-- [ ] **Step 4: Implement memory-aware planning context**
+- [x] **Step 4: Implement memory-aware planning context**
 
 Behavior:
 
@@ -124,13 +130,15 @@ Behavior:
 - `runWorkerAgentCycle` retrieves `{ agentId, limit: memoryRetrievalLimit }` before planning when the limit is provided.
 - Trace includes `memoryContextIds` for auditability.
 
+Implemented in `packages/agent-runtime`, `packages/observability`, and `apps/worker`.
+
 ## Task 5: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -146,3 +154,14 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm --filter @aivilization/agent-runtime test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/observability test`
+- `pnpm --filter @aivilization/agent-runtime typecheck`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm --filter @aivilization/observability typecheck`
+- `pnpm check`
+- `pnpm build`

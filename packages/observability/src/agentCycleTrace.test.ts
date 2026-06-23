@@ -13,11 +13,13 @@ describe('createAgentCycleTrace', () => {
       candidateActions: ['craft Transistor 1', 'buy Fish 1'],
       simulatorResult: { status: 'repaired', reason: 'missing Iron Ingot, buy first' },
       emittedCommandIds: ['cmd-1', 'cmd-2'],
+      memoryContextIds: ['stm-context-1'],
       memoryWriteIds: ['stm-1'],
     });
 
     expect(trace.selectedBranch).toBe('production-resource-management');
     expect(trace.simulatorResult.status).toBe('repaired');
     expect(trace.emittedCommandIds).toEqual(['cmd-1', 'cmd-2']);
+    expect(trace.memoryContextIds).toEqual(['stm-context-1']);
   });
 });

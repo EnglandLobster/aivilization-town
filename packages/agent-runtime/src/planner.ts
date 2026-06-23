@@ -1,4 +1,5 @@
 import type { IntentionInfluenceScore } from './intentionInfluence';
+import type { MemoryInfluenceScore } from './memoryInfluence';
 import type { ProfileInfluenceScore } from './profileInfluence';
 
 export type PlannerSubtask = {
@@ -7,6 +8,7 @@ export type PlannerSubtask = {
   readonly basePriority: number;
   readonly signalKeys?: readonly string[];
   readonly intentionAffinityTags?: readonly string[];
+  readonly memoryAffinityTags?: readonly string[];
   readonly profileAffinityTags?: readonly string[];
 };
 
@@ -72,6 +74,9 @@ export function createBranchPlan(input: {
         ...(subtask.intentionAffinityTags === undefined
           ? {}
           : { intentionAffinityTags: [...subtask.intentionAffinityTags] }),
+        ...(subtask.memoryAffinityTags === undefined
+          ? {}
+          : { memoryAffinityTags: [...subtask.memoryAffinityTags] }),
         ...(subtask.profileAffinityTags === undefined
           ? {}
           : { profileAffinityTags: [...subtask.profileAffinityTags] }),
@@ -95,6 +100,7 @@ export function selectPrioritizedSubtask(input: {
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
   readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+  readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
   readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
 }): PrioritizedSubtask {
   const signalWeights = new Map<string, number>();
@@ -116,6 +122,7 @@ export function selectPrioritizedSubtask(input: {
           0,
         ) +
         (input.intentionInfluence?.[subtask.id]?.score ?? 0) +
+        (input.memoryInfluence?.[subtask.id]?.score ?? 0) +
         (input.profileInfluence?.[subtask.id]?.score ?? 0),
     })),
   );

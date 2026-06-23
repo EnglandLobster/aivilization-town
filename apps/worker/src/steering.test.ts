@@ -103,10 +103,7 @@ describe('worker steering ingress', () => {
       commandDrafts: [],
       shortTermMemoryRecords: [],
     });
-    expect(result.planRecord?.plan.branches.map((branch) => branch.id)).toEqual([
-      'development',
-      'primary-objective',
-    ]);
+    expect(result.planRecord?.plan.branches.map((branch) => branch.id)).toEqual(['development']);
   });
 
   test('routes IssueReactiveCommand through runtime and appends STM records', async () => {

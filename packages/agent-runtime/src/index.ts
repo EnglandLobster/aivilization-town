@@ -3,6 +3,7 @@ export * from './cycle';
 export * from './intentionInfluence';
 export * from './memoryInfluence';
 export * from './planner';
+export * from './planProgress';
 export * from './profileInfluence';
 export * from './reactiveSteering';
 

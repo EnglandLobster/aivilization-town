@@ -1,7 +1,12 @@
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { createBranchPlan, runAgentPlanningCycle } from './index';
+import {
+  createBranchPlan,
+  createBranchPlanProgress,
+  markSubtaskCompleted,
+  runAgentPlanningCycle,
+} from './index';
 
 describe('agent planning cycle', () => {
   test('selects a subtask, gates actions through the simulator, and returns command drafts', () => {
@@ -335,5 +340,103 @@ describe('agent planning cycle', () => {
       score: 4.2,
     });
     expect(result.commandDrafts[0]?.type).toBe('AgentSleep');
+  });
+
+  test('uses branch plan progress to gate dependent subtasks during cycle selection', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'produce copper ingot',
+      branches: [
+        {
+          id: 'production',
+          objective: 'craft components',
+          subtasks: [
+            {
+              id: 'gather-ore',
+              description: 'gather copper ore',
+              basePriority: 2,
+            },
+            {
+              id: 'craft-ingot',
+              description: 'craft copper ingot',
+              basePriority: 10,
+              dependsOnSubtaskIds: ['gather-ore'],
+            },
+          ],
+        },
+      ],
+    });
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 100 });
+    const microPlanners = [
+      {
+        domain: 'gather',
+        supports: ({ subtaskId }) => subtaskId === 'gather-ore',
+        propose: () => [
+          {
+            id: 'gather-1',
+            description: 'gather ore',
+            commandType: 'AgentProduce',
+            payload: {
+              commodityName: 'Copper Ore',
+              quantity: 1,
+              availableLaborSeconds: 60,
+            },
+          },
+        ],
+      },
+      {
+        domain: 'craft',
+        supports: ({ subtaskId }) => subtaskId === 'craft-ingot',
+        propose: () => [
+          {
+            id: 'craft-1',
+            description: 'craft ingot',
+            commandType: 'AgentProduce',
+            payload: {
+              commodityName: 'Copper Ingot',
+              quantity: 1,
+              availableLaborSeconds: 60,
+            },
+          },
+        ],
+      },
+    ] satisfies Parameters<typeof runAgentPlanningCycle>[0]['microPlanners'];
+
+    const first = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 150,
+      plan,
+      progress,
+      signals: [],
+      microPlanners,
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+    const second = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 250,
+      plan,
+      progress: markSubtaskCompleted(progress, {
+        subtaskId: 'gather-ore',
+        completedAt: 200,
+      }),
+      signals: [],
+      microPlanners,
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(first.selectedSubtask.subtaskId).toBe('gather-ore');
+    expect(first.commandDrafts[0]?.payload).toEqual({
+      commodityName: 'Copper Ore',
+      quantity: 1,
+      availableLaborSeconds: 60,
+    });
+    expect(second.selectedSubtask.subtaskId).toBe('craft-ingot');
+    expect(second.commandDrafts[0]?.payload).toEqual({
+      commodityName: 'Copper Ingot',
+      quantity: 1,
+      availableLaborSeconds: 60,
+    });
   });
 });

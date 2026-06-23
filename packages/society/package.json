@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aivilization/content": "workspace:*",
     "@aivilization/sim-core": "workspace:*"
   }
 }

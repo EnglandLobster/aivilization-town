@@ -1,4 +1,5 @@
 export * from './education';
+export * from './occupation';
 export * from './physiology';
 
 export type SocietyModuleStatus = {

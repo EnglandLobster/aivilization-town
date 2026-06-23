@@ -137,7 +137,7 @@ describe('world projection', () => {
 - Create: `packages/world/src/agentActions.test.ts`
 - Modify: `packages/world/src/index.ts`
 
-- [ ] Write failing tests for `AgentEat` and `AgentStudy`:
+- [x] Write failing tests for `AgentEat` and `AgentStudy`:
 
 ```ts
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
@@ -228,11 +228,11 @@ describe('agent action command handlers', () => {
 });
 ```
 
-- [ ] Add a failing test proving invalid `AgentEat` emits `ActionRejected` and failed STM instead of mutating inventory.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm handler APIs are missing.
-- [ ] Implement typed command payloads, payload guards, event emission helpers, and handlers for eat and study.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add eat and study command handlers"`.
+- [x] Add a failing test proving invalid `AgentEat` emits `ActionRejected` and failed STM instead of mutating inventory.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm handler APIs are missing.
+- [x] Implement typed command payloads, payload guards, event emission helpers, and handlers for eat and study.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add eat and study command handlers"`.
 
 ### Task 3: Work Command And Dispatcher
 

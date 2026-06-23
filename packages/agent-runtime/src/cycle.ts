@@ -15,6 +15,7 @@ import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import { selectPrioritizedSubtask } from './planner';
 import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
 import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
+import type { BranchPlanProgress } from './planProgress';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 
 export type DomainMicroPlanner = {
@@ -56,6 +57,7 @@ export function runAgentPlanningCycle(input: {
   readonly agentId: AgentId;
   readonly issuedAt: number;
   readonly plan: BranchPlan;
+  readonly progress?: BranchPlanProgress;
   readonly signals: readonly ContextSignal[];
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
@@ -67,6 +69,7 @@ export function runAgentPlanningCycle(input: {
   const selectedSubtask = selectPrioritizedSubtask({
     plan: input.plan,
     signals: input.signals,
+    ...(input.progress === undefined ? {} : { progress: input.progress }),
     ...(input.intentionState === undefined
       ? {}
       : {

@@ -1,5 +1,11 @@
+import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { createBranchPlan, selectPrioritizedSubtask } from './index';
+import {
+  createBranchPlan,
+  createBranchPlanProgress,
+  markSubtaskCompleted,
+  selectPrioritizedSubtask,
+} from './index';
 
 describe('branch-thinking planner', () => {
   test('rejects empty branches and duplicate branch ids', () => {
@@ -147,5 +153,116 @@ describe('branch-thinking planner', () => {
         },
       }),
     ).toMatchObject({ branchId: 'development', subtaskId: 'study', score: 5 });
+  });
+
+  test('selects only runnable subtasks after applying progress and dependencies', () => {
+    const plan = createBranchPlan({
+      objective: 'produce copper ingot',
+      branches: [
+        {
+          id: 'production',
+          objective: 'craft components',
+          subtasks: [
+            {
+              id: 'gather-ore',
+              description: 'gather copper ore',
+              basePriority: 2,
+            },
+            {
+              id: 'craft-ingot',
+              description: 'craft copper ingot',
+              basePriority: 10,
+              dependsOnSubtaskIds: ['gather-ore'],
+            },
+          ],
+        },
+      ],
+    });
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId: asAgentId('agent-1'),
+      createdAt: 100,
+    });
+
+    expect(selectPrioritizedSubtask({ plan, signals: [], progress })).toEqual({
+      branchId: 'production',
+      subtaskId: 'gather-ore',
+      description: 'gather copper ore',
+      score: 2,
+    });
+
+    expect(
+      selectPrioritizedSubtask({
+        plan,
+        signals: [],
+        progress: markSubtaskCompleted(progress, {
+          subtaskId: 'gather-ore',
+          completedAt: 200,
+        }),
+      }),
+    ).toEqual({
+      branchId: 'production',
+      subtaskId: 'craft-ingot',
+      description: 'craft copper ingot',
+      score: 10,
+    });
+  });
+
+  test('rejects dependency ids outside the current branch or ahead in sequence', () => {
+    expect(() =>
+      createBranchPlan({
+        objective: 'bad dependencies',
+        branches: [
+          {
+            id: 'production',
+            objective: 'craft components',
+            subtasks: [
+              {
+                id: 'craft-ingot',
+                description: 'craft ingot',
+                basePriority: 10,
+                dependsOnSubtaskIds: ['gather-ore'],
+              },
+              {
+                id: 'gather-ore',
+                description: 'gather ore',
+                basePriority: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(/dependency gather-ore must appear earlier in branch production/);
+
+    expect(() =>
+      createBranchPlan({
+        objective: 'bad dependencies',
+        branches: [
+          {
+            id: 'production',
+            objective: 'craft components',
+            subtasks: [
+              {
+                id: 'craft-ingot',
+                description: 'craft ingot',
+                basePriority: 10,
+                dependsOnSubtaskIds: ['market-scan'],
+              },
+            ],
+          },
+          {
+            id: 'market',
+            objective: 'inspect prices',
+            subtasks: [
+              {
+                id: 'market-scan',
+                description: 'scan market',
+                basePriority: 1,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(/dependency market-scan must appear earlier in branch production/);
   });
 });

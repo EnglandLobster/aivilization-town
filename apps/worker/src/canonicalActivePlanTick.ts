@@ -2,6 +2,7 @@ import type {
   BranchPlanProgressRepository,
   BranchPlanRepository,
   CycleRepairPolicy,
+  StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -21,6 +22,7 @@ import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
 import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeResolver';
 import type { WorkerDomainRuntimeRegistration } from './domainRuntimeRegistry';
 import { completeFinishedActiveObjectives } from './objectiveLifecycle';
+import { renewMissingActiveObjectives, type AutonomousObjectiveProposer } from './objectiveRenewal';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   runWorkerSimulationTick,
@@ -41,6 +43,8 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
+  readonly objectiveProposer?: AutonomousObjectiveProposer;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
@@ -67,6 +71,19 @@ export async function runCanonicalWorkerActivePlanTick(
   input: CanonicalWorkerActivePlanTickInput,
 ): Promise<WorkerTickResult> {
   const projection = resolveSchedulingProjection(input);
+  await renewMissingActiveObjectives({
+    projection,
+    intentionRepository: input.intentionRepository,
+    longTermProfileRepository: input.longTermProfileRepository,
+    planRepository: input.planRepository,
+    issuedAt: input.issuedAt,
+    ...(input.objectiveProposer === undefined
+      ? {}
+      : { objectiveProposer: input.objectiveProposer }),
+    ...(input.strategicPlanCompiler === undefined
+      ? {}
+      : { strategicPlanCompiler: input.strategicPlanCompiler }),
+  });
   const agents = await buildWorkerTickAgentsFromActivePlans({
     projection,
     intentionRepository: input.intentionRepository,

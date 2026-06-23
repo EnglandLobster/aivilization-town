@@ -61,6 +61,7 @@ describe('canonical active-plan worker tick', () => {
       policies,
       eventStore,
       streamName: partition.eventStreamName,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
 
@@ -76,6 +77,51 @@ describe('canonical active-plan worker tick', () => {
     ]);
     expect(result.projection.clock.now).toBe(1000);
     expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+  });
+
+  test('renews idle agents with autonomous objectives before scheduling', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-idle-agent',
+      simulationId,
+      issuedAt: 100,
+      projection: createWorldProjection({
+        agents: [createAgent(agentA)],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: {
+        id: 'auto-objective-agent-a-100',
+        statement: 'Improve education to qualify for better town opportunities.',
+      },
+    });
+    await expect(
+      repositories.planRepository.require({
+        planId: 'auto-objective-agent-a-100',
+        agentId: agentA,
+      }),
+    ).resolves.toMatchObject({
+      planId: 'auto-objective-agent-a-100',
+      agentId: agentA,
+      plan: {
+        objective: 'Improve education to qualify for better town opportunities.',
+      },
+    });
   });
 
   test('saves progress for active durable plans', async () => {
@@ -94,6 +140,7 @@ describe('canonical active-plan worker tick', () => {
       eventStore,
       streamName: partition.eventStreamName,
       planProgressRepository,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
 
@@ -148,6 +195,7 @@ describe('canonical active-plan worker tick', () => {
       eventStore,
       streamName: partition.eventStreamName,
       planProgressRepository,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
 
@@ -183,6 +231,7 @@ describe('canonical active-plan worker tick', () => {
       policies,
       eventStore,
       streamName: partition.eventStreamName,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
     const second = await runCanonicalWorkerActivePlanTick({
@@ -193,6 +242,7 @@ describe('canonical active-plan worker tick', () => {
       policies,
       eventStore,
       streamName: partition.eventStreamName,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
 
@@ -215,6 +265,7 @@ describe('canonical active-plan worker tick', () => {
       policies,
       eventStore,
       streamName: partition.eventStreamName,
+      objectiveProposer: () => undefined,
       ...repositories,
     });
 

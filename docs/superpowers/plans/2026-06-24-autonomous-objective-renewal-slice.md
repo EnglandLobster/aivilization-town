@@ -39,7 +39,7 @@ It does not implement LLM reflection, multi-objective queues, social coordinatio
 - Create: `apps/worker/src/objectiveRenewal.test.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.test.ts`
 
-- [ ] **Step 1: Write failing tests for autonomous objective renewal**
+- [x] **Step 1: Write failing tests for autonomous objective renewal**
 
 Add tests that require:
 
@@ -56,6 +56,11 @@ pnpm test -- apps/worker/src/objectiveRenewal.test.ts apps/worker/src/canonicalA
 
 Expected before implementation: tests fail because objective renewal exports and canonical renewal integration do not exist.
 
+Observed red failures:
+
+- `createDefaultAutonomousObjective` and `renewMissingActiveObjectives` were not exported.
+- Canonical active-plan ticks returned no agent results for an idle agent because renewal did not run before scheduling.
+
 ## Task 2: Worker Renewal Implementation
 
 **Files:**
@@ -63,7 +68,7 @@ Expected before implementation: tests fail because objective renewal exports and
 - Create: `apps/worker/src/objectiveRenewal.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement standalone renewal orchestration**
+- [x] **Step 2: Implement standalone renewal orchestration**
 
 Behavior:
 
@@ -89,7 +94,7 @@ Behavior:
 
 - Modify: `apps/worker/src/canonicalActivePlanTick.ts`
 
-- [ ] **Step 3: Renew idle objectives before scheduling**
+- [x] **Step 3: Renew idle objectives before scheduling**
 
 Behavior:
 
@@ -104,7 +109,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -117,3 +122,11 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm test -- apps/worker/src/objectiveRenewal.test.ts apps/worker/src/canonicalActivePlanTick.test.ts`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm check`
+- `pnpm build`

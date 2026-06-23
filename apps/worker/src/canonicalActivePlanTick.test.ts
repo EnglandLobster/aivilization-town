@@ -225,6 +225,88 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('infers production chain target from active plan context across ticks', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createBookProductionObjective(agentA));
+    await repositories.planRepository.save(createBookProductionPlanRecord(agentA));
+
+    const first = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-inferred-production-chain-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(first.agentResults).toHaveLength(1);
+    expect(first.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentProduce',
+      payload: { commodityName: 'Wood', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-book-production',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-book-production',
+      agentId: agentA,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+
+    const second = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-inferred-production-chain-2',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection: createProjection() },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(second.agentResults).toHaveLength(1);
+    expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentProduce',
+      payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-book-production',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-book-production',
+      agentId: agentA,
+      completedSubtaskIds: ['produce-book-step'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toEqual([
+      {
+        objective: createBookProductionObjective(agentA),
+        completedAt: 200,
+        reason: 'plan-completed',
+        planId: 'objective-book-production',
+      },
+    ]);
+  });
+
   test('renews idle agents with autonomous objectives before scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
@@ -564,6 +646,19 @@ function createProductionObjective(agentId: AgentId): LongHorizonObjective {
   };
 }
 
+function createBookProductionObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-book-production',
+    agentId,
+    statement: 'Craft Book for the town library.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['production'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
 function createStudyPlanRecord(agentId: AgentId) {
   return {
     planId: 'objective-study',
@@ -604,6 +699,32 @@ function createProductionPlanRecord(agentId: AgentId) {
             {
               id: 'produce-step',
               description: 'Produce staple food.',
+              basePriority: 5,
+              intentionAffinityTags: ['production'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createBookProductionPlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-book-production',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Craft Book for the town library.',
+      branches: [
+        {
+          id: 'production-lane',
+          objective: 'Produce Book for the library shelves.',
+          subtasks: [
+            {
+              id: 'produce-book-step',
+              description: 'Craft Book for the library.',
               basePriority: 5,
               intentionAffinityTags: ['production'],
             },

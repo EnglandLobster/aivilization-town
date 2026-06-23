@@ -160,6 +160,84 @@ describe('worker agent cycle runner', () => {
     expect(traces).toEqual([result.trace]);
   });
 
+  test('passes action synthesis policy into planning and records rejected proposals in traces', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActionIds: string[] = [];
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-action-synthesis',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createStudyPlan(),
+      signals: [],
+      actionSynthesis: { maxActions: 1 },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-action-synthesis',
+      commandIdPrefix: 'cycle-action-synthesis-command',
+      microPlanners: [
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+              priority: 1,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+            {
+              id: 'study-1',
+              description: 'study for one minute',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 3,
+              resourceEstimate: { actionSeconds: 60, energyCost: 2 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => {
+        simulatedActionIds.push(action.id);
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActionIds).toEqual(['study-1']);
+    expect(result.trace.candidateActions).toEqual(['study for one minute']);
+    expect(result.trace.actionSynthesis.acceptedActions).toEqual([
+      {
+        id: 'study-1',
+        description: 'study for one minute',
+        commandType: 'AgentStudy',
+        priority: 3,
+        resourceEstimate: { actionSeconds: 60, energyCost: 2 },
+      },
+    ]);
+    expect(result.trace.actionSynthesis.rejectedActions).toEqual([
+      {
+        action: {
+          id: 'sleep-1',
+          description: 'sleep for one minute',
+          commandType: 'AgentSleep',
+          priority: 1,
+          resourceEstimate: { actionSeconds: 60 },
+        },
+        reason: 'maxActions exhausted',
+      },
+    ]);
+    expect(result.dispatchResult?.commands.map((command) => command.type)).toEqual(['AgentStudy']);
+  });
+
   test('replays idempotent event appends without duplicating STM repository writes', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

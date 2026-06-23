@@ -47,6 +47,32 @@ export type AgentCycleSubtaskCandidateTrace = {
   };
 };
 
+export type AgentCycleActionResourceEstimateTrace = {
+  readonly actionSeconds?: number;
+  readonly energyCost?: number;
+  readonly satietyCost?: number;
+  readonly currencyCost?: number;
+  readonly inventoryCosts?: Readonly<Record<string, number>>;
+};
+
+export type AgentCycleActionProposalTrace = {
+  readonly id: string;
+  readonly description: string;
+  readonly commandType: string;
+  readonly priority?: number;
+  readonly resourceEstimate?: AgentCycleActionResourceEstimateTrace;
+};
+
+export type AgentCycleRejectedActionTrace = {
+  readonly action: AgentCycleActionProposalTrace;
+  readonly reason: string;
+};
+
+export type AgentCycleActionSynthesisTrace = {
+  readonly acceptedActions: readonly AgentCycleActionProposalTrace[];
+  readonly rejectedActions: readonly AgentCycleRejectedActionTrace[];
+};
+
 export type AgentCycleTrace = {
   readonly traceId: string;
   readonly simulationId: string;
@@ -55,6 +81,7 @@ export type AgentCycleTrace = {
   readonly observedStateSummary: string;
   readonly selectedBranch: string;
   readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
+  readonly actionSynthesis: AgentCycleActionSynthesisTrace;
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
@@ -67,6 +94,9 @@ export type AgentCycleTrace = {
 export function createAgentCycleTrace(input: AgentCycleTrace): AgentCycleTrace {
   if (input.subtaskCandidates.length === 0) {
     throw new Error('agent cycle trace requires at least one subtask candidate');
+  }
+  if (input.actionSynthesis.acceptedActions.length === 0) {
+    throw new Error('agent cycle trace requires at least one synthesized action');
   }
   if (input.candidateActions.length === 0) {
     throw new Error('agent cycle trace requires at least one candidate action');

@@ -25,6 +25,33 @@ describe('createAgentCycleTrace', () => {
           },
         },
       ],
+      actionSynthesis: {
+        acceptedActions: [
+          {
+            id: 'craft-1',
+            description: 'craft Transistor 1',
+            commandType: 'AgentProduce',
+            priority: 3,
+            resourceEstimate: {
+              actionSeconds: 60,
+              energyCost: 4,
+              inventoryCosts: { 'Iron Ingot': 1 },
+            },
+          },
+        ],
+        rejectedActions: [
+          {
+            action: {
+              id: 'buy-fish-1',
+              description: 'buy Fish 1',
+              commandType: 'AgentTrade',
+              priority: 1,
+              resourceEstimate: { currencyCost: 10 },
+            },
+            reason: 'maxActions exhausted',
+          },
+        ],
+      },
       candidateActions: ['craft Transistor 1', 'buy Fish 1'],
       simulatorResult: { status: 'repaired', reason: 'missing Iron Ingot, buy first' },
       selectionEvidence: {
@@ -53,6 +80,10 @@ describe('createAgentCycleTrace', () => {
     expect(trace.replanningDecision.kind).toBe('memory-guided-correction');
     expect(trace.selectionEvidence.profileEvidenceRecordIds).toEqual(['reflection-rest-1']);
     expect(trace.subtaskCandidates[0]?.scoreBreakdown.memoryInfluenceScore).toBe(1.25);
+    expect(trace.actionSynthesis.rejectedActions[0]?.reason).toBe('maxActions exhausted');
+    expect(trace.actionSynthesis.acceptedActions[0]?.resourceEstimate?.inventoryCosts).toEqual({
+      'Iron Ingot': 1,
+    });
     expect(trace.emittedCommandIds).toEqual(['cmd-1', 'cmd-2']);
     expect(trace.memoryContextIds).toEqual(['stm-context-1']);
   });

@@ -54,6 +54,32 @@ function createTrace(input: {
         },
       },
     ],
+    actionSynthesis: {
+      acceptedActions: [
+        {
+          id: `${input.traceId}:study-1`,
+          description: 'study for one minute',
+          commandType: 'AgentStudy',
+          priority: 2,
+          resourceEstimate: {
+            actionSeconds: 60,
+            inventoryCosts: { Book: 1 },
+          },
+        },
+      ],
+      rejectedActions: [
+        {
+          action: {
+            id: `${input.traceId}:sleep-1`,
+            description: 'sleep instead',
+            commandType: 'AgentSleep',
+            priority: 1,
+            resourceEstimate: { actionSeconds: 60 },
+          },
+          reason: 'maxActions exhausted',
+        },
+      ],
+    },
     candidateActions: ['study for one minute'],
     simulatorResult: { status: 'accepted' },
     selectionEvidence: {
@@ -113,6 +139,13 @@ describe('agent cycle trace repositories', () => {
     (
       read!.subtaskCandidates[0]!.scoreBreakdown as { memoryInfluenceScore: number }
     ).memoryInfluenceScore = 999;
+    (
+      read!.actionSynthesis.acceptedActions[0]!.resourceEstimate!
+        .inventoryCosts as Record<string, number>
+    ).Book = 999;
+    (
+      read!.actionSynthesis.rejectedActions[0]!.action as { description: string }
+    ).description = 'mutated';
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
   });
 

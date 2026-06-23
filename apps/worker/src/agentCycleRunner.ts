@@ -1,7 +1,9 @@
 import {
   runAgentPlanningCycle,
+  type ActionSynthesisPolicy,
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
+  type AtomicActionProposal,
   type BranchPlan,
   type BranchPlanRepository,
   type BranchPlanProgress,
@@ -18,6 +20,9 @@ import type {
 } from '@aivilization/memory';
 import {
   createAgentCycleTrace,
+  type AgentCycleActionProposalTrace,
+  type AgentCycleActionResourceEstimateTrace,
+  type AgentCycleActionSynthesisTrace,
   type AgentCycleTrace,
   type SimulatorTraceResult,
 } from '@aivilization/observability';
@@ -76,6 +81,7 @@ export async function runWorkerAgentCycle(
     readonly shortTermMemoryRepository: ShortTermMemoryRepository;
     readonly memoryRetrievalLimit?: number;
     readonly microPlanners: readonly DomainMicroPlanner[];
+    readonly actionSynthesis?: ActionSynthesisPolicy;
     readonly simulate: CycleActionSimulator;
     readonly repair?: CycleRepairPolicy;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -117,6 +123,7 @@ export async function runWorkerAgentCycle(
     longTermProfile,
     ...(input.memoryRetrievalLimit === undefined ? {} : { shortTermMemoryContext }),
     microPlanners: input.microPlanners,
+    ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
     simulate: input.simulate,
     ...(input.repair === undefined ? {} : { repair: input.repair }),
     ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
@@ -156,6 +163,7 @@ export async function runWorkerAgentCycle(
     observedStateSummary: input.observedStateSummary,
     selectedBranch: cycleResult.selectedSubtask.branchId,
     subtaskCandidates: cycleResult.subtaskCandidates,
+    actionSynthesis: mapActionSynthesisTrace(cycleResult.actionSynthesisResult),
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
     selectionEvidence: cycleResult.selectionEvidence,
@@ -178,6 +186,54 @@ export async function runWorkerAgentCycle(
       ? {}
       : { progressUpdate: cycleResult.progressUpdate }),
     trace,
+  };
+}
+
+function mapActionSynthesisTrace(
+  actionSynthesisResult: AgentCycleResult['actionSynthesisResult'],
+): AgentCycleActionSynthesisTrace {
+  return {
+    acceptedActions: actionSynthesisResult.acceptedActions.map((action) =>
+      mapActionProposalTrace(action),
+    ),
+    rejectedActions: actionSynthesisResult.rejectedActions.map((rejectedAction) => ({
+      action: mapActionProposalTrace(rejectedAction.action),
+      reason: rejectedAction.reason,
+    })),
+  };
+}
+
+function mapActionProposalTrace(action: AtomicActionProposal): AgentCycleActionProposalTrace {
+  return {
+    id: action.id,
+    description: action.description,
+    commandType: action.commandType,
+    ...(action.priority === undefined ? {} : { priority: action.priority }),
+    ...(action.resourceEstimate === undefined
+      ? {}
+      : { resourceEstimate: mapResourceEstimateTrace(action.resourceEstimate) }),
+  };
+}
+
+function mapResourceEstimateTrace(
+  resourceEstimate: NonNullable<AtomicActionProposal['resourceEstimate']>,
+): AgentCycleActionResourceEstimateTrace {
+  return {
+    ...(resourceEstimate.actionSeconds === undefined
+      ? {}
+      : { actionSeconds: resourceEstimate.actionSeconds }),
+    ...(resourceEstimate.energyCost === undefined
+      ? {}
+      : { energyCost: resourceEstimate.energyCost }),
+    ...(resourceEstimate.satietyCost === undefined
+      ? {}
+      : { satietyCost: resourceEstimate.satietyCost }),
+    ...(resourceEstimate.currencyCost === undefined
+      ? {}
+      : { currencyCost: resourceEstimate.currencyCost }),
+    ...(resourceEstimate.inventoryCosts === undefined
+      ? {}
+      : { inventoryCosts: { ...resourceEstimate.inventoryCosts } }),
   };
 }
 

@@ -5,6 +5,7 @@ import type {
   BranchPlanProgressRepository,
   CycleActionSimulator,
   CycleRepairPolicy,
+  CycleSubtaskCompletionPolicy,
   DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import type {
@@ -53,6 +54,7 @@ export type WorkerTickAgentInput = {
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
+  readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
 } & WorkerTickAgentPlanInput;
 
 export type WorkerTickResult = {
@@ -175,6 +177,9 @@ export async function runWorkerSimulationTick(
       ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
       simulate: agent.simulate,
       ...(agent.repair === undefined ? {} : { repair: agent.repair }),
+      ...(agent.subtaskCompletion === undefined
+        ? {}
+        : { subtaskCompletion: agent.subtaskCompletion }),
       expectedVersion,
       ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),
     });

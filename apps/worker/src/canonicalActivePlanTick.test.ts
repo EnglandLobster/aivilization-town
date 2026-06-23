@@ -135,6 +135,96 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('executes production chain upstream steps across ticks before completing the active plan', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createProductionObjective(agentA));
+    await repositories.planRepository.save(createProductionPlanRecord(agentA));
+
+    const first = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-production-chain-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      domainConfig: { production: { commodityName: 'Book', quantity: 1 } },
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(first.agentResults).toHaveLength(1);
+    expect(first.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentProduce',
+      payload: { commodityName: 'Wood', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    expect(first.projection.agents[agentA]?.inventory).toEqual({ Wood: 1 });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-production',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-production',
+      agentId: agentA,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: { id: 'objective-production' },
+      completedObjectives: [],
+    });
+
+    const second = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-production-chain-2',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection: createProjection() },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      domainConfig: { production: { commodityName: 'Book', quantity: 1 } },
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(second.agentResults).toHaveLength(1);
+    expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentProduce',
+      payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    expect(second.projection.agents[agentA]?.inventory).toEqual({ Book: 1 });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-production',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-production',
+      agentId: agentA,
+      completedSubtaskIds: ['produce-step'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toEqual([
+      {
+        objective: createProductionObjective(agentA),
+        completedAt: 200,
+        reason: 'plan-completed',
+        planId: 'objective-production',
+      },
+    ]);
+  });
+
   test('renews idle agents with autonomous objectives before scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

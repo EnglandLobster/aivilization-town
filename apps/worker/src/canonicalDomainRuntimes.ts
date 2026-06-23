@@ -5,7 +5,12 @@ import type {
   DomainMicroPlanner,
   PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
-import { buyFromPool, planProduction } from '@aivilization/economy';
+import {
+  buyFromPool,
+  planProduction,
+  planProductionChain,
+  type ProductionChainStep,
+} from '@aivilization/economy';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
@@ -271,23 +276,36 @@ export function createProductionDomainRuntimeRegistration(
           const quantity = config.quantity ?? DEFAULT_PRODUCTION_QUANTITY;
           const availableLaborSeconds =
             config.availableLaborSeconds ?? DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS;
+          const nextProductionStep = resolveNextProductionStep({
+            commodityName,
+            quantity,
+            availableLaborSeconds,
+            context,
+          });
+          const actionCommodityName = nextProductionStep?.commodityName ?? commodityName;
+          const actionQuantity = nextProductionStep?.quantity ?? quantity;
 
           return {
             id: createCanonicalActionId('production', selectedSubtask),
-            description: `Produce ${commodityName}.`,
+            description:
+              nextProductionStep === undefined || nextProductionStep.commodityName === commodityName
+                ? `Produce ${commodityName}.`
+                : `Produce ${nextProductionStep.commodityName} for ${commodityName}.`,
             commandType: 'AgentProduce',
             priority: selectedSubtask.score,
             payload: {
-              commodityName,
-              quantity,
+              commodityName: actionCommodityName,
+              quantity: actionQuantity,
               availableLaborSeconds,
             },
-            ...createProductionResourceEstimate({
-              commodityName,
-              quantity,
-              availableLaborSeconds,
-              context,
-            }),
+            ...(nextProductionStep === undefined
+              ? createProductionResourceEstimate({
+                  commodityName,
+                  quantity,
+                  availableLaborSeconds,
+                  context,
+                })
+              : { resourceEstimate: createProductionStepResourceEstimate(nextProductionStep) }),
           };
         },
       }),
@@ -400,6 +418,43 @@ function createTradeResourceEstimate(input: {
   } catch {
     return {};
   }
+}
+
+function resolveNextProductionStep(input: {
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly availableLaborSeconds: number;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+}): ProductionChainStep | undefined {
+  const productionChain = planProductionChain({
+    commodityName: input.commodityName,
+    quantity: input.quantity,
+    agent: {
+      residentialTier: input.context.agent.residentialTier,
+      energy: input.context.agent.physiology.energy,
+      satiety: input.context.agent.physiology.satiety,
+      availableLaborSeconds: input.availableLaborSeconds,
+      inventory: input.context.agent.inventory,
+    },
+  });
+  if (productionChain.status === 'rejected') {
+    return undefined;
+  }
+
+  return productionChain.steps[0];
+}
+
+function createProductionStepResourceEstimate(
+  step: ProductionChainStep,
+): ActionResourceEstimate {
+  return {
+    actionSeconds: step.laborSeconds,
+    energyCost: step.energyCost,
+    satietyCost: step.satietyCost,
+    ...(Object.keys(step.consumedInputs).length === 0
+      ? {}
+      : { inventoryCosts: step.consumedInputs }),
+  };
 }
 
 function createProductionResourceEstimate(input: {

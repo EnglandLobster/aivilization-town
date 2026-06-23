@@ -29,6 +29,7 @@ import {
   decideAdaptiveReplanning,
   type AdaptiveReplanningPolicy,
   type ReplanningDecision,
+  type SubtaskCompletionDecision,
 } from './replanning';
 
 export type DomainMicroPlanner = {
@@ -48,6 +49,11 @@ export type CycleRepairPolicy = (input: {
   readonly selectedSubtask: PrioritizedSubtask;
 }) => AtomicActionProposal | undefined;
 
+export type CycleSubtaskCompletionPolicy = (input: {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly simulationResults: readonly ActionWithRepairResult[];
+}) => SubtaskCompletionDecision;
+
 export type CommandDraft = {
   readonly simulationId: SimulationId;
   readonly actorId: AgentId;
@@ -66,6 +72,7 @@ export type AgentCycleResult = {
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
+  readonly subtaskCompletionDecision: SubtaskCompletionDecision;
   readonly progressUpdate?: BranchPlanProgress;
   readonly needsReplan: boolean;
 };
@@ -95,6 +102,7 @@ export function runAgentPlanningCycle(input: {
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
+  readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
 }): AgentCycleResult {
   const intentionInfluence =
     input.intentionState === undefined
@@ -167,6 +175,13 @@ export function runAgentPlanningCycle(input: {
       ? {}
       : { majorContextShift: input.replanningPolicy.majorContextShift }),
   });
+  const subtaskCompletionDecision = decideSubtaskCompletion({
+    selectedSubtask,
+    simulationResults,
+    ...(input.subtaskCompletion === undefined
+      ? {}
+      : { subtaskCompletion: input.subtaskCompletion }),
+  });
   const progressUpdate =
     input.progress === undefined
       ? undefined
@@ -174,6 +189,7 @@ export function runAgentPlanningCycle(input: {
           progress: input.progress,
           selectedSubtask,
           decision: replanningDecision,
+          completionDecision: subtaskCompletionDecision,
           at: input.issuedAt,
         });
 
@@ -190,9 +206,27 @@ export function runAgentPlanningCycle(input: {
         : [createCommandDraft(input, actionFromSimulationResult(result))],
     ),
     replanningDecision,
+    subtaskCompletionDecision,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function decideSubtaskCompletion(input: {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+}): SubtaskCompletionDecision {
+  if (input.simulationResults.some((result) => result.status === 'needs-replan')) {
+    return { status: 'in-progress', reason: 'cycle requires replanning' };
+  }
+
+  return (
+    input.subtaskCompletion?.({
+      selectedSubtask: input.selectedSubtask,
+      simulationResults: input.simulationResults,
+    }) ?? { status: 'completed' }
+  );
 }
 
 function createSelectionEvidence(input: {

@@ -9,6 +9,7 @@ export type ProfileInfluenceEntryMatch = {
   readonly key: string;
   readonly tag: string;
   readonly contribution: number;
+  readonly provenanceRecordIds: readonly string[];
 };
 
 export type ProfileInfluenceScore = {
@@ -71,6 +72,7 @@ function scoreSection(
         key: entry.key,
         tag,
         contribution: contributionForEntry(section, entry),
+        provenanceRecordIds: [...entry.provenanceRecordIds],
       })),
   );
 }

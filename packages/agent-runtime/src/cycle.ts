@@ -52,12 +52,23 @@ export type CommandDraft = {
 
 export type AgentCycleResult = {
   readonly selectedSubtask: PrioritizedSubtask;
+  readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
   readonly progressUpdate?: BranchPlanProgress;
   readonly needsReplan: boolean;
+};
+
+export type AgentCycleSelectionEvidence = {
+  readonly selectedSubtaskId: string;
+  readonly intentionInfluenceScore: number;
+  readonly memoryInfluenceScore: number;
+  readonly profileInfluenceScore: number;
+  readonly memoryEvidenceRecordIds: readonly string[];
+  readonly profileEntryKeys: readonly string[];
+  readonly profileEvidenceRecordIds: readonly string[];
 };
 
 export function runAgentPlanningCycle(input: {
@@ -75,31 +86,31 @@ export function runAgentPlanningCycle(input: {
   readonly repair?: CycleRepairPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 }): AgentCycleResult {
+  const intentionInfluence =
+    input.intentionState === undefined
+      ? undefined
+      : buildIntentionInfluenceBySubtask(input.plan, input.intentionState, input.issuedAt);
+  const memoryInfluence =
+    input.shortTermMemoryContext === undefined
+      ? undefined
+      : buildMemoryInfluenceBySubtask(input.plan, input.shortTermMemoryContext, input.issuedAt);
+  const profileInfluence =
+    input.longTermProfile === undefined
+      ? undefined
+      : buildProfileInfluenceBySubtask(input.plan, input.longTermProfile);
   const selectedSubtask = selectPrioritizedSubtask({
     plan: input.plan,
     signals: input.signals,
     ...(input.progress === undefined ? {} : { progress: input.progress }),
-    ...(input.intentionState === undefined
-      ? {}
-      : {
-          intentionInfluence: buildIntentionInfluenceBySubtask(
-            input.plan,
-            input.intentionState,
-            input.issuedAt,
-          ),
-        }),
-    ...(input.shortTermMemoryContext === undefined
-      ? {}
-      : {
-          memoryInfluence: buildMemoryInfluenceBySubtask(
-            input.plan,
-            input.shortTermMemoryContext,
-            input.issuedAt,
-          ),
-        }),
-    ...(input.longTermProfile === undefined
-      ? {}
-      : { profileInfluence: buildProfileInfluenceBySubtask(input.plan, input.longTermProfile) }),
+    ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
+    ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
+    ...(profileInfluence === undefined ? {} : { profileInfluence }),
+  });
+  const selectionEvidence = createSelectionEvidence({
+    selectedSubtask,
+    ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
+    ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
+    ...(profileInfluence === undefined ? {} : { profileInfluence }),
   });
   const microPlanner = input.microPlanners.find((planner) => planner.supports(selectedSubtask));
   if (microPlanner === undefined) {
@@ -143,6 +154,7 @@ export function runAgentPlanningCycle(input: {
 
   return {
     selectedSubtask,
+    selectionEvidence,
     candidateActions,
     simulationResults,
     commandDrafts: simulationResults.flatMap((result) =>
@@ -153,6 +165,32 @@ export function runAgentPlanningCycle(input: {
     replanningDecision,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
+  };
+}
+
+function createSelectionEvidence(input: {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+  readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
+  readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
+}): AgentCycleSelectionEvidence {
+  const subtaskId = input.selectedSubtask.subtaskId;
+  const intentionInfluence = input.intentionInfluence?.[subtaskId];
+  const memoryInfluence = input.memoryInfluence?.[subtaskId];
+  const profileInfluence = input.profileInfluence?.[subtaskId];
+
+  return {
+    selectedSubtaskId: subtaskId,
+    intentionInfluenceScore: intentionInfluence?.score ?? 0,
+    memoryInfluenceScore: memoryInfluence?.score ?? 0,
+    profileInfluenceScore: profileInfluence?.score ?? 0,
+    memoryEvidenceRecordIds: sortedUnique(
+      memoryInfluence?.matches.map((match) => match.recordId) ?? [],
+    ),
+    profileEntryKeys: sortedUnique(profileInfluence?.matches.map((match) => match.key) ?? []),
+    profileEvidenceRecordIds: sortedUnique(
+      profileInfluence?.matches.flatMap((match) => match.provenanceRecordIds) ?? [],
+    ),
   };
 }
 
@@ -231,6 +269,10 @@ function actionFromSimulationResult(result: ActionWithRepairResult): AtomicActio
     case 'needs-replan':
       throw new Error('cannot create a command draft from an action that needs replanning');
   }
+}
+
+function sortedUnique(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
 function createCommandDraft(

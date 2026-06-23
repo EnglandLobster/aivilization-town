@@ -10,6 +10,7 @@ import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  asMemoryRecordId,
   createShortTermMemoryRecord,
 } from '@aivilization/memory';
 import {
@@ -220,6 +221,22 @@ describe('worker agent cycle runner', () => {
         tags: ['work', 'energy'],
       }),
     );
+    await repositories.longTermProfileRepository.save({
+      agentId,
+      beliefs: [],
+      habits: [
+        {
+          key: 'rest-recovery',
+          statement: 'Rest to recover from energy depletion.',
+          confidence: 0.7,
+          updatedAt: 900,
+          provenanceRecordIds: [asMemoryRecordId('reflection-rest-1')],
+        },
+      ],
+      values: [],
+      personality: [],
+      socialRecords: [],
+    });
 
     const result = await runWorkerAgentCycle({
       cycleId: 'cycle-memory-context',
@@ -244,6 +261,7 @@ describe('worker agent cycle runner', () => {
                 description: 'rest before working',
                 basePriority: 1,
                 memoryAffinityTags: ['energy'],
+                profileAffinityTags: ['recovery'],
               },
             ],
           },
@@ -293,6 +311,15 @@ describe('worker agent cycle runner', () => {
       subtaskId: 'sleep',
     });
     expect(result.trace.memoryContextIds).toEqual(['recent-energy-failure']);
+    expect(result.trace.selectionEvidence).toEqual({
+      selectedSubtaskId: 'sleep',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 3.2,
+      profileInfluenceScore: 1.4,
+      memoryEvidenceRecordIds: ['recent-energy-failure'],
+      profileEntryKeys: ['rest-recovery'],
+      profileEvidenceRecordIds: ['reflection-rest-1'],
+    });
     expect(result.cycleResult.commandDrafts[0]?.type).toBe('AgentSleep');
   });
 

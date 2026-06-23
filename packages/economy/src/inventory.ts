@@ -24,8 +24,9 @@ export function removeInventory(
   }
   const nextQuantity = current - quantity;
   if (nextQuantity === 0) {
-    const { [itemName]: _removed, ...rest } = inventory;
-    return rest;
+    const nextInventory: Record<string, number> = { ...inventory };
+    delete nextInventory[itemName];
+    return nextInventory;
   }
   return {
     ...inventory,

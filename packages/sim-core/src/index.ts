@@ -1,6 +1,7 @@
 export * from './command';
 export * from './event';
 export * from './eventStore';
+export * from './fileEventStore';
 export * from './ids';
 export * from './partition';
 export * from './random';

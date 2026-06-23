@@ -37,7 +37,7 @@ It does not implement a durable event log, queue retry, API submission, worker t
 - Create: `apps/worker/src/commandDispatch.test.ts`
 - Modify: `apps/worker/package.json`
 
-- [ ] **Step 1: Add world dependency**
+- [x] **Step 1: Add world dependency**
 
 Modify `apps/worker/package.json` dependencies:
 
@@ -54,7 +54,7 @@ Modify `apps/worker/package.json` dependencies:
 }
 ```
 
-- [ ] **Step 2: Write failing tests for draft conversion and world dispatch**
+- [x] **Step 2: Write failing tests for draft conversion and world dispatch**
 
 Create `apps/worker/src/commandDispatch.test.ts`:
 
@@ -190,7 +190,7 @@ describe('worker command dispatch seam', () => {
 });
 ```
 
-- [ ] **Step 3: Run worker tests and verify RED**
+- [x] **Step 3: Run worker tests and verify RED**
 
 Run:
 
@@ -207,7 +207,7 @@ Expected: FAIL because `createCommandEnvelopeFromDraft` and `dispatchCommandDraf
 - Create: `apps/worker/src/commandDispatch.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 1: Implement draft-to-envelope conversion**
+- [x] **Step 1: Implement draft-to-envelope conversion**
 
 Create `createCommandEnvelopeFromDraft(input)` that calls `createCommandEnvelope` with:
 
@@ -221,7 +221,7 @@ Create `createCommandEnvelopeFromDraft(input)` that calls `createCommandEnvelope
 - `issuedAt: draft.issuedAt`
 - optional `expectedVersion`
 
-- [ ] **Step 2: Implement world dispatch orchestration**
+- [x] **Step 2: Implement world dispatch orchestration**
 
 Create `dispatchCommandDraftsToWorld(input)` that:
 
@@ -232,7 +232,7 @@ Create `dispatchCommandDraftsToWorld(input)` that:
 - increments the next sequence by `events.length` after each draft;
 - returns `{ commands, events, projection }`.
 
-- [ ] **Step 3: Export command dispatch contracts**
+- [x] **Step 3: Export command dispatch contracts**
 
 Modify `apps/worker/src/index.ts`:
 
@@ -240,7 +240,7 @@ Modify `apps/worker/src/index.ts`:
 export * from './commandDispatch';
 ```
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run:
 
@@ -251,7 +251,7 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -266,10 +266,10 @@ git commit -m "feat: add worker command dispatch seam"
 
 - Modify: `docs/superpowers/plans/2026-06-23-worker-command-dispatch-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

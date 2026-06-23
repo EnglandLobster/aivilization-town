@@ -71,6 +71,9 @@ importers:
 
   packages/agent-runtime:
     dependencies:
+      '@aivilization/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core

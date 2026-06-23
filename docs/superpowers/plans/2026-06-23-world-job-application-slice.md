@@ -46,11 +46,11 @@ It does not cover employer capacity, interviews, employer-side selection, salary
 - Modify: `packages/world/src/projection.ts`
 - Modify: `packages/world/src/projection.test.ts`
 
-- [ ] Write failing tests for replaying job application and assignment events.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
-- [ ] Implement `JobApplicationSubmitted` and `JobAssigned` payload types plus projection replay.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add world job projection events"`.
+- [x] Write failing tests for replaying job application and assignment events.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
+- [x] Implement `JobApplicationSubmitted` and `JobAssigned` payload types plus projection replay.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add world job projection events"`.
 
 ### Task 2: Apply Job Command Handler
 
@@ -60,16 +60,16 @@ It does not cover employer capacity, interviews, employer-side selection, salary
 - Modify: `packages/world/src/agentActions.ts`
 - Modify: `packages/world/src/agentActions.test.ts`
 
-- [ ] Write failing tests for `AgentApplyJob` success, eligibility rejection, quota rejection, and dispatcher routing.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
-- [ ] Implement payload validation and handler orchestration.
-- [ ] Enforce quota through `calculateApplicationQuota` without duplicating society rules.
-- [ ] Enforce occupation eligibility through `isEligibleForOccupation` without duplicating occupation catalog rules.
-- [ ] Emit `JobApplicationSubmitted`, `JobAssigned`, and successful STM for accepted applications.
-- [ ] Emit `ActionRejected` and failed STM for rejected applications.
-- [ ] Route `AgentApplyJob` through `dispatchWorldCommand`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add job application command handler"`.
+- [x] Write failing tests for `AgentApplyJob` success, eligibility rejection, quota rejection, and dispatcher routing.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
+- [x] Implement payload validation and handler orchestration.
+- [x] Enforce quota through `calculateApplicationQuota` without duplicating society rules.
+- [x] Enforce occupation eligibility through `isEligibleForOccupation` without duplicating occupation catalog rules.
+- [x] Emit `JobApplicationSubmitted`, `JobAssigned`, and successful STM for accepted applications.
+- [x] Emit `ActionRejected` and failed STM for rejected applications.
+- [x] Route `AgentApplyJob` through `dispatchWorldCommand`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add job application command handler"`.
 
 ### Task 3: Whole-Repo Verification
 
@@ -77,10 +77,10 @@ It does not cover employer capacity, interviews, employer-side selection, salary
 
 - Modify: `docs/superpowers/plans/2026-06-23-world-job-application-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update if needed.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update if needed.
 
 ## Acceptance Criteria
 

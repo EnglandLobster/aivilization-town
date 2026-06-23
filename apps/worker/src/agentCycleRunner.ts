@@ -2,6 +2,7 @@ import {
   runAgentPlanningCycle,
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
+  type BranchPlanProgress,
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
@@ -34,6 +35,7 @@ export type WorkerAgentCycleResult = {
   readonly events: readonly WorldEvent[];
   readonly projection: WorldProjection;
   readonly shortTermMemoryRecords: readonly ShortTermMemoryRecord[];
+  readonly progressUpdate?: BranchPlanProgress;
   readonly trace: AgentCycleTrace;
 };
 
@@ -44,6 +46,7 @@ export async function runWorkerAgentCycle(input: {
   readonly issuedAt: number;
   readonly observedStateSummary: string;
   readonly plan: Parameters<typeof runAgentPlanningCycle>[0]['plan'];
+  readonly progress?: BranchPlanProgress;
   readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
   readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicies;
@@ -77,6 +80,7 @@ export async function runWorkerAgentCycle(input: {
     agentId: input.agentId,
     issuedAt: input.issuedAt,
     plan: input.plan,
+    ...(input.progress === undefined ? {} : { progress: input.progress }),
     signals: input.signals,
     intentionState,
     longTermProfile,
@@ -134,6 +138,9 @@ export async function runWorkerAgentCycle(input: {
     events: dispatchResult?.events ?? [],
     projection: dispatchResult?.projection ?? input.projection,
     shortTermMemoryRecords,
+    ...(cycleResult.progressUpdate === undefined
+      ? {}
+      : { progressUpdate: cycleResult.progressUpdate }),
     trace,
   };
 }

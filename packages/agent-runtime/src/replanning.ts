@@ -1,5 +1,6 @@
 import type { MemoryRecordId, ShortTermMemoryRecord } from '@aivilization/memory';
 import type { ActionWithRepairResult, AtomicActionProposal } from './actions';
+import { markSubtaskBlocked, type BranchPlanProgress } from './planProgress';
 import type { PrioritizedSubtask } from './planner';
 
 export type ReplanningMajorContextShift = {
@@ -90,6 +91,23 @@ export function decideAdaptiveReplanning(input: {
     failedActionIds,
     evidenceRecordIds,
   };
+}
+
+export function applyReplanningDecisionToProgress(input: {
+  readonly progress: BranchPlanProgress;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly decision: ReplanningDecision;
+  readonly at: number;
+}): BranchPlanProgress | undefined {
+  if (input.decision.kind !== 'full-replan') {
+    return undefined;
+  }
+
+  return markSubtaskBlocked(input.progress, {
+    subtaskId: input.selectedSubtask.subtaskId,
+    reason: `${input.decision.trigger}: ${input.decision.reason}`,
+    blockedAt: input.at,
+  });
 }
 
 function findMatchingFailureEvidence(input: {

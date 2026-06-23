@@ -1,6 +1,7 @@
 import type { AgentRuntimeModuleStatus } from '@aivilization/agent-runtime';
 import type { CommodityConfig } from '@aivilization/content';
 
+export * from './commandDispatch';
 export * from './steering';
 
 export type WorkerBootContract = {

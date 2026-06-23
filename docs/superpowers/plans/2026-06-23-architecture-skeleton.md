@@ -121,6 +121,17 @@ Create `tsconfig.base.json`:
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@aivilization/agent-runtime": ["packages/agent-runtime/src/index.ts"],
+      "@aivilization/content": ["packages/content/src/index.ts"],
+      "@aivilization/economy": ["packages/economy/src/index.ts"],
+      "@aivilization/llm": ["packages/llm/src/index.ts"],
+      "@aivilization/memory": ["packages/memory/src/index.ts"],
+      "@aivilization/observability": ["packages/observability/src/index.ts"],
+      "@aivilization/sim-core": ["packages/sim-core/src/index.ts"],
+      "@aivilization/society": ["packages/society/src/index.ts"]
+    },
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -317,7 +328,6 @@ For each package, create `tsconfig.json`:
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist"
   },
   "include": ["src"]
@@ -1607,7 +1617,6 @@ For each app, create `tsconfig.json`:
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist"
   },
   "include": ["src"]

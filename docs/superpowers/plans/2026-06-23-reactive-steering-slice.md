@@ -36,7 +36,7 @@ It does not implement natural-language parsing, API endpoints, UI controls, dura
 
 - Create: `packages/agent-runtime/src/reactiveSteering.test.ts`
 
-- [ ] **Step 1: Write failing tests for accepted, repaired, and failed reactive commands**
+- [x] **Step 1: Write failing tests for accepted, repaired, and failed reactive commands**
 
 Create `packages/agent-runtime/src/reactiveSteering.test.ts`:
 
@@ -173,7 +173,7 @@ describe('reactive steering route', () => {
 });
 ```
 
-- [ ] **Step 2: Run agent-runtime tests and verify RED**
+- [x] **Step 2: Run agent-runtime tests and verify RED**
 
 Run:
 
@@ -190,7 +190,7 @@ Expected: FAIL because `runReactiveSteeringRoute` does not exist.
 - Create: `packages/agent-runtime/src/reactiveSteering.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] **Step 1: Implement the route contracts**
+- [x] **Step 1: Implement the route contracts**
 
 Create `ReactiveCommandInput`, `ReactiveLocalizedPlanner`, `ReactiveActionSimulator`, `ReactiveRepairPolicy`, `ReactiveSteeringResult`, and `runReactiveSteeringRoute`.
 
@@ -204,7 +204,7 @@ The route must:
 - convert accepted and repaired results into `CommandDraft` objects;
 - return two STM records: one observed receipt and one final outcome.
 
-- [ ] **Step 2: Export the route**
+- [x] **Step 2: Export the route**
 
 Modify `packages/agent-runtime/src/index.ts`:
 
@@ -212,7 +212,7 @@ Modify `packages/agent-runtime/src/index.ts`:
 export * from './reactiveSteering';
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -223,7 +223,7 @@ pnpm --filter @aivilization/agent-runtime typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -238,10 +238,10 @@ git commit -m "feat: add reactive steering route"
 
 - Modify: `docs/superpowers/plans/2026-06-23-reactive-steering-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

@@ -98,13 +98,29 @@ describe('file agent intention repository', () => {
         updatedAt: 150,
       },
     ]);
+    await firstRepository.completeObjective(agentId, {
+      objectiveId: objective.id,
+      completedAt: 400,
+      reason: 'plan-completed',
+      planId: objective.id,
+    });
     const restartedRepository = new FileAgentIntentionRepository({ rootDir });
 
     await expect(restartedRepository.getOrCreate(agentId)).resolves.toMatchObject({
-      activeObjective: objective,
-      scheduledIntentions: [{ id: 'study-block', description: 'Study at the library.' }],
-      updatedAt: 150,
+      completedObjectives: [
+        {
+          objective,
+          completedAt: 400,
+          reason: 'plan-completed',
+          planId: objective.id,
+        },
+      ],
+      scheduledIntentions: [
+        { id: 'study-block', description: 'Study at the library.', status: 'completed' },
+      ],
+      updatedAt: 400,
     });
+    expect((await restartedRepository.getOrCreate(agentId)).activeObjective).toBeUndefined();
   });
 });
 

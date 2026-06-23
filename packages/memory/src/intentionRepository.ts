@@ -1,12 +1,22 @@
 import type { AgentId } from '@aivilization/sim-core';
 import {
+  completeLongHorizonObjective,
   createEmptyAgentIntentionState,
   setLongHorizonObjective,
   upsertScheduledIntentions,
   type AgentIntentionState,
+  type CompletedLongHorizonObjective,
   type LongHorizonObjective,
+  type LongHorizonObjectiveCompletionReason,
   type ScheduledIntention,
 } from './intentions';
+
+export type CompleteLongHorizonObjectiveRequest = {
+  readonly objectiveId: string;
+  readonly completedAt: number;
+  readonly reason: LongHorizonObjectiveCompletionReason;
+  readonly planId?: string;
+};
 
 export type AgentIntentionRepository = {
   readonly getOrCreate: (agentId: AgentId) => Promise<AgentIntentionState>;
@@ -18,6 +28,10 @@ export type AgentIntentionRepository = {
   readonly upsertScheduledIntentions: (
     agentId: AgentId,
     scheduledIntentions: readonly ScheduledIntention[],
+  ) => Promise<AgentIntentionState>;
+  readonly completeObjective: (
+    agentId: AgentId,
+    input: CompleteLongHorizonObjectiveRequest,
   ) => Promise<AgentIntentionState>;
 };
 
@@ -59,6 +73,16 @@ export class InMemoryAgentIntentionRepository implements AgentIntentionRepositor
     await this.save(updated);
     return updated;
   }
+
+  async completeObjective(
+    agentId: AgentId,
+    input: CompleteLongHorizonObjectiveRequest,
+  ): Promise<AgentIntentionState> {
+    const current = await this.getOrCreate(agentId);
+    const updated = completeLongHorizonObjective(current, input);
+    await this.save(updated);
+    return updated;
+  }
 }
 
 function cloneState(state: AgentIntentionState): AgentIntentionState {
@@ -67,6 +91,9 @@ function cloneState(state: AgentIntentionState): AgentIntentionState {
     ...(state.activeObjective === undefined
       ? {}
       : { activeObjective: cloneObjective(state.activeObjective) }),
+    completedObjectives: (state.completedObjectives ?? []).map((completed) =>
+      cloneCompletedObjective(completed),
+    ),
     scheduledIntentions: state.scheduledIntentions.map((intention) =>
       cloneScheduledIntention(intention),
     ),
@@ -78,6 +105,15 @@ function cloneObjective(objective: LongHorizonObjective): LongHorizonObjective {
   return {
     ...objective,
     affinityTags: [...objective.affinityTags],
+  };
+}
+
+function cloneCompletedObjective(completed: CompletedLongHorizonObjective): CompletedLongHorizonObjective {
+  return {
+    objective: cloneObjective(completed.objective),
+    completedAt: completed.completedAt,
+    reason: completed.reason,
+    ...(completed.planId === undefined ? {} : { planId: completed.planId }),
   };
 }
 

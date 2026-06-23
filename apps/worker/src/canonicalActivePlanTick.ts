@@ -20,6 +20,7 @@ import type { WorkerAgentCycleTraceSink } from './agentCycleRunner';
 import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
 import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeResolver';
 import type { WorkerDomainRuntimeRegistration } from './domainRuntimeRegistry';
+import { completeFinishedActiveObjectives } from './objectiveLifecycle';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   runWorkerSimulationTick,
@@ -86,7 +87,7 @@ export async function runCanonicalWorkerActivePlanTick(
     }),
   });
 
-  return runWorkerSimulationTick({
+  const result = await runWorkerSimulationTick({
     tickId: input.tickId,
     simulationId: input.simulationId,
     issuedAt: input.issuedAt,
@@ -107,6 +108,17 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.checkpointing === undefined ? {} : { checkpointing: input.checkpointing }),
     ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),
   });
+  if (input.planProgressRepository !== undefined) {
+    await completeFinishedActiveObjectives({
+      projection: result.projection,
+      intentionRepository: input.intentionRepository,
+      planRepository: input.planRepository,
+      planProgressRepository: input.planProgressRepository,
+      completedAt: input.issuedAt,
+    });
+  }
+
+  return result;
 }
 
 function resolveSchedulingProjection(input: CanonicalWorkerActivePlanTickInput): WorldProjection {

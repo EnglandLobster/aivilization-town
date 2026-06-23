@@ -2,10 +2,12 @@ import type { AgentId } from '@aivilization/sim-core';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  completeLongHorizonObjective,
   createEmptyAgentIntentionState,
   setLongHorizonObjective,
   upsertScheduledIntentions,
   type AgentIntentionState,
+  type CompletedLongHorizonObjective,
   type LongHorizonObjective,
   type ScheduledIntention,
 } from './intentions';
@@ -17,7 +19,10 @@ import {
   type LongTermProfileEntry,
 } from './profile';
 import type { ShortTermMemoryRecord } from './records';
-import type { AgentIntentionRepository } from './intentionRepository';
+import type {
+  AgentIntentionRepository,
+  CompleteLongHorizonObjectiveRequest,
+} from './intentionRepository';
 import type { LongTermProfileRepository } from './profileRepository';
 import { retrieveShortTermMemory, type ShortTermMemoryQuery } from './retrieval';
 import type { ShortTermMemoryRepository } from './repository';
@@ -91,6 +96,16 @@ export class FileAgentIntentionRepository implements AgentIntentionRepository {
     return updated;
   }
 
+  async completeObjective(
+    agentId: AgentId,
+    input: CompleteLongHorizonObjectiveRequest,
+  ): Promise<AgentIntentionState> {
+    const current = await this.getOrCreate(agentId);
+    const updated = completeLongHorizonObjective(current, input);
+    await this.save(updated);
+    return updated;
+  }
+
   private getLatestState(agentId: AgentId): AgentIntentionState | undefined {
     return readJsonLines<AgentIntentionState>(this.statesPath)
       .filter((state) => state.agentId === agentId)
@@ -146,6 +161,9 @@ function cloneState(state: AgentIntentionState): AgentIntentionState {
     ...(state.activeObjective === undefined
       ? {}
       : { activeObjective: cloneObjective(state.activeObjective) }),
+    completedObjectives: (state.completedObjectives ?? []).map((completed) =>
+      cloneCompletedObjective(completed),
+    ),
     scheduledIntentions: state.scheduledIntentions.map((intention) =>
       cloneScheduledIntention(intention),
     ),
@@ -157,6 +175,15 @@ function cloneObjective(objective: LongHorizonObjective): LongHorizonObjective {
   return {
     ...objective,
     affinityTags: [...objective.affinityTags],
+  };
+}
+
+function cloneCompletedObjective(completed: CompletedLongHorizonObjective): CompletedLongHorizonObjective {
+  return {
+    objective: cloneObjective(completed.objective),
+    completedAt: completed.completedAt,
+    reason: completed.reason,
+    ...(completed.planId === undefined ? {} : { planId: completed.planId }),
   };
 }
 

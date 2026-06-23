@@ -15,6 +15,15 @@ export type LongHorizonObjective = {
   readonly updatedAt: SimulationTimestamp;
 };
 
+export type LongHorizonObjectiveCompletionReason = 'plan-completed';
+
+export type CompletedLongHorizonObjective = {
+  readonly objective: LongHorizonObjective;
+  readonly completedAt: SimulationTimestamp;
+  readonly reason: LongHorizonObjectiveCompletionReason;
+  readonly planId?: string;
+};
+
 export type ScheduledIntention = {
   readonly id: string;
   readonly agentId: AgentId;
@@ -34,6 +43,7 @@ export type ScheduledIntention = {
 export type AgentIntentionState = {
   readonly agentId: AgentId;
   readonly activeObjective?: LongHorizonObjective;
+  readonly completedObjectives: readonly CompletedLongHorizonObjective[];
   readonly scheduledIntentions: readonly ScheduledIntention[];
   readonly updatedAt: SimulationTimestamp;
 };
@@ -42,6 +52,7 @@ export function createEmptyAgentIntentionState(agentId: AgentId): AgentIntention
   return {
     agentId,
     updatedAt: 0,
+    completedObjectives: [],
     scheduledIntentions: [],
   };
 }
@@ -56,6 +67,9 @@ export function setLongHorizonObjective(
   return {
     agentId: state.agentId,
     activeObjective: cloneObjective(objective),
+    completedObjectives: state.completedObjectives.map((completed) =>
+      cloneCompletedObjective(completed),
+    ),
     scheduledIntentions: state.scheduledIntentions.map((intention) =>
       cloneScheduledIntention(intention),
     ),
@@ -85,8 +99,58 @@ export function upsertScheduledIntentions(
     ...(state.activeObjective === undefined
       ? {}
       : { activeObjective: cloneObjective(state.activeObjective) }),
+    completedObjectives: state.completedObjectives.map((completed) =>
+      cloneCompletedObjective(completed),
+    ),
     scheduledIntentions: [...intentionsById.values()].sort(compareScheduledIntentions),
     updatedAt,
+  };
+}
+
+export function completeLongHorizonObjective(
+  state: AgentIntentionState,
+  input: {
+    readonly objectiveId: string;
+    readonly completedAt: SimulationTimestamp;
+    readonly reason: LongHorizonObjectiveCompletionReason;
+    readonly planId?: string;
+  },
+): AgentIntentionState {
+  assertNonEmpty(input.objectiveId, 'objectiveId');
+  assertFiniteNumber(input.completedAt, 'completedAt');
+  assertOptionalNonEmpty(input.planId, 'planId');
+
+  const activeObjective = state.activeObjective;
+  if (activeObjective === undefined || activeObjective.id !== input.objectiveId) {
+    throw new Error(`active objective ${input.objectiveId} is required before completion`);
+  }
+
+  const completedByObjectiveId = new Map<string, CompletedLongHorizonObjective>();
+  for (const completed of state.completedObjectives) {
+    completedByObjectiveId.set(completed.objective.id, cloneCompletedObjective(completed));
+  }
+  completedByObjectiveId.set(input.objectiveId, {
+    objective: cloneObjective(activeObjective),
+    completedAt: input.completedAt,
+    reason: input.reason,
+    ...(input.planId === undefined ? {} : { planId: input.planId }),
+  });
+
+  return {
+    agentId: state.agentId,
+    completedObjectives: [...completedByObjectiveId.values()].sort(compareCompletedObjectives),
+    scheduledIntentions: state.scheduledIntentions
+      .map((intention) =>
+        intention.objectiveId === input.objectiveId && !isTerminalScheduledIntention(intention)
+          ? {
+              ...cloneScheduledIntention(intention),
+              status: 'completed' as const,
+              updatedAt: Math.max(intention.updatedAt, input.completedAt),
+            }
+          : cloneScheduledIntention(intention),
+      )
+      .sort(compareScheduledIntentions),
+    updatedAt: Math.max(state.updatedAt, input.completedAt),
   };
 }
 
@@ -107,6 +171,10 @@ function isSelectableAt(intention: ScheduledIntention, at: SimulationTimestamp):
     intention.startsAt <= at &&
     at < intention.endsAt
   );
+}
+
+function isTerminalScheduledIntention(intention: ScheduledIntention): boolean {
+  return intention.status === 'completed' || intention.status === 'cancelled';
 }
 
 function assertObjective(objective: LongHorizonObjective): void {
@@ -180,10 +248,29 @@ function compareScheduledIntentions(left: ScheduledIntention, right: ScheduledIn
   return left.id.localeCompare(right.id);
 }
 
+function compareCompletedObjectives(
+  left: CompletedLongHorizonObjective,
+  right: CompletedLongHorizonObjective,
+): number {
+  if (left.completedAt !== right.completedAt) {
+    return left.completedAt - right.completedAt;
+  }
+  return left.objective.id.localeCompare(right.objective.id);
+}
+
 function cloneObjective(objective: LongHorizonObjective): LongHorizonObjective {
   return {
     ...objective,
     affinityTags: [...objective.affinityTags],
+  };
+}
+
+function cloneCompletedObjective(completed: CompletedLongHorizonObjective): CompletedLongHorizonObjective {
+  return {
+    objective: cloneObjective(completed.objective),
+    completedAt: completed.completedAt,
+    reason: completed.reason,
+    ...(completed.planId === undefined ? {} : { planId: completed.planId }),
   };
 }
 

@@ -51,4 +51,52 @@ describe('short-term memory retrieval', () => {
       }).map((record) => record.id),
     ).toEqual(['high-old', 'low-recent']);
   });
+
+  test('filters by occurrence cursor and can return records oldest first', () => {
+    const agentId = asAgentId('agent-1');
+    const records = [
+      createShortTermMemoryRecord({
+        id: 'old',
+        agentId,
+        kind: 'action',
+        status: 'succeeded',
+        summary: 'Old action.',
+        occurredAt: 1000,
+        importanceScore: 1,
+        source: { eventIds: [] },
+        tags: ['study'],
+      }),
+      createShortTermMemoryRecord({
+        id: 'newer-b',
+        agentId,
+        kind: 'action',
+        status: 'succeeded',
+        summary: 'Newer action B.',
+        occurredAt: 3000,
+        importanceScore: 0.1,
+        source: { eventIds: [] },
+        tags: ['study'],
+      }),
+      createShortTermMemoryRecord({
+        id: 'newer-a',
+        agentId,
+        kind: 'action',
+        status: 'succeeded',
+        summary: 'Newer action A.',
+        occurredAt: 2000,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study'],
+      }),
+    ];
+
+    expect(
+      retrieveShortTermMemory(records, {
+        agentId,
+        occurredAfter: 1000,
+        orderBy: 'oldest-first',
+        limit: 10,
+      }).map((record) => record.id),
+    ).toEqual(['newer-a', 'newer-b']);
+  });
 });

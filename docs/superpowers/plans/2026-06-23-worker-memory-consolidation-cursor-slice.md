@@ -36,7 +36,7 @@ It does not add cron timers, distributed locks, queue leases, failure retries, v
 
 - Modify: `packages/memory/src/retrieval.test.ts`
 
-- [ ] **Step 1: Write failing tests for STM time-window retrieval**
+- [x] **Step 1: Write failing tests for STM time-window retrieval**
 
 Create tests that require:
 
@@ -52,13 +52,15 @@ pnpm --filter @aivilization/memory test
 
 Expected before implementation: tests fail because `occurredAfter` and `orderBy` are not implemented.
 
+Observed red test: `pnpm --filter @aivilization/memory test` failed because the old record at the cursor timestamp was still returned.
+
 ## Task 2: Worker Cursor Schedule Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/memoryConsolidation.test.ts`
 
-- [ ] **Step 2: Write failing tests for cursor-aware consolidation schedules**
+- [x] **Step 2: Write failing tests for cursor-aware consolidation schedules**
 
 Create tests that require:
 
@@ -75,6 +77,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because cursor stores and `runWorkerMemoryConsolidationSchedule` are missing.
 
+Observed red test: `pnpm --filter @aivilization/worker test` failed because cursor stores were not implemented/exported.
+
 ## Task 3: Implementation
 
 **Files:**
@@ -82,7 +86,7 @@ Expected before implementation: tests fail because cursor stores and `runWorkerM
 - Modify: `packages/memory/src/retrieval.ts`
 - Modify: `apps/worker/src/memoryConsolidation.ts`
 
-- [ ] **Step 3: Implement retrieval windows and cursor scheduler**
+- [x] **Step 3: Implement retrieval windows and cursor scheduler**
 
 Add to memory retrieval:
 
@@ -105,13 +109,15 @@ Behavior:
 - If records were inspected, save cursor `{ agentId, lastProcessedOccurredAt: max(record.occurredAt), updatedAt: proposedAt }`.
 - Return `{ agentIds, results, cursors, patchCount }`.
 
+Implemented in `packages/memory/src/retrieval.ts` and `apps/worker/src/memoryConsolidation.ts`.
+
 ## Task 4: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -126,3 +132,11 @@ pnpm build
 
 Commit the implementation and update this plan when the checks pass.
 
+Verification passed:
+
+- `pnpm --filter @aivilization/memory test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/memory typecheck`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm check`
+- `pnpm build`

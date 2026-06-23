@@ -35,7 +35,7 @@ It does not add vector search, semantic embeddings, compaction, SQLite/Postgres 
 
 - Add: `packages/memory/src/fileRepositories.test.ts`
 
-- [ ] **Step 1: Write failing tests for durable memory repositories**
+- [x] **Step 1: Write failing tests for durable memory repositories**
 
 Create tests that require:
 
@@ -58,7 +58,7 @@ Expected before implementation: tests fail because file repository exports do no
 - Add: `packages/memory/src/fileRepositories.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] **Step 2: Implement append-only JSONL memory adapters**
+- [x] **Step 2: Implement append-only JSONL memory adapters**
 
 Add:
 
@@ -84,7 +84,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -97,3 +97,12 @@ pnpm build
 
 Commit the implementation and update this plan when the checks pass.
 
+## Verification Results
+
+- `pnpm --filter @aivilization/memory test` failed before implementation because file repository exports were missing.
+- `pnpm --filter @aivilization/memory test` passed after implementation.
+- `pnpm --filter @aivilization/memory typecheck` passed after implementation.
+- `pnpm --filter @aivilization/memory test` passed after targeted formatting.
+- `pnpm --filter @aivilization/memory typecheck` passed after targeted formatting.
+- `pnpm check` passed.
+- `pnpm build` passed.

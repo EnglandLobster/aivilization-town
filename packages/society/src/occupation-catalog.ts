@@ -1,4 +1,9 @@
-import { occupations, type OccupationConfig } from '@aivilization/content';
+import {
+  jobTiers,
+  occupations,
+  type JobTierConfig,
+  type OccupationConfig,
+} from '@aivilization/content';
 
 export function resolveOccupation(input: {
   readonly occupationName: string;
@@ -11,4 +16,17 @@ export function resolveOccupation(input: {
   }
 
   return occupation;
+}
+
+export function resolveJobTier(input: {
+  readonly jobTier: number;
+  readonly jobTierCatalog?: readonly JobTierConfig[];
+}): JobTierConfig {
+  const jobTierCatalog = input.jobTierCatalog ?? jobTiers;
+  const jobTier = jobTierCatalog.find((candidate) => candidate.tier === input.jobTier);
+  if (jobTier === undefined) {
+    throw new Error(`unknown job tier ${input.jobTier}`);
+  }
+
+  return jobTier;
 }

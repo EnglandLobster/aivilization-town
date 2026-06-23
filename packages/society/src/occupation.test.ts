@@ -3,6 +3,7 @@ import {
   calculateApplicationQuota,
   calculateDynamicKnowledgeThreshold,
   calculateEffectiveKnowledgeThreshold,
+  evaluateOccupationApplication,
   isEligibleForOccupation,
 } from './index';
 
@@ -71,5 +72,57 @@ describe('occupation eligibility', () => {
     expect(calculateApplicationQuota({ residentialTier: 9, quotaByResidentialTier: policy })).toBe(
       5,
     );
+  });
+
+  test('evaluates occupation application job-tier education and prerequisite commodity requirements', () => {
+    expect(
+      evaluateOccupationApplication({
+        occupationName: 'Stock Clerk',
+        agent: {
+          residentialTier: 2,
+          educationScore: 20,
+          inventory: { Beef: 1 },
+        },
+        populationEducationScores: [0, 10, 20],
+      }),
+    ).toEqual({
+      status: 'accepted',
+      occupationName: 'Stock Clerk',
+      jobTier: 2,
+      effectiveEducationThreshold: 20,
+      consumedInventory: { Beef: 1 },
+    });
+
+    expect(
+      evaluateOccupationApplication({
+        occupationName: 'Stock Clerk',
+        agent: {
+          residentialTier: 2,
+          educationScore: 19,
+          inventory: { Beef: 1 },
+        },
+        populationEducationScores: [0, 10, 20],
+      }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: 'education-too-low',
+      detail: 'educationScore requires 20, available 19',
+    });
+
+    expect(
+      evaluateOccupationApplication({
+        occupationName: 'Stock Clerk',
+        agent: {
+          residentialTier: 2,
+          educationScore: 20,
+          inventory: {},
+        },
+        populationEducationScores: [0, 10, 20],
+      }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: 'missing-prerequisite',
+      detail: 'Beef requires 1, available 0',
+    });
   });
 });

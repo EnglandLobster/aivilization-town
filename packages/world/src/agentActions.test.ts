@@ -791,7 +791,7 @@ describe('agent job application command handling', () => {
     expect(events[0]?.payload).toMatchObject({
       agentId: 'agent-1',
       commandType: 'AgentApplyJob',
-      reason: 'agent is not eligible for Doctor',
+      reason: 'residential-tier-too-low: residentialTier requires 5, available 1',
     });
   });
 
@@ -839,6 +839,102 @@ describe('agent job application command handling', () => {
     expect(events[0]?.payload).toMatchObject({
       commandType: 'AgentApplyJob',
       reason: 'application quota exceeded: allowed 1, used 1',
+    });
+  });
+
+  test('AgentApplyJob consumes job-tier prerequisite commodities before assignment', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 0,
+          residentialTier: 2,
+          job: null,
+          inventory: { Beef: 1 },
+        },
+      ],
+    });
+
+    const events = handleAgentApplyJobCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Stock Clerk' },
+        issuedAt: 70,
+      }),
+      projection,
+      populationEducationScores: [0, 10, 20],
+      quotaByResidentialTier: [1, 1],
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'InventoryChanged',
+      'JobApplicationSubmitted',
+      'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toEqual({
+      agentId: 'agent-1',
+      itemName: 'Beef',
+      delta: -1,
+      reason: 'job-application-prerequisite',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']).toMatchObject({
+      job: 'Stock Clerk',
+      inventory: {},
+    });
+  });
+
+  test('AgentApplyJob rejects missing job-tier prerequisite commodities without assigning job', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 0,
+          residentialTier: 2,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentApplyJobCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Stock Clerk' },
+        issuedAt: 70,
+      }),
+      projection,
+      populationEducationScores: [0, 10, 20],
+      quotaByResidentialTier: [1, 1],
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentApplyJob',
+      reason: 'missing-prerequisite: Beef requires 1, available 0',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']).toMatchObject({
+      job: null,
+      inventory: {},
     });
   });
 

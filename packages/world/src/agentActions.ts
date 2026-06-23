@@ -19,8 +19,8 @@ import {
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
   evaluateResidentialTierUpgrade,
+  evaluateOccupationApplication,
   isIncapacitated,
-  isEligibleForOccupation,
   type ResidentialTierUpgradePolicy,
 } from '@aivilization/society';
 import {
@@ -552,40 +552,55 @@ export function handleAgentApplyJobCommand(input: {
   }
 
   const payload = payloadResult.payload;
-  const eligibilityResult = parsePayload(() =>
-    isEligibleForOccupation({
+  const applicationResult = parsePayload(() =>
+    evaluateOccupationApplication({
       occupationName: payload.occupationName,
       agent: {
         residentialTier: agent.residentialTier,
         educationScore: agent.educationScore,
+        inventory: agent.inventory,
       },
       populationEducationScores: input.populationEducationScores,
     }),
   );
-  if (eligibilityResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentApplyJob', eligibilityResult.reason);
+  if (applicationResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentApplyJob', applicationResult.reason);
   }
-  if (!eligibilityResult.payload) {
+  if (applicationResult.payload.status === 'rejected') {
     return rejectCommand(
       input,
       'AgentApplyJob',
-      `agent is not eligible for ${payload.occupationName}`,
+      `${applicationResult.payload.reason}: ${applicationResult.payload.detail}`,
     );
   }
 
+  const consumedInventory = applicationResult.payload.consumedInventory;
+  const prerequisiteEvents: WorldEvent[] = Object.entries(consumedInventory)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([itemName, quantity], index) =>
+      makeEvent(input, index, 'InventoryChanged', {
+        agentId: agent.agentId,
+        itemName,
+        delta: -quantity,
+        reason: 'job-application-prerequisite',
+      }),
+    );
+  const baseOffset = prerequisiteEvents.length;
+
   return [
-    makeEvent(input, 0, 'JobApplicationSubmitted', {
+    ...prerequisiteEvents,
+    makeEvent(input, baseOffset, 'JobApplicationSubmitted', {
       agentId: agent.agentId,
       occupationName: payload.occupationName,
       residentialTier: agent.residentialTier,
       educationScore: agent.educationScore,
     }),
-    makeEvent(input, 1, 'JobAssigned', {
+    makeEvent(input, baseOffset + 1, 'JobAssigned', {
       agentId: agent.agentId,
       occupationName: payload.occupationName,
       previousJob: agent.job,
     }),
-    makeMemoryEvent(input, 2, {
+    makeMemoryEvent(input, baseOffset + 2, {
       summary: `Applied for ${payload.occupationName} and was assigned.`,
       status: 'succeeded',
       tags: ['apply-job', payload.occupationName],

@@ -36,7 +36,7 @@ It does not implement concrete study/work/trade/sleep/social micro-planners. Tho
 
 - Add: `apps/worker/src/domainRuntimeRegistry.test.ts`
 
-- [ ] **Step 1: Write failing tests for domain runtime registry**
+- [x] **Step 1: Write failing tests for domain runtime registry**
 
 Create tests that require:
 
@@ -54,6 +54,9 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `createDomainRuntimeResolver` does not exist.
 
+Observed before implementation: `pnpm --filter @aivilization/worker test` failed with
+`createDomainRuntimeResolver is not a function`.
+
 ## Task 2: Registry Implementation
 
 **Files:**
@@ -61,7 +64,7 @@ Expected before implementation: tests fail because `createDomainRuntimeResolver`
 - Add: `apps/worker/src/domainRuntimeRegistry.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement domain runtime registry**
+- [x] **Step 2: Implement domain runtime registry**
 
 Behavior:
 
@@ -79,13 +82,15 @@ Behavior:
 - Return `undefined` if no registrations match.
 - Return `{ microPlanners, simulate, repair }`, omitting `repair` when it is not supplied.
 
+Observed after implementation: `pnpm --filter @aivilization/worker test` passed.
+
 ## Task 3: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -97,3 +102,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed verification:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

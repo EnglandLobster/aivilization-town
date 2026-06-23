@@ -4,6 +4,7 @@ import type { CommodityConfig } from '@aivilization/content';
 export * from './commandDispatch';
 export * from './agentScheduling';
 export * from './agentCycleRunner';
+export * from './domainRuntimeRegistry';
 export * from './localRuntimeStorage';
 export * from './memoryConsolidation';
 export * from './projectionHydration';

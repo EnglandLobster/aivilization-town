@@ -35,7 +35,7 @@ It does not schedule periodic jobs, deduplicate already-applied STM windows, com
 
 - Add: `apps/worker/src/memoryConsolidation.test.ts`
 
-- [ ] **Step 1: Write failing tests for worker memory consolidation**
+- [x] **Step 1: Write failing tests for worker memory consolidation**
 
 Create tests that require:
 
@@ -58,7 +58,7 @@ Expected before implementation: tests fail because `runWorkerMemoryConsolidation
 - Add: `apps/worker/src/memoryConsolidation.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement the single-agent consolidation job**
+- [x] **Step 2: Implement the single-agent consolidation job**
 
 Add:
 
@@ -81,7 +81,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -94,3 +94,12 @@ pnpm build
 
 Commit the implementation and update this plan when the checks pass.
 
+## Verification Results
+
+- `pnpm --filter @aivilization/worker test` failed before implementation because `runWorkerMemoryConsolidation` was not exported.
+- `pnpm --filter @aivilization/worker test` passed after implementation.
+- `pnpm --filter @aivilization/worker typecheck` passed after implementation.
+- `pnpm --filter @aivilization/worker test` passed after targeted formatting.
+- `pnpm --filter @aivilization/worker typecheck` passed after targeted formatting.
+- `pnpm check` passed.
+- `pnpm build` passed.

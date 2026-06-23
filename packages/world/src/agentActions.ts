@@ -1,4 +1,9 @@
-import { getInventoryQuantity, planProduction } from '@aivilization/economy';
+import {
+  buyFromPool,
+  getInventoryQuantity,
+  planProduction,
+  sellToPool,
+} from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
   createEventEnvelope,
@@ -14,6 +19,7 @@ import {
   assertAgentEatPayload,
   assertAgentProducePayload,
   assertAgentStudyPayload,
+  assertAgentTradePayload,
   assertAgentWorkPayload,
 } from './commands';
 import type { WorldEvent } from './events';
@@ -61,6 +67,18 @@ export function dispatchWorldCommand(input: {
         wageCalculator: input.policies.wageCalculator,
         laborCost: input.policies.laborCost,
         criticalThresholds: input.policies.criticalThresholds,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentProduce':
+      return handleAgentProduceCommand({
+        command: input.command as CommandEnvelope<'AgentProduce', unknown>,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentTrade':
+      return handleAgentTradeCommand({
+        command: input.command as CommandEnvelope<'AgentTrade', unknown>,
+        projection: input.projection,
         nextSequence: input.nextSequence,
       });
     default:
@@ -295,6 +313,106 @@ export function handleAgentProduceCommand(input: {
         patternKey: `produce:${payload.commodityName}`,
         statement: `Produces ${payload.commodityName} when resources are available.`,
       },
+    }),
+  ];
+}
+
+export function handleAgentTradeCommand(input: {
+  readonly command: CommandEnvelope<'AgentTrade', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentTradePayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentTrade', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  const pool = input.projection.marketPools[payload.commodityName];
+  if (pool === undefined) {
+    return rejectCommand(input, 'AgentTrade', `missing AMM pool for ${payload.commodityName}`);
+  }
+
+  if (payload.side === 'buy') {
+    const tradeResult = parsePayload(() => buyFromPool(pool, payload.quantity));
+    if (tradeResult.status === 'invalid') {
+      return rejectCommand(input, 'AgentTrade', tradeResult.reason);
+    }
+    const currencyRequired = tradeResult.payload.currencyDelta;
+    if (agent.balance < currencyRequired) {
+      return rejectCommand(
+        input,
+        'AgentTrade',
+        `insufficient balance: required ${currencyRequired}, available ${agent.balance}`,
+      );
+    }
+
+    return createTradeEvents(
+      input,
+      payload.side,
+      payload.commodityName,
+      payload.quantity,
+      currencyRequired,
+      tradeResult.payload.poolAfter,
+      tradeResult.payload.moneySupplyDelta,
+    );
+  }
+
+  const available = getInventoryQuantity(agent.inventory, payload.commodityName);
+  if (available < payload.quantity) {
+    return rejectCommand(
+      input,
+      'AgentTrade',
+      `insufficient ${payload.commodityName}: required ${payload.quantity}, available ${available}`,
+    );
+  }
+
+  const tradeResult = parsePayload(() => sellToPool(pool, payload.quantity));
+  if (tradeResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentTrade', tradeResult.reason);
+  }
+
+  return createTradeEvents(
+    input,
+    payload.side,
+    payload.commodityName,
+    payload.quantity,
+    -tradeResult.payload.currencyDelta,
+    tradeResult.payload.poolAfter,
+    tradeResult.payload.moneySupplyDelta,
+  );
+}
+
+function createTradeEvents(
+  input: {
+    readonly command: CommandEnvelope<'AgentTrade', unknown>;
+    readonly projection: WorldProjection;
+    readonly nextSequence: number;
+  },
+  side: 'buy' | 'sell',
+  commodityName: string,
+  commodityQuantity: number,
+  currencyQuantity: number,
+  poolAfter: Extract<WorldEvent, { readonly type: 'TradeExecuted' }>['payload']['poolAfter'],
+  moneySupplyDelta: number,
+): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+
+  return [
+    makeEvent(input, 0, 'TradeExecuted', {
+      agentId: agent.agentId,
+      side,
+      commodityName,
+      commodityQuantity,
+      currencyQuantity,
+      poolAfter,
+      moneySupplyDelta,
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `${side === 'buy' ? 'Bought' : 'Sold'} ${commodityQuantity} ${commodityName}.`,
+      status: 'succeeded',
+      tags: ['trade', side, commodityName],
     }),
   ];
 }

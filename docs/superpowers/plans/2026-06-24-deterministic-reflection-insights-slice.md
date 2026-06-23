@@ -39,7 +39,7 @@ repository.
 
 - Add: `packages/memory/src/reflection.test.ts`
 
-- [ ] **Step 1: Write failing tests for deterministic reflective insights**
+- [x] **Step 1: Write failing tests for deterministic reflective insights**
 
 Create tests that require:
 
@@ -49,6 +49,7 @@ Create tests that require:
   `topicKey: 'work-energy-risk'`;
 - records for other agents are ignored;
 - insights are sorted by kind and topic key for stable output.
+- repeated successful social memories for one target become a social habit insight.
 
 Run:
 
@@ -59,7 +60,7 @@ pnpm test -- packages/memory/src/reflection.test.ts
 Expected before implementation: fail because `proposeReflectiveInsights` and
 `ReflectiveInsightRecord` are not exported.
 
-- [ ] **Step 2: Write failing tests for insight-to-patch conversion**
+- [x] **Step 2: Write failing tests for insight-to-patch conversion**
 
 Add tests that require:
 
@@ -76,6 +77,11 @@ pnpm test -- packages/memory/src/reflection.test.ts
 
 Expected before implementation: fail because conversion is missing.
 
+Observed red failures:
+
+- `proposeReflectiveInsights` is not exported;
+- `convertReflectiveInsightsToLongTermMemoryPatches` is not exported.
+
 ## Task 2: Memory Reflection Implementation
 
 **Files:**
@@ -83,7 +89,7 @@ Expected before implementation: fail because conversion is missing.
 - Add: `packages/memory/src/reflection.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] **Step 3: Implement reflection domain types and proposer**
+- [x] **Step 3: Implement reflection domain types and proposer**
 
 Add:
 
@@ -112,7 +118,7 @@ export type ReflectiveInsightRecord = {
 - create stable ids using `reflection-${agentId}-${kind}-${topicKey}-${generatedAt}`;
 - set confidence to average importance rounded to six decimals.
 
-- [ ] **Step 4: Implement conversion to long-term memory patches**
+- [x] **Step 4: Implement conversion to long-term memory patches**
 
 `convertReflectiveInsightsToLongTermMemoryPatches(input)` should map insights to patch ids:
 
@@ -121,7 +127,7 @@ export type ReflectiveInsightRecord = {
 
 Export `./reflection` from `packages/memory/src/index.ts`.
 
-- [ ] **Step 5: Verify memory package**
+- [x] **Step 5: Verify memory package**
 
 Run:
 
@@ -132,13 +138,19 @@ pnpm --filter @aivilization/memory typecheck
 
 Expected after implementation: pass.
 
+Verification passed:
+
+- `pnpm test -- packages/memory/src/reflection.test.ts`
+- `pnpm --filter @aivilization/memory test`
+- `pnpm --filter @aivilization/memory typecheck`
+
 ## Task 3: Worker Integration Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/memoryConsolidation.test.ts`
 
-- [ ] **Step 6: Write failing worker integration tests**
+- [x] **Step 6: Write failing worker integration tests**
 
 Add a test that appends three unhinted successful study memories, runs
 `runWorkerMemoryConsolidation`, and expects:
@@ -156,13 +168,18 @@ pnpm test -- apps/worker/src/memoryConsolidation.test.ts
 Expected before worker implementation: fail because `reflectiveInsights` is missing and unhinted
 records do not update LTM.
 
+Observed red failure:
+
+- `result.reflectiveInsights` was `undefined`, proving worker consolidation had not yet exposed or
+  applied reflection output.
+
 ## Task 4: Worker Integration Implementation
 
 **Files:**
 
 - Modify: `apps/worker/src/memoryConsolidation.ts`
 
-- [ ] **Step 7: Include reflective insights in consolidation**
+- [x] **Step 7: Include reflective insights in consolidation**
 
 Modify `WorkerMemoryConsolidationResult` to include:
 
@@ -178,7 +195,7 @@ In `runWorkerMemoryConsolidation`:
 - apply `[...hintPatches, ...reflectivePatches]`;
 - return combined patches and `reflectiveInsights`.
 
-- [ ] **Step 8: Preserve schedule and batch callers**
+- [x] **Step 8: Preserve schedule and batch callers**
 
 Batch and scheduled consolidation should keep using `patchCount` from combined patch results. No
 caller should need a separate code path for hint-derived versus reflection-derived patches.
@@ -189,7 +206,7 @@ caller should need a separate code path for hint-derived versus reflection-deriv
 
 - Modify: this plan file
 
-- [ ] **Step 9: Run focused verification**
+- [x] **Step 9: Run focused verification**
 
 Run:
 
@@ -201,7 +218,15 @@ pnpm --filter @aivilization/memory typecheck
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 10: Run repo verification**
+Verification passed:
+
+- `pnpm test -- packages/memory/src/reflection.test.ts apps/worker/src/memoryConsolidation.test.ts`
+- `pnpm --filter @aivilization/memory test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/memory typecheck`
+- `pnpm --filter @aivilization/worker typecheck`
+
+- [x] **Step 10: Run repo verification**
 
 Run:
 
@@ -210,7 +235,12 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 11: Commit implementation**
+Verification passed:
+
+- `pnpm check`
+- `pnpm build`
+
+- [x] **Step 11: Commit implementation**
 
 Commit command:
 

@@ -46,7 +46,92 @@ function createStudyMemory(index: number, input: { readonly agentId?: typeof age
   });
 }
 
+function createUnhintedStudyMemory(
+  index: number,
+  input: { readonly agentId?: typeof agentId } = {},
+) {
+  const ownerAgentId = input.agentId ?? agentId;
+  return createShortTermMemoryRecord({
+    id: `reflection-study-${ownerAgentId}-${index}`,
+    agentId: ownerAgentId,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Completed a focused study session.',
+    occurredAt: index,
+    importanceScore: 0.7,
+    source: { eventIds: [] },
+    tags: ['study', 'education'],
+  });
+}
+
 describe('worker memory consolidation', () => {
+  test('synthesizes unhinted short-term memories into reflective long-term profile entries', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    await shortTermMemoryRepository.appendMany([
+      createUnhintedStudyMemory(1),
+      createUnhintedStudyMemory(2),
+      createUnhintedStudyMemory(3),
+    ]);
+
+    const result = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 1000,
+    });
+
+    expect(result.reflectiveInsights).toEqual([
+      {
+        id: 'reflection-agent-1-habit-study-routine-1000',
+        agentId,
+        kind: 'habit',
+        topicKey: 'study-routine',
+        statement: 'Repeated successful study sessions suggest a reliable study routine.',
+        confidence: 0.7,
+        evidenceRecordIds: [
+          'reflection-study-agent-1-1',
+          'reflection-study-agent-1-2',
+          'reflection-study-agent-1-3',
+        ],
+        generatedAt: 1000,
+        tags: ['study', 'education', 'routine'],
+      },
+    ]);
+    expect(result.patches).toEqual([
+      {
+        id: 'ltm-patch-agent-1-reflection-habit-study-routine-1000',
+        agentId,
+        section: 'habits',
+        key: 'study-routine',
+        statement: 'Repeated successful study sessions suggest a reliable study routine.',
+        confidence: 0.7,
+        provenanceRecordIds: [
+          'reflection-study-agent-1-1',
+          'reflection-study-agent-1-2',
+          'reflection-study-agent-1-3',
+        ],
+        proposedAt: 1000,
+      },
+    ]);
+    expect(result.profile.habits).toEqual([
+      {
+        key: 'study-routine',
+        statement: 'Repeated successful study sessions suggest a reliable study routine.',
+        confidence: 0.7,
+        provenanceRecordIds: [
+          'reflection-study-agent-1-1',
+          'reflection-study-agent-1-2',
+          'reflection-study-agent-1-3',
+        ],
+        updatedAt: 1000,
+      },
+    ]);
+    await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toEqual(result.profile);
+  });
+
   test('promotes repeated short-term memory patterns into long-term profile entries', async () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();

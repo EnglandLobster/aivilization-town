@@ -43,11 +43,11 @@ It does not cover health recovery, doctor visits, sleep scheduling, time advance
 - Modify: `packages/society/src/physiology.ts`
 - Modify: `packages/society/src/physiology.test.ts`
 
-- [ ] Write failing tests for capped energy recovery and invalid policy rejection.
-- [ ] Run `pnpm --filter @aivilization/society test` and confirm the recovery API is missing.
-- [ ] Implement `applyEnergyRecovery`.
-- [ ] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
-- [ ] Commit with `git commit -m "feat: add energy recovery physiology rule"`.
+- [x] Write failing tests for capped energy recovery and invalid policy rejection.
+- [x] Run `pnpm --filter @aivilization/society test` and confirm the recovery API is missing.
+- [x] Implement `applyEnergyRecovery`.
+- [x] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
+- [x] Commit with `git commit -m "feat: add energy recovery physiology rule"`.
 
 ### Task 2: AgentSleep Command Handler
 
@@ -57,15 +57,15 @@ It does not cover health recovery, doctor visits, sleep scheduling, time advance
 - Modify: `packages/world/src/agentActions.ts`
 - Modify: `packages/world/src/agentActions.test.ts`
 
-- [ ] Write failing tests for `AgentSleep` success, invalid payload rejection, invalid policy rejection, and dispatcher routing.
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
-- [ ] Implement payload validation and handler orchestration.
-- [ ] Use `applyEnergyRecovery` from `society` instead of duplicating physiology math.
-- [ ] Emit `PhysiologyChanged` and successful STM for accepted sleep commands.
-- [ ] Emit `ActionRejected` and failed STM for rejected sleep commands.
-- [ ] Route `AgentSleep` through `dispatchWorldCommand`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add sleep command handler"`.
+- [x] Write failing tests for `AgentSleep` success, invalid payload rejection, invalid policy rejection, and dispatcher routing.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm handler support is missing.
+- [x] Implement payload validation and handler orchestration.
+- [x] Use `applyEnergyRecovery` from `society` instead of duplicating physiology math.
+- [x] Emit `PhysiologyChanged` and successful STM for accepted sleep commands.
+- [x] Emit `ActionRejected` and failed STM for rejected sleep commands.
+- [x] Route `AgentSleep` through `dispatchWorldCommand`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add sleep command handler"`.
 
 ### Task 3: Whole-Repo Verification
 
@@ -73,10 +73,10 @@ It does not cover health recovery, doctor visits, sleep scheduling, time advance
 
 - Modify: `docs/superpowers/plans/2026-06-23-world-sleep-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update if needed.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update if needed.
 
 ## Acceptance Criteria
 

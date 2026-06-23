@@ -1,4 +1,5 @@
 export * from './consolidation';
+export * from './intentions';
 export * from './profile';
 export * from './profileRepository';
 export * from './records';

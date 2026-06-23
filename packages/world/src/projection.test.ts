@@ -146,3 +146,61 @@ describe('world economy projection', () => {
     expect(projection.moneySupply).toBeCloseTo(888.8888888889);
   });
 });
+
+describe('world job projection', () => {
+  test('replays job application and assignment into projection state', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-application',
+        simulationId: 'sim-1',
+        commandId: 'command-apply',
+        type: 'JobApplicationSubmitted',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          occupationName: 'Cleaner',
+          residentialTier: 1,
+          educationScore: 0,
+        },
+        occurredAt: 70,
+        sequence: 1,
+      }),
+      createEventEnvelope({
+        id: 'event-assigned',
+        simulationId: 'sim-1',
+        commandId: 'command-apply',
+        type: 'JobAssigned',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          occupationName: 'Cleaner',
+          previousJob: null,
+        },
+        occurredAt: 70,
+        sequence: 2,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.jobApplications).toEqual([
+      {
+        agentId: 'agent-1',
+        occupationName: 'Cleaner',
+        submittedAt: 70,
+      },
+    ]);
+    expect(projection.agents['agent-1']?.job).toBe('Cleaner');
+  });
+});

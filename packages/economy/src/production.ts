@@ -42,6 +42,17 @@ export type ProductionRecipeOverride = {
   readonly output: string;
 } & Partial<Omit<ProductionRecipe, 'output'>>;
 
+export type ProductionCatalogInput = {
+  readonly commodityCatalog?: readonly CommodityConfig[];
+  readonly recipeCatalog?: readonly ProductionRecipe[];
+  readonly recipeOverrides?: readonly ProductionRecipeOverride[];
+};
+
+export type ProductionDefinition = {
+  readonly commodity: CommodityConfig;
+  readonly recipe: ProductionRecipe;
+};
+
 export function planProduction(input: {
   readonly commodityName: string;
   readonly quantity: number;
@@ -55,17 +66,16 @@ export function planProduction(input: {
     return reject('commodity-not-producible', `quantity must be a positive integer`);
   }
 
-  const commodityCatalog = input.commodityCatalog ?? commodities;
-  const recipeCatalog = applyRecipeOverrides(
-    input.recipeCatalog ?? productionRecipes,
-    input.recipeOverrides ?? [],
-  );
-  const commodity = commodityCatalog.find((candidate) => candidate.name === input.commodityName);
-  const recipe = recipeCatalog.find((candidate) => candidate.output === input.commodityName);
+  const definition = resolveProductionDefinition(input.commodityName, {
+    ...(input.commodityCatalog === undefined ? {} : { commodityCatalog: input.commodityCatalog }),
+    ...(input.recipeCatalog === undefined ? {} : { recipeCatalog: input.recipeCatalog }),
+    ...(input.recipeOverrides === undefined ? {} : { recipeOverrides: input.recipeOverrides }),
+  });
 
-  if (commodity === undefined || recipe === undefined) {
+  if (definition === undefined) {
     return reject('commodity-not-producible', `${input.commodityName} has no production recipe`);
   }
+  const { commodity, recipe } = definition;
 
   if (
     commodity.minResidentialTier !== null &&
@@ -124,6 +134,25 @@ export function planProduction(input: {
     satietyCost,
     laborSeconds,
   };
+}
+
+export function resolveProductionDefinition(
+  commodityName: string,
+  input: ProductionCatalogInput = {},
+): ProductionDefinition | undefined {
+  const commodityCatalog = input.commodityCatalog ?? commodities;
+  const recipeCatalog = applyRecipeOverrides(
+    input.recipeCatalog ?? productionRecipes,
+    input.recipeOverrides ?? [],
+  );
+  const commodity = commodityCatalog.find((candidate) => candidate.name === commodityName);
+  const recipe = recipeCatalog.find((candidate) => candidate.output === commodityName);
+
+  if (commodity === undefined || recipe === undefined) {
+    return undefined;
+  }
+
+  return { commodity, recipe };
 }
 
 function reject(reason: ProductionRejectionReason, detail: string): ProductionPlan {

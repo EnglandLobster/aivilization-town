@@ -23,7 +23,15 @@ const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
 const agentC = asAgentId('agent-c');
 
-const domainOrder = ['study', 'work', 'trade', 'sleep', 'social', 'production'] as const;
+const domainOrder = [
+  'study',
+  'work',
+  'trade',
+  'sleep',
+  'social',
+  'production',
+  'residential',
+] as const;
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Apple: 10 },
   maxSatiety: 100,
@@ -34,6 +42,10 @@ const policies: WorldCommandPolicies = {
   jobApplication: {
     populationEducationScores: [0],
     quotaByResidentialTier: [1, 1, 1, 1, 1],
+  },
+  residentialTierUpgrade: {
+    maxResidentialTier: 4,
+    costs: [{ targetResidentialTier: 2, currencyCost: 100, inventoryCosts: { Wood: 1 } }],
   },
 };
 
@@ -75,6 +87,7 @@ describe('canonical domain runtimes', () => {
         attitudeDelta: 4,
       },
       production: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 10 },
+      residential: { targetResidentialTier: 2 },
     });
 
     expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
@@ -132,6 +145,16 @@ describe('canonical domain runtimes', () => {
         inventoryCosts: { Wood: 1 },
       },
     });
+    expect(firstProposal(binding.microPlanners, 'residential')).toMatchObject({
+      id: 'canonical-residential-step-g',
+      commandType: 'AgentUpgradeResidentialTier',
+      payload: { targetResidentialTier: 2 },
+      priority: 10,
+      resourceEstimate: {
+        currencyCost: 100,
+        inventoryCosts: { Wood: 1 },
+      },
+    });
   });
 
   test('estimates trade buy currency cost from the projected AMM pool', async () => {
@@ -186,6 +209,14 @@ describe('canonical domain runtimes', () => {
     expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
       commandType: 'AgentProduce',
       payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    expect(firstProposal(binding.microPlanners, 'residential')).toMatchObject({
+      commandType: 'AgentUpgradeResidentialTier',
+      payload: { targetResidentialTier: 2 },
+      resourceEstimate: {
+        currencyCost: 100,
+        inventoryCosts: { Wood: 1 },
+      },
     });
   });
 

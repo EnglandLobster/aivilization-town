@@ -17,6 +17,7 @@ import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
   AgentProducePayload,
+  AgentUpgradeResidentialTierPayload,
   AgentSleepPayload,
   AgentSocializePayload,
   AgentStudyPayload,
@@ -35,7 +36,8 @@ export type CanonicalDomainName =
   | 'trade'
   | 'sleep'
   | 'social'
-  | 'production';
+  | 'production'
+  | 'residential';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -70,6 +72,10 @@ export type ProductionDomainRuntimeConfig = {
   readonly availableLaborSeconds?: number;
 };
 
+export type ResidentialDomainRuntimeConfig = {
+  readonly targetResidentialTier?: number;
+};
+
 export type ProductionTargetResolutionInput = {
   readonly config?: ProductionDomainRuntimeConfig;
   readonly context: WorkerDomainRuntimeFactoryInput;
@@ -83,6 +89,7 @@ export type CanonicalDomainRuntimeConfig = {
   readonly sleep?: SleepDomainRuntimeConfig;
   readonly social?: SocialDomainRuntimeConfig;
   readonly production?: ProductionDomainRuntimeConfig;
+  readonly residential?: ResidentialDomainRuntimeConfig;
 };
 
 const DEFAULT_STUDY_DURATION_SECONDS = 1800;
@@ -111,6 +118,7 @@ export function createCanonicalDomainRuntimeRegistrations(
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
     createProductionDomainRuntimeRegistration(config.production),
+    createResidentialDomainRuntimeRegistration(config.residential, policies?.residentialTierUpgrade),
   ];
 }
 
@@ -325,6 +333,36 @@ export function createProductionDomainRuntimeRegistration(
   };
 }
 
+export function createResidentialDomainRuntimeRegistration(
+  config: ResidentialDomainRuntimeConfig = {},
+  upgradePolicy?: WorldCommandPolicies['residentialTierUpgrade'],
+): WorkerDomainRuntimeRegistration {
+  return {
+    domain: 'residential',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'residential',
+        planRecord: context.planRecord,
+        propose: (selectedSubtask) => {
+          const targetResidentialTier =
+            config.targetResidentialTier ?? context.agent.residentialTier + 1;
+          return {
+            id: createCanonicalActionId('residential', selectedSubtask),
+            description: `Upgrade residential tier to ${targetResidentialTier}.`,
+            commandType: 'AgentUpgradeResidentialTier',
+            priority: selectedSubtask.score,
+            payload: { targetResidentialTier },
+            ...createResidentialUpgradeResourceEstimate({
+              targetResidentialTier,
+              upgradePolicy,
+            }),
+          };
+        },
+      }),
+    ],
+  };
+}
+
 export function resolveProductionTargetCommodityName(
   input: ProductionTargetResolutionInput,
 ): string {
@@ -355,7 +393,8 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>
   | AtomicActionProposal<'AgentSocialize', AgentSocializePayload>
-  | AtomicActionProposal<'AgentProduce', AgentProducePayload>;
+  | AtomicActionProposal<'AgentProduce', AgentProducePayload>
+  | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>;
 
 function createContextualDomainMicroPlanner(
   input: ContextualDomainMicroPlannerInput,
@@ -559,6 +598,26 @@ function createTradeResourceEstimate(input: {
   } catch {
     return {};
   }
+}
+
+function createResidentialUpgradeResourceEstimate(input: {
+  readonly targetResidentialTier: number;
+  readonly upgradePolicy?: WorldCommandPolicies['residentialTierUpgrade'];
+}): { readonly resourceEstimate?: ActionResourceEstimate } {
+  const cost = input.upgradePolicy?.costs.find(
+    (candidate) => candidate.targetResidentialTier === input.targetResidentialTier,
+  );
+  if (cost === undefined) {
+    return {};
+  }
+
+  const resourceEstimate: ActionResourceEstimate = {
+    ...(cost.currencyCost === undefined ? {} : { currencyCost: cost.currencyCost }),
+    ...(cost.inventoryCosts === undefined || Object.keys(cost.inventoryCosts).length === 0
+      ? {}
+      : { inventoryCosts: { ...cost.inventoryCosts } }),
+  };
+  return Object.keys(resourceEstimate).length === 0 ? {} : { resourceEstimate };
 }
 
 function resolveNextProductionStep(input: {

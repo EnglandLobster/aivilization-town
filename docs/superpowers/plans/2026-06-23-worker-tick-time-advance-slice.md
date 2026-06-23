@@ -35,7 +35,7 @@ It does not implement a long-running scheduler loop, leases, distributed locks, 
 
 - Modify: `apps/worker/src/tickRunner.test.ts`
 
-- [ ] **Step 1: Write failing tests for tick-owned time advancement**
+- [x] **Step 1: Write failing tests for tick-owned time advancement**
 
 Update the worker tick tests to require:
 
@@ -60,7 +60,7 @@ Expected before implementation: tests fail because the tick runner does not appe
 
 - Modify: `apps/worker/src/commandDispatch.ts`
 
-- [ ] **Step 2: Add command-envelope event-stream dispatch**
+- [x] **Step 2: Add command-envelope event-stream dispatch**
 
 Add a helper that takes a validated `CommandEnvelope<CoreCommandType, unknown>`, dispatches it through `dispatchWorldCommand`, appends the resulting events with optimistic concurrency and idempotency, and rebuilds projection from the appended events.
 
@@ -77,7 +77,7 @@ The helper should return:
 
 - Modify: `apps/worker/src/tickRunner.ts`
 
-- [ ] **Step 3: Append tick time before agent cycles**
+- [x] **Step 3: Append tick time before agent cycles**
 
 At the start of `runWorkerSimulationTick`:
 
@@ -94,7 +94,7 @@ At the start of `runWorkerSimulationTick`:
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -106,3 +106,11 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+## Verification Results
+
+- `pnpm --filter @aivilization/worker test` failed before implementation because `SimulationTimeAdvanced` was missing from tick events.
+- `pnpm --filter @aivilization/worker test` passed after implementation.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

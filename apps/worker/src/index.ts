@@ -5,6 +5,7 @@ export * from './commandDispatch';
 export * from './agentScheduling';
 export * from './agentCycleRunner';
 export * from './canonicalDomainRuntimes';
+export * from './canonicalWorkerRuntimeResolver';
 export * from './domainRuntimeRegistry';
 export * from './localRuntimeStorage';
 export * from './memoryConsolidation';

@@ -11,7 +11,11 @@ import type {
   ActionWithRepairResult,
 } from './actions';
 import { simulateActionWithRepair } from './actions';
-import type { ActionSynthesisPolicy, ActionSynthesisResult } from './actionSynthesis';
+import type {
+  ActionSynthesisPolicy,
+  ActionSynthesisResult,
+  RejectedSynthesizedAction,
+} from './actionSynthesis';
 import { synthesizeActionCandidates } from './actionSynthesis';
 import type {
   BranchPlan,
@@ -150,9 +154,24 @@ export function runAgentPlanningCycle(input: {
   });
   const candidateActions = actionSynthesisResult.acceptedActions;
   if (candidateActions.length === 0) {
-    throw new Error(
-      `action synthesis accepted no candidate actions for subtask ${selectedSubtask.subtaskId}`,
+    const simulationResults = createActionSynthesisReplanResults(
+      actionSynthesisResult.rejectedActions,
     );
+    return finalizeAgentCycleResult({
+      simulationId: input.simulationId,
+      agentId: input.agentId,
+      issuedAt: input.issuedAt,
+      progress: input.progress,
+      replanningPolicy: input.replanningPolicy,
+      subtaskCompletion: input.subtaskCompletion,
+      shortTermMemoryContext: input.shortTermMemoryContext,
+      selectedSubtask,
+      selectionEvidence,
+      subtaskCandidates,
+      actionSynthesisResult,
+      candidateActions,
+      simulationResults,
+    });
   }
 
   const repair = adaptRepairPolicy(input.repair, selectedSubtask);
@@ -163,9 +182,41 @@ export function runAgentPlanningCycle(input: {
       ...(repair === undefined ? {} : { repair }),
     }),
   );
-  const replanningDecision = decideAdaptiveReplanning({
+  return finalizeAgentCycleResult({
+    simulationId: input.simulationId,
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    progress: input.progress,
+    replanningPolicy: input.replanningPolicy,
+    subtaskCompletion: input.subtaskCompletion,
+    shortTermMemoryContext: input.shortTermMemoryContext,
     selectedSubtask,
+    selectionEvidence,
+    subtaskCandidates,
+    actionSynthesisResult,
+    candidateActions,
     simulationResults,
+  });
+}
+
+function finalizeAgentCycleResult(input: {
+  readonly simulationId: SimulationId;
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly progress: BranchPlanProgress | undefined;
+  readonly replanningPolicy: AdaptiveReplanningPolicy | undefined;
+  readonly subtaskCompletion: CycleSubtaskCompletionPolicy | undefined;
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[] | undefined;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly selectionEvidence: AgentCycleSelectionEvidence;
+  readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+  readonly actionSynthesisResult: ActionSynthesisResult;
+  readonly candidateActions: readonly AtomicActionProposal[];
+  readonly simulationResults: readonly ActionWithRepairResult[];
+}): AgentCycleResult {
+  const replanningDecision = decideAdaptiveReplanning({
+    selectedSubtask: input.selectedSubtask,
+    simulationResults: input.simulationResults,
     shortTermMemoryContext: input.shortTermMemoryContext ?? [],
     consecutiveFailureThreshold: input.replanningPolicy?.consecutiveFailureThreshold ?? 2,
     ...(input.replanningPolicy?.failureTags === undefined
@@ -176,8 +227,8 @@ export function runAgentPlanningCycle(input: {
       : { majorContextShift: input.replanningPolicy.majorContextShift }),
   });
   const subtaskCompletionDecision = decideSubtaskCompletion({
-    selectedSubtask,
-    simulationResults,
+    selectedSubtask: input.selectedSubtask,
+    simulationResults: input.simulationResults,
     ...(input.subtaskCompletion === undefined
       ? {}
       : { subtaskCompletion: input.subtaskCompletion }),
@@ -187,20 +238,20 @@ export function runAgentPlanningCycle(input: {
       ? undefined
       : applyReplanningDecisionToProgress({
           progress: input.progress,
-          selectedSubtask,
+          selectedSubtask: input.selectedSubtask,
           decision: replanningDecision,
           completionDecision: subtaskCompletionDecision,
           at: input.issuedAt,
         });
 
   return {
-    selectedSubtask,
-    selectionEvidence,
-    subtaskCandidates,
-    actionSynthesisResult,
-    candidateActions,
-    simulationResults,
-    commandDrafts: simulationResults.flatMap((result) =>
+    selectedSubtask: input.selectedSubtask,
+    selectionEvidence: input.selectionEvidence,
+    subtaskCandidates: input.subtaskCandidates,
+    actionSynthesisResult: input.actionSynthesisResult,
+    candidateActions: input.candidateActions,
+    simulationResults: input.simulationResults,
+    commandDrafts: input.simulationResults.flatMap((result) =>
       result.status === 'needs-replan'
         ? []
         : [createCommandDraft(input, actionFromSimulationResult(result))],
@@ -208,8 +259,22 @@ export function runAgentPlanningCycle(input: {
     replanningDecision,
     subtaskCompletionDecision,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
-    needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
+    needsReplan: input.simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function createActionSynthesisReplanResults(
+  rejectedActions: readonly RejectedSynthesizedAction[],
+): readonly ActionWithRepairResult[] {
+  if (rejectedActions.length === 0) {
+    throw new Error('action synthesis produced no accepted or rejected candidate actions');
+  }
+
+  return rejectedActions.map((rejectedAction) => ({
+    status: 'needs-replan',
+    action: rejectedAction.action,
+    reason: `action synthesis rejected action: ${rejectedAction.reason}`,
+  }));
 }
 
 function decideSubtaskCompletion(input: {

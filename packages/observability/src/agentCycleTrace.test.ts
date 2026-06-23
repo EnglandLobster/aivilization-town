@@ -87,4 +87,74 @@ describe('createAgentCycleTrace', () => {
     expect(trace.emittedCommandIds).toEqual(['cmd-1', 'cmd-2']);
     expect(trace.memoryContextIds).toEqual(['stm-context-1']);
   });
+
+  test('captures blocked cycles when action synthesis rejects every proposal', () => {
+    const trace = createAgentCycleTrace({
+      traceId: 'trace-action-synthesis-blocked',
+      simulationId: 'sim-1',
+      agentId: 'agent-1',
+      cycleStartedAt: 100,
+      observedStateSummary: 'energy=0 satiety=80 health=100 balance=100',
+      selectedBranch: 'development',
+      subtaskCandidates: [
+        {
+          branchId: 'development',
+          subtaskId: 'study',
+          description: 'study carefully',
+          score: 5,
+          scoreBreakdown: {
+            basePriorityScore: 5,
+            signalInfluenceScore: 0,
+            intentionInfluenceScore: 0,
+            memoryInfluenceScore: 0,
+            profileInfluenceScore: 0,
+          },
+        },
+      ],
+      actionSynthesis: {
+        acceptedActions: [],
+        rejectedActions: [
+          {
+            action: {
+              id: 'study-expensive',
+              description: 'study with high energy cost',
+              commandType: 'AgentStudy',
+              priority: 3,
+              resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+            },
+            reason: 'energy budget exceeded',
+          },
+        ],
+      },
+      candidateActions: [],
+      simulatorResult: {
+        status: 'rejected',
+        reason: 'action synthesis rejected action: energy budget exceeded',
+      },
+      selectionEvidence: {
+        selectedSubtaskId: 'study',
+        intentionInfluenceScore: 0,
+        memoryInfluenceScore: 0,
+        profileInfluenceScore: 0,
+        memoryEvidenceRecordIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+      },
+      replanningDecision: {
+        kind: 'memory-guided-correction',
+        trigger: 'simulator-rejection',
+        reason: 'action synthesis rejected action: energy budget exceeded',
+        failedActionIds: ['study-expensive'],
+        evidenceRecordIds: [],
+      },
+      emittedCommandIds: [],
+      memoryContextIds: [],
+      memoryWriteIds: [],
+    });
+
+    expect(trace.actionSynthesis.acceptedActions).toEqual([]);
+    expect(trace.actionSynthesis.rejectedActions[0]?.reason).toBe('energy budget exceeded');
+    expect(trace.candidateActions).toEqual([]);
+    expect(trace.simulatorResult.status).toBe('rejected');
+  });
 });

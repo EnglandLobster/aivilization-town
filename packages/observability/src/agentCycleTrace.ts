@@ -95,10 +95,13 @@ export function createAgentCycleTrace(input: AgentCycleTrace): AgentCycleTrace {
   if (input.subtaskCandidates.length === 0) {
     throw new Error('agent cycle trace requires at least one subtask candidate');
   }
-  if (input.actionSynthesis.acceptedActions.length === 0) {
-    throw new Error('agent cycle trace requires at least one synthesized action');
+  if (
+    input.actionSynthesis.acceptedActions.length === 0 &&
+    input.actionSynthesis.rejectedActions.length === 0
+  ) {
+    throw new Error('agent cycle trace requires at least one action synthesis decision');
   }
-  if (input.candidateActions.length === 0) {
+  if (input.candidateActions.length === 0 && input.actionSynthesis.rejectedActions.length === 0) {
     throw new Error('agent cycle trace requires at least one candidate action');
   }
   return input;

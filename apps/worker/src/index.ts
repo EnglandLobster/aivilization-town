@@ -4,6 +4,7 @@ import type { CommodityConfig } from '@aivilization/content';
 export * from './commandDispatch';
 export * from './agentCycleRunner';
 export * from './steering';
+export * from './tickRunner';
 
 export type WorkerBootContract = {
   readonly agentRuntime: AgentRuntimeModuleStatus;

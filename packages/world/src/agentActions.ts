@@ -13,9 +13,12 @@ import {
 import {
   accumulateEducation,
   applyLaborPhysiologyCost,
+  calculateApplicationQuota,
   isIncapacitated,
+  isEligibleForOccupation,
 } from '@aivilization/society';
 import {
+  assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentProducePayload,
   assertAgentStudyPayload,
@@ -36,6 +39,10 @@ export type WorldCommandPolicies = {
   readonly criticalThresholds: {
     readonly energy: number;
     readonly health: number;
+  };
+  readonly jobApplication?: {
+    readonly populationEducationScores: readonly number[];
+    readonly quotaByResidentialTier: readonly number[];
   };
 };
 
@@ -79,6 +86,17 @@ export function dispatchWorldCommand(input: {
       return handleAgentTradeCommand({
         command: input.command as CommandEnvelope<'AgentTrade', unknown>,
         projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentApplyJob':
+      if (input.policies.jobApplication === undefined) {
+        return rejectCommand(input, 'AgentApplyJob', 'missing job application policy');
+      }
+      return handleAgentApplyJobCommand({
+        command: input.command as CommandEnvelope<'AgentApplyJob', unknown>,
+        projection: input.projection,
+        populationEducationScores: input.policies.jobApplication.populationEducationScores,
+        quotaByResidentialTier: input.policies.jobApplication.quotaByResidentialTier,
         nextSequence: input.nextSequence,
       });
     default:
@@ -382,6 +400,87 @@ export function handleAgentTradeCommand(input: {
     tradeResult.payload.poolAfter,
     tradeResult.payload.moneySupplyDelta,
   );
+}
+
+export function handleAgentApplyJobCommand(input: {
+  readonly command: CommandEnvelope<'AgentApplyJob', unknown>;
+  readonly projection: WorldProjection;
+  readonly populationEducationScores: readonly number[];
+  readonly quotaByResidentialTier: readonly number[];
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentApplyJobPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentApplyJob', payloadResult.reason);
+  }
+
+  const quotaResult = parsePayload(() =>
+    calculateApplicationQuota({
+      residentialTier: agent.residentialTier,
+      quotaByResidentialTier: input.quotaByResidentialTier,
+    }),
+  );
+  if (quotaResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentApplyJob', quotaResult.reason);
+  }
+
+  const usedApplications = input.projection.jobApplications.filter(
+    (application) => application.agentId === agent.agentId,
+  ).length;
+  if (usedApplications >= quotaResult.payload) {
+    return rejectCommand(
+      input,
+      'AgentApplyJob',
+      `application quota exceeded: allowed ${quotaResult.payload}, used ${usedApplications}`,
+    );
+  }
+
+  const payload = payloadResult.payload;
+  const eligibilityResult = parsePayload(() =>
+    isEligibleForOccupation({
+      occupationName: payload.occupationName,
+      agent: {
+        residentialTier: agent.residentialTier,
+        educationScore: agent.educationScore,
+      },
+      populationEducationScores: input.populationEducationScores,
+    }),
+  );
+  if (eligibilityResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentApplyJob', eligibilityResult.reason);
+  }
+  if (!eligibilityResult.payload) {
+    return rejectCommand(
+      input,
+      'AgentApplyJob',
+      `agent is not eligible for ${payload.occupationName}`,
+    );
+  }
+
+  return [
+    makeEvent(input, 0, 'JobApplicationSubmitted', {
+      agentId: agent.agentId,
+      occupationName: payload.occupationName,
+      residentialTier: agent.residentialTier,
+      educationScore: agent.educationScore,
+    }),
+    makeEvent(input, 1, 'JobAssigned', {
+      agentId: agent.agentId,
+      occupationName: payload.occupationName,
+      previousJob: agent.job,
+    }),
+    makeMemoryEvent(input, 2, {
+      summary: `Applied for ${payload.occupationName} and was assigned.`,
+      status: 'succeeded',
+      tags: ['apply-job', payload.occupationName],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: `apply-job:${payload.occupationName}`,
+        statement: `Applies for ${payload.occupationName} when qualified.`,
+      },
+    }),
+  ];
 }
 
 function createTradeEvents(

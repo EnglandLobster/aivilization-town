@@ -5,5 +5,11 @@
     "checkJs": false,
     "noEmit": true
   },
-  "include": ["eslint.config.js", "vitest.config.ts", "apps/**/*.ts", "packages/**/*.ts"]
+  "include": [
+    "eslint.config.js",
+    "vitest.config.ts",
+    "vitest.workspace-aliases.ts",
+    "apps/**/*.ts",
+    "packages/**/*.ts"
+  ]
 }

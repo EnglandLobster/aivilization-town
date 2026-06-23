@@ -61,7 +61,7 @@ It does not cover production, trade, sleep, doctor recovery, job applications, s
 - Modify: `vitest.workspace-aliases.ts`
 - Modify: `pnpm-lock.yaml`
 
-- [ ] Write failing tests for projection event replay:
+- [x] Write failing tests for projection event replay:
 
 ```ts
 import { asAgentId, createEventEnvelope, replayEvents } from '@aivilization/sim-core';
@@ -122,11 +122,11 @@ describe('world projection', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm the package or APIs are missing.
-- [ ] Scaffold the package, add workspace aliases, add `InventoryChanged` event type, and implement projection event application.
-- [ ] Run `pnpm install --lockfile-only`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add world projection package"`.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm the package or APIs are missing.
+- [x] Scaffold the package, add workspace aliases, add `InventoryChanged` event type, and implement projection event application.
+- [x] Run `pnpm install --lockfile-only`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add world projection package"`.
 
 ### Task 2: Eat And Study Command Handlers
 

@@ -45,7 +45,7 @@ It does not cover live LLM calls, durable task queues, full domain command valid
 - Create: `packages/agent-runtime/src/planner.test.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] Write failing tests for branch validation and contextual subtask selection:
+- [x] Write failing tests for branch validation and contextual subtask selection:
 
 ```ts
 import { describe, expect, test } from 'vitest';
@@ -116,10 +116,10 @@ describe('branch-thinking planner', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm planner APIs are missing.
-- [ ] Implement `PlannerBranch`, `PlannerSubtask`, `BranchPlan`, `ContextSignal`, `createBranchPlan`, and `selectPrioritizedSubtask`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
-- [ ] Commit with `git commit -m "feat: add branch planner core"`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm planner APIs are missing.
+- [x] Implement `PlannerBranch`, `PlannerSubtask`, `BranchPlan`, `ContextSignal`, `createBranchPlan`, and `selectPrioritizedSubtask`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
+- [x] Commit with `git commit -m "feat: add branch planner core"`.
 
 ### Task 2: Action Simulation And Repair
 

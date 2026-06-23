@@ -11,8 +11,13 @@ import type {
   ActionWithRepairResult,
 } from './actions';
 import { simulateActionWithRepair } from './actions';
-import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
-import { selectPrioritizedSubtask } from './planner';
+import type {
+  BranchPlan,
+  ContextSignal,
+  PrioritizedSubtask,
+  PrioritizedSubtaskCandidate,
+} from './planner';
+import { scorePrioritizedSubtaskCandidates } from './planner';
 import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
 import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
 import type { BranchPlanProgress } from './planProgress';
@@ -53,6 +58,7 @@ export type CommandDraft = {
 export type AgentCycleResult = {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly selectionEvidence: AgentCycleSelectionEvidence;
+  readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
@@ -98,7 +104,7 @@ export function runAgentPlanningCycle(input: {
     input.longTermProfile === undefined
       ? undefined
       : buildProfileInfluenceBySubtask(input.plan, input.longTermProfile);
-  const selectedSubtask = selectPrioritizedSubtask({
+  const subtaskCandidates = scorePrioritizedSubtaskCandidates({
     plan: input.plan,
     signals: input.signals,
     ...(input.progress === undefined ? {} : { progress: input.progress }),
@@ -106,6 +112,11 @@ export function runAgentPlanningCycle(input: {
     ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
     ...(profileInfluence === undefined ? {} : { profileInfluence }),
   });
+  const selectedCandidate = subtaskCandidates[0];
+  if (selectedCandidate === undefined) {
+    throw new Error('branch plan produced no selectable subtasks');
+  }
+  const selectedSubtask = toPrioritizedSubtask(selectedCandidate);
   const selectionEvidence = createSelectionEvidence({
     selectedSubtask,
     ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
@@ -155,6 +166,7 @@ export function runAgentPlanningCycle(input: {
   return {
     selectedSubtask,
     selectionEvidence,
+    subtaskCandidates,
     candidateActions,
     simulationResults,
     commandDrafts: simulationResults.flatMap((result) =>
@@ -273,6 +285,15 @@ function actionFromSimulationResult(result: ActionWithRepairResult): AtomicActio
 
 function sortedUnique(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function toPrioritizedSubtask(candidate: PrioritizedSubtaskCandidate): PrioritizedSubtask {
+  return {
+    branchId: candidate.branchId,
+    subtaskId: candidate.subtaskId,
+    description: candidate.description,
+    score: candidate.score,
+  };
 }
 
 function createCommandDraft(

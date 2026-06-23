@@ -39,6 +39,21 @@ function createTrace(input: {
     cycleStartedAt: input.cycleStartedAt ?? 100,
     observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
     selectedBranch: 'development',
+    subtaskCandidates: [
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        description: 'self study',
+        score: 5,
+        scoreBreakdown: {
+          basePriorityScore: 5,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0,
+        },
+      },
+    ],
     candidateActions: ['study for one minute'],
     simulatorResult: { status: 'accepted' },
     selectionEvidence: {
@@ -95,6 +110,9 @@ describe('agent cycle trace repositories', () => {
 
     const read = await repository.get('trace-200');
     (read!.memoryWriteIds as string[]).push('mutated');
+    (
+      read!.subtaskCandidates[0]!.scoreBreakdown as { memoryInfluenceScore: number }
+    ).memoryInfluenceScore = 999;
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
   });
 

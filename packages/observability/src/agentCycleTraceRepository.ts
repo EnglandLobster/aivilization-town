@@ -4,6 +4,7 @@ import {
   createAgentCycleTrace,
   type AgentCycleTrace,
   type AgentCycleSelectionTraceEvidence,
+  type AgentCycleSubtaskCandidateTrace,
   type ReplanningTraceDecision,
   type SimulatorTraceResult,
 } from './agentCycleTrace';
@@ -108,6 +109,9 @@ function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
     cycleStartedAt: trace.cycleStartedAt,
     observedStateSummary: trace.observedStateSummary,
     selectedBranch: trace.selectedBranch,
+    subtaskCandidates: trace.subtaskCandidates.map((candidate) =>
+      cloneSubtaskCandidate(candidate),
+    ),
     candidateActions: [...trace.candidateActions],
     simulatorResult: cloneSimulatorResult(trace.simulatorResult),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
@@ -116,6 +120,24 @@ function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
     memoryContextIds: [...trace.memoryContextIds],
     memoryWriteIds: [...trace.memoryWriteIds],
   });
+}
+
+function cloneSubtaskCandidate(
+  candidate: AgentCycleSubtaskCandidateTrace,
+): AgentCycleSubtaskCandidateTrace {
+  return {
+    branchId: candidate.branchId,
+    subtaskId: candidate.subtaskId,
+    description: candidate.description,
+    score: candidate.score,
+    scoreBreakdown: {
+      basePriorityScore: candidate.scoreBreakdown.basePriorityScore,
+      signalInfluenceScore: candidate.scoreBreakdown.signalInfluenceScore,
+      intentionInfluenceScore: candidate.scoreBreakdown.intentionInfluenceScore,
+      memoryInfluenceScore: candidate.scoreBreakdown.memoryInfluenceScore,
+      profileInfluenceScore: candidate.scoreBreakdown.profileInfluenceScore,
+    },
+  };
 }
 
 function cloneSimulatorResult(result: SimulatorTraceResult): SimulatorTraceResult {

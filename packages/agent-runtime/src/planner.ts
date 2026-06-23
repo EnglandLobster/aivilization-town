@@ -37,6 +37,27 @@ export type PrioritizedSubtask = {
   readonly score: number;
 };
 
+export type PrioritizedSubtaskScoreBreakdown = {
+  readonly basePriorityScore: number;
+  readonly signalInfluenceScore: number;
+  readonly intentionInfluenceScore: number;
+  readonly memoryInfluenceScore: number;
+  readonly profileInfluenceScore: number;
+};
+
+export type PrioritizedSubtaskCandidate = PrioritizedSubtask & {
+  readonly scoreBreakdown: PrioritizedSubtaskScoreBreakdown;
+};
+
+export type PrioritizedSubtaskScoringInput = {
+  readonly plan: BranchPlan;
+  readonly signals: readonly ContextSignal[];
+  readonly progress?: BranchPlanProgress;
+  readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+  readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
+  readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
+};
+
 export function createBranchPlan(input: {
   readonly objective: string;
   readonly branches: readonly PlannerBranch[];
@@ -120,6 +141,17 @@ export function selectPrioritizedSubtask(input: {
   readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
   readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
 }): PrioritizedSubtask {
+  const selected = scorePrioritizedSubtaskCandidates(input)[0];
+  if (selected === undefined) {
+    throw new Error('branch plan produced no selectable subtasks');
+  }
+
+  return toPrioritizedSubtask(selected);
+}
+
+export function scorePrioritizedSubtaskCandidates(
+  input: PrioritizedSubtaskScoringInput,
+): readonly PrioritizedSubtaskCandidate[] {
   const signalWeights = new Map<string, number>();
   for (const signal of input.signals) {
     assertNonEmpty(signal.key, 'signal key');
@@ -129,28 +161,29 @@ export function selectPrioritizedSubtask(input: {
 
   const progressFilter = createProgressFilter(input.progress);
   const candidates = input.plan.branches.flatMap((branch) =>
-    branch.subtasks.filter(progressFilter).map((subtask) => ({
-      branchId: branch.id,
-      subtaskId: subtask.id,
-      description: subtask.description,
-      score:
-        subtask.basePriority +
-        (subtask.signalKeys ?? []).reduce(
+    branch.subtasks.filter(progressFilter).map((subtask) => {
+      const scoreBreakdown = {
+        basePriorityScore: subtask.basePriority,
+        signalInfluenceScore: (subtask.signalKeys ?? []).reduce(
           (total, signalKey) => total + (signalWeights.get(signalKey) ?? 0),
           0,
-        ) +
-        (input.intentionInfluence?.[subtask.id]?.score ?? 0) +
-        (input.memoryInfluence?.[subtask.id]?.score ?? 0) +
-        (input.profileInfluence?.[subtask.id]?.score ?? 0),
-    })),
+        ),
+        intentionInfluenceScore: input.intentionInfluence?.[subtask.id]?.score ?? 0,
+        memoryInfluenceScore: input.memoryInfluence?.[subtask.id]?.score ?? 0,
+        profileInfluenceScore: input.profileInfluence?.[subtask.id]?.score ?? 0,
+      };
+
+      return {
+        branchId: branch.id,
+        subtaskId: subtask.id,
+        description: subtask.description,
+        score: scoreFromBreakdown(scoreBreakdown),
+        scoreBreakdown,
+      };
+    }),
   );
 
-  const selected = candidates.sort(comparePrioritizedSubtasks)[0];
-  if (selected === undefined) {
-    throw new Error('branch plan produced no selectable subtasks');
-  }
-
-  return selected;
+  return candidates.sort(comparePrioritizedSubtasks);
 }
 
 export function hasSelectableSubtasks(input: {
@@ -205,6 +238,25 @@ function comparePrioritizedSubtasks(left: PrioritizedSubtask, right: Prioritized
     return left.branchId.localeCompare(right.branchId);
   }
   return left.subtaskId.localeCompare(right.subtaskId);
+}
+
+function scoreFromBreakdown(breakdown: PrioritizedSubtaskScoreBreakdown): number {
+  return (
+    breakdown.basePriorityScore +
+    breakdown.signalInfluenceScore +
+    breakdown.intentionInfluenceScore +
+    breakdown.memoryInfluenceScore +
+    breakdown.profileInfluenceScore
+  );
+}
+
+function toPrioritizedSubtask(candidate: PrioritizedSubtaskCandidate): PrioritizedSubtask {
+  return {
+    branchId: candidate.branchId,
+    subtaskId: candidate.subtaskId,
+    description: candidate.description,
+    score: candidate.score,
+  };
 }
 
 function assertNonEmpty(value: string, name: string): void {

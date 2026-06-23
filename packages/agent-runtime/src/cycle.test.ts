@@ -601,6 +601,34 @@ describe('agent planning cycle', () => {
       profileEntryKeys: ['rest-recovery'],
       profileEvidenceRecordIds: ['reflection-rest-1'],
     });
+    expect(result.subtaskCandidates).toEqual([
+      {
+        branchId: 'recovery',
+        subtaskId: 'sleep',
+        description: 'rest before working',
+        score: 5.6,
+        scoreBreakdown: {
+          basePriorityScore: 1,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 3.2,
+          profileInfluenceScore: 1.4,
+        },
+      },
+      {
+        branchId: 'income',
+        subtaskId: 'work',
+        description: 'work shift',
+        score: 4,
+        scoreBreakdown: {
+          basePriorityScore: 4,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0,
+        },
+      },
+    ]);
     expect(result.commandDrafts[0]?.type).toBe('AgentSleep');
   });
 

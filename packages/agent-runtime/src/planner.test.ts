@@ -5,6 +5,7 @@ import {
   createBranchPlanProgress,
   hasSelectableSubtasks,
   markSubtaskCompleted,
+  scorePrioritizedSubtaskCandidates,
   selectPrioritizedSubtask,
 } from './index';
 
@@ -154,6 +155,103 @@ describe('branch-thinking planner', () => {
         },
       }),
     ).toMatchObject({ branchId: 'development', subtaskId: 'study', score: 5 });
+  });
+
+  test('scores selectable subtask candidates with deterministic breakdowns', () => {
+    const plan = createBranchPlan({
+      objective: 'balance survival and growth',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [
+            { id: 'work', description: 'work shift', basePriority: 3, signalKeys: ['low-money'] },
+          ],
+        },
+        {
+          id: 'recovery',
+          objective: 'recover energy',
+          subtasks: [
+            {
+              id: 'sleep',
+              description: 'rest before work',
+              basePriority: 1,
+              signalKeys: ['low-energy'],
+            },
+          ],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [
+            {
+              id: 'study',
+              description: 'self study',
+              basePriority: 2,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      scorePrioritizedSubtaskCandidates({
+        plan,
+        signals: [
+          { key: 'low-energy', weight: 2 },
+          { key: 'low-energy', weight: 0.5 },
+        ],
+        intentionInfluence: {
+          study: { score: 3, matches: [] },
+        },
+        memoryInfluence: {
+          sleep: { score: 1.5, matches: [] },
+        },
+        profileInfluence: {
+          study: { score: 0.75, matches: [] },
+        },
+      }),
+    ).toEqual([
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        description: 'self study',
+        score: 5.75,
+        scoreBreakdown: {
+          basePriorityScore: 2,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 3,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0.75,
+        },
+      },
+      {
+        branchId: 'recovery',
+        subtaskId: 'sleep',
+        description: 'rest before work',
+        score: 5,
+        scoreBreakdown: {
+          basePriorityScore: 1,
+          signalInfluenceScore: 2.5,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 1.5,
+          profileInfluenceScore: 0,
+        },
+      },
+      {
+        branchId: 'income',
+        subtaskId: 'work',
+        description: 'work shift',
+        score: 3,
+        scoreBreakdown: {
+          basePriorityScore: 3,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0,
+        },
+      },
+    ]);
   });
 
   test('selects only runnable subtasks after applying progress and dependencies', () => {

@@ -33,6 +33,20 @@ export type AgentCycleSelectionTraceEvidence = {
   readonly profileEvidenceRecordIds: readonly string[];
 };
 
+export type AgentCycleSubtaskCandidateTrace = {
+  readonly branchId: string;
+  readonly subtaskId: string;
+  readonly description: string;
+  readonly score: number;
+  readonly scoreBreakdown: {
+    readonly basePriorityScore: number;
+    readonly signalInfluenceScore: number;
+    readonly intentionInfluenceScore: number;
+    readonly memoryInfluenceScore: number;
+    readonly profileInfluenceScore: number;
+  };
+};
+
 export type AgentCycleTrace = {
   readonly traceId: string;
   readonly simulationId: string;
@@ -40,6 +54,7 @@ export type AgentCycleTrace = {
   readonly cycleStartedAt: number;
   readonly observedStateSummary: string;
   readonly selectedBranch: string;
+  readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
@@ -50,6 +65,9 @@ export type AgentCycleTrace = {
 };
 
 export function createAgentCycleTrace(input: AgentCycleTrace): AgentCycleTrace {
+  if (input.subtaskCandidates.length === 0) {
+    throw new Error('agent cycle trace requires at least one subtask candidate');
+  }
   if (input.candidateActions.length === 0) {
     throw new Error('agent cycle trace requires at least one candidate action');
   }

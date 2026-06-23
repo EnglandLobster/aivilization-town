@@ -45,7 +45,7 @@ or experiment-diff reports.
 - Modify: `packages/agent-runtime/src/planner.test.ts`
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] **Step 1: Add failing planner candidate scoring test**
+- [x] **Step 1: Add failing planner candidate scoring test**
 
 Import `scorePrioritizedSubtaskCandidates` in `packages/agent-runtime/src/planner.test.ts`.
 
@@ -158,7 +158,7 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: fail because `scorePrioritizedSubtaskCandidates` does not exist.
 
-- [ ] **Step 2: Add failing cycle result candidate list test**
+- [x] **Step 2: Add failing cycle result candidate list test**
 
 In `packages/agent-runtime/src/cycle.test.ts`, update the existing short-term memory/profile
 selection test to assert `result.subtaskCandidates`:
@@ -209,7 +209,7 @@ Expected before implementation: fail because `AgentCycleResult.subtaskCandidates
 - Modify: `packages/agent-runtime/src/planner.ts`
 - Modify: `packages/agent-runtime/src/cycle.ts`
 
-- [ ] **Step 3: Implement candidate scoring API**
+- [x] **Step 3: Implement candidate scoring API**
 
 Add to `packages/agent-runtime/src/planner.ts`:
 
@@ -236,7 +236,7 @@ const { scoreBreakdown: _scoreBreakdown, ...selectedSubtask } = selected;
 return selectedSubtask;
 ```
 
-- [ ] **Step 4: Return candidate list from cycle result**
+- [x] **Step 4: Return candidate list from cycle result**
 
 Modify `packages/agent-runtime/src/cycle.ts`:
 
@@ -262,7 +262,7 @@ Expected after implementation: both pass.
 - Modify: `packages/observability/src/agentCycleTrace.test.ts`
 - Modify: `packages/observability/src/agentCycleTraceRepository.test.ts`
 
-- [ ] **Step 5: Add failing trace shape test**
+- [x] **Step 5: Add failing trace shape test**
 
 In `packages/observability/src/agentCycleTrace.test.ts`, add `subtaskCandidates` to the trace input:
 
@@ -298,7 +298,7 @@ pnpm --filter @aivilization/observability typecheck
 
 Expected before implementation: fail because `AgentCycleTrace.subtaskCandidates` does not exist.
 
-- [ ] **Step 6: Add failing repository clone preservation test**
+- [x] **Step 6: Add failing repository clone preservation test**
 
 In `packages/observability/src/agentCycleTraceRepository.test.ts`, update `createTrace` to include
 a `subtaskCandidates` array with one candidate. After mutating the read trace, also mutate:
@@ -326,7 +326,7 @@ Expected before implementation: fail because repository clone logic does not han
 - Modify: `packages/observability/src/agentCycleTrace.ts`
 - Modify: `packages/observability/src/agentCycleTraceRepository.ts`
 
-- [ ] **Step 7: Extend trace schema**
+- [x] **Step 7: Extend trace schema**
 
 Add to `packages/observability/src/agentCycleTrace.ts`:
 
@@ -355,7 +355,7 @@ readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
 Update `createAgentCycleTrace` to throw `agent cycle trace requires at least one subtask candidate`
 when `input.subtaskCandidates.length === 0`.
 
-- [ ] **Step 8: Clone trace candidates in repository**
+- [x] **Step 8: Clone trace candidates in repository**
 
 Update `packages/observability/src/agentCycleTraceRepository.ts` clone logic to deep clone
 `subtaskCandidates` and their nested `scoreBreakdown`.
@@ -375,7 +375,7 @@ Expected after implementation: both pass.
 
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 9: Add failing worker trace candidate assertion**
+- [x] **Step 9: Add failing worker trace candidate assertion**
 
 In the worker memory/profile-context planning test, assert:
 
@@ -424,7 +424,7 @@ Expected before implementation: fail because worker traces do not include `subta
 
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 
-- [ ] **Step 10: Map runtime candidates into trace**
+- [x] **Step 10: Map runtime candidates into trace**
 
 In `runWorkerAgentCycle`, pass:
 
@@ -449,7 +449,7 @@ Expected after implementation: both pass.
 
 - Modify: this plan file
 
-- [ ] **Step 11: Run focused verification**
+- [x] **Step 11: Run focused verification**
 
 Run:
 
@@ -462,7 +462,7 @@ pnpm --filter @aivilization/worker test
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 12: Run repo verification**
+- [x] **Step 12: Run repo verification**
 
 Run:
 
@@ -471,7 +471,7 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 13: Commit implementation**
+- [x] **Step 13: Commit implementation**
 
 Commit command:
 

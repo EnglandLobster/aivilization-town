@@ -1,4 +1,9 @@
 import {
+  FileAgentIntentionRepository,
+  FileLongTermProfileRepository,
+  FileShortTermMemoryRepository,
+} from '@aivilization/memory';
+import {
   FileEventStore,
   FileProjectionCheckpointStore,
   FileProjectionSnapshotStore,
@@ -20,6 +25,13 @@ export type LocalWorldRuntimeStoragePaths = {
   readonly eventStoreDir: string;
   readonly checkpointStoreDir: string;
   readonly snapshotStoreDir: string;
+  readonly memoryDir: string;
+};
+
+export type LocalWorldRuntimeRepositories = {
+  readonly intentionRepository: FileAgentIntentionRepository;
+  readonly longTermProfileRepository: FileLongTermProfileRepository;
+  readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
 };
 
 export type LocalWorldRuntimeStorage = {
@@ -27,6 +39,10 @@ export type LocalWorldRuntimeStorage = {
   readonly eventStore: FileEventStore<WorldEvent>;
   readonly checkpointStore: FileProjectionCheckpointStore;
   readonly snapshotStore: FileProjectionSnapshotStore<WorldProjection>;
+  readonly intentionRepository: FileAgentIntentionRepository;
+  readonly longTermProfileRepository: FileLongTermProfileRepository;
+  readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
   readonly checkpointHydration: WorkerTickProjectionCheckpointHydrationInput;
   readonly paths: LocalWorldRuntimeStoragePaths;
@@ -53,6 +69,18 @@ export function createLocalWorldRuntimeStorage(input: {
   const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
     rootDir: paths.snapshotStoreDir,
   });
+  const intentionRepository = new FileAgentIntentionRepository({ rootDir: paths.memoryDir });
+  const longTermProfileRepository = new FileLongTermProfileRepository({
+    rootDir: paths.memoryDir,
+  });
+  const shortTermMemoryRepository = new FileShortTermMemoryRepository({
+    rootDir: paths.memoryDir,
+  });
+  const repositories = {
+    intentionRepository,
+    longTermProfileRepository,
+    shortTermMemoryRepository,
+  };
   const checkpointing = {
     partitionKey: partition.partitionKey,
     checkpointStore,
@@ -64,6 +92,10 @@ export function createLocalWorldRuntimeStorage(input: {
     eventStore,
     checkpointStore,
     snapshotStore,
+    intentionRepository,
+    longTermProfileRepository,
+    shortTermMemoryRepository,
+    repositories,
     checkpointing,
     checkpointHydration: checkpointing,
     paths,
@@ -86,6 +118,7 @@ function createLocalWorldRuntimeStoragePaths(input: {
     eventStoreDir: join(partitionDir, 'events'),
     checkpointStoreDir: join(partitionDir, 'checkpoints'),
     snapshotStoreDir: join(partitionDir, 'snapshots'),
+    memoryDir: join(partitionDir, 'memory'),
   };
 }
 

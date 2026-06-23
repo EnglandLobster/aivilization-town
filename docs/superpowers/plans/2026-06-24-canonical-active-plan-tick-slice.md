@@ -39,7 +39,7 @@ It does not change low-level tick execution, planner selection, event store sema
 
 - Add: `apps/worker/src/canonicalActivePlanTick.test.ts`
 
-- [ ] **Step 1: Write failing tests for canonical active-plan tick orchestration**
+- [x] **Step 1: Write failing tests for canonical active-plan tick orchestration**
 
 Create tests that require:
 
@@ -56,6 +56,9 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `runCanonicalWorkerActivePlanTick` does not exist.
 
+Observed before implementation: `pnpm --filter @aivilization/worker test` failed because
+`runCanonicalWorkerActivePlanTick` was not exported.
+
 ## Task 2: Orchestration Implementation
 
 **Files:**
@@ -63,7 +66,7 @@ Expected before implementation: tests fail because `runCanonicalWorkerActivePlan
 - Add: `apps/worker/src/canonicalActivePlanTick.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement canonical active-plan tick orchestration**
+- [x] **Step 2: Implement canonical active-plan tick orchestration**
 
 Behavior:
 
@@ -88,13 +91,18 @@ Behavior:
   - `commandIdPrefix = ${tickId}-dry-run`
 - Call `runWorkerSimulationTick` with the resolved scheduling projection, built agents, required repositories, optional checkpointing, optional trace sink, optional time delta, and optional expected version.
 
+Observed after implementation:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+
 ## Task 3: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -106,3 +114,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed verification:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

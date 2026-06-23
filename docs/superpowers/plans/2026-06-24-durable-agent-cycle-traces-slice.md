@@ -38,7 +38,7 @@ batch export.
 
 - Create: `packages/observability/src/agentCycleTraceRepository.test.ts`
 
-- [ ] **Step 1: Add failing in-memory repository behavior test**
+- [x] **Step 1: Add failing in-memory repository behavior test**
 
 Create a test helper in `packages/observability/src/agentCycleTraceRepository.test.ts`:
 
@@ -127,7 +127,7 @@ pnpm --filter @aivilization/observability test
 
 Expected before implementation: fail because `InMemoryAgentCycleTraceRepository` does not exist.
 
-- [ ] **Step 2: Add failing file repository persistence test**
+- [x] **Step 2: Add failing file repository persistence test**
 
 In the same test file, add tmpdir setup and a file repository test:
 
@@ -182,7 +182,7 @@ Expected before implementation: fail because `FileAgentCycleTraceRepository` doe
 - Create: `packages/observability/src/agentCycleTraceRepository.ts`
 - Modify: `packages/observability/src/index.ts`
 
-- [ ] **Step 3: Implement trace repository adapters**
+- [x] **Step 3: Implement trace repository adapters**
 
 Create `packages/observability/src/agentCycleTraceRepository.ts` with:
 
@@ -213,7 +213,7 @@ Both adapters must:
 - reject `limit <= 0` with `limit must be positive`;
 - reject empty `simulationId`, `traceId`, and `rootDir`.
 
-- [ ] **Step 4: Export repository APIs**
+- [x] **Step 4: Export repository APIs**
 
 Modify `packages/observability/src/index.ts`:
 
@@ -237,7 +237,7 @@ Expected after implementation: both pass.
 
 - Modify: `apps/worker/src/localRuntimeStorage.test.ts`
 
-- [ ] **Step 5: Add failing local trace repository integration test**
+- [x] **Step 5: Add failing local trace repository integration test**
 
 Add a test in `apps/worker/src/localRuntimeStorage.test.ts`:
 
@@ -300,7 +300,7 @@ Expected before implementation: fail because `agentCycleTraceRepository` and
 
 - Modify: `apps/worker/src/localRuntimeStorage.ts`
 
-- [ ] **Step 6: Expose file-backed trace repository from local storage**
+- [x] **Step 6: Expose file-backed trace repository from local storage**
 
 Modify `apps/worker/src/localRuntimeStorage.ts`:
 
@@ -325,7 +325,7 @@ Expected after implementation: both pass.
 
 - Modify: this plan file
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
 Run:
 
@@ -336,7 +336,7 @@ pnpm --filter @aivilization/worker test
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 8: Run repo verification**
+- [x] **Step 8: Run repo verification**
 
 Run:
 
@@ -345,7 +345,7 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 9: Commit implementation**
+- [x] **Step 9: Commit implementation**
 
 Commit command:
 

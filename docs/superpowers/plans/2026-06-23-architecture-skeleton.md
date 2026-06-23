@@ -35,8 +35,9 @@ merged.
 - Create `tsconfig.base.json`: shared TypeScript defaults.
 - Create `tsconfig.eslint.json`: root files and workspace globs for type-aware linting.
 - Create `.prettierrc.json`: formatting contract.
+- Create `.prettierignore`: formatting exclusions for generated files and lockfiles.
 - Create `eslint.config.js`: linting contract.
-- Create `vitest.workspace.ts`: test workspace.
+- Create `vitest.config.ts`: root Vitest project config.
 - Create `packages/*/package.json`: package definitions.
 - Create `packages/*/tsconfig.json`: package TypeScript configs.
 - Create `packages/*/src/index.ts`: package public exports.
@@ -69,8 +70,9 @@ merged.
 - Create: `tsconfig.base.json`
 - Create: `tsconfig.eslint.json`
 - Create: `.prettierrc.json`
+- Create: `.prettierignore`
 - Create: `eslint.config.js`
-- Create: `vitest.workspace.ts`
+- Create: `vitest.config.ts`
 
 - [ ] **Step 1: Write the root workspace files**
 
@@ -156,7 +158,7 @@ Create `tsconfig.eslint.json`:
     "checkJs": false,
     "noEmit": true
   },
-  "include": ["eslint.config.js", "vitest.workspace.ts", "apps/**/*.ts", "packages/**/*.ts"]
+  "include": ["eslint.config.js", "vitest.config.ts", "apps/**/*.ts", "packages/**/*.ts"]
 }
 ```
 
@@ -170,6 +172,19 @@ Create `.prettierrc.json`:
 }
 ```
 
+Create `.prettierignore`:
+
+```text
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+.next/
+.vite/
+pnpm-lock.yaml
+```
+
 Create `eslint.config.js`:
 
 ```js
@@ -177,6 +192,9 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
+  {
+    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -186,7 +204,6 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
   },
   {
     files: ['**/*.ts'],
@@ -198,12 +215,16 @@ export default tseslint.config(
 );
 ```
 
-Create `vitest.workspace.ts`:
+Create `vitest.config.ts`:
 
 ```ts
-import { defineWorkspace } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 
-export default defineWorkspace(['packages/*/vitest.config.ts']);
+export default defineConfig({
+  test: {
+    projects: ['packages/*/vitest.config.ts'],
+  },
+});
 ```
 
 - [ ] **Step 2: Install dependencies**
@@ -232,7 +253,7 @@ Expected: FAIL because workspace packages have not been created.
 Run:
 
 ```bash
-git add package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json eslint.config.js vitest.workspace.ts
+git add package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json .prettierignore eslint.config.js vitest.config.ts
 git commit -m "chore: add workspace tooling"
 ```
 
@@ -1735,7 +1756,7 @@ Expected:
 Run:
 
 ```bash
-git add README.md package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json eslint.config.js vitest.workspace.ts apps packages
+git add README.md package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.eslint.json .prettierrc.json .prettierignore eslint.config.js vitest.config.ts apps packages
 git commit -m "docs: document workspace verification"
 ```
 

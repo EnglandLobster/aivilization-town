@@ -6,5 +6,8 @@ export function replayEvents<TProjection, TEvent extends EventEnvelope>(
   apply: (projection: TProjection, event: TEvent) => TProjection,
 ): TProjection {
   const ordered = [...events].sort((left, right) => left.sequence - right.sequence);
-  return ordered.reduce<TProjection>((projection, event) => apply(projection, event), initialProjection);
+  return ordered.reduce<TProjection>(
+    (projection, event) => apply(projection, event),
+    initialProjection,
+  );
 }

@@ -37,7 +37,7 @@ It does not create snapshots automatically, decide checkpoint cadence, compact e
 - Modify: `apps/worker/src/projectionHydration.test.ts`
 - Modify: `apps/worker/src/tickRunner.test.ts`
 
-- [ ] **Step 1: Write failing tests for snapshot-backed projection hydration**
+- [x] **Step 1: Write failing tests for snapshot-backed projection hydration**
 
 Create helper tests that require:
 
@@ -66,7 +66,7 @@ Expected before implementation: tests fail because worker hydration has no check
 
 - Modify: `apps/worker/src/projectionHydration.ts`
 
-- [ ] **Step 2: Implement checkpoint snapshot recovery**
+- [x] **Step 2: Implement checkpoint snapshot recovery**
 
 Add:
 
@@ -90,7 +90,7 @@ Behavior:
 
 - Modify: `apps/worker/src/tickRunner.ts`
 
-- [ ] **Step 3: Pass checkpoint recovery options through tick hydration**
+- [x] **Step 3: Pass checkpoint recovery options through tick hydration**
 
 Update `WorkerTickProjectionHydrationInput` with optional:
 
@@ -109,7 +109,7 @@ When hydrating a tick:
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -122,3 +122,12 @@ pnpm build
 
 Commit the implementation and update this plan when the checks pass.
 
+## Verification Results
+
+- `pnpm --filter @aivilization/worker test` failed before implementation because hydration replayed from sequence `0` and missing snapshot blobs were ignored.
+- `pnpm --filter @aivilization/worker test` passed after implementation.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm --filter @aivilization/worker test` passed after targeted formatting.
+- `pnpm --filter @aivilization/worker typecheck` passed after targeted formatting.
+- `pnpm check` passed.
+- `pnpm build` passed.

@@ -39,7 +39,7 @@ persistence model.
 - Modify: `apps/worker/src/objectiveRenewal.test.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.test.ts`
 
-- [ ] **Step 1: Add failing proposer tests**
+- [x] **Step 1: Add failing proposer tests**
 
 Add tests that require:
 
@@ -49,7 +49,7 @@ Add tests that require:
 
 Use `createShortTermMemoryRecord` and `InMemoryShortTermMemoryRepository` from `@aivilization/memory`.
 
-- [ ] **Step 2: Add failing renewal handoff tests**
+- [x] **Step 2: Add failing renewal handoff tests**
 
 Add tests that require:
 
@@ -58,7 +58,7 @@ Add tests that require:
 
 The custom proposer assertion should inspect `shortTermMemoryContext.map((record) => record.id)`.
 
-- [ ] **Step 3: Run focused tests and verify red**
+- [x] **Step 3: Run focused tests and verify red**
 
 Run:
 
@@ -69,6 +69,14 @@ pnpm test -- apps/worker/src/objectiveRenewal.test.ts apps/worker/src/canonicalA
 Expected before implementation: fail because `shortTermMemoryContext`, `shortTermMemoryRepository`,
 and `objectiveMemoryRetrievalLimit` are not wired into objective renewal.
 
+Observed red failures:
+
+- default proposer selected education instead of recovery after a failed work/energy memory;
+- default proposer selected the generic routine instead of the profile-aligned creative routine;
+- default proposer repeated the just-completed study objective instead of choosing income;
+- custom proposers received no `shortTermMemoryContext`;
+- canonical renewal passed an empty context before scheduling.
+
 ## Task 2: Contract And Worker Wiring
 
 **Files:**
@@ -76,7 +84,7 @@ and `objectiveMemoryRetrievalLimit` are not wired into objective renewal.
 - Modify: `apps/worker/src/objectiveRenewal.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.ts`
 
-- [ ] **Step 4: Extend proposer and renewal contracts**
+- [x] **Step 4: Extend proposer and renewal contracts**
 
 Implementation shape:
 
@@ -95,7 +103,7 @@ export type AutonomousObjectiveProposerInput = {
 `renewMissingActiveObjectives` receives `shortTermMemoryRepository` and optional
 `memoryRetrievalLimit`, defaulting to `8`.
 
-- [ ] **Step 5: Retrieve STM context before proposer invocation**
+- [x] **Step 5: Retrieve STM context before proposer invocation**
 
 Implementation behavior:
 
@@ -103,7 +111,7 @@ Implementation behavior:
 - pass the retrieved records to the proposer;
 - keep active-objective skip behavior unchanged.
 
-- [ ] **Step 6: Wire canonical active-plan tick**
+- [x] **Step 6: Wire canonical active-plan tick**
 
 `runCanonicalWorkerActivePlanTick` should pass `input.shortTermMemoryRepository` to renewal and
 expose optional `objectiveMemoryRetrievalLimit?: number` on `CanonicalWorkerActivePlanTickBaseInput`.
@@ -114,7 +122,7 @@ expose optional `objectiveMemoryRetrievalLimit?: number` on `CanonicalWorkerActi
 
 - Modify: `apps/worker/src/objectiveRenewal.ts`
 
-- [ ] **Step 7: Score candidate objectives**
+- [x] **Step 7: Score candidate objectives**
 
 Implement helper functions in `objectiveRenewal.ts` to score a bounded set of candidates:
 
@@ -128,12 +136,12 @@ Implement helper functions in `objectiveRenewal.ts` to score a bounded set of ca
 
 Sort candidates by score, then priority, then stable candidate id.
 
-- [ ] **Step 8: Avoid immediate exact repetition**
+- [x] **Step 8: Avoid immediate exact repetition**
 
 If the highest candidate statement matches the most recently completed objective statement and a
 different candidate has positive score, select the next candidate instead.
 
-- [ ] **Step 9: Preserve current bootstrap behavior**
+- [x] **Step 9: Preserve current bootstrap behavior**
 
 Existing tests for low physiology, low education, low balance, and fallback routine should still
 pass unless stronger STM or LTM evidence is intentionally present.
@@ -144,7 +152,7 @@ pass unless stronger STM or LTM evidence is intentionally present.
 
 - Modify: this plan file
 
-- [ ] **Step 10: Run focused verification**
+- [x] **Step 10: Run focused verification**
 
 Run:
 
@@ -154,7 +162,13 @@ pnpm --filter @aivilization/worker test
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 11: Run repo verification**
+Verification passed:
+
+- `pnpm test -- apps/worker/src/objectiveRenewal.test.ts apps/worker/src/canonicalActivePlanTick.test.ts`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/worker typecheck`
+
+- [x] **Step 11: Run repo verification**
 
 Run:
 
@@ -163,7 +177,12 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 12: Commit implementation**
+Verification passed:
+
+- `pnpm check`
+- `pnpm build`
+
+- [x] **Step 12: Commit implementation**
 
 Commit command:
 

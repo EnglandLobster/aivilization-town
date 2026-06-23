@@ -44,6 +44,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly objectiveProposer?: AutonomousObjectiveProposer;
+  readonly objectiveMemoryRetrievalLimit?: number;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
@@ -75,8 +76,12 @@ export async function runCanonicalWorkerActivePlanTick(
     projection,
     intentionRepository: input.intentionRepository,
     longTermProfileRepository: input.longTermProfileRepository,
+    shortTermMemoryRepository: input.shortTermMemoryRepository,
     planRepository: input.planRepository,
     issuedAt: input.issuedAt,
+    ...(input.objectiveMemoryRetrievalLimit === undefined
+      ? {}
+      : { memoryRetrievalLimit: input.objectiveMemoryRetrievalLimit }),
     ...(input.objectiveProposer === undefined
       ? {}
       : { objectiveProposer: input.objectiveProposer }),

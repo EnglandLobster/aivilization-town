@@ -36,7 +36,7 @@ It does not implement queue leasing, retry backoff, durable trace storage, file-
 
 - Create: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 1: Write failing tests for worker agent cycle orchestration**
+- [x] **Step 1: Write failing tests for worker agent cycle orchestration**
 
 Create `apps/worker/src/agentCycleRunner.test.ts`:
 
@@ -279,7 +279,7 @@ describe('worker agent cycle runner', () => {
 });
 ```
 
-- [ ] **Step 2: Run worker tests and verify RED**
+- [x] **Step 2: Run worker tests and verify RED**
 
 Run:
 
@@ -296,7 +296,7 @@ Expected: FAIL because `runWorkerAgentCycle` is not exported.
 - Create: `apps/worker/src/agentCycleRunner.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 1: Implement runner contract and orchestration**
+- [x] **Step 1: Implement runner contract and orchestration**
 
 Create `apps/worker/src/agentCycleRunner.ts`:
 
@@ -442,7 +442,7 @@ function summarizeSimulatorResult(cycleResult: AgentCycleResult): SimulatorTrace
 }
 ```
 
-- [ ] **Step 2: Export runner**
+- [x] **Step 2: Export runner**
 
 Modify `apps/worker/src/index.ts`:
 
@@ -450,7 +450,7 @@ Modify `apps/worker/src/index.ts`:
 export * from './agentCycleRunner';
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -461,7 +461,7 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -476,10 +476,10 @@ git commit -m "feat: add worker agent cycle runner"
 
 - Modify: `docs/superpowers/plans/2026-06-23-worker-agent-cycle-runner-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

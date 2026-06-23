@@ -45,7 +45,7 @@ It does not cover order books, multi-agent bilateral exchange, market fees, API 
 - Modify: `packages/world/src/projection.ts`
 - Modify: `packages/world/src/projection.test.ts`
 
-- [ ] Write failing tests for replaying production and trade events:
+- [x] Write failing tests for replaying production and trade events:
 
 ```ts
 import { createAmmPool } from '@aivilization/economy';
@@ -145,10 +145,10 @@ describe('world economy projection', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
-- [ ] Implement market projection state and replay logic for `CommodityProduced` and `TradeExecuted`.
-- [ ] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
-- [ ] Commit with `git commit -m "feat: add world economy projection events"`.
+- [x] Run `pnpm --filter @aivilization/world test` and confirm event payload support is missing.
+- [x] Implement market projection state and replay logic for `CommodityProduced` and `TradeExecuted`.
+- [x] Run `pnpm --filter @aivilization/world test` and `pnpm --filter @aivilization/world typecheck`.
+- [x] Commit with `git commit -m "feat: add world economy projection events"`.
 
 ### Task 2: Produce Command Handler
 

@@ -45,12 +45,12 @@ It does not cover vector search, database persistence, profile-to-planner weight
 - Create: `packages/memory/src/profile.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] Write failing tests for empty profile creation, new patch insertion, same-key replacement, provenance merge, and social relation metadata preservation.
-- [ ] Run `pnpm --filter @aivilization/memory test` and confirm reducer APIs are missing.
-- [ ] Implement `createEmptyLongTermAgentProfile`, `applyLongTermMemoryPatch`, and `applyLongTermMemoryPatches`.
-- [ ] Export the profile APIs from `packages/memory/src/index.ts`.
-- [ ] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
-- [ ] Commit with `git commit -m "feat: add long-term profile patch reducer"`.
+- [x] Write failing tests for empty profile creation, new patch insertion, same-key replacement, provenance merge, and social relation metadata preservation.
+- [x] Run `pnpm --filter @aivilization/memory test` and confirm reducer APIs are missing.
+- [x] Implement `createEmptyLongTermAgentProfile`, `applyLongTermMemoryPatch`, and `applyLongTermMemoryPatches`.
+- [x] Export the profile APIs from `packages/memory/src/index.ts`.
+- [x] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
+- [x] Commit with `git commit -m "feat: add long-term profile patch reducer"`.
 
 ### Task 2: Profile Repository Port
 
@@ -60,12 +60,12 @@ It does not cover vector search, database persistence, profile-to-planner weight
 - Create: `packages/memory/src/profileRepository.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] Write failing tests for profile isolation, automatic empty profile creation, and applying patches through the repository.
-- [ ] Run `pnpm --filter @aivilization/memory test` and confirm repository APIs are missing.
-- [ ] Implement `LongTermProfileRepository` and `InMemoryLongTermProfileRepository`.
-- [ ] Export the repository APIs from `packages/memory/src/index.ts`.
-- [ ] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
-- [ ] Commit with `git commit -m "feat: add long-term profile repository"`.
+- [x] Write failing tests for profile isolation, automatic empty profile creation, and applying patches through the repository.
+- [x] Run `pnpm --filter @aivilization/memory test` and confirm repository APIs are missing.
+- [x] Implement `LongTermProfileRepository` and `InMemoryLongTermProfileRepository`.
+- [x] Export the repository APIs from `packages/memory/src/index.ts`.
+- [x] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
+- [x] Commit with `git commit -m "feat: add long-term profile repository"`.
 
 ### Task 3: Whole-Repo Verification
 
@@ -73,10 +73,10 @@ It does not cover vector search, database persistence, profile-to-planner weight
 
 - Modify: `docs/superpowers/plans/2026-06-23-memory-profile-application-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update if needed.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update if needed.
 
 ## Acceptance Criteria
 

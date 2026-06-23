@@ -129,7 +129,7 @@ describe('branch-thinking planner', () => {
 - Create: `packages/agent-runtime/src/actions.test.ts`
 - Modify: `packages/agent-runtime/src/index.ts`
 
-- [ ] Write failing tests for accepted, repaired, and escalated action simulation:
+- [x] Write failing tests for accepted, repaired, and escalated action simulation:
 
 ```ts
 import { describe, expect, test } from 'vitest';
@@ -184,11 +184,11 @@ describe('action simulator repair', () => {
 });
 ```
 
-- [ ] Add a test in the same file proving an invalid repaired action returns `status: 'needs-replan'`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and confirm action APIs are missing.
-- [ ] Implement `AtomicActionProposal`, `ActionSimulationResult`, `RepairPolicy`, and `simulateActionWithRepair`.
-- [ ] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
-- [ ] Commit with `git commit -m "feat: add action simulation repair"`.
+- [x] Add a test in the same file proving an invalid repaired action returns `status: 'needs-replan'`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and confirm action APIs are missing.
+- [x] Implement `AtomicActionProposal`, `ActionSimulationResult`, `RepairPolicy`, and `simulateActionWithRepair`.
+- [x] Run `pnpm --filter @aivilization/agent-runtime test` and `pnpm --filter @aivilization/agent-runtime typecheck`.
+- [x] Commit with `git commit -m "feat: add action simulation repair"`.
 
 ### Task 3: Agent Cycle Orchestration
 

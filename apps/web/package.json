@@ -1,0 +1,15 @@
+{
+  "name": "@aivilization/web",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aivilization/content": "workspace:*",
+    "@aivilization/observability": "workspace:*",
+    "@aivilization/sim-core": "workspace:*"
+  }
+}

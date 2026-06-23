@@ -33,6 +33,42 @@ importers:
         specifier: ^3.2.4
         version: 3.2.6(@types/node@24.13.2)
 
+  apps/api:
+    dependencies:
+      '@aivilization/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../../packages/sim-core
+
+  apps/web:
+    dependencies:
+      '@aivilization/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@aivilization/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../../packages/sim-core
+
+  apps/worker:
+    dependencies:
+      '@aivilization/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
+      '@aivilization/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@aivilization/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../../packages/sim-core
+
   packages/agent-runtime:
     dependencies:
       '@aivilization/sim-core':

@@ -23,6 +23,16 @@ export type ReplanningTraceDecision =
       readonly matchingFailureCount: number;
     };
 
+export type AgentCycleSelectionTraceEvidence = {
+  readonly selectedSubtaskId: string;
+  readonly intentionInfluenceScore: number;
+  readonly memoryInfluenceScore: number;
+  readonly profileInfluenceScore: number;
+  readonly memoryEvidenceRecordIds: readonly string[];
+  readonly profileEntryKeys: readonly string[];
+  readonly profileEvidenceRecordIds: readonly string[];
+};
+
 export type AgentCycleTrace = {
   readonly traceId: string;
   readonly simulationId: string;
@@ -32,6 +42,7 @@ export type AgentCycleTrace = {
   readonly selectedBranch: string;
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
+  readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
   readonly replanningDecision: ReplanningTraceDecision;
   readonly emittedCommandIds: readonly string[];
   readonly memoryContextIds: readonly string[];

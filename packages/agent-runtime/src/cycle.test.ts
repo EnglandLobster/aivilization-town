@@ -1,4 +1,4 @@
-import { createShortTermMemoryRecord } from '@aivilization/memory';
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -516,6 +516,7 @@ describe('agent planning cycle', () => {
               description: 'rest before working',
               basePriority: 1,
               memoryAffinityTags: ['energy'],
+              profileAffinityTags: ['recovery'],
             },
           ],
         },
@@ -528,6 +529,22 @@ describe('agent planning cycle', () => {
       issuedAt: 1000,
       plan,
       signals: [],
+      longTermProfile: {
+        agentId,
+        beliefs: [],
+        habits: [
+          {
+            key: 'rest-recovery',
+            statement: 'Rest to recover from energy depletion.',
+            confidence: 0.7,
+            updatedAt: 900,
+            provenanceRecordIds: [asMemoryRecordId('reflection-rest-1')],
+          },
+        ],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
       shortTermMemoryContext: [
         createShortTermMemoryRecord({
           id: 'recent-energy-failure',
@@ -573,7 +590,16 @@ describe('agent planning cycle', () => {
     expect(result.selectedSubtask).toMatchObject({
       branchId: 'recovery',
       subtaskId: 'sleep',
-      score: 4.2,
+      score: 5.6,
+    });
+    expect(result.selectionEvidence).toEqual({
+      selectedSubtaskId: 'sleep',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 3.2,
+      profileInfluenceScore: 1.4,
+      memoryEvidenceRecordIds: ['recent-energy-failure'],
+      profileEntryKeys: ['rest-recovery'],
+      profileEvidenceRecordIds: ['reflection-rest-1'],
     });
     expect(result.commandDrafts[0]?.type).toBe('AgentSleep');
   });

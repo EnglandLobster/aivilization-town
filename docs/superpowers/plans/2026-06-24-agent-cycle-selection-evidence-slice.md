@@ -40,7 +40,7 @@ It does not add full candidate traces, durable trace repositories, UI panels, or
 - Modify: `packages/agent-runtime/src/profileInfluence.test.ts`
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] **Step 1: Add failing profile provenance test**
+- [x] **Step 1: Add failing profile provenance test**
 
 Update an existing profile influence test so a matched profile entry with
 `provenanceRecordIds: ['reflection-study-1']` expects the match to include that id.
@@ -54,7 +54,7 @@ pnpm --filter @aivilization/agent-runtime test
 Expected before implementation: fail because `ProfileInfluenceEntryMatch` does not include
 `provenanceRecordIds`.
 
-- [ ] **Step 2: Add failing selected evidence cycle test**
+- [x] **Step 2: Add failing selected evidence cycle test**
 
 Add or update a cycle test that passes:
 
@@ -82,12 +82,12 @@ Expected before implementation: fail because `selectionEvidence` is missing.
 - Modify: `packages/agent-runtime/src/profileInfluence.ts`
 - Modify: `packages/agent-runtime/src/cycle.ts`
 
-- [ ] **Step 3: Include provenance in profile influence matches**
+- [x] **Step 3: Include provenance in profile influence matches**
 
 Add `provenanceRecordIds` to `ProfileInfluenceEntryMatch` and populate it from the matched
 `LongTermProfileEntry`.
 
-- [ ] **Step 4: Return selected-subtask evidence**
+- [x] **Step 4: Return selected-subtask evidence**
 
 Add:
 
@@ -113,7 +113,7 @@ evidence from the selected subtask id.
 - Modify: `packages/observability/src/agentCycleTrace.test.ts`
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 5: Add failing observability trace test**
+- [x] **Step 5: Add failing observability trace test**
 
 Expect `createAgentCycleTrace` to preserve a `selectionEvidence` object with memory and profile
 evidence ids.
@@ -127,7 +127,7 @@ pnpm --filter @aivilization/observability test
 Expected before implementation: fail because `AgentCycleTrace` does not include
 `selectionEvidence`.
 
-- [ ] **Step 6: Add failing worker trace test**
+- [x] **Step 6: Add failing worker trace test**
 
 Update the worker memory/profile-context planning test to expect
 `result.trace.selectionEvidence.profileEvidenceRecordIds` and
@@ -148,12 +148,12 @@ Expected before implementation: fail because worker traces do not include select
 - Modify: `packages/observability/src/agentCycleTrace.ts`
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 
-- [ ] **Step 7: Extend trace schema**
+- [x] **Step 7: Extend trace schema**
 
 Add `selectionEvidence` to `AgentCycleTrace`. Reuse the same field names as
 `AgentCycleSelectionEvidence` to keep mapping direct.
 
-- [ ] **Step 8: Map cycle evidence into worker trace**
+- [x] **Step 8: Map cycle evidence into worker trace**
 
 In `runWorkerAgentCycle`, set `selectionEvidence: cycleResult.selectionEvidence` when creating
 `AgentCycleTrace`.
@@ -164,7 +164,7 @@ In `runWorkerAgentCycle`, set `selectionEvidence: cycleResult.selectionEvidence`
 
 - Modify: this plan file
 
-- [ ] **Step 9: Run focused verification**
+- [x] **Step 9: Run focused verification**
 
 Run:
 
@@ -177,7 +177,7 @@ pnpm --filter @aivilization/observability typecheck
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 10: Run repo verification**
+- [x] **Step 10: Run repo verification**
 
 Run:
 
@@ -186,7 +186,7 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 11: Commit implementation**
+- [x] **Step 11: Commit implementation**
 
 Commit command:
 

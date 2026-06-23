@@ -157,6 +157,7 @@ export async function runWorkerAgentCycle(
     selectedBranch: cycleResult.selectedSubtask.branchId,
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
+    selectionEvidence: cycleResult.selectionEvidence,
     replanningDecision: cycleResult.replanningDecision,
     emittedCommandIds: dispatchResult?.commands.map((command) => command.id) ?? [],
     memoryContextIds: shortTermMemoryContext.map((record) => record.id),

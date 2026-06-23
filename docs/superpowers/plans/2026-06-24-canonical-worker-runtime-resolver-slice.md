@@ -39,7 +39,7 @@ It does not change event dispatch, tick ordering, durable storage, or domain pol
 
 - Add: `apps/worker/src/canonicalWorkerRuntimeResolver.test.ts`
 
-- [ ] **Step 1: Write failing tests for canonical worker runtime resolver**
+- [x] **Step 1: Write failing tests for canonical worker runtime resolver**
 
 Create tests that require:
 
@@ -58,6 +58,9 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `createCanonicalWorkerRuntimeResolver` does not exist.
 
+Observed before implementation: `pnpm --filter @aivilization/worker test` failed because
+`createCanonicalWorkerRuntimeResolver` and `createWorldCommandDryRunSimulator` were not exported.
+
 ## Task 2: Resolver Implementation
 
 **Files:**
@@ -65,7 +68,7 @@ Expected before implementation: tests fail because `createCanonicalWorkerRuntime
 - Add: `apps/worker/src/canonicalWorkerRuntimeResolver.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement canonical worker runtime resolver**
+- [x] **Step 2: Implement canonical worker runtime resolver**
 
 Behavior:
 
@@ -91,13 +94,18 @@ Behavior:
   - catch thrown errors and return rejected with the error message.
   - otherwise return accepted.
 
+Observed after implementation:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+
 ## Task 3: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -109,3 +117,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed verification:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

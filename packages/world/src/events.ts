@@ -49,6 +49,19 @@ export type TradeExecutedPayload = {
   readonly moneySupplyDelta: number;
 };
 
+export type JobApplicationSubmittedPayload = {
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly residentialTier: number;
+  readonly educationScore: number;
+};
+
+export type JobAssignedPayload = {
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly previousJob: string | null;
+};
+
 export type ActionRejectedPayload = {
   readonly agentId: AgentId;
   readonly commandType: CoreCommandType;
@@ -62,6 +75,8 @@ export type ShortTermMemoryRecordedPayload = {
 export type WorldEventPayloadByType = {
   readonly CommodityProduced: CommodityProducedPayload;
   readonly TradeExecuted: TradeExecutedPayload;
+  readonly JobApplicationSubmitted: JobApplicationSubmittedPayload;
+  readonly JobAssigned: JobAssignedPayload;
   readonly InventoryChanged: InventoryChangedPayload;
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly EducationChanged: EducationChangedPayload;

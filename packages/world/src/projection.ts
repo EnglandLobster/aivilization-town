@@ -14,10 +14,17 @@ export type WorldAgentState = {
   readonly inventory: Inventory;
 };
 
+export type WorldJobApplicationState = {
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly submittedAt: number;
+};
+
 export type WorldProjection = {
   readonly agents: Readonly<Record<string, WorldAgentState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
+  readonly jobApplications: readonly WorldJobApplicationState[];
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
     readonly agentId: AgentId;
@@ -30,6 +37,7 @@ export function createWorldProjection(input: {
   readonly agents: readonly WorldAgentState[];
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
+  readonly jobApplications?: readonly WorldJobApplicationState[];
 }): WorldProjection {
   const agents: Record<string, WorldAgentState> = {};
   for (const agent of input.agents) {
@@ -54,6 +62,7 @@ export function createWorldProjection(input: {
     agents,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
+    jobApplications: [...(input.jobApplications ?? [])],
     memoryRecords: [],
     rejectedActions: [],
   };
@@ -106,6 +115,23 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
                 ),
         }),
       );
+    case 'JobApplicationSubmitted':
+      return {
+        ...projection,
+        jobApplications: [
+          ...projection.jobApplications,
+          {
+            agentId: event.payload.agentId,
+            occupationName: event.payload.occupationName,
+            submittedAt: event.occurredAt,
+          },
+        ],
+      };
+    case 'JobAssigned':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        job: event.payload.occupationName,
+      }));
     case 'InventoryChanged':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

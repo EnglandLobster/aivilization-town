@@ -14,7 +14,11 @@ import {
   type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { createDomainRuntimeResolver } from './index';
+import {
+  createDomainRuntimeResolver,
+  type WorkerAgentRuntimeResolver,
+  type WorkerDomainRuntimeRegistration,
+} from './index';
 
 const agentId = asAgentId('agent-domain-registry');
 
@@ -67,6 +71,49 @@ describe('domain runtime registry', () => {
     expect(binding).toBeUndefined();
   });
 
+  test('uses contextual factories for matching domains', async () => {
+    const tradePlanner = createPlanner('trade');
+    const studyPlanner = createPlanner('study-contextual');
+    const sleepPlanner = createPlanner('sleep');
+    const simulate: CycleActionSimulator = ({ action }) => ({ status: 'accepted', action });
+    const projection = createProjection();
+    const agent = requireAgent(projection, agentId);
+    const activeObjective = createObjective();
+    const planRecord = createStudyTradePlanRecord();
+    let capturedContext: Parameters<WorkerAgentRuntimeResolver>[0] | undefined;
+    let nonMatchingFactoryCalls = 0;
+    const resolver = createDomainRuntimeResolver({
+      registrations: [
+        { domain: 'trade', microPlanners: [tradePlanner] },
+        {
+          domain: 'sleep',
+          createMicroPlanners: () => {
+            nonMatchingFactoryCalls += 1;
+            return [sleepPlanner];
+          },
+        },
+        {
+          domain: 'study',
+          createMicroPlanners: (context) => {
+            capturedContext = context;
+            return [studyPlanner];
+          },
+        },
+      ],
+      simulate,
+    });
+
+    const binding = await resolver({ agentId, agent, projection, activeObjective, planRecord });
+
+    expect(binding?.microPlanners).toEqual([tradePlanner, studyPlanner]);
+    expect(capturedContext?.agentId).toBe(agentId);
+    expect(capturedContext?.agent).toBe(agent);
+    expect(capturedContext?.projection).toBe(projection);
+    expect(capturedContext?.activeObjective).toBe(activeObjective);
+    expect(capturedContext?.planRecord).toBe(planRecord);
+    expect(nonMatchingFactoryCalls).toBe(0);
+  });
+
   test('rejects invalid registrations with deterministic errors', () => {
     const planner = createPlanner('study');
     const simulate: CycleActionSimulator = ({ action }) => ({ status: 'accepted', action });
@@ -92,6 +139,38 @@ describe('domain runtime registry', () => {
         simulate,
       }),
     ).toThrow('domain runtime registration study requires at least one micro-planner');
+    expect(() =>
+      createDomainRuntimeResolver({
+        registrations: [
+          {
+            domain: 'study',
+            microPlanners: [planner],
+            createMicroPlanners: () => [planner],
+          } as unknown as WorkerDomainRuntimeRegistration,
+        ],
+        simulate,
+      }),
+    ).toThrow(
+      'domain runtime registration study cannot define both microPlanners and createMicroPlanners',
+    );
+  });
+
+  test('rejects matching factories that return empty micro-planner lists', async () => {
+    const resolver = createDomainRuntimeResolver({
+      registrations: [{ domain: 'study', createMicroPlanners: () => [] }],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+    const projection = createProjection();
+
+    await expect(
+      resolver({
+        agentId,
+        agent: requireAgent(projection, agentId),
+        projection,
+        activeObjective: createObjective(),
+        planRecord: createStudyTradePlanRecord(),
+      }),
+    ).rejects.toThrow('domain runtime registration study requires at least one micro-planner');
   });
 });
 

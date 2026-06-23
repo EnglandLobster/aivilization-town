@@ -36,7 +36,7 @@ It does not implement concrete domain adapters yet. The next slice can add canon
 
 - Modify: `apps/worker/src/domainRuntimeRegistry.test.ts`
 
-- [ ] **Step 1: Write failing tests for contextual domain factories**
+- [x] **Step 1: Write failing tests for contextual domain factories**
 
 Add tests that require:
 
@@ -54,13 +54,17 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `createMicroPlanners` is not part of `WorkerDomainRuntimeRegistration`.
 
+Observed before implementation: `pnpm --filter @aivilization/worker test` failed because factory
+registrations attempted to read missing `microPlanners.length`, both static and factory fields were
+not rejected, and empty factory registrations did not emit the deterministic validation error.
+
 ## Task 2: Factory Implementation
 
 **Files:**
 
 - Modify: `apps/worker/src/domainRuntimeRegistry.ts`
 
-- [ ] **Step 2: Implement context-aware runtime factories**
+- [x] **Step 2: Implement context-aware runtime factories**
 
 Behavior:
 
@@ -83,13 +87,18 @@ Behavior:
   - reject empty factory results with the same deterministic empty-planner error.
 - Continue returning `undefined` when no matching registration contributes planners.
 
+Observed after implementation:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+
 ## Task 3: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -101,3 +110,10 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed verification:
+
+- `pnpm --filter @aivilization/worker test` passed.
+- `pnpm --filter @aivilization/worker typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

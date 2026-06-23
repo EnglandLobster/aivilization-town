@@ -36,7 +36,7 @@ It does not serialize projection blobs, compact event logs, hydrate projections 
 
 - Add: `packages/sim-core/src/checkpointStore.test.ts`
 
-- [ ] **Step 1: Write failing tests for projection checkpoint storage**
+- [x] **Step 1: Write failing tests for projection checkpoint storage**
 
 Create tests that require:
 
@@ -62,7 +62,7 @@ Expected before implementation: tests fail because checkpoint store exports and 
 - Modify: `packages/sim-core/src/snapshot.ts`
 - Modify: `packages/sim-core/src/index.ts`
 
-- [ ] **Step 2: Implement checkpoint creation and adapters**
+- [x] **Step 2: Implement checkpoint creation and adapters**
 
 Add:
 
@@ -85,7 +85,7 @@ File store requirements:
 
 - Modify: this plan file
 
-- [ ] **Step 3: Run focused and full verification**
+- [x] **Step 3: Run focused and full verification**
 
 Run:
 
@@ -97,3 +97,12 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+## Verification Results
+
+- `pnpm --filter @aivilization/sim-core test` failed before implementation because checkpoint store exports and `createProjectionCheckpoint` were missing.
+- Added an extra failing invariant test proving snapshot sequence cannot exceed checkpoint `lastAppliedSequence`, then implemented the guard.
+- `pnpm --filter @aivilization/sim-core test` passed after implementation.
+- `pnpm --filter @aivilization/sim-core typecheck` passed.
+- `pnpm check` passed.
+- `pnpm build` passed.

@@ -1,4 +1,5 @@
-import { occupations, type OccupationConfig } from '@aivilization/content';
+import type { OccupationConfig } from '@aivilization/content';
+import { resolveOccupation } from './occupation-catalog';
 
 export type OccupationAgentState = {
   readonly residentialTier: number;
@@ -41,12 +42,7 @@ export function isEligibleForOccupation(input: {
   readonly populationEducationScores: readonly number[];
   readonly occupationCatalog?: readonly OccupationConfig[];
 }): boolean {
-  const occupationCatalog = input.occupationCatalog ?? occupations;
-  const occupation = occupationCatalog.find((candidate) => candidate.name === input.occupationName);
-  if (occupation === undefined) {
-    throw new Error(`unknown occupation ${input.occupationName}`);
-  }
-
+  const occupation = resolveOccupation(input);
   const threshold = calculateEffectiveKnowledgeThreshold({
     educationScores: input.populationEducationScores,
     educationFloor: occupation.educationFloor,

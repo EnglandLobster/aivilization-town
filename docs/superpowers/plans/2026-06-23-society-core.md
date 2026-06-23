@@ -52,11 +52,11 @@ It does not cover social relationship graphs, memory, planner behavior, API endp
 - Create: `packages/society/src/physiology.test.ts`
 - Modify: `packages/society/src/index.ts`
 
-- [ ] Write failing tests for education accumulation, labor depletion, and incapacitation.
-- [ ] Run `pnpm --filter @aivilization/society test` and confirm the new APIs are missing.
-- [ ] Implement education and physiology pure functions.
-- [ ] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
-- [ ] Commit with `git commit -m "feat: add education and physiology rules"`.
+- [x] Write failing tests for education accumulation, labor depletion, and incapacitation.
+- [x] Run `pnpm --filter @aivilization/society test` and confirm the new APIs are missing.
+- [x] Implement education and physiology pure functions.
+- [x] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
+- [x] Commit with `git commit -m "feat: add education and physiology rules"`.
 
 ### Task 2: Occupation Eligibility
 
@@ -67,11 +67,11 @@ It does not cover social relationship graphs, memory, planner behavior, API endp
 - Modify: `packages/society/src/index.ts`
 - Modify: `packages/society/package.json`
 
-- [ ] Write failing tests for quantile threshold, effective threshold floor, residential gates, and application quota.
-- [ ] Run `pnpm --filter @aivilization/society test` and confirm the occupation APIs are missing.
-- [ ] Implement dynamic thresholds and eligibility against source-derived occupation config.
-- [ ] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
-- [ ] Commit with `git commit -m "feat: add occupation eligibility rules"`.
+- [x] Write failing tests for quantile threshold, effective threshold floor, residential gates, and application quota.
+- [x] Run `pnpm --filter @aivilization/society test` and confirm the occupation APIs are missing.
+- [x] Implement dynamic thresholds and eligibility against source-derived occupation config.
+- [x] Run `pnpm --filter @aivilization/society test` and `pnpm --filter @aivilization/society typecheck`.
+- [x] Commit with `git commit -m "feat: add occupation eligibility rules"`.
 
 ### Task 3: Wage Formulas
 
@@ -81,11 +81,11 @@ It does not cover social relationship graphs, memory, planner behavior, API endp
 - Create: `packages/society/src/wage.test.ts`
 - Modify: `packages/society/src/index.ts`
 
-- [ ] Write failing tests for static wage, dynamic wage, bounded shock validation, and occupation lookup.
-- [ ] Run `pnpm --filter @aivilization/society test` and confirm wage APIs are missing.
-- [ ] Implement Equation 14 and Equation 15 as pure functions.
-- [ ] Run `pnpm --filter @aivilization/society test`, `pnpm --filter @aivilization/society typecheck`, `pnpm check`, and `pnpm build`.
-- [ ] Commit with `git commit -m "feat: add society wage formulas"`.
+- [x] Write failing tests for static wage, dynamic wage, bounded shock validation, and occupation lookup.
+- [x] Run `pnpm --filter @aivilization/society test` and confirm wage APIs are missing.
+- [x] Implement Equation 14 and Equation 15 as pure functions.
+- [x] Run `pnpm --filter @aivilization/society test`, `pnpm --filter @aivilization/society typecheck`, `pnpm check`, and `pnpm build`.
+- [x] Commit with `git commit -m "feat: add society wage formulas"`.
 
 ## Self-Review
 

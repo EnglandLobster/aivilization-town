@@ -12,9 +12,11 @@ import {
 } from '@aivilization/sim-core';
 import {
   accumulateEducation,
-  applyLaborPhysiologyCost,
   applyEnergyRecovery,
+  applyLaborPhysiologyCost,
+  applySocialInteraction,
   calculateApplicationQuota,
+  createDirectedSocialRelationKey,
   isIncapacitated,
   isEligibleForOccupation,
 } from '@aivilization/society';
@@ -23,6 +25,7 @@ import {
   assertAgentEatPayload,
   assertAgentProducePayload,
   assertAgentSleepPayload,
+  assertAgentSocializePayload,
   assertAgentStudyPayload,
   assertAgentTradePayload,
   assertAgentWorkPayload,
@@ -114,6 +117,12 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         populationEducationScores: input.policies.jobApplication.populationEducationScores,
         quotaByResidentialTier: input.policies.jobApplication.quotaByResidentialTier,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentSocialize':
+      return handleAgentSocializeCommand({
+        command: input.command as CommandEnvelope<'AgentSocialize', unknown>,
+        projection: input.projection,
         nextSequence: input.nextSequence,
       });
     default:
@@ -545,6 +554,72 @@ export function handleAgentApplyJobCommand(input: {
   ];
 }
 
+export function handleAgentSocializeCommand(input: {
+  readonly command: CommandEnvelope<'AgentSocialize', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentSocializePayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSocialize', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  if (input.projection.agents[payload.targetAgentId] === undefined) {
+    return rejectCommand(input, 'AgentSocialize', `unknown target agent ${payload.targetAgentId}`);
+  }
+
+  const relationKeyResult = parsePayload(() =>
+    createDirectedSocialRelationKey({
+      sourceAgentId: agent.agentId,
+      targetAgentId: payload.targetAgentId,
+    }),
+  );
+  if (relationKeyResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSocialize', relationKeyResult.reason);
+  }
+
+  const currentRelation = input.projection.socialRelations[relationKeyResult.payload];
+  const relationResult = parsePayload(() =>
+    applySocialInteraction({
+      sourceAgentId: agent.agentId,
+      targetAgentId: payload.targetAgentId,
+      ...(currentRelation === undefined ? {} : { current: currentRelation }),
+      relationDelta: payload.relationDelta,
+      attitudeDelta: payload.attitudeDelta,
+      summary: payload.summary,
+    }),
+  );
+  if (relationResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSocialize', relationResult.reason);
+  }
+
+  return [
+    makeEvent(input, 0, 'SocialInteractionCompleted', {
+      sourceAgentId: agent.agentId,
+      targetAgentId: payload.targetAgentId,
+      summary: payload.summary.trim(),
+      relationDelta: payload.relationDelta,
+      attitudeDelta: payload.attitudeDelta,
+      nextRelation: relationResult.payload,
+    }),
+    makeMemoryEvent(input, 1, {
+      kind: 'social-interaction',
+      summary: payload.summary,
+      status: 'succeeded',
+      tags: ['socialize', payload.targetAgentId],
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId: payload.targetAgentId,
+        relationDelta: payload.relationDelta,
+        attitudeDelta: payload.attitudeDelta,
+        summary: payload.summary.trim(),
+      },
+    }),
+  ];
+}
+
 function createTradeEvents(
   input: {
     readonly command: CommandEnvelope<'AgentTrade', unknown>;
@@ -643,6 +718,7 @@ function makeMemoryEvent(
   },
   offset: number,
   memory: {
+    readonly kind?: Parameters<typeof createShortTermMemoryRecord>[0]['kind'];
     readonly summary: string;
     readonly status: 'succeeded' | 'failed';
     readonly tags: readonly string[];
@@ -656,7 +732,7 @@ function makeMemoryEvent(
     record: createShortTermMemoryRecord({
       id: `${input.command.id}:memory:${offset}`,
       agentId: agent.agentId,
-      kind: 'action',
+      kind: memory.kind ?? 'action',
       status: memory.status,
       summary: memory.summary,
       occurredAt: input.command.issuedAt,

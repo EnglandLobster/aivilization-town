@@ -1,10 +1,6 @@
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import {
-  applySocialInteraction,
-  classifyRelation,
-  createDirectedSocialRelationKey,
-} from './index';
+import { applySocialInteraction, classifyRelation, createDirectedSocialRelationKey } from './index';
 
 describe('social relationships', () => {
   test('applies social deltas to a directed relationship and clamps scores', () => {

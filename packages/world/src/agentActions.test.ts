@@ -5,10 +5,11 @@ import {
   applyWorldEvent,
   createWorldProjection,
   dispatchWorldCommand,
-  handleAgentSleepCommand,
   handleAgentEatCommand,
   handleAgentApplyJobCommand,
   handleAgentProduceCommand,
+  handleAgentSleepCommand,
+  handleAgentSocializeCommand,
   handleAgentStudyCommand,
   handleAgentTradeCommand,
   handleAgentWorkCommand,
@@ -882,6 +883,284 @@ describe('agent job application command handling', () => {
     expect(events.map((event) => event.type)).toEqual([
       'JobApplicationSubmitted',
       'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
+describe('agent social command handling', () => {
+  test('AgentSocialize updates directed relation state and records social STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSocializeCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-2',
+          summary: 'Shared food after work.',
+          relationDelta: 0.25,
+          attitudeDelta: 0.5,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      sourceAgentId: 'agent-1',
+      targetAgentId: 'agent-2',
+      summary: 'Shared food after work.',
+      relationDelta: 0.25,
+      attitudeDelta: 0.5,
+      nextRelation: {
+        relationScore: 0.25,
+        attitudeScore: 0.5,
+        relationLabel: 'acquaintance',
+        interactionCount: 1,
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
+      sourceAgentId: 'agent-1',
+      targetAgentId: 'agent-2',
+      relationScore: 0.25,
+      attitudeScore: 0.5,
+      relationLabel: 'acquaintance',
+      interactionCount: 1,
+      lastInteractionSummary: 'Shared food after work.',
+    });
+    expect(updated.memoryRecords[0]).toMatchObject({
+      kind: 'social-interaction',
+      status: 'succeeded',
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId: 'agent-2',
+        relationDelta: 0.25,
+        attitudeDelta: 0.5,
+        summary: 'Shared food after work.',
+      },
+    });
+  });
+
+  test('AgentSocialize rejects unknown target agents', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSocializeCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-2',
+          summary: 'Looked for a missing friend.',
+          relationDelta: 0.1,
+          attitudeDelta: 0,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSocialize',
+      reason: 'unknown target agent agent-2',
+    });
+  });
+
+  test('AgentSocialize rejects self-targeted interactions', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSocializeCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-1',
+          summary: 'Tried to socialize with self.',
+          relationDelta: 0.1,
+          attitudeDelta: 0,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSocialize',
+      reason: 'social relation target must differ from source',
+    });
+  });
+
+  test('AgentSocialize rejects invalid social deltas', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSocializeCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-2',
+          summary: 'Oversized relation update.',
+          relationDelta: 2,
+          attitudeDelta: 0,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSocialize',
+      reason: 'relationDelta must be within [-1, 1]',
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentSocialize through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-2',
+          summary: 'Talked about market prices.',
+          relationDelta: 0.1,
+          attitudeDelta: 0.2,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'SocialInteractionCompleted',
       'ShortTermMemoryRecorded',
     ]);
   });

@@ -36,7 +36,7 @@ It does not implement file IO, SQLite projection persistence, API endpoints, or 
 
 - Create: `packages/sim-core/src/eventStore.test.ts`
 
-- [ ] **Step 1: Write failing tests for stream append semantics**
+- [x] **Step 1: Write failing tests for stream append semantics**
 
 Create `packages/sim-core/src/eventStore.test.ts`:
 
@@ -194,7 +194,7 @@ describe('InMemoryEventStore', () => {
 });
 ```
 
-- [ ] **Step 2: Run sim-core tests and verify RED**
+- [x] **Step 2: Run sim-core tests and verify RED**
 
 Run:
 
@@ -211,7 +211,7 @@ Expected: FAIL because `InMemoryEventStore` does not exist.
 - Create: `packages/sim-core/src/eventStore.ts`
 - Modify: `packages/sim-core/src/index.ts`
 
-- [ ] **Step 1: Implement event-store contracts and in-memory adapter**
+- [x] **Step 1: Implement event-store contracts and in-memory adapter**
 
 Create `packages/sim-core/src/eventStore.ts` with:
 
@@ -255,7 +255,7 @@ Then implement `InMemoryEventStore` that:
 - returns an idempotent replay if the same key, stream name, expected version, and serialized event batch are repeated;
 - rejects same idempotency key with a different stream, expected version, or event batch.
 
-- [ ] **Step 2: Export event-store contracts**
+- [x] **Step 2: Export event-store contracts**
 
 Modify `packages/sim-core/src/index.ts`:
 
@@ -263,7 +263,7 @@ Modify `packages/sim-core/src/index.ts`:
 export * from './eventStore';
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -274,7 +274,7 @@ pnpm --filter @aivilization/sim-core typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -289,10 +289,10 @@ git commit -m "feat: add sim-core event store"
 
 - Modify: `docs/superpowers/plans/2026-06-23-sim-core-event-store-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

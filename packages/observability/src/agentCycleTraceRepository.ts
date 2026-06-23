@@ -2,6 +2,9 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import {
   createAgentCycleTrace,
+  type AgentCycleActionProposalTrace,
+  type AgentCycleActionResourceEstimateTrace,
+  type AgentCycleActionSynthesisTrace,
   type AgentCycleTrace,
   type AgentCycleSelectionTraceEvidence,
   type AgentCycleSubtaskCandidateTrace,
@@ -112,6 +115,7 @@ function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
     subtaskCandidates: trace.subtaskCandidates.map((candidate) =>
       cloneSubtaskCandidate(candidate),
     ),
+    actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
     simulatorResult: cloneSimulatorResult(trace.simulatorResult),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
@@ -120,6 +124,54 @@ function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
     memoryContextIds: [...trace.memoryContextIds],
     memoryWriteIds: [...trace.memoryWriteIds],
   });
+}
+
+function cloneActionSynthesis(
+  actionSynthesis: AgentCycleActionSynthesisTrace,
+): AgentCycleActionSynthesisTrace {
+  return {
+    acceptedActions: actionSynthesis.acceptedActions.map((action) => cloneActionProposal(action)),
+    rejectedActions: actionSynthesis.rejectedActions.map((rejectedAction) => ({
+      action: cloneActionProposal(rejectedAction.action),
+      reason: rejectedAction.reason,
+    })),
+  };
+}
+
+function cloneActionProposal(
+  action: AgentCycleActionProposalTrace,
+): AgentCycleActionProposalTrace {
+  return {
+    id: action.id,
+    description: action.description,
+    commandType: action.commandType,
+    ...(action.priority === undefined ? {} : { priority: action.priority }),
+    ...(action.resourceEstimate === undefined
+      ? {}
+      : { resourceEstimate: cloneResourceEstimate(action.resourceEstimate) }),
+  };
+}
+
+function cloneResourceEstimate(
+  resourceEstimate: AgentCycleActionResourceEstimateTrace,
+): AgentCycleActionResourceEstimateTrace {
+  return {
+    ...(resourceEstimate.actionSeconds === undefined
+      ? {}
+      : { actionSeconds: resourceEstimate.actionSeconds }),
+    ...(resourceEstimate.energyCost === undefined
+      ? {}
+      : { energyCost: resourceEstimate.energyCost }),
+    ...(resourceEstimate.satietyCost === undefined
+      ? {}
+      : { satietyCost: resourceEstimate.satietyCost }),
+    ...(resourceEstimate.currencyCost === undefined
+      ? {}
+      : { currencyCost: resourceEstimate.currencyCost }),
+    ...(resourceEstimate.inventoryCosts === undefined
+      ? {}
+      : { inventoryCosts: { ...resourceEstimate.inventoryCosts } }),
+  };
 }
 
 function cloneSubtaskCandidate(

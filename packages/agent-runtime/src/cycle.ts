@@ -11,6 +11,8 @@ import type {
   ActionWithRepairResult,
 } from './actions';
 import { simulateActionWithRepair } from './actions';
+import type { ActionSynthesisPolicy, ActionSynthesisResult } from './actionSynthesis';
+import { synthesizeActionCandidates } from './actionSynthesis';
 import type {
   BranchPlan,
   ContextSignal,
@@ -59,6 +61,7 @@ export type AgentCycleResult = {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+  readonly actionSynthesisResult: ActionSynthesisResult;
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
@@ -88,6 +91,7 @@ export function runAgentPlanningCycle(input: {
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;
   readonly microPlanners: readonly DomainMicroPlanner[];
+  readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -128,9 +132,19 @@ export function runAgentPlanningCycle(input: {
     throw new Error(`no micro-planner supports subtask ${selectedSubtask.subtaskId}`);
   }
 
-  const candidateActions = [...microPlanner.propose({ selectedSubtask })];
-  if (candidateActions.length === 0) {
+  const proposedActions = [...microPlanner.propose({ selectedSubtask })];
+  if (proposedActions.length === 0) {
     throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
+  }
+  const actionSynthesisResult = synthesizeActionCandidates({
+    actions: proposedActions,
+    ...(input.actionSynthesis === undefined ? {} : { policy: input.actionSynthesis }),
+  });
+  const candidateActions = actionSynthesisResult.acceptedActions;
+  if (candidateActions.length === 0) {
+    throw new Error(
+      `action synthesis accepted no candidate actions for subtask ${selectedSubtask.subtaskId}`,
+    );
   }
 
   const repair = adaptRepairPolicy(input.repair, selectedSubtask);
@@ -167,6 +181,7 @@ export function runAgentPlanningCycle(input: {
     selectedSubtask,
     selectionEvidence,
     subtaskCandidates,
+    actionSynthesisResult,
     candidateActions,
     simulationResults,
     commandDrafts: simulationResults.flatMap((result) =>

@@ -58,6 +58,106 @@ describe('agent planning cycle', () => {
     ]);
   });
 
+  test('synthesizes candidate actions before simulation and command drafting', () => {
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const simulatedActionIds: string[] = [];
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      actionSynthesis: { maxActions: 1 },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'sleep-first',
+              description: 'sleep before work',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+              priority: 1,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+              priority: 3,
+              resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+            },
+            {
+              id: 'study-after-work',
+              description: 'study after work',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 2,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => {
+        simulatedActionIds.push(action.id);
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(simulatedActionIds).toEqual(['work-1']);
+    expect(result.candidateActions.map((action) => action.id)).toEqual(['work-1']);
+    expect(result.actionSynthesisResult).toEqual({
+      acceptedActions: [
+        {
+          id: 'work-1',
+          description: 'work as Cleaner',
+          commandType: 'AgentWork',
+          payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+          priority: 3,
+          resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+        },
+      ],
+      rejectedActions: [
+        {
+          action: {
+            id: 'study-after-work',
+            description: 'study after work',
+            commandType: 'AgentStudy',
+            payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            priority: 2,
+            resourceEstimate: { actionSeconds: 60 },
+          },
+          reason: 'maxActions exhausted',
+        },
+        {
+          action: {
+            id: 'sleep-first',
+            description: 'sleep before work',
+            commandType: 'AgentSleep',
+            payload: { durationSeconds: 60 },
+            priority: 1,
+            resourceEstimate: { actionSeconds: 60 },
+          },
+          reason: 'maxActions exhausted',
+        },
+      ],
+    });
+    expect(result.commandDrafts).toHaveLength(1);
+    expect(result.commandDrafts[0]?.type).toBe('AgentWork');
+  });
+
   test('does not create command drafts when simulator rejection cannot be repaired', () => {
     const plan = createBranchPlan({
       objective: 'survive',

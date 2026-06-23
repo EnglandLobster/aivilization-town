@@ -40,7 +40,7 @@ It does not implement HTTP endpoints, durable database adapters, worker tick loo
 - Create: `apps/worker/vitest.config.ts`
 - Modify: `apps/worker/package.json`
 
-- [ ] **Step 1: Add worker Vitest project config**
+- [x] **Step 1: Add worker Vitest project config**
 
 Create `apps/worker/vitest.config.ts`:
 
@@ -58,7 +58,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Include app tests in root Vitest workspace**
+- [x] **Step 2: Include app tests in root Vitest workspace**
 
 Modify `vitest.config.ts`:
 
@@ -72,7 +72,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Add worker test script and memory dependency**
+- [x] **Step 3: Add worker test script and memory dependency**
 
 Modify `apps/worker/package.json`:
 
@@ -93,7 +93,7 @@ Modify `apps/worker/package.json`:
 }
 ```
 
-- [ ] **Step 4: Run worker test command**
+- [x] **Step 4: Run worker test command**
 
 Run:
 
@@ -103,7 +103,7 @@ pnpm --filter @aivilization/worker test
 
 Expected: PASS with no tests found or no test files after Vitest project initialization. If Vitest treats no tests as failure, continue after adding Task 2 tests.
 
-- [ ] **Step 5: Commit test project setup**
+- [x] **Step 5: Commit test project setup**
 
 Run:
 
@@ -118,7 +118,7 @@ git commit -m "test: add worker vitest project"
 
 - Create: `apps/worker/src/steering.test.ts`
 
-- [ ] **Step 1: Write failing tests for strategic and reactive steering ingress**
+- [x] **Step 1: Write failing tests for strategic and reactive steering ingress**
 
 Create `apps/worker/src/steering.test.ts`:
 
@@ -249,7 +249,7 @@ describe('worker steering ingress', () => {
 });
 ```
 
-- [ ] **Step 2: Run worker tests and verify RED**
+- [x] **Step 2: Run worker tests and verify RED**
 
 Run:
 
@@ -266,7 +266,7 @@ Expected: FAIL because `handleWorkerSteeringCommand` does not exist.
 - Create: `apps/worker/src/steering.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 1: Implement payload validation and command routing**
+- [x] **Step 1: Implement payload validation and command routing**
 
 Create `apps/worker/src/steering.ts` with:
 
@@ -294,7 +294,7 @@ Implement `handleWorkerSteeringCommand(input)`:
 - append `routeResult.shortTermMemoryRecords` through `shortTermMemoryRepository.appendMany`;
 - reject unsupported command types with a clear error.
 
-- [ ] **Step 2: Export steering contracts**
+- [x] **Step 2: Export steering contracts**
 
 Modify `apps/worker/src/index.ts`:
 
@@ -302,7 +302,7 @@ Modify `apps/worker/src/index.ts`:
 export * from './steering';
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -313,7 +313,7 @@ pnpm --filter @aivilization/worker typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
@@ -328,10 +328,10 @@ git commit -m "feat: add worker steering ingress"
 
 - Modify: `docs/superpowers/plans/2026-06-23-worker-steering-ingress-slice.md`
 
-- [ ] Run `pnpm check`.
-- [ ] Run `pnpm build`.
-- [ ] Update this plan's completed checkboxes.
-- [ ] Commit the final plan update.
+- [x] Run `pnpm check`.
+- [x] Run `pnpm build`.
+- [x] Update this plan's completed checkboxes.
+- [x] Commit the final plan update.
 
 ## Acceptance Criteria
 

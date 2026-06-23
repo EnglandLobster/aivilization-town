@@ -1,8 +1,11 @@
+import type { ProfileInfluenceScore } from './profileInfluence';
+
 export type PlannerSubtask = {
   readonly id: string;
   readonly description: string;
   readonly basePriority: number;
   readonly signalKeys?: readonly string[];
+  readonly profileAffinityTags?: readonly string[];
 };
 
 export type PlannerBranch = {
@@ -64,6 +67,9 @@ export function createBranchPlan(input: {
         description: subtask.description,
         basePriority: subtask.basePriority,
         ...(subtask.signalKeys === undefined ? {} : { signalKeys: [...subtask.signalKeys] }),
+        ...(subtask.profileAffinityTags === undefined
+          ? {}
+          : { profileAffinityTags: [...subtask.profileAffinityTags] }),
       };
     });
 
@@ -83,6 +89,7 @@ export function createBranchPlan(input: {
 export function selectPrioritizedSubtask(input: {
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
 }): PrioritizedSubtask {
   const signalWeights = new Map<string, number>();
   for (const signal of input.signals) {
@@ -96,12 +103,13 @@ export function selectPrioritizedSubtask(input: {
       branchId: branch.id,
       subtaskId: subtask.id,
       description: subtask.description,
-      score:
-        subtask.basePriority +
-        (subtask.signalKeys ?? []).reduce(
-          (total, signalKey) => total + (signalWeights.get(signalKey) ?? 0),
-          0,
-        ),
+        score:
+          subtask.basePriority +
+          (subtask.signalKeys ?? []).reduce(
+            (total, signalKey) => total + (signalWeights.get(signalKey) ?? 0),
+            0,
+          ) +
+          (input.profileInfluence?.[subtask.id]?.score ?? 0),
     })),
   );
 

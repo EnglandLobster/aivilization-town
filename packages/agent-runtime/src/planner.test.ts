@@ -64,4 +64,53 @@ describe('branch-thinking planner', () => {
       score: 6,
     });
   });
+
+  test('adds profile influence when selecting prioritized subtasks', () => {
+    const plan = createBranchPlan({
+      objective: 'stabilize life',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [
+            {
+              id: 'work',
+              description: 'take a work shift',
+              basePriority: 4,
+            },
+          ],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [
+            {
+              id: 'study',
+              description: 'self study',
+              basePriority: 2,
+              profileAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      selectPrioritizedSubtask({
+        plan,
+        signals: [],
+        profileInfluence: {
+          study: {
+            score: 3,
+            matches: [],
+          },
+        },
+      }),
+    ).toEqual({
+      branchId: 'development',
+      subtaskId: 'study',
+      description: 'self study',
+      score: 5,
+    });
+  });
 });

@@ -33,6 +33,50 @@ importers:
         specifier: ^3.2.4
         version: 3.2.6(@types/node@24.13.2)
 
+  packages/agent-runtime:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/content:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/economy:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/llm:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/memory:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/observability:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/sim-core: {}
+
+  packages/society:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
 packages:
 
   '@esbuild/aix-ppc64@0.27.7':

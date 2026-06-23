@@ -122,7 +122,7 @@ describe('short-term memory records', () => {
 - Create: `packages/memory/src/repository.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] Write failing tests for deterministic retrieval ordering:
+- [x] Write failing tests for deterministic retrieval ordering:
 
 ```ts
 import { asAgentId } from '@aivilization/sim-core';
@@ -181,7 +181,7 @@ describe('short-term memory retrieval', () => {
 });
 ```
 
-- [ ] Write failing tests for `ShortTermMemoryRepository` and `InMemoryShortTermMemoryRepository`:
+- [x] Write failing tests for `ShortTermMemoryRepository` and `InMemoryShortTermMemoryRepository`:
 
 ```ts
 import { asAgentId } from '@aivilization/sim-core';
@@ -220,10 +220,10 @@ describe('in-memory short-term memory repository', () => {
 });
 ```
 
-- [ ] Run `pnpm --filter @aivilization/memory test` and confirm retrieval and repository APIs are missing.
-- [ ] Implement `ShortTermMemoryQuery`, `retrieveShortTermMemory`, `ShortTermMemoryRepository`, and `InMemoryShortTermMemoryRepository`.
-- [ ] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
-- [ ] Commit with `git commit -m "feat: add short-term memory retrieval"`.
+- [x] Run `pnpm --filter @aivilization/memory test` and confirm retrieval and repository APIs are missing.
+- [x] Implement `ShortTermMemoryQuery`, `retrieveShortTermMemory`, `ShortTermMemoryRepository`, and `InMemoryShortTermMemoryRepository`.
+- [x] Run `pnpm --filter @aivilization/memory test` and `pnpm --filter @aivilization/memory typecheck`.
+- [x] Commit with `git commit -m "feat: add short-term memory retrieval"`.
 
 ### Task 3: Long-Term Memory Consolidation
 

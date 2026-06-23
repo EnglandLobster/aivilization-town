@@ -38,7 +38,7 @@ It does not implement local event-log files, SQLite projection persistence, snap
 - Add: `apps/worker/src/projectionHydration.test.ts`
 - Modify: `apps/worker/src/tickRunner.test.ts`
 
-- [ ] **Step 1: Write failing tests for replay-backed projection hydration**
+- [x] **Step 1: Write failing tests for replay-backed projection hydration**
 
 Create helper tests that require:
 
@@ -67,7 +67,7 @@ Expected before implementation: tests fail because the hydration helper and tick
 - Add: `apps/worker/src/projectionHydration.ts`
 - Modify: `apps/worker/src/index.ts`
 
-- [ ] **Step 2: Implement event-stream projection hydration**
+- [x] **Step 2: Implement event-stream projection hydration**
 
 Add `hydrateWorldProjectionFromEventStream(input)`:
 
@@ -85,7 +85,7 @@ Add `hydrateWorldProjectionFromEventStream(input)`:
 
 - Modify: `apps/worker/src/tickRunner.ts`
 
-- [ ] **Step 3: Resolve tick starting projection from explicit input or hydration**
+- [x] **Step 3: Resolve tick starting projection from explicit input or hydration**
 
 Update `runWorkerSimulationTick` so callers can pass either:
 
@@ -106,7 +106,7 @@ Keep the existing behavior for explicit projections unchanged.
 
 - Modify: this plan file
 
-- [ ] **Step 4: Run focused and full verification**
+- [x] **Step 4: Run focused and full verification**
 
 Run:
 
@@ -118,3 +118,11 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+## Verification Results
+
+- `pnpm --filter @aivilization/worker test` failed before implementation because `hydrateWorldProjectionFromEventStream` was missing and tick runner required an explicit projection.
+- `pnpm --filter @aivilization/worker test` passed after implementation.
+- `pnpm --filter @aivilization/worker typecheck` failed once on unbranded test `AgentId` values, then passed after using `asAgentId`.
+- `pnpm check` passed.
+- `pnpm build` passed.

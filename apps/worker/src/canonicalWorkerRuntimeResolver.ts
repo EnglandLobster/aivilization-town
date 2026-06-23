@@ -19,11 +19,16 @@ import {
   type WorkerDomainRuntimeRegistration,
 } from './domainRuntimeRegistry';
 import type { WorkerAgentRuntimeResolver } from './agentScheduling';
+import {
+  deriveActionSynthesisPolicyFromWorldState,
+  type WorldStateActionSynthesisPolicyConfig,
+} from './actionSynthesisPolicy';
 
 export type CanonicalWorkerRuntimeResolverConfig = {
   readonly simulationId: SimulationId;
   readonly policies: WorldCommandPolicies;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
+  readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
   readonly issuedAt?: SimulationTimestamp;
@@ -49,7 +54,7 @@ export function createCanonicalWorkerRuntimeResolver(
 ): WorkerAgentRuntimeResolver {
   const registryResolver = createDomainRuntimeResolver({
     registrations: [
-      ...createCanonicalDomainRuntimeRegistrations(config.domainConfig),
+      ...createCanonicalDomainRuntimeRegistrations(config.domainConfig, config.policies),
       ...(config.additionalRegistrations ?? []),
     ],
     simulate: ({ action }) => ({ status: 'accepted', action }),
@@ -64,6 +69,16 @@ export function createCanonicalWorkerRuntimeResolver(
 
     return {
       microPlanners: binding.microPlanners,
+      ...(config.actionSynthesis === false
+        ? {}
+        : {
+            actionSynthesis: deriveActionSynthesisPolicyFromWorldState({
+              agent: context.agent,
+              ...(config.actionSynthesis === undefined
+                ? {}
+                : { config: config.actionSynthesis }),
+            }),
+          }),
       simulate: createWorldCommandDryRunSimulator({
         simulationId: config.simulationId,
         agentId: context.agentId,

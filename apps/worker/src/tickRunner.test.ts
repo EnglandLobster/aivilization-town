@@ -198,6 +198,91 @@ describe('worker tick runner', () => {
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
   });
 
+  test('passes tick agent action synthesis policy into cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const simulatedActionIds: string[] = [];
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-action-synthesis',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 education=10',
+          plan: createStudyPlan(),
+          signals: [],
+          actionSynthesis: { maxActions: 1 },
+          microPlanners: [
+            {
+              domain: 'study',
+              supports: ({ subtaskId }) => subtaskId === 'study',
+              propose: () => [
+                {
+                  id: 'sleep-low-priority',
+                  description: 'sleep before studying',
+                  commandType: 'AgentSleep',
+                  payload: { durationSeconds: 60 },
+                  priority: 1,
+                  resourceEstimate: { actionSeconds: 60 },
+                },
+                {
+                  id: 'study-high-priority',
+                  description: 'study now',
+                  commandType: 'AgentStudy',
+                  payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+                  priority: 3,
+                  resourceEstimate: { actionSeconds: 60 },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action }) => {
+            simulatedActionIds.push(action.id);
+            return { status: 'accepted', action };
+          },
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(simulatedActionIds).toEqual(['study-high-priority']);
+    expect(result.traces[0]?.actionSynthesis).toEqual({
+      acceptedActions: [
+        {
+          id: 'study-high-priority',
+          description: 'study now',
+          commandType: 'AgentStudy',
+          priority: 3,
+          resourceEstimate: { actionSeconds: 60 },
+        },
+      ],
+      rejectedActions: [
+        {
+          action: {
+            id: 'sleep-low-priority',
+            description: 'sleep before studying',
+            commandType: 'AgentSleep',
+            priority: 1,
+            resourceEstimate: { actionSeconds: 60 },
+          },
+          reason: 'maxActions exhausted',
+        },
+      ],
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+
   test('advances simulation time when no agents are scheduled', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

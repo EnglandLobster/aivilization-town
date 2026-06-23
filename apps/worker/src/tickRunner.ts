@@ -1,4 +1,5 @@
 import type {
+  ActionSynthesisPolicy,
   BranchPlan,
   BranchPlanRepository,
   BranchPlanProgressRepository,
@@ -49,6 +50,7 @@ export type WorkerTickAgentInput = {
   readonly observedStateSummary: string;
   readonly signals: Parameters<typeof runWorkerAgentCycle>[0]['signals'];
   readonly microPlanners: readonly DomainMicroPlanner[];
+  readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
 } & WorkerTickAgentPlanInput;
@@ -170,6 +172,7 @@ export async function runWorkerSimulationTick(
       longTermProfileRepository: input.longTermProfileRepository,
       shortTermMemoryRepository: input.shortTermMemoryRepository,
       microPlanners: agent.microPlanners,
+      ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
       simulate: agent.simulate,
       ...(agent.repair === undefined ? {} : { repair: agent.repair }),
       expectedVersion,

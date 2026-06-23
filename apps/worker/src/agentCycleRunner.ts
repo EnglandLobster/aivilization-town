@@ -155,6 +155,7 @@ export async function runWorkerAgentCycle(
     cycleStartedAt: input.issuedAt,
     observedStateSummary: input.observedStateSummary,
     selectedBranch: cycleResult.selectedSubtask.branchId,
+    subtaskCandidates: cycleResult.subtaskCandidates,
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
     selectionEvidence: cycleResult.selectionEvidence,

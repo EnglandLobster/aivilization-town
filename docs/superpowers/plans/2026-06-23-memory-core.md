@@ -234,7 +234,7 @@ describe('in-memory short-term memory repository', () => {
 - Create: `packages/memory/src/consolidation.test.ts`
 - Modify: `packages/memory/src/index.ts`
 
-- [ ] Write failing tests for habit, caution, and social consolidation:
+- [x] Write failing tests for habit, caution, and social consolidation:
 
 ```ts
 import { asAgentId } from '@aivilization/sim-core';
@@ -285,11 +285,11 @@ describe('long-term memory consolidation', () => {
 });
 ```
 
-- [ ] Add tests in the same file that repeated failed action hints become `beliefs` caution patches and social hints become `socialRecords` patches with aggregated relation and attitude deltas.
-- [ ] Run `pnpm --filter @aivilization/memory test` and confirm consolidation APIs are missing.
-- [ ] Implement `LongTermMemoryPatch`, `LongTermProfileSection`, and `proposeLongTermMemoryPatches`.
-- [ ] Run `pnpm --filter @aivilization/memory test`, `pnpm --filter @aivilization/memory typecheck`, `pnpm check`, and `pnpm build`.
-- [ ] Commit with `git commit -m "feat: add memory consolidation rules"`.
+- [x] Add tests in the same file that repeated failed action hints become `beliefs` caution patches and social hints become `socialRecords` patches with aggregated relation and attitude deltas.
+- [x] Run `pnpm --filter @aivilization/memory test` and confirm consolidation APIs are missing.
+- [x] Implement `LongTermMemoryPatch`, `LongTermProfileSection`, and `proposeLongTermMemoryPatches`.
+- [x] Run `pnpm --filter @aivilization/memory test`, `pnpm --filter @aivilization/memory typecheck`, `pnpm check`, and `pnpm build`.
+- [x] Commit with `git commit -m "feat: add memory consolidation rules"`.
 
 ## Self-Review
 

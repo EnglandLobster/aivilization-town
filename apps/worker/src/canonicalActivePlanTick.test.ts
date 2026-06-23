@@ -125,6 +125,45 @@ describe('canonical active-plan worker tick', () => {
     });
   });
 
+  test('emits objective renewal decision traces before canonical scheduling', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const renewalTraces: unknown[] = [];
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-idle-agent-trace',
+      simulationId,
+      issuedAt: 100,
+      projection: createWorldProjection({
+        agents: [createAgent(agentA)],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          renewalTraces.push(trace);
+        },
+      },
+      ...repositories,
+    });
+
+    expect(renewalTraces).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'auto-objective-agent-a-100',
+        selectedCandidateId: 'education-growth',
+        rationale: 'Education score is below the threshold for better town opportunities.',
+        score: 41,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+        issuedAt: 100,
+      },
+    ]);
+  });
+
   test('passes memory context into objective renewal before canonical scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

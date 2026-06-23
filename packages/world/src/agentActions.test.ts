@@ -5,6 +5,7 @@ import {
   createWorldProjection,
   dispatchWorldCommand,
   handleAgentEatCommand,
+  handleAgentProduceCommand,
   handleAgentStudyCommand,
   handleAgentWorkCommand,
 } from './index';
@@ -276,5 +277,81 @@ describe('agent work command handling', () => {
       type: 'ShortTermMemoryRecorded',
       payload: { record: { status: 'failed' } },
     });
+  });
+});
+
+describe('agent produce command handling', () => {
+  test('AgentProduce uses production rules and records produced commodities', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 2, availableLaborSeconds: 1 },
+        issuedAt: 50,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'CommodityProduced',
+      'ShortTermMemoryRecorded',
+    ]);
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({ Apple: 2 });
+    expect(updated.agents['agent-1']?.physiology.energy).toBe(96);
+  });
+
+  test('AgentProduce rejects missing inputs without changing projection state', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Bread', quantity: 1, availableLaborSeconds: 10 },
+        issuedAt: 50,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({ commandType: 'AgentProduce' });
+    expect(events[1]).toMatchObject({ payload: { record: { status: 'failed' } } });
   });
 });

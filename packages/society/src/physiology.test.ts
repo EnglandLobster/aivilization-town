@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { applyLaborPhysiologyCost, isIncapacitated } from './index';
+import { applyEnergyRecovery, applyLaborPhysiologyCost, isIncapacitated } from './index';
 
 describe('physiology', () => {
   test('applies per-hour labor costs to energy and satiety', () => {
@@ -61,5 +61,46 @@ describe('physiology', () => {
         healthCriticalThreshold: 30,
       }),
     ).toBe(false);
+  });
+
+  test('recovers energy over time without exceeding the configured maximum', () => {
+    expect(
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 1800,
+        energyRecoveryPerSecond: 0.05,
+        maxEnergy: 100,
+      }),
+    ).toEqual({
+      energy: 100,
+      satiety: 70,
+      health: 90,
+    });
+  });
+
+  test('rejects invalid energy recovery policies', () => {
+    expect(() =>
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 10,
+        energyRecoveryPerSecond: -1,
+        maxEnergy: 100,
+      }),
+    ).toThrow(/energyRecoveryPerSecond must be non-negative/);
+
+    expect(() =>
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 10,
+        energyRecoveryPerSecond: 1,
+        maxEnergy: 0,
+      }),
+    ).toThrow(/maxEnergy must be positive/);
   });
 });

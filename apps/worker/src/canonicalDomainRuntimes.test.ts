@@ -9,6 +9,7 @@ import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldAgentState,
+  type WorldCommandPolicies,
   type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
@@ -19,6 +20,18 @@ const agentB = asAgentId('agent-b');
 const agentC = asAgentId('agent-c');
 
 const domainOrder = ['study', 'work', 'trade', 'sleep', 'social'] as const;
+const policies: WorldCommandPolicies = {
+  satietyRecoveryByCommodity: { Apple: 10 },
+  maxSatiety: 100,
+  wageCalculator: () => 10,
+  laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+  criticalThresholds: { energy: 1, health: 1 },
+  sleep: { energyRecoveryPerSecond: 1, maxEnergy: 100 },
+  jobApplication: {
+    populationEducationScores: [0],
+    quotaByResidentialTier: [1, 1, 1, 1, 1],
+  },
+};
 
 describe('canonical domain runtimes', () => {
   test('registers all canonical domains in deterministic order', () => {
@@ -63,21 +76,33 @@ describe('canonical domain runtimes', () => {
       id: 'canonical-study-step-a',
       commandType: 'AgentStudy',
       payload: { durationSeconds: 900, educationRatePerSecond: 2 },
+      priority: 10,
+      resourceEstimate: { actionSeconds: 900 },
     });
     expect(firstProposal(binding.microPlanners, 'sleep')).toMatchObject({
       id: 'canonical-sleep-step-d',
       commandType: 'AgentSleep',
       payload: { durationSeconds: 7200 },
+      priority: 10,
+      resourceEstimate: { actionSeconds: 7200 },
     });
     expect(firstProposal(binding.microPlanners, 'work')).toMatchObject({
       id: 'canonical-work-step-b',
       commandType: 'AgentWork',
       payload: { occupationName: 'Waiter', laborSeconds: 1200 },
+      priority: 10,
+      resourceEstimate: {
+        actionSeconds: 1200,
+        energyCost: 3.333333333333333,
+        satietyCost: 3.333333333333333,
+      },
     });
     expect(firstProposal(binding.microPlanners, 'trade')).toMatchObject({
       id: 'canonical-trade-step-c',
       commandType: 'AgentTrade',
       payload: { side: 'sell', commodityName: 'Book', quantity: 2 },
+      priority: 10,
+      resourceEstimate: { inventoryCosts: { Book: 2 } },
     });
     expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
       id: 'canonical-social-step-e',
@@ -88,7 +113,23 @@ describe('canonical domain runtimes', () => {
         relationDelta: 3,
         attitudeDelta: 4,
       },
+      priority: 10,
     });
+  });
+
+  test('estimates trade buy currency cost from the projected AMM pool', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, job: 'Waiter' }),
+    });
+    const binding = await resolveCanonicalBinding(context, {
+      trade: { side: 'buy', commodityName: 'Apple', quantity: 1 },
+    });
+    const proposal = firstProposal(binding.microPlanners, 'trade');
+    if (proposal === undefined) {
+      throw new Error('expected trade proposal');
+    }
+
+    expect(proposal.resourceEstimate?.currencyCost).toBeCloseTo(10.101010101);
   });
 
   test('uses context-derived defaults for work, trade, and social proposals', async () => {
@@ -133,7 +174,7 @@ async function resolveCanonicalBinding(
   config: Parameters<typeof createCanonicalDomainRuntimeRegistrations>[0] = {},
 ) {
   const resolver = createDomainRuntimeResolver({
-    registrations: createCanonicalDomainRuntimeRegistrations(config),
+    registrations: createCanonicalDomainRuntimeRegistrations(config, policies),
     simulate: ({ action }) => ({ status: 'accepted', action }),
   });
   const binding = await resolver(context);

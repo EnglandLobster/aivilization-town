@@ -1,5 +1,6 @@
 import {
   hasSelectableSubtasks,
+  type ActionSynthesisPolicy,
   type BranchPlanRecord,
   type BranchPlanProgressRepository,
   type BranchPlanRepository,
@@ -16,6 +17,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
+  readonly actionSynthesis?: ActionSynthesisPolicy;
 };
 
 export type WorkerAgentRuntimeResolver = (input: {
@@ -88,6 +90,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
         weight: activeObjective.priority,
       })),
       microPlanners: runtime.microPlanners,
+      ...(runtime.actionSynthesis === undefined
+        ? {}
+        : { actionSynthesis: runtime.actionSynthesis }),
       simulate: runtime.simulate,
       ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
     });

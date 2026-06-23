@@ -60,6 +60,14 @@ describe('canonical worker runtime resolver', () => {
     expect(agents).toHaveLength(1);
     expect(agents[0]?.microPlanners.map((planner) => planner.domain)).toEqual(['study']);
     expect(agents[0]?.repair).toBe(repair);
+    expect(agents[0]?.actionSynthesis).toMatchObject({
+      budget: {
+        energyBudget: 50,
+        satietyBudget: 50,
+        currencyBudget: 1000,
+        inventoryBudget: {},
+      },
+    });
     const proposal = agents[0]?.microPlanners[0]?.propose({
       selectedSubtask: {
         branchId: 'study-lane',

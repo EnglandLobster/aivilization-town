@@ -1,9 +1,11 @@
 import type {
+  ActionResourceEstimate,
   AtomicActionProposal,
   BranchPlanRecord,
   DomainMicroPlanner,
   PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
+import { buyFromPool } from '@aivilization/economy';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
@@ -12,6 +14,7 @@ import type {
   AgentStudyPayload,
   AgentTradePayload,
   AgentWorkPayload,
+  WorldCommandPolicies,
 } from '@aivilization/world';
 import type {
   WorkerDomainRuntimeFactoryInput,
@@ -69,10 +72,11 @@ const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
 
 export function createCanonicalDomainRuntimeRegistrations(
   config: CanonicalDomainRuntimeConfig = {},
+  policies?: WorldCommandPolicies,
 ): readonly WorkerDomainRuntimeRegistration[] {
   return [
     createStudyDomainRuntimeRegistration(config.study),
-    createWorkDomainRuntimeRegistration(config.work),
+    createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
@@ -92,10 +96,14 @@ export function createStudyDomainRuntimeRegistration(
           id: createCanonicalActionId('study', selectedSubtask),
           description: `Study for ${selectedSubtask.description}.`,
           commandType: 'AgentStudy',
+          priority: selectedSubtask.score,
           payload: {
             durationSeconds: config.durationSeconds ?? DEFAULT_STUDY_DURATION_SECONDS,
             educationRatePerSecond:
               config.educationRatePerSecond ?? DEFAULT_EDUCATION_RATE_PER_SECOND,
+          },
+          resourceEstimate: {
+            actionSeconds: config.durationSeconds ?? DEFAULT_STUDY_DURATION_SECONDS,
           },
         }),
       }),
@@ -105,6 +113,7 @@ export function createStudyDomainRuntimeRegistration(
 
 export function createWorkDomainRuntimeRegistration(
   config: WorkDomainRuntimeConfig = {},
+  laborCost?: WorldCommandPolicies['laborCost'],
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'work',
@@ -120,18 +129,22 @@ export function createWorkDomainRuntimeRegistration(
               id: createCanonicalActionId('work', selectedSubtask),
               description: `Apply for ${occupationName}.`,
               commandType: 'AgentApplyJob',
+              priority: selectedSubtask.score,
               payload: { occupationName },
             };
           }
 
+          const laborSeconds = config.laborSeconds ?? DEFAULT_WORK_LABOR_SECONDS;
           return {
             id: createCanonicalActionId('work', selectedSubtask),
             description: `Work as ${occupationName}.`,
             commandType: 'AgentWork',
+            priority: selectedSubtask.score,
             payload: {
               occupationName,
-              laborSeconds: config.laborSeconds ?? DEFAULT_WORK_LABOR_SECONDS,
+              laborSeconds,
             },
+            resourceEstimate: createLaborResourceEstimate(laborSeconds, laborCost),
           };
         },
       }),
@@ -154,11 +167,18 @@ export function createTradeDomainRuntimeRegistration(
             id: createCanonicalActionId('trade', selectedSubtask),
             description: `${config.side ?? DEFAULT_TRADE_SIDE} ${commodityName}.`,
             commandType: 'AgentTrade',
+            priority: selectedSubtask.score,
             payload: {
               side: config.side ?? DEFAULT_TRADE_SIDE,
               commodityName,
               quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
             },
+            ...createTradeResourceEstimate({
+              side: config.side ?? DEFAULT_TRADE_SIDE,
+              commodityName,
+              quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
+              context,
+            }),
           }),
         }),
       ];
@@ -179,7 +199,11 @@ export function createSleepDomainRuntimeRegistration(
           id: createCanonicalActionId('sleep', selectedSubtask),
           description: `Sleep for ${selectedSubtask.description}.`,
           commandType: 'AgentSleep',
+          priority: selectedSubtask.score,
           payload: { durationSeconds: config.durationSeconds ?? DEFAULT_SLEEP_DURATION_SECONDS },
+          resourceEstimate: {
+            actionSeconds: config.durationSeconds ?? DEFAULT_SLEEP_DURATION_SECONDS,
+          },
         }),
       }),
     ],
@@ -198,10 +222,11 @@ export function createSocialDomainRuntimeRegistration(
           domain: 'social',
           planRecord: context.planRecord,
           propose: (selectedSubtask) => ({
-            id: createCanonicalActionId('social', selectedSubtask),
-            description: `Socialize for ${selectedSubtask.description}.`,
-            commandType: 'AgentSocialize',
-            payload: {
+          id: createCanonicalActionId('social', selectedSubtask),
+          description: `Socialize for ${selectedSubtask.description}.`,
+          commandType: 'AgentSocialize',
+          priority: selectedSubtask.score,
+          payload: {
               targetAgentId,
               summary: config.summary ?? DEFAULT_SOCIAL_SUMMARY,
               relationDelta: config.relationDelta ?? DEFAULT_SOCIAL_RELATION_DELTA,
@@ -276,6 +301,48 @@ function selectedSubtaskMatchesDomain(input: {
 
 function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): string {
   return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
+}
+
+function createLaborResourceEstimate(
+  laborSeconds: number,
+  laborCost: WorldCommandPolicies['laborCost'] | undefined,
+): ActionResourceEstimate {
+  if (laborCost === undefined) {
+    return { actionSeconds: laborSeconds };
+  }
+
+  const laborHours = laborSeconds / 3600;
+  return {
+    actionSeconds: laborSeconds,
+    energyCost: laborCost.energyCostPerHour * laborHours,
+    satietyCost: laborCost.satietyCostPerHour * laborHours,
+  };
+}
+
+function createTradeResourceEstimate(input: {
+  readonly side: 'buy' | 'sell';
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+}): { readonly resourceEstimate?: ActionResourceEstimate } {
+  if (input.side === 'sell') {
+    return { resourceEstimate: { inventoryCosts: { [input.commodityName]: input.quantity } } };
+  }
+
+  const pool = input.context.projection.marketPools[input.commodityName];
+  if (pool === undefined) {
+    return {};
+  }
+
+  try {
+    return {
+      resourceEstimate: {
+        currencyCost: buyFromPool(pool, input.quantity).currencyDelta,
+      },
+    };
+  } catch {
+    return {};
+  }
 }
 
 function resolveSocialTargetAgentId(

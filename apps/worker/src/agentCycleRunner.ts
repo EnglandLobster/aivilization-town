@@ -2,6 +2,8 @@ import {
   runAgentPlanningCycle,
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
+  type BranchPlan,
+  type BranchPlanRepository,
   type BranchPlanProgress,
   type BranchPlanProgressRepository,
   type CycleActionSimulator,
@@ -40,35 +42,48 @@ export type WorkerAgentCycleResult = {
   readonly trace: AgentCycleTrace;
 };
 
-export async function runWorkerAgentCycle(input: {
-  readonly cycleId: string;
-  readonly simulationId: SimulationId;
-  readonly agentId: AgentId;
-  readonly issuedAt: number;
-  readonly observedStateSummary: string;
-  readonly plan: Parameters<typeof runAgentPlanningCycle>[0]['plan'];
-  readonly progress?: BranchPlanProgress;
-  readonly planProgressRepository?: BranchPlanProgressRepository;
-  readonly planProgressId?: string;
-  readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
-  readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicies;
-  readonly eventStore: EventStore<WorldEvent>;
-  readonly streamName: EventStreamName;
-  readonly appendIdempotencyKey: string;
-  readonly commandIdPrefix: string;
-  readonly intentionRepository: AgentIntentionRepository;
-  readonly longTermProfileRepository: LongTermProfileRepository;
-  readonly shortTermMemoryRepository: ShortTermMemoryRepository;
-  readonly memoryRetrievalLimit?: number;
-  readonly microPlanners: readonly DomainMicroPlanner[];
-  readonly simulate: CycleActionSimulator;
-  readonly repair?: CycleRepairPolicy;
-  readonly replanningPolicy?: AdaptiveReplanningPolicy;
-  readonly expectedVersion?: number;
-  readonly traceSink?: WorkerAgentCycleTraceSink;
-}): Promise<WorkerAgentCycleResult> {
-  const [intentionState, longTermProfile, shortTermMemoryContext] = await Promise.all([
+type WorkerAgentCyclePlanInput =
+  | {
+      readonly plan: BranchPlan;
+      readonly planRepository?: BranchPlanRepository;
+      readonly planId?: string;
+    }
+  | {
+      readonly plan?: undefined;
+      readonly planRepository: BranchPlanRepository;
+      readonly planId: string;
+    };
+
+export async function runWorkerAgentCycle(
+  input: {
+    readonly cycleId: string;
+    readonly simulationId: SimulationId;
+    readonly agentId: AgentId;
+    readonly issuedAt: number;
+    readonly observedStateSummary: string;
+    readonly progress?: BranchPlanProgress;
+    readonly planProgressRepository?: BranchPlanProgressRepository;
+    readonly planProgressId?: string;
+    readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
+    readonly projection: WorldProjection;
+    readonly policies: WorldCommandPolicies;
+    readonly eventStore: EventStore<WorldEvent>;
+    readonly streamName: EventStreamName;
+    readonly appendIdempotencyKey: string;
+    readonly commandIdPrefix: string;
+    readonly intentionRepository: AgentIntentionRepository;
+    readonly longTermProfileRepository: LongTermProfileRepository;
+    readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+    readonly memoryRetrievalLimit?: number;
+    readonly microPlanners: readonly DomainMicroPlanner[];
+    readonly simulate: CycleActionSimulator;
+    readonly repair?: CycleRepairPolicy;
+    readonly replanningPolicy?: AdaptiveReplanningPolicy;
+    readonly expectedVersion?: number;
+    readonly traceSink?: WorkerAgentCycleTraceSink;
+  } & WorkerAgentCyclePlanInput,
+): Promise<WorkerAgentCycleResult> {
+  const [intentionState, longTermProfile, shortTermMemoryContext, plan] = await Promise.all([
     input.intentionRepository.getOrCreate(input.agentId),
     input.longTermProfileRepository.getOrCreate(input.agentId),
     input.memoryRetrievalLimit === undefined
@@ -77,6 +92,12 @@ export async function runWorkerAgentCycle(input: {
           agentId: input.agentId,
           limit: input.memoryRetrievalLimit,
         }),
+    resolveBranchPlan({
+      agentId: input.agentId,
+      plan: input.plan,
+      planRepository: input.planRepository,
+      planId: input.planId,
+    }),
   ]);
   const progress = await resolvePlanProgress({
     agentId: input.agentId,
@@ -89,7 +110,7 @@ export async function runWorkerAgentCycle(input: {
     simulationId: input.simulationId,
     agentId: input.agentId,
     issuedAt: input.issuedAt,
-    plan: input.plan,
+    plan,
     ...(progress === undefined ? {} : { progress }),
     signals: input.signals,
     intentionState,
@@ -156,6 +177,25 @@ export async function runWorkerAgentCycle(input: {
       : { progressUpdate: cycleResult.progressUpdate }),
     trace,
   };
+}
+
+async function resolveBranchPlan(input: {
+  readonly agentId: AgentId;
+  readonly plan: BranchPlan | undefined;
+  readonly planRepository: BranchPlanRepository | undefined;
+  readonly planId: string | undefined;
+}): Promise<BranchPlan> {
+  if (input.plan !== undefined) {
+    return input.plan;
+  }
+  if (input.planRepository === undefined) {
+    throw new Error('planRepository is required when plan is omitted');
+  }
+  if (input.planId === undefined) {
+    throw new Error('planId is required when plan is omitted');
+  }
+  return (await input.planRepository.require({ planId: input.planId, agentId: input.agentId }))
+    .plan;
 }
 
 async function resolvePlanProgress(input: {

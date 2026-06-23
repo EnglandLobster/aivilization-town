@@ -165,6 +165,14 @@ describe('local world runtime storage', () => {
         blockedAt: 150,
       }),
     );
+    const planRecord = {
+      planId: 'plan-1',
+      agentId: agentOne,
+      plan: createStudyPlan(),
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    await storage.planRepository.save(planRecord);
 
     const restarted = createLocalWorldRuntimeStorage({
       rootDir,
@@ -175,6 +183,12 @@ describe('local world runtime storage', () => {
     expect(first.streamVersion).toBe(5);
     expect(storage.paths.partitionDir).toContain('simulations');
     expect(storage.paths.planningDir).toContain('planning');
+    await expect(
+      restarted.planRepository.require({
+        planId: 'plan-1',
+        agentId: agentOne,
+      }),
+    ).resolves.toEqual(planRecord);
     expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(5);
     await expect(
       restarted.planProgressRepository.getOrCreate({

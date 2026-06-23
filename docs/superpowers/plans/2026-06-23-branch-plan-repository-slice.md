@@ -43,7 +43,7 @@ It does not generate plans from LLMs, replace full plans during re-planning, or 
 
 - Add: `packages/agent-runtime/src/branchPlanRepository.test.ts`
 
-- [ ] **Step 1: Write failing tests for plan repositories**
+- [x] **Step 1: Write failing tests for plan repositories**
 
 Create tests that require:
 
@@ -60,13 +60,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because branch plan repositories are missing.
 
+Observed: tests failed before implementation because `InMemoryBranchPlanRepository` and `FileBranchPlanRepository` did not exist. They now pass after repository implementation.
+
 ## Task 2: Worker Agent Cycle Repository Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 2: Write failing tests for worker plan repository resolution**
+- [x] **Step 2: Write failing tests for worker plan repository resolution**
 
 Create a test that:
 
@@ -82,13 +84,15 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because `runWorkerAgentCycle` requires direct `plan`.
 
+Observed: test failed before implementation because branch plan repository APIs were unavailable and direct `plan` was required. It now passes after cycle-level plan resolution.
+
 ## Task 3: Worker Tick Repository Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/tickRunner.test.ts`
 
-- [ ] **Step 3: Write failing tests for tick-level plan ids**
+- [x] **Step 3: Write failing tests for tick-level plan ids**
 
 Create a test that:
 
@@ -104,13 +108,15 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because tick agent input only accepts direct `plan`.
 
+Observed: test failed before implementation because the tick runner did not pass `planRepository` to agent cycles. It now passes after tick-level plan id wiring.
+
 ## Task 4: Local Runtime Storage Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/localRuntimeStorage.test.ts`
 
-- [ ] **Step 4: Write failing tests for local file-backed plan storage**
+- [x] **Step 4: Write failing tests for local file-backed plan storage**
 
 Extend the restart test so it:
 
@@ -127,6 +133,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because local runtime storage does not expose `planRepository`.
 
+Observed: test failed before implementation because `storage.planRepository` was undefined. It now passes after local runtime storage creates `FileBranchPlanRepository`.
+
 ## Task 5: Implementation
 
 **Files:**
@@ -137,7 +145,7 @@ Expected before implementation: tests fail because local runtime storage does no
 - Modify: `apps/worker/src/tickRunner.ts`
 - Modify: `apps/worker/src/localRuntimeStorage.ts`
 
-- [ ] **Step 5: Implement repositories and worker wiring**
+- [x] **Step 5: Implement repositories and worker wiring**
 
 Behavior:
 
@@ -156,7 +164,7 @@ Behavior:
 
 - Modify: this plan file
 
-- [ ] **Step 6: Run focused and full verification**
+- [x] **Step 6: Run focused and full verification**
 
 Run:
 
@@ -170,3 +178,5 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Observed: focused package tests and typechecks passed. Full `pnpm check` passed with 46 test files and 203 tests. Full `pnpm build` passed.

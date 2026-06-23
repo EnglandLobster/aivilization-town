@@ -14,6 +14,9 @@ import {
   type AgentId,
   type EventStore,
   type EventStreamName,
+  type PartitionKey,
+  type ProjectionCheckpointStore,
+  type ProjectionSnapshotStore,
   type SimulationId,
 } from '@aivilization/sim-core';
 import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
@@ -46,9 +49,16 @@ export type WorkerTickResult = {
   readonly streamVersion: number;
 };
 
+export type WorkerTickProjectionCheckpointHydrationInput = {
+  readonly partitionKey: PartitionKey;
+  readonly checkpointStore: ProjectionCheckpointStore;
+  readonly snapshotStore: ProjectionSnapshotStore<WorldProjection>;
+};
+
 export type WorkerTickProjectionHydrationInput = {
   readonly initialProjection: WorldProjection;
   readonly fromSequence?: number;
+  readonly checkpoint?: WorkerTickProjectionCheckpointHydrationInput;
 };
 
 type WorkerTickBaseInput = {
@@ -170,9 +180,10 @@ function assertNonEmpty(value: string, name: string): void {
   }
 }
 
-function resolveStartingProjection(
-  input: WorkerTickBaseInput & WorkerTickProjectionInput,
-): { readonly projection: WorldProjection; readonly streamVersion: number } {
+function resolveStartingProjection(input: WorkerTickBaseInput & WorkerTickProjectionInput): {
+  readonly projection: WorldProjection;
+  readonly streamVersion: number;
+} {
   if (input.projection !== undefined) {
     return {
       projection: input.projection,
@@ -188,6 +199,18 @@ function resolveStartingProjection(
       ? {}
       : { fromSequence: input.projectionHydration.fromSequence }),
     ...(input.expectedVersion === undefined ? {} : { toSequence: input.expectedVersion }),
+    ...(input.projectionHydration.checkpoint === undefined
+      ? {}
+      : {
+          checkpoint: {
+            checkpointStore: input.projectionHydration.checkpoint.checkpointStore,
+            snapshotStore: input.projectionHydration.checkpoint.snapshotStore,
+            lookup: {
+              simulationId: input.simulationId,
+              partitionKey: input.projectionHydration.checkpoint.partitionKey,
+            },
+          },
+        }),
   });
 
   return {

@@ -2,8 +2,19 @@ import {
   replayEvents,
   type EventStore,
   type EventStreamName,
+  type ProjectionCheckpoint,
+  type ProjectionCheckpointLookup,
+  type ProjectionCheckpointStore,
+  type ProjectionSnapshotStore,
+  type SnapshotReference,
 } from '@aivilization/sim-core';
 import { applyWorldEvent, type WorldEvent, type WorldProjection } from '@aivilization/world';
+
+export type WorldProjectionCheckpointHydrationInput = {
+  readonly checkpointStore: ProjectionCheckpointStore;
+  readonly snapshotStore: ProjectionSnapshotStore<WorldProjection>;
+  readonly lookup: ProjectionCheckpointLookup;
+};
 
 export type WorldProjectionHydrationInput = {
   readonly initialProjection: WorldProjection;
@@ -11,6 +22,7 @@ export type WorldProjectionHydrationInput = {
   readonly streamName: EventStreamName;
   readonly fromSequence?: number;
   readonly toSequence?: number;
+  readonly checkpoint?: WorldProjectionCheckpointHydrationInput;
 };
 
 export type WorldProjectionHydrationResult = {
@@ -18,6 +30,9 @@ export type WorldProjectionHydrationResult = {
   readonly events: readonly WorldEvent[];
   readonly lastAppliedSequence: number;
   readonly streamVersion: number;
+  readonly replayFromSequence: number;
+  readonly checkpoint?: ProjectionCheckpoint;
+  readonly snapshot?: SnapshotReference;
 };
 
 export function hydrateWorldProjectionFromEventStream(
@@ -36,16 +51,72 @@ export function hydrateWorldProjectionFromEventStream(
     throw new Error(`toSequence ${toSequence} must not exceed stream version ${streamVersion}`);
   }
 
+  const checkpointHydration = resolveCheckpointHydration({
+    checkpoint: input.checkpoint,
+    fromSequence,
+    toSequence,
+    streamVersion,
+  });
+  const replayFromSequence = checkpointHydration?.fromSequence ?? fromSequence;
+  const initialProjection = checkpointHydration?.projection ?? input.initialProjection;
   const events = input.eventStore
-    .readStream(input.streamName, { afterSequence: fromSequence })
+    .readStream(input.streamName, { afterSequence: replayFromSequence })
     .filter((event) => event.sequence <= toSequence);
-  const projection = replayEvents(input.initialProjection, events, applyWorldEvent);
+  const projection = replayEvents(initialProjection, events, applyWorldEvent);
 
   return {
     projection,
     events,
     lastAppliedSequence: toSequence,
     streamVersion,
+    replayFromSequence,
+    ...(checkpointHydration === undefined ? {} : { checkpoint: checkpointHydration.checkpoint }),
+    ...(checkpointHydration === undefined ? {} : { snapshot: checkpointHydration.snapshot }),
+  };
+}
+
+type ResolvedCheckpointHydration = {
+  readonly projection: WorldProjection;
+  readonly fromSequence: number;
+  readonly checkpoint: ProjectionCheckpoint;
+  readonly snapshot: SnapshotReference;
+};
+
+function resolveCheckpointHydration(input: {
+  readonly checkpoint: WorldProjectionCheckpointHydrationInput | undefined;
+  readonly fromSequence: number;
+  readonly toSequence: number;
+  readonly streamVersion: number;
+}): ResolvedCheckpointHydration | undefined {
+  if (input.checkpoint === undefined) {
+    return undefined;
+  }
+
+  const checkpoint = input.checkpoint.checkpointStore.getLatestCheckpoint(input.checkpoint.lookup);
+  if (checkpoint?.snapshot === undefined) {
+    return undefined;
+  }
+
+  const snapshot = checkpoint.snapshot;
+  if (snapshot.sequence > input.streamVersion) {
+    throw new Error(
+      `checkpoint snapshot sequence ${snapshot.sequence} must not exceed stream version ${input.streamVersion}`,
+    );
+  }
+  if (snapshot.sequence <= input.fromSequence || snapshot.sequence > input.toSequence) {
+    return undefined;
+  }
+
+  const projection = input.checkpoint.snapshotStore.loadSnapshot(snapshot);
+  if (projection === undefined) {
+    throw new Error(`checkpoint snapshot is missing: ${snapshot.uri}`);
+  }
+
+  return {
+    projection,
+    fromSequence: snapshot.sequence,
+    checkpoint,
+    snapshot,
   };
 }
 

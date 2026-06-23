@@ -9,23 +9,40 @@ import {
   InMemoryShortTermMemoryRepository,
 } from '@aivilization/memory';
 import {
+  FileProjectionSnapshotStore,
   InMemoryEventStore,
+  InMemoryProjectionCheckpointStore,
   asAgentId,
   asSimulationId,
+  createProjectionCheckpoint,
   createSimulationPartition,
 } from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldCommandPolicies,
   type WorldEvent,
+  type WorldProjection,
 } from '@aivilization/world';
-import { describe, expect, test } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, test } from 'vitest';
 import { runWorkerSimulationTick } from './index';
 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
+const tmpRoots: string[] = [];
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
 
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Bread: 15 },
@@ -63,6 +80,12 @@ function createProjection() {
       },
     ],
   });
+}
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-worker-tick-'));
+  tmpRoots.push(root);
+  return root;
 }
 
 function createStudyPlan() {
@@ -268,6 +291,80 @@ describe('worker tick runner', () => {
     expect(result.projection.agents['agent-2']?.educationScore).toBe(80);
     expect(result.streamVersion).toBe(10);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(10);
+  });
+
+  test('hydrates the starting projection from a checkpoint snapshot when available', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const firstResult = await runWorkerSimulationTick({
+      tickId: 'tick-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: createTickAgents(),
+      ...repositories,
+    });
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    const snapshot = snapshotStore.saveSnapshot({
+      simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: firstResult.streamVersion,
+      createdAt: 150,
+      projection: firstResult.projection,
+    });
+    checkpointStore.saveCheckpoint(
+      createProjectionCheckpoint({
+        simulationId,
+        partitionKey: partition.partitionKey,
+        lastAppliedSequence: firstResult.streamVersion,
+        snapshot,
+      }),
+    );
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-2',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: {
+        initialProjection: createProjection(),
+        checkpoint: {
+          partitionKey: partition.partitionKey,
+          checkpointStore,
+          snapshotStore,
+        },
+      },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [6, 'SimulationTimeAdvanced'],
+      [7, 'EducationChanged'],
+      [8, 'ShortTermMemoryRecorded'],
+      [9, 'EducationChanged'],
+      [10, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.events[0]).toMatchObject({
+      payload: {
+        previous: { now: 1000, tickDurationMs: 1000 },
+        next: { now: 2000, tickDurationMs: 1000 },
+        deltaMs: 1000,
+      },
+    });
+    expect(result.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(130);
+    expect(result.projection.agents['agent-2']?.educationScore).toBe(80);
+    expect(result.streamVersion).toBe(10);
   });
 
   test('continues later agents when an earlier agent requires replanning', async () => {

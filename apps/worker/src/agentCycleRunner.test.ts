@@ -497,6 +497,62 @@ describe('worker agent cycle runner', () => {
     ).resolves.toEqual(result.progressUpdate);
   });
 
+  test('does not save completed progress when event append fails', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    await planProgressRepository.getOrCreate({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 50,
+    });
+
+    await expect(
+      runWorkerAgentCycle({
+        cycleId: 'cycle-progress-append-failure',
+        simulationId,
+        agentId,
+        issuedAt: 100,
+        observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+        plan: createStudyPlan(),
+        planProgressRepository,
+        planProgressId: 'plan-1',
+        signals: [],
+        projection: createProjection(),
+        policies,
+        eventStore,
+        streamName: partition.eventStreamName,
+        expectedVersion: 1,
+        appendIdempotencyKey: 'cycle-progress-append-failure',
+        commandIdPrefix: 'cycle-progress-append-failure-command',
+        microPlanners: [
+          createStudyPlanner({
+            id: 'study-1',
+            description: 'study for one minute',
+            commandType: 'AgentStudy',
+            payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+          }),
+        ],
+        simulate: ({ action }) => ({ status: 'accepted', action }),
+        ...repositories,
+      }),
+    ).rejects.toThrow('expected stream version 1 but current version is 0');
+
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'plan-1',
+        agentId,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 50,
+    });
+  });
+
   test('loads branch plans through a repository when only plan id is provided', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

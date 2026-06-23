@@ -1,6 +1,7 @@
 import {
   createBranchPlan,
   InMemoryBranchPlanRepository,
+  InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
@@ -548,5 +549,64 @@ describe('worker tick runner', () => {
     ]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
+  });
+
+  test('saves plan progress for durable branch plans during a tick', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    await planRepository.save({
+      planId: 'study-plan',
+      agentId: agentOne,
+      plan: createStudyPlan(),
+      createdAt: 50,
+      updatedAt: 50,
+    });
+
+    await runWorkerSimulationTick({
+      tickId: 'tick-plan-progress',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      planRepository,
+      planProgressRepository,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 education=10',
+          planId: 'study-plan',
+          signals: [],
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-1',
+              description: 'agent 1 studies',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'study-plan',
+        agentId: agentOne,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'study-plan',
+      agentId: agentOne,
+      completedSubtaskIds: ['study'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
   });
 });

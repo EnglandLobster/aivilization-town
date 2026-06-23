@@ -1,6 +1,7 @@
 import type {
   BranchPlan,
   BranchPlanRepository,
+  BranchPlanProgressRepository,
   CycleActionSimulator,
   CycleRepairPolicy,
   DomainMicroPlanner,
@@ -90,6 +91,7 @@ type WorkerTickBaseInput = {
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository?: BranchPlanRepository;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly agents: readonly WorkerTickAgentInput[];
   readonly timeDeltaMs?: number;
   readonly expectedVersion?: number;
@@ -105,6 +107,16 @@ type WorkerTickProjectionInput =
   | {
       readonly projection?: never;
       readonly projectionHydration: WorkerTickProjectionHydrationInput;
+    };
+
+type CycleProgressInput =
+  | {
+      readonly planProgressRepository: BranchPlanProgressRepository;
+      readonly planProgressId: string;
+    }
+  | {
+      readonly planProgressRepository?: never;
+      readonly planProgressId?: never;
     };
 
 export async function runWorkerSimulationTick(
@@ -146,6 +158,10 @@ export async function runWorkerSimulationTick(
       issuedAt: input.issuedAt,
       observedStateSummary: agent.observedStateSummary,
       ...resolveCyclePlanInput({ agent, planRepository: input.planRepository }),
+      ...resolveCycleProgressInput({
+        agent,
+        planProgressRepository: input.planProgressRepository,
+      }),
       signals: agent.signals,
       projection,
       policies: input.policies,
@@ -199,6 +215,20 @@ function resolveCyclePlanInput(input: {
     throw new Error('planRepository is required when tick agent uses planId');
   }
   return { planRepository: input.planRepository, planId: input.agent.planId };
+}
+
+function resolveCycleProgressInput(input: {
+  readonly agent: WorkerTickAgentInput;
+  readonly planProgressRepository: BranchPlanProgressRepository | undefined;
+}): CycleProgressInput {
+  if (input.planProgressRepository === undefined || input.agent.planId === undefined) {
+    return {};
+  }
+
+  return {
+    planProgressRepository: input.planProgressRepository,
+    planProgressId: input.agent.planId,
+  };
 }
 
 function createCycleId(tickId: string, index: number, agentId: AgentId): string {

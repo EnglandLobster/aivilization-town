@@ -1,4 +1,8 @@
-import type { BranchPlanRepository, CycleRepairPolicy } from '@aivilization/agent-runtime';
+import type {
+  BranchPlanProgressRepository,
+  BranchPlanRepository,
+  CycleRepairPolicy,
+} from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
   LongTermProfileRepository,
@@ -35,6 +39,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository: BranchPlanRepository;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
@@ -90,6 +95,9 @@ export async function runCanonicalWorkerActivePlanTick(
     longTermProfileRepository: input.longTermProfileRepository,
     shortTermMemoryRepository: input.shortTermMemoryRepository,
     planRepository: input.planRepository,
+    ...(input.planProgressRepository === undefined
+      ? {}
+      : { planProgressRepository: input.planProgressRepository }),
     agents,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),

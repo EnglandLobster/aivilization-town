@@ -25,6 +25,10 @@ export type AgentTradePayload = {
   readonly quantity: number;
 };
 
+export type AgentApplyJobPayload = {
+  readonly occupationName: string;
+};
+
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentEat payload must be an object');
@@ -113,6 +117,20 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
     side,
     commodityName,
     quantity,
+  };
+}
+
+export function assertAgentApplyJobPayload(payload: unknown): AgentApplyJobPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentApplyJob payload must be an object');
+  }
+  const occupationName = payload['occupationName'];
+  if (typeof occupationName !== 'string' || occupationName.trim().length === 0) {
+    throw new Error('AgentApplyJob occupationName must not be empty');
+  }
+
+  return {
+    occupationName,
   };
 }
 

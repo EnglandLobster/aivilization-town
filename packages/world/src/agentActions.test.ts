@@ -6,6 +6,7 @@ import {
   createWorldProjection,
   dispatchWorldCommand,
   handleAgentEatCommand,
+  handleAgentApplyJobCommand,
   handleAgentProduceCommand,
   handleAgentStudyCommand,
   handleAgentTradeCommand,
@@ -520,5 +521,191 @@ describe('agent trade command handling', () => {
       commandType: 'AgentTrade',
       reason: 'insufficient Apple: required 1, available 0',
     });
+  });
+});
+
+describe('agent job application command handling', () => {
+  test('AgentApplyJob checks society rules, assigns the job, and records STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentApplyJobCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Cleaner' },
+        issuedAt: 70,
+      }),
+      projection,
+      populationEducationScores: [0, 10, 20],
+      quotaByResidentialTier: [1, 1, 2],
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'JobApplicationSubmitted',
+      'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      occupationName: 'Cleaner',
+      residentialTier: 1,
+      educationScore: 0,
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.jobApplications).toEqual([
+      { agentId: 'agent-1', occupationName: 'Cleaner', submittedAt: 70 },
+    ]);
+    expect(updated.agents['agent-1']?.job).toBe('Cleaner');
+    expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentApplyJob rejects agents that are not eligible for the occupation', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentApplyJobCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Doctor' },
+        issuedAt: 70,
+      }),
+      projection,
+      populationEducationScores: [0, 100, 300],
+      quotaByResidentialTier: [1],
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      commandType: 'AgentApplyJob',
+      reason: 'agent is not eligible for Doctor',
+    });
+  });
+
+  test('AgentApplyJob rejects applications after the residential-tier quota is exhausted', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      jobApplications: [
+        {
+          agentId: asAgentId('agent-1'),
+          occupationName: 'Cleaner',
+          submittedAt: 60,
+        },
+      ],
+    });
+
+    const events = handleAgentApplyJobCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Cleaner' },
+        issuedAt: 70,
+      }),
+      projection,
+      populationEducationScores: [0, 10, 20],
+      quotaByResidentialTier: [1],
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentApplyJob',
+      reason: 'application quota exceeded: allowed 1, used 1',
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentApplyJob through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob',
+        payload: { occupationName: 'Cleaner' },
+        issuedAt: 70,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        jobApplication: {
+          populationEducationScores: [0, 10, 20],
+          quotaByResidentialTier: [1],
+        },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'JobApplicationSubmitted',
+      'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
   });
 });

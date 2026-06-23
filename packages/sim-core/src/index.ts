@@ -1,3 +1,4 @@
+export * from './checkpointStore';
 export * from './command';
 export * from './event';
 export * from './eventStore';

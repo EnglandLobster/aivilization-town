@@ -37,7 +37,7 @@ It does not add a durable trace repository, UI surface, or LLM proposer.
 
 - Modify: `apps/worker/src/objectiveRenewal.test.ts`
 
-- [ ] **Step 1: Add failing default proposer evidence tests**
+- [x] **Step 1: Add failing default proposer evidence tests**
 
 Add tests that require:
 
@@ -54,7 +54,7 @@ pnpm test -- apps/worker/src/objectiveRenewal.test.ts
 Expected before implementation: fail because `createDefaultAutonomousObjectiveProposal` and
 `decisionTrace` do not exist.
 
-- [ ] **Step 2: Add failing renewal orchestration trace tests**
+- [x] **Step 2: Add failing renewal orchestration trace tests**
 
 Add tests that require:
 
@@ -70,13 +70,18 @@ pnpm test -- apps/worker/src/objectiveRenewal.test.ts
 
 Expected before implementation: fail because renewal does not normalize proposals or emit traces.
 
+Observed red failures:
+
+- `createDefaultAutonomousObjectiveProposal` was not exported;
+- `renewMissingActiveObjectives` returned only ids and did not include `decisionTrace`.
+
 ## Task 2: Objective Renewal Trace Implementation
 
 **Files:**
 
 - Modify: `apps/worker/src/objectiveRenewal.ts`
 
-- [ ] **Step 3: Add proposal and trace types**
+- [x] **Step 3: Add proposal and trace types**
 
 Add:
 
@@ -102,7 +107,7 @@ export type AutonomousObjectiveProposal = {
 Update `AutonomousObjectiveProposer` to return `LongHorizonObjective | AutonomousObjectiveProposal`
 or `undefined`.
 
-- [ ] **Step 4: Emit rich default proposal evidence**
+- [x] **Step 4: Emit rich default proposal evidence**
 
 Implement `createDefaultAutonomousObjectiveProposal(input)`.
 
@@ -115,7 +120,7 @@ Candidate evidence rules:
 Keep `createDefaultAutonomousObjective(input)` as a compatibility wrapper returning only
 `proposal.objective`.
 
-- [ ] **Step 5: Normalize proposer results and emit traces**
+- [x] **Step 5: Normalize proposer results and emit traces**
 
 In `renewMissingActiveObjectives`:
 
@@ -132,7 +137,7 @@ In `renewMissingActiveObjectives`:
 - Modify: `apps/worker/src/canonicalActivePlanTick.test.ts`
 - Modify: `apps/worker/src/canonicalActivePlanTick.ts`
 
-- [ ] **Step 6: Add failing canonical pass-through test**
+- [x] **Step 6: Add failing canonical pass-through test**
 
 Add a test that runs `runCanonicalWorkerActivePlanTick` with an idle agent and
 `objectiveRenewalTraceSink`, then expects the sink to receive the default study decision trace.
@@ -145,7 +150,12 @@ pnpm test -- apps/worker/src/canonicalActivePlanTick.test.ts
 
 Expected before implementation: fail because canonical input does not expose the sink.
 
-- [ ] **Step 7: Wire canonical trace sink**
+Observed red failure:
+
+- canonical tick accepted the extra test field at runtime but did not pass it into renewal, so the
+  trace sink received no records.
+
+- [x] **Step 7: Wire canonical trace sink**
 
 Add `objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink` to
 `CanonicalWorkerActivePlanTickBaseInput` and pass it to `renewMissingActiveObjectives`.
@@ -156,7 +166,7 @@ Add `objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink` to
 
 - Modify: this plan file
 
-- [ ] **Step 8: Run focused verification**
+- [x] **Step 8: Run focused verification**
 
 Run:
 
@@ -166,7 +176,13 @@ pnpm --filter @aivilization/worker test
 pnpm --filter @aivilization/worker typecheck
 ```
 
-- [ ] **Step 9: Run repo verification**
+Verification passed:
+
+- `pnpm test -- apps/worker/src/objectiveRenewal.test.ts apps/worker/src/canonicalActivePlanTick.test.ts`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/worker typecheck`
+
+- [x] **Step 9: Run repo verification**
 
 Run:
 
@@ -175,7 +191,12 @@ pnpm check
 pnpm build
 ```
 
-- [ ] **Step 10: Commit implementation**
+Verification passed:
+
+- `pnpm check`
+- `pnpm build`
+
+- [x] **Step 10: Commit implementation**
 
 Commit command:
 

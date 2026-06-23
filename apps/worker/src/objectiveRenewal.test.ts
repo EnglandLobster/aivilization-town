@@ -3,6 +3,7 @@ import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  asMemoryRecordId,
   createShortTermMemoryRecord,
   type LongHorizonObjective,
   type LongTermAgentProfile,
@@ -10,7 +11,11 @@ import {
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { createDefaultAutonomousObjective, renewMissingActiveObjectives } from './index';
+import {
+  createDefaultAutonomousObjective,
+  createDefaultAutonomousObjectiveProposal,
+  renewMissingActiveObjectives,
+} from './index';
 
 const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
@@ -72,6 +77,17 @@ describe('worker objective renewal', () => {
         agentId: agentA,
         objectiveId: 'auto-objective-agent-a-100',
         planId: 'auto-objective-agent-a-100',
+        decisionTrace: {
+          agentId: agentA,
+          objectiveId: 'auto-objective-agent-a-100',
+          selectedCandidateId: 'education-growth',
+          rationale: 'Education score is below the threshold for better town opportunities.',
+          score: 40.88,
+          shortTermMemoryContextIds: [],
+          profileEntryKeys: [],
+          profileEvidenceRecordIds: [],
+          issuedAt: 100,
+        },
       },
     ]);
     await expect(intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
@@ -136,6 +152,50 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('explains recent failed memory recovery objective decisions', () => {
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [
+        createMemory({
+          id: 'memory-work-failed',
+          agentId: agentA,
+          status: 'failed',
+          summary: 'Work failed because the agent was too tired and low on energy.',
+          tags: ['work', 'failed', 'energy'],
+          importanceScore: 0.95,
+        }),
+      ],
+      issuedAt: 100,
+    });
+
+    expect(proposal.objective).toMatchObject({
+      id: 'auto-objective-agent-a-100',
+      statement: 'Recover from recent setbacks before pursuing new growth.',
+    });
+    expect(proposal.decisionTrace).toEqual({
+      agentId: agentA,
+      objectiveId: 'auto-objective-agent-a-100',
+      selectedCandidateId: 'recent-setback-recovery',
+      rationale: 'Recent failed memory suggests recovery before new growth.',
+      score: 83.5,
+      shortTermMemoryContextIds: ['memory-work-failed'],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+      issuedAt: 100,
+    });
+  });
+
   test('can choose a profile-aligned routine when no urgent pressure exists', () => {
     const projection = createProjection([
       createAgent({
@@ -177,6 +237,60 @@ describe('worker objective renewal', () => {
       priority: 1,
       source: 'agent',
       affinityTags: ['maintain', 'routine', 'profile', 'creative'],
+    });
+  });
+
+  test('explains profile-aligned routine decisions with profile provenance', () => {
+    const projection = createProjection([
+      createAgent({
+        agentId: agentA,
+        educationScore: 150,
+        balance: 200,
+      }),
+    ]);
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA, {
+        habits: [
+          {
+            key: 'creative-routine',
+            statement: 'Keeps a creative studio routine after basic needs are stable.',
+            confidence: 0.9,
+            updatedAt: 80,
+            provenanceRecordIds: [
+              asMemoryRecordId('reflection-creative-1'),
+              asMemoryRecordId('reflection-creative-2'),
+            ],
+          },
+        ],
+      }),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+
+    expect(proposal.objective).toMatchObject({
+      id: 'auto-objective-agent-a-100',
+      statement: 'Maintain a creative routine aligned with long-term profile.',
+    });
+    expect(proposal.decisionTrace).toEqual({
+      agentId: agentA,
+      objectiveId: 'auto-objective-agent-a-100',
+      selectedCandidateId: 'profile-creative',
+      rationale: 'Long-term profile suggests maintaining a creative routine.',
+      score: 24,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: ['creative-routine'],
+      profileEvidenceRecordIds: ['reflection-creative-1', 'reflection-creative-2'],
+      issuedAt: 100,
     });
   });
 
@@ -263,6 +377,50 @@ describe('worker objective renewal', () => {
     });
 
     expect(seenMemoryIds).toEqual([['memory-study-observed']]);
+  });
+
+  test('returns and emits objective renewal decision traces', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+    const traces: unknown[] = [];
+
+    const result = await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 100,
+      objectiveProposer: (input) => createObjective(input.agentId, 'objective-from-custom-proposer'),
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          traces.push(trace);
+        },
+      },
+    });
+
+    expect(result).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'objective-from-custom-proposer',
+        planId: 'objective-from-custom-proposer',
+        decisionTrace: {
+          agentId: agentA,
+          objectiveId: 'objective-from-custom-proposer',
+          selectedCandidateId: 'custom-proposer',
+          rationale: 'Objective was produced by a custom proposer without decision metadata.',
+          score: 0,
+          shortTermMemoryContextIds: [],
+          profileEntryKeys: [],
+          profileEvidenceRecordIds: [],
+          issuedAt: 100,
+        },
+      },
+    ]);
+    expect(traces).toEqual([result[0]?.decisionTrace]);
   });
 });
 

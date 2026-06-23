@@ -22,7 +22,11 @@ import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
 import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeResolver';
 import type { WorkerDomainRuntimeRegistration } from './domainRuntimeRegistry';
 import { completeFinishedActiveObjectives } from './objectiveLifecycle';
-import { renewMissingActiveObjectives, type AutonomousObjectiveProposer } from './objectiveRenewal';
+import {
+  renewMissingActiveObjectives,
+  type AutonomousObjectiveProposer,
+  type WorkerObjectiveRenewalTraceSink,
+} from './objectiveRenewal';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   runWorkerSimulationTick,
@@ -44,6 +48,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly objectiveProposer?: AutonomousObjectiveProposer;
+  readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly objectiveMemoryRetrievalLimit?: number;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
@@ -85,6 +90,9 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.objectiveProposer === undefined
       ? {}
       : { objectiveProposer: input.objectiveProposer }),
+    ...(input.objectiveRenewalTraceSink === undefined
+      ? {}
+      : { objectiveRenewalTraceSink: input.objectiveRenewalTraceSink }),
     ...(input.strategicPlanCompiler === undefined
       ? {}
       : { strategicPlanCompiler: input.strategicPlanCompiler }),

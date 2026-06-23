@@ -28,19 +28,51 @@ export type AutonomousObjectiveProposerInput = {
   readonly issuedAt: number;
 };
 
+export type ObjectiveRenewalDecisionTrace = {
+  readonly agentId: AgentId;
+  readonly objectiveId: string;
+  readonly selectedCandidateId: string;
+  readonly rationale: string;
+  readonly score: number;
+  readonly shortTermMemoryContextIds: readonly string[];
+  readonly profileEntryKeys: readonly string[];
+  readonly profileEvidenceRecordIds: readonly string[];
+  readonly issuedAt: number;
+};
+
+export type AutonomousObjectiveProposal = {
+  readonly objective: LongHorizonObjective;
+  readonly decisionTrace: ObjectiveRenewalDecisionTrace;
+};
+
 export type AutonomousObjectiveProposer = (
   input: AutonomousObjectiveProposerInput,
-) => LongHorizonObjective | undefined | Promise<LongHorizonObjective | undefined>;
+) =>
+  | LongHorizonObjective
+  | AutonomousObjectiveProposal
+  | undefined
+  | Promise<LongHorizonObjective | AutonomousObjectiveProposal | undefined>;
+
+export type WorkerObjectiveRenewalTraceSink = {
+  readonly record: (trace: ObjectiveRenewalDecisionTrace) => void | Promise<void>;
+};
 
 export type RenewedActiveObjectiveResult = {
   readonly agentId: AgentId;
   readonly objectiveId: string;
   readonly planId: string;
+  readonly decisionTrace: ObjectiveRenewalDecisionTrace;
 };
 
 export function createDefaultAutonomousObjective(
   input: AutonomousObjectiveProposerInput,
 ): LongHorizonObjective {
+  return createDefaultAutonomousObjectiveProposal(input).objective;
+}
+
+export function createDefaultAutonomousObjectiveProposal(
+  input: AutonomousObjectiveProposerInput,
+): AutonomousObjectiveProposal {
   const base = {
     id: createAutonomousObjectiveId(input.agentId, input.issuedAt),
     agentId: input.agentId,
@@ -55,11 +87,26 @@ export function createDefaultAutonomousObjective(
     intentionState: input.intentionState,
   });
 
-  return {
+  const objective: LongHorizonObjective = {
     ...base,
     statement: selected.statement,
     priority: selected.priority,
     affinityTags: selected.affinityTags,
+  };
+
+  return {
+    objective,
+    decisionTrace: {
+      agentId: input.agentId,
+      objectiveId: objective.id,
+      selectedCandidateId: selected.id,
+      rationale: selected.rationale,
+      score: selected.score,
+      shortTermMemoryContextIds: selected.shortTermMemoryContextIds,
+      profileEntryKeys: selected.profileEntryKeys,
+      profileEvidenceRecordIds: selected.profileEvidenceRecordIds,
+      issuedAt: input.issuedAt,
+    },
   };
 }
 
@@ -72,10 +119,11 @@ export async function renewMissingActiveObjectives(input: {
   readonly issuedAt: number;
   readonly memoryRetrievalLimit?: number;
   readonly objectiveProposer?: AutonomousObjectiveProposer;
+  readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
 }): Promise<readonly RenewedActiveObjectiveResult[]> {
   const renewed: RenewedActiveObjectiveResult[] = [];
-  const proposer = input.objectiveProposer ?? createDefaultAutonomousObjective;
+  const proposer = input.objectiveProposer ?? createDefaultAutonomousObjectiveProposal;
   const compile = input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
   const memoryRetrievalLimit =
     input.memoryRetrievalLimit ?? DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT;
@@ -97,7 +145,7 @@ export async function renewMissingActiveObjectives(input: {
       agentId: agent.agentId,
       limit: memoryRetrievalLimit,
     });
-    const objective = await proposer({
+    const proposed = await proposer({
       agentId: agent.agentId,
       agent,
       projection: input.projection,
@@ -106,9 +154,16 @@ export async function renewMissingActiveObjectives(input: {
       shortTermMemoryContext,
       issuedAt: input.issuedAt,
     });
-    if (objective === undefined) {
+    if (proposed === undefined) {
       continue;
     }
+    const proposal = normalizeAutonomousObjectiveProposal({
+      proposed,
+      agentId: agent.agentId,
+      shortTermMemoryContext,
+      issuedAt: input.issuedAt,
+    });
+    const { objective, decisionTrace } = proposal;
 
     await input.intentionRepository.setObjective(agent.agentId, objective);
     await input.planRepository.save(
@@ -118,10 +173,12 @@ export async function renewMissingActiveObjectives(input: {
         compile,
       }),
     );
+    await input.objectiveRenewalTraceSink?.record(decisionTrace);
     renewed.push({
       agentId: agent.agentId,
       objectiveId: objective.id,
       planId: objective.id,
+      decisionTrace,
     });
   }
 
@@ -146,12 +203,48 @@ function createAutonomousObjectiveId(agentId: AgentId, issuedAt: number): string
   return `auto-objective-${agentId}-${issuedAt}`;
 }
 
+function normalizeAutonomousObjectiveProposal(input: {
+  readonly proposed: LongHorizonObjective | AutonomousObjectiveProposal;
+  readonly agentId: AgentId;
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
+  readonly issuedAt: number;
+}): AutonomousObjectiveProposal {
+  if (isAutonomousObjectiveProposal(input.proposed)) {
+    return input.proposed;
+  }
+
+  return {
+    objective: input.proposed,
+    decisionTrace: {
+      agentId: input.agentId,
+      objectiveId: input.proposed.id,
+      selectedCandidateId: 'custom-proposer',
+      rationale: 'Objective was produced by a custom proposer without decision metadata.',
+      score: 0,
+      shortTermMemoryContextIds: input.shortTermMemoryContext.map((record) => record.id),
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+      issuedAt: input.issuedAt,
+    },
+  };
+}
+
+function isAutonomousObjectiveProposal(
+  value: LongHorizonObjective | AutonomousObjectiveProposal,
+): value is AutonomousObjectiveProposal {
+  return 'objective' in value && 'decisionTrace' in value;
+}
+
 type ObjectiveCandidate = {
   readonly id: string;
   readonly statement: string;
   readonly priority: number;
   readonly affinityTags: readonly string[];
   readonly score: number;
+  readonly rationale: string;
+  readonly shortTermMemoryContextIds: readonly string[];
+  readonly profileEntryKeys: readonly string[];
+  readonly profileEvidenceRecordIds: readonly string[];
 };
 
 function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): readonly ObjectiveCandidate[] {
@@ -168,17 +261,25 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
       priority: 3,
       affinityTags: ['maintain', 'health', 'energy'],
       score: 100,
+      rationale: 'Physiology is below a safe operating threshold.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
     });
   }
 
-  const failedRecoveryScore = scoreRecentRecoveryNeed(input.shortTermMemoryContext);
-  if (failedRecoveryScore > 0) {
+  const recentRecoveryNeed = scoreRecentRecoveryNeed(input.shortTermMemoryContext);
+  if (recentRecoveryNeed.score > 0) {
     candidates.push({
       id: 'recent-setback-recovery',
       statement: 'Recover from recent setbacks before pursuing new growth.',
       priority: 3,
       affinityTags: ['recover', 'maintain', 'health', 'energy'],
-      score: failedRecoveryScore,
+      score: recentRecoveryNeed.score,
+      rationale: 'Recent failed memory suggests recovery before new growth.',
+      shortTermMemoryContextIds: recentRecoveryNeed.evidenceMemoryRecordIds,
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
     });
   }
 
@@ -189,6 +290,10 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
       priority: 2,
       affinityTags: ['study', 'education'],
       score: 40 + (100 - input.agent.educationScore) / 100,
+      rationale: 'Education score is below the threshold for better town opportunities.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
     });
   }
 
@@ -200,6 +305,10 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
       priority: 2,
       affinityTags: ['work', 'income'],
       score: incomePressureScore,
+      rationale: 'Currency balance is below the economic stability threshold.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
     });
   }
 
@@ -214,13 +323,21 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
     priority: 1,
     affinityTags: ['maintain', 'routine'],
     score: 1,
+    rationale: 'No stronger survival, growth, income, memory, or profile signal is active.',
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
   });
 
   return candidates.sort(compareObjectiveCandidates);
 }
 
-function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): number {
+function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): {
+  readonly score: number;
+  readonly evidenceMemoryRecordIds: readonly string[];
+} {
   let score = 0;
+  let evidenceMemoryRecordIds: readonly string[] = [];
   for (const memory of memories) {
     if (memory.status !== 'failed' && memory.status !== 'repaired') {
       continue;
@@ -239,11 +356,15 @@ function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): nu
         'fatigue',
       ])
     ) {
-      score = Math.max(score, 55 + memory.importanceScore * 30);
+      const candidateScore = 55 + memory.importanceScore * 30;
+      if (candidateScore > score) {
+        score = candidateScore;
+        evidenceMemoryRecordIds = [memory.id];
+      }
     }
   }
 
-  return score;
+  return { score, evidenceMemoryRecordIds };
 }
 
 function createProfileRoutineCandidate(
@@ -270,6 +391,10 @@ function createProfileRoutineCandidate(
       priority: 1,
       affinityTags: ['maintain', 'routine', 'profile', signal],
       score: 15 + entry.confidence * 10,
+      rationale: `Long-term profile suggests maintaining a ${signal} routine.`,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [entry.key],
+      profileEvidenceRecordIds: entry.provenanceRecordIds,
     };
     if (best === undefined || compareObjectiveCandidates(candidate, best) < 0) {
       best = candidate;

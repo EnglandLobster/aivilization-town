@@ -19,7 +19,7 @@ const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
 const agentC = asAgentId('agent-c');
 
-const domainOrder = ['study', 'work', 'trade', 'sleep', 'social'] as const;
+const domainOrder = ['study', 'work', 'trade', 'sleep', 'social', 'production'] as const;
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Apple: 10 },
   maxSatiety: 100,
@@ -40,7 +40,7 @@ describe('canonical domain runtimes', () => {
     expect(registrations.map((registration) => registration.domain)).toEqual(domainOrder);
   });
 
-  test('resolves five contextual planners that support affinity-tag-only subtasks', async () => {
+  test('resolves canonical contextual planners that support affinity-tag-only subtasks', async () => {
     const context = createRuntimeContext({ agent: createAgent({ agentId: agentA }) });
     const binding = await resolveCanonicalBinding(context);
 
@@ -55,7 +55,7 @@ describe('canonical domain runtimes', () => {
     );
   });
 
-  test('proposes configured study, sleep, work, trade, and social world commands', async () => {
+  test('proposes configured study, sleep, work, trade, social, and production world commands', async () => {
     const context = createRuntimeContext({
       agent: createAgent({ agentId: agentA, job: 'Waiter' }),
     });
@@ -70,6 +70,7 @@ describe('canonical domain runtimes', () => {
         relationDelta: 3,
         attitudeDelta: 4,
       },
+      production: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 10 },
     });
 
     expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
@@ -114,6 +115,18 @@ describe('canonical domain runtimes', () => {
         attitudeDelta: 4,
       },
       priority: 10,
+    });
+    expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
+      id: 'canonical-production-step-f',
+      commandType: 'AgentProduce',
+      payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 10 },
+      priority: 10,
+      resourceEstimate: {
+        actionSeconds: 1.6,
+        energyCost: 32,
+        satietyCost: 8,
+        inventoryCosts: { Wood: 1 },
+      },
     });
   });
 
@@ -165,6 +178,10 @@ describe('canonical domain runtimes', () => {
         relationDelta: 1,
         attitudeDelta: 1,
       },
+    });
+    expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
+      commandType: 'AgentProduce',
+      payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 3600 },
     });
   });
 });
@@ -258,7 +275,7 @@ function createAgent(input: {
     balance: 1000,
     residentialTier: 1,
     job: input.job ?? null,
-    inventory: { Book: 3 },
+    inventory: { Book: 3, Wood: 1 },
   };
 }
 

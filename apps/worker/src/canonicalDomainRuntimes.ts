@@ -5,10 +5,11 @@ import type {
   DomainMicroPlanner,
   PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
-import { buyFromPool } from '@aivilization/economy';
+import { buyFromPool, planProduction } from '@aivilization/economy';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
+  AgentProducePayload,
   AgentSleepPayload,
   AgentSocializePayload,
   AgentStudyPayload,
@@ -21,7 +22,13 @@ import type {
   WorkerDomainRuntimeRegistration,
 } from './domainRuntimeRegistry';
 
-export type CanonicalDomainName = 'study' | 'work' | 'trade' | 'sleep' | 'social';
+export type CanonicalDomainName =
+  | 'study'
+  | 'work'
+  | 'trade'
+  | 'sleep'
+  | 'social'
+  | 'production';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -50,12 +57,19 @@ export type SocialDomainRuntimeConfig = {
   readonly attitudeDelta?: number;
 };
 
+export type ProductionDomainRuntimeConfig = {
+  readonly commodityName?: string;
+  readonly quantity?: number;
+  readonly availableLaborSeconds?: number;
+};
+
 export type CanonicalDomainRuntimeConfig = {
   readonly study?: StudyDomainRuntimeConfig;
   readonly work?: WorkDomainRuntimeConfig;
   readonly trade?: TradeDomainRuntimeConfig;
   readonly sleep?: SleepDomainRuntimeConfig;
   readonly social?: SocialDomainRuntimeConfig;
+  readonly production?: ProductionDomainRuntimeConfig;
 };
 
 const DEFAULT_STUDY_DURATION_SECONDS = 1800;
@@ -69,6 +83,9 @@ const DEFAULT_SLEEP_DURATION_SECONDS = 28800;
 const DEFAULT_SOCIAL_SUMMARY = 'Socialized during planned activity.';
 const DEFAULT_SOCIAL_RELATION_DELTA = 1;
 const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
+const DEFAULT_PRODUCTION_COMMODITY = 'Apple';
+const DEFAULT_PRODUCTION_QUANTITY = 1;
+const DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS = 3600;
 
 export function createCanonicalDomainRuntimeRegistrations(
   config: CanonicalDomainRuntimeConfig = {},
@@ -80,6 +97,7 @@ export function createCanonicalDomainRuntimeRegistrations(
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
+    createProductionDomainRuntimeRegistration(config.production),
   ];
 }
 
@@ -222,11 +240,11 @@ export function createSocialDomainRuntimeRegistration(
           domain: 'social',
           planRecord: context.planRecord,
           propose: (selectedSubtask) => ({
-          id: createCanonicalActionId('social', selectedSubtask),
-          description: `Socialize for ${selectedSubtask.description}.`,
-          commandType: 'AgentSocialize',
-          priority: selectedSubtask.score,
-          payload: {
+            id: createCanonicalActionId('social', selectedSubtask),
+            description: `Socialize for ${selectedSubtask.description}.`,
+            commandType: 'AgentSocialize',
+            priority: selectedSubtask.score,
+            payload: {
               targetAgentId,
               summary: config.summary ?? DEFAULT_SOCIAL_SUMMARY,
               relationDelta: config.relationDelta ?? DEFAULT_SOCIAL_RELATION_DELTA,
@@ -236,6 +254,44 @@ export function createSocialDomainRuntimeRegistration(
         }),
       ];
     },
+  };
+}
+
+export function createProductionDomainRuntimeRegistration(
+  config: ProductionDomainRuntimeConfig = {},
+): WorkerDomainRuntimeRegistration {
+  return {
+    domain: 'production',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'production',
+        planRecord: context.planRecord,
+        propose: (selectedSubtask) => {
+          const commodityName = config.commodityName ?? DEFAULT_PRODUCTION_COMMODITY;
+          const quantity = config.quantity ?? DEFAULT_PRODUCTION_QUANTITY;
+          const availableLaborSeconds =
+            config.availableLaborSeconds ?? DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS;
+
+          return {
+            id: createCanonicalActionId('production', selectedSubtask),
+            description: `Produce ${commodityName}.`,
+            commandType: 'AgentProduce',
+            priority: selectedSubtask.score,
+            payload: {
+              commodityName,
+              quantity,
+              availableLaborSeconds,
+            },
+            ...createProductionResourceEstimate({
+              commodityName,
+              quantity,
+              availableLaborSeconds,
+              context,
+            }),
+          };
+        },
+      }),
+    ],
   };
 }
 
@@ -251,7 +307,8 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentWork', AgentWorkPayload>
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>
-  | AtomicActionProposal<'AgentSocialize', AgentSocializePayload>;
+  | AtomicActionProposal<'AgentSocialize', AgentSocializePayload>
+  | AtomicActionProposal<'AgentProduce', AgentProducePayload>;
 
 function createContextualDomainMicroPlanner(
   input: ContextualDomainMicroPlannerInput,
@@ -343,6 +400,39 @@ function createTradeResourceEstimate(input: {
   } catch {
     return {};
   }
+}
+
+function createProductionResourceEstimate(input: {
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly availableLaborSeconds: number;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+}): { readonly resourceEstimate?: ActionResourceEstimate } {
+  const productionPlan = planProduction({
+    commodityName: input.commodityName,
+    quantity: input.quantity,
+    agent: {
+      residentialTier: input.context.agent.residentialTier,
+      energy: input.context.agent.physiology.energy,
+      satiety: input.context.agent.physiology.satiety,
+      availableLaborSeconds: input.availableLaborSeconds,
+      inventory: input.context.agent.inventory,
+    },
+  });
+  if (productionPlan.status === 'rejected') {
+    return {};
+  }
+
+  return {
+    resourceEstimate: {
+      actionSeconds: productionPlan.laborSeconds,
+      energyCost: productionPlan.energyCost,
+      satietyCost: productionPlan.satietyCost,
+      ...(Object.keys(productionPlan.consumedInputs).length === 0
+        ? {}
+        : { inventoryCosts: productionPlan.consumedInputs }),
+    },
+  };
 }
 
 function resolveSocialTargetAgentId(

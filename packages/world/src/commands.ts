@@ -35,6 +35,10 @@ export type AgentApplyJobPayload = {
   readonly occupationName: string;
 };
 
+export type AgentUpgradeResidentialTierPayload = {
+  readonly targetResidentialTier: number;
+};
+
 export type AgentSocializePayload = {
   readonly targetAgentId: AgentId;
   readonly summary: string;
@@ -161,6 +165,21 @@ export function assertAgentApplyJobPayload(payload: unknown): AgentApplyJobPaylo
   return {
     occupationName,
   };
+}
+
+export function assertAgentUpgradeResidentialTierPayload(
+  payload: unknown,
+): AgentUpgradeResidentialTierPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentUpgradeResidentialTier payload must be an object');
+  }
+  const targetResidentialTier = payload['targetResidentialTier'];
+  assertPositiveInteger(
+    targetResidentialTier,
+    'AgentUpgradeResidentialTier targetResidentialTier',
+  );
+
+  return { targetResidentialTier };
 }
 
 export function assertAgentSocializePayload(payload: unknown): AgentSocializePayload {

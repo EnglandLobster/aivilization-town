@@ -8,6 +8,7 @@ import {
   handleAgentEatCommand,
   handleAgentApplyJobCommand,
   handleAgentProduceCommand,
+  handleAgentUpgradeResidentialTierCommand,
   handleAgentSleepCommand,
   handleAgentSocializeCommand,
   handleAgentStudyCommand,
@@ -883,6 +884,162 @@ describe('agent job application command handling', () => {
     expect(events.map((event) => event.type)).toEqual([
       'JobApplicationSubmitted',
       'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
+describe('agent residential tier upgrade command handling', () => {
+  const upgradePolicy = {
+    maxResidentialTier: 4,
+    costs: [
+      {
+        targetResidentialTier: 2,
+        currencyCost: 100,
+        inventoryCosts: { Wood: 2 },
+        minEducationScore: 20,
+      },
+    ],
+  };
+
+  test('AgentUpgradeResidentialTier consumes policy costs, upgrades tier, and records STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 25,
+          balance: 150,
+          residentialTier: 1,
+          job: null,
+          inventory: { Wood: 3 },
+        },
+      ],
+    });
+
+    const events = handleAgentUpgradeResidentialTierCommand({
+      command: createCommandEnvelope({
+        id: 'command-upgrade-residential',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentUpgradeResidentialTier',
+        payload: { targetResidentialTier: 2 },
+        issuedAt: 75,
+      }),
+      projection,
+      policy: upgradePolicy,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ResidentialTierUpgraded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toEqual({
+      agentId: 'agent-1',
+      previousResidentialTier: 1,
+      nextResidentialTier: 2,
+      currencyCost: 100,
+      consumedInventory: { Wood: 2 },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']).toMatchObject({
+      balance: 50,
+      residentialTier: 2,
+      inventory: { Wood: 1 },
+    });
+    expect(updated.memoryRecords[0]).toMatchObject({
+      status: 'succeeded',
+      tags: ['upgrade-residential-tier', '2'],
+    });
+  });
+
+  test('AgentUpgradeResidentialTier rejects unpaid policy costs without mutating projection', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 25,
+          balance: 150,
+          residentialTier: 1,
+          job: null,
+          inventory: { Wood: 1 },
+        },
+      ],
+    });
+
+    const events = handleAgentUpgradeResidentialTierCommand({
+      command: createCommandEnvelope({
+        id: 'command-upgrade-residential',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentUpgradeResidentialTier',
+        payload: { targetResidentialTier: 2 },
+        issuedAt: 75,
+      }),
+      projection,
+      policy: upgradePolicy,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      commandType: 'AgentUpgradeResidentialTier',
+      reason: 'insufficient-inventory: Wood requires 2, available 1',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']).toMatchObject({
+      balance: 150,
+      residentialTier: 1,
+      inventory: { Wood: 1 },
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentUpgradeResidentialTier through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 25,
+          balance: 150,
+          residentialTier: 1,
+          job: null,
+          inventory: { Wood: 3 },
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-upgrade-residential',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentUpgradeResidentialTier',
+        payload: { targetResidentialTier: 2 },
+        issuedAt: 75,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        residentialTierUpgrade: upgradePolicy,
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ResidentialTierUpgraded',
       'ShortTermMemoryRecorded',
     ]);
   });

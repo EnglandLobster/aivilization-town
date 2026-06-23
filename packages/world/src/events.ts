@@ -67,6 +67,14 @@ export type JobAssignedPayload = {
   readonly previousJob: string | null;
 };
 
+export type ResidentialTierUpgradedPayload = {
+  readonly agentId: AgentId;
+  readonly previousResidentialTier: number;
+  readonly nextResidentialTier: number;
+  readonly currencyCost: number;
+  readonly consumedInventory: Inventory;
+};
+
 export type SocialInteractionCompletedPayload = {
   readonly sourceAgentId: AgentId;
   readonly targetAgentId: AgentId;
@@ -97,6 +105,7 @@ export type WorldEventPayloadByType = {
   readonly TradeExecuted: TradeExecutedPayload;
   readonly JobApplicationSubmitted: JobApplicationSubmittedPayload;
   readonly JobAssigned: JobAssignedPayload;
+  readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
   readonly InventoryChanged: InventoryChangedPayload;
   readonly PhysiologyChanged: PhysiologyChangedPayload;

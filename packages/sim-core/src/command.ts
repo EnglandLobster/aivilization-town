@@ -17,6 +17,7 @@ export type CoreCommandType =
   | 'AgentSleep'
   | 'AgentStudy'
   | 'AgentApplyJob'
+  | 'AgentUpgradeResidentialTier'
   | 'AgentWork'
   | 'AgentSocialize'
   | 'SetLongHorizonObjective'

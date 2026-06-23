@@ -1,7 +1,11 @@
-import { createShortTermMemoryRecord } from '@aivilization/memory';
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { decideAdaptiveReplanning } from './index';
+import {
+  applyReplanningDecisionToProgress,
+  createBranchPlanProgress,
+  decideAdaptiveReplanning,
+} from './index';
 
 const agentId = asAgentId('agent-1');
 const selectedSubtask = {
@@ -145,5 +149,69 @@ describe('adaptive replanning decision', () => {
       evidenceRecordIds: [],
       matchingFailureCount: 0,
     });
+  });
+
+  test('does not update progress for memory-guided correction', () => {
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 100,
+    });
+
+    expect(
+      applyReplanningDecisionToProgress({
+        progress,
+        selectedSubtask,
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'energy too low',
+          failedActionIds: ['work-1'],
+          evidenceRecordIds: [asMemoryRecordId('stm-energy-failure')],
+        },
+        at: 200,
+      }),
+    ).toBeUndefined();
+    expect(progress.blockedSubtasks).toEqual([]);
+  });
+
+  test('marks selected subtask blocked for full replanning decisions', () => {
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 100,
+    });
+
+    expect(
+      applyReplanningDecisionToProgress({
+        progress,
+        selectedSubtask,
+        decision: {
+          kind: 'full-replan',
+          trigger: 'repeated-failure',
+          reason: 'energy too low',
+          failedActionIds: ['work-1'],
+          evidenceRecordIds: [
+            asMemoryRecordId('stm-energy-failure-1'),
+            asMemoryRecordId('stm-energy-failure-2'),
+          ],
+          matchingFailureCount: 2,
+        },
+        at: 300,
+      }),
+    ).toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [
+        {
+          subtaskId: 'work',
+          reason: 'repeated-failure: energy too low',
+          blockedAt: 300,
+        },
+      ],
+      updatedAt: 300,
+    });
+    expect(progress.blockedSubtasks).toEqual([]);
   });
 });

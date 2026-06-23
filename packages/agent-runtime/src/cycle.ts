@@ -18,6 +18,7 @@ import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluen
 import type { BranchPlanProgress } from './planProgress';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 import {
+  applyReplanningDecisionToProgress,
   decideAdaptiveReplanning,
   type AdaptiveReplanningPolicy,
   type ReplanningDecision,
@@ -55,6 +56,7 @@ export type AgentCycleResult = {
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
+  readonly progressUpdate?: BranchPlanProgress;
   readonly needsReplan: boolean;
 };
 
@@ -129,6 +131,15 @@ export function runAgentPlanningCycle(input: {
       ? {}
       : { majorContextShift: input.replanningPolicy.majorContextShift }),
   });
+  const progressUpdate =
+    input.progress === undefined
+      ? undefined
+      : applyReplanningDecisionToProgress({
+          progress: input.progress,
+          selectedSubtask,
+          decision: replanningDecision,
+          at: input.issuedAt,
+        });
 
   return {
     selectedSubtask,
@@ -140,6 +151,7 @@ export function runAgentPlanningCycle(input: {
         : [createCommandDraft(input, actionFromSimulationResult(result))],
     ),
     replanningDecision,
+    ...(progressUpdate === undefined ? {} : { progressUpdate }),
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
   };
 }

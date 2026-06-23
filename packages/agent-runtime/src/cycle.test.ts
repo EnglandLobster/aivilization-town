@@ -159,6 +159,7 @@ describe('agent planning cycle', () => {
 
   test('uses STM evidence for cycle-level memory-guided correction', () => {
     const agentId = asAgentId('agent-1');
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });
     const plan = createBranchPlan({
       objective: 'survive',
       branches: [
@@ -175,6 +176,7 @@ describe('agent planning cycle', () => {
       agentId,
       issuedAt: 100,
       plan,
+      progress,
       signals: [],
       replanningPolicy: { consecutiveFailureThreshold: 2 },
       shortTermMemoryContext: [
@@ -213,6 +215,78 @@ describe('agent planning cycle', () => {
       reason: 'energy too low',
       failedActionIds: ['work-1'],
       evidenceRecordIds: ['stm-energy-failure'],
+    });
+    expect(result.progressUpdate).toBeUndefined();
+  });
+
+  test('returns a progress update when full replanning blocks the selected subtask', () => {
+    const agentId = asAgentId('agent-1');
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      progress,
+      signals: [],
+      replanningPolicy: { consecutiveFailureThreshold: 1 },
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'stm-energy-failure',
+          agentId,
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to work because energy was too low.',
+          occurredAt: 90,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['work', 'energy'],
+        }),
+      ],
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+    });
+
+    expect(result.replanningDecision).toMatchObject({
+      kind: 'full-replan',
+      trigger: 'repeated-failure',
+    });
+    expect(result.progressUpdate).toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [
+        {
+          subtaskId: 'work',
+          reason: 'repeated-failure: energy too low',
+          blockedAt: 100,
+        },
+      ],
+      updatedAt: 100,
     });
   });
 

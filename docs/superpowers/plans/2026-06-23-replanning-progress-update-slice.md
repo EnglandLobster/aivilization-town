@@ -38,7 +38,7 @@ It does not persist progress to a repository, generate replacement actions, or e
 
 - Modify: `packages/agent-runtime/src/replanning.test.ts`
 
-- [ ] **Step 1: Write failing tests for decision-to-progress transition**
+- [x] **Step 1: Write failing tests for decision-to-progress transition**
 
 Create tests that require:
 
@@ -55,13 +55,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because `applyReplanningDecisionToProgress` is missing.
 
+Observed red test: `pnpm --filter @aivilization/agent-runtime test` failed because `applyReplanningDecisionToProgress` was not implemented/exported.
+
 ## Task 2: Cycle Progress Update Tests
 
 **Files:**
 
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] **Step 2: Write failing tests for cycle progress updates**
+- [x] **Step 2: Write failing tests for cycle progress updates**
 
 Create tests that require:
 
@@ -77,13 +79,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because cycle results do not expose `progressUpdate`.
 
+Observed red test: cycle result `progressUpdate` was `undefined` after a full-replan decision.
+
 ## Task 3: Worker Progress Update Tests
 
 **Files:**
 
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 3: Write failing tests for worker progress pass-through**
+- [x] **Step 3: Write failing tests for worker progress pass-through**
 
 Create a worker test that requires:
 
@@ -99,6 +103,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because worker input/result do not include progress updates.
 
+Observed red test: worker result `progressUpdate` was `undefined` after a full-replan decision.
+
 ## Task 4: Implementation
 
 **Files:**
@@ -107,7 +113,7 @@ Expected before implementation: tests fail because worker input/result do not in
 - Modify: `packages/agent-runtime/src/cycle.ts`
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 
-- [ ] **Step 4: Implement progress update wiring**
+- [x] **Step 4: Implement progress update wiring**
 
 Behavior:
 
@@ -117,13 +123,15 @@ Behavior:
 - `AgentCycleResult.progressUpdate` is optional and only present when a transition happened.
 - `runWorkerAgentCycle` accepts optional `progress`, passes it to `runAgentPlanningCycle`, and returns optional `progressUpdate`.
 
+Implemented in `packages/agent-runtime/src/replanning.ts`, `packages/agent-runtime/src/cycle.ts`, and `apps/worker/src/agentCycleRunner.ts`.
+
 ## Task 5: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -137,3 +145,12 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm --filter @aivilization/agent-runtime test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/agent-runtime typecheck`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm check`
+- `pnpm build`

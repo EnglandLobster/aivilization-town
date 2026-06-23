@@ -10,15 +10,17 @@ export type ShortTermMemoryRepository = {
 export class InMemoryShortTermMemoryRepository implements ShortTermMemoryRepository {
   private records: ShortTermMemoryRecord[] = [];
 
-  async append(record: ShortTermMemoryRecord): Promise<void> {
+  append(record: ShortTermMemoryRecord): Promise<void> {
     this.records = [...this.records, record];
+    return Promise.resolve();
   }
 
-  async appendMany(records: readonly ShortTermMemoryRecord[]): Promise<void> {
+  appendMany(records: readonly ShortTermMemoryRecord[]): Promise<void> {
     this.records = [...this.records, ...records];
+    return Promise.resolve();
   }
 
-  async retrieve(query: ShortTermMemoryQuery): Promise<ShortTermMemoryRecord[]> {
-    return retrieveShortTermMemory(this.records, query);
+  retrieve(query: ShortTermMemoryQuery): Promise<ShortTermMemoryRecord[]> {
+    return Promise.resolve(retrieveShortTermMemory(this.records, query));
   }
 }

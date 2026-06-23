@@ -17,6 +17,11 @@ import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intenti
 import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
 import type { BranchPlanProgress } from './planProgress';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
+import {
+  decideAdaptiveReplanning,
+  type AdaptiveReplanningPolicy,
+  type ReplanningDecision,
+} from './replanning';
 
 export type DomainMicroPlanner = {
   readonly domain: string;
@@ -49,6 +54,7 @@ export type AgentCycleResult = {
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
+  readonly replanningDecision: ReplanningDecision;
   readonly needsReplan: boolean;
 };
 
@@ -65,6 +71,7 @@ export function runAgentPlanningCycle(input: {
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
 }): AgentCycleResult {
   const selectedSubtask = selectPrioritizedSubtask({
     plan: input.plan,
@@ -110,6 +117,18 @@ export function runAgentPlanningCycle(input: {
       ...(repair === undefined ? {} : { repair }),
     }),
   );
+  const replanningDecision = decideAdaptiveReplanning({
+    selectedSubtask,
+    simulationResults,
+    shortTermMemoryContext: input.shortTermMemoryContext ?? [],
+    consecutiveFailureThreshold: input.replanningPolicy?.consecutiveFailureThreshold ?? 2,
+    ...(input.replanningPolicy?.failureTags === undefined
+      ? {}
+      : { failureTags: input.replanningPolicy.failureTags }),
+    ...(input.replanningPolicy?.majorContextShift === undefined
+      ? {}
+      : { majorContextShift: input.replanningPolicy.majorContextShift }),
+  });
 
   return {
     selectedSubtask,
@@ -120,6 +139,7 @@ export function runAgentPlanningCycle(input: {
         ? []
         : [createCommandDraft(input, actionFromSimulationResult(result))],
     ),
+    replanningDecision,
     needsReplan: simulationResults.some((result) => result.status === 'needs-replan'),
   };
 }

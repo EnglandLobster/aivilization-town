@@ -43,7 +43,7 @@ It does not yet generate replacement actions, mutate plan progress, persist fail
 
 - Add: `packages/agent-runtime/src/replanning.test.ts`
 
-- [ ] **Step 1: Write failing tests for adaptive replanning decisions**
+- [x] **Step 1: Write failing tests for adaptive replanning decisions**
 
 Create tests that require:
 
@@ -60,13 +60,15 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because replanning APIs are missing.
 
+Observed red test: `pnpm --filter @aivilization/agent-runtime test` failed because `decideAdaptiveReplanning` was not implemented/exported.
+
 ## Task 2: Cycle Decision Tests
 
 **Files:**
 
 - Modify: `packages/agent-runtime/src/cycle.test.ts`
 
-- [ ] **Step 2: Write failing tests for cycle-level replanning decisions**
+- [x] **Step 2: Write failing tests for cycle-level replanning decisions**
 
 Create tests that require:
 
@@ -83,6 +85,8 @@ pnpm --filter @aivilization/agent-runtime test
 
 Expected before implementation: tests fail because cycle results do not include explicit replanning decisions.
 
+Observed red test: cycle results returned `undefined` for `replanningDecision`.
+
 ## Task 3: Trace Wiring Tests
 
 **Files:**
@@ -90,7 +94,7 @@ Expected before implementation: tests fail because cycle results do not include 
 - Modify: `packages/observability/src/agentCycleTrace.test.ts`
 - Modify: `apps/worker/src/agentCycleRunner.test.ts`
 
-- [ ] **Step 3: Write failing tests for trace replanning summaries**
+- [x] **Step 3: Write failing tests for trace replanning summaries**
 
 Create tests that require:
 
@@ -106,6 +110,8 @@ pnpm --filter @aivilization/worker test
 
 Expected before implementation: tests fail because traces do not expose replanning decisions.
 
+Observed red test: worker trace did not include `replanningDecision`.
+
 ## Task 4: Implementation
 
 **Files:**
@@ -116,7 +122,7 @@ Expected before implementation: tests fail because traces do not expose replanni
 - Modify: `packages/observability/src/agentCycleTrace.ts`
 - Modify: `apps/worker/src/agentCycleRunner.ts`
 
-- [ ] **Step 4: Implement adaptive replanning decision and trace wiring**
+- [x] **Step 4: Implement adaptive replanning decision and trace wiring**
 
 Behavior:
 
@@ -131,13 +137,15 @@ Behavior:
 - Cycle result includes the decision.
 - Worker maps the runtime decision into `AgentCycleTrace.replanningDecision`.
 
+Implemented in `packages/agent-runtime/src/replanning.ts`, `packages/agent-runtime/src/cycle.ts`, `packages/observability/src/agentCycleTrace.ts`, and `apps/worker/src/agentCycleRunner.ts`.
+
 ## Task 5: Verification
 
 **Files:**
 
 - Modify: this plan file
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -153,3 +161,14 @@ pnpm build
 ```
 
 Commit the implementation and update this plan when the checks pass.
+
+Verification passed:
+
+- `pnpm --filter @aivilization/agent-runtime test`
+- `pnpm --filter @aivilization/observability test`
+- `pnpm --filter @aivilization/worker test`
+- `pnpm --filter @aivilization/agent-runtime typecheck`
+- `pnpm --filter @aivilization/observability typecheck`
+- `pnpm --filter @aivilization/worker typecheck`
+- `pnpm check`
+- `pnpm build`

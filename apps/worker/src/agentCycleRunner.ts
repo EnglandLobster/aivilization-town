@@ -1,6 +1,7 @@
 import {
   runAgentPlanningCycle,
   type AgentCycleResult,
+  type AdaptiveReplanningPolicy,
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
@@ -57,6 +58,7 @@ export async function runWorkerAgentCycle(input: {
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly expectedVersion?: number;
   readonly traceSink?: WorkerAgentCycleTraceSink;
 }): Promise<WorkerAgentCycleResult> {
@@ -82,6 +84,7 @@ export async function runWorkerAgentCycle(input: {
     microPlanners: input.microPlanners,
     simulate: input.simulate,
     ...(input.repair === undefined ? {} : { repair: input.repair }),
+    ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
   });
 
   const dispatchResult =
@@ -116,6 +119,7 @@ export async function runWorkerAgentCycle(input: {
     selectedBranch: cycleResult.selectedSubtask.branchId,
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
+    replanningDecision: cycleResult.replanningDecision,
     emittedCommandIds: dispatchResult?.commands.map((command) => command.id) ?? [],
     memoryContextIds: shortTermMemoryContext.map((record) => record.id),
     memoryWriteIds: extractShortTermMemoryRecords(dispatchResult?.events ?? []).map(

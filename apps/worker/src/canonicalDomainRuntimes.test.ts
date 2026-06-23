@@ -220,6 +220,27 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('infers job application occupation from durable work plan text', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({
+        agentId: agentA,
+        job: null,
+        residentialTier: 2,
+        educationScore: 20,
+        inventory: { Beef: 1 },
+      }),
+      activeObjective: createStockClerkObjective(agentA),
+      planRecord: createStockClerkPlanRecord(agentA),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'work')).toMatchObject({
+      commandType: 'AgentApplyJob',
+      payload: { occupationName: 'Stock Clerk' },
+      resourceEstimate: { inventoryCosts: { Beef: 1 } },
+    });
+  });
+
   test('infers production target from durable plan text when config omits commodity', async () => {
     const context = createRuntimeContext({
       agent: createAgent({ agentId: agentA, inventory: { Wood: 1 } }),
@@ -354,13 +375,15 @@ function createAgent(input: {
   readonly agentId: AgentId;
   readonly job?: string | null;
   readonly inventory?: WorldAgentState['inventory'];
+  readonly residentialTier?: number;
+  readonly educationScore?: number;
 }): WorldAgentState {
   return {
     agentId: input.agentId,
     physiology: { energy: 50, satiety: 50, health: 100 },
-    educationScore: 0,
+    educationScore: input.educationScore ?? 0,
     balance: 1000,
-    residentialTier: 1,
+    residentialTier: input.residentialTier ?? 1,
     job: input.job ?? null,
     inventory: input.inventory ?? { Book: 3, Wood: 1 },
   };
@@ -397,6 +420,45 @@ function createPlanRecord(agentId: AgentId): BranchPlanRecord {
           },
         ],
       })),
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createStockClerkObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-stock-clerk',
+    agentId,
+    statement: 'Apply for Stock Clerk work.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['work'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createStockClerkPlanRecord(agentId: AgentId): BranchPlanRecord {
+  return {
+    planId: 'objective-stock-clerk',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Apply for Stock Clerk work.',
+      branches: [
+        {
+          id: 'lane-b',
+          objective: 'Enter Stock Clerk occupation.',
+          subtasks: [
+            {
+              id: 'step-b',
+              description: 'Apply for Stock Clerk.',
+              basePriority: 5,
+              intentionAffinityTags: ['work'],
+            },
+          ],
+        },
+      ],
     }),
     createdAt: 100,
     updatedAt: 100,

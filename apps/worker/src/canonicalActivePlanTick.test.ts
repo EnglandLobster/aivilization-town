@@ -207,6 +207,65 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('infers job application occupation from active plan context', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createStockClerkObjective(agentA));
+    await repositories.planRepository.save(createStockClerkPlanRecord(agentA));
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-stock-clerk-application',
+      simulationId,
+      issuedAt: 100,
+      projection: createWorldProjection({
+        agents: [
+          createAgent(agentA, {
+            residentialTier: 2,
+            educationScore: 20,
+            inventory: { Beef: 1 },
+          }),
+        ],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentApplyJob',
+      payload: { occupationName: 'Stock Clerk' },
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'InventoryChanged',
+      'JobApplicationSubmitted',
+      'JobAssigned',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.agents[agentA]).toMatchObject({
+      job: 'Stock Clerk',
+      inventory: {},
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-stock-clerk',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-stock-clerk',
+      agentId: agentA,
+      completedSubtaskIds: ['stock-clerk-step'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+  });
+
   test('executes production chain upstream steps across ticks before completing the active plan', async () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
@@ -680,15 +739,18 @@ function createProjection(): WorldProjection {
   });
 }
 
-function createAgent(agentId: AgentId): WorldAgentState {
+function createAgent(
+  agentId: AgentId,
+  overrides: Partial<Omit<WorldAgentState, 'agentId'>> = {},
+): WorldAgentState {
   return {
     agentId,
-    physiology: { energy: 50, satiety: 50, health: 100 },
-    educationScore: 0,
-    balance: 1000,
-    residentialTier: 1,
-    job: null,
-    inventory: {},
+    physiology: overrides.physiology ?? { energy: 50, satiety: 50, health: 100 },
+    educationScore: overrides.educationScore ?? 0,
+    balance: overrides.balance ?? 1000,
+    residentialTier: overrides.residentialTier ?? 1,
+    job: overrides.job ?? null,
+    inventory: overrides.inventory ?? {},
   };
 }
 
@@ -726,6 +788,19 @@ function createResidentialObjective(agentId: AgentId): LongHorizonObjective {
     priority: 3,
     source: 'human',
     affinityTags: ['residential'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createStockClerkObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-stock-clerk',
+    agentId,
+    statement: 'Apply for Stock Clerk work.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['work'],
     createdAt: 100,
     updatedAt: 100,
   };
@@ -812,6 +887,32 @@ function createResidentialPlanRecord(agentId: AgentId) {
               description: 'Upgrade residential tier.',
               basePriority: 5,
               intentionAffinityTags: ['residential'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createStockClerkPlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-stock-clerk',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Apply for Stock Clerk work.',
+      branches: [
+        {
+          id: 'work-lane',
+          objective: 'Enter Stock Clerk occupation.',
+          subtasks: [
+            {
+              id: 'stock-clerk-step',
+              description: 'Apply for Stock Clerk.',
+              basePriority: 5,
+              intentionAffinityTags: ['work'],
             },
           ],
         },

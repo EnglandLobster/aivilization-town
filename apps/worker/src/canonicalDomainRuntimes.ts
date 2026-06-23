@@ -5,7 +5,7 @@ import type {
   DomainMicroPlanner,
   PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
-import { commodities } from '@aivilization/content';
+import { commodities, jobTiers, occupations } from '@aivilization/content';
 import {
   buyFromPool,
   planProduction,
@@ -47,6 +47,12 @@ export type StudyDomainRuntimeConfig = {
 export type WorkDomainRuntimeConfig = {
   readonly laborSeconds?: number;
   readonly defaultOccupationName?: string;
+};
+
+export type WorkOccupationResolutionInput = {
+  readonly config?: WorkDomainRuntimeConfig;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
 };
 
 export type TradeDomainRuntimeConfig = {
@@ -162,7 +168,12 @@ export function createWorkDomainRuntimeRegistration(
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const occupationName =
-            context.agent.job ?? config.defaultOccupationName ?? DEFAULT_OCCUPATION_NAME;
+            context.agent.job ??
+            resolveWorkOccupationName({
+              config,
+              context,
+              selectedSubtask,
+            });
           if (context.agent.job === null) {
             return {
               id: createCanonicalActionId('work', selectedSubtask),
@@ -170,6 +181,7 @@ export function createWorkDomainRuntimeRegistration(
               commandType: 'AgentApplyJob',
               priority: selectedSubtask.score,
               payload: { occupationName },
+              ...createJobApplicationResourceEstimate({ occupationName, context }),
             };
           }
 
@@ -189,6 +201,21 @@ export function createWorkDomainRuntimeRegistration(
       }),
     ],
   };
+}
+
+export function resolveWorkOccupationName(input: WorkOccupationResolutionInput): string {
+  if (input.config?.defaultOccupationName !== undefined) {
+    return input.config.defaultOccupationName;
+  }
+
+  for (const text of collectContextualTargetTexts(input)) {
+    const occupationName = findOccupationNameInText(text);
+    if (occupationName !== undefined) {
+      return occupationName;
+    }
+  }
+
+  return DEFAULT_OCCUPATION_NAME;
 }
 
 export function createTradeDomainRuntimeRegistration(
@@ -370,7 +397,7 @@ export function resolveProductionTargetCommodityName(
     return input.config.commodityName;
   }
 
-  for (const text of collectProductionTargetTexts(input)) {
+  for (const text of collectContextualTargetTexts(input)) {
     const commodityName = findProducibleCommodityNameInText(text);
     if (commodityName !== undefined) {
       return commodityName;
@@ -446,12 +473,25 @@ function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): 
   return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
 }
 
-type ProductionTargetCandidate = {
+type TextTargetCandidate = {
   readonly name: string;
   readonly tokens: readonly string[];
 };
 
-const PRODUCIBLE_PRODUCTION_TARGETS: readonly ProductionTargetCandidate[] = commodities
+const OCCUPATION_TARGETS: readonly TextTargetCandidate[] = occupations
+  .map((occupation) => ({
+    name: occupation.name,
+    tokens: tokenizeText(occupation.name),
+  }))
+  .filter((candidate) => candidate.tokens.length > 0)
+  .sort(
+    (left, right) =>
+      right.tokens.length - left.tokens.length ||
+      right.name.length - left.name.length ||
+      left.name.localeCompare(right.name),
+  );
+
+const PRODUCIBLE_PRODUCTION_TARGETS: readonly TextTargetCandidate[] = commodities
   .map((commodity) => ({
     name: commodity.name,
     tokens: tokenizeText(commodity.name),
@@ -467,9 +507,10 @@ const PRODUCIBLE_PRODUCTION_TARGETS: readonly ProductionTargetCandidate[] = comm
       left.name.localeCompare(right.name),
   );
 
-function collectProductionTargetTexts(
-  input: ProductionTargetResolutionInput,
-): readonly string[] {
+function collectContextualTargetTexts(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
+}): readonly string[] {
   const texts: string[] = [];
   const addText = (text: string | undefined): void => {
     if (text !== undefined && text.trim().length > 0) {
@@ -521,6 +562,35 @@ function findProducibleCommodityNameInText(text: string): string | undefined {
   return PRODUCIBLE_PRODUCTION_TARGETS.find((candidate) =>
     containsTokenPhrase(textTokens, candidate.tokens),
   )?.name;
+}
+
+function findOccupationNameInText(text: string): string | undefined {
+  const textTokens = tokenizeText(text);
+  if (textTokens.length === 0) {
+    return undefined;
+  }
+
+  return OCCUPATION_TARGETS.find((candidate) =>
+    containsTokenPhrase(textTokens, candidate.tokens),
+  )?.name;
+}
+
+function createJobApplicationResourceEstimate(input: {
+  readonly occupationName: string;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+}): { readonly resourceEstimate?: ActionResourceEstimate } {
+  const occupation = occupations.find((candidate) => candidate.name === input.occupationName);
+  const jobTier = jobTiers.find((candidate) => candidate.tier === occupation?.jobTier);
+  const prerequisiteCommodity = jobTier?.prerequisiteCommodity;
+  if (prerequisiteCommodity === undefined || prerequisiteCommodity === null) {
+    return {};
+  }
+
+  if ((input.context.agent.inventory[prerequisiteCommodity] ?? 0) < 1) {
+    return {};
+  }
+
+  return { resourceEstimate: { inventoryCosts: { [prerequisiteCommodity]: 1 } } };
 }
 
 function containsTokenPhrase(

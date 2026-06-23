@@ -3,13 +3,7 @@ import {
   type ShortTermMemoryRecord,
   type ShortTermMemoryStatus,
 } from '@aivilization/memory';
-import {
-  asCommandId,
-  type AgentId,
-  type CommandSource,
-  type CoreCommandType,
-  type SimulationId,
-} from '@aivilization/sim-core';
+import { asCommandId, type AgentId, type SimulationId } from '@aivilization/sim-core';
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
@@ -307,8 +301,8 @@ function createCommandDraft(
   return {
     simulationId: input.simulationId,
     actorId: input.agentId,
-    source: 'agent-runtime' satisfies Extract<CommandSource, 'agent-runtime'>,
-    type: action.commandType as CoreCommandType,
+    source: 'agent-runtime',
+    type: action.commandType,
     payload: action.payload,
     issuedAt: input.issuedAt,
   };

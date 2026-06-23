@@ -1,4 +1,5 @@
 export * from './actions';
+export * from './actionSynthesis';
 export * from './branchPlanRepository';
 export * from './cycle';
 export * from './intentionInfluence';

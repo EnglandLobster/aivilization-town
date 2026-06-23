@@ -1,5 +1,13 @@
 import type { CoreCommandType } from '@aivilization/sim-core';
 
+export type ActionResourceEstimate = {
+  readonly actionSeconds?: number;
+  readonly energyCost?: number;
+  readonly satietyCost?: number;
+  readonly currencyCost?: number;
+  readonly inventoryCosts?: Readonly<Record<string, number>>;
+};
+
 export type AtomicActionProposal<
   TCommandType extends string = CoreCommandType,
   TPayload = unknown,
@@ -8,6 +16,8 @@ export type AtomicActionProposal<
   readonly description: string;
   readonly commandType: TCommandType;
   readonly payload: TPayload;
+  readonly priority?: number;
+  readonly resourceEstimate?: ActionResourceEstimate;
 };
 
 export type ActionSimulationResult =

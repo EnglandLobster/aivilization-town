@@ -10,6 +10,12 @@ export type LaborPhysiologyCostInput = PhysiologicalState & {
   readonly satietyCostPerHour: number;
 };
 
+export type EnergyRecoveryInput = PhysiologicalState & {
+  readonly durationSeconds: number;
+  readonly energyRecoveryPerSecond: number;
+  readonly maxEnergy: number;
+};
+
 export function applyLaborPhysiologyCost(input: LaborPhysiologyCostInput): PhysiologicalState {
   assertNonNegativeFinite(input.energy, 'energy');
   assertNonNegativeFinite(input.satiety, 'satiety');
@@ -22,6 +28,24 @@ export function applyLaborPhysiologyCost(input: LaborPhysiologyCostInput): Physi
   return {
     energy: Math.max(0, input.energy - input.energyCostPerHour * laborHours),
     satiety: Math.max(0, input.satiety - input.satietyCostPerHour * laborHours),
+    health: input.health,
+  };
+}
+
+export function applyEnergyRecovery(input: EnergyRecoveryInput): PhysiologicalState {
+  assertNonNegativeFinite(input.energy, 'energy');
+  assertNonNegativeFinite(input.satiety, 'satiety');
+  assertNonNegativeFinite(input.health, 'health');
+  assertNonNegativeFinite(input.durationSeconds, 'durationSeconds');
+  assertNonNegativeFinite(input.energyRecoveryPerSecond, 'energyRecoveryPerSecond');
+  assertPositiveFinite(input.maxEnergy, 'maxEnergy');
+
+  return {
+    energy: Math.min(
+      input.maxEnergy,
+      input.energy + input.durationSeconds * input.energyRecoveryPerSecond,
+    ),
+    satiety: input.satiety,
     health: input.health,
   };
 }
@@ -45,5 +69,11 @@ export function isIncapacitated(input: {
 function assertNonNegativeFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be non-negative`);
+  }
+}
+
+function assertPositiveFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be positive`);
   }
 }

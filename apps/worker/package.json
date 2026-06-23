@@ -13,6 +13,7 @@
     "@aivilization/content": "workspace:*",
     "@aivilization/memory": "workspace:*",
     "@aivilization/observability": "workspace:*",
-    "@aivilization/sim-core": "workspace:*"
+    "@aivilization/sim-core": "workspace:*",
+    "@aivilization/world": "workspace:*"
   }
 }

@@ -54,6 +54,12 @@ type TestRuntimeCommandResult = {
   readonly completedCycleCount?: number;
 };
 
+type TestRuntimeRunSession = {
+  readonly traceId: string;
+  readonly status: 'running' | 'completed' | 'stopped';
+  readonly completedCycleCount: number;
+};
+
 type TestRuntimeTrace = {
   readonly traceId: string;
   readonly command: 'start-all' | 'pause-all' | 'run-cycles';
@@ -330,6 +336,20 @@ describe('town HTTP API router', () => {
     });
     await expect(
       handler({
+        method: 'GET',
+        path: '/runtime/run-sessions/op-run-200',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'op-run-200',
+        status: 'completed',
+        completedCycleCount: 2,
+      },
+    });
+    await expect(
+      handler({
         method: 'POST',
         path: '/runtime/run',
         body: {
@@ -366,6 +386,7 @@ describe('town HTTP API router', () => {
       { method: 'getRuntimeStatus' },
       { method: 'startRuntime', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'getRuntimeOperationTrace', request: { traceId: 'op-start-100' } },
+      { method: 'getRuntimeRunSession', request: { traceId: 'op-run-200' } },
       {
         method: 'runRuntime',
         request: {
@@ -597,7 +618,8 @@ function createRuntimeSupervisorService(
   TestRuntimeCommandResult,
   TestRuntimeCommandResult,
   TestRuntimeTrace,
-  'start-all' | 'pause-all' | 'run-cycles'
+  'start-all' | 'pause-all' | 'run-cycles',
+  TestRuntimeRunSession
 > {
   return {
     getRuntimeStatus: () => {
@@ -629,6 +651,14 @@ function createRuntimeSupervisorService(
     getRuntimeOperationTrace: (request) => {
       calls.push({ method: 'getRuntimeOperationTrace', request });
       return Promise.resolve({ traceId: request.traceId, command: 'start-all' });
+    },
+    getRuntimeRunSession: (request) => {
+      calls.push({ method: 'getRuntimeRunSession', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        status: 'completed',
+        completedCycleCount: 2,
+      });
     },
     queryRuntimeOperationTraces: (query) => {
       calls.push({ method: 'queryRuntimeOperationTraces', query });

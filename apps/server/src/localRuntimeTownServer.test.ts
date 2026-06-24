@@ -193,6 +193,29 @@ describe('local runtime town HTTP gateway', () => {
       ],
     });
 
+    const runSession = await fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-cycles-400`);
+    expect(runSession).toMatchObject({
+      traceId: 'op-run-cycles-400',
+      manifestId: 'town-runtime',
+      status: 'completed',
+      outcome: 'succeeded',
+      requestedCycleCount: 2,
+      completedCycleCount: 2,
+      stopReason: 'cycle-count-completed',
+      cycles: [
+        {
+          cycleIndex: 1,
+          traceId: 'op-run-cycles-400:cycle:1',
+          requestedAt: 400,
+        },
+        {
+          cycleIndex: 2,
+          traceId: 'op-run-cycles-400:cycle:2',
+          requestedAt: 500,
+        },
+      ],
+    });
+
     const runTrace = await fetchJson(
       `${server.baseUrl}/runtime/operation-traces/op-run-cycles-400`,
     );

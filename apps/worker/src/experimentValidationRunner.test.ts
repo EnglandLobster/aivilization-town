@@ -8,7 +8,11 @@ import {
 import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent, type WorldProjection } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { createWorkerExperimentValidationReport } from './index';
+import {
+  createOhlcPriceBarsFromTradePriceObservations,
+  createTradePriceObservationsFromWorldEvents,
+  createWorkerExperimentValidationReport,
+} from './index';
 
 const simulationId = 'sim-worker-validation';
 
@@ -67,25 +71,41 @@ function createProjection(): WorldProjection {
   });
 }
 
+function createTradeEvent(input: {
+  readonly id: string;
+  readonly price: number;
+  readonly occurredAt: number;
+  readonly sequence: number;
+  readonly commodityQuantity?: number;
+}): WorldEvent {
+  const commodityQuantity = input.commodityQuantity ?? 1;
+  return createEventEnvelope({
+    id: input.id,
+    simulationId,
+    type: 'TradeExecuted',
+    payload: {
+      agentId: asAgentId('agent-a'),
+      side: 'buy' as const,
+      commodityName: 'Fish',
+      commodityQuantity,
+      currencyQuantity: input.price * commodityQuantity,
+      poolAfter: createAmmPool({
+        commodity: 'Fish',
+        commodityReserve: 10,
+        currencyReserve: input.price * 10,
+      }),
+      moneySupplyDelta: 0,
+    },
+    occurredAt: input.occurredAt,
+    sequence: input.sequence,
+  });
+}
+
 function createTradeEvents(closePrices: readonly number[]): WorldEvent[] {
   return closePrices.map((closePrice, index) =>
-    createEventEnvelope({
+    createTradeEvent({
       id: `trade-${index + 1}`,
-      simulationId,
-      type: 'TradeExecuted',
-      payload: {
-        agentId: asAgentId('agent-a'),
-        side: 'buy' as const,
-        commodityName: 'Fish',
-        commodityQuantity: 1,
-        currencyQuantity: closePrice,
-        poolAfter: createAmmPool({
-          commodity: 'Fish',
-          commodityReserve: 10,
-          currencyReserve: closePrice * 10,
-        }),
-        moneySupplyDelta: 0,
-      },
+      price: closePrice,
       occurredAt: index,
       sequence: index + 1,
     }),
@@ -187,6 +207,48 @@ function createPlannerRuns() {
 }
 
 describe('worker experiment validation runner', () => {
+  test('bins transaction prices into paper-style OHLC bars by interval', () => {
+    const events = [
+      createTradeEvent({ id: 'trade-3', price: 90, occurredAt: 40, sequence: 3 }),
+      createTradeEvent({ id: 'trade-1', price: 100, occurredAt: 0, sequence: 1 }),
+      createTradeEvent({ id: 'trade-2', price: 110, occurredAt: 10, sequence: 2 }),
+      createTradeEvent({ id: 'trade-5', price: 105, occurredAt: 90, sequence: 5 }),
+      createTradeEvent({ id: 'trade-4', price: 120, occurredAt: 60, sequence: 4 }),
+    ];
+
+    const bars = createOhlcPriceBarsFromTradePriceObservations({
+      observations: createTradePriceObservationsFromWorldEvents({ simulationId, events }),
+      intervalMs: 60,
+    });
+
+    expect(bars).toEqual([
+      {
+        commodityId: 'Fish',
+        intervalStartedAt: 0,
+        intervalEndedAt: 60,
+        openPrice: 100,
+        highPrice: 110,
+        lowPrice: 90,
+        closePrice: 90,
+        tradeCount: 3,
+        commodityVolume: 3,
+        currencyVolume: 300,
+      },
+      {
+        commodityId: 'Fish',
+        intervalStartedAt: 60,
+        intervalEndedAt: 120,
+        openPrice: 120,
+        highPrice: 120,
+        lowPrice: 105,
+        closePrice: 105,
+        tradeCount: 2,
+        commodityVolume: 2,
+        currencyVolume: 225,
+      },
+    ]);
+  });
+
   test('creates a validation report from projection, transaction events, planner rows, and cycle traces', async () => {
     const traceRepository = new InMemoryAgentCycleTraceRepository();
     await traceRepository.record(
@@ -239,6 +301,44 @@ describe('worker experiment validation runner', () => {
     expect(getMetric(report.metrics, 'trajectory-coverage').evidence.maximumStepCount).toBe(2);
   });
 
+  test('can create the validation price series from OHLC close prices', async () => {
+    const report = await createWorkerExperimentValidationReport({
+      run: {
+        runId: 'worker-validation-ohlc',
+        simulationId,
+        generatedAt: 1_700_000_002,
+      },
+      projection: createProjection(),
+      events: [
+        createTradeEvent({ id: 'trade-1', price: 100, occurredAt: 0, sequence: 1 }),
+        createTradeEvent({ id: 'trade-2', price: 110, occurredAt: 10, sequence: 2 }),
+        createTradeEvent({ id: 'trade-3', price: 90, occurredAt: 40, sequence: 3 }),
+        createTradeEvent({ id: 'trade-4', price: 120, occurredAt: 60, sequence: 4 }),
+        createTradeEvent({ id: 'trade-5', price: 105, occurredAt: 90, sequence: 5 }),
+        createTradeEvent({ id: 'trade-6', price: 126, occurredAt: 120, sequence: 6 }),
+      ],
+      priceBinning: { intervalMs: 60 },
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        marketStability: {
+          maximumLogPriceRange: 1,
+          maximumDrawdown: 0.2,
+          minimumLogReturnStandardDeviation: 0,
+        },
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    const marketStability = getMetric(report.metrics, 'market-stability');
+
+    expect(marketStability.evidence.observationCount).toBe(3);
+    expect(marketStability.evidence.maximumDrawdown).toBe(0);
+    expect(marketStability.evidence.maximumLogPriceRange).toBeCloseTo(Math.log(126) - Math.log(90));
+  });
+
   test('rejects invalid trade quantities before creating a report', async () => {
     await expect(
       createWorkerExperimentValidationReport({
@@ -254,5 +354,23 @@ describe('worker experiment validation runner', () => {
         trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
       }),
     ).rejects.toThrow('TradeExecuted commodityQuantity must be positive and finite');
+  });
+
+  test('rejects invalid OHLC interval configuration before creating a report', async () => {
+    await expect(
+      createWorkerExperimentValidationReport({
+        run: {
+          runId: 'worker-validation-invalid-bin',
+          simulationId,
+          generatedAt: 1_700_000_003,
+        },
+        projection: createProjection(),
+        events: createTradeEvents([100, 101]),
+        priceBinning: { intervalMs: 0 },
+        plannerRuns: createPlannerRuns(),
+        expectedTrajectoryAgentIds: ['agent-a'],
+        trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      }),
+    ).rejects.toThrow('priceBinning intervalMs must be a positive integer');
   });
 });

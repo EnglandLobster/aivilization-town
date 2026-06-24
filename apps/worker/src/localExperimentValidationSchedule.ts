@@ -2,12 +2,15 @@ import type {
   ExperimentValidationReport,
   ExperimentValidationThresholds,
   PlannerExperimentRun,
+  PriceCloseObservation,
 } from '@aivilization/observability';
 import type { WorldProjection } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   recordWorkerExperimentValidationReport,
+  createPriceCloseObservationsFromOhlcBars,
+  createPriceCloseObservationsFromTradePriceObservations,
   type WorkerExperimentValidationPriceBinning,
   type WorkerExperimentValidationTraceWindow,
 } from './experimentValidationRunner';
@@ -17,6 +20,15 @@ export type LocalExperimentValidationEventWindow = {
   readonly toSequence?: number;
 };
 
+export type LocalExperimentValidationMarketObservationSource = {
+  readonly commodityId?: string;
+  readonly fromObservedAt?: number;
+  readonly toObservedAt?: number;
+  readonly fromIntervalStartedAt?: number;
+  readonly toIntervalStartedAt?: number;
+  readonly limit?: number;
+};
+
 export type LocalExperimentValidationScheduleInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly initialProjection: WorldProjection;
@@ -24,6 +36,7 @@ export type LocalExperimentValidationScheduleInput = {
   readonly generatedAt: number;
   readonly source?: string;
   readonly eventWindow?: LocalExperimentValidationEventWindow;
+  readonly marketObservationSource?: LocalExperimentValidationMarketObservationSource;
   readonly plannerRuns: readonly PlannerExperimentRun[];
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
@@ -68,6 +81,10 @@ export async function runLocalExperimentValidationSchedule(
   const events = input.storage.eventStore
     .readStream(streamName, { afterSequence: window.afterSequence })
     .filter((event) => event.sequence <= window.toSequence);
+  const priceSeries =
+    input.marketObservationSource === undefined
+      ? undefined
+      : await createValidationPriceSeriesFromMarketObservationSource(input);
   const report = await recordWorkerExperimentValidationReport({
     repository: input.storage.experimentValidationReportRepository,
     run: {
@@ -78,6 +95,7 @@ export async function runLocalExperimentValidationSchedule(
     },
     projection: hydrated.projection,
     events,
+    ...(priceSeries === undefined ? {} : { priceSeries }),
     plannerRuns: input.plannerRuns,
     agentCycleTraceRepository: input.storage.agentCycleTraceRepository,
     ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
@@ -98,6 +116,39 @@ export async function runLocalExperimentValidationSchedule(
     eventCount: events.length,
     projectionSequence: hydrated.lastAppliedSequence,
   };
+}
+
+async function createValidationPriceSeriesFromMarketObservationSource(
+  input: LocalExperimentValidationScheduleInput,
+): Promise<PriceCloseObservation[]> {
+  const source = input.marketObservationSource;
+  if (source === undefined) {
+    return [];
+  }
+
+  if (input.priceBinning !== undefined) {
+    const bars = await input.storage.marketObservationRepository.queryOhlcBars({
+      simulationId: input.storage.partition.simulationId,
+      ...(source.commodityId === undefined ? {} : { commodityId: source.commodityId }),
+      ...(source.fromIntervalStartedAt === undefined
+        ? {}
+        : { fromIntervalStartedAt: source.fromIntervalStartedAt }),
+      ...(source.toIntervalStartedAt === undefined
+        ? {}
+        : { toIntervalStartedAt: source.toIntervalStartedAt }),
+      ...(source.limit === undefined ? {} : { limit: source.limit }),
+    });
+    return createPriceCloseObservationsFromOhlcBars(bars);
+  }
+
+  const observations = await input.storage.marketObservationRepository.queryTrades({
+    simulationId: input.storage.partition.simulationId,
+    ...(source.commodityId === undefined ? {} : { commodityId: source.commodityId }),
+    ...(source.fromObservedAt === undefined ? {} : { fromObservedAt: source.fromObservedAt }),
+    ...(source.toObservedAt === undefined ? {} : { toObservedAt: source.toObservedAt }),
+    ...(source.limit === undefined ? {} : { limit: source.limit }),
+  });
+  return createPriceCloseObservationsFromTradePriceObservations(observations);
 }
 
 function resolveEventWindow(

@@ -381,6 +381,44 @@ describe('worker experiment validation runner', () => {
     expect(marketStability.evidence.maximumLogPriceRange).toBeCloseTo(Math.log(126) - Math.log(90));
   });
 
+  test('uses explicit price series when validation prices come from a repository', async () => {
+    const report = await createWorkerExperimentValidationReport({
+      run: {
+        runId: 'worker-validation-price-series',
+        simulationId,
+        generatedAt: 1_700_000_005,
+      },
+      projection: createProjection(),
+      events: [
+        createEventEnvelope({
+          id: 'time-advanced',
+          simulationId,
+          type: 'SimulationTimeAdvanced',
+          payload: {
+            previous: { now: 0, tickDurationMs: 1000 },
+            next: { now: 1000, tickDurationMs: 1000 },
+            deltaMs: 1000,
+          },
+          occurredAt: 1000,
+          sequence: 1,
+        }),
+      ],
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 110 },
+      ],
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    expect(getMetric(report.metrics, 'market-stability').evidence.observationCount).toBe(2);
+  });
+
   test('records a generated validation report through the injected repository', async () => {
     const repository = new InMemoryExperimentValidationReportRepository();
 

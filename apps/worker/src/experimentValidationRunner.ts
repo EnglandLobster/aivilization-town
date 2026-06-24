@@ -27,6 +27,7 @@ export type WorkerExperimentValidationReportInput = {
   readonly run: ExperimentValidationRunMetadata;
   readonly projection: WorldProjection;
   readonly events: readonly WorldEvent[];
+  readonly priceSeries?: readonly PriceCloseObservation[];
   readonly plannerRuns: readonly PlannerExperimentRun[];
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
@@ -86,11 +87,13 @@ export async function createWorkerExperimentValidationReport(
 
   return createExperimentValidationReport({
     run: input.run,
-    priceSeries: createValidationPriceSeriesFromWorldEvents({
-      simulationId: input.run.simulationId,
-      events: input.events,
-      ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
-    }),
+    priceSeries:
+      input.priceSeries ??
+      createValidationPriceSeriesFromWorldEvents({
+        simulationId: input.run.simulationId,
+        events: input.events,
+        ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
+      }),
     wealthSnapshot: createWealthSnapshotFromWorldProjection(input.projection),
     plannerRuns: input.plannerRuns,
     expectedTrajectoryAgentIds,
@@ -318,7 +321,7 @@ function createValidationPriceSeriesFromWorldEvents(input: {
   );
 }
 
-function createPriceCloseObservationsFromTradePriceObservations(
+export function createPriceCloseObservationsFromTradePriceObservations(
   observations: readonly WorkerTradePriceObservation[],
 ): PriceCloseObservation[] {
   return sortTradePriceObservations(observations).map((observation) => ({

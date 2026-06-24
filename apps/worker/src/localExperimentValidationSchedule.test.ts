@@ -124,6 +124,83 @@ describe('local experiment validation schedule', () => {
     expect(result.eventCount).toBe(2);
     expect(getMetric(result.report.metrics, 'market-stability').evidence.observationCount).toBe(2);
   });
+
+  test('generates market diagnostics from durable OHLC observations', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    await storage.marketObservationRepository.recordOhlcBars([
+      createOhlcBar({ intervalStartedAt: 0, closePrice: 100 }),
+      createOhlcBar({ intervalStartedAt: 60, closePrice: 110 }),
+      createOhlcBar({ intervalStartedAt: 120, closePrice: 99 }),
+    ]);
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-market-ohlc',
+      generatedAt: 700,
+      priceBinning: { intervalMs: 60 },
+      marketObservationSource: {
+        commodityId: 'Fish',
+        fromIntervalStartedAt: 0,
+        toIntervalStartedAt: 120,
+      },
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-1'],
+      trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    expect(result.eventCount).toBe(0);
+    expect(getMetric(result.report.metrics, 'market-stability').evidence.observationCount).toBe(3);
+    expect(getMetric(result.report.metrics, 'market-stability').evidence.maximumDrawdown).toBeCloseTo(
+      (110 - 99) / 110,
+    );
+  });
+
+  test('generates market diagnostics from durable trade observations when no OHLC binning is configured', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    await storage.marketObservationRepository.recordTrades([
+      createMarketTradeObservation({ sourceSequence: 1, observedAt: 0, price: 100 }),
+      createMarketTradeObservation({ sourceSequence: 2, observedAt: 1, price: 110 }),
+      createMarketTradeObservation({ sourceSequence: 3, observedAt: 2, price: 99 }),
+    ]);
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-market-trades',
+      generatedAt: 800,
+      marketObservationSource: {
+        commodityId: 'Fish',
+        fromObservedAt: 0,
+        toObservedAt: 2,
+      },
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-1'],
+      trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    expect(result.eventCount).toBe(0);
+    expect(getMetric(result.report.metrics, 'market-stability').evidence.observationCount).toBe(3);
+    await expect(
+      storage.experimentValidationReportRepository.get('validation-market-trades'),
+    ).resolves.toEqual(result.report);
+  });
 });
 
 function appendTradeEvents(
@@ -171,6 +248,45 @@ function createTradeEvent(input: {
     occurredAt: input.occurredAt,
     sequence: input.sequence,
   });
+}
+
+function createMarketTradeObservation(input: {
+  readonly sourceSequence: number;
+  readonly observedAt: number;
+  readonly price: number;
+}) {
+  return {
+    observationId: `${simulationId}:trade:${input.sourceSequence}:trade-${input.sourceSequence}`,
+    simulationId,
+    commodityId: 'Fish',
+    sourceEventId: `trade-${input.sourceSequence}`,
+    sourceSequence: input.sourceSequence,
+    side: 'buy' as const,
+    observedAt: input.observedAt,
+    price: input.price,
+    commodityQuantity: 1,
+    currencyQuantity: input.price,
+  };
+}
+
+function createOhlcBar(input: {
+  readonly intervalStartedAt: number;
+  readonly closePrice: number;
+}) {
+  return {
+    barId: `${simulationId}:ohlc:60:0:Fish:${input.intervalStartedAt}`,
+    simulationId,
+    commodityId: 'Fish',
+    intervalStartedAt: input.intervalStartedAt,
+    intervalEndedAt: input.intervalStartedAt + 60,
+    openPrice: input.closePrice,
+    highPrice: input.closePrice,
+    lowPrice: input.closePrice,
+    closePrice: input.closePrice,
+    tradeCount: 1,
+    commodityVolume: 1,
+    currencyVolume: input.closePrice,
+  };
 }
 
 function createTrace(input: {

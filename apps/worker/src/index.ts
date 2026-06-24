@@ -16,6 +16,7 @@ export * from './memoryConsolidation';
 export * from './objectiveLifecycle';
 export * from './objectiveRenewal';
 export * from './projectionHydration';
+export * from './scenarioProjection';
 export * from './steering';
 export * from './tickRunner';
 export * from './wagePolicy';

@@ -48,6 +48,16 @@ export type WorldJobApplicationState = {
   readonly submittedAt: number;
 };
 
+export type WorldLocationObservationState = {
+  readonly agentId: AgentId;
+  readonly locationId: LocationId;
+  readonly locationName: string;
+  readonly observedAgentIds: readonly AgentId[];
+  readonly activityAffinities: readonly string[];
+  readonly observedAt: number;
+  readonly focus?: string;
+};
+
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
@@ -55,6 +65,7 @@ export type WorldProjection = {
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
   readonly jobApplications: readonly WorldJobApplicationState[];
+  readonly locationObservations: readonly WorldLocationObservationState[];
   readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
@@ -71,6 +82,7 @@ export function createWorldProjection(input: {
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
   readonly jobApplications?: readonly WorldJobApplicationState[];
+  readonly locationObservations?: readonly WorldLocationObservationState[];
   readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
@@ -120,6 +132,11 @@ export function createWorldProjection(input: {
     marketPools,
     moneySupply: input.moneySupply ?? 0,
     jobApplications: [...(input.jobApplications ?? [])],
+    locationObservations: (input.locationObservations ?? []).map((observation) => ({
+      ...observation,
+      observedAgentIds: [...observation.observedAgentIds],
+      activityAffinities: [...observation.activityAffinities],
+    })),
     socialRelations,
     memoryRecords: [],
     rejectedActions: [],
@@ -210,6 +227,22 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...agent,
         locationId: event.payload.nextLocationId,
       }));
+    case 'LocationObserved':
+      return {
+        ...projection,
+        locationObservations: [
+          ...projection.locationObservations,
+          {
+            agentId: event.payload.agentId,
+            locationId: event.payload.locationId,
+            locationName: event.payload.locationName,
+            observedAgentIds: [...event.payload.observedAgentIds],
+            activityAffinities: [...event.payload.activityAffinities],
+            observedAt: event.occurredAt,
+            ...(event.payload.focus === undefined ? {} : { focus: event.payload.focus }),
+          },
+        ],
+      };
     case 'InventoryChanged':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

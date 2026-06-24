@@ -8,6 +8,7 @@ import {
   handleAgentEatCommand,
   handleAgentApplyJobCommand,
   handleAgentMoveToCommand,
+  handleAgentObserveLocationCommand,
   handleAgentProduceCommand,
   handleAgentSeeDoctorCommand,
   handleAgentUpgradeResidentialTierCommand,
@@ -1541,6 +1542,201 @@ describe('agent movement command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'AgentLocationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
+describe('agent location observation command handling', () => {
+  test('AgentObserveLocation records co-located agents and location affordances in events and STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-3'),
+          locationId: asLocationId('market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+        {
+          locationId: asLocationId('market'),
+          name: 'Market',
+          kind: 'market',
+          activityAffinities: ['trade', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentObserveLocationCommand({
+      command: createCommandEnvelope({
+        id: 'command-observe',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentObserveLocation',
+        payload: { focus: 'classmates' },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'LocationObserved',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      locationId: 'school',
+      locationName: 'School',
+      observedAgentIds: ['agent-2'],
+      activityAffinities: ['study', 'socialize'],
+      focus: 'classmates',
+    });
+    expect(events[1]).toMatchObject({
+      type: 'ShortTermMemoryRecorded',
+      payload: {
+        record: {
+          kind: 'observation',
+          status: 'observed',
+          summary: 'Observed School with agent-2 nearby. Focus: classmates.',
+          tags: ['observe', 'school', 'education', 'study', 'socialize', 'agent-2'],
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.locationObservations).toEqual([
+      {
+        agentId: 'agent-1',
+        locationId: 'school',
+        locationName: 'School',
+        observedAgentIds: ['agent-2'],
+        activityAffinities: ['study', 'socialize'],
+        focus: 'classmates',
+        observedAt: 80,
+      },
+    ]);
+    expect(updated.memoryRecords[0]?.kind).toBe('observation');
+  });
+
+  test('AgentObserveLocation rejects agents without known locations', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentObserveLocationCommand({
+      command: createCommandEnvelope({
+        id: 'command-observe',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentObserveLocation',
+        payload: {},
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentObserveLocation',
+      reason: 'agent location is unknown',
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentObserveLocation through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('market'),
+          name: 'Market',
+          kind: 'market',
+          activityAffinities: ['trade', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-observe',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentObserveLocation',
+        payload: {},
+        issuedAt: 80,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'LocationObserved',
       'ShortTermMemoryRecorded',
     ]);
   });

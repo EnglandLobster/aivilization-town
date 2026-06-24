@@ -29,6 +29,7 @@ import {
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentMoveToPayload,
+  assertAgentObserveLocationPayload,
   assertAgentProducePayload,
   assertAgentSeeDoctorPayload,
   assertAgentUpgradeResidentialTierPayload,
@@ -92,6 +93,12 @@ export function dispatchWorldCommand(input: {
     case 'AgentMoveTo':
       return handleAgentMoveToCommand({
         command: input.command as CommandEnvelope<'AgentMoveTo', unknown>,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentObserveLocation':
+      return handleAgentObserveLocationCommand({
+        command: input.command as CommandEnvelope<'AgentObserveLocation', unknown>,
         projection: input.projection,
         nextSequence: input.nextSequence,
       });
@@ -302,6 +309,64 @@ export function handleAgentMoveToCommand(input: {
         patternKey: `move:${payload.targetLocationId}`,
         statement: `Moves to ${targetLocation.name} when the current plan requires ${targetLocation.kind} activities.`,
       },
+    }),
+  ];
+}
+
+export function handleAgentObserveLocationCommand(input: {
+  readonly command: CommandEnvelope<'AgentObserveLocation', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentObserveLocationPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentObserveLocation', payloadResult.reason);
+  }
+
+  if (agent.locationId === null) {
+    return rejectCommand(input, 'AgentObserveLocation', 'agent location is unknown');
+  }
+  const location = input.projection.locations[agent.locationId];
+  if (location === undefined) {
+    return rejectCommand(
+      input,
+      'AgentObserveLocation',
+      `unknown current location ${agent.locationId}`,
+    );
+  }
+
+  const observedAgentIds = Object.values(input.projection.agents)
+    .filter((candidate) => candidate.agentId !== agent.agentId)
+    .filter((candidate) => candidate.locationId === agent.locationId)
+    .map((candidate) => candidate.agentId)
+    .sort((left, right) => left.localeCompare(right));
+  const focus = payloadResult.payload.focus;
+  const nearbySummary =
+    observedAgentIds.length === 0 ? 'no agents nearby' : `${observedAgentIds.join(', ')} nearby`;
+
+  return [
+    makeEvent(input, 0, 'LocationObserved', {
+      agentId: agent.agentId,
+      locationId: location.locationId,
+      locationName: location.name,
+      observedAgentIds,
+      activityAffinities: [...location.activityAffinities],
+      ...(focus === undefined ? {} : { focus }),
+    }),
+    makeMemoryEvent(input, 1, {
+      kind: 'observation',
+      summary: `Observed ${location.name} with ${nearbySummary}.${
+        focus === undefined ? '' : ` Focus: ${focus}.`
+      }`,
+      status: 'observed',
+      tags: stableUnique([
+        'observe',
+        location.locationId,
+        location.kind,
+        ...location.activityAffinities,
+        ...observedAgentIds,
+      ]),
     }),
   ];
 }
@@ -965,7 +1030,7 @@ function makeMemoryEvent(
   memory: {
     readonly kind?: Parameters<typeof createShortTermMemoryRecord>[0]['kind'];
     readonly summary: string;
-    readonly status: 'succeeded' | 'failed';
+    readonly status: Parameters<typeof createShortTermMemoryRecord>[0]['status'];
     readonly tags: readonly string[];
     readonly consolidationHint?: Parameters<
       typeof createShortTermMemoryRecord
@@ -992,6 +1057,10 @@ function makeMemoryEvent(
         : { consolidationHint: memory.consolidationHint }),
     }),
   });
+}
+
+function stableUnique<TValue>(values: readonly TValue[]): readonly TValue[] {
+  return [...new Set(values)];
 }
 
 function makeEvent<TType extends WorldEvent['type']>(

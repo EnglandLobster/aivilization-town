@@ -92,6 +92,15 @@ export type AgentLocationChangedPayload = {
   readonly reason: string;
 };
 
+export type LocationObservedPayload = {
+  readonly agentId: AgentId;
+  readonly locationId: LocationId;
+  readonly locationName: string;
+  readonly observedAgentIds: readonly AgentId[];
+  readonly activityAffinities: readonly string[];
+  readonly focus?: string;
+};
+
 export type ActionRejectedPayload = {
   readonly agentId: AgentId;
   readonly commandType: CoreCommandType;
@@ -116,6 +125,7 @@ export type WorldEventPayloadByType = {
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
   readonly AgentLocationChanged: AgentLocationChangedPayload;
+  readonly LocationObserved: LocationObservedPayload;
   readonly InventoryChanged: InventoryChangedPayload;
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly EducationChanged: EducationChangedPayload;

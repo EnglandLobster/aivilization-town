@@ -120,6 +120,65 @@ describe('world projection', () => {
     expect(projection.agents['agent-1']?.locationId).toBe(asLocationId('school'));
   });
 
+  test('replays location observations without mutating agent state', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 40, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 2 },
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-observation',
+        simulationId: 'sim-1',
+        commandId: 'command-observe',
+        type: 'LocationObserved',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          locationName: 'School',
+          observedAgentIds: [asAgentId('agent-2')],
+          activityAffinities: ['study', 'socialize'],
+          focus: 'classmates',
+        },
+        occurredAt: 16,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.locationObservations).toEqual([
+      {
+        agentId: 'agent-1',
+        locationId: 'school',
+        locationName: 'School',
+        observedAgentIds: ['agent-2'],
+        activityAffinities: ['study', 'socialize'],
+        focus: 'classmates',
+        observedAt: 16,
+      },
+    ]);
+    expect(projection.agents['agent-1']).toEqual(initial.agents['agent-1']);
+  });
+
   test('replays agent state and memory events deterministically', () => {
     const initial = createWorldProjection({
       agents: [

@@ -8,7 +8,11 @@ import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { createLocalRuntimeTownNodeHttpServer } from './index';
-import type { LocalSimulationRuntimeManifest } from '@aivilization/worker';
+import {
+  FileLocalSimulationRuntimeRunSessionRepository,
+  type LocalSimulationRuntimeManifest,
+  type LocalSimulationRuntimeSupervisorStartAllResult,
+} from '@aivilization/worker';
 
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
@@ -216,6 +220,70 @@ describe('local runtime town HTTP gateway', () => {
       ],
     });
 
+    const stopFirstCycle = await runtime.supervisor.startAll({
+      operationId: 'op-run-stop-700:cycle:1',
+      requestedAt: 700,
+    });
+    const runSessionRepository = new FileLocalSimulationRuntimeRunSessionRepository({
+      rootDir: join(runtime.host.rootDir, 'operations'),
+    });
+    await runSessionRepository.save({
+      traceId: 'op-run-stop-700',
+      manifestId: 'town-runtime',
+      requestedAt: 700,
+      requestedCycleCount: 3,
+      cycleIntervalMs: 50,
+      stopOnAttention: true,
+      status: 'running',
+      completedCycleCount: 1,
+      cycles: [createRunCycleSummary(1, 700, stopFirstCycle)],
+      statusSnapshot: stopFirstCycle.status,
+      updatedAt: 700,
+    });
+    const stopRequest = await fetchJson(
+      `${server.baseUrl}/runtime/run-sessions/op-run-stop-700/stop`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ requestedAt: 725 }),
+      },
+    );
+    expect(stopRequest).toMatchObject({
+      traceId: 'op-run-stop-700',
+      status: 'running',
+      stopRequestedAt: 725,
+    });
+
+    const stoppedRun = await fetchJson(`${server.baseUrl}/runtime/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: 'op-run-stop-700',
+        requestedAt: 700,
+        cycleCount: 3,
+        cycleIntervalMs: 50,
+      }),
+    });
+    expect(stoppedRun).toMatchObject({
+      traceId: 'op-run-stop-700',
+      completedCycleCount: 2,
+      stopReason: 'stop-requested',
+      cycles: [
+        { cycleIndex: 1, traceId: 'op-run-stop-700:cycle:1', requestedAt: 700 },
+        { cycleIndex: 2, traceId: 'op-run-stop-700:cycle:2', requestedAt: 750 },
+      ],
+    });
+    const stoppedSession = await fetchJson(
+      `${server.baseUrl}/runtime/run-sessions/op-run-stop-700`,
+    );
+    expect(stoppedSession).toMatchObject({
+      traceId: 'op-run-stop-700',
+      status: 'stopped',
+      stopReason: 'stop-requested',
+      stopRequestedAt: 725,
+      completedCycleCount: 2,
+    });
+
     const runTrace = await fetchJson(
       `${server.baseUrl}/runtime/operation-traces/op-run-cycles-400`,
     );
@@ -322,6 +390,22 @@ function createScenarioPreset(input: {
       },
     ],
     source: 'test',
+  };
+}
+
+function createRunCycleSummary(
+  cycleIndex: number,
+  requestedAt: number,
+  result: LocalSimulationRuntimeSupervisorStartAllResult,
+) {
+  return {
+    cycleIndex,
+    traceId: result.traceId,
+    requestedAt,
+    outcome: result.outcome,
+    succeededPartitionCount: result.succeededPartitionCount,
+    failedPartitionCount: result.failedPartitionCount,
+    attentionPartitionCount: result.status.attentionPartitionCount,
   };
 }
 

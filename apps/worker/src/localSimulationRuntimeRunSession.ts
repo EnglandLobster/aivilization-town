@@ -24,6 +24,12 @@ export type LocalSimulationRuntimeRunSessionState = {
   readonly updatedAt: SimulationTimestamp;
   readonly outcome?: LocalSimulationRuntimeSupervisorCommandOutcome;
   readonly stopReason?: LocalSimulationRuntimeSupervisorRunCyclesStopReason;
+  readonly stopRequestedAt?: SimulationTimestamp;
+};
+
+export type LocalSimulationRuntimeRunSessionStopRequest = {
+  readonly traceId: string;
+  readonly requestedAt: SimulationTimestamp;
 };
 
 export type LocalSimulationRuntimeRunSessionRepository = {
@@ -31,6 +37,9 @@ export type LocalSimulationRuntimeRunSessionRepository = {
     state: LocalSimulationRuntimeRunSessionState,
   ) => Promise<LocalSimulationRuntimeRunSessionState>;
   readonly get: (traceId: string) => Promise<LocalSimulationRuntimeRunSessionState | undefined>;
+  readonly requestStop: (
+    request: LocalSimulationRuntimeRunSessionStopRequest,
+  ) => Promise<LocalSimulationRuntimeRunSessionState | undefined>;
 };
 
 export class InMemoryLocalSimulationRuntimeRunSessionRepository implements LocalSimulationRuntimeRunSessionRepository {
@@ -39,7 +48,7 @@ export class InMemoryLocalSimulationRuntimeRunSessionRepository implements Local
   save(
     state: LocalSimulationRuntimeRunSessionState,
   ): Promise<LocalSimulationRuntimeRunSessionState> {
-    const saved = cloneSession(state);
+    const saved = cloneSession(preserveStopRequest(state, this.sessions.get(state.traceId)));
     this.sessions.set(saved.traceId, saved);
     return Promise.resolve(cloneSession(saved));
   }
@@ -49,6 +58,21 @@ export class InMemoryLocalSimulationRuntimeRunSessionRepository implements Local
       assertNonEmpty(traceId, 'traceId');
       const session = this.sessions.get(traceId);
       return session === undefined ? undefined : cloneSession(session);
+    });
+  }
+
+  requestStop(
+    request: LocalSimulationRuntimeRunSessionStopRequest,
+  ): Promise<LocalSimulationRuntimeRunSessionState | undefined> {
+    return Promise.resolve().then(() => {
+      assertStopRequest(request);
+      const session = this.sessions.get(request.traceId);
+      if (session === undefined) {
+        return undefined;
+      }
+      const saved = createStopRequestedSession(session, request.requestedAt);
+      this.sessions.set(saved.traceId, saved);
+      return cloneSession(saved);
     });
   }
 }
@@ -66,7 +90,9 @@ export class FileLocalSimulationRuntimeRunSessionRepository implements LocalSimu
     state: LocalSimulationRuntimeRunSessionState,
   ): Promise<LocalSimulationRuntimeRunSessionState> {
     return Promise.resolve().then(() => {
-      const saved = cloneSession(state);
+      const saved = cloneSession(
+        preserveStopRequest(state, readLatestSession(this.sessionsPath, state.traceId)),
+      );
       appendJsonLines(this.sessionsPath, [saved]);
       return cloneSession(saved);
     });
@@ -75,13 +101,23 @@ export class FileLocalSimulationRuntimeRunSessionRepository implements LocalSimu
   get(traceId: string): Promise<LocalSimulationRuntimeRunSessionState | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const sessions = readJsonLines<LocalSimulationRuntimeRunSessionState>(this.sessionsPath);
-      for (const session of sessions.reverse()) {
-        if (session.traceId === traceId) {
-          return cloneSession(session);
-        }
+      const session = readLatestSession(this.sessionsPath, traceId);
+      return session === undefined ? undefined : cloneSession(session);
+    });
+  }
+
+  requestStop(
+    request: LocalSimulationRuntimeRunSessionStopRequest,
+  ): Promise<LocalSimulationRuntimeRunSessionState | undefined> {
+    return Promise.resolve().then(() => {
+      assertStopRequest(request);
+      const session = readLatestSession(this.sessionsPath, request.traceId);
+      if (session === undefined) {
+        return undefined;
       }
-      return undefined;
+      const saved = createStopRequestedSession(session, request.requestedAt);
+      appendJsonLines(this.sessionsPath, [saved]);
+      return cloneSession(saved);
     });
   }
 }
@@ -118,6 +154,57 @@ function readJsonLines<TValue>(path: string): TValue[] {
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line) as TValue);
+}
+
+function readLatestSession(
+  path: string,
+  traceId: string,
+): LocalSimulationRuntimeRunSessionState | undefined {
+  const sessions = readJsonLines<LocalSimulationRuntimeRunSessionState>(path);
+  for (const session of sessions.reverse()) {
+    if (session.traceId === traceId) {
+      return session;
+    }
+  }
+  return undefined;
+}
+
+function preserveStopRequest(
+  state: LocalSimulationRuntimeRunSessionState,
+  previous: LocalSimulationRuntimeRunSessionState | undefined,
+): LocalSimulationRuntimeRunSessionState {
+  if (state.stopRequestedAt !== undefined || previous?.stopRequestedAt === undefined) {
+    return state;
+  }
+  return {
+    ...state,
+    stopRequestedAt: previous.stopRequestedAt,
+  };
+}
+
+function createStopRequestedSession(
+  session: LocalSimulationRuntimeRunSessionState,
+  requestedAt: SimulationTimestamp,
+): LocalSimulationRuntimeRunSessionState {
+  if (session.status !== 'running' || session.stopRequestedAt !== undefined) {
+    return cloneSession(session);
+  }
+  return cloneSession({
+    ...session,
+    stopRequestedAt: requestedAt,
+    updatedAt: requestedAt,
+  });
+}
+
+function assertStopRequest(request: LocalSimulationRuntimeRunSessionStopRequest): void {
+  assertNonEmpty(request.traceId, 'traceId');
+  assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+}
+
+function assertNonNegativeFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative finite number`);
+  }
 }
 
 function assertNonEmpty(value: string, name: string): void {

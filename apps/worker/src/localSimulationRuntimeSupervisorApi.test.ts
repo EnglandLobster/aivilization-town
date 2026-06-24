@@ -60,6 +60,12 @@ describe('local simulation runtime supervisor API adapter', () => {
       stopReason: 'cycle-count-completed',
       updatedAt: 250,
     };
+    const stoppedRunSession: LocalSimulationRuntimeRunSessionState = {
+      ...runSession,
+      status: 'running',
+      stopRequestedAt: 260,
+      updatedAt: 260,
+    };
     const trace: LocalSimulationRuntimeOperationTrace = {
       traceId: 'op-start-100',
       manifestId: 'town-runtime',
@@ -93,6 +99,12 @@ describe('local simulation runtime supervisor API adapter', () => {
         calls.push({ method: 'getRunSession', traceId });
         return Promise.resolve(traceId === runSession.traceId ? runSession : undefined);
       },
+      requestRunSessionStop: (request) => {
+        calls.push({ method: 'requestRunSessionStop', request });
+        return Promise.resolve(
+          request.traceId === runSession.traceId ? stoppedRunSession : undefined,
+        );
+      },
       getOperationTrace: (traceId) => {
         calls.push({ method: 'getOperationTrace', traceId });
         return Promise.resolve(trace);
@@ -119,6 +131,9 @@ describe('local simulation runtime supervisor API adapter', () => {
       }),
     ).resolves.toBe(runResult);
     await expect(api.getRuntimeRunSession({ traceId: 'op-run-200' })).resolves.toBe(runSession);
+    await expect(
+      api.stopRuntimeRunSession({ traceId: 'op-run-200', requestedAt: 260 }),
+    ).resolves.toBe(stoppedRunSession);
     await expect(api.getRuntimeOperationTrace({ traceId: 'op-start-100' })).resolves.toBe(trace);
     await expect(
       api.queryRuntimeOperationTraces({ manifestId: 'town-runtime', command: 'start-all' }),
@@ -132,6 +147,10 @@ describe('local simulation runtime supervisor API adapter', () => {
         request: { operationId: 'op-run-200', requestedAt: 200, cycleCount: 2 },
       },
       { method: 'getRunSession', traceId: 'op-run-200' },
+      {
+        method: 'requestRunSessionStop',
+        request: { traceId: 'op-run-200', requestedAt: 260 },
+      },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       {
         method: 'queryOperationTraces',

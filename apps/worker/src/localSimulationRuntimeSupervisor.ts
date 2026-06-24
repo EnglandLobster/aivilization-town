@@ -26,6 +26,7 @@ import {
   FileLocalSimulationRuntimeRunSessionRepository,
   type LocalSimulationRuntimeRunSessionRepository,
   type LocalSimulationRuntimeRunSessionState,
+  type LocalSimulationRuntimeRunSessionStopRequest,
 } from './localSimulationRuntimeRunSession';
 
 export type LocalSimulationRuntimeSupervisorHealth = 'healthy' | 'attention';
@@ -86,7 +87,8 @@ export type LocalSimulationRuntimeSupervisorCommandOutcome =
 export type LocalSimulationRuntimeSupervisorRunCyclesStopReason =
   | 'cycle-count-completed'
   | 'partition-failure'
-  | 'attention';
+  | 'attention'
+  | 'stop-requested';
 
 export type LocalSimulationRuntimeSupervisorPartitionCommandError = {
   readonly name: string;
@@ -169,6 +171,9 @@ export type LocalSimulationRuntimeSupervisor = {
   readonly getStatus: () => LocalSimulationRuntimeSupervisorStatus;
   readonly getRunSession: (
     traceId: string,
+  ) => Promise<LocalSimulationRuntimeRunSessionState | undefined>;
+  readonly requestRunSessionStop: (
+    request: LocalSimulationRuntimeRunSessionStopRequest,
   ) => Promise<LocalSimulationRuntimeRunSessionState | undefined>;
   readonly getOperationTrace: (
     traceId: string,
@@ -357,6 +362,10 @@ export function createLocalSimulationRuntimeSupervisor(input: {
         stopReason = 'attention';
         break;
       }
+      if (session.stopRequestedAt !== undefined) {
+        stopReason = 'stop-requested';
+        break;
+      }
     }
 
     const result: LocalSimulationRuntimeSupervisorRunCyclesResult = {
@@ -393,6 +402,7 @@ export function createLocalSimulationRuntimeSupervisor(input: {
   return {
     getStatus: () => createSupervisorStatus(input.host),
     getRunSession: (traceId) => runSessionRepository.get(traceId),
+    requestRunSessionStop: (request) => runSessionRepository.requestStop(request),
     getOperationTrace: (traceId) => operationTraceRepository.get(traceId),
     queryOperationTraces: (query) => operationTraceRepository.query(query),
     startAll,

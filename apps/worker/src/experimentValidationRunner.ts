@@ -41,12 +41,20 @@ export type RecordWorkerExperimentValidationReportInput = WorkerExperimentValida
 };
 
 export type WorkerTradePriceObservation = {
+  readonly sourceEventId: string;
   readonly commodityId: string;
   readonly observedAt: number;
   readonly sourceSequence: number;
+  readonly side: 'buy' | 'sell';
   readonly price: number;
   readonly commodityQuantity: number;
   readonly currencyQuantity: number;
+  readonly effectivePrice?: number;
+  readonly spotPriceBefore?: number;
+  readonly spotPriceAfter?: number;
+  readonly slippageRatio?: number;
+  readonly invariantBefore?: number;
+  readonly invariantAfter?: number;
 };
 
 export type WorkerOhlcPriceBar = {
@@ -130,12 +138,32 @@ export function createTradePriceObservationsFromWorldEvents(input: {
     }
 
     observations.push({
+      sourceEventId: event.id,
       commodityId: event.payload.commodityName,
       observedAt: event.occurredAt,
       sourceSequence: event.sequence,
+      side: event.payload.side,
       price: closePrice,
       commodityQuantity: event.payload.commodityQuantity,
       currencyQuantity: event.payload.currencyQuantity,
+      ...(event.payload.effectivePrice === undefined
+        ? {}
+        : { effectivePrice: event.payload.effectivePrice }),
+      ...(event.payload.spotPriceBefore === undefined
+        ? {}
+        : { spotPriceBefore: event.payload.spotPriceBefore }),
+      ...(event.payload.spotPriceAfter === undefined
+        ? {}
+        : { spotPriceAfter: event.payload.spotPriceAfter }),
+      ...(event.payload.slippageRatio === undefined
+        ? {}
+        : { slippageRatio: event.payload.slippageRatio }),
+      ...(event.payload.invariantBefore === undefined
+        ? {}
+        : { invariantBefore: event.payload.invariantBefore }),
+      ...(event.payload.invariantAfter === undefined
+        ? {}
+        : { invariantAfter: event.payload.invariantAfter }),
     });
   }
 

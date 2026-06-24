@@ -36,6 +36,7 @@ export * from './localSimulationRuntimeRunSession';
 export * from './localSimulationRuntimeSupervisor';
 export * from './localSimulationRuntimeSupervisorApi';
 export * from './localScenarioBootstrap';
+export * from './marketObservationRecording';
 export * from './marketMetrics';
 export * from './memoryConsolidation';
 export * from './objectiveLifecycle';

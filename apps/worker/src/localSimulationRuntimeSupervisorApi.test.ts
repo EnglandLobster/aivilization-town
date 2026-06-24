@@ -73,6 +73,7 @@ describe('local simulation runtime supervisor API adapter', () => {
         calls.push({ method: 'runCycles', request });
         return Promise.resolve(runResult);
       },
+      getRunSession: () => Promise.resolve(undefined),
       getOperationTrace: (traceId) => {
         calls.push({ method: 'getOperationTrace', traceId });
         return Promise.resolve(trace);

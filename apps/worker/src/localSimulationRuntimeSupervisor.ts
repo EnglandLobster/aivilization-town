@@ -22,6 +22,11 @@ import {
   type LocalSimulationRuntimeOperationValidationFailureTrace,
   type LocalSimulationRuntimeOperationValidationReportTrace,
 } from './localSimulationRuntimeOperationTrace';
+import {
+  FileLocalSimulationRuntimeRunSessionRepository,
+  type LocalSimulationRuntimeRunSessionRepository,
+  type LocalSimulationRuntimeRunSessionState,
+} from './localSimulationRuntimeRunSession';
 
 export type LocalSimulationRuntimeSupervisorHealth = 'healthy' | 'attention';
 
@@ -162,6 +167,9 @@ export type LocalSimulationRuntimeSupervisorRunCyclesResult = {
 
 export type LocalSimulationRuntimeSupervisor = {
   readonly getStatus: () => LocalSimulationRuntimeSupervisorStatus;
+  readonly getRunSession: (
+    traceId: string,
+  ) => Promise<LocalSimulationRuntimeRunSessionState | undefined>;
   readonly getOperationTrace: (
     traceId: string,
   ) => Promise<LocalSimulationRuntimeOperationTrace | undefined>;
@@ -182,11 +190,18 @@ export type LocalSimulationRuntimeSupervisor = {
 export function createLocalSimulationRuntimeSupervisor(input: {
   readonly host: LocalSimulationRuntimeHost;
   readonly operationTraceRepository?: LocalSimulationRuntimeOperationTraceRepository;
+  readonly runSessionRepository?: LocalSimulationRuntimeRunSessionRepository;
 }): LocalSimulationRuntimeSupervisor {
+  const operationsDir = join(input.host.rootDir, 'operations');
   const operationTraceRepository =
     input.operationTraceRepository ??
     new FileLocalSimulationRuntimeOperationTraceRepository({
-      rootDir: join(input.host.rootDir, 'operations'),
+      rootDir: operationsDir,
+    });
+  const runSessionRepository =
+    input.runSessionRepository ??
+    new FileLocalSimulationRuntimeRunSessionRepository({
+      rootDir: operationsDir,
     });
 
   async function startAll(
@@ -284,24 +299,61 @@ export function createLocalSimulationRuntimeSupervisor(input: {
     assertPositiveInteger(request.cycleCount, 'cycleCount');
     const cycleIntervalMs = request.cycleIntervalMs ?? 0;
     assertNonNegativeFinite(cycleIntervalMs, 'cycleIntervalMs');
-
+    const stopOnAttention = request.stopOnAttention ?? true;
     const traceId = createOperationTraceId(input.host, 'run-cycles', request);
-    const cycles: LocalSimulationRuntimeSupervisorRunCycleSummary[] = [];
+    const existingSession = await runSessionRepository.get(traceId);
+    if (existingSession !== undefined) {
+      assertRunSessionCompatible(existingSession, {
+        manifestId: input.host.manifestId,
+        requestedAt: request.requestedAt,
+        requestedCycleCount: request.cycleCount,
+        cycleIntervalMs,
+        stopOnAttention,
+      });
+      if (existingSession.status !== 'running') {
+        return createRunCyclesResultFromSession(existingSession);
+      }
+    }
+
+    let session =
+      existingSession ??
+      (await runSessionRepository.save({
+        traceId,
+        manifestId: input.host.manifestId,
+        requestedAt: request.requestedAt,
+        requestedCycleCount: request.cycleCount,
+        cycleIntervalMs,
+        stopOnAttention,
+        status: 'running',
+        completedCycleCount: 0,
+        cycles: [],
+        statusSnapshot: createSupervisorStatus(input.host),
+        updatedAt: request.requestedAt,
+      }));
+    const cycles: LocalSimulationRuntimeSupervisorRunCycleSummary[] = [...session.cycles];
     let stopReason: LocalSimulationRuntimeSupervisorRunCyclesStopReason = 'cycle-count-completed';
-    for (let offset = 0; offset < request.cycleCount; offset += 1) {
+    for (let offset = cycles.length; offset < session.requestedCycleCount; offset += 1) {
       const cycleIndex = offset + 1;
-      const cycleRequestedAt = request.requestedAt + offset * cycleIntervalMs;
+      const cycleRequestedAt = session.requestedAt + offset * session.cycleIntervalMs;
       const cycleResult = await startAll({
         operationId: `${traceId}:cycle:${cycleIndex}`,
         requestedAt: cycleRequestedAt,
       });
       const cycle = createRunCycleSummary(cycleIndex, cycleRequestedAt, cycleResult);
       cycles.push(cycle);
+      session = await runSessionRepository.save({
+        ...session,
+        status: 'running',
+        completedCycleCount: cycles.length,
+        cycles,
+        statusSnapshot: cycleResult.status,
+        updatedAt: cycleRequestedAt,
+      });
       if (cycleResult.outcome !== 'succeeded') {
         stopReason = 'partition-failure';
         break;
       }
-      if (request.stopOnAttention !== false && cycleResult.status.attentionPartitionCount > 0) {
+      if (session.stopOnAttention && cycleResult.status.attentionPartitionCount > 0) {
         stopReason = 'attention';
         break;
       }
@@ -310,12 +362,22 @@ export function createLocalSimulationRuntimeSupervisor(input: {
     const result: LocalSimulationRuntimeSupervisorRunCyclesResult = {
       traceId,
       outcome: createRunCyclesOutcome(cycles),
-      requestedCycleCount: request.cycleCount,
+      requestedCycleCount: session.requestedCycleCount,
       completedCycleCount: cycles.length,
       stopReason,
       cycles,
       status: createSupervisorStatus(input.host),
     };
+    await runSessionRepository.save({
+      ...session,
+      status: stopReason === 'cycle-count-completed' ? 'completed' : 'stopped',
+      outcome: result.outcome,
+      stopReason,
+      completedCycleCount: cycles.length,
+      cycles,
+      statusSnapshot: result.status,
+      updatedAt: cycles.at(-1)?.requestedAt ?? session.updatedAt,
+    });
     await operationTraceRepository.record(
       createOperationTrace({
         traceId,
@@ -330,6 +392,7 @@ export function createLocalSimulationRuntimeSupervisor(input: {
 
   return {
     getStatus: () => createSupervisorStatus(input.host),
+    getRunSession: (traceId) => runSessionRepository.get(traceId),
     getOperationTrace: (traceId) => operationTraceRepository.get(traceId),
     queryOperationTraces: (query) => operationTraceRepository.query(query),
     startAll,
@@ -399,6 +462,47 @@ function createRunCyclesOutcome(
     return 'failed';
   }
   return 'partial-failure';
+}
+
+function createRunCyclesResultFromSession(
+  session: LocalSimulationRuntimeRunSessionState,
+): LocalSimulationRuntimeSupervisorRunCyclesResult {
+  return {
+    traceId: session.traceId,
+    outcome: session.outcome ?? createRunCyclesOutcome(session.cycles),
+    requestedCycleCount: session.requestedCycleCount,
+    completedCycleCount: session.completedCycleCount,
+    stopReason: session.stopReason ?? 'cycle-count-completed',
+    cycles: session.cycles,
+    status: session.statusSnapshot,
+  };
+}
+
+function assertRunSessionCompatible(
+  session: LocalSimulationRuntimeRunSessionState,
+  request: {
+    readonly manifestId: string;
+    readonly requestedAt: SimulationTimestamp;
+    readonly requestedCycleCount: number;
+    readonly cycleIntervalMs: number;
+    readonly stopOnAttention: boolean;
+  },
+): void {
+  if (session.manifestId !== request.manifestId) {
+    throw new Error('run session manifestId does not match request');
+  }
+  if (session.requestedAt !== request.requestedAt) {
+    throw new Error('run session requestedAt does not match request');
+  }
+  if (session.requestedCycleCount !== request.requestedCycleCount) {
+    throw new Error('run session cycleCount does not match request');
+  }
+  if (session.cycleIntervalMs !== request.cycleIntervalMs) {
+    throw new Error('run session cycleIntervalMs does not match request');
+  }
+  if (session.stopOnAttention !== request.stopOnAttention) {
+    throw new Error('run session stopOnAttention does not match request');
+  }
 }
 
 function createOperationTrace(input: {

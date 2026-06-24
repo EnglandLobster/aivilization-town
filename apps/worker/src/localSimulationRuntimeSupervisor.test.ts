@@ -10,9 +10,11 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
   createLocalSimulationRuntimeSupervisor,
+  FileLocalSimulationRuntimeRunSessionRepository,
   type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationLifecycleValidationSchedule,
   type LocalSimulationRuntimeManifest,
+  type LocalSimulationRuntimeSupervisorStartAllResult,
   type LocalWorldRuntimeStorage,
 } from './index';
 
@@ -733,6 +735,152 @@ describe('local simulation runtime supervisor', () => {
       ],
     });
   });
+
+  test('persists completed run session state across supervisor restarts', async () => {
+    const host = await bootstrapTestHost();
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    await supervisor.runCycles({
+      operationId: 'op-run-session-1000',
+      requestedAt: 1000,
+      cycleCount: 2,
+      cycleIntervalMs: 25,
+    });
+
+    const restartedSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    await expect(restartedSupervisor.getRunSession('op-run-session-1000')).resolves.toMatchObject({
+      traceId: 'op-run-session-1000',
+      manifestId: 'town-runtime',
+      requestedAt: 1000,
+      requestedCycleCount: 2,
+      cycleIntervalMs: 25,
+      stopOnAttention: true,
+      status: 'completed',
+      outcome: 'succeeded',
+      stopReason: 'cycle-count-completed',
+      completedCycleCount: 2,
+      cycles: [
+        {
+          cycleIndex: 1,
+          traceId: 'op-run-session-1000:cycle:1',
+          requestedAt: 1000,
+        },
+        {
+          cycleIndex: 2,
+          traceId: 'op-run-session-1000:cycle:2',
+          requestedAt: 1025,
+        },
+      ],
+      statusSnapshot: {
+        attentionPartitionCount: 0,
+        partitions: [
+          {
+            partitionKey: 'world-main',
+            nextTickIndex: 3,
+            lastAppliedSequence: 2,
+          },
+          {
+            partitionKey: 'world-east',
+            nextTickIndex: 3,
+            lastAppliedSequence: 2,
+          },
+        ],
+      },
+    });
+  });
+
+  test('resumes a running session from the saved completed cycle checkpoint', async () => {
+    const host = await bootstrapTestHost();
+    const firstSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const firstCycle = await firstSupervisor.startAll({
+      operationId: 'op-run-resume-1100:cycle:1',
+      requestedAt: 1100,
+    });
+    const runSessionRepository = new FileLocalSimulationRuntimeRunSessionRepository({
+      rootDir: join(host.rootDir, 'operations'),
+    });
+    await runSessionRepository.save({
+      traceId: 'op-run-resume-1100',
+      manifestId: 'town-runtime',
+      requestedAt: 1100,
+      requestedCycleCount: 3,
+      cycleIntervalMs: 50,
+      stopOnAttention: true,
+      status: 'running',
+      completedCycleCount: 1,
+      cycles: [createRunCycleSummary(1, 1100, firstCycle)],
+      statusSnapshot: firstCycle.status,
+      updatedAt: 1100,
+    });
+
+    const resumedSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const resumed = await resumedSupervisor.runCycles({
+      operationId: 'op-run-resume-1100',
+      requestedAt: 1100,
+      cycleCount: 3,
+      cycleIntervalMs: 50,
+    });
+
+    expect(
+      resumed.cycles.map((cycle) => ({
+        cycleIndex: cycle.cycleIndex,
+        traceId: cycle.traceId,
+        requestedAt: cycle.requestedAt,
+      })),
+    ).toEqual([
+      {
+        cycleIndex: 1,
+        traceId: 'op-run-resume-1100:cycle:1',
+        requestedAt: 1100,
+      },
+      {
+        cycleIndex: 2,
+        traceId: 'op-run-resume-1100:cycle:2',
+        requestedAt: 1150,
+      },
+      {
+        cycleIndex: 3,
+        traceId: 'op-run-resume-1100:cycle:3',
+        requestedAt: 1200,
+      },
+    ]);
+    expect(resumed).toMatchObject({
+      traceId: 'op-run-resume-1100',
+      completedCycleCount: 3,
+      stopReason: 'cycle-count-completed',
+      status: {
+        partitions: [
+          {
+            partitionKey: 'world-main',
+            nextTickIndex: 4,
+            lastAppliedSequence: 3,
+          },
+          {
+            partitionKey: 'world-east',
+            nextTickIndex: 4,
+            lastAppliedSequence: 3,
+          },
+        ],
+      },
+    });
+    await expect(
+      resumedSupervisor.getOperationTrace('op-run-resume-1100:cycle:1'),
+    ).resolves.toMatchObject({
+      command: 'start-all',
+      requestedAt: 1100,
+    });
+    await expect(
+      resumedSupervisor.getOperationTrace('op-run-resume-1100:cycle:2'),
+    ).resolves.toMatchObject({
+      command: 'start-all',
+      requestedAt: 1150,
+    });
+    await expect(resumedSupervisor.getRunSession('op-run-resume-1100')).resolves.toMatchObject({
+      status: 'completed',
+      completedCycleCount: 3,
+      cycles: [{ cycleIndex: 1 }, { cycleIndex: 2 }, { cycleIndex: 3 }],
+    });
+  });
 });
 
 function toStatusSummary(
@@ -755,6 +903,22 @@ function toStatusSummary(
       nextTickIndex: partition.nextTickIndex,
       lastAppliedSequence: partition.lastAppliedSequence,
     })),
+  };
+}
+
+function createRunCycleSummary(
+  cycleIndex: number,
+  requestedAt: number,
+  result: LocalSimulationRuntimeSupervisorStartAllResult,
+) {
+  return {
+    cycleIndex,
+    traceId: result.traceId,
+    requestedAt,
+    outcome: result.outcome,
+    succeededPartitionCount: result.succeededPartitionCount,
+    failedPartitionCount: result.failedPartitionCount,
+    attentionPartitionCount: result.status.attentionPartitionCount,
   };
 }
 

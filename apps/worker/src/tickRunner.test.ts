@@ -29,7 +29,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { runWorkerSimulationTick } from './index';
+import { createAivilizationWorldCommandPolicies, runWorkerSimulationTick } from './index';
 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
@@ -157,6 +157,23 @@ function createResidentialUpkeepProjection() {
         physiology: { energy: 80, satiety: 80, health: 90 },
         educationScore: 10,
         balance: 100,
+        residentialTier: 2,
+        job: null,
+        inventory: {},
+      },
+    ],
+    moneySupply: 1000,
+  });
+}
+
+function createDefaultSurvivalTimePolicyProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 10, satiety: 80, health: 90 },
+        educationScore: 10,
+        balance: 10,
         residentialTier: 2,
         job: null,
         inventory: {},
@@ -741,6 +758,51 @@ describe('worker tick runner', () => {
     expect(result.projection.moneySupply).toBe(990);
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('applies centralized default survival time policies during the worker time phase', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-default-survival-time-policies',
+      simulationId,
+      issuedAt: 100,
+      projection: createDefaultSurvivalTimePolicyProjection(),
+      policies: createAivilizationWorldCommandPolicies(),
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [],
+      timeDeltaMs: 3_600_000,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(
+      result.events
+        .filter(
+          (event) =>
+            event.type !== 'PhysiologyChanged' || event.payload.reason !== 'stochastic-illness',
+        )
+        .map((event) => [event.sequence, event.type]),
+    ).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'PhysiologyChanged'],
+      [3, 'ResidentialUpkeepCharged'],
+      [4, 'SubsidyPaid'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        previous: { energy: 10, satiety: 80, health: 90 },
+        next: { energy: 10, satiety: 80, health: 72 },
+        reason: 'sleep-deprivation',
+      },
+    });
+    expect(result.projection.agents[agentOne]?.physiology.health).toBe(72);
+    expect(result.projection.agents[agentOne]?.balance).toBe(25);
+    expect(result.projection.moneySupply).toBe(1015);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(result.streamVersion);
   });
 
   test('persists deterministic production rewards during worker action dispatch', async () => {

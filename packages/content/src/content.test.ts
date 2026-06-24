@@ -4,6 +4,7 @@ import {
   aivilizationAblationScenarioPreset,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
+  aivilizationSurvivalTimePolicyDefaults,
   commodities,
   createAivilizationAblationAgentSeeds,
   createAivilizationPopulationAgentSeeds,
@@ -90,6 +91,34 @@ describe('AIvilization source content', () => {
         );
       }),
     ).toBe(true);
+  });
+
+  test('captures source-backed survival time-effect defaults for runtime policies', () => {
+    expect(aivilizationSurvivalTimePolicyDefaults.sleepDeprivation).toMatchObject({
+      energyThreshold: 20,
+      healthDecayPerSecond: 0.005,
+      minHealth: 10,
+    });
+    expect(aivilizationSurvivalTimePolicyDefaults.stochasticIllness).toMatchObject({
+      illnessProbabilityPercentPerHour: 1,
+      healthDamage: 5,
+      minHealth: 10,
+    });
+    expect(aivilizationSurvivalTimePolicyDefaults.safetyNetSubsidy).toMatchObject({
+      minimumBalance: 50,
+      maxSubsidy: 25,
+    });
+    expect(aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs).toHaveLength(6);
+    expect(aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs[0]).toMatchObject({
+      residentialTier: 1,
+      currencyCostPerHour: 0,
+    });
+    expect(aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs[5]).toMatchObject({
+      residentialTier: 6,
+      currencyCostPerHour: 320,
+      source:
+        'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning',
+    });
   });
 
   test('generates deterministic ablation agent seeds from Section 5.1 assumptions', () => {

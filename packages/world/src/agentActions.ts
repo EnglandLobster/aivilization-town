@@ -32,6 +32,8 @@ import {
   evaluateOccupationApplication,
   evaluateSafetyNetSubsidy,
   isIncapacitated,
+  resolveResidentialPhysiologyCap,
+  type ResidentialPhysiologyCapPolicy,
   type ResidentialUpkeepPolicy,
   type ResidentialTierUpgradePolicy,
   type SafetyNetSubsidyPolicy,
@@ -69,6 +71,7 @@ export type WorldCommandPolicies = {
     readonly energy: number;
     readonly health: number;
   };
+  readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly production?: {
     readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   };
@@ -122,6 +125,9 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         satietyRecoveryByCommodity: input.policies.satietyRecoveryByCommodity,
         maxSatiety: input.policies.maxSatiety,
+        ...(input.policies.residentialPhysiologyCaps === undefined
+          ? {}
+          : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
         nextSequence: input.nextSequence,
       });
     case 'AgentMoveTo':
@@ -157,6 +163,9 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         energyRecoveryPerSecond: input.policies.sleep.energyRecoveryPerSecond,
         maxEnergy: input.policies.sleep.maxEnergy,
+        ...(input.policies.residentialPhysiologyCaps === undefined
+          ? {}
+          : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
         nextSequence: input.nextSequence,
       });
     case 'AgentSeeDoctor':
@@ -168,6 +177,9 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         healthRecoveryPerSecond: input.policies.seeDoctor.healthRecoveryPerSecond,
         maxHealth: input.policies.seeDoctor.maxHealth,
+        ...(input.policies.residentialPhysiologyCaps === undefined
+          ? {}
+          : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
         nextSequence: input.nextSequence,
       });
     case 'AgentWork':
@@ -371,6 +383,7 @@ export function handleAgentEatCommand(input: {
   readonly projection: WorldProjection;
   readonly satietyRecoveryByCommodity: Readonly<Record<string, number>>;
   readonly maxSatiety: number;
+  readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -400,11 +413,20 @@ export function handleAgentEatCommand(input: {
   if (!Number.isFinite(satietyRecovery) || satietyRecovery < 0) {
     return rejectCommand(input, 'AgentEat', 'satiety recovery must be non-negative');
   }
+  const maxSatiety = resolveRecoveryMaximum({
+    agent,
+    policy: input.residentialPhysiologyCaps,
+    fallback: input.maxSatiety,
+    field: 'maxSatiety',
+  });
+  if (maxSatiety.status === 'rejected') {
+    return rejectCommand(input, 'AgentEat', maxSatiety.reason);
+  }
 
   const nextPhysiology = {
     ...agent.physiology,
     satiety: Math.min(
-      input.maxSatiety,
+      maxSatiety.value,
       agent.physiology.satiety + satietyRecovery * payload.quantity,
     ),
   };
@@ -716,6 +738,7 @@ export function handleAgentSleepCommand(input: {
   readonly projection: WorldProjection;
   readonly energyRecoveryPerSecond: number;
   readonly maxEnergy: number;
+  readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -723,13 +746,22 @@ export function handleAgentSleepCommand(input: {
   if (payloadResult.status === 'invalid') {
     return rejectCommand(input, 'AgentSleep', payloadResult.reason);
   }
+  const maxEnergy = resolveRecoveryMaximum({
+    agent,
+    policy: input.residentialPhysiologyCaps,
+    fallback: input.maxEnergy,
+    field: 'maxEnergy',
+  });
+  if (maxEnergy.status === 'rejected') {
+    return rejectCommand(input, 'AgentSleep', maxEnergy.reason);
+  }
 
   const physiologyResult = parsePayload(() =>
     applyEnergyRecovery({
       ...agent.physiology,
       durationSeconds: payloadResult.payload.durationSeconds,
       energyRecoveryPerSecond: input.energyRecoveryPerSecond,
-      maxEnergy: input.maxEnergy,
+      maxEnergy: maxEnergy.value,
     }),
   );
   if (physiologyResult.status === 'invalid') {
@@ -761,6 +793,7 @@ export function handleAgentSeeDoctorCommand(input: {
   readonly projection: WorldProjection;
   readonly healthRecoveryPerSecond: number;
   readonly maxHealth: number;
+  readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -768,13 +801,22 @@ export function handleAgentSeeDoctorCommand(input: {
   if (payloadResult.status === 'invalid') {
     return rejectCommand(input, 'AgentSeeDoctor', payloadResult.reason);
   }
+  const maxHealth = resolveRecoveryMaximum({
+    agent,
+    policy: input.residentialPhysiologyCaps,
+    fallback: input.maxHealth,
+    field: 'maxHealth',
+  });
+  if (maxHealth.status === 'rejected') {
+    return rejectCommand(input, 'AgentSeeDoctor', maxHealth.reason);
+  }
 
   const physiologyResult = parsePayload(() =>
     applyHealthRecovery({
       ...agent.physiology,
       durationSeconds: payloadResult.payload.durationSeconds,
       healthRecoveryPerSecond: input.healthRecoveryPerSecond,
-      maxHealth: input.maxHealth,
+      maxHealth: maxHealth.value,
     }),
   );
   if (physiologyResult.status === 'invalid') {
@@ -1479,6 +1521,35 @@ function getCurrentBalance(
   agent: WorldAgentState,
 ): number {
   return balanceByAgent.get(agent.agentId) ?? agent.balance;
+}
+
+function resolveRecoveryMaximum(input: {
+  readonly agent: WorldAgentState;
+  readonly policy: ResidentialPhysiologyCapPolicy | undefined;
+  readonly fallback: number;
+  readonly field: 'maxEnergy' | 'maxSatiety' | 'maxHealth';
+}):
+  | {
+      readonly status: 'accepted';
+      readonly value: number;
+    }
+  | {
+      readonly status: 'rejected';
+      readonly reason: string;
+    } {
+  if (input.policy === undefined) {
+    return { status: 'accepted', value: input.fallback };
+  }
+
+  const decision = resolveResidentialPhysiologyCap({
+    residentialTier: input.agent.residentialTier,
+    policy: input.policy,
+  });
+  if (decision.status === 'rejected') {
+    return { status: 'rejected', reason: decision.detail };
+  }
+
+  return { status: 'accepted', value: decision.cap[input.field] };
 }
 
 function createStochasticIllnessSeed(input: {

@@ -28,8 +28,10 @@ import {
   createDirectedSocialRelationKey,
   evaluateResidentialTierUpgrade,
   evaluateOccupationApplication,
+  evaluateSafetyNetSubsidy,
   isIncapacitated,
   type ResidentialTierUpgradePolicy,
+  type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
   type StochasticIllnessPolicy,
 } from '@aivilization/society';
@@ -74,6 +76,7 @@ export type WorldCommandPolicies = {
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
@@ -98,6 +101,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.stochasticIllness === undefined
           ? {}
           : { stochasticIllness: input.policies.stochasticIllness }),
+        ...(input.policies.safetyNetSubsidy === undefined
+          ? {}
+          : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),
         nextSequence: input.nextSequence,
       });
     case 'AgentEat':
@@ -216,6 +222,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly projection: WorldProjection;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
@@ -229,7 +236,11 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }),
   ];
 
-  if (input.sleepDeprivation === undefined && input.stochasticIllness === undefined) {
+  if (
+    input.sleepDeprivation === undefined &&
+    input.stochasticIllness === undefined &&
+    input.safetyNetSubsidy === undefined
+  ) {
     return events;
   }
 
@@ -281,6 +292,28 @@ export function handleAdvanceSimulationTimeCommand(input: {
           minHealth: input.stochasticIllness.minHealth,
         }),
       });
+    }
+  }
+
+  if (input.safetyNetSubsidy !== undefined) {
+    for (const agent of agents) {
+      const decision = evaluateSafetyNetSubsidy({
+        balance: agent.balance,
+        minimumBalance: input.safetyNetSubsidy.minimumBalance,
+        maxSubsidy: input.safetyNetSubsidy.maxSubsidy,
+      });
+      if (decision.status === 'ineligible') {
+        continue;
+      }
+      events.push(
+        makeEvent(input, events.length, 'SubsidyPaid', {
+          agentId: agent.agentId,
+          amount: decision.amount,
+          previousBalance: decision.previousBalance,
+          nextBalance: decision.nextBalance,
+          reason: 'safety-net',
+        }),
+      );
     }
   }
 

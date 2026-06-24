@@ -10,6 +10,7 @@ import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
   createLocalSimulationRuntimeRunQueueApiService,
   createLocalSimulationRuntimeRunQueueWorker,
+  createLocalSimulationRuntimeRunQueueWorkerApiService,
   createLocalSimulationRuntimeRunQueueWorkerHost,
   createLocalSimulationRuntimeSupervisor,
   createLocalSimulationRuntimeSupervisorApiService,
@@ -17,6 +18,7 @@ import {
   type LocalSimulationRuntimeHost,
   type LocalSimulationRuntimeHostInput,
   type LocalSimulationRuntimeRunQueueApiService,
+  type LocalSimulationRuntimeRunQueueWorkerApiService,
   type LocalSimulationRuntimeRunQueueWorkerHost,
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorApiService,
@@ -39,6 +41,7 @@ export type LocalRuntimeTownApi = {
   readonly supervisor: LocalSimulationRuntimeSupervisor;
   readonly runtimeSupervisorApi: LocalSimulationRuntimeSupervisorApiService;
   readonly runtimeRunQueueApi: LocalSimulationRuntimeRunQueueApiService;
+  readonly runtimeRunQueueWorkerApi: LocalSimulationRuntimeRunQueueWorkerApiService;
   readonly runQueueWorkerHost: LocalSimulationRuntimeRunQueueWorkerHost;
   readonly handler: TownHttpApiHandler;
 };
@@ -73,10 +76,14 @@ export async function createLocalRuntimeTownApi(
       ? {}
       : { maxJobsPerPoll: input.runtimeRunQueue.maxJobsPerPoll }),
   });
+  const runtimeRunQueueWorkerApi = createLocalSimulationRuntimeRunQueueWorkerApiService({
+    host: runQueueWorkerHost,
+  });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeRunQueueApi,
+    runtimeRunQueueWorker: runtimeRunQueueWorkerApi,
   });
 
   return {
@@ -84,6 +91,7 @@ export async function createLocalRuntimeTownApi(
     supervisor,
     runtimeSupervisorApi,
     runtimeRunQueueApi,
+    runtimeRunQueueWorkerApi,
     runQueueWorkerHost,
     handler,
   };

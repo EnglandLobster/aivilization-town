@@ -4,6 +4,7 @@ import { createTownHttpApiHandler } from './index';
 import type { SimulationApiService } from './simulationApi';
 import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
 import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
+import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -80,6 +81,19 @@ type TestRuntimeRunQueueJob = {
   };
 };
 
+type TestRuntimeRunQueueWorkerStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly processedJobCount: number;
+};
+
+type TestRuntimeRunQueueWorkerDrainResult = {
+  readonly processedJobCount: number;
+  readonly completedJobCount: number;
+  readonly failedJobCount: number;
+  readonly idle: boolean;
+};
+
 describe('town HTTP API router', () => {
   test('routes projection, steering, and lifecycle requests to the simulation service', async () => {
     const calls: unknown[] = [];
@@ -87,6 +101,7 @@ describe('town HTTP API router', () => {
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
       runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
     });
 
     await expect(
@@ -323,6 +338,7 @@ describe('town HTTP API router', () => {
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
       runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
     });
 
     await expect(handler({ method: 'GET', path: '/runtime/status' })).resolves.toEqual({
@@ -452,6 +468,7 @@ describe('town HTTP API router', () => {
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
       runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
     });
 
     await expect(
@@ -526,12 +543,68 @@ describe('town HTTP API router', () => {
     ]);
   });
 
+  test('routes runtime run queue worker control requests to the worker service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(
+      handler({ method: 'GET', path: '/runtime/run-queue-worker/status' }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, processedJobCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/run-queue-worker/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, processedJobCount: 0 },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-queue-worker/drain',
+        body: { maxJobs: 2 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        processedJobCount: 2,
+        completedJobCount: 2,
+        failedJobCount: 0,
+        idle: false,
+      },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/run-queue-worker/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, processedJobCount: 2 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeRunQueueWorkerStatus' },
+      { method: 'startRuntimeRunQueueWorker' },
+      { method: 'drainRuntimeRunQueueWorker', request: { maxJobs: 2 } },
+      { method: 'stopRuntimeRunQueueWorker' },
+    ]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
       runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
     });
 
     await expect(handler({ method: 'GET', path: '/missing' })).resolves.toEqual({
@@ -592,6 +665,17 @@ describe('town HTTP API router', () => {
           message: 'enqueuedAt must be a non-negative finite number',
         },
       },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-queue-worker/drain',
+        body: { maxJobs: 0 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'maxJobs must be a positive integer' } },
     });
     await expect(
       handler({
@@ -857,6 +941,37 @@ function createRuntimeRunQueueService(
           cycleIntervalMs: 50,
           stopOnAttention: true,
         },
+      });
+    },
+  };
+}
+
+function createRuntimeRunQueueWorkerService(
+  calls: unknown[],
+): RuntimeRunQueueWorkerApiService<
+  TestRuntimeRunQueueWorkerStatus,
+  TestRuntimeRunQueueWorkerDrainResult
+> {
+  return {
+    getRuntimeRunQueueWorkerStatus: () => {
+      calls.push({ method: 'getRuntimeRunQueueWorkerStatus' });
+      return Promise.resolve({ running: false, inFlight: false, processedJobCount: 0 });
+    },
+    startRuntimeRunQueueWorker: () => {
+      calls.push({ method: 'startRuntimeRunQueueWorker' });
+      return Promise.resolve({ running: true, inFlight: false, processedJobCount: 0 });
+    },
+    stopRuntimeRunQueueWorker: () => {
+      calls.push({ method: 'stopRuntimeRunQueueWorker' });
+      return Promise.resolve({ running: false, inFlight: false, processedJobCount: 2 });
+    },
+    drainRuntimeRunQueueWorker: (request) => {
+      calls.push({ method: 'drainRuntimeRunQueueWorker', request });
+      return Promise.resolve({
+        processedJobCount: request.maxJobs ?? 1,
+        completedJobCount: request.maxJobs ?? 1,
+        failedJobCount: 0,
+        idle: false,
       });
     },
   };

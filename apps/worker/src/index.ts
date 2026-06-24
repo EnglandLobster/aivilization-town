@@ -14,6 +14,7 @@ export * from './economicRuntime';
 export * from './experimentValidationRunner';
 export * from './localRuntimeStorage';
 export * from './localCommandDrain';
+export * from './localExperimentValidationSchedule';
 export * from './localRuntimeStep';
 export * from './localRuntimeLoop';
 export * from './localSimulationLifecycle';

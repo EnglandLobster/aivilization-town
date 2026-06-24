@@ -35,6 +35,7 @@ describe('local runtime town profile runner CLI', () => {
         '50',
         '--report-root-dir',
         '/tmp/reports',
+        '--require-gate',
       ]),
     ).toEqual({
       profileId: 'smoke-25',
@@ -43,6 +44,7 @@ describe('local runtime town profile runner CLI', () => {
       requestedAt: 100,
       cycleIntervalMs: 50,
       reportRootDir: '/tmp/reports',
+      requireGate: true,
     });
   });
 
@@ -116,6 +118,7 @@ describe('local runtime town profile runner CLI', () => {
         '100',
         '--report-root-dir',
         reportRootDir,
+        '--require-gate',
       ],
       stdout: {
         write: (chunk) => {
@@ -140,6 +143,76 @@ describe('local runtime town profile runner CLI', () => {
         totalProjectionAgentCount: 25,
       }),
     ]);
+  });
+
+  test('returns a profile gate failure exit code when require gate is supplied', async () => {
+    let output = '';
+    let stderr = '';
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--require-gate',
+      ],
+      stderr: {
+        write: (chunk) => {
+          stderr += chunk;
+        },
+      },
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+      runProfile: (input) =>
+        Promise.resolve({
+          profileId: input.profileId,
+          manifestId: 'aivilization-smoke-25',
+          rootDir: input.rootDir,
+          requestedAt: input.requestedAt,
+          daemonHealth: 'attention',
+          partitionCount: 1,
+          totalProjectionAgentCount: 25,
+          totalEventCount: 1,
+          totalAgentTraceCount: 0,
+          run: {
+            traceId: 'aivilization-smoke-25:profile-run:100',
+            outcome: 'succeeded',
+            requestedCycleCount: input.cycleCount,
+            completedCycleCount: 0,
+            stopReason: 'cycle-count-completed',
+          },
+          partitions: [
+            {
+              simulationId: 'aivilization-smoke-25',
+              partitionKey: 'world-main',
+              scenarioPresetId: 'aivilization-smoke-25-world-main',
+              status: 'completed',
+              health: 'healthy',
+              lastAppliedSequence: 1,
+              streamVersion: 1,
+              eventCount: 1,
+              projectionAgentCount: 25,
+              agentTraceCount: 0,
+            },
+          ],
+        }),
+    });
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(output)).toMatchObject({
+      profileId: 'smoke-25',
+      daemonHealth: 'attention',
+    });
+    expect(stderr).toContain('runtime profile run gate failed');
+    expect(stderr).toContain('daemon-health-mismatch');
+    expect(stderr).toContain('completed-cycle-count-too-low');
   });
 });
 

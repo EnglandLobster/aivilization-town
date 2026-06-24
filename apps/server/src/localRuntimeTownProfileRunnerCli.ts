@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
-import { FileRuntimeProfileRunReportRepository } from '@aivilization/observability';
+import {
+  FileRuntimeProfileRunReportRepository,
+  createRuntimeProfileRunReport,
+  evaluateRuntimeProfileRunReport,
+} from '@aivilization/observability';
+import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
+  type LocalRuntimeTownProfileRunnerPartitionSummary,
   type LocalRuntimeTownProfileRunnerSummary,
 } from './localRuntimeTownProfileRunner';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
@@ -13,6 +19,7 @@ export type LocalRuntimeTownProfileRunnerCliConfig = Pick<
   'profileId' | 'rootDir' | 'cycleCount' | 'requestedAt' | 'cycleIntervalMs'
 > & {
   readonly reportRootDir?: string;
+  readonly requireGate?: boolean;
 };
 
 export type LocalRuntimeTownProfileRunnerCliWriter = {
@@ -37,13 +44,14 @@ const profileIds = new Set<LocalRuntimeTownDaemonScenarioProfileId>([
 export function parseLocalRuntimeTownProfileRunnerCliArgs(
   argv: readonly string[],
 ): LocalRuntimeTownProfileRunnerCliConfig {
-  const args = parseFlagArgs(argv);
+  const args = parseFlagArgs(argv, new Set(['--require-gate']));
   const profileId = readRequiredProfileId(args, '--profile');
   const rootDir = readRequiredString(args, '--root-dir');
   const cycleCount = readOptionalPositiveInteger(args, '--cycles') ?? 1;
   const requestedAt = readOptionalNonNegativeFinite(args, '--requested-at') ?? Date.now();
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
+  const requireGate = readOptionalBoolean(args, '--require-gate');
 
   return {
     profileId,
@@ -52,6 +60,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
     requestedAt,
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
+    ...(requireGate === undefined ? {} : { requireGate }),
   };
 }
 
@@ -66,6 +75,16 @@ export async function runLocalRuntimeTownProfileRunnerCli(
     const config = parseLocalRuntimeTownProfileRunnerCliArgs(input.argv ?? process.argv.slice(2));
     const summary = await runProfile(createRunnerInput(config));
     stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    if (config.requireGate === true) {
+      const gate = evaluateRuntimeProfileRunReport(
+        createProfileRunReportFromSummary(summary),
+        createLocalRuntimeTownProfileGateCriteria(summary.profileId),
+      );
+      if (gate.status === 'fail') {
+        stderr.write(formatGateFailure(gate.failures));
+        return 2;
+      }
+    }
     return 0;
   } catch (error) {
     stderr.write(`${formatError(error)}\n`);
@@ -91,7 +110,37 @@ function createRunnerInput(
   };
 }
 
-function parseFlagArgs(argv: readonly string[]): ReadonlyMap<string, string> {
+function createProfileRunReportFromSummary(summary: LocalRuntimeTownProfileRunnerSummary) {
+  return createRuntimeProfileRunReport({
+    runId: summary.run.traceId,
+    profileId: summary.profileId,
+    manifestId: summary.manifestId,
+    rootDir: summary.rootDir,
+    generatedAt: Date.now(),
+    requestedAt: summary.requestedAt,
+    daemonHealth: summary.daemonHealth,
+    outcome: summary.run.outcome,
+    requestedCycleCount: summary.run.requestedCycleCount,
+    completedCycleCount: summary.run.completedCycleCount,
+    stopReason: summary.run.stopReason,
+    partitionCount: summary.partitionCount,
+    totalProjectionAgentCount: summary.totalProjectionAgentCount,
+    totalEventCount: summary.totalEventCount,
+    totalAgentTraceCount: summary.totalAgentTraceCount,
+    partitions: summary.partitions.map(clonePartitionSummary),
+  });
+}
+
+function clonePartitionSummary(
+  partition: LocalRuntimeTownProfileRunnerPartitionSummary,
+): LocalRuntimeTownProfileRunnerPartitionSummary {
+  return { ...partition };
+}
+
+function parseFlagArgs(
+  argv: readonly string[],
+  booleanFlags: ReadonlySet<string> = new Set(),
+): ReadonlyMap<string, string> {
   const args = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -100,6 +149,10 @@ function parseFlagArgs(argv: readonly string[]): ReadonlyMap<string, string> {
     }
     const value = argv[index + 1];
     if (value === undefined || value.startsWith('--')) {
+      if (booleanFlags.has(flag)) {
+        args.set(flag, 'true');
+        continue;
+      }
       throw new Error(`missing value for ${flag}`);
     }
     args.set(flag, value);
@@ -125,6 +178,20 @@ function readRequiredString(args: ReadonlyMap<string, string>, flag: string): st
     throw new Error(`${flag} is required`);
   }
   return value;
+}
+
+function readOptionalBoolean(args: ReadonlyMap<string, string>, flag: string): boolean | undefined {
+  const value = args.get(flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  throw new Error(`${flag} must be true or false`);
 }
 
 function readOptionalString(args: ReadonlyMap<string, string>, flag: string): string | undefined {
@@ -170,6 +237,18 @@ function readOptionalNonNegativeFinite(
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function formatGateFailure(
+  failures: readonly {
+    readonly code: string;
+    readonly message: string;
+  }[],
+): string {
+  return [
+    'runtime profile run gate failed',
+    ...failures.map((failure) => `- ${failure.code}: ${failure.message}`),
+  ].join('\n');
 }
 
 function isDirectExecution(metaUrl: string, argvPath: string | undefined): boolean {

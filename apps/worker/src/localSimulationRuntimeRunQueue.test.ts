@@ -248,6 +248,84 @@ describe('local simulation runtime run queue', () => {
     });
   });
 
+  test('repository reports queue stats from latest job states at an observed timestamp', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue(createJobInput('job-delayed', 'op-run-delayed', 100));
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 110,
+      leaseDurationMs: 50,
+    });
+    await repository.fail({
+      jobId: 'job-delayed',
+      failedAt: 120,
+      maxAttempts: 2,
+      retryDelayMs: 200,
+      error: { name: 'Error', message: 'transient failure' },
+    });
+
+    await repository.enqueue(createJobInput('job-dead-stats', 'op-run-dead-stats', 150));
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 160,
+      leaseDurationMs: 50,
+    });
+    await repository.fail({
+      jobId: 'job-dead-stats',
+      failedAt: 170,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'permanent failure before replay' },
+    });
+    await repository.replayDeadLetter({
+      jobId: 'job-dead-stats',
+      replayedAt: 180,
+    });
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 190,
+      leaseDurationMs: 50,
+    });
+    await repository.fail({
+      jobId: 'job-dead-stats',
+      failedAt: 200,
+      maxAttempts: 2,
+      error: { name: 'Error', message: 'permanent failure after replay' },
+    });
+
+    await repository.enqueue(createJobInput('job-expired-lease', 'op-run-expired-lease', 220));
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 220,
+      leaseDurationMs: 30,
+    });
+
+    await repository.enqueue(createJobInput('job-ready', 'op-run-ready', 230));
+
+    await expect(
+      repository.getStats({ observedAt: 260, manifestId: 'town-runtime' }),
+    ).resolves.toEqual({
+      observedAt: 260,
+      manifestId: 'town-runtime',
+      totalJobCount: 4,
+      statusCounts: {
+        queued: 2,
+        leased: 1,
+        completed: 0,
+        failed: 0,
+        'dead-lettered': 1,
+      },
+      readyQueueCount: 1,
+      delayedQueueCount: 1,
+      activeLeaseCount: 0,
+      expiredLeaseCount: 1,
+      failedAttemptCount: 3,
+      replayCount: 1,
+      oldestQueuedAt: 90,
+      oldestReadyJobEnqueuedAt: 220,
+      newestUpdatedAt: 220,
+    });
+  });
+
   test('queue worker claims one job and marks it completed after running supervisor cycles', async () => {
     const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
     await repository.enqueue(createJobInput('job-worker-1', 'op-run-worker-1', 100));

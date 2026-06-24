@@ -8,6 +8,7 @@ import type {
   RuntimeRunQueueJobQueryRequest,
   RuntimeRunQueueJobStatus,
   RuntimeRunQueueReplayRequest,
+  RuntimeRunQueueStatsRequest,
   RuntimeRunQueueSubmitRequest,
 } from './runtimeRunQueueApi';
 import type {
@@ -367,6 +368,15 @@ async function routeRuntimeRequest<
       await runtimeRunQueue.enqueueRuntimeRun(createRuntimeRunQueueSubmitRequest(request.body)),
     );
   }
+  if (segments.length === 3 && segments[1] === 'run-jobs' && segments[2] === 'stats') {
+    assertMethod(request, 'GET');
+    return jsonResponse(
+      200,
+      await runtimeRunQueue.getRuntimeRunQueueStats(
+        createRuntimeRunQueueStatsRequest(request.query),
+      ),
+    );
+  }
   if (segments.length === 4 && segments[1] === 'run-jobs' && segments[3] === 'replay') {
     assertMethod(request, 'POST');
     const jobId = segments[2];
@@ -664,6 +674,15 @@ function createRuntimeRunQueueJobQueryRequest(
   };
 }
 
+function createRuntimeRunQueueStatsRequest(
+  query: TownHttpApiRequest['query'],
+): RuntimeRunQueueStatsRequest {
+  return {
+    observedAt: requireQueryNonNegativeNumber(query, 'observedAt'),
+    ...optionalQueryString(query, 'manifestId'),
+  };
+}
+
 function createRuntimeRunQueueReplayRequest(
   jobId: string,
   body: unknown,
@@ -903,6 +922,22 @@ function optionalQueryNumber(
     throw new TownHttpApiError(400, 'bad_request', `${field} must be a number`);
   }
   return { [field]: parsed };
+}
+
+function requireQueryNumber(query: TownHttpApiRequest['query'], field: string): number {
+  const value = optionalQueryNumber(query, field)[field];
+  if (value === undefined) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a number`);
+  }
+  return value;
+}
+
+function requireQueryNonNegativeNumber(query: TownHttpApiRequest['query'], field: string): number {
+  const value = requireQueryNumber(query, field);
+  if (value < 0) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a non-negative finite number`);
+  }
+  return value;
 }
 
 function optionalQueryInteger(

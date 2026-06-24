@@ -341,6 +341,28 @@ describe('local runtime town HTTP gateway', () => {
       status: 'queued',
       maxAttempts: 2,
     });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/stats?observedAt=910&manifestId=town-runtime`),
+    ).resolves.toMatchObject({
+      observedAt: 910,
+      manifestId: 'town-runtime',
+      totalJobCount: 2,
+      statusCounts: {
+        queued: 1,
+        leased: 0,
+        completed: 1,
+        failed: 0,
+        'dead-lettered': 0,
+      },
+      readyQueueCount: 1,
+      delayedQueueCount: 0,
+      activeLeaseCount: 0,
+      expiredLeaseCount: 0,
+      failedAttemptCount: 1,
+      replayCount: 1,
+      oldestQueuedAt: 800,
+      oldestReadyJobEnqueuedAt: 800,
+    });
 
     const runSession = await fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-cycles-400`);
     expect(runSession).toMatchObject({

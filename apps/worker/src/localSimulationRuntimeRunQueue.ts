@@ -84,6 +84,35 @@ export type LocalSimulationRuntimeRunQueueQueryRequest = {
   readonly limit?: number;
 };
 
+export type LocalSimulationRuntimeRunQueueStatsRequest = {
+  readonly observedAt: SimulationTimestamp;
+  readonly manifestId?: string;
+};
+
+export type LocalSimulationRuntimeRunQueueStatusCounts = {
+  readonly queued: number;
+  readonly leased: number;
+  readonly completed: number;
+  readonly failed: number;
+  readonly 'dead-lettered': number;
+};
+
+export type LocalSimulationRuntimeRunQueueStats = {
+  readonly observedAt: SimulationTimestamp;
+  readonly manifestId?: string;
+  readonly totalJobCount: number;
+  readonly statusCounts: LocalSimulationRuntimeRunQueueStatusCounts;
+  readonly readyQueueCount: number;
+  readonly delayedQueueCount: number;
+  readonly activeLeaseCount: number;
+  readonly expiredLeaseCount: number;
+  readonly failedAttemptCount: number;
+  readonly replayCount: number;
+  readonly oldestQueuedAt?: SimulationTimestamp;
+  readonly oldestReadyJobEnqueuedAt?: SimulationTimestamp;
+  readonly newestUpdatedAt?: SimulationTimestamp;
+};
+
 export type LocalSimulationRuntimeRunQueueReplayDeadLetterRequest = {
   readonly jobId: string;
   readonly replayedAt: SimulationTimestamp;
@@ -108,6 +137,9 @@ export type LocalSimulationRuntimeRunQueueRepository = {
   readonly query: (
     request: LocalSimulationRuntimeRunQueueQueryRequest,
   ) => Promise<readonly LocalSimulationRuntimeRunQueueJob[]>;
+  readonly getStats: (
+    request: LocalSimulationRuntimeRunQueueStatsRequest,
+  ) => Promise<LocalSimulationRuntimeRunQueueStats>;
   readonly replayDeadLetter: (
     request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
   ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
@@ -217,6 +249,15 @@ export class InMemoryLocalSimulationRuntimeRunQueueRepository implements LocalSi
     });
   }
 
+  getStats(
+    request: LocalSimulationRuntimeRunQueueStatsRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueStats> {
+    return Promise.resolve().then(() => {
+      assertStatsRequest(request);
+      return calculateQueueStats([...this.jobs.values()], request);
+    });
+  }
+
   replayDeadLetter(
     request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
   ): Promise<LocalSimulationRuntimeRunQueueJob | undefined> {
@@ -316,6 +357,15 @@ export class FileLocalSimulationRuntimeRunQueueRepository implements LocalSimula
     return Promise.resolve().then(() => {
       assertQueryRequest(request);
       return queryJobs(readLatestJobs(this.queuePath), request).map(cloneJob);
+    });
+  }
+
+  getStats(
+    request: LocalSimulationRuntimeRunQueueStatsRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueStats> {
+    return Promise.resolve().then(() => {
+      assertStatsRequest(request);
+      return calculateQueueStats(readLatestJobs(this.queuePath), request);
     });
   }
 
@@ -569,6 +619,90 @@ function queryJobs(
   return request.limit === undefined ? filtered : filtered.slice(0, request.limit);
 }
 
+function calculateQueueStats(
+  jobs: readonly LocalSimulationRuntimeRunQueueJob[],
+  request: LocalSimulationRuntimeRunQueueStatsRequest,
+): LocalSimulationRuntimeRunQueueStats {
+  const filtered = jobs.filter(
+    (job) => request.manifestId === undefined || job.manifestId === request.manifestId,
+  );
+  const queuedJobs = filtered.filter((job) => job.status === 'queued');
+  const readyQueuedJobs = queuedJobs.filter(
+    (job) => (job.nextAttemptAt ?? job.enqueuedAt) <= request.observedAt,
+  );
+  const leasedJobs = filtered.filter((job) => job.status === 'leased');
+  const activeLeases = leasedJobs.filter((job) => (job.leaseExpiresAt ?? 0) > request.observedAt);
+  const expiredLeases = leasedJobs.filter((job) => (job.leaseExpiresAt ?? 0) <= request.observedAt);
+  const stats: LocalSimulationRuntimeRunQueueStats = {
+    observedAt: request.observedAt,
+    ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
+    totalJobCount: filtered.length,
+    statusCounts: countStatuses(filtered),
+    readyQueueCount: readyQueuedJobs.length,
+    delayedQueueCount: queuedJobs.length - readyQueuedJobs.length,
+    activeLeaseCount: activeLeases.length,
+    expiredLeaseCount: expiredLeases.length,
+    failedAttemptCount: sumCounts(filtered, 'failedAttemptCount'),
+    replayCount: sumCounts(filtered, 'replayCount'),
+    ...optionalMinimumTimestamp(
+      queuedJobs.map((job) => job.enqueuedAt),
+      'oldestQueuedAt',
+    ),
+    ...optionalMinimumTimestamp(
+      readyQueuedJobs.map((job) => job.enqueuedAt),
+      'oldestReadyJobEnqueuedAt',
+    ),
+    ...optionalMaximumTimestamp(
+      filtered.map((job) => job.updatedAt),
+      'newestUpdatedAt',
+    ),
+  };
+  return stats;
+}
+
+function countStatuses(
+  jobs: readonly LocalSimulationRuntimeRunQueueJob[],
+): LocalSimulationRuntimeRunQueueStatusCounts {
+  const counts: Record<LocalSimulationRuntimeRunQueueJobStatus, number> = {
+    queued: 0,
+    leased: 0,
+    completed: 0,
+    failed: 0,
+    'dead-lettered': 0,
+  };
+  for (const job of jobs) {
+    counts[job.status] += 1;
+  }
+  return counts;
+}
+
+function sumCounts(
+  jobs: readonly LocalSimulationRuntimeRunQueueJob[],
+  field: 'failedAttemptCount' | 'replayCount',
+): number {
+  return jobs.reduce((sum, job) => sum + (job[field] ?? 0), 0);
+}
+
+function optionalMinimumTimestamp<TField extends string>(
+  values: readonly SimulationTimestamp[],
+  field: TField,
+): Record<TField, SimulationTimestamp> | Record<string, never> {
+  if (values.length === 0) {
+    return {};
+  }
+  return { [field]: Math.min(...values) } as Record<TField, SimulationTimestamp>;
+}
+
+function optionalMaximumTimestamp<TField extends string>(
+  values: readonly SimulationTimestamp[],
+  field: TField,
+): Record<TField, SimulationTimestamp> | Record<string, never> {
+  if (values.length === 0) {
+    return {};
+  }
+  return { [field]: Math.max(...values) } as Record<TField, SimulationTimestamp>;
+}
+
 function jobIsClaimEligible(
   job: LocalSimulationRuntimeRunQueueJob,
   request: LocalSimulationRuntimeRunQueueClaimRequest,
@@ -691,6 +825,13 @@ function assertQueryRequest(request: LocalSimulationRuntimeRunQueueQueryRequest)
   }
   if (request.limit !== undefined) {
     assertPositiveInteger(request.limit, 'limit');
+  }
+}
+
+function assertStatsRequest(request: LocalSimulationRuntimeRunQueueStatsRequest): void {
+  assertNonNegativeFinite(request.observedAt, 'observedAt');
+  if (request.manifestId !== undefined) {
+    assertNonEmpty(request.manifestId, 'manifestId');
   }
 }
 

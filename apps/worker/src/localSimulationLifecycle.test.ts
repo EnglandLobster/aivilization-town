@@ -196,6 +196,39 @@ describe('local simulation lifecycle controller', () => {
       storage.experimentValidationReportRepository.query({ simulationId: 'sim-1' }),
     ).resolves.toEqual([]);
   });
+
+  test('returns validation failure metadata without failing a completed lifecycle start', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      validationSchedule: {
+        plannerRuns: createPlannerRuns(),
+        expectedTrajectoryAgentIds: ['agent-1'],
+        trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      },
+    });
+
+    const result = await controller.start(createRequest(900));
+
+    expect(result.status).toBe('completed');
+    expect(result.state.lastAppliedSequence).toBe(1);
+    expect(result.validationReport).toBeUndefined();
+    expect(result.validationFailure).toMatchObject({
+      name: 'Error',
+      message: 'events must include at least one TradeExecuted observation',
+    });
+    await expect(
+      storage.experimentValidationReportRepository.query({ simulationId: 'sim-1' }),
+    ).resolves.toEqual([]);
+  });
 });
 
 function createController(input: {

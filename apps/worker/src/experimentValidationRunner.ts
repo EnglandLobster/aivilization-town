@@ -1,6 +1,7 @@
 import { calculateNetWorth } from '@aivilization/economy';
 import {
   createExperimentValidationReport,
+  type AgentCycleTrace,
   type AgentCycleTraceRepository,
   type AgentTrajectoryObservation,
   type ExperimentValidationReport,
@@ -280,20 +281,56 @@ export async function createAgentTrajectoriesFromTraceRepository(input: {
       : { toCycleStartedAt: input.traceWindow.toCycleStartedAt }),
   });
   const stepCountsByAgentId = new Map<string, number>();
+  const tracesByAgentId = new Map<string, AgentCycleTrace[]>();
 
   for (const trace of traces) {
     if (!expectedAgentIds.has(trace.agentId)) {
       continue;
     }
     stepCountsByAgentId.set(trace.agentId, (stepCountsByAgentId.get(trace.agentId) ?? 0) + 1);
+    const existing = tracesByAgentId.get(trace.agentId) ?? [];
+    existing.push(trace);
+    tracesByAgentId.set(trace.agentId, existing);
   }
 
   return [...stepCountsByAgentId.entries()]
     .sort(([leftAgentId], [rightAgentId]) => leftAgentId.localeCompare(rightAgentId))
-    .map(([agentId, stepCount]) => ({
-      agentId,
-      stepCount,
-    }));
+    .map(([agentId, stepCount]) =>
+      createTrajectoryObservationFromTraces({
+        agentId,
+        stepCount,
+        traces: tracesByAgentId.get(agentId) ?? [],
+      }),
+    );
+}
+
+function createTrajectoryObservationFromTraces(input: {
+  readonly agentId: string;
+  readonly stepCount: number;
+  readonly traces: readonly AgentCycleTrace[];
+}): AgentTrajectoryObservation {
+  const commandIds = sortCycleTracesChronologically(input.traces).flatMap(
+    (trace) => trace.emittedCommandIds,
+  );
+  return {
+    agentId: input.agentId,
+    stepCount: input.stepCount,
+    ...(commandIds.length === 0
+      ? {}
+      : {
+          firstCommandId: commandIds[0],
+          lastCommandId: commandIds[commandIds.length - 1],
+        }),
+  };
+}
+
+function sortCycleTracesChronologically(traces: readonly AgentCycleTrace[]): AgentCycleTrace[] {
+  return [...traces].sort((left, right) => {
+    if (left.cycleStartedAt !== right.cycleStartedAt) {
+      return left.cycleStartedAt - right.cycleStartedAt;
+    }
+    return left.traceId.localeCompare(right.traceId);
+  });
 }
 
 function createExpectedTrajectoryAgentIds(projection: WorldProjection): string[] {

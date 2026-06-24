@@ -93,6 +93,9 @@ describe('local experiment validation schedule', () => {
     expect(getMetric(result.report.metrics, 'trajectory-coverage').evidence.maximumStepCount).toBe(
       2,
     );
+    expect(
+      getMetric(result.report.metrics, 'trajectory-coverage').evidence.commandBackedTrajectoryCount,
+    ).toBe(2);
     await expect(
       storage.experimentValidationReportRepository.get('validation-schedule-1'),
     ).resolves.toEqual(result.report);

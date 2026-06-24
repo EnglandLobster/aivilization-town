@@ -10,6 +10,7 @@ import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent, type WorldProjection } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
+  createAgentTrajectoriesFromTraceRepository,
   createOhlcPriceBarsFromTradePriceObservations,
   createTradePriceObservationsFromWorldEvents,
   createWorkerExperimentValidationReport,
@@ -139,6 +140,7 @@ function createTrace(input: {
   readonly traceId: string;
   readonly agentId: string;
   readonly cycleStartedAt: number;
+  readonly emittedCommandIds?: readonly string[];
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -184,7 +186,7 @@ function createTrace(input: {
       profileEvidenceRecordIds: [],
     },
     replanningDecision: { kind: 'none' },
-    emittedCommandIds: [`${input.traceId}:command`],
+    emittedCommandIds: input.emittedCommandIds ?? [`${input.traceId}:command`],
     memoryContextIds: [],
     memoryWriteIds: [],
   });
@@ -341,6 +343,63 @@ describe('worker experiment validation runner', () => {
     expect(getMetric(report.metrics, 'wealth-stratification').value).toBeCloseTo(0.3125);
     expect(getMetric(report.metrics, 'trajectory-coverage').value).toBeCloseTo(2 / 3);
     expect(getMetric(report.metrics, 'trajectory-coverage').evidence.maximumStepCount).toBe(2);
+  });
+
+  test('creates command-backed trajectory observations from durable cycle traces', async () => {
+    const traceRepository = new InMemoryAgentCycleTraceRepository();
+    await traceRepository.record(
+      createTrace({
+        traceId: 'trace-a-late',
+        agentId: 'agent-a',
+        cycleStartedAt: 300,
+        emittedCommandIds: ['cmd-a-3', 'cmd-a-4'],
+      }),
+    );
+    await traceRepository.record(
+      createTrace({
+        traceId: 'trace-a-early',
+        agentId: 'agent-a',
+        cycleStartedAt: 100,
+        emittedCommandIds: ['cmd-a-1'],
+      }),
+    );
+    await traceRepository.record(
+      createTrace({
+        traceId: 'trace-a-middle-without-command',
+        agentId: 'agent-a',
+        cycleStartedAt: 200,
+        emittedCommandIds: [],
+      }),
+    );
+    await traceRepository.record(
+      createTrace({
+        traceId: 'trace-b-command',
+        agentId: 'agent-b',
+        cycleStartedAt: 150,
+        emittedCommandIds: ['cmd-b-1'],
+      }),
+    );
+
+    const trajectories = await createAgentTrajectoriesFromTraceRepository({
+      simulationId,
+      expectedAgentIds: ['agent-a', 'agent-b', 'agent-c'],
+      repository: traceRepository,
+    });
+
+    expect(trajectories).toEqual([
+      {
+        agentId: 'agent-a',
+        stepCount: 3,
+        firstCommandId: 'cmd-a-1',
+        lastCommandId: 'cmd-a-4',
+      },
+      {
+        agentId: 'agent-b',
+        stepCount: 1,
+        firstCommandId: 'cmd-b-1',
+        lastCommandId: 'cmd-b-1',
+      },
+    ]);
   });
 
   test('can create the validation price series from OHLC close prices', async () => {

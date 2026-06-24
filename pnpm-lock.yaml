@@ -83,6 +83,9 @@ importers:
       '@aivilization/content':
         specifier: workspace:*
         version: link:../../packages/content
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../../packages/economy
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../../packages/memory

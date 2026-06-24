@@ -11,6 +11,7 @@ export * from './canonicalWorkerRuntimeResolver';
 export * from './commandStreamConsumer';
 export * from './domainRuntimeRegistry';
 export * from './economicRuntime';
+export * from './experimentValidationRunner';
 export * from './localRuntimeStorage';
 export * from './localCommandDrain';
 export * from './localRuntimeStep';

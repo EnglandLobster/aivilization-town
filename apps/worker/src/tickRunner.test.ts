@@ -100,6 +100,22 @@ function createSleepDeprivedProjection() {
   });
 }
 
+function createIllnessProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 80, satiety: 80, health: 90 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
 function createMarketProjection() {
   return createWorldProjection({
     agents: [
@@ -411,6 +427,52 @@ describe('worker tick runner', () => {
       energy: 10,
       satiety: 80,
       health: 60,
+    });
+    expect(result.streamVersion).toBe(2);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('applies stochastic illness health decay during the worker time phase', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-stochastic-illness',
+      simulationId,
+      issuedAt: 100,
+      projection: createIllnessProjection(),
+      policies: {
+        ...policies,
+        stochasticIllness: {
+          illnessProbabilityPercentPerHour: 100,
+          healthDamage: 12,
+          minHealth: 10,
+        },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [],
+      timeDeltaMs: 3_600_000,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'PhysiologyChanged'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        previous: { energy: 80, satiety: 80, health: 90 },
+        next: { energy: 80, satiety: 80, health: 78 },
+        reason: 'stochastic-illness',
+      },
+    });
+    expect(result.projection.agents[agentOne]?.physiology).toEqual({
+      energy: 80,
+      satiety: 80,
+      health: 78,
     });
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);

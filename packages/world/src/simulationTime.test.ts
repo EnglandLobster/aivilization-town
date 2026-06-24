@@ -148,6 +148,149 @@ describe('world simulation time', () => {
     });
   });
 
+  test('applies stochastic illness health decay as a deterministic time effect', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-illness'),
+          locationId: null,
+          physiology: { energy: 80, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      clock: { now: 1000, tickDurationMs: 3_600_000 },
+    });
+
+    const command = createCommandEnvelope({
+      id: 'command-time-stochastic-illness',
+      simulationId: 'sim-1',
+      source: 'system',
+      type: 'AdvanceSimulationTime',
+      payload: { deltaMs: 3_600_000 },
+      issuedAt: 1000,
+    });
+    const policy = {
+      ...policies,
+      stochasticIllness: {
+        illnessProbabilityPercentPerHour: 100,
+        healthDamage: 12,
+        minHealth: 10,
+      },
+    };
+
+    const events = dispatchWorldCommand({
+      command,
+      projection,
+      policies: policy,
+      nextSequence: 7,
+    });
+    const replayedEvents = dispatchWorldCommand({
+      command,
+      projection,
+      policies: policy,
+      nextSequence: 7,
+    });
+
+    expect(replayedEvents).toEqual(events);
+    expect(events.map((event) => [event.sequence, event.type])).toEqual([
+      [7, 'SimulationTimeAdvanced'],
+      [8, 'PhysiologyChanged'],
+    ]);
+    expect(events[1]).toMatchObject({
+      type: 'PhysiologyChanged',
+      payload: {
+        agentId: 'agent-illness',
+        previous: { energy: 80, satiety: 80, health: 90 },
+        next: { energy: 80, satiety: 80, health: 78 },
+        reason: 'stochastic-illness',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-illness']?.physiology).toEqual({
+      energy: 80,
+      satiety: 80,
+      health: 78,
+    });
+  });
+
+  test('composes sleep deprivation before stochastic illness in one time tick', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-tired-and-ill'),
+          locationId: null,
+          physiology: { energy: 10, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      clock: { now: 1000, tickDurationMs: 3_600_000 },
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-time-composed-health-decay',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 3_600_000 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies: {
+        ...policies,
+        sleepDeprivation: {
+          energyThreshold: 20,
+          healthDecayPerSecond: 0.005,
+          minHealth: 10,
+        },
+        stochasticIllness: {
+          illnessProbabilityPercentPerHour: 100,
+          healthDamage: 12,
+          minHealth: 10,
+        },
+      },
+      nextSequence: 7,
+    });
+
+    expect(events.map((event) => [event.sequence, event.type])).toEqual([
+      [7, 'SimulationTimeAdvanced'],
+      [8, 'PhysiologyChanged'],
+      [9, 'PhysiologyChanged'],
+    ]);
+    expect(events[1]).toMatchObject({
+      payload: {
+        agentId: 'agent-tired-and-ill',
+        previous: { energy: 10, satiety: 80, health: 90 },
+        next: { energy: 10, satiety: 80, health: 72 },
+        reason: 'sleep-deprivation',
+      },
+    });
+    expect(events[2]).toMatchObject({
+      payload: {
+        agentId: 'agent-tired-and-ill',
+        previous: { energy: 10, satiety: 80, health: 72 },
+        next: { energy: 10, satiety: 80, health: 60 },
+        reason: 'stochastic-illness',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-tired-and-ill']?.physiology).toEqual({
+      energy: 10,
+      satiety: 80,
+      health: 60,
+    });
+  });
+
   test('rejects invalid AdvanceSimulationTime payloads before mutating projection time', () => {
     expect(() => assertAdvanceSimulationTimePayload({ deltaMs: -1 })).toThrow(
       /AdvanceSimulationTime deltaMs/,

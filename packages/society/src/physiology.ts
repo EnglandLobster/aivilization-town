@@ -33,6 +33,24 @@ export type SleepDeprivationHealthDecayInput = PhysiologicalState &
     readonly durationSeconds: number;
   };
 
+export type StochasticIllnessPolicy = {
+  readonly illnessProbabilityPercentPerHour: number;
+  readonly healthDamage: number;
+  readonly minHealth: number;
+};
+
+export type StochasticIllnessProbabilityInput = Pick<
+  StochasticIllnessPolicy,
+  'illnessProbabilityPercentPerHour'
+> & {
+  readonly durationSeconds: number;
+};
+
+export type StochasticIllnessHealthDecayInput = PhysiologicalState &
+  Pick<StochasticIllnessPolicy, 'healthDamage' | 'minHealth'> & {
+    readonly illnessOccurs: boolean;
+  };
+
 export function applyLaborPhysiologyCost(input: LaborPhysiologyCostInput): PhysiologicalState {
   assertNonNegativeFinite(input.energy, 'energy');
   assertNonNegativeFinite(input.satiety, 'satiety');
@@ -111,6 +129,42 @@ export function applySleepDeprivationHealthDecay(
       input.minHealth,
       input.health - input.durationSeconds * input.healthDecayPerSecond,
     ),
+  };
+}
+
+export function calculateStochasticIllnessProbabilityPercent(
+  input: StochasticIllnessProbabilityInput,
+): number {
+  assertNonNegativeFinite(
+    input.illnessProbabilityPercentPerHour,
+    'illnessProbabilityPercentPerHour',
+  );
+  assertNonNegativeFinite(input.durationSeconds, 'durationSeconds');
+
+  return Math.min(100, input.illnessProbabilityPercentPerHour * (input.durationSeconds / 3600));
+}
+
+export function applyStochasticIllnessHealthDecay(
+  input: StochasticIllnessHealthDecayInput,
+): PhysiologicalState {
+  assertNonNegativeFinite(input.energy, 'energy');
+  assertNonNegativeFinite(input.satiety, 'satiety');
+  assertNonNegativeFinite(input.health, 'health');
+  assertNonNegativeFinite(input.healthDamage, 'healthDamage');
+  assertNonNegativeFinite(input.minHealth, 'minHealth');
+
+  if (!input.illnessOccurs || input.health <= input.minHealth) {
+    return {
+      energy: input.energy,
+      satiety: input.satiety,
+      health: input.health,
+    };
+  }
+
+  return {
+    energy: input.energy,
+    satiety: input.satiety,
+    health: Math.max(input.minHealth, input.health - input.healthDamage),
   };
 }
 

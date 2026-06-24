@@ -4,6 +4,8 @@ import {
   applyHealthRecovery,
   applyLaborPhysiologyCost,
   applySleepDeprivationHealthDecay,
+  applyStochasticIllnessHealthDecay,
+  calculateStochasticIllnessProbabilityPercent,
   isIncapacitated,
 } from './index';
 
@@ -172,6 +174,69 @@ describe('physiology', () => {
       }),
     ).toEqual({
       energy: 0,
+      satiety: 70,
+      health: 10,
+    });
+  });
+
+  test('scales stochastic illness probability by elapsed time with a 100 percent cap', () => {
+    expect(
+      calculateStochasticIllnessProbabilityPercent({
+        illnessProbabilityPercentPerHour: 30,
+        durationSeconds: 1800,
+      }),
+    ).toBe(15);
+
+    expect(
+      calculateStochasticIllnessProbabilityPercent({
+        illnessProbabilityPercentPerHour: 80,
+        durationSeconds: 7200,
+      }),
+    ).toBe(100);
+  });
+
+  test('decays health when stochastic illness occurs without crossing the floor', () => {
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 90,
+        illnessOccurs: true,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
+      satiety: 70,
+      health: 78,
+    });
+
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 90,
+        illnessOccurs: false,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
+      satiety: 70,
+      health: 90,
+    });
+
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 15,
+        illnessOccurs: true,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
       satiety: 70,
       health: 10,
     });

@@ -4,13 +4,15 @@ import { createSimulationApiService, type SimulationLifecycleRequest } from './i
 describe('simulation API control service', () => {
   test('submits human long-horizon objectives as command envelopes', async () => {
     const submitted: unknown[] = [];
+    const contexts: unknown[] = [];
     const service = createSimulationApiService({
       projectionQueries: {
         getProjection: () => Promise.resolve({ agents: 0 }),
       },
       steeringCommands: {
-        submit: (command) => {
+        submit: (command, context) => {
           submitted.push(command);
+          contexts.push(context);
           return Promise.resolve({ accepted: true, commandType: command.type });
         },
       },
@@ -19,6 +21,7 @@ describe('simulation API control service', () => {
 
     const result = await service.submitLongHorizonObjective({
       simulationId: 'sim-1',
+      partitionKey: 'world-main',
       agentId: 'agent-1',
       objectiveId: 'objective-study',
       statement: 'Do not work yet; study until education score exceeds 100.',
@@ -46,6 +49,7 @@ describe('simulation API control service', () => {
       expectedVersion: 7,
     });
     expect(submitted).toEqual([result.command]);
+    expect(contexts).toEqual([{ simulationId: 'sim-1', partitionKey: 'world-main' }]);
   });
 
   test('submits human reactive commands as command envelopes', async () => {
@@ -61,6 +65,7 @@ describe('simulation API control service', () => {
 
     const result = await service.submitReactiveCommand({
       simulationId: 'sim-1',
+      partitionKey: 'world-main',
       agentId: 'agent-1',
       reactiveCommandId: 'reactive-buy-fish',
       summary: 'buy 10 fish now',

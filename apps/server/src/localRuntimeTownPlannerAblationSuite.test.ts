@@ -8,8 +8,11 @@ import {
   type BranchPlanRecord,
 } from '@aivilization/agent-runtime';
 import {
+  FileAgentCycleTraceRepository,
   InMemoryRuntimeProfileRunReportRepository,
+  createAgentCycleTrace,
   createPlannerExperimentRunsFromRuntimeProfileReports,
+  type AgentCycleTrace,
 } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -203,6 +206,43 @@ describe('local runtime town planner ablation suite', () => {
       ]),
     );
   });
+
+  test('adds planner outcome metrics from durable agent cycle traces', async () => {
+    const rootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir,
+      profileId: 'smoke-25',
+      taskId: 'high-tech-production',
+      requestedAt: 500,
+      runProfile: async (input) => {
+        const summary = createVariantSummary(input);
+        await saveSuiteAgentCycleTraceArtifact(summary, input.runIdSuffix ?? 'default');
+        return summary;
+      },
+    });
+
+    const defaultMetrics = result.variants[0]?.report.plannerExperiment?.metrics ?? [];
+    const withoutBranchMetrics = result.variants[1]?.report.plannerExperiment?.metrics ?? [];
+
+    expect(defaultMetrics).toEqual(
+      expect.arrayContaining([
+        { metricId: 'planner-cycle-trace-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-command-emitting-cycle-ratio', value: 1, higherIsBetter: true },
+        { metricId: 'planner-simulator-accepted-ratio', value: 1, higherIsBetter: true },
+        { metricId: 'planner-simulator-rejected-ratio', value: 0, higherIsBetter: false },
+      ]),
+    );
+    expect(withoutBranchMetrics).toEqual(
+      expect.arrayContaining([
+        { metricId: 'planner-cycle-trace-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-command-emitting-cycle-ratio', value: 0, higherIsBetter: true },
+        { metricId: 'planner-simulator-accepted-ratio', value: 0, higherIsBetter: true },
+        { metricId: 'planner-simulator-rejected-ratio', value: 1, higherIsBetter: false },
+        { metricId: 'planner-replanning-cycle-ratio', value: 1, higherIsBetter: false },
+      ]),
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -230,6 +270,27 @@ async function saveSuiteBranchPlanArtifact(
     ),
   });
   await repository.save(createSuitePlanRecord(variant));
+}
+
+async function saveSuiteAgentCycleTraceArtifact(
+  summary: LocalRuntimeTownProfileRunnerSummary,
+  variant: string,
+): Promise<void> {
+  const partition = summary.partitions[0];
+  if (partition === undefined) {
+    throw new Error('expected at least one profile partition');
+  }
+  const repository = new FileAgentCycleTraceRepository({
+    rootDir: join(
+      summary.rootDir,
+      'simulations',
+      partition.simulationId,
+      'partitions',
+      partition.partitionKey,
+      'observability',
+    ),
+  });
+  await repository.record(createSuiteAgentCycleTrace(variant, partition.simulationId));
 }
 
 function createSuitePlanRecord(variant: string): BranchPlanRecord {
@@ -276,6 +337,83 @@ function createSuitePlanRecord(variant: string): BranchPlanRecord {
     createdAt: 100,
     updatedAt: 100,
   };
+}
+
+function createSuiteAgentCycleTrace(variant: string, simulationId: string): AgentCycleTrace {
+  const isWithoutBranch = variant === 'without-branch';
+  const acceptedActions = isWithoutBranch
+    ? []
+    : [
+        {
+          id: `${variant}:study-action`,
+          description: 'Study from planner output.',
+          commandType: 'AgentStudy',
+        },
+      ];
+
+  return createAgentCycleTrace({
+    traceId: `${variant}:trace`,
+    simulationId,
+    agentId: `${variant}:agent`,
+    cycleStartedAt: 100,
+    observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+    selectedBranch: isWithoutBranch ? 'without-branch' : 'development',
+    subtaskCandidates: [
+      {
+        branchId: isWithoutBranch ? 'without-branch' : 'development',
+        subtaskId: 'study',
+        description: 'study',
+        score: 5,
+        scoreBreakdown: {
+          basePriorityScore: 5,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0,
+        },
+      },
+    ],
+    actionSynthesis: {
+      acceptedActions,
+      rejectedActions: isWithoutBranch
+        ? [
+            {
+              action: {
+                id: `${variant}:blocked-action`,
+                description: 'Blocked planner action.',
+                commandType: 'AgentStudy',
+              },
+              reason: 'blocked by ablation test fixture',
+            },
+          ]
+        : [],
+    },
+    candidateActions: acceptedActions.map((action) => action.description),
+    simulatorResult: isWithoutBranch
+      ? { status: 'rejected', reason: 'blocked by ablation test fixture' }
+      : { status: 'accepted' },
+    selectionEvidence: {
+      selectedSubtaskId: 'study',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 0,
+      profileInfluenceScore: 0,
+      memoryEvidenceRecordIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    },
+    replanningDecision: isWithoutBranch
+      ? {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'blocked by ablation test fixture',
+          failedActionIds: [`${variant}:blocked-action`],
+          evidenceRecordIds: [],
+        }
+      : { kind: 'none' },
+    emittedCommandIds: isWithoutBranch ? [] : [`${variant}:command-1`],
+    memoryContextIds: [],
+    memoryWriteIds: [],
+  });
 }
 
 function createVariantSummary(

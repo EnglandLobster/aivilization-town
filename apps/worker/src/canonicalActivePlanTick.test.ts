@@ -16,6 +16,7 @@ import {
   InMemoryEventStore,
   asAgentId,
   asSimulationId,
+  createCommandEnvelope,
   createSimulationPartition,
   type AgentId,
 } from '@aivilization/sim-core';
@@ -27,7 +28,7 @@ import {
   type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { runCanonicalWorkerActivePlanTick } from './index';
+import { handleWorkerSteeringCommand, runCanonicalWorkerActivePlanTick } from './index';
 
 const simulationId = asSimulationId('sim-canonical-active-plan');
 const agentA = asAgentId('agent-a');
@@ -46,8 +47,13 @@ const policies: WorldCommandPolicies = {
     quotaByResidentialTier: [1, 1, 1, 1, 1],
   },
   residentialTierUpgrade: {
-    maxResidentialTier: 4,
-    costs: [{ targetResidentialTier: 2, currencyCost: 100 }],
+    maxResidentialTier: 5,
+    costs: [
+      { targetResidentialTier: 2, currencyCost: 100 },
+      { targetResidentialTier: 3, currencyCost: 100 },
+      { targetResidentialTier: 4, currencyCost: 100 },
+      { targetResidentialTier: 5, currencyCost: 100 },
+    ],
   },
 };
 
@@ -169,15 +175,15 @@ describe('canonical active-plan worker tick', () => {
       'ResidentialTierUpgraded',
       'ShortTermMemoryRecorded',
     ]);
-    expect(result.events.find((event) => event.type === 'ResidentialTierUpgraded')?.payload).toEqual(
-      {
-        agentId: agentA,
-        previousResidentialTier: 1,
-        nextResidentialTier: 2,
-        currencyCost: 100,
-        consumedInventory: {},
-      },
-    );
+    expect(
+      result.events.find((event) => event.type === 'ResidentialTierUpgraded')?.payload,
+    ).toEqual({
+      agentId: agentA,
+      previousResidentialTier: 1,
+      nextResidentialTier: 2,
+      currencyCost: 100,
+      consumedInventory: {},
+    });
     expect(result.projection.agents[agentA]).toMatchObject({
       residentialTier: 2,
       balance: 900,
@@ -360,7 +366,10 @@ describe('canonical active-plan worker tick', () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
     const eventStore = new InMemoryEventStore<WorldEvent>();
-    await repositories.intentionRepository.setObjective(agentA, createBookProductionObjective(agentA));
+    await repositories.intentionRepository.setObjective(
+      agentA,
+      createBookProductionObjective(agentA),
+    );
     await repositories.planRepository.save(createBookProductionPlanRecord(agentA));
 
     const first = await runCanonicalWorkerActivePlanTick({
@@ -436,6 +445,154 @@ describe('canonical active-plan worker tick', () => {
         planId: 'objective-book-production',
       },
     ]);
+  });
+
+  test('executes a complex strategic town objective across residential work and production ticks', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const statement =
+      'Upgrade residential tier, apply for Stock Clerk work, then craft Chip for the electronics market.';
+    const initialProjection = createWorldProjection({
+      agents: [
+        createAgent(agentA, {
+          physiology: { energy: 1000, satiety: 1000, health: 100 },
+          balance: 10000,
+          educationScore: 100,
+          inventory: { Beef: 1 },
+        }),
+      ],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+    });
+    await handleWorkerSteeringCommand({
+      command: createCommandEnvelope({
+        id: 'objective-town-stack',
+        simulationId,
+        actorId: agentA,
+        source: 'human',
+        type: 'SetLongHorizonObjective',
+        payload: {
+          objectiveId: 'objective-town-stack',
+          statement,
+          priority: 3,
+          affinityTags: ['residential', 'work', 'production'],
+        },
+        issuedAt: 50,
+      }),
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...repositories,
+    });
+    await expect(
+      repositories.planRepository.require({
+        planId: 'objective-town-stack',
+        agentId: agentA,
+      }),
+    ).resolves.toMatchObject({
+      plan: {
+        branches: [{ id: 'residential-readiness' }, { id: 'employment' }, { id: 'production' }],
+      },
+    });
+
+    let result: Awaited<ReturnType<typeof runCanonicalWorkerActivePlanTick>> | undefined;
+    for (let tickIndex = 0; tickIndex < 20; tickIndex += 1) {
+      result = await runCanonicalWorkerActivePlanTick({
+        tickId: `tick-town-stack-${tickIndex + 1}`,
+        simulationId,
+        issuedAt: 100 + tickIndex * 100,
+        ...(tickIndex === 0
+          ? { projection: initialProjection }
+          : { projectionHydration: { initialProjection } }),
+        policies,
+        eventStore,
+        streamName: partition.eventStreamName,
+        planProgressRepository,
+        objectiveProposer: () => undefined,
+        ...repositories,
+      });
+      if (tickIndex === 0) {
+        expect(result.agentResults[0]?.cycleResult.selectedSubtask).toMatchObject({
+          branchId: 'residential-readiness',
+          subtaskId: 'upgrade-residential-tier',
+        });
+        const firstSimulationResult = result.agentResults[0]?.cycleResult.simulationResults[0];
+        if (firstSimulationResult?.status !== 'accepted') {
+          throw new Error('expected first town-stack simulation result to be accepted');
+        }
+        expect(firstSimulationResult.action).toMatchObject({
+          commandType: 'AgentUpgradeResidentialTier',
+          payload: { targetResidentialTier: 2 },
+        });
+        expect(result.agentResults[0]?.cycleResult.commandDrafts).toMatchObject([
+          {
+            type: 'AgentUpgradeResidentialTier',
+            payload: { targetResidentialTier: 2 },
+          },
+        ]);
+        expect(
+          result.events
+            .filter((event) => event.type === 'ResidentialTierUpgraded')
+            .map((event) => event.payload.nextResidentialTier),
+        ).toEqual([2]);
+        expect(result.projection.agents[agentA]?.residentialTier).toBe(2);
+      }
+
+      const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+      if (intentionState.activeObjective === undefined) {
+        break;
+      }
+    }
+
+    if (result === undefined) {
+      throw new Error('expected at least one active-plan tick');
+    }
+    expect(result.projection.agents[agentA]).toMatchObject({
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Chip: 1 },
+    });
+    expect(result.projection.agents[agentA]?.inventory.Beef).toBeUndefined();
+    const progress = await planProgressRepository.getOrCreate({
+      planId: 'objective-town-stack',
+      agentId: agentA,
+      createdAt: 999,
+    });
+    expect(progress).toMatchObject({
+      planId: 'objective-town-stack',
+      agentId: agentA,
+      blockedSubtasks: [],
+      updatedAt: 1600,
+    });
+    expect(progress.completedSubtaskIds).toEqual(
+      expect.arrayContaining(['upgrade-residential-tier', 'apply-for-work', 'produce-target']),
+    );
+    expect(progress.completedSubtaskIds).toHaveLength(3);
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toMatchObject([
+      {
+        objective: {
+          id: 'objective-town-stack',
+          statement,
+        },
+        completedAt: 1600,
+        reason: 'plan-completed',
+        planId: 'objective-town-stack',
+      },
+    ]);
+
+    const events = eventStore.readStream(partition.eventStreamName);
+    expect(
+      events
+        .filter((event) => event.type === 'ResidentialTierUpgraded')
+        .map((event) => event.payload.nextResidentialTier),
+    ).toEqual([2, 3, 4, 5]);
+    expect(events.some((event) => event.type === 'JobAssigned')).toBe(true);
+    expect(
+      events
+        .filter((event) => event.type === 'CommodityProduced')
+        .map((event) => event.payload.produced),
+    ).toContainEqual({ Chip: 1 });
   });
 
   test('renews idle agents with autonomous objectives before scheduling', async () => {

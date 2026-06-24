@@ -14,12 +14,14 @@ import {
 import {
   dispatchWorldCommand,
   type AgentProducePayload,
+  type AgentUpgradeResidentialTierPayload,
   type WorldCommandPolicies,
   type WorldProjection,
 } from '@aivilization/world';
 import {
   createCanonicalDomainRuntimeRegistrations,
   resolveProductionTargetCommodityName,
+  resolveResidentialTargetTier,
   type CanonicalDomainRuntimeConfig,
 } from './canonicalDomainRuntimes';
 import {
@@ -83,9 +85,7 @@ export function createCanonicalWorkerRuntimeResolver(
         : {
             actionSynthesis: deriveActionSynthesisPolicyFromWorldState({
               agent: context.agent,
-              ...(config.actionSynthesis === undefined
-                ? {}
-                : { config: config.actionSynthesis }),
+              ...(config.actionSynthesis === undefined ? {} : { config: config.actionSynthesis }),
             }),
           }),
       simulate: createWorldCommandDryRunSimulator({
@@ -100,42 +100,99 @@ export function createCanonicalWorkerRuntimeResolver(
           : { commandIdPrefix: config.commandIdPrefix }),
       }),
       ...(config.repair === undefined ? {} : { repair: config.repair }),
-      subtaskCompletion: createCanonicalProductionSubtaskCompletionPolicy({
+      subtaskCompletion: createCanonicalSubtaskCompletionPolicy({
         context,
         ...(config.domainConfig?.production === undefined
           ? {}
-          : { config: config.domainConfig.production }),
+          : { productionConfig: config.domainConfig.production }),
+        ...(config.domainConfig?.residential === undefined
+          ? {}
+          : { residentialConfig: config.domainConfig.residential }),
       }),
     };
   };
 }
 
-function createCanonicalProductionSubtaskCompletionPolicy(input: {
-  readonly config?: CanonicalDomainRuntimeConfig['production'];
+function createCanonicalSubtaskCompletionPolicy(input: {
+  readonly productionConfig?: CanonicalDomainRuntimeConfig['production'];
+  readonly residentialConfig?: CanonicalDomainRuntimeConfig['residential'];
   readonly context: WorkerDomainRuntimeFactoryInput;
 }): CycleSubtaskCompletionPolicy {
   return ({ selectedSubtask, simulationResults }) => {
-    const targetCommodityName = resolveProductionTargetCommodityName({
+    const residentialCompletion = decideResidentialSubtaskCompletion({
       context: input.context,
       selectedSubtask,
-      ...(input.config === undefined ? {} : { config: input.config }),
+      simulationResults,
+      ...(input.residentialConfig === undefined ? {} : { config: input.residentialConfig }),
     });
-    const productionAction = simulationResults
-      .map((result) => acceptedActionFromSimulationResult(result))
-      .find(isAgentProduceAction);
-    if (productionAction === undefined) {
-      return { status: 'completed' };
+    if (residentialCompletion !== undefined) {
+      return residentialCompletion;
     }
 
-    const producedCommodityName = productionAction.payload.commodityName;
-    if (producedCommodityName === targetCommodityName) {
-      return { status: 'completed' };
-    }
+    return decideProductionSubtaskCompletion({
+      context: input.context,
+      selectedSubtask,
+      simulationResults,
+      ...(input.productionConfig === undefined ? {} : { config: input.productionConfig }),
+    });
+  };
+}
 
-    return {
-      status: 'in-progress',
-      reason: `produced upstream material ${producedCommodityName} for target ${targetCommodityName}`,
-    };
+function decideProductionSubtaskCompletion(input: {
+  readonly config?: CanonicalDomainRuntimeConfig['production'];
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: Parameters<CycleSubtaskCompletionPolicy>[0]['selectedSubtask'];
+  readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
+}): ReturnType<CycleSubtaskCompletionPolicy> {
+  const targetCommodityName = resolveProductionTargetCommodityName({
+    context: input.context,
+    selectedSubtask: input.selectedSubtask,
+    ...(input.config === undefined ? {} : { config: input.config }),
+  });
+  const productionAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentProduceAction);
+  if (productionAction === undefined) {
+    return { status: 'completed' };
+  }
+
+  const producedCommodityName = productionAction.payload.commodityName;
+  if (producedCommodityName === targetCommodityName) {
+    return { status: 'completed' };
+  }
+
+  return {
+    status: 'in-progress',
+    reason: `produced upstream material ${producedCommodityName} for target ${targetCommodityName}`,
+  };
+}
+
+function decideResidentialSubtaskCompletion(input: {
+  readonly config?: CanonicalDomainRuntimeConfig['residential'];
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: Parameters<CycleSubtaskCompletionPolicy>[0]['selectedSubtask'];
+  readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
+}): ReturnType<CycleSubtaskCompletionPolicy> | undefined {
+  const residentialAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentUpgradeResidentialTierAction);
+  if (residentialAction === undefined) {
+    return undefined;
+  }
+
+  const targetResidentialTier = resolveResidentialTargetTier({
+    context: input.context,
+    selectedSubtask: input.selectedSubtask,
+    ...(input.config === undefined ? {} : { config: input.config }),
+  });
+  const upgradedResidentialTier = residentialAction.payload.targetResidentialTier;
+  if (upgradedResidentialTier >= targetResidentialTier) {
+    return { status: 'completed' };
+  }
+
+  return {
+    status: 'in-progress',
+    reason: `upgraded residential tier to ${upgradedResidentialTier} toward required tier ${targetResidentialTier}`,
   };
 }
 
@@ -156,6 +213,15 @@ function isAgentProduceAction(
   action: AtomicActionProposal | undefined,
 ): action is AtomicActionProposal<'AgentProduce', AgentProducePayload> {
   return action !== undefined && action.commandType === 'AgentProduce';
+}
+
+function isAgentUpgradeResidentialTierAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<
+  'AgentUpgradeResidentialTier',
+  AgentUpgradeResidentialTierPayload
+> {
+  return action !== undefined && action.commandType === 'AgentUpgradeResidentialTier';
 }
 
 export function createWorldCommandDryRunSimulator(

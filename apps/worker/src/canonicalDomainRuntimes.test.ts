@@ -17,6 +17,7 @@ import {
   createCanonicalDomainRuntimeRegistrations,
   createDomainRuntimeResolver,
   resolveProductionTargetCommodityName,
+  resolveResidentialTargetTier,
 } from './index';
 
 const agentA = asAgentId('agent-a');
@@ -256,6 +257,45 @@ describe('canonical domain runtimes', () => {
         actionSeconds: 1.6,
         energyCost: 32,
         satietyCost: 8,
+        inventoryCosts: { Wood: 1 },
+      },
+    });
+  });
+
+  test('routes domain support through structural plan metadata instead of target prose', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, residentialTier: 1 }),
+      activeObjective: createComplexTownObjective(agentA),
+      planRecord: createComplexTownPlanRecord(agentA),
+    });
+    const binding = await resolveCanonicalBinding(context);
+    const selected = complexResidentialSubtask();
+
+    expect(requirePlanner(binding.microPlanners, 'residential').supports(selected)).toBe(true);
+    expect(requirePlanner(binding.microPlanners, 'work').supports(selected)).toBe(false);
+    expect(requirePlanner(binding.microPlanners, 'production').supports(selected)).toBe(false);
+  });
+
+  test('infers residential target tier from durable work and production target text', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, residentialTier: 1 }),
+      activeObjective: createComplexTownObjective(agentA),
+      planRecord: createComplexTownPlanRecord(agentA),
+    });
+    const binding = await resolveCanonicalBinding(context);
+    const selected = complexResidentialSubtask();
+
+    expect(resolveResidentialTargetTier({ context, selectedSubtask: selected })).toBe(5);
+    expect(
+      requirePlanner(binding.microPlanners, 'residential').propose({
+        selectedSubtask: selected,
+      })[0],
+    ).toMatchObject({
+      id: 'canonical-residential-upgrade-residential-tier',
+      commandType: 'AgentUpgradeResidentialTier',
+      payload: { targetResidentialTier: 2 },
+      resourceEstimate: {
+        currencyCost: 100,
         inventoryCosts: { Wood: 1 },
       },
     });
@@ -501,6 +541,80 @@ function createBookProductionPlanRecord(agentId: AgentId): BranchPlanRecord {
     }),
     createdAt: 100,
     updatedAt: 100,
+  };
+}
+
+function createComplexTownObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-complex-town',
+    agentId,
+    statement:
+      'Upgrade residential tier, apply for Stock Clerk work, then craft Chip for the electronics market.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['residential', 'work', 'production'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createComplexTownPlanRecord(agentId: AgentId): BranchPlanRecord {
+  return {
+    planId: 'objective-complex-town',
+    agentId,
+    plan: createBranchPlan({
+      objective:
+        'Upgrade residential tier, apply for Stock Clerk work, then craft Chip for the electronics market.',
+      branches: [
+        {
+          id: 'residential-readiness',
+          objective: 'Prepare housing capacity for Stock Clerk work and Chip crafting.',
+          subtasks: [
+            {
+              id: 'upgrade-residential-tier',
+              description: 'Upgrade residential tier, apply for Stock Clerk work, then craft Chip.',
+              basePriority: 5,
+              intentionAffinityTags: ['residential'],
+            },
+          ],
+        },
+        {
+          id: 'employment',
+          objective: 'Enter Stock Clerk work.',
+          subtasks: [
+            {
+              id: 'apply-for-work',
+              description: 'Apply for Stock Clerk work.',
+              basePriority: 5,
+              intentionAffinityTags: ['work'],
+            },
+          ],
+        },
+        {
+          id: 'production',
+          objective: 'Craft Chip for the electronics market.',
+          subtasks: [
+            {
+              id: 'produce-target',
+              description: 'Craft Chip.',
+              basePriority: 5,
+              intentionAffinityTags: ['production'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function complexResidentialSubtask(): PrioritizedSubtask {
+  return {
+    branchId: 'residential-readiness',
+    subtaskId: 'upgrade-residential-tier',
+    description: 'Upgrade residential tier, apply for Stock Clerk work, then craft Chip.',
+    score: 10,
   };
 }
 

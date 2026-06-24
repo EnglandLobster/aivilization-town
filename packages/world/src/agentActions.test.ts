@@ -1191,6 +1191,98 @@ describe('agent produce command handling', () => {
     expect(events[0]?.payload).toMatchObject({ commandType: 'AgentProduce' });
     expect(events[1]).toMatchObject({ payload: { record: { status: 'failed' } } });
   });
+
+  test('AgentProduce rejects incapacitated agents before production planning', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 0 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-incapacitated',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 1 },
+        issuedAt: 50,
+      }),
+      projection,
+      criticalThresholds: { energy: 1, health: 1 },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentProduce',
+      reason: 'agent is incapacitated',
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({});
+    expect(updated.agents['agent-1']?.physiology).toEqual({
+      energy: 100,
+      satiety: 80,
+      health: 0,
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentProduce critical thresholds through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 0 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-dispatch-incapacitated',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 1 },
+        issuedAt: 50,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 10,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentProduce',
+      reason: 'agent is incapacitated',
+    });
+  });
 });
 
 describe('agent trade command handling', () => {

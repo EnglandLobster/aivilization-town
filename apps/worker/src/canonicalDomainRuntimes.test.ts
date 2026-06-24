@@ -88,7 +88,9 @@ describe('canonical domain runtimes', () => {
       trade: { side: 'sell', commodityName: 'Book', quantity: 2 },
       social: {
         targetAgentId: agentC,
-        summary: 'Discuss town plans.',
+        topic: 'town plans',
+        openingUtterance: 'Discuss town plans.',
+        responseUtterance: 'I will remember this conversation about town plans.',
         relationDelta: 3,
         attitudeDelta: 4,
       },
@@ -130,12 +132,24 @@ describe('canonical domain runtimes', () => {
     });
     expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
       id: 'canonical-social-step-e',
-      commandType: 'AgentSocialize',
+      commandType: 'AgentStartConversation',
       payload: {
         targetAgentId: agentC,
-        summary: 'Discuss town plans.',
+        topic: 'town plans',
         relationDelta: 3,
         attitudeDelta: 4,
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Discuss town plans.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: 'I will remember this conversation about town plans.',
+            intent: 'acknowledge-topic',
+          },
+        ],
       },
       priority: 10,
     });
@@ -218,12 +232,24 @@ describe('canonical domain runtimes', () => {
       payload: { side: 'buy', commodityName: 'Apple', quantity: 1 },
     });
     expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
-      commandType: 'AgentSocialize',
+      commandType: 'AgentStartConversation',
       payload: {
         targetAgentId: agentB,
-        summary: 'Socialized during planned activity.',
+        topic: 'Attend planned activity.',
         relationDelta: 1,
         attitudeDelta: 1,
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Socialized during planned activity.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentB,
+            utterance: 'I will remember this conversation about Attend planned activity.',
+            intent: 'acknowledge-topic',
+          },
+        ],
       },
     });
     expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({

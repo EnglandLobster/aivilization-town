@@ -20,9 +20,9 @@ import type {
   AgentMoveToPayload,
   AgentProducePayload,
   AgentSeeDoctorPayload,
+  AgentStartConversationPayload,
   AgentUpgradeResidentialTierPayload,
   AgentSleepPayload,
-  AgentSocializePayload,
   AgentStudyPayload,
   AgentTradePayload,
   AgentWorkPayload,
@@ -81,7 +81,9 @@ export type EatDomainRuntimeConfig = {
 
 export type SocialDomainRuntimeConfig = {
   readonly targetAgentId?: AgentId;
-  readonly summary?: string;
+  readonly topic?: string;
+  readonly openingUtterance?: string;
+  readonly responseUtterance?: string;
   readonly relationDelta?: number;
   readonly attitudeDelta?: number;
 };
@@ -131,7 +133,7 @@ const DEFAULT_SLEEP_DURATION_SECONDS = 28800;
 const DEFAULT_HEALTH_RECOVERY_DURATION_SECONDS = 1800;
 const DEFAULT_EAT_COMMODITY = 'Apple';
 const DEFAULT_EAT_QUANTITY = 1;
-const DEFAULT_SOCIAL_SUMMARY = 'Socialized during planned activity.';
+const DEFAULT_SOCIAL_OPENING_UTTERANCE = 'Socialized during planned activity.';
 const DEFAULT_SOCIAL_RELATION_DELTA = 1;
 const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
 const DEFAULT_PRODUCTION_COMMODITY = 'Apple';
@@ -397,14 +399,30 @@ export function createSocialDomainRuntimeRegistration(
             DEFAULT_DOMAIN_LOCATION_IDS.social,
           propose: (selectedSubtask) => ({
             id: createCanonicalActionId('social', selectedSubtask),
-            description: `Socialize for ${selectedSubtask.description}.`,
-            commandType: 'AgentSocialize',
+            description: `Start conversation for ${selectedSubtask.description}.`,
+            commandType: 'AgentStartConversation',
             priority: selectedSubtask.score,
             payload: {
               targetAgentId,
-              summary: config.summary ?? DEFAULT_SOCIAL_SUMMARY,
+              topic: config.topic ?? selectedSubtask.description,
               relationDelta: config.relationDelta ?? DEFAULT_SOCIAL_RELATION_DELTA,
               attitudeDelta: config.attitudeDelta ?? DEFAULT_SOCIAL_ATTITUDE_DELTA,
+              turns: [
+                {
+                  speakerAgentId: context.agentId,
+                  utterance: config.openingUtterance ?? DEFAULT_SOCIAL_OPENING_UTTERANCE,
+                  intent: 'social-plan',
+                },
+                {
+                  speakerAgentId: targetAgentId,
+                  utterance:
+                    config.responseUtterance ??
+                    `I will remember this conversation about ${formatConversationTopicForSentence(
+                      config.topic ?? selectedSubtask.description,
+                    )}.`,
+                  intent: 'acknowledge-topic',
+                },
+              ],
             },
           }),
         }),
@@ -595,7 +613,7 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentWork', AgentWorkPayload>
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>
-  | AtomicActionProposal<'AgentSocialize', AgentSocializePayload>
+  | AtomicActionProposal<'AgentStartConversation', AgentStartConversationPayload>
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>;
 
@@ -659,6 +677,10 @@ function createLocationAwareActionProposal(input: {
       },
     },
   ];
+}
+
+function formatConversationTopicForSentence(topic: string): string {
+  return topic.trim().replace(/[.!?]+$/u, '');
 }
 
 function selectedSubtaskMatchesDomain(input: {

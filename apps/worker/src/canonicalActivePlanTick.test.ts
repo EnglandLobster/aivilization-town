@@ -317,6 +317,119 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('runs social subtasks through replayable conversation transcripts', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.intentionRepository.setObjective(agentA, createSocialObjective(agentA));
+    await repositories.planRepository.save(createSocialPlanRecord(agentA));
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-social-conversation',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection({
+        agents: [
+          createAgent(agentA, { locationId: asLocationId('town-square') }),
+          createAgent(agentB, { locationId: asLocationId('town-square') }),
+        ],
+        locations: [townSquare()],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      domainConfig: {
+        social: {
+          targetAgentId: agentB,
+          topic: 'community routines',
+          openingUtterance: 'Let us coordinate community routines.',
+          responseUtterance: 'I will remember our community routine plan.',
+          relationDelta: 0.2,
+          attitudeDelta: 0.1,
+        },
+      },
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentB,
+        topic: 'community routines',
+        relationDelta: 0.2,
+        attitudeDelta: 0.1,
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Let us coordinate community routines.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentB,
+            utterance: 'I will remember our community routine plan.',
+            intent: 'acknowledge-topic',
+          },
+        ],
+      },
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'ConversationRecorded',
+      'SocialInteractionCompleted',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.conversationRecords).toHaveLength(1);
+    expect(result.projection.conversationRecords[0]).toMatchObject({
+      initiatorAgentId: agentA,
+      participantAgentIds: [agentA, agentB],
+      locationId: 'town-square',
+      topic: 'community routines',
+      recordedAt: 100,
+    });
+    expect(result.projection.socialRelations['agent-a->agent-b']).toMatchObject({
+      relationScore: 0.2,
+      attitudeScore: 0.1,
+      interactionCount: 1,
+    });
+    expect(result.projection.socialRelations['agent-b->agent-a']).toMatchObject({
+      relationScore: 0.2,
+      attitudeScore: 0.1,
+      interactionCount: 1,
+    });
+    expect(result.projection.memoryRecords.map((record) => record.agentId)).toEqual([
+      agentA,
+      agentB,
+    ]);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-social',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-social',
+      agentId: agentA,
+      completedSubtaskIds: ['social-step'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toMatchObject([
+      {
+        objective: createSocialObjective(agentA),
+        completedAt: 100,
+        reason: 'plan-completed',
+        planId: 'objective-social',
+      },
+    ]);
+  });
+
   test('infers job application occupation from active plan context', async () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
@@ -1142,6 +1255,16 @@ function school() {
   };
 }
 
+function townSquare() {
+  return {
+    locationId: asLocationId('town-square'),
+    name: 'Town Square',
+    kind: 'social' as const,
+    activityAffinities: ['socialize'],
+    capacity: null,
+  };
+}
+
 function createObjective(agentId: AgentId): LongHorizonObjective {
   return {
     id: 'objective-study',
@@ -1150,6 +1273,19 @@ function createObjective(agentId: AgentId): LongHorizonObjective {
     priority: 3,
     source: 'human',
     affinityTags: ['study'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createSocialObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-social',
+    agentId,
+    statement: 'Build relationships through a community conversation.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['social'],
     createdAt: 100,
     updatedAt: 100,
   };
@@ -1223,6 +1359,32 @@ function createStudyPlanRecord(agentId: AgentId) {
               description: 'Attend planned activity.',
               basePriority: 5,
               intentionAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createSocialPlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-social',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Build relationships through a community conversation.',
+      branches: [
+        {
+          id: 'social-lane',
+          objective: 'Coordinate with another town resident.',
+          subtasks: [
+            {
+              id: 'social-step',
+              description: 'Discuss community routines.',
+              basePriority: 5,
+              intentionAffinityTags: ['social'],
             },
           ],
         },

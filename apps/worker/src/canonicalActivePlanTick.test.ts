@@ -38,6 +38,7 @@ const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
 const agentC = asAgentId('agent-c');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
+const hourMs = 60 * 60 * 1000;
 
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Apple: 10 },
@@ -1268,6 +1269,65 @@ describe('canonical active-plan worker tick', () => {
         issuedAt: 100,
       },
     ]);
+  });
+
+  test('seeds daily routine intentions before autonomous objective renewal', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const renewalTraces: unknown[] = [];
+    const issuedAt = 8.5 * hourMs;
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-from-daily-routine',
+      simulationId,
+      issuedAt,
+      projection: createWorldProjection({
+        agents: [
+          createAgent(agentA, {
+            physiology: { energy: 90, satiety: 90, health: 100 },
+            educationScore: 150,
+            balance: 200,
+          }),
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          renewalTraces.push(trace);
+        },
+      },
+      ...repositories,
+    });
+
+    expect(renewalTraces).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'auto-objective-agent-a-30600000',
+        selectedCandidateId: 'scheduled-routine-study',
+        rationale: 'Active scheduled intention daily-routine:agent-a:0:morning-study is in window.',
+        score: 28,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+        scheduledIntentionIds: ['daily-routine:agent-a:0:morning-study'],
+        issuedAt,
+      },
+    ]);
+
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(
+      intentionState.scheduledIntentions.filter(
+        (intention) => intention.id === 'daily-routine:agent-a:0:morning-study',
+      ),
+    ).toHaveLength(1);
+    expect(intentionState.activeObjective).toMatchObject({
+      id: 'auto-objective-agent-a-30600000',
+      statement: 'Follow the current study routine: Attend the morning study routine at school.',
+      affinityTags: ['routine', 'study', 'education', 'school'],
+    });
   });
 
   test('passes memory context into objective renewal before canonical scheduling', async () => {

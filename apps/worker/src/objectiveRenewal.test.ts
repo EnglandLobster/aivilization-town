@@ -7,6 +7,7 @@ import {
   createShortTermMemoryRecord,
   type LongHorizonObjective,
   type LongTermAgentProfile,
+  type ScheduledIntention,
 } from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
@@ -353,6 +354,60 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('uses active scheduled routine intentions when no stronger pressure exists', () => {
+    const projection = createProjection([
+      createAgent({
+        agentId: agentA,
+        educationScore: 150,
+        balance: 200,
+        energy: 90,
+        satiety: 90,
+        health: 100,
+      }),
+    ]);
+    const scheduledIntention = createScheduledIntention({
+      id: 'daily-routine:agent-a:0:morning-study',
+      description: 'Attend the morning study routine at school.',
+      affinityTags: ['routine', 'study', 'education', 'school'],
+    });
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [scheduledIntention],
+        updatedAt: 100,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 150,
+    });
+
+    expect(proposal.objective).toMatchObject({
+      id: 'auto-objective-agent-a-150',
+      agentId: agentA,
+      statement: 'Follow the current study routine: Attend the morning study routine at school.',
+      priority: 1,
+      source: 'agent',
+      affinityTags: ['routine', 'study', 'education', 'school'],
+    });
+    expect(proposal.decisionTrace).toEqual({
+      agentId: agentA,
+      objectiveId: 'auto-objective-agent-a-150',
+      selectedCandidateId: 'scheduled-routine-study',
+      rationale: 'Active scheduled intention daily-routine:agent-a:0:morning-study is in window.',
+      score: 28,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+      scheduledIntentionIds: ['daily-routine:agent-a:0:morning-study'],
+      issuedAt: 150,
+    });
+  });
+
   test('does not immediately repeat a just-completed objective when another candidate is viable', () => {
     const projection = createProjection([
       createAgent({
@@ -670,4 +725,23 @@ function createMemory(input: {
     source: { eventIds: [] },
     tags: input.tags,
   });
+}
+
+function createScheduledIntention(input: {
+  readonly id: string;
+  readonly description: string;
+  readonly affinityTags: readonly string[];
+}): ScheduledIntention {
+  return {
+    id: input.id,
+    agentId: agentA,
+    description: input.description,
+    priority: 2,
+    startsAt: 100,
+    endsAt: 200,
+    status: 'planned',
+    affinityTags: input.affinityTags,
+    createdAt: 90,
+    updatedAt: 90,
+  };
 }

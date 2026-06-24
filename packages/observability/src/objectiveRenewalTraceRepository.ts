@@ -41,6 +41,7 @@ export type ObjectiveRenewalTrace = {
   readonly shortTermMemoryContextIds: readonly string[];
   readonly profileEntryKeys: readonly string[];
   readonly profileEvidenceRecordIds: readonly string[];
+  readonly scheduledIntentionIds?: readonly string[];
   readonly strategicPlan?: ObjectiveRenewalStrategicPlanTrace;
   readonly issuedAt: number;
 };
@@ -152,6 +153,9 @@ function cloneTrace(trace: ObjectiveRenewalTrace): ObjectiveRenewalTrace {
     shortTermMemoryContextIds: [...trace.shortTermMemoryContextIds],
     profileEntryKeys: [...trace.profileEntryKeys],
     profileEvidenceRecordIds: [...trace.profileEvidenceRecordIds],
+    ...(trace.scheduledIntentionIds === undefined
+      ? {}
+      : { scheduledIntentionIds: [...trace.scheduledIntentionIds] }),
     ...(trace.strategicPlan === undefined
       ? {}
       : { strategicPlan: cloneStrategicPlan(trace.strategicPlan) }),
@@ -221,6 +225,9 @@ function assertValidTrace(trace: ObjectiveRenewalTrace): void {
   assertNonEmpty(trace.rationale, 'rationale');
   assertFinite(trace.score, 'score');
   assertFinite(trace.issuedAt, 'issuedAt');
+  for (const scheduledIntentionId of trace.scheduledIntentionIds ?? []) {
+    assertNonEmpty(scheduledIntentionId, 'scheduledIntentionId');
+  }
 }
 
 function assertValidQuery(query: ObjectiveRenewalTraceQuery): void {

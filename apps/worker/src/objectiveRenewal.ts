@@ -6,12 +6,14 @@ import {
   type StrategicPlanCompilationTrace,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
+import { selectActiveScheduledIntentions } from '@aivilization/memory';
 import type {
   AgentIntentionRepository,
   AgentIntentionState,
   LongHorizonObjective,
   LongTermAgentProfile,
   LongTermProfileRepository,
+  ScheduledIntention,
   ShortTermMemoryRecord,
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
@@ -39,6 +41,7 @@ export type ObjectiveRenewalDecisionTrace = {
   readonly shortTermMemoryContextIds: readonly string[];
   readonly profileEntryKeys: readonly string[];
   readonly profileEvidenceRecordIds: readonly string[];
+  readonly scheduledIntentionIds?: readonly string[];
   readonly strategicPlan?: StrategicPlanCompilationTrace;
   readonly issuedAt: number;
 };
@@ -108,6 +111,9 @@ export function createDefaultAutonomousObjectiveProposal(
       shortTermMemoryContextIds: selected.shortTermMemoryContextIds,
       profileEntryKeys: selected.profileEntryKeys,
       profileEvidenceRecordIds: selected.profileEvidenceRecordIds,
+      ...(selected.scheduledIntentionIds === undefined
+        ? {}
+        : { scheduledIntentionIds: selected.scheduledIntentionIds }),
       issuedAt: input.issuedAt,
     },
   };
@@ -275,6 +281,7 @@ type ObjectiveCandidate = {
   readonly shortTermMemoryContextIds: readonly string[];
   readonly profileEntryKeys: readonly string[];
   readonly profileEvidenceRecordIds: readonly string[];
+  readonly scheduledIntentionIds?: readonly string[];
 };
 
 function scoreObjectiveCandidates(
@@ -342,6 +349,14 @@ function scoreObjectiveCandidates(
       profileEntryKeys: [],
       profileEvidenceRecordIds: [],
     });
+  }
+
+  const scheduledRoutineCandidate = createScheduledRoutineCandidate({
+    intentionState: input.intentionState,
+    issuedAt: input.issuedAt,
+  });
+  if (scheduledRoutineCandidate !== undefined) {
+    candidates.push(scheduledRoutineCandidate);
   }
 
   const profileCandidate = createProfileRoutineCandidate(input.longTermProfile);
@@ -445,6 +460,64 @@ function inferRecoveryAffinityTags(context: string): readonly string[] {
   return DEFAULT_RECOVERY_AFFINITY_TAGS;
 }
 
+function createScheduledRoutineCandidate(input: {
+  readonly intentionState: AgentIntentionState;
+  readonly issuedAt: number;
+}): ObjectiveCandidate | undefined {
+  const [active] = [...selectActiveScheduledIntentions(input.intentionState, input.issuedAt)].sort(
+    compareScheduledIntentionsForRoutine,
+  );
+  if (active === undefined) {
+    return undefined;
+  }
+
+  const signal = resolveScheduledRoutineSignal(active);
+  return {
+    id: `scheduled-routine-${signal}`,
+    statement: `Follow the current ${signal} routine: ${ensureSentence(active.description)}`,
+    priority: 1,
+    affinityTags: stableUnique(['routine', ...active.affinityTags]),
+    score: roundScore(20 + active.priority * 4),
+    rationale: `Active scheduled intention ${active.id} is in window.`,
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+    scheduledIntentionIds: [active.id],
+  };
+}
+
+function resolveScheduledRoutineSignal(intention: ScheduledIntention): string {
+  const context = `${intention.description} ${intention.affinityTags.join(' ')}`.toLowerCase();
+  if (containsAny(context, ['study', 'education', 'school', 'learn'])) {
+    return 'study';
+  }
+  if (containsAny(context, ['eat', 'meal', 'food', 'satiety', 'restaurant'])) {
+    return 'eat';
+  }
+  if (containsAny(context, ['work', 'income', 'job', 'workshop'])) {
+    return 'work';
+  }
+  if (containsAny(context, ['sleep', 'rest', 'energy', 'home'])) {
+    return 'sleep';
+  }
+  if (containsAny(context, ['social', 'community', 'relationship', 'town-square'])) {
+    return 'social';
+  }
+  if (containsAny(context, ['health', 'doctor', 'clinic'])) {
+    return 'health';
+  }
+
+  return 'balanced';
+}
+
+function ensureSentence(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.endsWith('.') || trimmed.endsWith('!') || trimmed.endsWith('?')) {
+    return trimmed;
+  }
+  return `${trimmed}.`;
+}
+
 function createProfileRoutineCandidate(
   profile: LongTermAgentProfile,
 ): ObjectiveCandidate | undefined {
@@ -546,12 +619,29 @@ function compareObjectiveCandidates(left: ObjectiveCandidate, right: ObjectiveCa
   return left.id.localeCompare(right.id);
 }
 
+function compareScheduledIntentionsForRoutine(
+  left: ScheduledIntention,
+  right: ScheduledIntention,
+): number {
+  if (left.priority !== right.priority) {
+    return right.priority - left.priority;
+  }
+  if (left.startsAt !== right.startsAt) {
+    return left.startsAt - right.startsAt;
+  }
+  return left.id.localeCompare(right.id);
+}
+
 function containsAny(value: string, needles: readonly string[]): boolean {
   return needles.some((needle) => value.includes(needle));
 }
 
 function stableUnique(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
+}
+
+function roundScore(value: number): number {
+  return Number(value.toFixed(6));
 }
 
 function assertPositiveInteger(value: number, name: string): void {

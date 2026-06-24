@@ -296,6 +296,9 @@ function createProfileObjectiveRenewalTrace(input: {
     shortTermMemoryContextIds: [...input.trace.shortTermMemoryContextIds],
     profileEntryKeys: [...input.trace.profileEntryKeys],
     profileEvidenceRecordIds: [...input.trace.profileEvidenceRecordIds],
+    ...(input.trace.scheduledIntentionIds === undefined
+      ? {}
+      : { scheduledIntentionIds: [...input.trace.scheduledIntentionIds] }),
     ...(input.trace.strategicPlan === undefined
       ? {}
       : { strategicPlan: input.trace.strategicPlan }),

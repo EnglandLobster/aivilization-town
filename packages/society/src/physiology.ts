@@ -4,6 +4,28 @@ export type PhysiologicalState = {
   readonly health: number;
 };
 
+export type ResidentialPhysiologyCap = {
+  readonly residentialTier: number;
+  readonly maxEnergy: number;
+  readonly maxSatiety: number;
+  readonly maxHealth: number;
+};
+
+export type ResidentialPhysiologyCapPolicy = {
+  readonly caps: readonly ResidentialPhysiologyCap[];
+};
+
+export type ResidentialPhysiologyCapDecision =
+  | {
+      readonly status: 'accepted';
+      readonly cap: ResidentialPhysiologyCap;
+    }
+  | {
+      readonly status: 'rejected';
+      readonly reason: 'cap-missing' | 'policy-invalid';
+      readonly detail: string;
+    };
+
 export type LaborPhysiologyCostInput = PhysiologicalState & {
   readonly laborSeconds: number;
   readonly energyCostPerHour: number;
@@ -168,6 +190,41 @@ export function applyStochasticIllnessHealthDecay(
   };
 }
 
+export function resolveResidentialPhysiologyCap(input: {
+  readonly residentialTier: number;
+  readonly policy: ResidentialPhysiologyCapPolicy;
+}): ResidentialPhysiologyCapDecision {
+  if (!Number.isInteger(input.residentialTier) || input.residentialTier <= 0) {
+    return rejectResidentialPhysiologyCap(
+      'policy-invalid',
+      'residentialTier must be a positive integer',
+    );
+  }
+
+  const cap = input.policy.caps.find(
+    (candidate) => candidate.residentialTier === input.residentialTier,
+  );
+  if (cap === undefined) {
+    return rejectResidentialPhysiologyCap(
+      'cap-missing',
+      `missing physiology cap for residential tier ${input.residentialTier}`,
+    );
+  }
+
+  if (!Number.isInteger(cap.residentialTier) || cap.residentialTier <= 0) {
+    return rejectResidentialPhysiologyCap(
+      'policy-invalid',
+      'residentialTier must be a positive integer',
+    );
+  }
+  const invalidMax = findInvalidResidentialPhysiologyCapMax(cap);
+  if (invalidMax !== undefined) {
+    return rejectResidentialPhysiologyCap('policy-invalid', `${invalidMax} must be positive`);
+  }
+
+  return { status: 'accepted', cap };
+}
+
 export function isIncapacitated(input: {
   readonly energy: number;
   readonly health: number;
@@ -182,6 +239,28 @@ export function isIncapacitated(input: {
   return (
     input.energy < input.energyCriticalThreshold || input.health < input.healthCriticalThreshold
   );
+}
+
+function rejectResidentialPhysiologyCap(
+  reason: 'cap-missing' | 'policy-invalid',
+  detail: string,
+): ResidentialPhysiologyCapDecision {
+  return { status: 'rejected', reason, detail };
+}
+
+function findInvalidResidentialPhysiologyCapMax(
+  cap: ResidentialPhysiologyCap,
+): 'maxEnergy' | 'maxSatiety' | 'maxHealth' | undefined {
+  if (!Number.isFinite(cap.maxEnergy) || cap.maxEnergy <= 0) {
+    return 'maxEnergy';
+  }
+  if (!Number.isFinite(cap.maxSatiety) || cap.maxSatiety <= 0) {
+    return 'maxSatiety';
+  }
+  if (!Number.isFinite(cap.maxHealth) || cap.maxHealth <= 0) {
+    return 'maxHealth';
+  }
+  return undefined;
 }
 
 function assertNonNegativeFinite(value: number, name: string): void {

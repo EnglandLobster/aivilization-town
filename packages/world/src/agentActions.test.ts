@@ -1,5 +1,6 @@
 import { createAmmPool } from '@aivilization/economy';
 import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
+import type { ResidentialPhysiologyCapPolicy } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -19,6 +20,13 @@ import {
   handleAgentTradeCommand,
   handleAgentWorkCommand,
 } from './index';
+
+const residentialPhysiologyCaps: ResidentialPhysiologyCapPolicy = {
+  caps: [
+    { residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 },
+    { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+  ],
+};
 
 describe('agent action command handlers', () => {
   test('AgentEat consumes inventory, restores satiety, and records STM', () => {
@@ -65,6 +73,44 @@ describe('agent action command handlers', () => {
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.inventory).toEqual({ Bread: 1 });
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentEat caps satiety recovery by residential tier when configured', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 60, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 2,
+          job: 'Cleaner',
+          inventory: { Bread: 3 },
+        },
+      ],
+    });
+
+    const events = handleAgentEatCommand({
+      command: createCommandEnvelope({
+        id: 'command-eat-tier-cap',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentEat',
+        payload: { commodityName: 'Bread', quantity: 3 },
+        issuedAt: 10,
+      }),
+      projection,
+      satietyRecoveryByCommodity: { Bread: 15 },
+      maxSatiety: 500,
+      residentialPhysiologyCaps,
+      nextSequence: 1,
+    });
+
+    expect(events[1]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      next: { energy: 100, satiety: 90, health: 100 },
+      reason: 'eat',
+    });
   });
 
   test('AgentStudy increases education and records STM', () => {
@@ -201,6 +247,91 @@ describe('agent sleep command handling', () => {
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.physiology.energy).toBe(100);
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentSleep caps energy recovery by residential tier when configured', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 2,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSleepCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep-tier-cap',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      energyRecoveryPerSecond: 0.1,
+      maxEnergy: 500,
+      residentialPhysiologyCaps,
+      nextSequence: 1,
+    });
+
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      previous: { energy: 40, satiety: 70, health: 90 },
+      next: { energy: 120, satiety: 70, health: 90 },
+      reason: 'sleep',
+    });
+  });
+
+  test('AgentSleep rejects missing residential physiology caps as observable failed actions', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 90 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 2,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSleepCommand({
+      command: createCommandEnvelope({
+        id: 'command-sleep-missing-tier-cap',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSleep',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      energyRecoveryPerSecond: 0.1,
+      maxEnergy: 500,
+      residentialPhysiologyCaps: {
+        caps: [{ residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 }],
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]).toMatchObject({
+      payload: {
+        agentId: 'agent-1',
+        commandType: 'AgentSleep',
+        reason: 'missing physiology cap for residential tier 2',
+      },
+    });
   });
 
   test('AgentSleep rejects invalid payloads without changing physiology', () => {
@@ -381,6 +512,45 @@ describe('agent see doctor command handling', () => {
       health: 100,
     });
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentSeeDoctor caps health recovery by residential tier when configured', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 30 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 2,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentSeeDoctorCommand({
+      command: createCommandEnvelope({
+        id: 'command-see-doctor-tier-cap',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSeeDoctor',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      healthRecoveryPerSecond: 0.1,
+      maxHealth: 500,
+      residentialPhysiologyCaps,
+      nextSequence: 1,
+    });
+
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      previous: { energy: 40, satiety: 70, health: 30 },
+      next: { energy: 40, satiety: 70, health: 110 },
+      reason: 'see-doctor',
+    });
   });
 
   test('AgentSeeDoctor rejects invalid payloads without changing physiology', () => {

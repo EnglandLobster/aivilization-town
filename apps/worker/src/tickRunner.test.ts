@@ -100,6 +100,22 @@ function createSleepDeprivedProjection() {
   });
 }
 
+function createTierCappedSleepProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 40, satiety: 70, health: 90 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 2,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
 function createIllnessProjection() {
   return createWorldProjection({
     agents: [
@@ -318,6 +334,39 @@ function createRewardProductionTickAgent() {
               quantity: 1,
               availableLaborSeconds: 5,
             },
+          },
+        ],
+      },
+    ],
+    simulate: ({ action }) => ({ status: 'accepted', action }),
+  } satisfies Parameters<typeof runWorkerSimulationTick>[0]['agents'][number];
+}
+
+function createSleepTickAgent() {
+  return {
+    agentId: agentOne,
+    observedStateSummary: 'agent-1 energy=40',
+    plan: createBranchPlan({
+      objective: 'recover energy',
+      branches: [
+        {
+          id: 'rest',
+          objective: 'sleep',
+          subtasks: [{ id: 'sleep', description: 'sleep now', basePriority: 5 }],
+        },
+      ],
+    }),
+    signals: [],
+    microPlanners: [
+      {
+        domain: 'sleep',
+        supports: ({ subtaskId }) => subtaskId === 'sleep',
+        propose: () => [
+          {
+            id: 'sleep',
+            description: 'sleep to recover energy',
+            commandType: 'AgentSleep',
+            payload: { durationSeconds: 1800 },
           },
         ],
       },
@@ -563,6 +612,49 @@ describe('worker tick runner', () => {
     });
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('caps recovery by residential tier during worker action dispatch', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-residential-physiology-cap',
+      simulationId,
+      issuedAt: 100,
+      projection: createTierCappedSleepProjection(),
+      policies: {
+        ...policies,
+        sleep: { energyRecoveryPerSecond: 0.1, maxEnergy: 500 },
+        residentialPhysiologyCaps: {
+          caps: [
+            { residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 },
+            { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+          ],
+        },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createSleepTickAgent()],
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'PhysiologyChanged'],
+      [3, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        previous: { energy: 40, satiety: 70, health: 90 },
+        next: { energy: 120, satiety: 70, health: 90 },
+        reason: 'sleep',
+      },
+    });
+    expect(result.projection.agents[agentOne]?.physiology.energy).toBe(120);
+    expect(result.streamVersion).toBe(3);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
   });
 
   test('applies safety net subsidies during the worker time phase', async () => {

@@ -7,7 +7,16 @@ import {
   applyStochasticIllnessHealthDecay,
   calculateStochasticIllnessProbabilityPercent,
   isIncapacitated,
+  resolveResidentialPhysiologyCap,
+  type ResidentialPhysiologyCapPolicy,
 } from './index';
+
+const residentialPhysiologyCapPolicy: ResidentialPhysiologyCapPolicy = {
+  caps: [
+    { residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 },
+    { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+  ],
+};
 
 describe('physiology', () => {
   test('applies per-hour labor costs to energy and satiety', () => {
@@ -264,5 +273,43 @@ describe('physiology', () => {
         maxHealth: 0,
       }),
     ).toThrow(/maxHealth must be positive/);
+  });
+
+  test('resolves residential-tier physiology caps', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 2,
+        policy: residentialPhysiologyCapPolicy,
+      }),
+    ).toEqual({
+      status: 'accepted',
+      cap: { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+    });
+  });
+
+  test('rejects missing residential-tier physiology caps', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 3,
+        policy: residentialPhysiologyCapPolicy,
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'cap-missing',
+      detail: 'missing physiology cap for residential tier 3',
+    });
+  });
+
+  test('rejects invalid residential-tier physiology cap policies', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 1,
+        policy: { caps: [{ residentialTier: 1, maxEnergy: -1, maxSatiety: 70, maxHealth: 90 }] },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'maxEnergy must be positive',
+    });
   });
 });

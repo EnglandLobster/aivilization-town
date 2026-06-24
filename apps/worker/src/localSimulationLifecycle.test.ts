@@ -1,5 +1,10 @@
-import { asAgentId, type SimulationTimestamp } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
+import { createAmmPool } from '@aivilization/economy';
+import { asAgentId, createEventEnvelope, type SimulationTimestamp } from '@aivilization/sim-core';
+import {
+  createWorldProjection,
+  type WorldCommandPolicies,
+  type WorldEvent,
+} from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +12,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   createLocalSimulationLifecycleController,
   createLocalWorldRuntimeStorage,
+  type LocalSimulationLifecycleValidationSchedule,
 } from './index';
 
 const agentOne = asAgentId('agent-1');
@@ -110,17 +116,100 @@ describe('local simulation lifecycle controller', () => {
     ]);
     expect(replayed.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
   });
+
+  test('runs configured validation schedule after a completed lifecycle start', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110, 99]);
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      validationSchedule: {
+        runIdPrefix: 'lifecycle-validation',
+        plannerRuns: createPlannerRuns(),
+        eventWindow: { afterSequence: 0, toSequence: 3 },
+        expectedTrajectoryAgentIds: ['agent-1'],
+        trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+        thresholds: {
+          heavyTailReturns: { minimumExcessKurtosis: -2 },
+          volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+        },
+      },
+    });
+
+    const result = await controller.start(createRequest(500));
+
+    expect(result.status).toBe('completed');
+    expect(result.state.lastAppliedSequence).toBe(4);
+    expect(result.validationReport).toMatchObject({
+      streamName: storage.partition.eventStreamName,
+      streamVersion: 4,
+      fromSequence: 0,
+      toSequence: 3,
+      eventCount: 3,
+      projectionSequence: 3,
+      report: {
+        run: {
+          runId: 'lifecycle-validation:500:4',
+          simulationId: 'sim-1',
+          generatedAt: 500,
+          source: 'local-lifecycle-validation',
+        },
+      },
+    });
+    await expect(
+      storage.experimentValidationReportRepository.get('lifecycle-validation:500:4'),
+    ).resolves.toEqual(result.validationReport?.report);
+  });
+
+  test('skips configured validation schedule when lifecycle start pauses before ticking', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      pauseBeforeTick: () => true,
+      validationSchedule: {
+        runIdPrefix: 'paused-validation',
+        plannerRuns: createPlannerRuns(),
+        expectedTrajectoryAgentIds: ['agent-1'],
+        trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      },
+    });
+
+    const result = await controller.start(createRequest(700));
+
+    expect(result.status).toBe('paused');
+    expect(result.validationReport).toBeUndefined();
+    await expect(
+      storage.experimentValidationReportRepository.query({ simulationId: 'sim-1' }),
+    ).resolves.toEqual([]);
+  });
 });
 
 function createController(input: {
   readonly storage: ReturnType<typeof createLocalWorldRuntimeStorage>;
   readonly initialProjection: ReturnType<typeof createInitialProjection>;
+  readonly tickBatchSize?: number;
+  readonly pauseBeforeTick?: () => boolean;
+  readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
 }) {
   return createLocalSimulationLifecycleController({
     storage: input.storage,
     lifecycleStateStore: input.storage.lifecycleStateStore,
     loopId: 'loop-main',
-    tickBatchSize: 2,
+    tickBatchSize: input.tickBatchSize ?? 2,
     tickIntervalMs: 100,
     simulationId: 'sim-1',
     initialProjection: input.initialProjection,
@@ -129,6 +218,10 @@ function createController(input: {
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
     agents: [],
+    ...(input.pauseBeforeTick === undefined ? {} : { pauseBeforeTick: input.pauseBeforeTick }),
+    ...(input.validationSchedule === undefined
+      ? {}
+      : { validationSchedule: input.validationSchedule }),
   });
 }
 
@@ -153,5 +246,67 @@ function createInitialProjection() {
         inventory: {},
       },
     ],
+    marketPools: [createAmmPool({ commodity: 'Fish', commodityReserve: 10, currencyReserve: 100 })],
   });
+}
+
+function appendTradeEvents(
+  storage: ReturnType<typeof createLocalWorldRuntimeStorage>,
+  closePrices: readonly number[],
+): void {
+  storage.eventStore.appendToStream({
+    streamName: storage.partition.eventStreamName,
+    expectedVersion: 0,
+    events: closePrices.map((closePrice, index) =>
+      createTradeEvent({
+        id: `trade-${index + 1}`,
+        price: closePrice,
+        occurredAt: index,
+        sequence: index + 1,
+      }),
+    ),
+  });
+}
+
+function createTradeEvent(input: {
+  readonly id: string;
+  readonly price: number;
+  readonly occurredAt: number;
+  readonly sequence: number;
+}): WorldEvent {
+  return createEventEnvelope({
+    id: input.id,
+    simulationId: 'sim-1',
+    type: 'TradeExecuted',
+    payload: {
+      agentId: agentOne,
+      side: 'buy' as const,
+      commodityName: 'Fish',
+      commodityQuantity: 1,
+      currencyQuantity: input.price,
+      poolAfter: createAmmPool({
+        commodity: 'Fish',
+        commodityReserve: 10,
+        currencyReserve: input.price * 10,
+      }),
+      moneySupplyDelta: 0,
+    },
+    occurredAt: input.occurredAt,
+    sequence: input.sequence,
+  });
+}
+
+function createPlannerRuns() {
+  return [
+    {
+      taskId: 'high-tech-production',
+      variant: 'default',
+      metrics: [{ metricId: 'net-worth', value: 110_098, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-branch',
+      metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+    },
+  ];
 }

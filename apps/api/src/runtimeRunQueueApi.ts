@@ -25,37 +25,46 @@ export type RuntimeRunQueueJobQueryRequest = {
   readonly limit?: number;
 };
 
+export type RuntimeRunQueueStatsRequest = {
+  readonly observedAt: SimulationTimestamp;
+  readonly manifestId?: string;
+};
+
 export type RuntimeRunQueueReplayRequest = RuntimeRunQueueJobRequest & {
   readonly replayedAt: SimulationTimestamp;
   readonly nextAttemptAt?: SimulationTimestamp;
   readonly maxAttempts?: number;
 };
 
-export type RuntimeRunQueueControlPort<TJob> = {
+export type RuntimeRunQueueControlPort<TJob, TStats> = {
   readonly enqueueRun: (request: RuntimeRunQueueSubmitRequest) => MaybePromise<TJob>;
   readonly getRunJob: (jobId: string) => MaybePromise<TJob | undefined>;
   readonly queryRunJobs: (request: RuntimeRunQueueJobQueryRequest) => MaybePromise<readonly TJob[]>;
+  readonly getRunQueueStats: (request: RuntimeRunQueueStatsRequest) => MaybePromise<TStats>;
   readonly replayRunJob: (request: RuntimeRunQueueReplayRequest) => MaybePromise<TJob | undefined>;
 };
 
-export type RuntimeRunQueueApiService<TJob> = {
+export type RuntimeRunQueueApiService<TJob, TStats = unknown> = {
   readonly enqueueRuntimeRun: (request: RuntimeRunQueueSubmitRequest) => Promise<TJob>;
   readonly getRuntimeRunJob: (request: RuntimeRunQueueJobRequest) => Promise<TJob | undefined>;
   readonly queryRuntimeRunJobs: (
     request: RuntimeRunQueueJobQueryRequest,
   ) => Promise<readonly TJob[]>;
+  readonly getRuntimeRunQueueStats: (request: RuntimeRunQueueStatsRequest) => Promise<TStats>;
   readonly replayRuntimeRunJob: (
     request: RuntimeRunQueueReplayRequest,
   ) => Promise<TJob | undefined>;
 };
 
-export function createRuntimeRunQueueApiService<TJob>(input: {
-  readonly control: RuntimeRunQueueControlPort<TJob>;
-}): RuntimeRunQueueApiService<TJob> {
+export function createRuntimeRunQueueApiService<TJob, TStats>(input: {
+  readonly control: RuntimeRunQueueControlPort<TJob, TStats>;
+}): RuntimeRunQueueApiService<TJob, TStats> {
   return {
     enqueueRuntimeRun: async (request) => input.control.enqueueRun(normalizeSubmitRequest(request)),
     getRuntimeRunJob: async (request) => input.control.getRunJob(normalizeJobId(request.jobId)),
     queryRuntimeRunJobs: async (request) => input.control.queryRunJobs(normalizeQuery(request)),
+    getRuntimeRunQueueStats: async (request) =>
+      input.control.getRunQueueStats(normalizeStats(request)),
     replayRuntimeRunJob: async (request) => input.control.replayRunJob(normalizeReplay(request)),
   };
 }
@@ -106,6 +115,17 @@ function normalizeQuery(request: RuntimeRunQueueJobQueryRequest): RuntimeRunQueu
     ...(request.status === undefined ? {} : { status: request.status }),
     ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
     ...(request.limit === undefined ? {} : { limit: request.limit }),
+  };
+}
+
+function normalizeStats(request: RuntimeRunQueueStatsRequest): RuntimeRunQueueStatsRequest {
+  assertNonNegativeFinite(request.observedAt, 'observedAt');
+  if (request.manifestId !== undefined) {
+    assertNonEmpty(request.manifestId, 'manifestId');
+  }
+  return {
+    observedAt: request.observedAt,
+    ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
   };
 }
 

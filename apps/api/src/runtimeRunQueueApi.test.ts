@@ -14,10 +14,16 @@ type TestRunQueueJob = {
   };
 };
 
+type TestRunQueueStats = {
+  readonly observedAt: number;
+  readonly manifestId?: string;
+  readonly totalJobCount: number;
+};
+
 describe('runtime run queue API service', () => {
   test('normalizes run job requests before delegating to the injected control port', async () => {
     const calls: unknown[] = [];
-    const service = createRuntimeRunQueueApiService<TestRunQueueJob>({
+    const service = createRuntimeRunQueueApiService<TestRunQueueJob, TestRunQueueStats>({
       control: {
         enqueueRun: (request) => {
           calls.push({ method: 'enqueueRun', request });
@@ -57,6 +63,14 @@ describe('runtime run queue API service', () => {
               },
             },
           ]);
+        },
+        getRunQueueStats: (request) => {
+          calls.push({ method: 'getRunQueueStats', request });
+          return Promise.resolve({
+            observedAt: request.observedAt,
+            ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
+            totalJobCount: 4,
+          });
         },
         replayRunJob: (request) => {
           calls.push({ method: 'replayRunJob', request });
@@ -129,6 +143,16 @@ describe('runtime run queue API service', () => {
       },
     ]);
     await expect(
+      service.getRuntimeRunQueueStats({
+        observedAt: 260,
+        manifestId: 'town-runtime',
+      }),
+    ).resolves.toEqual({
+      observedAt: 260,
+      manifestId: 'town-runtime',
+      totalJobCount: 4,
+    });
+    await expect(
       service.replayRuntimeRunJob({
         jobId: 'job-dead-100',
         replayedAt: 500,
@@ -163,6 +187,10 @@ describe('runtime run queue API service', () => {
         request: { status: 'dead-lettered', manifestId: 'town-runtime', limit: 2 },
       },
       {
+        method: 'getRunQueueStats',
+        request: { observedAt: 260, manifestId: 'town-runtime' },
+      },
+      {
         method: 'replayRunJob',
         request: { jobId: 'job-dead-100', replayedAt: 500, maxAttempts: 3 },
       },
@@ -171,7 +199,7 @@ describe('runtime run queue API service', () => {
 
   test('rejects invalid queue requests before hitting the control port', async () => {
     const calls: unknown[] = [];
-    const service = createRuntimeRunQueueApiService<TestRunQueueJob>({
+    const service = createRuntimeRunQueueApiService<TestRunQueueJob, TestRunQueueStats>({
       control: {
         enqueueRun: (request) => {
           calls.push(request);
@@ -189,6 +217,10 @@ describe('runtime run queue API service', () => {
         queryRunJobs: (request) => {
           calls.push(request);
           return Promise.resolve([]);
+        },
+        getRunQueueStats: (request) => {
+          calls.push(request);
+          return Promise.resolve({ observedAt: request.observedAt, totalJobCount: 0 });
         },
         replayRunJob: (request) => {
           calls.push(request);
@@ -236,6 +268,12 @@ describe('runtime run queue API service', () => {
     await expect(service.queryRuntimeRunJobs({ limit: 0 })).rejects.toThrow(
       'limit must be a positive integer',
     );
+    await expect(service.getRuntimeRunQueueStats({ observedAt: -1 })).rejects.toThrow(
+      'observedAt must be a non-negative finite number',
+    );
+    await expect(
+      service.getRuntimeRunQueueStats({ observedAt: 1, manifestId: '' }),
+    ).rejects.toThrow('manifestId must not be empty');
     await expect(service.replayRuntimeRunJob({ jobId: '', replayedAt: 100 })).rejects.toThrow(
       'jobId must not be empty',
     );

@@ -101,5 +101,22 @@ describe('local simulation runtime run queue API adapter', () => {
       lastReplayedAt: 200,
       maxAttempts: 2,
     });
+    await expect(
+      service.getRuntimeRunQueueStats({ observedAt: 200, manifestId: 'town-runtime' }),
+    ).resolves.toMatchObject({
+      observedAt: 200,
+      manifestId: 'town-runtime',
+      totalJobCount: 1,
+      statusCounts: {
+        queued: 1,
+        leased: 0,
+        completed: 0,
+        failed: 0,
+        'dead-lettered': 0,
+      },
+      readyQueueCount: 1,
+      failedAttemptCount: 1,
+      replayCount: 1,
+    });
   });
 });

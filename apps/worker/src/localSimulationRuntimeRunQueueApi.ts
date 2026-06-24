@@ -2,15 +2,18 @@ import { createRuntimeRunQueueApiService, type RuntimeRunQueueApiService } from 
 import type {
   LocalSimulationRuntimeRunQueueJob,
   LocalSimulationRuntimeRunQueueRepository,
+  LocalSimulationRuntimeRunQueueStats,
 } from './localSimulationRuntimeRunQueue';
 
-export type LocalSimulationRuntimeRunQueueApiService =
-  RuntimeRunQueueApiService<LocalSimulationRuntimeRunQueueJob>;
+export type LocalSimulationRuntimeRunQueueApiService = RuntimeRunQueueApiService<
+  LocalSimulationRuntimeRunQueueJob,
+  LocalSimulationRuntimeRunQueueStats
+>;
 
 export function createLocalSimulationRuntimeRunQueueApiService(input: {
   readonly repository: Pick<
     LocalSimulationRuntimeRunQueueRepository,
-    'enqueue' | 'get' | 'query' | 'replayDeadLetter'
+    'enqueue' | 'get' | 'query' | 'getStats' | 'replayDeadLetter'
   >;
   readonly manifestId: string;
 }): LocalSimulationRuntimeRunQueueApiService {
@@ -36,6 +39,7 @@ export function createLocalSimulationRuntimeRunQueueApiService(input: {
         }),
       getRunJob: (jobId) => input.repository.get(jobId),
       queryRunJobs: (request) => input.repository.query(request),
+      getRunQueueStats: (request) => input.repository.getStats(request),
       replayRunJob: (request) => input.repository.replayDeadLetter(request),
     },
   });

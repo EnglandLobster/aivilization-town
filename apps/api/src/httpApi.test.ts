@@ -83,6 +83,25 @@ type TestRuntimeRunQueueJob = {
   };
 };
 
+type TestRuntimeRunQueueStats = {
+  readonly observedAt: number;
+  readonly manifestId?: string;
+  readonly totalJobCount: number;
+  readonly statusCounts: {
+    readonly queued: number;
+    readonly leased: number;
+    readonly completed: number;
+    readonly failed: number;
+    readonly 'dead-lettered': number;
+  };
+  readonly readyQueueCount: number;
+  readonly delayedQueueCount: number;
+  readonly activeLeaseCount: number;
+  readonly expiredLeaseCount: number;
+  readonly failedAttemptCount: number;
+  readonly replayCount: number;
+};
+
 type TestRuntimeRunQueueWorkerStatus = {
   readonly running: boolean;
   readonly inFlight: boolean;
@@ -549,6 +568,34 @@ describe('town HTTP API router', () => {
     });
     await expect(
       handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/stats',
+        query: { observedAt: '260', manifestId: 'town-runtime' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        observedAt: 260,
+        manifestId: 'town-runtime',
+        totalJobCount: 4,
+        statusCounts: {
+          queued: 2,
+          leased: 1,
+          completed: 0,
+          failed: 0,
+          'dead-lettered': 1,
+        },
+        readyQueueCount: 1,
+        delayedQueueCount: 1,
+        activeLeaseCount: 0,
+        expiredLeaseCount: 1,
+        failedAttemptCount: 3,
+        replayCount: 1,
+      },
+    });
+    await expect(
+      handler({
         method: 'POST',
         path: '/runtime/run-jobs/job-dead-200/replay',
         body: { replayedAt: 300, maxAttempts: 3 },
@@ -589,6 +636,10 @@ describe('town HTTP API router', () => {
       {
         method: 'queryRuntimeRunJobs',
         request: { status: 'dead-lettered', manifestId: 'town-runtime', limit: 2 },
+      },
+      {
+        method: 'getRuntimeRunQueueStats',
+        request: { observedAt: 260, manifestId: 'town-runtime' },
       },
       {
         method: 'replayRuntimeRunJob',
@@ -742,6 +793,19 @@ describe('town HTTP API router', () => {
       headers: { 'content-type': 'application/json' },
       body: {
         error: { code: 'bad_request', message: 'status must be a known run queue job status' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/stats',
+        query: { observedAt: '-1' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'observedAt must be a non-negative finite number' },
       },
     });
     await expect(
@@ -987,7 +1051,7 @@ function createRuntimeSupervisorService(
 
 function createRuntimeRunQueueService(
   calls: unknown[],
-): RuntimeRunQueueApiService<TestRuntimeRunQueueJob> {
+): RuntimeRunQueueApiService<TestRuntimeRunQueueJob, TestRuntimeRunQueueStats> {
   return {
     enqueueRuntimeRun: (request) => {
       calls.push({ method: 'enqueueRuntimeRun', request });
@@ -1038,6 +1102,27 @@ function createRuntimeRunQueueService(
           },
         },
       ]);
+    },
+    getRuntimeRunQueueStats: (request) => {
+      calls.push({ method: 'getRuntimeRunQueueStats', request });
+      return Promise.resolve({
+        observedAt: request.observedAt,
+        ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
+        totalJobCount: 4,
+        statusCounts: {
+          queued: 2,
+          leased: 1,
+          completed: 0,
+          failed: 0,
+          'dead-lettered': 1,
+        },
+        readyQueueCount: 1,
+        delayedQueueCount: 1,
+        activeLeaseCount: 0,
+        expiredLeaseCount: 1,
+        failedAttemptCount: 3,
+        replayCount: 1,
+      });
     },
     replayRuntimeRunJob: (request) => {
       calls.push({ method: 'replayRuntimeRunJob', request });

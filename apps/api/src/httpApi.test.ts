@@ -58,6 +58,7 @@ type TestRuntimeRunSession = {
   readonly traceId: string;
   readonly status: 'running' | 'completed' | 'stopped';
   readonly completedCycleCount: number;
+  readonly stopRequestedAt?: number;
 };
 
 type TestRuntimeTrace = {
@@ -351,6 +352,22 @@ describe('town HTTP API router', () => {
     await expect(
       handler({
         method: 'POST',
+        path: '/runtime/run-sessions/op-run-200/stop',
+        body: { requestedAt: 260 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'op-run-200',
+        status: 'running',
+        completedCycleCount: 2,
+        stopRequestedAt: 260,
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
         path: '/runtime/run',
         body: {
           operationId: 'op-run-200',
@@ -387,6 +404,10 @@ describe('town HTTP API router', () => {
       { method: 'startRuntime', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'getRuntimeOperationTrace', request: { traceId: 'op-start-100' } },
       { method: 'getRuntimeRunSession', request: { traceId: 'op-run-200' } },
+      {
+        method: 'stopRuntimeRunSession',
+        request: { traceId: 'op-run-200', requestedAt: 260 },
+      },
       {
         method: 'runRuntime',
         request: {
@@ -658,6 +679,15 @@ function createRuntimeSupervisorService(
         traceId: request.traceId,
         status: 'completed',
         completedCycleCount: 2,
+      });
+    },
+    stopRuntimeRunSession: (request) => {
+      calls.push({ method: 'stopRuntimeRunSession', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        status: 'running',
+        completedCycleCount: 2,
+        stopRequestedAt: request.requestedAt,
       });
     },
     queryRuntimeOperationTraces: (query) => {

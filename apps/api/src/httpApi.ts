@@ -317,6 +317,19 @@ async function routeRuntimeSupervisorRequest<
       ),
     );
   }
+  if (segments.length === 4 && segments[1] === 'run-sessions' && segments[3] === 'stop') {
+    assertMethod(request, 'POST');
+    const traceId = segments[2];
+    if (traceId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      202,
+      await runtimeSupervisor.stopRuntimeRunSession(
+        createRuntimeRunSessionStopRequest(decodePathPart(traceId), request.body),
+      ),
+    );
+  }
   if (segments.length === 3 && segments[1] === 'run-sessions') {
     assertMethod(request, 'GET');
     const traceId = segments[2];
@@ -514,6 +527,20 @@ function createRuntimeRunRequest(body: unknown): RuntimeSupervisorRunRequest {
     ...optionalString(record, 'operationId'),
     ...optionalNonNegativeNumber(record, 'cycleIntervalMs'),
     ...optionalBoolean(record, 'stopOnAttention'),
+  };
+}
+
+function createRuntimeRunSessionStopRequest(
+  traceId: string,
+  body: unknown,
+): {
+  readonly traceId: string;
+  readonly requestedAt: number;
+} {
+  const record = requireRecordBody(body);
+  return {
+    traceId,
+    requestedAt: requireNumber(record, 'requestedAt'),
   };
 }
 

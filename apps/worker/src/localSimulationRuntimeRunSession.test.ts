@@ -78,6 +78,38 @@ describe('local simulation runtime run session repository', () => {
       updatedAt: 150,
     });
   });
+
+  test('file repository records the first stop request and recovers it after restart', async () => {
+    const rootDir = createRootDir();
+    const firstRepository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    await firstRepository.save(createRunningSession());
+
+    await expect(
+      firstRepository.requestStop({ traceId: 'op-run-session', requestedAt: 125 }),
+    ).resolves.toMatchObject({
+      traceId: 'op-run-session',
+      status: 'running',
+      stopRequestedAt: 125,
+      updatedAt: 125,
+    });
+
+    const restartedRepository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    await expect(restartedRepository.get('op-run-session')).resolves.toMatchObject({
+      traceId: 'op-run-session',
+      stopRequestedAt: 125,
+      updatedAt: 125,
+    });
+    await expect(
+      restartedRepository.requestStop({ traceId: 'op-run-session', requestedAt: 175 }),
+    ).resolves.toMatchObject({
+      traceId: 'op-run-session',
+      stopRequestedAt: 125,
+      updatedAt: 125,
+    });
+    await expect(
+      restartedRepository.requestStop({ traceId: 'missing-run-session', requestedAt: 200 }),
+    ).resolves.toBeUndefined();
+  });
 });
 
 function createRootDir(): string {

@@ -881,6 +881,83 @@ describe('local simulation runtime supervisor', () => {
       cycles: [{ cycleIndex: 1 }, { cycleIndex: 2 }, { cycleIndex: 3 }],
     });
   });
+
+  test('stops a resumed running session at the next completed cycle boundary', async () => {
+    const host = await bootstrapTestHost();
+    const firstSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const firstCycle = await firstSupervisor.startAll({
+      operationId: 'op-run-stop-1200:cycle:1',
+      requestedAt: 1200,
+    });
+    const runSessionRepository = new FileLocalSimulationRuntimeRunSessionRepository({
+      rootDir: join(host.rootDir, 'operations'),
+    });
+    await runSessionRepository.save({
+      traceId: 'op-run-stop-1200',
+      manifestId: 'town-runtime',
+      requestedAt: 1200,
+      requestedCycleCount: 3,
+      cycleIntervalMs: 50,
+      stopOnAttention: true,
+      status: 'running',
+      completedCycleCount: 1,
+      cycles: [createRunCycleSummary(1, 1200, firstCycle)],
+      statusSnapshot: firstCycle.status,
+      updatedAt: 1200,
+    });
+
+    const resumedSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    await expect(
+      resumedSupervisor.requestRunSessionStop({
+        traceId: 'op-run-stop-1200',
+        requestedAt: 1225,
+      }),
+    ).resolves.toMatchObject({
+      traceId: 'op-run-stop-1200',
+      status: 'running',
+      stopRequestedAt: 1225,
+    });
+    const resumed = await resumedSupervisor.runCycles({
+      operationId: 'op-run-stop-1200',
+      requestedAt: 1200,
+      cycleCount: 3,
+      cycleIntervalMs: 50,
+    });
+
+    expect(
+      resumed.cycles.map((cycle) => ({
+        cycleIndex: cycle.cycleIndex,
+        traceId: cycle.traceId,
+        requestedAt: cycle.requestedAt,
+      })),
+    ).toEqual([
+      {
+        cycleIndex: 1,
+        traceId: 'op-run-stop-1200:cycle:1',
+        requestedAt: 1200,
+      },
+      {
+        cycleIndex: 2,
+        traceId: 'op-run-stop-1200:cycle:2',
+        requestedAt: 1250,
+      },
+    ]);
+    expect(resumed).toMatchObject({
+      traceId: 'op-run-stop-1200',
+      completedCycleCount: 2,
+      stopReason: 'stop-requested',
+    });
+    await expect(
+      resumedSupervisor.getOperationTrace('op-run-stop-1200:cycle:3'),
+    ).resolves.toBeUndefined();
+    await expect(resumedSupervisor.getRunSession('op-run-stop-1200')).resolves.toMatchObject({
+      status: 'stopped',
+      stopReason: 'stop-requested',
+      stopRequestedAt: 1225,
+      completedCycleCount: 2,
+      cycles: [{ cycleIndex: 1 }, { cycleIndex: 2 }],
+    });
+  });
 });
 
 function toStatusSummary(

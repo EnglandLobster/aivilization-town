@@ -21,6 +21,10 @@ export type RuntimeSupervisorRunSessionRequest = {
   readonly traceId: string;
 };
 
+export type RuntimeSupervisorRunSessionStopRequest = RuntimeSupervisorRunSessionRequest & {
+  readonly requestedAt: SimulationTimestamp;
+};
+
 export type RuntimeSupervisorOperationTraceQuery<TCommand extends string = string> = {
   readonly manifestId?: string;
   readonly command?: TCommand;
@@ -43,6 +47,9 @@ export type RuntimeSupervisorControlPort<
   readonly pauseAll: (request: RuntimeSupervisorOperationRequest) => MaybePromise<TPauseResult>;
   readonly runCycles: (request: RuntimeSupervisorRunRequest) => MaybePromise<TRunResult>;
   readonly getRunSession: (traceId: string) => MaybePromise<TRunSession | undefined>;
+  readonly requestRunSessionStop: (
+    request: RuntimeSupervisorRunSessionStopRequest,
+  ) => MaybePromise<TRunSession | undefined>;
   readonly getOperationTrace: (traceId: string) => MaybePromise<TOperationTrace | undefined>;
   readonly queryOperationTraces: (
     query: RuntimeSupervisorOperationTraceQuery<TCommand>,
@@ -64,6 +71,9 @@ export type RuntimeSupervisorApiService<
   readonly runRuntime: (request: RuntimeSupervisorRunRequest) => Promise<TRunResult>;
   readonly getRuntimeRunSession: (
     request: RuntimeSupervisorRunSessionRequest,
+  ) => Promise<TRunSession | undefined>;
+  readonly stopRuntimeRunSession: (
+    request: RuntimeSupervisorRunSessionStopRequest,
   ) => Promise<TRunSession | undefined>;
   readonly getRuntimeOperationTrace: (
     request: RuntimeSupervisorOperationTraceRequest,
@@ -107,6 +117,8 @@ export function createRuntimeSupervisorApiService<
     runRuntime: async (request) => input.control.runCycles(normalizeRunRequest(request)),
     getRuntimeRunSession: async (request) =>
       input.control.getRunSession(normalizeTraceId(request.traceId)),
+    stopRuntimeRunSession: async (request) =>
+      input.control.requestRunSessionStop(normalizeRunSessionStopRequest(request)),
     getRuntimeOperationTrace: async (request) =>
       input.control.getOperationTrace(normalizeTraceId(request.traceId)),
     queryRuntimeOperationTraces: async (query) =>
@@ -145,6 +157,20 @@ function normalizeRunRequest(request: RuntimeSupervisorRunRequest): RuntimeSuper
 function normalizeTraceId(traceId: string): string {
   assertNonEmpty(traceId, 'traceId');
   return traceId;
+}
+
+function normalizeRunSessionStopRequest(
+  request: RuntimeSupervisorRunSessionStopRequest,
+): RuntimeSupervisorRunSessionStopRequest {
+  return {
+    traceId: normalizeTraceId(request.traceId),
+    requestedAt: normalizeRequestedAt(request.requestedAt),
+  };
+}
+
+function normalizeRequestedAt(requestedAt: SimulationTimestamp): SimulationTimestamp {
+  assertNonNegativeFinite(requestedAt, 'requestedAt');
+  return requestedAt;
 }
 
 function normalizeTraceQuery<TCommand extends string>(

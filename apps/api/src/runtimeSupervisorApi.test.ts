@@ -16,6 +16,7 @@ type TestRunSession = {
   readonly traceId: string;
   readonly status: 'running' | 'completed' | 'stopped';
   readonly completedCycleCount: number;
+  readonly stopRequestedAt?: number;
 };
 
 describe('runtime supervisor API service', () => {
@@ -61,6 +62,14 @@ describe('runtime supervisor API service', () => {
         getRunSession: (traceId) => {
           calls.push({ method: 'getRunSession', traceId });
           return Promise.resolve(runSession);
+        },
+        requestRunSessionStop: (request) => {
+          calls.push({ method: 'requestRunSessionStop', request });
+          return Promise.resolve({
+            ...runSession,
+            status: 'running',
+            stopRequestedAt: request.requestedAt,
+          } satisfies TestRunSession);
         },
         getOperationTrace: (traceId) => {
           calls.push({ method: 'getOperationTrace', traceId });
@@ -112,6 +121,13 @@ describe('runtime supervisor API service', () => {
     });
     await expect(service.getRuntimeRunSession({ traceId: 'op-run-200' })).resolves.toBe(runSession);
     await expect(
+      service.stopRuntimeRunSession({ traceId: 'op-run-200', requestedAt: 260 }),
+    ).resolves.toEqual({
+      ...runSession,
+      status: 'running',
+      stopRequestedAt: 260,
+    });
+    await expect(
       service.queryRuntimeOperationTraces({
         manifestId: 'town-runtime',
         command: 'start-all',
@@ -135,6 +151,10 @@ describe('runtime supervisor API service', () => {
       },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       { method: 'getRunSession', traceId: 'op-run-200' },
+      {
+        method: 'requestRunSessionStop',
+        request: { traceId: 'op-run-200', requestedAt: 260 },
+      },
       {
         method: 'queryOperationTraces',
         query: {
@@ -181,6 +201,10 @@ describe('runtime supervisor API service', () => {
           calls.push(traceId);
           return Promise.resolve(undefined);
         },
+        requestRunSessionStop: (request) => {
+          calls.push(request.traceId);
+          return Promise.resolve(undefined);
+        },
         getOperationTrace: (traceId) => {
           calls.push(traceId);
           return Promise.resolve(undefined);
@@ -198,6 +222,12 @@ describe('runtime supervisor API service', () => {
     await expect(service.getRuntimeRunSession({ traceId: '   ' })).rejects.toThrow(
       'traceId must not be empty',
     );
+    await expect(
+      service.stopRuntimeRunSession({ traceId: '   ', requestedAt: 200 }),
+    ).rejects.toThrow('traceId must not be empty');
+    await expect(
+      service.stopRuntimeRunSession({ traceId: 'op-run-200', requestedAt: -1 }),
+    ).rejects.toThrow('requestedAt must be a non-negative finite number');
     await expect(service.runRuntime({ requestedAt: 100, cycleCount: 0 })).rejects.toThrow(
       'cycleCount must be a positive integer',
     );

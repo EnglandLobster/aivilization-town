@@ -1,9 +1,11 @@
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import { join } from 'node:path';
 import type {
+  LocalSimulationLifecycleValidationFailure,
   LocalSimulationLifecyclePauseResult,
   LocalSimulationLifecycleStartResult,
   LocalSimulationLifecycleStatus,
+  LocalSimulationLifecycleValidationStatus,
 } from './localSimulationLifecycle';
 import type { LocalSimulationBackendLifecycleResult } from './localSimulationBackend';
 import type { LocalSimulationRuntimeHost } from './localSimulationRuntimeHost';
@@ -35,6 +37,10 @@ export type LocalSimulationRuntimeSupervisorPartition = {
   readonly lastAppliedSequence: number;
   readonly nextTickIndex?: number;
   readonly updatedAt?: SimulationTimestamp;
+  readonly lastValidationStatus?: LocalSimulationLifecycleValidationStatus;
+  readonly lastValidationReportRunId?: string;
+  readonly lastValidationGeneratedAt?: SimulationTimestamp;
+  readonly lastValidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationRuntimeSupervisorStatus = {
@@ -363,7 +369,10 @@ function createSupervisorStatus(
     });
     const status: LocalSimulationRuntimeSupervisorPartitionStatus =
       lifecycleState?.status ?? 'bootstrapped';
-    const health: LocalSimulationRuntimeSupervisorHealth = statusRequiresAttention(status)
+    const health: LocalSimulationRuntimeSupervisorHealth = partitionRequiresAttention({
+      status,
+      lastValidationStatus: lifecycleState?.lastValidationStatus,
+    })
       ? 'attention'
       : 'healthy';
 
@@ -380,6 +389,18 @@ function createSupervisorStatus(
         lifecycleState?.lastAppliedSequence ?? partition.bootstrap.checkpoint.lastAppliedSequence,
       ...(lifecycleState === undefined ? {} : { nextTickIndex: lifecycleState.nextTickIndex }),
       ...(lifecycleState === undefined ? {} : { updatedAt: lifecycleState.updatedAt }),
+      ...(lifecycleState?.lastValidationStatus === undefined
+        ? {}
+        : { lastValidationStatus: lifecycleState.lastValidationStatus }),
+      ...(lifecycleState?.lastValidationReportRunId === undefined
+        ? {}
+        : { lastValidationReportRunId: lifecycleState.lastValidationReportRunId }),
+      ...(lifecycleState?.lastValidationGeneratedAt === undefined
+        ? {}
+        : { lastValidationGeneratedAt: lifecycleState.lastValidationGeneratedAt }),
+      ...(lifecycleState?.lastValidationFailure === undefined
+        ? {}
+        : { lastValidationFailure: lifecycleState.lastValidationFailure }),
     };
   });
   const healthyPartitionCount = partitions.filter(
@@ -397,6 +418,13 @@ function createSupervisorStatus(
 
 function statusRequiresAttention(status: LocalSimulationRuntimeSupervisorPartitionStatus): boolean {
   return status === 'command-drain-failed' || status === 'reset-requested';
+}
+
+function partitionRequiresAttention(input: {
+  readonly status: LocalSimulationRuntimeSupervisorPartitionStatus;
+  readonly lastValidationStatus: LocalSimulationLifecycleValidationStatus | undefined;
+}): boolean {
+  return statusRequiresAttention(input.status) || input.lastValidationStatus === 'failed';
 }
 
 function assertStartResult(

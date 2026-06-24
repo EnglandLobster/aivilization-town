@@ -366,6 +366,7 @@ describe('local simulation runtime supervisor', () => {
     expect(startResult.outcome).toBe('succeeded');
     expect(startResult.succeededPartitionCount).toBe(2);
     expect(startResult.failedPartitionCount).toBe(0);
+    expect(startResult.status.attentionPartitionCount).toBe(2);
     expect(
       startResult.partitions.map((partition) => ({
         partitionKey: partition.partitionKey,
@@ -388,6 +389,27 @@ describe('local simulation runtime supervisor', () => {
         outcome: 'succeeded',
         status: 'completed',
         validationFailure: 'events must include at least one TradeExecuted observation',
+      },
+    ]);
+    expect(
+      startResult.status.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        health: partition.health,
+        lastValidationStatus: partition.lastValidationStatus,
+        lastValidationFailure: partition.lastValidationFailure?.message,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        health: 'attention',
+        lastValidationStatus: 'failed',
+        lastValidationFailure: 'events must include at least one TradeExecuted observation',
+      },
+      {
+        partitionKey: 'world-east',
+        health: 'attention',
+        lastValidationStatus: 'failed',
+        lastValidationFailure: 'events must include at least one TradeExecuted observation',
       },
     ]);
     await expect(

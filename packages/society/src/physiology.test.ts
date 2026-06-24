@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { applyEnergyRecovery, applyLaborPhysiologyCost, isIncapacitated } from './index';
+import {
+  applyEnergyRecovery,
+  applyHealthRecovery,
+  applyLaborPhysiologyCost,
+  isIncapacitated,
+} from './index';
 
 describe('physiology', () => {
   test('applies per-hour labor costs to energy and satiety', () => {
@@ -102,5 +107,46 @@ describe('physiology', () => {
         maxEnergy: 0,
       }),
     ).toThrow(/maxEnergy must be positive/);
+  });
+
+  test('recovers health over time without exceeding the configured maximum', () => {
+    expect(
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 1800,
+        healthRecoveryPerSecond: 0.05,
+        maxHealth: 100,
+      }),
+    ).toEqual({
+      energy: 40,
+      satiety: 70,
+      health: 100,
+    });
+  });
+
+  test('rejects invalid health recovery policies', () => {
+    expect(() =>
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 10,
+        healthRecoveryPerSecond: -1,
+        maxHealth: 100,
+      }),
+    ).toThrow(/healthRecoveryPerSecond must be non-negative/);
+
+    expect(() =>
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 10,
+        healthRecoveryPerSecond: 1,
+        maxHealth: 0,
+      }),
+    ).toThrow(/maxHealth must be positive/);
   });
 });

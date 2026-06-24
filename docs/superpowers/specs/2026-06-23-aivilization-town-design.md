@@ -274,6 +274,7 @@ Commands express intent:
 - `AgentTrade`
 - `AgentEat`
 - `AgentSleep`
+- `AgentSeeDoctor`
 - `AgentStudy`
 - `AgentApplyJob`
 - `AgentWork`

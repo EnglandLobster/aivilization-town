@@ -5,6 +5,8 @@ import {
   aivilizationScenarioDefaults,
   commodities,
   createAivilizationAblationAgentSeeds,
+  createAivilizationPopulationAgentSeeds,
+  createAivilizationPopulationScenarioPreset,
   createCommodityMarketPoolSeeds,
   jobTiers,
   occupations,
@@ -102,5 +104,47 @@ describe('AIvilization source content', () => {
       source:
         'AIvilization v0 Appendix B Table 8 trade excludes Gold Apple; reserves supplied by scenario caller',
     });
+  });
+
+  test('generates deterministic location-aware runtime population presets', () => {
+    const agents = createAivilizationPopulationAgentSeeds({
+      agentCount: 25,
+      idPrefix: 'smoke-agent',
+      displayNamePrefix: 'Smoke Agent',
+      startingIndex: 1,
+    });
+    const uniqueAgentIds = new Set(agents.map((agent) => agent.agentId));
+
+    expect(agents).toHaveLength(25);
+    expect(uniqueAgentIds.size).toBe(25);
+    expect(agents[0]).toMatchObject({
+      agentId: 'smoke-agent-001',
+      displayName: 'Smoke Agent 001',
+      profile: { personality: { mbti: 'INTJ' } },
+      physiology: { energy: 500, satiety: 500, health: 500 },
+      residentialTier: 1,
+      job: null,
+      locationId: 'town-square',
+      source: 'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes',
+      tags: ['runtime-scale', 'profile-seeded'],
+    });
+    expect(agents[16]?.profile.personality.mbti).toBe('INTJ');
+    expect(agents.every((agent) => agent.locationId !== null)).toBe(true);
+
+    const scenarioPreset = createAivilizationPopulationScenarioPreset({
+      id: 'aivilization-smoke-25',
+      name: 'AIvilization Smoke 25',
+      description: 'Small runtime smoke scenario for daemon boot verification.',
+      agentCount: 25,
+      idPrefix: 'smoke-agent',
+      displayNamePrefix: 'Smoke Agent',
+    });
+
+    expect(scenarioPreset.agentSeeds).toHaveLength(25);
+    expect(scenarioPreset.timeScale).toBe(aivilizationScenarioDefaults.publicTimeScale);
+    expect(scenarioPreset.locations).toHaveLength(7);
+    expect(scenarioPreset.source).toBe(
+      'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes',
+    );
   });
 });

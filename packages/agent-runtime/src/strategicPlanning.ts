@@ -6,9 +6,62 @@ export type StrategicPlanCompilerInput = {
   readonly issuedAt: number;
 };
 
+export type StrategicPlanCompilationUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly estimatedCostMicros: number;
+};
+
+export type StrategicPlanCompilationAttemptTrace = {
+  readonly attemptIndex: number;
+  readonly status: string;
+  readonly providerId: string;
+  readonly model: string;
+  readonly message: string;
+  readonly usage: StrategicPlanCompilationUsage;
+};
+
+export type StrategicPlanCompilationTrace = {
+  readonly status: 'accepted' | 'fallback' | 'deterministic';
+  readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly attempts?: readonly StrategicPlanCompilationAttemptTrace[];
+  readonly usage?: StrategicPlanCompilationUsage;
+};
+
+export type StrategicPlanCompilationResult = {
+  readonly plan: BranchPlan;
+  readonly planningTrace: StrategicPlanCompilationTrace;
+};
+
+export type StrategicPlanCompilerOutput = BranchPlan | StrategicPlanCompilationResult;
+
 export type StrategicPlanCompiler = (
   input: StrategicPlanCompilerInput,
-) => BranchPlan | Promise<BranchPlan>;
+) => StrategicPlanCompilerOutput | Promise<StrategicPlanCompilerOutput>;
+
+export type NormalizedStrategicPlanCompilation = {
+  readonly plan: BranchPlan;
+  readonly planningTrace?: StrategicPlanCompilationTrace;
+};
+
+export function normalizeStrategicPlanCompilerOutput(
+  output: StrategicPlanCompilerOutput,
+): NormalizedStrategicPlanCompilation {
+  if (isStrategicPlanCompilationResult(output)) {
+    return {
+      plan: output.plan,
+      planningTrace: output.planningTrace,
+    };
+  }
+
+  return { plan: output };
+}
 
 export function compileStrategicObjectiveToBranchPlan(
   input: StrategicPlanCompilerInput,
@@ -305,6 +358,12 @@ function stableUnique(values: readonly string[]): readonly string[] {
 
 function sortedUnique(values: readonly string[]): readonly string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function isStrategicPlanCompilationResult(
+  value: StrategicPlanCompilerOutput,
+): value is StrategicPlanCompilationResult {
+  return 'plan' in value && 'planningTrace' in value;
 }
 
 function assertFiniteNumber(value: number, name: string): void {

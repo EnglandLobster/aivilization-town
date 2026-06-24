@@ -1,7 +1,9 @@
 import {
   compileStrategicObjectiveToBranchPlan,
+  normalizeStrategicPlanCompilerOutput,
   type BranchPlanRecord,
   type BranchPlanRepository,
+  type StrategicPlanCompilationTrace,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
@@ -37,6 +39,7 @@ export type ObjectiveRenewalDecisionTrace = {
   readonly shortTermMemoryContextIds: readonly string[];
   readonly profileEntryKeys: readonly string[];
   readonly profileEvidenceRecordIds: readonly string[];
+  readonly strategicPlan?: StrategicPlanCompilationTrace;
   readonly issuedAt: number;
 };
 
@@ -166,19 +169,22 @@ export async function renewMissingActiveObjectives(input: {
     const { objective, decisionTrace } = proposal;
 
     await input.intentionRepository.setObjective(agent.agentId, objective);
-    await input.planRepository.save(
-      await createStrategicPlanRecord({
-        objective,
-        issuedAt: input.issuedAt,
-        compile,
-      }),
-    );
-    await input.objectiveRenewalTraceSink?.record(decisionTrace);
+    const strategicPlan = await createStrategicPlanRecord({
+      objective,
+      issuedAt: input.issuedAt,
+      compile,
+    });
+    await input.planRepository.save(strategicPlan.record);
+    const tracedDecision = addStrategicPlanTrace({
+      decisionTrace,
+      planningTrace: strategicPlan.planningTrace,
+    });
+    await input.objectiveRenewalTraceSink?.record(tracedDecision);
     renewed.push({
       agentId: agent.agentId,
       objectiveId: objective.id,
       planId: objective.id,
-      decisionTrace,
+      decisionTrace: tracedDecision,
     });
   }
 
@@ -189,13 +195,36 @@ async function createStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
   readonly compile: StrategicPlanCompiler;
-}): Promise<BranchPlanRecord> {
+}): Promise<{
+  readonly record: BranchPlanRecord;
+  readonly planningTrace?: StrategicPlanCompilationTrace;
+}> {
+  const compiled = normalizeStrategicPlanCompilerOutput(
+    await input.compile({ objective: input.objective, issuedAt: input.issuedAt }),
+  );
   return {
-    planId: input.objective.id,
-    agentId: input.objective.agentId,
-    plan: await input.compile({ objective: input.objective, issuedAt: input.issuedAt }),
-    createdAt: input.issuedAt,
-    updatedAt: input.issuedAt,
+    record: {
+      planId: input.objective.id,
+      agentId: input.objective.agentId,
+      plan: compiled.plan,
+      createdAt: input.issuedAt,
+      updatedAt: input.issuedAt,
+    },
+    ...(compiled.planningTrace === undefined ? {} : { planningTrace: compiled.planningTrace }),
+  };
+}
+
+function addStrategicPlanTrace(input: {
+  readonly decisionTrace: ObjectiveRenewalDecisionTrace;
+  readonly planningTrace: StrategicPlanCompilationTrace | undefined;
+}): ObjectiveRenewalDecisionTrace {
+  if (input.planningTrace === undefined) {
+    return input.decisionTrace;
+  }
+
+  return {
+    ...input.decisionTrace,
+    strategicPlan: input.planningTrace,
   };
 }
 
@@ -247,7 +276,9 @@ type ObjectiveCandidate = {
   readonly profileEvidenceRecordIds: readonly string[];
 };
 
-function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): readonly ObjectiveCandidate[] {
+function scoreObjectiveCandidates(
+  input: AutonomousObjectiveProposerInput,
+): readonly ObjectiveCandidate[] {
   const candidates: ObjectiveCandidate[] = [];
   const physiologyDanger =
     input.agent.physiology.energy < 30 ||
@@ -332,9 +363,7 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
   return candidates.sort(compareObjectiveCandidates);
 }
 
-function createPhysiologyMaintenanceAffinityTags(
-  agent: WorldAgentState,
-): readonly string[] {
+function createPhysiologyMaintenanceAffinityTags(agent: WorldAgentState): readonly string[] {
   const lowAxes = new Set(collectLowPhysiologyAxes(agent));
   return stableUnique([
     'maintain',

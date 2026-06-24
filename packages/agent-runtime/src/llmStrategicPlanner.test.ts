@@ -3,6 +3,7 @@ import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   createLlmStrategicPlanCompiler,
+  createTraceableLlmStrategicPlanCompiler,
   llmStrategicBranchPlanSchema,
   proposeStrategicBranchPlanWithLlm,
 } from './llmStrategicPlanner';
@@ -253,6 +254,134 @@ describe('LLM strategic planner seam', () => {
       ],
     });
     expect(scripted.getRequests()[0]?.requestId).toBe('objective-1:300');
+  });
+
+  test('creates a traceable LLM compiler that preserves accepted provider attempts and usage', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          usage: { inputTokens: 12, outputTokens: 20 },
+          content: JSON.stringify({
+            objective: 'Recover satiety.',
+            branches: [
+              {
+                id: 'satiety',
+                objective: 'Eat before pursuing other goals.',
+                subtasks: [
+                  {
+                    id: 'eat',
+                    description: 'Eat food from inventory.',
+                    basePriority: 14,
+                    signalKeys: ['satiety'],
+                    intentionAffinityTags: ['eat', 'satiety'],
+                    memoryAffinityTags: ['eat', 'satiety'],
+                    profileAffinityTags: ['eat', 'satiety'],
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+    const compiler = createTraceableLlmStrategicPlanCompiler({
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: ({ objective, issuedAt }) => `${objective.agentId}:${objective.id}:${issuedAt}`,
+      pricing: {
+        inputTokenCostMicros: 2,
+        outputTokenCostMicros: 3,
+      },
+    });
+
+    await expect(
+      compiler({
+        objective: objective('Recover satiety.', ['eat', 'satiety']),
+        issuedAt: 400,
+      }),
+    ).resolves.toMatchObject({
+      plan: {
+        objective: 'Recover satiety.',
+        branches: [{ id: 'satiety', subtasks: [{ id: 'eat' }] }],
+      },
+      planningTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'agent-1:objective-1:400',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+        usage: {
+          inputTokens: 12,
+          outputTokens: 20,
+          totalTokens: 32,
+          estimatedCostMicros: 84,
+        },
+        attempts: [
+          {
+            attemptIndex: 1,
+            status: 'succeeded',
+            providerId: 'scripted-planner',
+            model: 'planner-model',
+            message: 'LLM structured response validated',
+          },
+        ],
+      },
+    });
+  });
+
+  test('creates a traceable LLM compiler that preserves fallback failure evidence', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            objective: 'Study safely.',
+            branches: [],
+          }),
+        },
+      ],
+    });
+    const compiler = createTraceableLlmStrategicPlanCompiler({
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: () => 'fallback-request',
+    });
+
+    await expect(
+      compiler({
+        objective: objective('Study safely.', ['study']),
+        issuedAt: 500,
+      }),
+    ).resolves.toMatchObject({
+      plan: {
+        objective: 'Study safely.',
+        branches: [{ id: 'development', subtasks: [{ id: 'study' }] }],
+      },
+      planningTrace: {
+        status: 'fallback',
+        source: 'deterministic-fallback',
+        requestId: 'fallback-request',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+        failureReason: 'schema-invalid',
+        message: 'branch plan candidate invalid: branch plan requires at least one branch',
+        attempts: [
+          {
+            attemptIndex: 1,
+            status: 'schema-invalid',
+            providerId: 'scripted-planner',
+            model: 'planner-model',
+          },
+        ],
+      },
+    });
   });
 });
 

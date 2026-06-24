@@ -1,5 +1,6 @@
 import {
   compileStrategicObjectiveToBranchPlan,
+  normalizeStrategicPlanCompilerOutput,
   runReactiveSteeringRoute,
   type BranchPlanRecord,
   type BranchPlanRepository,
@@ -117,11 +118,13 @@ async function createAndSaveStrategicPlanRecord(input: {
   }
 
   const compile = input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
-  const plan = await compile({ objective: input.objective, issuedAt: input.issuedAt });
+  const compiled = normalizeStrategicPlanCompilerOutput(
+    await compile({ objective: input.objective, issuedAt: input.issuedAt }),
+  );
   const planRecord = {
     planId: input.objective.id,
     agentId: input.objective.agentId,
-    plan,
+    plan: compiled.plan,
     createdAt: input.issuedAt,
     updatedAt: input.issuedAt,
   };

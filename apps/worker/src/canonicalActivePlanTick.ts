@@ -30,6 +30,7 @@ import {
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   runWorkerSimulationTick,
+  type WorkerTickMarketMetricsInput,
   type WorkerTickProjectionCheckpointingInput,
   type WorkerTickProjectionHydrationInput,
   type WorkerTickResult,
@@ -56,6 +57,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
   readonly timeDeltaMs?: number;
+  readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -135,6 +137,7 @@ export async function runCanonicalWorkerActivePlanTick(
       : { planProgressRepository: input.planProgressRepository }),
     agents,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
+    ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
     ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),
     ...(input.checkpointing === undefined ? {} : { checkpointing: input.checkpointing }),
     ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),

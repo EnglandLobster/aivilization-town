@@ -9,6 +9,7 @@ import type {
   WorldMarketPriceIndexState,
   WorldProjection,
 } from '@aivilization/world';
+import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
 
 export type ProjectionBackedWagePolicyInput = {
   readonly projection: WorldProjection;
@@ -20,6 +21,11 @@ export type ProjectionBackedWagePolicyInput = {
 export type ProjectionBackedWorldCommandPoliciesInput = ProjectionBackedWagePolicyInput & {
   readonly basePolicies: WorldCommandPolicies;
 };
+
+export type ProjectionBackedWorldCommandPolicySourceInput = Omit<
+  ProjectionBackedWorldCommandPoliciesInput,
+  'projection'
+>;
 
 export function createProjectionBackedWageCalculator(
   input: ProjectionBackedWagePolicyInput,
@@ -74,6 +80,23 @@ export function createProjectionBackedWorldCommandPolicies(
           },
         }),
   };
+}
+
+export function createProjectionBackedWorldCommandPolicySource(
+  input: ProjectionBackedWorldCommandPolicySourceInput,
+): WorldCommandPolicyResolver {
+  return (projection) =>
+    createProjectionBackedWorldCommandPolicies({
+      basePolicies: input.basePolicies,
+      projection,
+      knowledgePremium: input.knowledgePremium,
+      ...(input.shortTermAdjustment === undefined
+        ? {}
+        : { shortTermAdjustment: input.shortTermAdjustment }),
+      ...(input.maxShortTermAdjustment === undefined
+        ? {}
+        : { maxShortTermAdjustment: input.maxShortTermAdjustment }),
+    });
 }
 
 function extractPopulationEducationScores(projection: WorldProjection): readonly number[] {

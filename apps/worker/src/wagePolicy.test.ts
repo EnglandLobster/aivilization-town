@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import {
   createProjectionBackedWageCalculator,
   createProjectionBackedWorldCommandPolicies,
+  createProjectionBackedWorldCommandPolicySource,
 } from './index';
 
 const simulationId = asSimulationId('sim-wage-policy');
@@ -129,6 +130,19 @@ describe('projection-backed wage policy', () => {
         reason: 'education-too-low: educationScore requires 350, available 300',
       },
     });
+  });
+
+  test('creates a reusable policy source that resolves against the supplied projection', () => {
+    const policySource = createProjectionBackedWorldCommandPolicySource({
+      basePolicies,
+      shortTermAdjustment: 0.05,
+      maxShortTermAdjustment: 0.1,
+      knowledgePremium: (effectiveKnowledgeThreshold) => 1 + effectiveKnowledgeThreshold / 1000,
+    });
+
+    const policies = policySource(createProjectionWithPriceIndices());
+
+    expect(policies.wageCalculator('Doctor')).toBeCloseTo(expectedDoctorWage);
   });
 });
 

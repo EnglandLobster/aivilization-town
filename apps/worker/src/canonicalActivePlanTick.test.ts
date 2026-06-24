@@ -317,6 +317,67 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('records market metrics after canonical trade subtasks when configured', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const baselineProjection = createProjection({
+      agents: [createAgent(agentA, { balance: 1000 })],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+    });
+    await repositories.intentionRepository.setObjective(agentA, createTradeObjective(agentA));
+    await repositories.planRepository.save(createTradePlanRecord(agentA));
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-trade-market-index',
+      simulationId,
+      issuedAt: 100,
+      projection: baselineProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      domainConfig: { trade: { side: 'buy', commodityName: 'Apple', quantity: 10 } },
+      marketMetrics: { baselineProjection, baselineAt: 0 },
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toHaveLength(1);
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentTrade',
+      payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+    });
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'TradeExecuted'],
+      [3, 'ShortTermMemoryRecorded'],
+      [4, 'MarketPriceIndexRecorded'],
+    ]);
+    expect(result.projection.marketPriceIndices[0]).toMatchObject({
+      baselineAt: 0,
+      recordedAt: 100,
+      foodCount: 1,
+      nonFoodCount: 0,
+    });
+    expect(result.projection.marketPriceIndices[0]?.overall).toBeCloseTo(1.2345679012);
+    expect(result.streamVersion).toBe(4);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-trade',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-trade',
+      agentId: agentA,
+      completedSubtaskIds: ['trade-step'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+  });
+
   test('runs social subtasks through replayable conversation transcripts', async () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
@@ -1462,6 +1523,19 @@ function createBookProductionObjective(agentId: AgentId): LongHorizonObjective {
   };
 }
 
+function createTradeObjective(agentId: AgentId): LongHorizonObjective {
+  return {
+    id: 'objective-trade',
+    agentId,
+    statement: 'Buy Apple from the market.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['trade'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
 function createStudyPlanRecord(agentId: AgentId) {
   return {
     planId: 'objective-study',
@@ -1608,6 +1682,32 @@ function createBookProductionPlanRecord(agentId: AgentId) {
               description: 'Craft Book for the library.',
               basePriority: 5,
               intentionAffinityTags: ['production'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createTradePlanRecord(agentId: AgentId) {
+  return {
+    planId: 'objective-trade',
+    agentId,
+    plan: createBranchPlan({
+      objective: 'Buy Apple from the market.',
+      branches: [
+        {
+          id: 'trade-lane',
+          objective: 'Use the market for food.',
+          subtasks: [
+            {
+              id: 'trade-step',
+              description: 'Buy Apple from the market.',
+              basePriority: 5,
+              intentionAffinityTags: ['trade'],
             },
           ],
         },

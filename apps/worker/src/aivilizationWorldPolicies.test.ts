@@ -18,7 +18,11 @@ describe('AIvilization default world command policies', () => {
 
     expect(policies.maxSatiety).toBe(500);
     expect(policies.sleep).toEqual({ energyRecoveryPerSecond: 1, maxEnergy: 500 });
-    expect(policies.seeDoctor).toEqual({ healthRecoveryPerSecond: 1, maxHealth: 500 });
+    expect(policies.seeDoctor).toEqual({
+      healthRecoveryPerSecond: 1,
+      maxHealth: 500,
+      treatmentCost: { currencyCostPerSecond: 0.02 },
+    });
     expect(policies.satietyRecoveryByCommodity).toMatchObject({
       Apple: 25,
       Wheat: 25,

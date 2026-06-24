@@ -27,12 +27,14 @@ import {
   calculateStochasticIllnessProbabilityPercent,
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
+  evaluateMedicalTreatmentCost,
   evaluateResidentialUpkeep,
   evaluateResidentialTierUpgrade,
   evaluateOccupationApplication,
   evaluateSafetyNetSubsidy,
   isIncapacitated,
   resolveResidentialPhysiologyCap,
+  type MedicalTreatmentCostPolicy,
   type ResidentialPhysiologyCapPolicy,
   type ResidentialUpkeepPolicy,
   type ResidentialTierUpgradePolicy,
@@ -82,6 +84,7 @@ export type WorldCommandPolicies = {
   readonly seeDoctor?: {
     readonly healthRecoveryPerSecond: number;
     readonly maxHealth: number;
+    readonly treatmentCost?: MedicalTreatmentCostPolicy;
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
@@ -177,6 +180,9 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         healthRecoveryPerSecond: input.policies.seeDoctor.healthRecoveryPerSecond,
         maxHealth: input.policies.seeDoctor.maxHealth,
+        ...(input.policies.seeDoctor.treatmentCost === undefined
+          ? {}
+          : { treatmentCost: input.policies.seeDoctor.treatmentCost }),
         ...(input.policies.residentialPhysiologyCaps === undefined
           ? {}
           : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
@@ -793,6 +799,7 @@ export function handleAgentSeeDoctorCommand(input: {
   readonly projection: WorldProjection;
   readonly healthRecoveryPerSecond: number;
   readonly maxHealth: number;
+  readonly treatmentCost?: MedicalTreatmentCostPolicy;
   readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -810,6 +817,17 @@ export function handleAgentSeeDoctorCommand(input: {
   if (maxHealth.status === 'rejected') {
     return rejectCommand(input, 'AgentSeeDoctor', maxHealth.reason);
   }
+  const treatmentCost =
+    input.treatmentCost === undefined
+      ? { status: 'uncharged' as const, reason: 'zero-cost' as const }
+      : evaluateMedicalTreatmentCost({
+          balance: agent.balance,
+          durationSeconds: payloadResult.payload.durationSeconds,
+          policy: input.treatmentCost,
+        });
+  if (treatmentCost.status === 'rejected') {
+    return rejectCommand(input, 'AgentSeeDoctor', treatmentCost.detail);
+  }
 
   const physiologyResult = parsePayload(() =>
     applyHealthRecovery({
@@ -823,14 +841,28 @@ export function handleAgentSeeDoctorCommand(input: {
     return rejectCommand(input, 'AgentSeeDoctor', physiologyResult.reason);
   }
 
-  return [
-    makeEvent(input, 0, 'PhysiologyChanged', {
+  const events: WorldEvent[] = [];
+  if (treatmentCost.status === 'charged') {
+    events.push(
+      makeEvent(input, events.length, 'MedicalTreatmentCharged', {
+        agentId: agent.agentId,
+        amount: treatmentCost.amount,
+        previousBalance: treatmentCost.previousBalance,
+        nextBalance: treatmentCost.nextBalance,
+        reason: 'medical-treatment',
+      }),
+    );
+  }
+  events.push(
+    makeEvent(input, events.length, 'PhysiologyChanged', {
       agentId: agent.agentId,
       previous: agent.physiology,
       next: physiologyResult.payload,
       reason: 'see-doctor',
     }),
-    makeMemoryEvent(input, 1, {
+  );
+  events.push(
+    makeMemoryEvent(input, events.length, {
       summary: `Saw doctor for ${payloadResult.payload.durationSeconds} seconds.`,
       status: 'succeeded',
       tags: ['see-doctor', 'health'],
@@ -840,7 +872,9 @@ export function handleAgentSeeDoctorCommand(input: {
         statement: 'Sees a doctor to recover health.',
       },
     }),
-  ];
+  );
+
+  return events;
 }
 
 export function handleAgentWorkCommand(input: {

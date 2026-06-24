@@ -1,4 +1,5 @@
 import {
+  aivilizationHealthcarePolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
@@ -46,6 +47,10 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
     seeDoctor: {
       healthRecoveryPerSecond: 1,
       maxHealth: aivilizationScenarioDefaults.maxPhysiology.health,
+      treatmentCost: {
+        currencyCostPerSecond:
+          aivilizationHealthcarePolicyDefaults.seeDoctorTreatmentCost.currencyCostPerSecond,
+      },
     },
     jobApplication: {
       populationEducationScores,

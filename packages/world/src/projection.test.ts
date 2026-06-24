@@ -451,6 +451,45 @@ describe('world economy projection', () => {
     expect(projection.moneySupply).toBe(990);
   });
 
+  test('replays medical treatment charges into agent balance and money supply', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 40 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-medical-treatment',
+        simulationId: 'sim-1',
+        commandId: 'command-see-doctor',
+        type: 'MedicalTreatmentCharged',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          amount: 36,
+          previousBalance: 100,
+          nextBalance: 64,
+          reason: 'medical-treatment',
+        },
+        occurredAt: 20,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.agents['agent-1']?.balance).toBe(64);
+    expect(projection.moneySupply).toBe(964);
+  });
+
   test('replays AMM trade into agent balance, inventory, pool state, and money supply', () => {
     const initial = createWorldProjection({
       agents: [

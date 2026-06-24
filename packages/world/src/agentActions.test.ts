@@ -514,6 +514,117 @@ describe('agent see doctor command handling', () => {
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
   });
 
+  test('AgentSeeDoctor charges medical treatment before restoring health', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 30 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentSeeDoctorCommand({
+      command: createCommandEnvelope({
+        id: 'command-see-doctor-paid',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSeeDoctor',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      healthRecoveryPerSecond: 0.05,
+      maxHealth: 100,
+      treatmentCost: { currencyCostPerSecond: 0.02 },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'MedicalTreatmentCharged',
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]).toMatchObject({
+      type: 'MedicalTreatmentCharged',
+      payload: {
+        agentId: 'agent-1',
+        amount: 36,
+        previousBalance: 100,
+        nextBalance: 64,
+        reason: 'medical-treatment',
+      },
+    });
+    expect(events[1]).toMatchObject({
+      type: 'PhysiologyChanged',
+      payload: {
+        previous: { energy: 40, satiety: 70, health: 30 },
+        next: { energy: 40, satiety: 70, health: 100 },
+        reason: 'see-doctor',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBe(64);
+    expect(updated.agents['agent-1']?.physiology.health).toBe(100);
+    expect(updated.moneySupply).toBe(964);
+  });
+
+  test('AgentSeeDoctor rejects unaffordable medical treatment without restoring health', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 30 },
+          educationScore: 10,
+          balance: 10,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentSeeDoctorCommand({
+      command: createCommandEnvelope({
+        id: 'command-see-doctor-unaffordable',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSeeDoctor',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      healthRecoveryPerSecond: 0.05,
+      maxHealth: 100,
+      treatmentCost: { currencyCostPerSecond: 0.02 },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]).toMatchObject({
+      payload: {
+        commandType: 'AgentSeeDoctor',
+        reason: 'balance requires 36, available 10',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBe(10);
+    expect(updated.agents['agent-1']?.physiology.health).toBe(30);
+    expect(updated.moneySupply).toBe(1000);
+  });
+
   test('AgentSeeDoctor caps health recovery by residential tier when configured', () => {
     const projection = createWorldProjection({
       agents: [
@@ -724,6 +835,57 @@ describe('agent see doctor command handling', () => {
       next: { energy: 40, satiety: 70, health: 40 },
       reason: 'see-doctor',
     });
+  });
+
+  test('dispatchWorldCommand routes AgentSeeDoctor treatment costs through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 40, satiety: 70, health: 30 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-see-doctor-paid-dispatch',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSeeDoctor',
+        payload: { durationSeconds: 1800 },
+        issuedAt: 25,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        seeDoctor: {
+          healthRecoveryPerSecond: 0.05,
+          maxHealth: 100,
+          treatmentCost: { currencyCostPerSecond: 0.02 },
+        },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'MedicalTreatmentCharged',
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBe(64);
+    expect(updated.moneySupply).toBe(964);
   });
 });
 

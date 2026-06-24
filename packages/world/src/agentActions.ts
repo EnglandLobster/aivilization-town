@@ -3,6 +3,7 @@ import {
   getInventoryQuantity,
   planProduction,
   sellToPool,
+  type ProductionRecipeOverride,
 } from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
@@ -67,6 +68,9 @@ export type WorldCommandPolicies = {
   readonly criticalThresholds: {
     readonly energy: number;
     readonly health: number;
+  };
+  readonly production?: {
+    readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   };
   readonly sleep?: {
     readonly energyRecoveryPerSecond: number;
@@ -179,6 +183,9 @@ export function dispatchWorldCommand(input: {
       return handleAgentProduceCommand({
         command: input.command as CommandEnvelope<'AgentProduce', unknown>,
         projection: input.projection,
+        ...(input.policies.production?.recipeOverrides === undefined
+          ? {}
+          : { recipeOverrides: input.policies.production.recipeOverrides }),
         nextSequence: input.nextSequence,
       });
     case 'AgentTrade':
@@ -873,6 +880,7 @@ export function handleAgentWorkCommand(input: {
 export function handleAgentProduceCommand(input: {
   readonly command: CommandEnvelope<'AgentProduce', unknown>;
   readonly projection: WorldProjection;
+  readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -892,6 +900,8 @@ export function handleAgentProduceCommand(input: {
       availableLaborSeconds: payload.availableLaborSeconds,
       inventory: agent.inventory,
     },
+    rng: createSeededRandom(createProductionRewardSeed({ input, payload, agent })),
+    ...(input.recipeOverrides === undefined ? {} : { recipeOverrides: input.recipeOverrides }),
   });
 
   if (productionPlan.status === 'rejected') {
@@ -1483,6 +1493,22 @@ function createStochasticIllnessSeed(input: {
     input.input.projection.clock.now,
     input.payload.deltaMs,
     input.agent.agentId,
+  ].join(':');
+}
+
+function createProductionRewardSeed(input: {
+  readonly input: Parameters<typeof handleAgentProduceCommand>[0];
+  readonly payload: { readonly commodityName: string; readonly quantity: number };
+  readonly agent: WorldAgentState;
+}): string {
+  return [
+    'production-reward',
+    input.input.command.simulationId,
+    input.input.command.id,
+    input.input.projection.clock.now,
+    input.agent.agentId,
+    input.payload.commodityName,
+    input.payload.quantity,
   ].join(':');
 }
 

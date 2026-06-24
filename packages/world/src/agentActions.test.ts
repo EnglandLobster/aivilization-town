@@ -730,6 +730,47 @@ describe('agent produce command handling', () => {
     expect(updated.agents['agent-1']?.physiology.energy).toBe(96);
   });
 
+  test('AgentProduce applies deterministic special rewards through world command handling', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 25, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 5,
+          job: null,
+          inventory: { Transistor: 1, 'Circuit Board': 1 },
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-reward',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Chip', quantity: 1, availableLaborSeconds: 5 },
+        issuedAt: 50,
+      }),
+      projection,
+      nextSequence: 1,
+      recipeOverrides: [{ output: 'Chip', rewardProbabilityPercent: 100 }],
+    });
+
+    expect(events[0]).toMatchObject({
+      type: 'CommodityProduced',
+      payload: {
+        agentId: 'agent-1',
+        produced: { Chip: 1, 'Gold Apple': 1 },
+        consumedInputs: { Transistor: 1, 'Circuit Board': 1 },
+      },
+    });
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({ Chip: 1, 'Gold Apple': 1 });
+  });
+
   test('AgentProduce rejects missing inputs without changing projection state', () => {
     const projection = createWorldProjection({
       agents: [
@@ -1843,7 +1884,8 @@ describe('agent conversation command handling', () => {
       payload: {
         sourceAgentId: 'agent-1',
         targetAgentId: 'agent-2',
-        summary: 'Conversation about homework: Do you want to study together? / Yes, let us review after class.',
+        summary:
+          'Conversation about homework: Do you want to study together? / Yes, let us review after class.',
         relationDelta: 0.2,
         attitudeDelta: 0.1,
         nextRelation: {

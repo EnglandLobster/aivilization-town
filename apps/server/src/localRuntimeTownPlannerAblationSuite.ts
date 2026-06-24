@@ -13,6 +13,7 @@ import type {
   WorldCommandPolicySource,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownProfileStrategicCompilerConfig } from './localRuntimeTownProfileLlmPlanning';
+import { createLocalRuntimeTownProfilePlannerOutcomeMetrics } from './localRuntimeTownPlannerOutcomeMetrics';
 import { createLocalRuntimeTownProfilePlannerShapeMetrics } from './localRuntimeTownPlannerShapeMetrics';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
@@ -182,6 +183,7 @@ async function createDefaultPlannerExperimentMetrics(
       higherIsBetter: true,
     },
     ...(await createLocalRuntimeTownProfilePlannerShapeMetrics(summary)),
+    ...(await createLocalRuntimeTownProfilePlannerOutcomeMetrics(summary)),
   ];
 }
 

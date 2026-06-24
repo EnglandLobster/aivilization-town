@@ -3,6 +3,7 @@ import {
   getInventoryQuantity,
   planProduction,
   sellToPool,
+  type AmmTradeResult,
   type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
 } from '@aivilization/economy';
@@ -1078,8 +1079,7 @@ export function handleAgentTradeCommand(input: {
       payload.commodityName,
       payload.quantity,
       currencyRequired,
-      tradeResult.payload.poolAfter,
-      tradeResult.payload.moneySupplyDelta,
+      tradeResult.payload,
     );
   }
 
@@ -1103,8 +1103,7 @@ export function handleAgentTradeCommand(input: {
     payload.commodityName,
     payload.quantity,
     -tradeResult.payload.currencyDelta,
-    tradeResult.payload.poolAfter,
-    tradeResult.payload.moneySupplyDelta,
+    tradeResult.payload,
   );
 }
 
@@ -1414,8 +1413,7 @@ function createTradeEvents(
   commodityName: string,
   commodityQuantity: number,
   currencyQuantity: number,
-  poolAfter: Extract<WorldEvent, { readonly type: 'TradeExecuted' }>['payload']['poolAfter'],
-  moneySupplyDelta: number,
+  tradeResult: AmmTradeResult,
 ): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
 
@@ -1426,8 +1424,14 @@ function createTradeEvents(
       commodityName,
       commodityQuantity,
       currencyQuantity,
-      poolAfter,
-      moneySupplyDelta,
+      poolAfter: tradeResult.poolAfter,
+      moneySupplyDelta: tradeResult.moneySupplyDelta,
+      effectivePrice: tradeResult.effectivePrice,
+      spotPriceBefore: tradeResult.spotPriceBefore,
+      spotPriceAfter: tradeResult.spotPriceAfter,
+      slippageRatio: tradeResult.slippageRatio,
+      invariantBefore: tradeResult.invariantBefore,
+      invariantAfter: tradeResult.invariantAfter,
     }),
     makeMemoryEvent(input, 1, {
       summary: `${side === 'buy' ? 'Bought' : 'Sold'} ${commodityQuantity} ${commodityName}.`,

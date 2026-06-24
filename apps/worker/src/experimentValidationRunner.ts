@@ -117,8 +117,17 @@ export function createTradePriceObservationsFromWorldEvents(input: {
 
     assertPositiveFinite(event.payload.commodityQuantity, 'TradeExecuted commodityQuantity');
     assertPositiveFinite(event.payload.currencyQuantity, 'TradeExecuted currencyQuantity');
-    const closePrice = event.payload.currencyQuantity / event.payload.commodityQuantity;
+    const quantityPrice = event.payload.currencyQuantity / event.payload.commodityQuantity;
+    const closePrice = event.payload.effectivePrice ?? quantityPrice;
     assertPositiveFinite(closePrice, 'TradeExecuted closePrice');
+    if (
+      event.payload.effectivePrice !== undefined &&
+      Math.abs(event.payload.effectivePrice - quantityPrice) > 1e-9
+    ) {
+      throw new Error(
+        'TradeExecuted effectivePrice must match currencyQuantity / commodityQuantity',
+      );
+    }
 
     observations.push({
       commodityId: event.payload.commodityName,

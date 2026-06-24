@@ -63,6 +63,12 @@ export type TradeExecutedPayload = {
   readonly currencyQuantity: number;
   readonly poolAfter: AmmPool;
   readonly moneySupplyDelta: number;
+  readonly effectivePrice?: number;
+  readonly spotPriceBefore?: number;
+  readonly spotPriceAfter?: number;
+  readonly slippageRatio?: number;
+  readonly invariantBefore?: number;
+  readonly invariantAfter?: number;
 };
 
 export type MarketPriceIndexRecordedPayload = {

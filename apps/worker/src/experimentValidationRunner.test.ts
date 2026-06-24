@@ -79,6 +79,7 @@ function createTradeEvent(input: {
   readonly occurredAt: number;
   readonly sequence: number;
   readonly commodityQuantity?: number;
+  readonly effectivePrice?: number;
 }): WorldEvent {
   const commodityQuantity = input.commodityQuantity ?? 1;
   return createEventEnvelope({
@@ -96,6 +97,7 @@ function createTradeEvent(input: {
         commodityReserve: 10,
         currencyReserve: input.price * 10,
       }),
+      ...(input.effectivePrice === undefined ? {} : { effectivePrice: input.effectivePrice }),
       moneySupplyDelta: 0,
     },
     occurredAt: input.occurredAt,
@@ -249,6 +251,44 @@ describe('worker experiment validation runner', () => {
         currencyVolume: 225,
       },
     ]);
+  });
+
+  test('accepts TradeExecuted effective price metadata as the transaction close price', () => {
+    const observations = createTradePriceObservationsFromWorldEvents({
+      simulationId,
+      events: [
+        createTradeEvent({
+          id: 'trade-effective-price',
+          price: 100,
+          effectivePrice: 100,
+          commodityQuantity: 2,
+          occurredAt: 0,
+          sequence: 1,
+        }),
+      ],
+    });
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]?.price).toBe(100);
+    expect(observations[0]?.commodityQuantity).toBe(2);
+    expect(observations[0]?.currencyQuantity).toBe(200);
+  });
+
+  test('rejects inconsistent TradeExecuted effective price metadata', () => {
+    expect(() =>
+      createTradePriceObservationsFromWorldEvents({
+        simulationId,
+        events: [
+          createTradeEvent({
+            id: 'trade-inconsistent-effective-price',
+            price: 100,
+            effectivePrice: 99,
+            occurredAt: 0,
+            sequence: 1,
+          }),
+        ],
+      }),
+    ).toThrow('TradeExecuted effectivePrice must match currencyQuantity / commodityQuantity');
   });
 
   test('creates a validation report from projection, transaction events, planner rows, and cycle traces', async () => {

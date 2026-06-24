@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type ScenarioPreset } from '@aivilization/content';
+import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { createLocalRuntimeTownNodeHttpServer } from './index';
@@ -138,6 +139,22 @@ describe('local runtime town HTTP gateway', () => {
     expect(syncEvent).toContain('"nextAfterSequence":1');
     expect(syncEvent).toContain('"type":"SimulationTimeAdvanced"');
 
+    const validationReport = createValidationReport();
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.experimentValidationReportRepository.record(validationReport);
+    const validationReports = await fetchJson(
+      `${server.baseUrl}/simulations/sim-1/partitions/world-main/validation-reports?limit=1`,
+    );
+    expect(validationReports).toMatchObject([
+      {
+        run: {
+          runId: 'validation-server-1',
+          simulationId: 'sim-1',
+        },
+      },
+    ]);
+
     const trace = await fetchJson(`${server.baseUrl}/runtime/operation-traces/op-start-all-200`);
     expect(trace).toMatchObject({
       traceId: 'op-start-all-200',
@@ -231,6 +248,41 @@ function createScenarioPreset(input: {
     ],
     source: 'test',
   };
+}
+
+function createValidationReport() {
+  return createExperimentValidationReport({
+    run: {
+      runId: 'validation-server-1',
+      simulationId: 'sim-1',
+      generatedAt: 500,
+    },
+    priceSeries: [
+      { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+      { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+    ],
+    wealthSnapshot: [
+      { agentId: 'agent-1', educationScore: 10, netWorth: 100 },
+      { agentId: 'agent-2', educationScore: 20, netWorth: 120 },
+    ],
+    plannerRuns: [
+      {
+        taskId: 'task-1',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-1'],
+    trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+    thresholds: {
+      heavyTailReturns: { minimumExcessKurtosis: -2 },
+    },
+  });
 }
 
 async function listen(server: Server): Promise<{ readonly baseUrl: string }> {

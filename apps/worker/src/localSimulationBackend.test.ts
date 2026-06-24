@@ -1,4 +1,5 @@
 import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -131,6 +132,34 @@ describe('local simulation backend composition', () => {
     expect(sync.nextAfterSequence).toBe(2);
     expect(sync.hasMoreEvents).toBe(true);
 
+    const validationReport = createValidationReport({
+      runId: 'validation-main-1',
+      generatedAt: 600,
+    });
+    await backend.storage.experimentValidationReportRepository.record(validationReport);
+    await expect(
+      backend.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        fromGeneratedAt: 500,
+        limit: 1,
+      }),
+    ).resolves.toEqual([validationReport]);
+    await expect(
+      backend.api.getExperimentValidationReport({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        runId: 'validation-main-1',
+      }),
+    ).resolves.toEqual(validationReport);
+    await expect(
+      backend.api.getExperimentValidationReport({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        runId: 'missing-validation',
+      }),
+    ).resolves.toBeUndefined();
+
     const replayed = requireReplayResult(
       await backend.api.replaySimulation({
         simulationId: 'sim-1',
@@ -192,19 +221,33 @@ describe('local simulation backend composition', () => {
         issuedAt: 100,
         expectedVersion: 0,
       }),
-    ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
+    ).rejects.toThrow(
+      'request partitionKey world-other must match storage partitionKey world-main',
+    );
     await expect(
       backend.api.getEvents({
         simulationId: 'sim-1',
         partitionKey: 'world-other',
       }),
-    ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
+    ).rejects.toThrow(
+      'request partitionKey world-other must match storage partitionKey world-main',
+    );
     await expect(
       backend.api.getSync({
         simulationId: 'sim-1',
         partitionKey: 'world-other',
       }),
-    ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
+    ).rejects.toThrow(
+      'request partitionKey world-other must match storage partitionKey world-main',
+    );
+    await expect(
+      backend.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-other',
+      }),
+    ).rejects.toThrow(
+      'request partitionKey world-other must match storage partitionKey world-main',
+    );
     expect(storage.commandStore.getStreamVersion(storage.partition.commandStreamName)).toBe(0);
   });
 });
@@ -256,6 +299,41 @@ function reactiveStudyPlanner(): ReactiveLocalizedPlanner {
       },
     ],
   };
+}
+
+function createValidationReport(input: { readonly runId: string; readonly generatedAt: number }) {
+  return createExperimentValidationReport({
+    run: {
+      runId: input.runId,
+      simulationId: 'sim-1',
+      generatedAt: input.generatedAt,
+    },
+    priceSeries: [
+      { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+      { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+    ],
+    wealthSnapshot: [
+      { agentId: 'agent-1', educationScore: 10, netWorth: 100 },
+      { agentId: 'agent-2', educationScore: 20, netWorth: 120 },
+    ],
+    plannerRuns: [
+      {
+        taskId: 'task-1',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-1'],
+    trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+    thresholds: {
+      heavyTailReturns: { minimumExcessKurtosis: -2 },
+    },
+  });
 }
 
 function requireReplayResult(

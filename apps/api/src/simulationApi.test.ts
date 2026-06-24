@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
   createSimulationApiService,
+  type ExperimentValidationReportLookupRequest,
+  type ExperimentValidationReportQueryRequest,
   type SimulationEventFeedRequest,
   type SimulationLifecycleRequest,
   type SimulationSyncRequest,
@@ -16,6 +18,7 @@ describe('simulation API control service', () => {
       },
       eventFeeds: createEventFeedPort(),
       sync: createSyncPort(),
+      validationReports: createValidationReportsPort(),
       steeringCommands: {
         submit: (command, context) => {
           submitted.push(command);
@@ -66,6 +69,7 @@ describe('simulation API control service', () => {
       },
       eventFeeds: createEventFeedPort(),
       sync: createSyncPort(),
+      validationReports: createValidationReportsPort(),
       steeringCommands: {
         submit: (command) => Promise.resolve({ command }),
       },
@@ -96,10 +100,12 @@ describe('simulation API control service', () => {
     });
   });
 
-  test('delegates projection, event feed, and lifecycle controls to injected ports', async () => {
+  test('delegates projection, event feed, validation report, and lifecycle controls to injected ports', async () => {
     const lifecycleRequests: SimulationLifecycleRequest[] = [];
     const eventFeedRequests: SimulationEventFeedRequest[] = [];
     const syncRequests: SimulationSyncRequest[] = [];
+    const validationReportQueries: ExperimentValidationReportQueryRequest[] = [];
+    const validationReportLookups: ExperimentValidationReportLookupRequest[] = [];
     const service = createSimulationApiService({
       projectionQueries: {
         getProjection: (query) => Promise.resolve({ query, agents: 80 }),
@@ -125,6 +131,16 @@ describe('simulation API control service', () => {
             projection: { agents: 80 },
             events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
           });
+        },
+      },
+      validationReports: {
+        queryReports: (request) => {
+          validationReportQueries.push(request);
+          return Promise.resolve([{ run: { runId: 'validation-2' } }]);
+        },
+        getReport: (request) => {
+          validationReportLookups.push(request);
+          return Promise.resolve({ run: { runId: request.runId } });
         },
       },
       steeringCommands: {
@@ -184,6 +200,22 @@ describe('simulation API control service', () => {
       events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
     });
     await expect(
+      service.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        fromGeneratedAt: 100,
+        toGeneratedAt: 200,
+        limit: 2,
+      }),
+    ).resolves.toEqual([{ run: { runId: 'validation-2' } }]);
+    await expect(
+      service.getExperimentValidationReport({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        runId: 'validation-2',
+      }),
+    ).resolves.toEqual({ run: { runId: 'validation-2' } });
+    await expect(
       service.startSimulation({
         simulationId: 'sim-1',
         partitionKey: 'world-main',
@@ -231,6 +263,22 @@ describe('simulation API control service', () => {
         limit: 1,
       },
     ]);
+    expect(validationReportQueries).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        fromGeneratedAt: 100,
+        toGeneratedAt: 200,
+        limit: 2,
+      },
+    ]);
+    expect(validationReportLookups).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        runId: 'validation-2',
+      },
+    ]);
   });
 });
 
@@ -251,6 +299,15 @@ function createSyncPort() {
         nextAfterSequence: request.afterSequence ?? 0,
         hasMoreEvents: false,
       }),
+  };
+}
+
+function createValidationReportsPort() {
+  return {
+    queryReports: (request: ExperimentValidationReportQueryRequest) =>
+      Promise.resolve([{ run: { runId: request.runId ?? 'validation-1' } }]),
+    getReport: (request: ExperimentValidationReportLookupRequest) =>
+      Promise.resolve({ run: { runId: request.runId } }),
   };
 }
 

@@ -24,6 +24,21 @@ export type SimulationSyncRequest = {
   readonly limit?: number;
 };
 
+export type ExperimentValidationReportLookupRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly runId: string;
+};
+
+export type ExperimentValidationReportQueryRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly runId?: string;
+  readonly fromGeneratedAt?: number;
+  readonly toGeneratedAt?: number;
+  readonly limit?: number;
+};
+
 export type SimulationLifecycleRequest = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -72,6 +87,15 @@ export type SimulationSyncPort<TResult> = {
   readonly getSync: (request: SimulationSyncRequest) => Promise<TResult>;
 };
 
+export type ExperimentValidationReportQueryPort<TReport> = {
+  readonly getReport: (
+    request: ExperimentValidationReportLookupRequest,
+  ) => Promise<TReport | undefined>;
+  readonly queryReports: (
+    request: ExperimentValidationReportQueryRequest,
+  ) => Promise<readonly TReport[]>;
+};
+
 export type SteeringCommandSubmissionContext = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -97,28 +121,27 @@ export type SimulationApiService<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
 > = {
   readonly getProjection: (request: ProjectionQueryRequest) => Promise<TProjection>;
   readonly getEvents: (request: SimulationEventFeedRequest) => Promise<TEventFeed>;
   readonly getSync: (request: SimulationSyncRequest) => Promise<TSync>;
+  readonly getExperimentValidationReport: (
+    request: ExperimentValidationReportLookupRequest,
+  ) => Promise<TExperimentValidationReport | undefined>;
+  readonly queryExperimentValidationReports: (
+    request: ExperimentValidationReportQueryRequest,
+  ) => Promise<readonly TExperimentValidationReport[]>;
   readonly submitLongHorizonObjective: (
     request: SubmitLongHorizonObjectiveRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
   readonly submitReactiveCommand: (
     request: SubmitReactiveCommandRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
-  readonly startSimulation: (
-    request: SimulationLifecycleRequest,
-  ) => Promise<TLifecycleResult>;
-  readonly pauseSimulation: (
-    request: SimulationLifecycleRequest,
-  ) => Promise<TLifecycleResult>;
-  readonly resetSimulation: (
-    request: SimulationLifecycleRequest,
-  ) => Promise<TLifecycleResult>;
-  readonly replaySimulation: (
-    request: SimulationLifecycleRequest,
-  ) => Promise<TLifecycleResult>;
+  readonly startSimulation: (request: SimulationLifecycleRequest) => Promise<TLifecycleResult>;
+  readonly pauseSimulation: (request: SimulationLifecycleRequest) => Promise<TLifecycleResult>;
+  readonly resetSimulation: (request: SimulationLifecycleRequest) => Promise<TLifecycleResult>;
+  readonly replaySimulation: (request: SimulationLifecycleRequest) => Promise<TLifecycleResult>;
 };
 
 export type ApiCommandSubmission<TResult> = {
@@ -132,17 +155,29 @@ export function createSimulationApiService<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
 >(input: {
   readonly projectionQueries: ProjectionQueryPort<TProjection>;
   readonly eventFeeds: SimulationEventFeedPort<TEventFeed>;
   readonly sync: SimulationSyncPort<TSync>;
+  readonly validationReports: ExperimentValidationReportQueryPort<TExperimentValidationReport>;
   readonly steeringCommands: SteeringCommandSubmissionPort<TSteeringResult>;
   readonly lifecycle: SimulationLifecyclePort<TLifecycleResult>;
-}): SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed, TSync> {
+}): SimulationApiService<
+  TProjection,
+  TSteeringResult,
+  TLifecycleResult,
+  TEventFeed,
+  TSync,
+  TExperimentValidationReport
+> {
   return {
     getProjection: async (request) => input.projectionQueries.getProjection(request),
     getEvents: async (request) => input.eventFeeds.getEvents(request),
     getSync: async (request) => input.sync.getSync(request),
+    getExperimentValidationReport: async (request) => input.validationReports.getReport(request),
+    queryExperimentValidationReports: async (request) =>
+      input.validationReports.queryReports(request),
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));

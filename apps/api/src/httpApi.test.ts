@@ -38,6 +38,12 @@ type TestSyncEnvelope = {
   }[];
 };
 
+type TestValidationReport = {
+  readonly run: {
+    readonly runId: string;
+  };
+};
+
 type TestRuntimeStatus = {
   readonly manifestId: string;
 };
@@ -110,6 +116,27 @@ describe('town HTTP API router', () => {
           { sequence: 5, type: 'ShortTermMemoryRecorded' },
         ],
       },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports',
+        query: { fromGeneratedAt: '100', toGeneratedAt: '200', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ run: { runId: 'validation-2' } }],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports/validation-2',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { run: { runId: 'validation-2' } },
     });
     await expect(
       handler({
@@ -199,6 +226,24 @@ describe('town HTTP API router', () => {
           partitionKey: 'world-main',
           afterSequence: 2,
           limit: 3,
+        },
+      },
+      {
+        method: 'queryExperimentValidationReports',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'getExperimentValidationReport',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          runId: 'validation-2',
         },
       },
       {
@@ -393,6 +438,17 @@ describe('town HTTP API router', () => {
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
     });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
     expect(calls).toEqual([]);
   });
 });
@@ -404,7 +460,8 @@ function createSimulationService(
   TestSteeringResult,
   TestLifecycleResult,
   TestEventFeed,
-  TestSyncEnvelope
+  TestSyncEnvelope,
+  TestValidationReport
 > {
   return {
     getProjection: (request) => {
@@ -437,6 +494,14 @@ function createSimulationService(
           { sequence: 5, type: 'ShortTermMemoryRecorded' },
         ],
       });
+    },
+    queryExperimentValidationReports: (request) => {
+      calls.push({ method: 'queryExperimentValidationReports', request });
+      return Promise.resolve([{ run: { runId: request.runId ?? 'validation-2' } }]);
+    },
+    getExperimentValidationReport: (request) => {
+      calls.push({ method: 'getExperimentValidationReport', request });
+      return Promise.resolve({ run: { runId: request.runId } });
     },
     submitLongHorizonObjective: (request) => {
       calls.push({ method: 'submitLongHorizonObjective', request });
@@ -503,11 +568,17 @@ function createRuntimeSupervisorService(
     },
     startRuntime: (request) => {
       calls.push({ method: 'startRuntime', request });
-      return Promise.resolve({ traceId: request.operationId ?? 'generated-start', requestedAt: request.requestedAt });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-start',
+        requestedAt: request.requestedAt,
+      });
     },
     pauseRuntime: (request) => {
       calls.push({ method: 'pauseRuntime', request });
-      return Promise.resolve({ traceId: request.operationId ?? 'generated-pause', requestedAt: request.requestedAt });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-pause',
+        requestedAt: request.requestedAt,
+      });
     },
     getRuntimeOperationTrace: (request) => {
       calls.push({ method: 'getRuntimeOperationTrace', request });

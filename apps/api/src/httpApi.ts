@@ -3,6 +3,8 @@ import type {
   RuntimeSupervisorOperationTraceQuery,
 } from './runtimeSupervisorApi';
 import type {
+  ExperimentValidationReportLookupRequest,
+  ExperimentValidationReportQueryRequest,
   SimulationApiService,
   SimulationEventFeedRequest,
   SimulationLifecycleRequest,
@@ -26,9 +28,7 @@ export type TownHttpApiResponse = {
   readonly body: unknown;
 };
 
-export type TownHttpApiHandler = (
-  request: TownHttpApiRequest,
-) => Promise<TownHttpApiResponse>;
+export type TownHttpApiHandler = (request: TownHttpApiRequest) => Promise<TownHttpApiResponse>;
 
 export type TownHttpApiServices<
   TProjection,
@@ -36,6 +36,7 @@ export type TownHttpApiServices<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -47,7 +48,8 @@ export type TownHttpApiServices<
     TSteeringResult,
     TLifecycleResult,
     TEventFeed,
-    TSync
+    TSync,
+    TExperimentValidationReport
   >;
   readonly runtimeSupervisor: RuntimeSupervisorApiService<
     TRuntimeStatus,
@@ -62,6 +64,7 @@ type SimulationRoute = {
   readonly simulationId: string;
   readonly partitionKey: string;
   readonly action: string;
+  readonly runId?: string;
 };
 
 class TownHttpApiError extends Error {
@@ -82,6 +85,7 @@ export function createTownHttpApiHandler<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -94,6 +98,7 @@ export function createTownHttpApiHandler<
     TLifecycleResult,
     TEventFeed,
     TSync,
+    TExperimentValidationReport,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -121,6 +126,7 @@ async function routeTownHttpRequest<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -133,6 +139,7 @@ async function routeTownHttpRequest<
     TLifecycleResult,
     TEventFeed,
     TSync,
+    TExperimentValidationReport,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -158,13 +165,15 @@ async function routeSimulationRequest<
   TLifecycleResult,
   TEventFeed,
   TSync,
+  TExperimentValidationReport,
 >(
   simulation: SimulationApiService<
     TProjection,
     TSteeringResult,
     TLifecycleResult,
     TEventFeed,
-    TSync
+    TSync,
+    TExperimentValidationReport
   >,
   request: TownHttpApiRequest,
   route: SimulationRoute,
@@ -189,6 +198,21 @@ async function routeSimulationRequest<
   if (route.action === 'sync') {
     assertMethod(request, 'GET');
     return jsonResponse(200, await simulation.getSync(createSyncRequest(route, request.query)));
+  }
+  if (route.action === 'validation-reports') {
+    assertMethod(request, 'GET');
+    if (route.runId !== undefined) {
+      return jsonResponse(
+        200,
+        await simulation.getExperimentValidationReport(createValidationReportLookupRequest(route)),
+      );
+    }
+    return jsonResponse(
+      200,
+      await simulation.queryExperimentValidationReports(
+        createValidationReportQueryRequest(route, request.query),
+      ),
+    );
   }
   assertMethod(request, 'POST');
 
@@ -256,11 +280,17 @@ async function routeRuntimeSupervisorRequest<
   }
   if (segments.length === 2 && segments[1] === 'start') {
     assertMethod(request, 'POST');
-    return jsonResponse(202, await runtimeSupervisor.startRuntime(createRuntimeRequest(request.body)));
+    return jsonResponse(
+      202,
+      await runtimeSupervisor.startRuntime(createRuntimeRequest(request.body)),
+    );
   }
   if (segments.length === 2 && segments[1] === 'pause') {
     assertMethod(request, 'POST');
-    return jsonResponse(202, await runtimeSupervisor.pauseRuntime(createRuntimeRequest(request.body)));
+    return jsonResponse(
+      202,
+      await runtimeSupervisor.pauseRuntime(createRuntimeRequest(request.body)),
+    );
   }
   if (segments.length === 2 && segments[1] === 'operation-traces') {
     assertMethod(request, 'GET');
@@ -286,11 +316,7 @@ async function routeRuntimeSupervisorRequest<
 }
 
 function matchSimulationRoute(segments: readonly string[]): SimulationRoute | undefined {
-  if (
-    segments.length === 5 &&
-    segments[0] === 'simulations' &&
-    segments[2] === 'partitions'
-  ) {
+  if (segments.length === 5 && segments[0] === 'simulations' && segments[2] === 'partitions') {
     const simulationId = segments[1];
     const partitionKey = segments[3];
     const action = segments[4];
@@ -301,6 +327,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
       simulationId: decodePathPart(simulationId),
       partitionKey: decodePathPart(partitionKey),
       action: decodePathPart(action),
+    };
+  }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
+    segments[4] === 'validation-reports'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const runId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || runId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'validation-reports',
+      runId: decodePathPart(runId),
     };
   }
   return undefined;
@@ -345,10 +390,7 @@ function createReactiveCommandRequest(
   };
 }
 
-function createLifecycleRequest(
-  route: SimulationRoute,
-  body: unknown,
-): SimulationLifecycleRequest {
+function createLifecycleRequest(route: SimulationRoute, body: unknown): SimulationLifecycleRequest {
   const record = requireRecordBody(body);
   return {
     simulationId: route.simulationId,
@@ -389,6 +431,36 @@ function createSyncRequest(
       min: 0,
       description: 'a non-negative integer',
     }),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createValidationReportLookupRequest(
+  route: SimulationRoute,
+): ExperimentValidationReportLookupRequest {
+  if (route.runId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    runId: route.runId,
+  };
+}
+
+function createValidationReportQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): ExperimentValidationReportQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'runId'),
+    ...optionalQueryNumber(query, 'fromGeneratedAt'),
+    ...optionalQueryNumber(query, 'toGeneratedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

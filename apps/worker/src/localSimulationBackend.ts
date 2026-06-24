@@ -2,6 +2,7 @@ import {
   createCommandStoreSteeringSubmissionPort,
   createSimulationApiService,
   type CommandStoreSteeringSubmissionResult,
+  type ExperimentValidationReportQueryPort,
   type SimulationEventFeedPort,
   type SimulationSyncPort,
   type ProjectionQueryPort,
@@ -9,6 +10,7 @@ import {
   type SimulationLifecyclePort,
   type SteeringCommandSubmissionPort,
 } from '@aivilization/api';
+import type { ExperimentValidationReport } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import type {
   LocalSimulationLifecyclePauseResult,
@@ -45,6 +47,8 @@ export type LocalWorldSyncResult = {
   readonly events: readonly WorldEvent[];
 };
 
+export type LocalExperimentValidationReportQueryResult = ExperimentValidationReport;
+
 export type LocalSimulationBackendLifecycleResult =
   | LocalSimulationLifecycleStartResult
   | LocalSimulationLifecyclePauseResult
@@ -60,11 +64,13 @@ export type LocalSimulationBackend = {
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
     LocalWorldEventFeedResult,
-    LocalWorldSyncResult
+    LocalWorldSyncResult,
+    LocalExperimentValidationReportQueryResult
   >;
   readonly projectionQueries: ProjectionQueryPort<LocalWorldProjectionQueryResult>;
   readonly eventFeeds: SimulationEventFeedPort<LocalWorldEventFeedResult>;
   readonly sync: SimulationSyncPort<LocalWorldSyncResult>;
+  readonly validationReports: ExperimentValidationReportQueryPort<LocalExperimentValidationReportQueryResult>;
   readonly steeringCommands: SteeringCommandSubmissionPort<CommandStoreSteeringSubmissionResult>;
   readonly lifecycle: SimulationLifecyclePort<LocalSimulationBackendLifecycleResult>;
 };
@@ -82,6 +88,9 @@ export function createLocalSimulationBackend(
   const sync = createLocalWorldSyncPort({
     storage: input.storage,
     initialProjection: input.initialProjection,
+  });
+  const validationReports = createLocalExperimentValidationReportQueryPort({
+    storage: input.storage,
   });
   const commandStoreSteeringCommands = createCommandStoreSteeringSubmissionPort({
     commandStore: input.storage.commandStore,
@@ -102,11 +111,13 @@ export function createLocalSimulationBackend(
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
     LocalWorldEventFeedResult,
-    LocalWorldSyncResult
+    LocalWorldSyncResult,
+    LocalExperimentValidationReportQueryResult
   >({
     projectionQueries,
     eventFeeds,
     sync,
+    validationReports,
     steeringCommands,
     lifecycle,
   });
@@ -117,6 +128,7 @@ export function createLocalSimulationBackend(
     projectionQueries,
     eventFeeds,
     sync,
+    validationReports,
     steeringCommands,
     lifecycle,
   };
@@ -218,6 +230,35 @@ export function createLocalWorldSyncPort(input: {
           hasMoreEvents: nextAfterSequence < hydrated.streamVersion,
           events,
         };
+      });
+    },
+  };
+}
+
+export function createLocalExperimentValidationReportQueryPort(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+}): ExperimentValidationReportQueryPort<LocalExperimentValidationReportQueryResult> {
+  return {
+    getReport: async (request) => {
+      assertRequestMatchesStorage(request, input.storage);
+      const report = await input.storage.experimentValidationReportRepository.get(request.runId);
+      if (report?.run.simulationId !== request.simulationId) {
+        return undefined;
+      }
+      return report;
+    },
+    queryReports: (request) => {
+      return Promise.resolve().then(() => {
+        assertRequestMatchesStorage(request, input.storage);
+        return input.storage.experimentValidationReportRepository.query({
+          simulationId: request.simulationId,
+          ...(request.runId === undefined ? {} : { runId: request.runId }),
+          ...(request.fromGeneratedAt === undefined
+            ? {}
+            : { fromGeneratedAt: request.fromGeneratedAt }),
+          ...(request.toGeneratedAt === undefined ? {} : { toGeneratedAt: request.toGeneratedAt }),
+          ...(request.limit === undefined ? {} : { limit: request.limit }),
+        });
       });
     },
   };

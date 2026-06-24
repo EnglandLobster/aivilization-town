@@ -9,6 +9,7 @@ import {
   type LocalSimulationBackend,
   type LocalSimulationBackendInput,
   type LocalSimulationBackendLifecycleResult,
+  type LocalExperimentValidationReportQueryResult,
   type LocalWorldEventFeedResult,
   type LocalWorldProjectionQueryResult,
   type LocalWorldSyncResult,
@@ -20,10 +21,7 @@ export type LocalSimulationBackendLookup = {
   readonly partitionKey: PartitionKey;
 };
 
-export type LocalSimulationBackendRegistration = Omit<
-  LocalSimulationBackendInput,
-  'storage'
-> & {
+export type LocalSimulationBackendRegistration = Omit<LocalSimulationBackendInput, 'storage'> & {
   readonly partitionKey: PartitionKey;
 };
 
@@ -38,7 +36,8 @@ export type LocalSimulationBackendRegistry = {
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
     LocalWorldEventFeedResult,
-    LocalWorldSyncResult
+    LocalWorldSyncResult,
+    LocalExperimentValidationReportQueryResult
   >;
   readonly listPartitions: () => readonly LocalSimulationBackendLookup[];
   readonly hasBackend: (lookup: LocalSimulationBackendLookup) => boolean;
@@ -96,7 +95,8 @@ export function createLocalSimulationBackendRegistry(
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
     LocalWorldEventFeedResult,
-    LocalWorldSyncResult
+    LocalWorldSyncResult,
+    LocalExperimentValidationReportQueryResult
   >({
     projectionQueries: {
       getProjection: (request) => getBackend(request).api.getProjection(request),
@@ -106,6 +106,10 @@ export function createLocalSimulationBackendRegistry(
     },
     sync: {
       getSync: (request) => getBackend(request).sync.getSync(request),
+    },
+    validationReports: {
+      getReport: (request) => getBackend(request).validationReports.getReport(request),
+      queryReports: (request) => getBackend(request).validationReports.queryReports(request),
     },
     steeringCommands: {
       submit: (command, context) => getBackend(context).steeringCommands.submit(command, context),
@@ -126,7 +130,9 @@ export function createLocalSimulationBackendRegistry(
   };
 }
 
-function toBackendLookup(registration: LocalSimulationBackendRegistration): LocalSimulationBackendLookup {
+function toBackendLookup(
+  registration: LocalSimulationBackendRegistration,
+): LocalSimulationBackendLookup {
   return {
     simulationId: registration.simulationId,
     partitionKey: registration.partitionKey,

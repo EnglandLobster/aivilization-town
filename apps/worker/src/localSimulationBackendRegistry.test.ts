@@ -1,4 +1,5 @@
 import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -70,10 +71,27 @@ describe('local simulation backend registry', () => {
       simulationId: 'sim-1',
       partitionKey: 'world-east',
     });
-    expect(
-      registry.getBackend({ simulationId: 'sim-1', partitionKey: 'world-east' }),
-    ).toBe(eastBackend);
+    expect(registry.getBackend({ simulationId: 'sim-1', partitionKey: 'world-east' })).toBe(
+      eastBackend,
+    );
     expect(mainBackend.storage.paths.partitionDir).not.toBe(eastBackend.storage.paths.partitionDir);
+    const eastReport = createValidationReport({
+      runId: 'validation-east-1',
+      generatedAt: 600,
+    });
+    await eastBackend.storage.experimentValidationReportRepository.record(eastReport);
+    await expect(
+      registry.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-east',
+      }),
+    ).resolves.toEqual([eastReport]);
+    await expect(
+      registry.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+      }),
+    ).resolves.toEqual([]);
 
     const submission = await registry.api.submitReactiveCommand({
       simulationId: 'sim-1',
@@ -87,12 +105,16 @@ describe('local simulation backend registry', () => {
     });
 
     expect(submission.result.streamName).toBe(eastBackend.storage.partition.commandStreamName);
-    expect(eastBackend.storage.commandStore.getStreamVersion(eastBackend.storage.partition.commandStreamName)).toBe(
-      1,
-    );
-    expect(mainBackend.storage.commandStore.getStreamVersion(mainBackend.storage.partition.commandStreamName)).toBe(
-      0,
-    );
+    expect(
+      eastBackend.storage.commandStore.getStreamVersion(
+        eastBackend.storage.partition.commandStreamName,
+      ),
+    ).toBe(1);
+    expect(
+      mainBackend.storage.commandStore.getStreamVersion(
+        mainBackend.storage.partition.commandStreamName,
+      ),
+    ).toBe(0);
 
     const started = requireCompletedStartResult(
       await registry.api.startSimulation({
@@ -150,12 +172,20 @@ describe('local simulation backend registry', () => {
         expectedVersion: 0,
       }),
     ).rejects.toThrow('local simulation backend is not registered: sim-1/world-missing');
+    await expect(
+      registry.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-missing',
+      }),
+    ).rejects.toThrow('local simulation backend is not registered: sim-1/world-missing');
     expect(registry.hasBackend({ simulationId: 'sim-1', partitionKey: 'world-missing' })).toBe(
       false,
     );
-    expect(mainBackend.storage.commandStore.getStreamVersion(mainBackend.storage.partition.commandStreamName)).toBe(
-      0,
-    );
+    expect(
+      mainBackend.storage.commandStore.getStreamVersion(
+        mainBackend.storage.partition.commandStreamName,
+      ),
+    ).toBe(0);
   });
 
   test('rejects duplicate partition registrations at startup', () => {
@@ -231,6 +261,41 @@ function reactiveStudyPlanner(): ReactiveLocalizedPlanner {
       },
     ],
   };
+}
+
+function createValidationReport(input: { readonly runId: string; readonly generatedAt: number }) {
+  return createExperimentValidationReport({
+    run: {
+      runId: input.runId,
+      simulationId: 'sim-1',
+      generatedAt: input.generatedAt,
+    },
+    priceSeries: [
+      { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+      { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+    ],
+    wealthSnapshot: [
+      { agentId: 'agent-1', educationScore: 10, netWorth: 100 },
+      { agentId: 'agent-2', educationScore: 20, netWorth: 120 },
+    ],
+    plannerRuns: [
+      {
+        taskId: 'task-1',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-1'],
+    trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+    thresholds: {
+      heavyTailReturns: { minimumExcessKurtosis: -2 },
+    },
+  });
 }
 
 function requireCompletedStartResult(

@@ -39,26 +39,62 @@ export type LocalSimulationRuntimeSupervisorRequest = {
   readonly requestedAt: SimulationTimestamp;
 };
 
-export type LocalSimulationRuntimeSupervisorStartPartitionResult = {
-  readonly simulationId: string;
-  readonly partitionKey: PartitionKey;
-  readonly status: LocalSimulationLifecycleStartResult['status'];
-  readonly result: LocalSimulationLifecycleStartResult;
+export type LocalSimulationRuntimeSupervisorCommandOutcome =
+  | 'succeeded'
+  | 'partial-failure'
+  | 'failed';
+
+export type LocalSimulationRuntimeSupervisorPartitionCommandError = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
 };
 
-export type LocalSimulationRuntimeSupervisorPausePartitionResult = {
+export type LocalSimulationRuntimeSupervisorPartitionCommandSuccess<
+  TStatus extends string,
+  TResult,
+> = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
-  readonly status: LocalSimulationLifecyclePauseResult['status'];
-  readonly result: LocalSimulationLifecyclePauseResult;
+  readonly outcome: 'succeeded';
+  readonly status: TStatus;
+  readonly result: TResult;
 };
+
+export type LocalSimulationRuntimeSupervisorPartitionCommandFailure = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly outcome: 'failed';
+  readonly status: 'failed';
+  readonly error: LocalSimulationRuntimeSupervisorPartitionCommandError;
+};
+
+export type LocalSimulationRuntimeSupervisorStartPartitionResult =
+  | LocalSimulationRuntimeSupervisorPartitionCommandSuccess<
+      LocalSimulationLifecycleStartResult['status'],
+      LocalSimulationLifecycleStartResult
+    >
+  | LocalSimulationRuntimeSupervisorPartitionCommandFailure;
+
+export type LocalSimulationRuntimeSupervisorPausePartitionResult =
+  | LocalSimulationRuntimeSupervisorPartitionCommandSuccess<
+      LocalSimulationLifecyclePauseResult['status'],
+      LocalSimulationLifecyclePauseResult
+    >
+  | LocalSimulationRuntimeSupervisorPartitionCommandFailure;
 
 export type LocalSimulationRuntimeSupervisorStartAllResult = {
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
   readonly partitions: readonly LocalSimulationRuntimeSupervisorStartPartitionResult[];
   readonly status: LocalSimulationRuntimeSupervisorStatus;
 };
 
 export type LocalSimulationRuntimeSupervisorPauseAllResult = {
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
   readonly partitions: readonly LocalSimulationRuntimeSupervisorPausePartitionResult[];
   readonly status: LocalSimulationRuntimeSupervisorStatus;
 };
@@ -82,50 +118,91 @@ export function createLocalSimulationRuntimeSupervisor(input: {
       assertNonNegativeFinite(request.requestedAt, 'requestedAt');
       const partitions = await Promise.all(
         input.host.partitions.map(async (partition) => {
-          const result = assertStartResult(
-            await input.host.registry.api.startSimulation({
+          try {
+            const result = assertStartResult(
+              await input.host.registry.api.startSimulation({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                requestedAt: request.requestedAt,
+              }),
+            );
+            return {
               simulationId: partition.simulationId,
               partitionKey: partition.partitionKey,
-              requestedAt: request.requestedAt,
-            }),
-          );
-          return {
-            simulationId: partition.simulationId,
-            partitionKey: partition.partitionKey,
-            status: result.status,
-            result,
-          };
+              outcome: 'succeeded' as const,
+              status: result.status,
+              result,
+            };
+          } catch (error) {
+            return createPartitionCommandFailure(partition, error);
+          }
         }),
       );
-      return {
+      return createBulkCommandResult({
         partitions,
         status: createSupervisorStatus(input.host),
-      };
+      });
     },
     pauseAll: async (request) => {
       assertNonNegativeFinite(request.requestedAt, 'requestedAt');
       const partitions = await Promise.all(
         input.host.partitions.map(async (partition) => {
-          const result = assertPauseResult(
-            await input.host.registry.api.pauseSimulation({
+          try {
+            const result = assertPauseResult(
+              await input.host.registry.api.pauseSimulation({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                requestedAt: request.requestedAt,
+              }),
+            );
+            return {
               simulationId: partition.simulationId,
               partitionKey: partition.partitionKey,
-              requestedAt: request.requestedAt,
-            }),
-          );
-          return {
-            simulationId: partition.simulationId,
-            partitionKey: partition.partitionKey,
-            status: result.status,
-            result,
-          };
+              outcome: 'succeeded' as const,
+              status: result.status,
+              result,
+            };
+          } catch (error) {
+            return createPartitionCommandFailure(partition, error);
+          }
         }),
       );
-      return {
+      return createBulkCommandResult({
         partitions,
         status: createSupervisorStatus(input.host),
-      };
+      });
     },
+  };
+}
+
+function createBulkCommandResult<
+  TPartition extends
+    | LocalSimulationRuntimeSupervisorStartPartitionResult
+    | LocalSimulationRuntimeSupervisorPausePartitionResult,
+>(input: {
+  readonly partitions: readonly TPartition[];
+  readonly status: LocalSimulationRuntimeSupervisorStatus;
+}): {
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
+  readonly partitions: readonly TPartition[];
+  readonly status: LocalSimulationRuntimeSupervisorStatus;
+} {
+  const failedPartitionCount = input.partitions.filter(
+    (partition) => partition.outcome === 'failed',
+  ).length;
+  const succeededPartitionCount = input.partitions.length - failedPartitionCount;
+
+  return {
+    outcome: createCommandOutcome({
+      partitionCount: input.partitions.length,
+      failedPartitionCount,
+    }),
+    succeededPartitionCount,
+    failedPartitionCount,
+    partitions: input.partitions,
+    status: input.status,
   };
 }
 
@@ -196,6 +273,48 @@ function assertPauseResult(
     return result;
   }
   throw new Error(`expected pause lifecycle result, received ${result.status}`);
+}
+
+function createPartitionCommandFailure(
+  partition: { readonly simulationId: string; readonly partitionKey: PartitionKey },
+  error: unknown,
+): LocalSimulationRuntimeSupervisorPartitionCommandFailure {
+  return {
+    simulationId: partition.simulationId,
+    partitionKey: partition.partitionKey,
+    outcome: 'failed',
+    status: 'failed',
+    error: serializeCommandError(error),
+  };
+}
+
+function createCommandOutcome(input: {
+  readonly partitionCount: number;
+  readonly failedPartitionCount: number;
+}): LocalSimulationRuntimeSupervisorCommandOutcome {
+  if (input.failedPartitionCount === 0) {
+    return 'succeeded';
+  }
+  if (input.failedPartitionCount === input.partitionCount) {
+    return 'failed';
+  }
+  return 'partial-failure';
+}
+
+function serializeCommandError(
+  error: unknown,
+): LocalSimulationRuntimeSupervisorPartitionCommandError {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack === undefined ? {} : { stack: error.stack }),
+    };
+  }
+  return {
+    name: 'Error',
+    message: String(error),
+  };
 }
 
 function assertNonNegativeFinite(value: number, name: string): void {

@@ -143,6 +143,61 @@ describe('local simulation runtime supervisor', () => {
       },
     ]);
   });
+
+  test('surfaces partial partition failures without rejecting the whole bulk start command', async () => {
+    const host = await bootstrapTestHost();
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+    await host.registry.api.resetSimulation({
+      simulationId: 'sim-1',
+      partitionKey: 'world-east',
+      requestedAt: 150,
+    });
+
+    const startResult = await supervisor.startAll({ requestedAt: 200 });
+
+    expect(startResult.outcome).toBe('partial-failure');
+    expect(startResult.succeededPartitionCount).toBe(1);
+    expect(startResult.failedPartitionCount).toBe(1);
+    expect(
+      startResult.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        status: partition.status,
+        outcome: partition.outcome,
+        error: partition.outcome === 'failed' ? partition.error.message : undefined,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        status: 'completed',
+        outcome: 'succeeded',
+        error: undefined,
+      },
+      {
+        partitionKey: 'world-east',
+        status: 'failed',
+        outcome: 'failed',
+        error: 'local simulation reset has not been materialized',
+      },
+    ]);
+    expect(
+      startResult.status.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        status: partition.status,
+        health: partition.health,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        status: 'completed',
+        health: 'healthy',
+      },
+      {
+        partitionKey: 'world-east',
+        status: 'reset-requested',
+        health: 'attention',
+      },
+    ]);
+  });
 });
 
 function toStatusSummary(status: ReturnType<ReturnType<typeof createLocalSimulationRuntimeSupervisor>['getStatus']>) {

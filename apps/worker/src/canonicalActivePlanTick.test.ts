@@ -640,6 +640,88 @@ describe('canonical active-plan worker tick', () => {
     });
   });
 
+  test('renews hungry idle agents and executes eating through the canonical active-plan pipeline', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-hungry-agent',
+      simulationId,
+      issuedAt: 100,
+      projection: createWorldProjection({
+        agents: [
+          createAgent(agentA, {
+            physiology: { energy: 90, satiety: 10, health: 100 },
+            educationScore: 150,
+            balance: 200,
+            inventory: { Apple: 2 },
+          }),
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.cycleResult.selectedSubtask).toMatchObject({
+      branchId: 'satiety',
+      subtaskId: 'eat',
+    });
+    expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 1 },
+    });
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'InventoryChanged',
+      'PhysiologyChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.agents[agentA]?.inventory).toEqual({ Apple: 1 });
+    expect(result.projection.agents[agentA]?.physiology).toEqual({
+      energy: 90,
+      satiety: 20,
+      health: 100,
+    });
+    expect(result.projection.memoryRecords[0]).toMatchObject({
+      agentId: agentA,
+      summary: 'Ate 1 Apple.',
+      status: 'succeeded',
+      tags: ['eat', 'Apple'],
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'auto-objective-agent-a-100',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'auto-objective-agent-a-100',
+      agentId: agentA,
+      completedSubtaskIds: ['eat'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toMatchObject([
+      {
+        objective: {
+          id: 'auto-objective-agent-a-100',
+          statement: 'Recover satiety before pursuing growth.',
+          affinityTags: ['maintain', 'eat', 'satiety'],
+        },
+        completedAt: 100,
+        reason: 'plan-completed',
+        planId: 'auto-objective-agent-a-100',
+      },
+    ]);
+  });
+
   test('emits objective renewal decision traces before canonical scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

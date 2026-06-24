@@ -257,9 +257,9 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
   if (physiologyDanger) {
     candidates.push({
       id: 'physiology-maintenance',
-      statement: 'Maintain energy, satiety, and health before pursuing growth.',
+      statement: createPhysiologyMaintenanceStatement(input.agent),
       priority: 3,
-      affinityTags: ['maintain', 'health', 'energy', 'satiety'],
+      affinityTags: createPhysiologyMaintenanceAffinityTags(input.agent),
       score: 100,
       rationale: 'Physiology is below a safe operating threshold.',
       shortTermMemoryContextIds: [],
@@ -330,6 +330,35 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
   });
 
   return candidates.sort(compareObjectiveCandidates);
+}
+
+function createPhysiologyMaintenanceAffinityTags(
+  agent: WorldAgentState,
+): readonly string[] {
+  const lowAxes = new Set(collectLowPhysiologyAxes(agent));
+  return stableUnique([
+    'maintain',
+    ...(lowAxes.has('satiety') ? ['eat', 'satiety'] : []),
+    ...(lowAxes.has('energy') ? ['sleep', 'energy'] : []),
+    ...(lowAxes.has('health') ? ['health'] : []),
+  ]);
+}
+
+function createPhysiologyMaintenanceStatement(agent: WorldAgentState): string {
+  const lowAxes = collectLowPhysiologyAxes(agent);
+  if (lowAxes.length === 1) {
+    return `Recover ${lowAxes[0]} before pursuing growth.`;
+  }
+
+  return 'Maintain energy, satiety, and health before pursuing growth.';
+}
+
+function collectLowPhysiologyAxes(agent: WorldAgentState): readonly string[] {
+  return [
+    ...(agent.physiology.energy < 30 ? ['energy'] : []),
+    ...(agent.physiology.satiety < 30 ? ['satiety'] : []),
+    ...(agent.physiology.health < 50 ? ['health'] : []),
+  ];
 }
 
 function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): {
@@ -489,6 +518,10 @@ function compareObjectiveCandidates(left: ObjectiveCandidate, right: ObjectiveCa
 
 function containsAny(value: string, needles: readonly string[]): boolean {
   return needles.some((needle) => value.includes(needle));
+}
+
+function stableUnique(values: readonly string[]): readonly string[] {
+  return [...new Set(values)];
 }
 
 function assertPositiveInteger(value: number, name: string): void {

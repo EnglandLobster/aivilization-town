@@ -31,6 +31,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly rootDir: string;
   readonly cycleCount: number;
   readonly requestedAt: SimulationTimestamp;
+  readonly runIdSuffix?: string;
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
@@ -82,6 +83,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   if (input.cycleIntervalMs !== undefined) {
     assertNonNegativeFinite(input.cycleIntervalMs, 'cycleIntervalMs');
   }
+  if (input.runIdSuffix !== undefined) {
+    assertNonEmpty(input.runIdSuffix, 'runIdSuffix');
+  }
   if (input.reportGeneratedAt !== undefined) {
     assertNonNegativeFinite(input.reportGeneratedAt, 'reportGeneratedAt');
   }
@@ -116,7 +120,11 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       : { runtimeProfileRunReports: input.profileRunReportRepository }),
   });
   const run = await runtime.supervisor.runCycles({
-    operationId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
+    operationId: createProfileRunOperationId({
+      manifestId: profile.manifest.id,
+      requestedAt: input.requestedAt,
+      ...(input.runIdSuffix === undefined ? {} : { runIdSuffix: input.runIdSuffix }),
+    }),
     requestedAt: input.requestedAt,
     cycleCount: input.cycleCount,
     ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
@@ -205,6 +213,15 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   }
 
   return summary;
+}
+
+function createProfileRunOperationId(input: {
+  readonly manifestId: string;
+  readonly requestedAt: SimulationTimestamp;
+  readonly runIdSuffix?: string;
+}): string {
+  const base = `${input.manifestId}:profile-run:${input.requestedAt}`;
+  return input.runIdSuffix === undefined ? base : `${base}:${input.runIdSuffix}`;
 }
 
 export function createLocalRuntimeTownProfileAgentProvider(

@@ -200,6 +200,28 @@ describe('local runtime town profile runner', () => {
     });
   });
 
+  test('uses a run id suffix for variant-safe profile run reports', async () => {
+    const rootDir = createRootDir();
+    const repository = new InMemoryRuntimeProfileRunReportRepository();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 130,
+      runIdSuffix: 'without-branch',
+      reportGeneratedAt: 190,
+      profileRunReportRepository: repository,
+    });
+
+    expect(summary.run.traceId).toBe('aivilization-smoke-25:profile-run:130:without-branch');
+    await expect(repository.get(summary.run.traceId)).resolves.toMatchObject({
+      runId: 'aivilization-smoke-25:profile-run:130:without-branch',
+      profileId: 'smoke-25',
+      requestedAt: 130,
+    });
+  });
+
   test('uses profile LLM planning config for autonomous objective plans', async () => {
     const rootDir = createRootDir();
 

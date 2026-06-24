@@ -2,6 +2,7 @@ import type {
   LlmGatewayPricing,
   LlmSchemaParseResult,
   LlmStructuredFailure,
+  LlmStructuredResult,
   LlmStructuredProvider,
   LlmStructuredSuccess,
 } from '@aivilization/llm';
@@ -15,6 +16,8 @@ import {
 } from './planner';
 import {
   compileStrategicObjectiveToBranchPlan,
+  normalizeStrategicPlanCompilerOutput,
+  type StrategicPlanCompilationTrace,
   type StrategicPlanCompiler,
   type StrategicPlanCompilerInput,
 } from './strategicPlanning';
@@ -113,6 +116,34 @@ export function createLlmStrategicPlanCompiler(input: {
     });
 
     return result.plan;
+  };
+}
+
+export function createTraceableLlmStrategicPlanCompiler(input: {
+  readonly provider: LlmStructuredProvider;
+  readonly model: string;
+  readonly requestId: (input: StrategicPlanCompilerInput) => string;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+  readonly fallbackCompiler?: StrategicPlanCompiler;
+}): StrategicPlanCompiler {
+  return async (compilerInput) => {
+    const result = await proposeStrategicBranchPlanWithLlm({
+      ...compilerInput,
+      provider: input.provider,
+      model: input.model,
+      requestId: input.requestId(compilerInput),
+      ...(input.maxAttempts === undefined ? {} : { maxAttempts: input.maxAttempts }),
+      ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+      ...(input.pricing === undefined ? {} : { pricing: input.pricing }),
+      ...(input.fallbackCompiler === undefined ? {} : { fallbackCompiler: input.fallbackCompiler }),
+    });
+
+    return {
+      plan: result.plan,
+      planningTrace: mapLlmStrategicPlanTrace(result),
+    };
   };
 }
 
@@ -267,16 +298,45 @@ function readSubtask(value: unknown, branchIndex: number, subtaskIndex: number):
 }
 
 async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promise<BranchPlan> {
-  return (
-    (await input.fallbackCompiler?.({
-      objective: input.objective,
-      issuedAt: input.issuedAt,
-    })) ??
-    compileStrategicObjectiveToBranchPlan({
-      objective: input.objective,
-      issuedAt: input.issuedAt,
-    })
-  );
+  const fallbackOutput = await input.fallbackCompiler?.({
+    objective: input.objective,
+    issuedAt: input.issuedAt,
+  });
+  if (fallbackOutput !== undefined) {
+    return normalizeStrategicPlanCompilerOutput(fallbackOutput).plan;
+  }
+
+  return compileStrategicObjectiveToBranchPlan({
+    objective: input.objective,
+    issuedAt: input.issuedAt,
+  });
+}
+
+function mapLlmStrategicPlanTrace(result: LlmStrategicPlanResult): StrategicPlanCompilationTrace {
+  const gateway = getGatewayResult(result);
+  const lastAttempt = gateway.attempts.at(-1);
+  return {
+    status: result.status === 'accepted' ? 'accepted' : 'fallback',
+    source: result.source,
+    requestId: gateway.requestId,
+    ...(lastAttempt === undefined ? {} : { providerId: lastAttempt.providerId }),
+    ...(lastAttempt === undefined ? {} : { model: lastAttempt.model }),
+    ...(gateway.status === 'failed' ? { failureReason: gateway.reason } : {}),
+    ...(gateway.status === 'failed' ? { message: gateway.message } : {}),
+    attempts: gateway.attempts.map((attempt) => ({
+      attemptIndex: attempt.attemptIndex,
+      status: attempt.status,
+      providerId: attempt.providerId,
+      model: attempt.model,
+      message: attempt.message,
+      usage: { ...attempt.usage },
+    })),
+    usage: { ...gateway.usage },
+  };
+}
+
+function getGatewayResult(result: LlmStrategicPlanResult): LlmStructuredResult<BranchPlan> {
+  return result.status === 'accepted' ? result.gateway : result.failure;
 }
 
 function readRecord(value: unknown, label: string): Readonly<Record<string, unknown>> {

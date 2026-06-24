@@ -1,4 +1,4 @@
-import { InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
+import { createBranchPlan, InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
@@ -453,7 +453,8 @@ describe('worker objective renewal', () => {
       shortTermMemoryRepository,
       planRepository,
       issuedAt: 100,
-      objectiveProposer: (input) => createObjective(input.agentId, 'objective-from-custom-proposer'),
+      objectiveProposer: (input) =>
+        createObjective(input.agentId, 'objective-from-custom-proposer'),
       objectiveRenewalTraceSink: {
         record: (trace) => {
           traces.push(trace);
@@ -479,6 +480,109 @@ describe('worker objective renewal', () => {
         },
       },
     ]);
+    expect(traces).toEqual([result[0]?.decisionTrace]);
+  });
+
+  test('attaches traceable strategic compiler evidence to objective renewal traces', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+    const traces: unknown[] = [];
+
+    const result = await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 100,
+      objectiveProposer: (input) => createObjective(input.agentId, 'objective-from-llm-compiler'),
+      strategicPlanCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'llm-development',
+              objective: 'Use an LLM-proposed education route.',
+              subtasks: [
+                {
+                  id: 'study',
+                  description: 'Study through the traceable compiler plan.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        }),
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'llm-plan-objective-from-llm-compiler',
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+            totalTokens: 30,
+            estimatedCostMicros: 70,
+          },
+          attempts: [
+            {
+              attemptIndex: 1,
+              status: 'succeeded',
+              providerId: 'scripted-planner',
+              model: 'planner-model',
+              message: 'LLM structured response validated',
+              usage: {
+                inputTokens: 10,
+                outputTokens: 20,
+                totalTokens: 30,
+                estimatedCostMicros: 70,
+              },
+            },
+          ],
+        },
+      }),
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          traces.push(trace);
+        },
+      },
+    });
+
+    await expect(
+      planRepository.require({
+        planId: 'objective-from-llm-compiler',
+        agentId: agentA,
+      }),
+    ).resolves.toMatchObject({
+      plan: {
+        branches: [
+          {
+            id: 'llm-development',
+            subtasks: [{ id: 'study', description: 'Study through the traceable compiler plan.' }],
+          },
+        ],
+      },
+    });
+    expect(result[0]?.decisionTrace).toMatchObject({
+      objectiveId: 'objective-from-llm-compiler',
+      strategicPlan: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'llm-plan-objective-from-llm-compiler',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          estimatedCostMicros: 70,
+        },
+      },
+    });
     expect(traces).toEqual([result[0]?.decisionTrace]);
   });
 });

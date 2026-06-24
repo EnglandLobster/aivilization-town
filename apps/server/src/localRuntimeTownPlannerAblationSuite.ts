@@ -13,6 +13,7 @@ import type {
   WorldCommandPolicySource,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownProfileStrategicCompilerConfig } from './localRuntimeTownProfileLlmPlanning';
+import { createLocalRuntimeTownProfilePlannerShapeMetrics } from './localRuntimeTownPlannerShapeMetrics';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
@@ -52,7 +53,7 @@ export type LocalRuntimeTownPlannerAblationSuiteInput = {
   readonly createMetrics?: (
     summary: LocalRuntimeTownProfileRunnerSummary,
     variant: LocalRuntimeTownPlannerAblationVariant,
-  ) => readonly PlannerExperimentMetric[];
+  ) => readonly PlannerExperimentMetric[] | Promise<readonly PlannerExperimentMetric[]>;
   readonly runProfile?: (
     input: LocalRuntimeTownProfileRunnerInput,
   ) => Promise<LocalRuntimeTownProfileRunnerSummary>;
@@ -136,7 +137,7 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
       plannerExperiment: {
         taskId: input.taskId,
         variant: variant.variant,
-        metrics: createMetrics(summary, variant),
+        metrics: await createMetrics(summary, variant),
       },
     });
 
@@ -161,9 +162,9 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
   };
 }
 
-function createDefaultPlannerExperimentMetrics(
+async function createDefaultPlannerExperimentMetrics(
   summary: LocalRuntimeTownProfileRunnerSummary,
-): PlannerExperimentMetric[] {
+): Promise<PlannerExperimentMetric[]> {
   return [
     {
       metricId: 'completed-cycle-count',
@@ -180,6 +181,7 @@ function createDefaultPlannerExperimentMetrics(
       value: summary.totalEventCount,
       higherIsBetter: true,
     },
+    ...(await createLocalRuntimeTownProfilePlannerShapeMetrics(summary)),
   ];
 }
 

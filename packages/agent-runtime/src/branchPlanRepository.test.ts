@@ -1,4 +1,4 @@
-import { asAgentId } from '@aivilization/sim-core';
+import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -101,17 +101,89 @@ describe('branch plan repositories', () => {
       }),
     ).resolves.toEqual(record);
   });
+
+  test('queries latest branch plan records with optional filters', async () => {
+    const memoryRepository = new InMemoryBranchPlanRepository();
+    await memoryRepository.save(
+      createPlanRecord({ planId: 'plan-1', basePriority: 1, updatedAt: 100 }),
+    );
+    await memoryRepository.save(
+      createPlanRecord({ planId: 'plan-2', basePriority: 2, updatedAt: 200 }),
+    );
+    await memoryRepository.save(
+      createPlanRecord({
+        planId: 'other-agent-plan',
+        agentId: otherAgentId,
+        basePriority: 3,
+        updatedAt: 300,
+      }),
+    );
+
+    await expect(memoryRepository.query({})).resolves.toEqual([
+      createPlanRecord({
+        planId: 'other-agent-plan',
+        agentId: otherAgentId,
+        basePriority: 3,
+        updatedAt: 300,
+      }),
+      createPlanRecord({ planId: 'plan-2', basePriority: 2, updatedAt: 200 }),
+      createPlanRecord({ planId: 'plan-1', basePriority: 1, updatedAt: 100 }),
+    ]);
+    await expect(memoryRepository.query({ agentId })).resolves.toEqual([
+      createPlanRecord({ planId: 'plan-2', basePriority: 2, updatedAt: 200 }),
+      createPlanRecord({ planId: 'plan-1', basePriority: 1, updatedAt: 100 }),
+    ]);
+    await expect(memoryRepository.query({ agentId, limit: 1 })).resolves.toEqual([
+      createPlanRecord({ planId: 'plan-2', basePriority: 2, updatedAt: 200 }),
+    ]);
+
+    const rootDir = createTempRoot();
+    const fileRepository = new FileBranchPlanRepository({ rootDir });
+    await fileRepository.save(
+      createPlanRecord({ planId: 'plan-1', basePriority: 1, updatedAt: 100 }),
+    );
+    await fileRepository.save(
+      createPlanRecord({ planId: 'plan-1', basePriority: 9, updatedAt: 400 }),
+    );
+    await fileRepository.save(
+      createPlanRecord({
+        planId: 'other-agent-plan',
+        agentId: otherAgentId,
+        basePriority: 3,
+        updatedAt: 300,
+      }),
+    );
+
+    const restarted = new FileBranchPlanRepository({ rootDir });
+
+    await expect(restarted.query({})).resolves.toEqual([
+      createPlanRecord({ planId: 'plan-1', basePriority: 9, updatedAt: 400 }),
+      createPlanRecord({
+        planId: 'other-agent-plan',
+        agentId: otherAgentId,
+        basePriority: 3,
+        updatedAt: 300,
+      }),
+    ]);
+    await expect(restarted.query({ planId: 'plan-1', fromUpdatedAt: 250 })).resolves.toEqual([
+      createPlanRecord({ planId: 'plan-1', basePriority: 9, updatedAt: 400 }),
+    ]);
+    await expect(restarted.query({ limit: 0 })).rejects.toThrow(
+      'limit must be a positive integer',
+    );
+  });
 });
 
 function createPlanRecord(input: {
   readonly planId: string;
+  readonly agentId?: AgentId;
   readonly basePriority: number;
   readonly updatedAt: number;
   readonly planningTrace?: StrategicPlanCompilationTrace;
 }): BranchPlanRecord {
   return {
     planId: input.planId,
-    agentId,
+    agentId: input.agentId ?? agentId,
     plan: createBranchPlan({
       objective: 'develop education',
       branches: [

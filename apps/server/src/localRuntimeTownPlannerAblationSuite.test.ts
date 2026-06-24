@@ -1,10 +1,18 @@
-import { normalizeStrategicPlanCompilerOutput } from '@aivilization/agent-runtime';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  FileBranchPlanRepository,
+  createBranchPlan,
+  normalizeStrategicPlanCompilerOutput,
+  type BranchPlanRecord,
+} from '@aivilization/agent-runtime';
 import {
   InMemoryRuntimeProfileRunReportRepository,
   createPlannerExperimentRunsFromRuntimeProfileReports,
 } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
 import { runLocalRuntimeTownPlannerAblationSuite } from './localRuntimeTownPlannerAblationSuite';
 import {
   type LocalRuntimeTownProfileRunnerInput,
@@ -12,6 +20,17 @@ import {
 } from './localRuntimeTownProfileRunner';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
+
+const tmpRoots: string[] = [];
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
 
 describe('local runtime town planner ablation suite', () => {
   test('runs default and ablated profile variants into validation-ready reports', async () => {
@@ -49,7 +68,9 @@ describe('local runtime town planner ablation suite', () => {
       '/tmp/aivilization-planner-ablation/default',
       '/tmp/aivilization-planner-ablation/without-branch',
     ]);
-    expect(result.variants.map((variant) => variant.report.plannerExperiment?.metrics)).toEqual([
+    expect(
+      result.variants.map((variant) => variant.report.plannerExperiment?.metrics.slice(0, 3)),
+    ).toEqual([
       [
         { metricId: 'completed-cycle-count', value: 2, higherIsBetter: true },
         { metricId: 'total-agent-trace-count', value: 2, higherIsBetter: true },
@@ -61,6 +82,11 @@ describe('local runtime town planner ablation suite', () => {
         { metricId: 'total-event-count', value: 3, higherIsBetter: true },
       ],
     ]);
+    expect(result.variants[0]?.report.plannerExperiment?.metrics).toEqual(
+      expect.arrayContaining([
+        { metricId: 'planner-plan-count', value: 0, higherIsBetter: true },
+      ]),
+    );
 
     const plannerRuns = createPlannerExperimentRunsFromRuntimeProfileReports(
       await repository.query({ profileId: 'smoke-25' }),
@@ -139,7 +165,118 @@ describe('local runtime town planner ablation suite', () => {
       message: 'Planner ablation without branch decomposition',
     });
   });
+
+  test('adds planner shape metrics from durable branch plan artifacts', async () => {
+    const rootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir,
+      profileId: 'smoke-25',
+      taskId: 'high-tech-production',
+      requestedAt: 400,
+      runProfile: async (input) => {
+        const summary = createVariantSummary(input);
+        await saveSuiteBranchPlanArtifact(summary, input.runIdSuffix ?? 'default');
+        return summary;
+      },
+    });
+
+    const defaultMetrics = result.variants[0]?.report.plannerExperiment?.metrics ?? [];
+    const withoutBranchMetrics = result.variants[1]?.report.plannerExperiment?.metrics ?? [];
+
+    expect(defaultMetrics).toEqual(
+      expect.arrayContaining([
+        { metricId: 'planner-plan-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-mean-branch-count', value: 2, higherIsBetter: true },
+        { metricId: 'planner-mean-subtask-count', value: 3, higherIsBetter: true },
+        { metricId: 'planner-single-branch-plan-ratio', value: 0, higherIsBetter: false },
+        { metricId: 'planner-llm-source-count', value: 1, higherIsBetter: true },
+      ]),
+    );
+    expect(withoutBranchMetrics).toEqual(
+      expect.arrayContaining([
+        { metricId: 'planner-plan-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-mean-branch-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-mean-subtask-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-single-branch-plan-ratio', value: 1, higherIsBetter: false },
+        { metricId: 'planner-deterministic-source-count', value: 1, higherIsBetter: true },
+      ]),
+    );
+  });
 });
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-planner-ablation-suite-'));
+  tmpRoots.push(root);
+  return root;
+}
+
+async function saveSuiteBranchPlanArtifact(
+  summary: LocalRuntimeTownProfileRunnerSummary,
+  variant: string,
+): Promise<void> {
+  const partition = summary.partitions[0];
+  if (partition === undefined) {
+    throw new Error('expected at least one profile partition');
+  }
+  const repository = new FileBranchPlanRepository({
+    rootDir: join(
+      summary.rootDir,
+      'simulations',
+      partition.simulationId,
+      'partitions',
+      partition.partitionKey,
+      'planning',
+    ),
+  });
+  await repository.save(createSuitePlanRecord(variant));
+}
+
+function createSuitePlanRecord(variant: string): BranchPlanRecord {
+  const isWithoutBranch = variant === 'without-branch';
+  return {
+    planId: `${variant}-plan`,
+    agentId: asAgentId(`${variant}-agent`),
+    plan: createBranchPlan({
+      objective: `${variant} objective`,
+      branches: isWithoutBranch
+        ? [
+            {
+              id: 'without-branch',
+              objective: 'Direct pursuit.',
+              subtasks: [
+                {
+                  id: 'pursue-objective',
+                  description: 'Pursue directly.',
+                  basePriority: 1,
+                },
+              ],
+            },
+          ]
+        : [
+            {
+              id: 'research',
+              objective: 'Research alternatives.',
+              subtasks: [{ id: 'study', description: 'Study.', basePriority: 1 }],
+            },
+            {
+              id: 'production',
+              objective: 'Produce resources.',
+              subtasks: [
+                { id: 'source-inputs', description: 'Source inputs.', basePriority: 1 },
+                { id: 'produce-output', description: 'Produce output.', basePriority: 1 },
+              ],
+            },
+          ],
+    }),
+    planningTrace: {
+      status: isWithoutBranch ? 'deterministic' : 'accepted',
+      source: isWithoutBranch ? 'deterministic' : 'llm',
+    },
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
 
 function createVariantSummary(
   input: LocalRuntimeTownProfileRunnerInput,

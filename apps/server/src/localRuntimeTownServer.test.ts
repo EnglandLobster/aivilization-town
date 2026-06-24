@@ -539,6 +539,70 @@ describe('local runtime town HTTP gateway', () => {
       },
     });
   });
+
+  test('optionally wires runtime recovery controls into the local server API', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      runtimeRecovery: {
+        recoveryIntervalMs: 1_000,
+        maxDrainJobsPerRun: 1,
+      },
+    });
+    const server = await listen(runtime.server);
+
+    await fetchJson(`${server.baseUrl}/runtime/run-jobs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jobId: 'job-run-recovery-600',
+        operationId: 'op-run-recovery-600',
+        enqueuedAt: 590,
+        requestedAt: 600,
+        cycleCount: 1,
+      }),
+    });
+
+    await expect(fetchJson(`${server.baseUrl}/runtime/recovery/status`)).resolves.toMatchObject({
+      running: false,
+      inFlight: false,
+      attemptedRecoveryCount: 0,
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/recovery/run-once`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    ).resolves.toMatchObject({
+      status: 'recovered',
+      drainResult: {
+        processedJobCount: 1,
+        completedJobCount: 1,
+        failedJobCount: 0,
+      },
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/job-run-recovery-600`),
+    ).resolves.toMatchObject({
+      jobId: 'job-run-recovery-600',
+      manifestId: 'town-runtime',
+      status: 'completed',
+      resultTraceId: 'op-run-recovery-600',
+    });
+    await expect(fetchJson(`${server.baseUrl}/runtime/recovery/status`)).resolves.toMatchObject({
+      running: false,
+      inFlight: false,
+      attemptedRecoveryCount: 1,
+      recoveredCount: 1,
+    });
+  });
 });
 
 function createRootDir(): string {

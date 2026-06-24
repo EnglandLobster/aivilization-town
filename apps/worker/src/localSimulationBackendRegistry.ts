@@ -9,6 +9,7 @@ import {
   type LocalSimulationBackend,
   type LocalSimulationBackendInput,
   type LocalSimulationBackendLifecycleResult,
+  type LocalWorldEventFeedResult,
   type LocalWorldProjectionQueryResult,
 } from './localSimulationBackend';
 import { createLocalWorldRuntimeStorage } from './localRuntimeStorage';
@@ -34,7 +35,8 @@ export type LocalSimulationBackendRegistry = {
   readonly api: SimulationApiService<
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
-    LocalSimulationBackendLifecycleResult
+    LocalSimulationBackendLifecycleResult,
+    LocalWorldEventFeedResult
   >;
   readonly listPartitions: () => readonly LocalSimulationBackendLookup[];
   readonly hasBackend: (lookup: LocalSimulationBackendLookup) => boolean;
@@ -90,10 +92,14 @@ export function createLocalSimulationBackendRegistry(
   const api = createSimulationApiService<
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
-    LocalSimulationBackendLifecycleResult
+    LocalSimulationBackendLifecycleResult,
+    LocalWorldEventFeedResult
   >({
     projectionQueries: {
       getProjection: (request) => getBackend(request).api.getProjection(request),
+    },
+    eventFeeds: {
+      getEvents: (request) => getBackend(request).eventFeeds.getEvents(request),
     },
     steeringCommands: {
       submit: (command, context) => getBackend(context).steeringCommands.submit(command, context),

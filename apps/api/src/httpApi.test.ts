@@ -17,6 +17,15 @@ type TestLifecycleResult = {
   readonly requestedAt: number;
 };
 
+type TestEventFeed = {
+  readonly streamVersion: number;
+  readonly nextAfterSequence: number;
+  readonly events: readonly {
+    readonly sequence: number;
+    readonly type: string;
+  }[];
+};
+
 type TestRuntimeStatus = {
   readonly manifestId: string;
 };
@@ -48,6 +57,25 @@ describe('town HTTP API router', () => {
       status: 200,
       headers: { 'content-type': 'application/json' },
       body: { agents: 80 },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { afterSequence: '2', limit: '3' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        streamVersion: 5,
+        nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      },
     });
     await expect(
       handler({
@@ -120,6 +148,15 @@ describe('town HTTP API router', () => {
       {
         method: 'getProjection',
         request: { simulationId: 'sim-1', partitionKey: 'world-main' },
+      },
+      {
+        method: 'getEvents',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          afterSequence: 2,
+          limit: 3,
+        },
       },
       {
         method: 'submitLongHorizonObjective',
@@ -265,17 +302,53 @@ describe('town HTTP API router', () => {
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'requestedAt must be a number' } },
     });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { afterSequence: '1.5' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'afterSequence must be a non-negative integer' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
     expect(calls).toEqual([]);
   });
 });
 
 function createSimulationService(
   calls: unknown[],
-): SimulationApiService<TestProjection, TestSteeringResult, TestLifecycleResult> {
+): SimulationApiService<TestProjection, TestSteeringResult, TestLifecycleResult, TestEventFeed> {
   return {
     getProjection: (request) => {
       calls.push({ method: 'getProjection', request });
       return Promise.resolve({ agents: 80 });
+    },
+    getEvents: (request) => {
+      calls.push({ method: 'getEvents', request });
+      return Promise.resolve({
+        streamVersion: 5,
+        nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      });
     },
     submitLongHorizonObjective: (request) => {
       calls.push({ method: 'submitLongHorizonObjective', request });

@@ -100,6 +100,20 @@ describe('local simulation backend composition', () => {
     expect(afterStart.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(afterStart.projection.agents['agent-1']?.educationScore).toBe(70);
 
+    const eventFeed = await backend.api.getEvents({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      afterSequence: 1,
+      limit: 2,
+    });
+    expect(eventFeed.streamName).toBe(storage.partition.eventStreamName);
+    expect(eventFeed.streamVersion).toBe(3);
+    expect(eventFeed.nextAfterSequence).toBe(3);
+    expect(eventFeed.events.map((event) => [event.sequence, event.type])).toEqual([
+      [2, 'ShortTermMemoryRecorded'],
+      [3, 'SimulationTimeAdvanced'],
+    ]);
+
     const replayed = requireReplayResult(
       await backend.api.replaySimulation({
         simulationId: 'sim-1',
@@ -160,6 +174,12 @@ describe('local simulation backend composition', () => {
         summary: 'study in the wrong partition',
         issuedAt: 100,
         expectedVersion: 0,
+      }),
+    ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
+    await expect(
+      backend.api.getEvents({
+        simulationId: 'sim-1',
+        partitionKey: 'world-other',
       }),
     ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
     expect(storage.commandStore.getStreamVersion(storage.partition.commandStreamName)).toBe(0);

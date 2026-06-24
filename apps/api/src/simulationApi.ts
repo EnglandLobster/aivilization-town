@@ -10,6 +10,13 @@ export type ProjectionQueryRequest = {
   readonly partitionKey: PartitionKey;
 };
 
+export type SimulationEventFeedRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly afterSequence?: number;
+  readonly limit?: number;
+};
+
 export type SimulationLifecycleRequest = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -50,6 +57,10 @@ export type ProjectionQueryPort<TProjection> = {
   readonly getProjection: (request: ProjectionQueryRequest) => Promise<TProjection>;
 };
 
+export type SimulationEventFeedPort<TResult> = {
+  readonly getEvents: (request: SimulationEventFeedRequest) => Promise<TResult>;
+};
+
 export type SteeringCommandSubmissionContext = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -69,8 +80,14 @@ export type SimulationLifecyclePort<TResult> = {
   readonly replay: (request: SimulationLifecycleRequest) => Promise<TResult>;
 };
 
-export type SimulationApiService<TProjection, TSteeringResult, TLifecycleResult> = {
+export type SimulationApiService<
+  TProjection,
+  TSteeringResult,
+  TLifecycleResult,
+  TEventFeed,
+> = {
   readonly getProjection: (request: ProjectionQueryRequest) => Promise<TProjection>;
+  readonly getEvents: (request: SimulationEventFeedRequest) => Promise<TEventFeed>;
   readonly submitLongHorizonObjective: (
     request: SubmitLongHorizonObjectiveRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
@@ -96,13 +113,20 @@ export type ApiCommandSubmission<TResult> = {
   readonly result: TResult;
 };
 
-export function createSimulationApiService<TProjection, TSteeringResult, TLifecycleResult>(input: {
+export function createSimulationApiService<
+  TProjection,
+  TSteeringResult,
+  TLifecycleResult,
+  TEventFeed,
+>(input: {
   readonly projectionQueries: ProjectionQueryPort<TProjection>;
+  readonly eventFeeds: SimulationEventFeedPort<TEventFeed>;
   readonly steeringCommands: SteeringCommandSubmissionPort<TSteeringResult>;
   readonly lifecycle: SimulationLifecyclePort<TLifecycleResult>;
-}): SimulationApiService<TProjection, TSteeringResult, TLifecycleResult> {
+}): SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed> {
   return {
-    getProjection: (request) => input.projectionQueries.getProjection(request),
+    getProjection: async (request) => input.projectionQueries.getProjection(request),
+    getEvents: async (request) => input.eventFeeds.getEvents(request),
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));
@@ -113,10 +137,10 @@ export function createSimulationApiService<TProjection, TSteeringResult, TLifecy
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));
       return { command, result };
     },
-    startSimulation: (request) => input.lifecycle.start(request),
-    pauseSimulation: (request) => input.lifecycle.pause(request),
-    resetSimulation: (request) => input.lifecycle.reset(request),
-    replaySimulation: (request) => input.lifecycle.replay(request),
+    startSimulation: async (request) => input.lifecycle.start(request),
+    pauseSimulation: async (request) => input.lifecycle.pause(request),
+    resetSimulation: async (request) => input.lifecycle.reset(request),
+    replaySimulation: async (request) => input.lifecycle.replay(request),
   };
 }
 

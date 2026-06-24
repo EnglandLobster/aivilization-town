@@ -136,6 +136,39 @@ describe('strategic objective planning', () => {
     });
   });
 
+  test('compiles satiety recovery objectives into eat branches', () => {
+    const statement = 'Recover satiety by eating food before walking around town.';
+    const plan = compileStrategicObjectiveToBranchPlan({
+      objective: {
+        id: 'objective-satiety',
+        agentId,
+        statement,
+        priority: 2,
+        source: 'human',
+        affinityTags: ['satiety'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(plan.branches.map((branch) => branch.id)).toEqual(['satiety']);
+    expect(plan.branches[0]).toMatchObject({
+      id: 'satiety',
+      objective: 'Recover satiety before pursuing the long-horizon objective.',
+      subtasks: [
+        {
+          id: 'eat',
+          description: `Eat toward: ${statement}`,
+          intentionAffinityTags: ['eat', 'satiety'],
+          memoryAffinityTags: ['eat', 'satiety'],
+          profileAffinityTags: ['eat', 'satiety'],
+          signalKeys: ['eat', 'satiety'],
+        },
+      ],
+    });
+  });
+
   test('keeps a generic primary fallback for objectives without executable domain intent', () => {
     const plan = compileStrategicObjectiveToBranchPlan({
       objective: {

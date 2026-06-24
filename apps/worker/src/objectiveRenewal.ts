@@ -259,7 +259,7 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
       id: 'physiology-maintenance',
       statement: 'Maintain energy, satiety, and health before pursuing growth.',
       priority: 3,
-      affinityTags: ['maintain', 'health', 'energy'],
+      affinityTags: ['maintain', 'health', 'energy', 'satiety'],
       score: 100,
       rationale: 'Physiology is below a safe operating threshold.',
       shortTermMemoryContextIds: [],

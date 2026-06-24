@@ -152,6 +152,32 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('proposes physiology maintenance with satiety affinity for hungry agents', () => {
+    const projection = createProjection([
+      createAgent({ agentId: agentA, educationScore: 150, balance: 200, satiety: 10 }),
+    ]);
+
+    const objective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+
+    expect(objective).toMatchObject({
+      statement: 'Maintain energy, satiety, and health before pursuing growth.',
+      affinityTags: ['maintain', 'health', 'energy', 'satiety'],
+    });
+  });
+
   test('explains recent failed memory recovery objective decisions', () => {
     const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
 

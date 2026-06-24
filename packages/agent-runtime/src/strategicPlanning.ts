@@ -47,6 +47,7 @@ type StrategicDomainName =
   | 'study'
   | 'residential'
   | 'health'
+  | 'eat'
   | 'work'
   | 'production'
   | 'trade'
@@ -111,6 +112,16 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
       'see doctor',
       'sick',
     ],
+  },
+  {
+    domain: 'eat',
+    branchId: 'satiety',
+    subtaskId: 'eat',
+    branchObjective: 'Recover satiety before pursuing the long-horizon objective.',
+    subtaskDescription: (objectiveText) => `Eat toward: ${objectiveText}`,
+    priorityOffset: 9,
+    affinityAliases: ['eat', 'satiety', 'food', 'hunger', 'hungry'],
+    keywords: ['eat', 'food', 'hunger', 'hungry', 'meal', 'satiety'],
   },
   {
     domain: 'work',

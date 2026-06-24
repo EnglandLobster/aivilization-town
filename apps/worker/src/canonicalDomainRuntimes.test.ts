@@ -33,9 +33,10 @@ const domainOrder = [
   'production',
   'residential',
   'health',
+  'eat',
 ] as const;
 const policies: WorldCommandPolicies = {
-  satietyRecoveryByCommodity: { Apple: 10 },
+  satietyRecoveryByCommodity: { Apple: 10, Bread: 15 },
   maxSatiety: 100,
   wageCalculator: () => 10,
   laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
@@ -74,7 +75,7 @@ describe('canonical domain runtimes', () => {
     );
   });
 
-  test('proposes configured study, sleep, work, trade, social, production, residential, and health world commands', async () => {
+  test('proposes configured study, sleep, work, trade, social, production, residential, health, and eat world commands', async () => {
     const context = createRuntimeContext({
       agent: createAgent({ agentId: agentA, job: 'Waiter' }),
     });
@@ -82,6 +83,7 @@ describe('canonical domain runtimes', () => {
       study: { durationSeconds: 900, educationRatePerSecond: 2 },
       sleep: { durationSeconds: 7200 },
       health: { durationSeconds: 1800 },
+      eat: { commodityName: 'Apple', quantity: 2 },
       work: { laborSeconds: 1200, defaultOccupationName: 'Cleaner' },
       trade: { side: 'sell', commodityName: 'Book', quantity: 2 },
       social: {
@@ -166,6 +168,13 @@ describe('canonical domain runtimes', () => {
       priority: 10,
       resourceEstimate: { actionSeconds: 1800 },
     });
+    expect(firstProposal(binding.microPlanners, 'eat')).toMatchObject({
+      id: 'canonical-eat-step-i',
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 2 },
+      priority: 10,
+      resourceEstimate: { inventoryCosts: { Apple: 2 } },
+    });
   });
 
   test('estimates trade buy currency cost from the projected AMM pool', async () => {
@@ -183,12 +192,12 @@ describe('canonical domain runtimes', () => {
     expect(proposal.resourceEstimate?.currencyCost).toBeCloseTo(10.101010101);
   });
 
-  test('uses context-derived defaults for work, trade, and social proposals', async () => {
+  test('uses context-derived defaults for work, trade, social, and eat proposals', async () => {
     const context = createRuntimeContext({
-      agent: createAgent({ agentId: agentA, job: null }),
+      agent: createAgent({ agentId: agentA, job: null, inventory: { Book: 3, Bread: 1 } }),
       projection: createProjection({
         agents: [
-          createAgent({ agentId: agentA, job: null }),
+          createAgent({ agentId: agentA, job: null, inventory: { Book: 3, Bread: 1 } }),
           createAgent({ agentId: agentC }),
           createAgent({ agentId: agentB }),
         ],
@@ -220,6 +229,11 @@ describe('canonical domain runtimes', () => {
     expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
       commandType: 'AgentProduce',
       payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 3600 },
+    });
+    expect(firstProposal(binding.microPlanners, 'eat')).toMatchObject({
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Bread', quantity: 1 },
+      resourceEstimate: { inventoryCosts: { Bread: 1 } },
     });
     expect(firstProposal(binding.microPlanners, 'residential')).toMatchObject({
       commandType: 'AgentUpgradeResidentialTier',

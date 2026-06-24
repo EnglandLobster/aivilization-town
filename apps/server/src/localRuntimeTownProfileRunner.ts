@@ -35,6 +35,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
@@ -94,7 +95,8 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
   const strategicPlanCompiler =
     input.agentProvider === undefined
-      ? createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning)
+      ? (input.strategicPlanCompiler ??
+        createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning))
       : undefined;
   const agentProvider =
     input.agentProvider ??

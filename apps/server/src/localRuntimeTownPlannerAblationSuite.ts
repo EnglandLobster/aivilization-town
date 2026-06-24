@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { createBranchPlan, type StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
   FileRuntimeProfileRunReportRepository,
   createRuntimeProfileRunReport,
@@ -22,7 +23,10 @@ import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTown
 export const localRuntimeTownPlannerAblationSuiteDefaultVariants: readonly LocalRuntimeTownPlannerAblationVariant[] =
   [
     { variant: 'default' },
-    { variant: 'without-branch' },
+    {
+      variant: 'without-branch',
+      strategicPlanCompiler: createLocalRuntimeTownWithoutBranchStrategicPlanCompiler(),
+    },
   ];
 
 export type LocalRuntimeTownPlannerAblationVariant = {
@@ -30,6 +34,7 @@ export type LocalRuntimeTownPlannerAblationVariant = {
   readonly runIdSuffix?: string;
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
 };
 
@@ -106,6 +111,9 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
       ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
       ...(variant.policies === undefined ? {} : { policies: variant.policies }),
       ...(variant.agentProvider === undefined ? {} : { agentProvider: variant.agentProvider }),
+      ...(variant.strategicPlanCompiler === undefined
+        ? {}
+        : { strategicPlanCompiler: variant.strategicPlanCompiler }),
       ...(variant.llmPlanning === undefined ? {} : { llmPlanning: variant.llmPlanning }),
     });
     const report = createRuntimeProfileRunReport({
@@ -173,6 +181,44 @@ function createDefaultPlannerExperimentMetrics(
       higherIsBetter: true,
     },
   ];
+}
+
+export function createLocalRuntimeTownWithoutBranchStrategicPlanCompiler(): StrategicPlanCompiler {
+  return ({ objective }) => {
+    const affinityTags = normalizeAffinityTags(objective.affinityTags);
+
+    return {
+      plan: createBranchPlan({
+        objective: objective.statement,
+        branches: [
+          {
+            id: 'without-branch',
+            objective: 'Pursue the objective without alternative branch decomposition.',
+            subtasks: [
+              {
+                id: 'pursue-objective',
+                description: `Pursue the objective directly without branch decomposition: ${objective.statement}`,
+                basePriority: 8 + objective.priority,
+                signalKeys: affinityTags,
+                intentionAffinityTags: affinityTags,
+                memoryAffinityTags: affinityTags,
+                profileAffinityTags: affinityTags,
+              },
+            ],
+          },
+        ],
+      }),
+      planningTrace: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'Planner ablation without branch decomposition',
+      },
+    };
+  };
+}
+
+function normalizeAffinityTags(tags: readonly string[]): readonly string[] {
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length > 0))];
 }
 
 function createReportRepository(

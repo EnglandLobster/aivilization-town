@@ -1,8 +1,13 @@
-import { asAgentId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 
 export type AgentEatPayload = {
   readonly commodityName: string;
   readonly quantity: number;
+};
+
+export type AgentMoveToPayload = {
+  readonly targetLocationId: LocationId;
+  readonly reason?: string;
 };
 
 export type AgentStudyPayload = {
@@ -69,6 +74,29 @@ export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
     commodityName,
     quantity,
   };
+}
+
+export function assertAgentMoveToPayload(payload: unknown): AgentMoveToPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentMoveTo payload must be an object');
+  }
+  const targetLocationId = payload['targetLocationId'];
+  const reason = payload['reason'];
+  if (typeof targetLocationId !== 'string' || targetLocationId.trim().length === 0) {
+    throw new Error('AgentMoveTo targetLocationId must not be empty');
+  }
+  if (reason !== undefined && (typeof reason !== 'string' || reason.trim().length === 0)) {
+    throw new Error('AgentMoveTo reason must not be empty');
+  }
+
+  return reason === undefined
+    ? {
+        targetLocationId: asLocationId(targetLocationId),
+      }
+    : {
+        targetLocationId: asLocationId(targetLocationId),
+        reason: reason.trim(),
+      };
 }
 
 export function assertAgentStudyPayload(payload: unknown): AgentStudyPayload {

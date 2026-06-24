@@ -1,9 +1,125 @@
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, createEventEnvelope, replayEvents } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createEventEnvelope, replayEvents } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { applyWorldEvent, createWorldProjection } from './index';
 
 describe('world projection', () => {
+  test('stores locations and normalizes omitted agent location to null', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 40, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 2 },
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 60,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    expect(projection.locations['school']).toMatchObject({
+      name: 'School',
+      kind: 'education',
+      activityAffinities: ['study', 'socialize'],
+    });
+    expect(projection.agents['agent-1']?.locationId).toBeNull();
+    expect(projection.agents['agent-2']?.locationId).toBe(asLocationId('school'));
+  });
+
+  test('rejects agent seed locations that are absent from the projection', () => {
+    expect(() =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-1'),
+            locationId: asLocationId('missing-location'),
+            physiology: { energy: 100, satiety: 40, health: 100 },
+            educationScore: 10,
+            balance: 50,
+            residentialTier: 1,
+            job: 'Cleaner',
+            inventory: { Bread: 2 },
+          },
+        ],
+        locations: [],
+      }),
+    ).toThrow('agent agent-1 location missing-location is not in projection locations');
+  });
+
+  test('replays agent location changes into projection state', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('residential-block'),
+          physiology: { energy: 100, satiety: 40, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 2 },
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('residential-block'),
+          name: 'Residential Block',
+          kind: 'residence',
+          activityAffinities: ['sleep', 'socialize'],
+          capacity: null,
+        },
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-location',
+        simulationId: 'sim-1',
+        commandId: 'command-move',
+        type: 'AgentLocationChanged',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          previousLocationId: asLocationId('residential-block'),
+          nextLocationId: asLocationId('school'),
+          reason: 'study',
+        },
+        occurredAt: 15,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.agents['agent-1']?.locationId).toBe(asLocationId('school'));
+  });
+
   test('replays agent state and memory events deterministically', () => {
     const initial = createWorldProjection({
       agents: [

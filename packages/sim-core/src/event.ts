@@ -20,6 +20,7 @@ export type CoreEventType =
   | 'ResidentialTierUpgraded'
   | 'WagePaid'
   | 'SocialInteractionCompleted'
+  | 'AgentLocationChanged'
   | 'ShortTermMemoryRecorded'
   | 'LongTermMemoryConsolidated'
   | 'PlannerBranchUpdated'

@@ -1,5 +1,5 @@
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -7,6 +7,7 @@ import {
   dispatchWorldCommand,
   handleAgentEatCommand,
   handleAgentApplyJobCommand,
+  handleAgentMoveToCommand,
   handleAgentProduceCommand,
   handleAgentSeeDoctorCommand,
   handleAgentUpgradeResidentialTierCommand,
@@ -1367,6 +1368,184 @@ describe('agent residential tier upgrade command handling', () => {
   });
 });
 
+describe('agent movement command handling', () => {
+  test('AgentMoveTo updates agent location and records STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('residential-block'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('residential-block'),
+          name: 'Residential Block',
+          kind: 'residence',
+          activityAffinities: ['sleep', 'socialize'],
+          capacity: null,
+        },
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentMoveToCommand({
+      command: createCommandEnvelope({
+        id: 'command-move',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentMoveTo',
+        payload: { targetLocationId: 'school', reason: 'study' },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'AgentLocationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      previousLocationId: 'residential-block',
+      nextLocationId: 'school',
+      reason: 'study',
+    });
+    expect(events[1]).toMatchObject({
+      type: 'ShortTermMemoryRecorded',
+      payload: {
+        record: {
+          summary: 'Moved to School.',
+          status: 'succeeded',
+          tags: ['move', 'school', 'education'],
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.locationId).toBe(asLocationId('school'));
+  });
+
+  test('AgentMoveTo rejects unknown target locations', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('residential-block'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('residential-block'),
+          name: 'Residential Block',
+          kind: 'residence',
+          activityAffinities: ['sleep', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentMoveToCommand({
+      command: createCommandEnvelope({
+        id: 'command-move',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentMoveTo',
+        payload: { targetLocationId: 'missing-location' },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentMoveTo',
+      reason: 'unknown target location missing-location',
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentMoveTo through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('market'),
+          name: 'Market',
+          kind: 'market',
+          activityAffinities: ['trade', 'socialize'],
+          capacity: null,
+        },
+        {
+          locationId: asLocationId('restaurant'),
+          name: 'Restaurant',
+          kind: 'food',
+          activityAffinities: ['eat', 'socialize', 'trade'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-move',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentMoveTo',
+        payload: { targetLocationId: 'restaurant', reason: 'eat' },
+        issuedAt: 80,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'AgentLocationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
 describe('agent social command handling', () => {
   test('AgentSocialize updates directed relation state and records social STM', () => {
     const projection = createWorldProjection({
@@ -1448,6 +1627,76 @@ describe('agent social command handling', () => {
         attitudeDelta: 0.5,
         summary: 'Shared food after work.',
       },
+    });
+  });
+
+  test('AgentSocialize rejects known agents that are not co-located', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+        {
+          locationId: asLocationId('market'),
+          name: 'Market',
+          kind: 'market',
+          activityAffinities: ['trade', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentSocializeCommand({
+      command: createCommandEnvelope({
+        id: 'command-social',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentSocialize',
+        payload: {
+          targetAgentId: 'agent-2',
+          summary: 'Tried to talk across town.',
+          relationDelta: 0.1,
+          attitudeDelta: 0,
+        },
+        issuedAt: 80,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentSocialize',
+      reason: 'target agent agent-2 is at market, not co-located with agent-1 at school',
     });
   });
 

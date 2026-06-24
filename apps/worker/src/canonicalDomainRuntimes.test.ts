@@ -444,6 +444,7 @@ function createAgent(input: {
 }): WorldAgentState {
   return {
     agentId: input.agentId,
+    locationId: null,
     physiology: { energy: 50, satiety: 50, health: 100 },
     educationScore: input.educationScore ?? 0,
     balance: 1000,

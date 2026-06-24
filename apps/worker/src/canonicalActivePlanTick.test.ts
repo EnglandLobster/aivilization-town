@@ -984,6 +984,7 @@ function createAgent(
 ): WorldAgentState {
   return {
     agentId,
+    locationId: overrides.locationId ?? null,
     physiology: overrides.physiology ?? { energy: 50, satiety: 50, health: 100 },
     educationScore: overrides.educationScore ?? 0,
     balance: overrides.balance ?? 1000,

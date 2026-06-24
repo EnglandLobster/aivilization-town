@@ -1,6 +1,6 @@
 import { addInventory, removeInventory, type AmmPool, type Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
-import type { AgentId, SimulationClock } from '@aivilization/sim-core';
+import type { AgentId, LocationId, SimulationClock } from '@aivilization/sim-core';
 import {
   createDirectedSocialRelationKey,
   type PhysiologicalState,
@@ -10,6 +10,7 @@ import type { WorldEvent } from './events';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
+  readonly locationId: LocationId | null;
   readonly physiology: PhysiologicalState;
   readonly educationScore: number;
   readonly balance: number;
@@ -17,6 +18,29 @@ export type WorldAgentState = {
   readonly job: string | null;
   readonly inventory: Inventory;
 };
+
+export type WorldAgentStateInput = Omit<WorldAgentState, 'locationId'> & {
+  readonly locationId?: LocationId | null;
+};
+
+export type WorldLocationKind =
+  | 'residence'
+  | 'education'
+  | 'healthcare'
+  | 'food'
+  | 'market'
+  | 'production'
+  | 'social';
+
+export type WorldLocationState = {
+  readonly locationId: LocationId;
+  readonly name: string;
+  readonly kind: WorldLocationKind;
+  readonly activityAffinities: readonly string[];
+  readonly capacity: number | null;
+};
+
+export type WorldLocationStateInput = WorldLocationState;
 
 export type WorldJobApplicationState = {
   readonly agentId: AgentId;
@@ -27,6 +51,7 @@ export type WorldJobApplicationState = {
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
+  readonly locations: Readonly<Record<string, WorldLocationState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
   readonly jobApplications: readonly WorldJobApplicationState[];
@@ -40,20 +65,37 @@ export type WorldProjection = {
 };
 
 export function createWorldProjection(input: {
-  readonly agents: readonly WorldAgentState[];
+  readonly agents: readonly WorldAgentStateInput[];
   readonly clock?: SimulationClock;
+  readonly locations?: readonly WorldLocationStateInput[];
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
   readonly jobApplications?: readonly WorldJobApplicationState[];
   readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
+  const locations: Record<string, WorldLocationState> = {};
+  for (const location of input.locations ?? []) {
+    if (locations[location.locationId] !== undefined) {
+      throw new Error(`duplicate location id ${location.locationId}`);
+    }
+    locations[location.locationId] = {
+      ...location,
+      activityAffinities: [...location.activityAffinities],
+    };
+  }
+
   const agents: Record<string, WorldAgentState> = {};
   for (const agent of input.agents) {
     if (agents[agent.agentId] !== undefined) {
       throw new Error(`duplicate agent id ${agent.agentId}`);
     }
+    const locationId = agent.locationId ?? null;
+    if (locationId !== null && locations[locationId] === undefined) {
+      throw new Error(`agent ${agent.agentId} location ${locationId} is not in projection locations`);
+    }
     agents[agent.agentId] = {
       ...agent,
+      locationId,
       inventory: { ...agent.inventory },
     };
   }
@@ -74,6 +116,7 @@ export function createWorldProjection(input: {
   return {
     clock: input.clock === undefined ? { now: 0, tickDurationMs: 1000 } : { ...input.clock },
     agents,
+    locations,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
     jobApplications: [...(input.jobApplications ?? [])],
@@ -162,6 +205,11 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           [createDirectedSocialRelationKey(event.payload.nextRelation)]: event.payload.nextRelation,
         },
       };
+    case 'AgentLocationChanged':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        locationId: event.payload.nextLocationId,
+      }));
     case 'InventoryChanged':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

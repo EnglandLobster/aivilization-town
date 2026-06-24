@@ -2,7 +2,7 @@ import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
 
-export type ReflectiveInsightKind = 'habit' | 'caution';
+export type ReflectiveInsightKind = 'habit' | 'caution' | 'value' | 'personality';
 
 export type ReflectiveInsightRecord = {
   readonly id: string;
@@ -27,23 +27,29 @@ export function proposeReflectiveInsights(input: {
 
   const records = [...input.records]
     .filter((record) => record.agentId === input.agentId)
-    .filter((record) => record.consolidationHint === undefined)
     .sort(compareRecordsByOccurrence);
+  const unhintedRecords = records.filter((record) => record.consolidationHint === undefined);
 
   return [
     ...createStudyRoutineInsight({
       agentId: input.agentId,
-      records,
+      records: unhintedRecords,
       minEvidenceCount: input.minEvidenceCount,
       generatedAt: input.generatedAt,
     }),
     ...createWorkEnergyCautionInsight({
       agentId: input.agentId,
-      records,
+      records: unhintedRecords,
       minEvidenceCount: input.minEvidenceCount,
       generatedAt: input.generatedAt,
     }),
     ...createSocialRoutineInsights({
+      agentId: input.agentId,
+      records,
+      minEvidenceCount: input.minEvidenceCount,
+      generatedAt: input.generatedAt,
+    }),
+    ...createSocialProfileInsights({
       agentId: input.agentId,
       records,
       minEvidenceCount: input.minEvidenceCount,
@@ -57,12 +63,12 @@ export function convertReflectiveInsightsToLongTermMemoryPatches(input: {
 }): LongTermMemoryPatch[] {
   return input.insights
     .map((insight) => {
-      const isHabit = insight.kind === 'habit';
+      const target = resolveLongTermPatchTarget(insight);
       return {
-        id: `ltm-patch-${insight.agentId}-reflection-${isHabit ? 'habit' : 'belief'}-${insight.topicKey}-${insight.generatedAt}`,
+        id: `ltm-patch-${insight.agentId}-reflection-${target.idSegment}-${insight.topicKey}-${insight.generatedAt}`,
         agentId: insight.agentId,
-        section: isHabit ? ('habits' as const) : ('beliefs' as const),
-        key: isHabit ? insight.topicKey : `caution:${insight.topicKey}`,
+        section: target.section,
+        key: target.key,
         statement: insight.statement,
         confidence: insight.confidence,
         provenanceRecordIds: [...insight.evidenceRecordIds],
@@ -70,6 +76,24 @@ export function convertReflectiveInsightsToLongTermMemoryPatches(input: {
       };
     })
     .sort(comparePatches);
+}
+
+function resolveLongTermPatchTarget(insight: ReflectiveInsightRecord): Pick<
+  LongTermMemoryPatch,
+  'section' | 'key'
+> & {
+  readonly idSegment: string;
+} {
+  switch (insight.kind) {
+    case 'habit':
+      return { section: 'habits', key: insight.topicKey, idSegment: 'habit' };
+    case 'caution':
+      return { section: 'beliefs', key: `caution:${insight.topicKey}`, idSegment: 'belief' };
+    case 'value':
+      return { section: 'values', key: insight.topicKey, idSegment: 'value' };
+    case 'personality':
+      return { section: 'personality', key: insight.topicKey, idSegment: 'personality' };
+  }
 }
 
 function createStudyRoutineInsight(input: {
@@ -159,6 +183,52 @@ function createSocialRoutineInsights(input: {
     );
 }
 
+function createSocialProfileInsights(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly minEvidenceCount: number;
+  readonly generatedAt: SimulationTimestamp;
+}): readonly ReflectiveInsightRecord[] {
+  const evidence = input.records.filter(
+    (record) => record.status === 'succeeded' && matchesSocialContext(record),
+  );
+  if (evidence.length < input.minEvidenceCount) {
+    return [];
+  }
+
+  const targetKeys = new Set(
+    evidence
+      .map((record) => extractSocialTargetKey(record))
+      .filter((targetKey): targetKey is string => targetKey !== undefined),
+  );
+  if (targetKeys.size < 2) {
+    return [];
+  }
+
+  return [
+    createInsight({
+      agentId: input.agentId,
+      kind: 'personality',
+      topicKey: 'sociable',
+      statement:
+        'Repeated positive social interactions with multiple agents suggest a sociable disposition.',
+      records: evidence,
+      generatedAt: input.generatedAt,
+      tags: ['social', 'personality', 'sociable'],
+    }),
+    createInsight({
+      agentId: input.agentId,
+      kind: 'value',
+      topicKey: 'community-cooperation',
+      statement:
+        'Repeated positive social interactions suggest the agent values cooperative community routines.',
+      records: evidence,
+      generatedAt: input.generatedAt,
+      tags: ['social', 'community', 'cooperation', 'value'],
+    }),
+  ];
+}
+
 function createInsight(input: {
   readonly agentId: AgentId;
   readonly kind: ReflectiveInsightKind;
@@ -194,12 +264,24 @@ function matchesWorkEnergyContext(record: ShortTermMemoryRecord): boolean {
 }
 
 function extractSocialTargetKey(record: ShortTermMemoryRecord): string | undefined {
+  if (record.consolidationHint?.kind === 'social') {
+    return record.consolidationHint.targetAgentId;
+  }
+
   const context = recordContext(record);
   if (!containsAny(context, ['social', 'shared', 'together'])) {
     return undefined;
   }
 
   return context.match(/agent-[a-z0-9-]+/)?.[0];
+}
+
+function matchesSocialContext(record: ShortTermMemoryRecord): boolean {
+  if (record.kind === 'social-interaction') {
+    return true;
+  }
+
+  return containsAny(recordContext(record), ['social', 'conversation', 'shared', 'together']);
 }
 
 function recordContext(record: ShortTermMemoryRecord): string {

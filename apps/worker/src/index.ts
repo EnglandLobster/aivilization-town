@@ -22,6 +22,7 @@ export * from './localSimulationRuntimeHost';
 export * from './localSimulationRuntimeManifest';
 export * from './localSimulationRuntimeOperationTrace';
 export * from './localSimulationRuntimeSupervisor';
+export * from './localSimulationRuntimeSupervisorApi';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';

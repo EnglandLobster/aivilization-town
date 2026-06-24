@@ -70,8 +70,10 @@ type TestRuntimeTrace = {
 
 type TestRuntimeRunQueueJob = {
   readonly jobId: string;
-  readonly status: 'queued';
+  readonly status: 'queued' | 'dead-lettered';
   readonly enqueuedAt: number;
+  readonly deadLetteredAt?: number;
+  readonly replayCount?: number;
   readonly runRequest: {
     readonly operationId?: string;
     readonly requestedAt: number;
@@ -522,6 +524,50 @@ describe('town HTTP API router', () => {
         },
       },
     });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs',
+        query: { status: 'dead-lettered', manifestId: 'town-runtime', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          jobId: 'job-dead-200',
+          status: 'dead-lettered',
+          enqueuedAt: 190,
+          deadLetteredAt: 250,
+          runRequest: {
+            operationId: 'op-run-200',
+            requestedAt: 200,
+            cycleCount: 2,
+          },
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs/job-dead-200/replay',
+        body: { replayedAt: 300, maxAttempts: 3 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-dead-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        replayCount: 1,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+        },
+      },
+    });
 
     expect(calls).toEqual([
       {
@@ -539,6 +585,14 @@ describe('town HTTP API router', () => {
       {
         method: 'getRuntimeRunJob',
         request: { jobId: 'job-run-200' },
+      },
+      {
+        method: 'queryRuntimeRunJobs',
+        request: { status: 'dead-lettered', manifestId: 'town-runtime', limit: 2 },
+      },
+      {
+        method: 'replayRuntimeRunJob',
+        request: { jobId: 'job-dead-200', replayedAt: 300, maxAttempts: 3 },
       },
     ]);
   });
@@ -676,6 +730,32 @@ describe('town HTTP API router', () => {
       status: 400,
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'maxJobs must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs',
+        query: { status: 'missing' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'status must be a known run queue job status' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs/job-dead/replay',
+        body: { replayedAt: -1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'replayedAt must be a non-negative finite number' },
+      },
     });
     await expect(
       handler({
@@ -940,6 +1020,36 @@ function createRuntimeRunQueueService(
           cycleCount: 2,
           cycleIntervalMs: 50,
           stopOnAttention: true,
+        },
+      });
+    },
+    queryRuntimeRunJobs: (request) => {
+      calls.push({ method: 'queryRuntimeRunJobs', request });
+      return Promise.resolve([
+        {
+          jobId: 'job-dead-200',
+          status: 'dead-lettered',
+          enqueuedAt: 190,
+          deadLetteredAt: 250,
+          runRequest: {
+            operationId: 'op-run-200',
+            requestedAt: 200,
+            cycleCount: 2,
+          },
+        },
+      ]);
+    },
+    replayRuntimeRunJob: (request) => {
+      calls.push({ method: 'replayRuntimeRunJob', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: 190,
+        replayCount: 1,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
         },
       });
     },

@@ -9,6 +9,7 @@ import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { createLocalRuntimeTownNodeHttpServer } from './index';
 import {
+  FileLocalSimulationRuntimeRunQueueRepository,
   FileLocalSimulationRuntimeRunSessionRepository,
   type LocalSimulationRuntimeManifest,
   type LocalSimulationRuntimeSupervisorStartAllResult,
@@ -281,6 +282,64 @@ describe('local runtime town HTTP gateway', () => {
       status: 'completed',
       completedCycleCount: 3,
       stopReason: 'cycle-count-completed',
+    });
+
+    const runQueueRepository = new FileLocalSimulationRuntimeRunQueueRepository({
+      rootDir: join(runtime.host.rootDir, 'operations'),
+    });
+    await runQueueRepository.enqueue({
+      jobId: 'job-dead-server-1',
+      manifestId: 'town-runtime',
+      enqueuedAt: 800,
+      runRequest: {
+        operationId: 'op-run-dead-server-1',
+        requestedAt: 810,
+        cycleCount: 1,
+      },
+    });
+    await runQueueRepository.claimNext({
+      workerId: 'worker-dead',
+      claimedAt: 820,
+      leaseDurationMs: 100,
+    });
+    await runQueueRepository.fail({
+      jobId: 'job-dead-server-1',
+      failedAt: 830,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'server-side failure' },
+    });
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/runtime/run-jobs?status=dead-lettered&manifestId=town-runtime&limit=1`,
+      ),
+    ).resolves.toMatchObject([
+      {
+        jobId: 'job-dead-server-1',
+        manifestId: 'town-runtime',
+        status: 'dead-lettered',
+        deadLetteredAt: 830,
+      },
+    ]);
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/job-dead-server-1/replay`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ replayedAt: 900 }),
+      }),
+    ).resolves.toMatchObject({
+      jobId: 'job-dead-server-1',
+      manifestId: 'town-runtime',
+      status: 'queued',
+      nextAttemptAt: 900,
+      replayCount: 1,
+      lastReplayedAt: 900,
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/job-dead-server-1`),
+    ).resolves.toMatchObject({
+      jobId: 'job-dead-server-1',
+      status: 'queued',
+      maxAttempts: 2,
     });
 
     const runSession = await fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-cycles-400`);

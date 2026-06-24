@@ -13,6 +13,7 @@ import {
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeOperationTraceQuery,
   type LocalSimulationRuntimeOperationTraceRepository,
+  type LocalSimulationRuntimeOperationValidationReportTrace,
 } from './localSimulationRuntimeOperationTrace';
 
 export type LocalSimulationRuntimeSupervisorHealth = 'healthy' | 'attention';
@@ -287,14 +288,38 @@ function createOperationTrace(input: {
           error: partition.error,
         };
       }
+      const validationReport = createOperationValidationReportTrace(partition.result);
       return {
         simulationId: partition.simulationId,
         partitionKey: partition.partitionKey,
         outcome: partition.outcome,
         status: partition.status,
+        ...(validationReport === undefined ? {} : { validationReport }),
       };
     }),
     status: input.result.status,
+  };
+}
+
+function createOperationValidationReportTrace(
+  result: LocalSimulationLifecycleStartResult | LocalSimulationLifecyclePauseResult,
+): LocalSimulationRuntimeOperationValidationReportTrace | undefined {
+  if (!('validationReport' in result) || result.validationReport === undefined) {
+    return undefined;
+  }
+
+  const validationReport = result.validationReport;
+  return {
+    runId: validationReport.report.run.runId,
+    generatedAt: validationReport.report.run.generatedAt,
+    ...(validationReport.report.run.source === undefined
+      ? {}
+      : { source: validationReport.report.run.source }),
+    streamVersion: validationReport.streamVersion,
+    fromSequence: validationReport.fromSequence,
+    toSequence: validationReport.toSequence,
+    eventCount: validationReport.eventCount,
+    projectionSequence: validationReport.projectionSequence,
   };
 }
 

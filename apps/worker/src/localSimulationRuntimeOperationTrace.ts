@@ -9,12 +9,24 @@ import type {
 
 export type LocalSimulationRuntimeOperationCommand = 'start-all' | 'pause-all';
 
+export type LocalSimulationRuntimeOperationValidationReportTrace = {
+  readonly runId: string;
+  readonly generatedAt: SimulationTimestamp;
+  readonly source?: string;
+  readonly streamVersion: number;
+  readonly fromSequence: number;
+  readonly toSequence: number;
+  readonly eventCount: number;
+  readonly projectionSequence: number;
+};
+
 export type LocalSimulationRuntimeOperationPartitionTrace =
   | {
       readonly simulationId: string;
       readonly partitionKey: PartitionKey;
       readonly outcome: 'succeeded';
       readonly status: string;
+      readonly validationReport?: LocalSimulationRuntimeOperationValidationReportTrace;
     }
   | {
       readonly simulationId: string;
@@ -53,9 +65,7 @@ export type LocalSimulationRuntimeOperationTraceRepository = {
   ) => Promise<LocalSimulationRuntimeOperationTrace[]>;
 };
 
-export class InMemoryLocalSimulationRuntimeOperationTraceRepository
-  implements LocalSimulationRuntimeOperationTraceRepository
-{
+export class InMemoryLocalSimulationRuntimeOperationTraceRepository implements LocalSimulationRuntimeOperationTraceRepository {
   private readonly tracesById = new Map<string, LocalSimulationRuntimeOperationTrace>();
 
   record(trace: LocalSimulationRuntimeOperationTrace): Promise<void> {
@@ -80,9 +90,7 @@ export class InMemoryLocalSimulationRuntimeOperationTraceRepository
   }
 }
 
-export class FileLocalSimulationRuntimeOperationTraceRepository
-  implements LocalSimulationRuntimeOperationTraceRepository
-{
+export class FileLocalSimulationRuntimeOperationTraceRepository implements LocalSimulationRuntimeOperationTraceRepository {
   private readonly tracesPath: string;
 
   constructor(input: { readonly rootDir: string }) {
@@ -128,7 +136,9 @@ function queryTraces(
     .filter(
       (trace) => query.fromRequestedAt === undefined || trace.requestedAt >= query.fromRequestedAt,
     )
-    .filter((trace) => query.toRequestedAt === undefined || trace.requestedAt <= query.toRequestedAt)
+    .filter(
+      (trace) => query.toRequestedAt === undefined || trace.requestedAt <= query.toRequestedAt,
+    )
     .sort(compareTraceLatestFirst)
     .slice(0, query.limit)
     .map((trace) => cloneTrace(trace));

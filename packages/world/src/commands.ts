@@ -14,6 +14,10 @@ export type AgentSleepPayload = {
   readonly durationSeconds: number;
 };
 
+export type AgentSeeDoctorPayload = {
+  readonly durationSeconds: number;
+};
+
 export type AgentWorkPayload = {
   readonly occupationName: string;
   readonly laborSeconds: number;
@@ -88,6 +92,18 @@ export function assertAgentSleepPayload(payload: unknown): AgentSleepPayload {
   }
   const durationSeconds = payload['durationSeconds'];
   assertNonNegativeFinite(durationSeconds, 'AgentSleep durationSeconds');
+
+  return {
+    durationSeconds,
+  };
+}
+
+export function assertAgentSeeDoctorPayload(payload: unknown): AgentSeeDoctorPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentSeeDoctor payload must be an object');
+  }
+  const durationSeconds = payload['durationSeconds'];
+  assertNonNegativeFinite(durationSeconds, 'AgentSeeDoctor durationSeconds');
 
   return {
     durationSeconds,
@@ -174,10 +190,7 @@ export function assertAgentUpgradeResidentialTierPayload(
     throw new Error('AgentUpgradeResidentialTier payload must be an object');
   }
   const targetResidentialTier = payload['targetResidentialTier'];
-  assertPositiveInteger(
-    targetResidentialTier,
-    'AgentUpgradeResidentialTier targetResidentialTier',
-  );
+  assertPositiveInteger(targetResidentialTier, 'AgentUpgradeResidentialTier targetResidentialTier');
 
   return { targetResidentialTier };
 }
@@ -208,9 +221,7 @@ export function assertAgentSocializePayload(payload: unknown): AgentSocializePay
   };
 }
 
-export function assertAdvanceSimulationTimePayload(
-  payload: unknown,
-): AdvanceSimulationTimePayload {
+export function assertAdvanceSimulationTimePayload(payload: unknown): AdvanceSimulationTimePayload {
   if (!isRecord(payload)) {
     throw new Error('AdvanceSimulationTime payload must be an object');
   }

@@ -16,6 +16,12 @@ export type EnergyRecoveryInput = PhysiologicalState & {
   readonly maxEnergy: number;
 };
 
+export type HealthRecoveryInput = PhysiologicalState & {
+  readonly durationSeconds: number;
+  readonly healthRecoveryPerSecond: number;
+  readonly maxHealth: number;
+};
+
 export function applyLaborPhysiologyCost(input: LaborPhysiologyCostInput): PhysiologicalState {
   assertNonNegativeFinite(input.energy, 'energy');
   assertNonNegativeFinite(input.satiety, 'satiety');
@@ -47,6 +53,24 @@ export function applyEnergyRecovery(input: EnergyRecoveryInput): PhysiologicalSt
     ),
     satiety: input.satiety,
     health: input.health,
+  };
+}
+
+export function applyHealthRecovery(input: HealthRecoveryInput): PhysiologicalState {
+  assertNonNegativeFinite(input.energy, 'energy');
+  assertNonNegativeFinite(input.satiety, 'satiety');
+  assertNonNegativeFinite(input.health, 'health');
+  assertNonNegativeFinite(input.durationSeconds, 'durationSeconds');
+  assertNonNegativeFinite(input.healthRecoveryPerSecond, 'healthRecoveryPerSecond');
+  assertPositiveFinite(input.maxHealth, 'maxHealth');
+
+  return {
+    energy: input.energy,
+    satiety: input.satiety,
+    health: Math.min(
+      input.maxHealth,
+      input.health + input.durationSeconds * input.healthRecoveryPerSecond,
+    ),
   };
 }
 

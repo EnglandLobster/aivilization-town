@@ -46,6 +46,7 @@ export function compileStrategicObjectiveToBranchPlan(
 type StrategicDomainName =
   | 'study'
   | 'residential'
+  | 'health'
   | 'work'
   | 'production'
   | 'trade'
@@ -89,6 +90,27 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
     priorityOffset: 11,
     affinityAliases: ['residential', 'housing', 'home'],
     keywords: ['residential', 'housing', 'home', 'house', 'tier', 'upgrade'],
+  },
+  {
+    domain: 'health',
+    branchId: 'health',
+    subtaskId: 'see-doctor',
+    branchObjective: 'Recover health before pursuing the long-horizon objective.',
+    subtaskDescription: (objectiveText) => `See doctor toward: ${objectiveText}`,
+    priorityOffset: 11,
+    affinityAliases: ['health', 'doctor', 'hospital', 'medical', 'recover'],
+    keywords: [
+      'doctor',
+      'health',
+      'healthy',
+      'hospital',
+      'ill',
+      'illness',
+      'medical',
+      'recover health',
+      'see doctor',
+      'sick',
+    ],
   },
   {
     domain: 'work',
@@ -149,8 +171,8 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
     branchObjective: 'Restore energy before pursuing the long-horizon objective.',
     subtaskDescription: (objectiveText) => `Sleep toward: ${objectiveText}`,
     priorityOffset: 8,
-    affinityAliases: ['sleep', 'rest', 'energy', 'recover'],
-    keywords: ['energy', 'fatigue', 'recover', 'recovery', 'rest', 'sleep', 'tired'],
+    affinityAliases: ['sleep', 'rest', 'energy'],
+    keywords: ['energy', 'fatigue', 'rest', 'sleep', 'tired'],
   },
   {
     domain: 'social',
@@ -165,9 +187,7 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
 ];
 
 function normalizeTags(tags: readonly string[]): readonly string[] {
-  return [
-    ...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length > 0)),
-  ];
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length > 0))];
 }
 
 function createPlanningContext(input: {
@@ -182,10 +202,7 @@ function createPlanningContext(input: {
   };
 }
 
-function ruleMatchesContext(
-  rule: StrategicDomainRule,
-  context: PlanningTextContext,
-): boolean {
+function ruleMatchesContext(rule: StrategicDomainRule, context: PlanningTextContext): boolean {
   if (rule.affinityAliases.some((alias) => context.tags.has(alias))) {
     return true;
   }

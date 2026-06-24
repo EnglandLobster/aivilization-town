@@ -32,6 +32,7 @@ const domainOrder = [
   'social',
   'production',
   'residential',
+  'health',
 ] as const;
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Apple: 10 },
@@ -40,6 +41,7 @@ const policies: WorldCommandPolicies = {
   laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
   criticalThresholds: { energy: 1, health: 1 },
   sleep: { energyRecoveryPerSecond: 1, maxEnergy: 100 },
+  seeDoctor: { healthRecoveryPerSecond: 1, maxHealth: 100 },
   jobApplication: {
     populationEducationScores: [0],
     quotaByResidentialTier: [1, 1, 1, 1, 1],
@@ -72,13 +74,14 @@ describe('canonical domain runtimes', () => {
     );
   });
 
-  test('proposes configured study, sleep, work, trade, social, and production world commands', async () => {
+  test('proposes configured study, sleep, work, trade, social, production, residential, and health world commands', async () => {
     const context = createRuntimeContext({
       agent: createAgent({ agentId: agentA, job: 'Waiter' }),
     });
     const binding = await resolveCanonicalBinding(context, {
       study: { durationSeconds: 900, educationRatePerSecond: 2 },
       sleep: { durationSeconds: 7200 },
+      health: { durationSeconds: 1800 },
       work: { laborSeconds: 1200, defaultOccupationName: 'Cleaner' },
       trade: { side: 'sell', commodityName: 'Book', quantity: 2 },
       social: {
@@ -155,6 +158,13 @@ describe('canonical domain runtimes', () => {
         currencyCost: 100,
         inventoryCosts: { Wood: 1 },
       },
+    });
+    expect(firstProposal(binding.microPlanners, 'health')).toMatchObject({
+      id: 'canonical-health-step-h',
+      commandType: 'AgentSeeDoctor',
+      payload: { durationSeconds: 1800 },
+      priority: 10,
+      resourceEstimate: { actionSeconds: 1800 },
     });
   });
 

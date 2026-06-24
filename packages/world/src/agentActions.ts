@@ -14,6 +14,7 @@ import {
 import {
   accumulateEducation,
   applyEnergyRecovery,
+  applyHealthRecovery,
   applyLaborPhysiologyCost,
   applySocialInteraction,
   calculateApplicationQuota,
@@ -28,6 +29,7 @@ import {
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentProducePayload,
+  assertAgentSeeDoctorPayload,
   assertAgentUpgradeResidentialTierPayload,
   assertAgentSleepPayload,
   assertAgentSocializePayload,
@@ -53,6 +55,10 @@ export type WorldCommandPolicies = {
   readonly sleep?: {
     readonly energyRecoveryPerSecond: number;
     readonly maxEnergy: number;
+  };
+  readonly seeDoctor?: {
+    readonly healthRecoveryPerSecond: number;
+    readonly maxHealth: number;
   };
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
@@ -97,6 +103,17 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         energyRecoveryPerSecond: input.policies.sleep.energyRecoveryPerSecond,
         maxEnergy: input.policies.sleep.maxEnergy,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentSeeDoctor':
+      if (input.policies.seeDoctor === undefined) {
+        return rejectCommand(input, 'AgentSeeDoctor', 'missing see doctor policy');
+      }
+      return handleAgentSeeDoctorCommand({
+        command: input.command as CommandEnvelope<'AgentSeeDoctor', unknown>,
+        projection: input.projection,
+        healthRecoveryPerSecond: input.policies.seeDoctor.healthRecoveryPerSecond,
+        maxHealth: input.policies.seeDoctor.maxHealth,
         nextSequence: input.nextSequence,
       });
     case 'AgentWork':
@@ -315,6 +332,51 @@ export function handleAgentSleepCommand(input: {
         kind: 'habit',
         patternKey: 'sleep',
         statement: 'Sleeps to restore energy.',
+      },
+    }),
+  ];
+}
+
+export function handleAgentSeeDoctorCommand(input: {
+  readonly command: CommandEnvelope<'AgentSeeDoctor', unknown>;
+  readonly projection: WorldProjection;
+  readonly healthRecoveryPerSecond: number;
+  readonly maxHealth: number;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentSeeDoctorPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSeeDoctor', payloadResult.reason);
+  }
+
+  const physiologyResult = parsePayload(() =>
+    applyHealthRecovery({
+      ...agent.physiology,
+      durationSeconds: payloadResult.payload.durationSeconds,
+      healthRecoveryPerSecond: input.healthRecoveryPerSecond,
+      maxHealth: input.maxHealth,
+    }),
+  );
+  if (physiologyResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentSeeDoctor', physiologyResult.reason);
+  }
+
+  return [
+    makeEvent(input, 0, 'PhysiologyChanged', {
+      agentId: agent.agentId,
+      previous: agent.physiology,
+      next: physiologyResult.payload,
+      reason: 'see-doctor',
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Saw doctor for ${payloadResult.payload.durationSeconds} seconds.`,
+      status: 'succeeded',
+      tags: ['see-doctor', 'health'],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: 'see-doctor',
+        statement: 'Sees a doctor to recover health.',
       },
     }),
   ];

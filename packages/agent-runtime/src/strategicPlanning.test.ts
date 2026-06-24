@@ -103,6 +103,39 @@ describe('strategic objective planning', () => {
     });
   });
 
+  test('compiles health recovery objectives into see-doctor branches', () => {
+    const statement = 'Recover health by seeing a doctor before returning to work.';
+    const plan = compileStrategicObjectiveToBranchPlan({
+      objective: {
+        id: 'objective-health',
+        agentId,
+        statement,
+        priority: 2,
+        source: 'human',
+        affinityTags: ['health'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(plan.branches.map((branch) => branch.id)).toEqual(['health']);
+    expect(plan.branches[0]).toMatchObject({
+      id: 'health',
+      objective: 'Recover health before pursuing the long-horizon objective.',
+      subtasks: [
+        {
+          id: 'see-doctor',
+          description: `See doctor toward: ${statement}`,
+          intentionAffinityTags: ['health'],
+          memoryAffinityTags: ['health'],
+          profileAffinityTags: ['health'],
+          signalKeys: ['health'],
+        },
+      ],
+    });
+  });
+
   test('keeps a generic primary fallback for objectives without executable domain intent', () => {
     const plan = compileStrategicObjectiveToBranchPlan({
       objective: {

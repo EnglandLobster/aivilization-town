@@ -17,6 +17,7 @@ import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
   AgentProducePayload,
+  AgentSeeDoctorPayload,
   AgentUpgradeResidentialTierPayload,
   AgentSleepPayload,
   AgentSocializePayload,
@@ -37,7 +38,8 @@ export type CanonicalDomainName =
   | 'sleep'
   | 'social'
   | 'production'
-  | 'residential';
+  | 'residential'
+  | 'health';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -62,6 +64,10 @@ export type TradeDomainRuntimeConfig = {
 };
 
 export type SleepDomainRuntimeConfig = {
+  readonly durationSeconds?: number;
+};
+
+export type HealthDomainRuntimeConfig = {
   readonly durationSeconds?: number;
 };
 
@@ -99,6 +105,7 @@ export type CanonicalDomainRuntimeConfig = {
   readonly work?: WorkDomainRuntimeConfig;
   readonly trade?: TradeDomainRuntimeConfig;
   readonly sleep?: SleepDomainRuntimeConfig;
+  readonly health?: HealthDomainRuntimeConfig;
   readonly social?: SocialDomainRuntimeConfig;
   readonly production?: ProductionDomainRuntimeConfig;
   readonly residential?: ResidentialDomainRuntimeConfig;
@@ -112,6 +119,7 @@ const DEFAULT_TRADE_SIDE = 'buy';
 const DEFAULT_TRADE_QUANTITY = 1;
 const DEFAULT_TRADE_COMMODITY = 'Apple';
 const DEFAULT_SLEEP_DURATION_SECONDS = 28800;
+const DEFAULT_HEALTH_RECOVERY_DURATION_SECONDS = 1800;
 const DEFAULT_SOCIAL_SUMMARY = 'Socialized during planned activity.';
 const DEFAULT_SOCIAL_RELATION_DELTA = 1;
 const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
@@ -134,6 +142,7 @@ export function createCanonicalDomainRuntimeRegistrations(
       config.residential,
       policies?.residentialTierUpgrade,
     ),
+    createHealthDomainRuntimeRegistration(config.health),
   ];
 }
 
@@ -280,6 +289,32 @@ export function createSleepDomainRuntimeRegistration(
             actionSeconds: config.durationSeconds ?? DEFAULT_SLEEP_DURATION_SECONDS,
           },
         }),
+      }),
+    ],
+  };
+}
+
+export function createHealthDomainRuntimeRegistration(
+  config: HealthDomainRuntimeConfig = {},
+): WorkerDomainRuntimeRegistration {
+  return {
+    domain: 'health',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'health',
+        planRecord: context.planRecord,
+        propose: (selectedSubtask) => {
+          const durationSeconds =
+            config.durationSeconds ?? DEFAULT_HEALTH_RECOVERY_DURATION_SECONDS;
+          return {
+            id: createCanonicalActionId('health', selectedSubtask),
+            description: `See doctor for ${selectedSubtask.description}.`,
+            commandType: 'AgentSeeDoctor',
+            priority: selectedSubtask.score,
+            payload: { durationSeconds },
+            resourceEstimate: { actionSeconds: durationSeconds },
+          };
+        },
       }),
     ],
   };
@@ -461,6 +496,7 @@ type ContextualDomainMicroPlannerInput = {
 type CanonicalActionProposal =
   | AtomicActionProposal<'AgentStudy', AgentStudyPayload>
   | AtomicActionProposal<'AgentSleep', AgentSleepPayload>
+  | AtomicActionProposal<'AgentSeeDoctor', AgentSeeDoctorPayload>
   | AtomicActionProposal<'AgentWork', AgentWorkPayload>
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>

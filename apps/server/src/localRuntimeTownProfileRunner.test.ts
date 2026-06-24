@@ -1,7 +1,10 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FileBranchPlanRepository } from '@aivilization/agent-runtime';
 import { InMemoryRuntimeProfileRunReportRepository } from '@aivilization/observability';
+import { FileAgentCycleTraceRepository } from '@aivilization/observability';
+import { asAgentId } from '@aivilization/sim-core';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runLocalRuntimeTownDaemonScenarioProfile } from './index';
 
@@ -136,10 +139,113 @@ describe('local runtime town profile runner', () => {
       partitions: summary.partitions,
     });
   });
+
+  test('uses profile LLM planning config for autonomous objective plans', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 100,
+      llmPlanning: {
+        kind: 'traceable-llm-strategic-planner',
+        profileId: 'smoke-25',
+        model: 'profile-planner-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-planner',
+          responses: createLlmStudyPlanResponses(25),
+        },
+      },
+    });
+
+    const agentId = asAgentId('smoke-25-world-main-agent-001');
+    const objectiveId = 'auto-objective-smoke-25-world-main-agent-001-100';
+    const planRepository = new FileBranchPlanRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'planning',
+      ),
+    });
+    const traceRepository = new FileAgentCycleTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const plan = await planRepository.require({
+      planId: objectiveId,
+      agentId,
+    });
+    const traces = await traceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      agentId,
+      limit: 1,
+    });
+
+    expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(plan.plan).toMatchObject({
+      objective: 'LLM study objective',
+      branches: [
+        {
+          id: 'study-llm',
+          objective: 'Use LLM strategic planning for study.',
+          subtasks: [
+            {
+              id: 'study-from-llm',
+              description: 'Study from the profile LLM branch plan.',
+              basePriority: 10,
+            },
+          ],
+        },
+      ],
+    });
+    expect(traces[0]).toMatchObject({
+      agentId,
+      selectedBranch: 'study-llm',
+      selectionEvidence: {
+        selectedSubtaskId: 'study-from-llm',
+      },
+    });
+  });
 });
 
 function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-runner-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createLlmStudyPlanResponses(count: number) {
+  return Array.from({ length: count }, () => ({
+    providerId: 'scripted-profile-planner',
+    model: 'profile-planner-model',
+    content: JSON.stringify({
+      objective: 'LLM study objective',
+      branches: [
+        {
+          id: 'study-llm',
+          objective: 'Use LLM strategic planning for study.',
+          subtasks: [
+            {
+              id: 'study-from-llm',
+              description: 'Study from the profile LLM branch plan.',
+              basePriority: 10,
+              memoryAffinityTags: ['study'],
+            },
+          ],
+        },
+      ],
+    }),
+    finishReason: 'stop' as const,
+  }));
 }

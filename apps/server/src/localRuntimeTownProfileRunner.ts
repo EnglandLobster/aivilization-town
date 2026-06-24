@@ -1,3 +1,4 @@
+import type { StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
   aivilizationScenarioDefaults,
   commodities,
@@ -20,6 +21,10 @@ import {
   type WorldCommandPolicySource,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownDaemonHealth } from './localRuntimeTownOrchestration';
+import {
+  createLocalRuntimeTownProfileStrategicPlanCompiler,
+  type LocalRuntimeTownProfileStrategicCompilerConfig,
+} from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
 import { createLocalRuntimeTownApi } from './localRuntimeTownServer';
@@ -32,6 +37,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
+  readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly reportGeneratedAt?: SimulationTimestamp;
 };
@@ -84,8 +90,16 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
 
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
+  const strategicPlanCompiler =
+    input.agentProvider === undefined
+      ? createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning)
+      : undefined;
   const agentProvider =
-    input.agentProvider ?? createLocalRuntimeTownProfileAgentProvider({ policies });
+    input.agentProvider ??
+    createLocalRuntimeTownProfileAgentProvider({
+      policies,
+      ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
+    });
   const runtime = await createLocalRuntimeTownApi({
     rootDir: input.rootDir,
     bootstrappedAt: input.requestedAt,
@@ -195,6 +209,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
 export function createLocalRuntimeTownProfileAgentProvider(
   input: {
     readonly policies?: WorldCommandPolicySource;
+    readonly strategicPlanCompiler?: StrategicPlanCompiler;
   } = {},
 ): LocalWorldRuntimeAgentProvider {
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
@@ -214,6 +229,9 @@ export function createLocalRuntimeTownProfileAgentProvider(
       shortTermMemoryRepository: storage.shortTermMemoryRepository,
       planRepository: storage.planRepository,
       issuedAt,
+      ...(input.strategicPlanCompiler === undefined
+        ? {}
+        : { strategicPlanCompiler: input.strategicPlanCompiler }),
     });
 
     return buildWorkerTickAgentsFromActivePlans({

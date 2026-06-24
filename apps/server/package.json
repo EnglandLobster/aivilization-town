@@ -21,8 +21,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aivilization/agent-runtime": "workspace:*",
     "@aivilization/api": "workspace:*",
     "@aivilization/content": "workspace:*",
+    "@aivilization/llm": "workspace:*",
     "@aivilization/observability": "workspace:*",
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/worker": "workspace:*",

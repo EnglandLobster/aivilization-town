@@ -50,6 +50,9 @@ importers:
       '@aivilization/content':
         specifier: workspace:*
         version: link:../../packages/content
+      '@aivilization/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
@@ -104,6 +107,9 @@ importers:
 
   packages/agent-runtime:
     dependencies:
+      '@aivilization/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../memory

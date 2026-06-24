@@ -114,6 +114,12 @@ export function createLocalSimulationBackendRegistry(
       getReport: (request) => getBackend(request).validationReports.getReport(request),
       queryReports: (request) => getBackend(request).validationReports.queryReports(request),
     },
+    marketObservations: {
+      queryMarketTradeObservations: (request) =>
+        getBackend(request).marketObservations.queryMarketTradeObservations(request),
+      queryMarketOhlcBars: (request) =>
+        getBackend(request).marketObservations.queryMarketOhlcBars(request),
+    },
     steeringCommands: {
       submit: (command, context) => getBackend(context).steeringCommands.submit(command, context),
     },

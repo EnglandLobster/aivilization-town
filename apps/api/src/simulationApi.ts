@@ -4,6 +4,10 @@ import {
   type PartitionKey,
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
+import type {
+  MarketOhlcBar,
+  MarketTradeObservation,
+} from '@aivilization/observability';
 
 export type ProjectionQueryRequest = {
   readonly simulationId: string;
@@ -36,6 +40,24 @@ export type ExperimentValidationReportQueryRequest = {
   readonly runId?: string;
   readonly fromGeneratedAt?: number;
   readonly toGeneratedAt?: number;
+  readonly limit?: number;
+};
+
+export type MarketTradeObservationQueryRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly commodityId?: string;
+  readonly fromObservedAt?: number;
+  readonly toObservedAt?: number;
+  readonly limit?: number;
+};
+
+export type MarketOhlcBarQueryRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly commodityId?: string;
+  readonly fromIntervalStartedAt?: number;
+  readonly toIntervalStartedAt?: number;
   readonly limit?: number;
 };
 
@@ -96,6 +118,15 @@ export type ExperimentValidationReportQueryPort<TReport> = {
   ) => Promise<readonly TReport[]>;
 };
 
+export type MarketObservationQueryPort = {
+  readonly queryMarketTradeObservations: (
+    request: MarketTradeObservationQueryRequest,
+  ) => Promise<readonly MarketTradeObservation[]>;
+  readonly queryMarketOhlcBars: (
+    request: MarketOhlcBarQueryRequest,
+  ) => Promise<readonly MarketOhlcBar[]>;
+};
+
 export type SteeringCommandSubmissionContext = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -132,6 +163,12 @@ export type SimulationApiService<
   readonly queryExperimentValidationReports: (
     request: ExperimentValidationReportQueryRequest,
   ) => Promise<readonly TExperimentValidationReport[]>;
+  readonly queryMarketTradeObservations: (
+    request: MarketTradeObservationQueryRequest,
+  ) => Promise<readonly MarketTradeObservation[]>;
+  readonly queryMarketOhlcBars: (
+    request: MarketOhlcBarQueryRequest,
+  ) => Promise<readonly MarketOhlcBar[]>;
   readonly submitLongHorizonObjective: (
     request: SubmitLongHorizonObjectiveRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
@@ -161,6 +198,7 @@ export function createSimulationApiService<
   readonly eventFeeds: SimulationEventFeedPort<TEventFeed>;
   readonly sync: SimulationSyncPort<TSync>;
   readonly validationReports: ExperimentValidationReportQueryPort<TExperimentValidationReport>;
+  readonly marketObservations: MarketObservationQueryPort;
   readonly steeringCommands: SteeringCommandSubmissionPort<TSteeringResult>;
   readonly lifecycle: SimulationLifecyclePort<TLifecycleResult>;
 }): SimulationApiService<
@@ -178,6 +216,9 @@ export function createSimulationApiService<
     getExperimentValidationReport: async (request) => input.validationReports.getReport(request),
     queryExperimentValidationReports: async (request) =>
       input.validationReports.queryReports(request),
+    queryMarketTradeObservations: async (request) =>
+      input.marketObservations.queryMarketTradeObservations(request),
+    queryMarketOhlcBars: async (request) => input.marketObservations.queryMarketOhlcBars(request),
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));

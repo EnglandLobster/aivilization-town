@@ -29,6 +29,10 @@ describe('command-store-backed steering submission port', () => {
         getReport: () => Promise.resolve(undefined),
         queryReports: () => Promise.resolve([]),
       },
+      marketObservations: {
+        queryMarketTradeObservations: () => Promise.resolve([]),
+        queryMarketOhlcBars: () => Promise.resolve([]),
+      },
       steeringCommands: createCommandStoreSteeringSubmissionPort({ commandStore }),
       lifecycle: createLifecyclePort(),
     });

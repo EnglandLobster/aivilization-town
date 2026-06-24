@@ -4,6 +4,7 @@ import {
   type AgentProfileQueryPort,
   type CommandStoreSteeringSubmissionResult,
   type ExperimentValidationReportQueryPort,
+  type MarketObservationQueryPort,
   type SimulationEventFeedPort,
   type SimulationSyncPort,
   type ProjectionQueryPort,
@@ -12,7 +13,11 @@ import {
   type SteeringCommandSubmissionPort,
 } from '@aivilization/api';
 import { type LongTermAgentProfile } from '@aivilization/memory';
-import type { ExperimentValidationReport } from '@aivilization/observability';
+import type {
+  ExperimentValidationReport,
+  MarketOhlcBar,
+  MarketTradeObservation,
+} from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import type {
@@ -51,6 +56,8 @@ export type LocalWorldSyncResult = {
 };
 
 export type LocalExperimentValidationReportQueryResult = ExperimentValidationReport;
+export type LocalMarketTradeObservationQueryResult = MarketTradeObservation;
+export type LocalMarketOhlcBarQueryResult = MarketOhlcBar;
 export type LocalAgentProfileQueryResult = LongTermAgentProfile;
 
 export type LocalSimulationBackendLifecycleResult =
@@ -76,6 +83,7 @@ export type LocalSimulationBackend = {
   readonly eventFeeds: SimulationEventFeedPort<LocalWorldEventFeedResult>;
   readonly sync: SimulationSyncPort<LocalWorldSyncResult>;
   readonly validationReports: ExperimentValidationReportQueryPort<LocalExperimentValidationReportQueryResult>;
+  readonly marketObservations: MarketObservationQueryPort;
   readonly steeringCommands: SteeringCommandSubmissionPort<CommandStoreSteeringSubmissionResult>;
   readonly lifecycle: SimulationLifecyclePort<LocalSimulationBackendLifecycleResult>;
 };
@@ -95,6 +103,9 @@ export function createLocalSimulationBackend(
     initialProjection: input.initialProjection,
   });
   const validationReports = createLocalExperimentValidationReportQueryPort({
+    storage: input.storage,
+  });
+  const marketObservations = createLocalMarketObservationQueryPort({
     storage: input.storage,
   });
   const agentProfiles = createLocalAgentProfileQueryPort({
@@ -127,6 +138,7 @@ export function createLocalSimulationBackend(
     eventFeeds,
     sync,
     validationReports,
+    marketObservations,
     steeringCommands,
     lifecycle,
   });
@@ -139,6 +151,7 @@ export function createLocalSimulationBackend(
     eventFeeds,
     sync,
     validationReports,
+    marketObservations,
     steeringCommands,
     lifecycle,
   };
@@ -267,6 +280,43 @@ export function createLocalExperimentValidationReportQueryPort(input: {
             ? {}
             : { fromGeneratedAt: request.fromGeneratedAt }),
           ...(request.toGeneratedAt === undefined ? {} : { toGeneratedAt: request.toGeneratedAt }),
+          ...(request.limit === undefined ? {} : { limit: request.limit }),
+        });
+      });
+    },
+  };
+}
+
+export function createLocalMarketObservationQueryPort(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+}): MarketObservationQueryPort {
+  return {
+    queryMarketTradeObservations: (request) => {
+      return Promise.resolve().then(() => {
+        assertRequestMatchesStorage(request, input.storage);
+        return input.storage.marketObservationRepository.queryTrades({
+          simulationId: request.simulationId,
+          ...(request.commodityId === undefined ? {} : { commodityId: request.commodityId }),
+          ...(request.fromObservedAt === undefined
+            ? {}
+            : { fromObservedAt: request.fromObservedAt }),
+          ...(request.toObservedAt === undefined ? {} : { toObservedAt: request.toObservedAt }),
+          ...(request.limit === undefined ? {} : { limit: request.limit }),
+        });
+      });
+    },
+    queryMarketOhlcBars: (request) => {
+      return Promise.resolve().then(() => {
+        assertRequestMatchesStorage(request, input.storage);
+        return input.storage.marketObservationRepository.queryOhlcBars({
+          simulationId: request.simulationId,
+          ...(request.commodityId === undefined ? {} : { commodityId: request.commodityId }),
+          ...(request.fromIntervalStartedAt === undefined
+            ? {}
+            : { fromIntervalStartedAt: request.fromIntervalStartedAt }),
+          ...(request.toIntervalStartedAt === undefined
+            ? {}
+            : { toIntervalStartedAt: request.toIntervalStartedAt }),
           ...(request.limit === undefined ? {} : { limit: request.limit }),
         });
       });

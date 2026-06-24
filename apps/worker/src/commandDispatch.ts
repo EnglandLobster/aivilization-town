@@ -10,10 +10,13 @@ import {
 import {
   applyWorldEvent,
   dispatchWorldCommand,
-  type WorldCommandPolicies,
   type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 
 export type DispatchCommandDraftsResult = {
   readonly commands: readonly CommandEnvelope<CoreCommandType, unknown>[];
@@ -54,7 +57,7 @@ export function createCommandEnvelopeFromDraft(input: {
 export function dispatchCommandDraftsToWorld(input: {
   readonly commandDrafts: readonly CommandDraft[];
   readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly startingSequence: number;
   readonly commandIdPrefix: string;
   readonly expectedVersion?: number;
@@ -73,10 +76,14 @@ export function dispatchCommandDraftsToWorld(input: {
       commandId: `${input.commandIdPrefix}-${index + 1}`,
       ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),
     });
+    const policies = resolveWorldCommandPolicies({
+      policies: input.policies,
+      projection,
+    });
     const commandEvents = dispatchWorldCommand({
       command,
       projection,
-      policies: input.policies,
+      policies,
       nextSequence,
     });
 
@@ -92,7 +99,7 @@ export function dispatchCommandDraftsToWorld(input: {
 export function dispatchCommandDraftsToWorldEventStream(input: {
   readonly commandDrafts: readonly CommandDraft[];
   readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly eventStore: EventStore<WorldEvent>;
   readonly streamName: EventStreamName;
   readonly appendIdempotencyKey: string;
@@ -130,7 +137,7 @@ export function dispatchCommandDraftsToWorldEventStream(input: {
 export function dispatchWorldCommandToEventStream(input: {
   readonly command: CommandEnvelope<CoreCommandType, unknown>;
   readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly eventStore: EventStore<WorldEvent>;
   readonly streamName: EventStreamName;
   readonly appendIdempotencyKey: string;
@@ -140,10 +147,14 @@ export function dispatchWorldCommandToEventStream(input: {
 
   const expectedVersion =
     input.expectedVersion ?? input.eventStore.getStreamVersion(input.streamName);
+  const policies = resolveWorldCommandPolicies({
+    policies: input.policies,
+    projection: input.projection,
+  });
   const events = dispatchWorldCommand({
     command: input.command,
     projection: input.projection,
-    policies: input.policies,
+    policies,
     nextSequence: expectedVersion + 1,
   });
   const appendResult = input.eventStore.appendToStream({

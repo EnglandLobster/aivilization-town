@@ -11,10 +11,12 @@ import {
   createWorldProjection,
   type WorldCommandPolicies,
   type WorldEvent,
+  type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createCommandEnvelopeFromDraft,
+  createProjectionBackedWorldCommandPolicies,
   dispatchCommandDraftsToWorld,
   dispatchCommandDraftsToWorldEventStream,
   dispatchWorldCommandToEventStream,
@@ -60,6 +62,34 @@ function createAgentProjection() {
         residentialTier: 1,
         job: null,
         inventory: {},
+      },
+    ],
+  });
+}
+
+function createDoctorProjectionWithPriceIndex() {
+  const educationScores = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450];
+
+  return createWorldProjection({
+    agents: educationScores.map((educationScore, index) => ({
+      agentId: asAgentId(`agent-${index + 1}`),
+      physiology: { energy: 90, satiety: 80, health: 100 },
+      educationScore,
+      balance: 100,
+      residentialTier: 5,
+      job: index === 7 ? 'Doctor' : null,
+      inventory: {},
+    })),
+    marketPriceIndices: [
+      {
+        baselineAt: 0,
+        recordedAt: 200,
+        food: 4,
+        nonFood: 2,
+        overall: 3,
+        foodCount: 1,
+        nonFoodCount: 1,
+        ratios: { Bread: 4, Book: 2 },
       },
     ],
   });
@@ -161,6 +191,49 @@ describe('worker command dispatch seam', () => {
     expect(result.events.map((event) => event.sequence)).toEqual([5, 6, 7, 8]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.projection.agents['agent-1']?.physiology.energy).toBe(60);
+  });
+
+  test('resolves dynamic policies against the projection updated by previous drafts', () => {
+    const projection = createDoctorProjectionWithPriceIndex();
+    const dynamicPolicies = (currentProjection: WorldProjection) =>
+      createProjectionBackedWorldCommandPolicies({
+        basePolicies: policies,
+        projection: currentProjection,
+        knowledgePremium: (effectiveKnowledgeThreshold) => 1 + effectiveKnowledgeThreshold / 1000,
+      });
+
+    const result = dispatchCommandDraftsToWorld({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: asAgentId('agent-1'),
+          source: 'agent-runtime',
+          type: 'AgentStudy',
+          payload: { durationSeconds: 1000, educationRatePerSecond: 1 },
+          issuedAt: 100,
+        },
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: asAgentId('agent-8'),
+          source: 'agent-runtime',
+          type: 'AgentWork',
+          payload: { occupationName: 'Doctor', laborSeconds: 3600 },
+          issuedAt: 110,
+        },
+      ],
+      projection,
+      policies: dynamicPolicies,
+      startingSequence: 1,
+      commandIdPrefix: 'dynamic-policy-command',
+    });
+
+    const wagePaid = result.events.find((event) => event.type === 'WagePaid');
+    if (wagePaid?.type !== 'WagePaid') {
+      throw new Error('expected WagePaid event');
+    }
+
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(1000);
+    expect(wagePaid.payload.amount).toBeCloseTo(1801.8);
   });
 
   test('appends dispatched world events to the target event stream before applying projection updates', () => {

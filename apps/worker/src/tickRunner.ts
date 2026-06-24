@@ -27,7 +27,7 @@ import {
   type SimulationId,
   type SnapshotReference,
 } from '@aivilization/sim-core';
-import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
+import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import {
   runWorkerAgentCycle,
   type WorkerAgentCycleResult,
@@ -35,6 +35,7 @@ import {
 } from './agentCycleRunner';
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
+import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 type WorkerTickAgentPlanInput =
   | {
@@ -88,7 +89,7 @@ type WorkerTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
   readonly issuedAt: number;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly eventStore: EventStore<WorldEvent>;
   readonly streamName: EventStreamName;
   readonly intentionRepository: AgentIntentionRepository;

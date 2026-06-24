@@ -12,6 +12,7 @@ export * from './commandStreamConsumer';
 export * from './domainRuntimeRegistry';
 export * from './economicRuntime';
 export * from './localRuntimeStorage';
+export * from './localCommandDrain';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';

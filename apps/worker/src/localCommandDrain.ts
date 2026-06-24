@@ -3,8 +3,11 @@ import type {
   ReactiveLocalizedPlanner,
   ReactiveRepairPolicy,
   StrategicPlanCompiler,
+  StrategicPlanCompilationTrace,
 } from '@aivilization/agent-runtime';
+import type { SteeringStrategicPlanTrace, SteeringTrace } from '@aivilization/observability';
 import type { CommandConsumerId } from '@aivilization/sim-core';
+import type { WorkerSteeringCommand } from './steering';
 import type { WorldProjection } from '@aivilization/world';
 import {
   dispatchCommandDraftsToWorldEventStream,
@@ -39,8 +42,8 @@ export function drainLocalRuntimeSteeringCommands(
     streamName: input.storage.partition.commandStreamName,
     checkpointUpdatedAt: input.checkpointUpdatedAt,
     ...(input.limit === undefined ? {} : { limit: input.limit }),
-    handle: ({ command }) =>
-      handleWorkerSteeringCommand({
+    handle: async ({ record, command }) => {
+      const steering = await handleWorkerSteeringCommand({
         command,
         ...input.storage.repositories,
         localizedPlanners: input.localizedPlanners,
@@ -49,7 +52,16 @@ export function drainLocalRuntimeSteeringCommands(
         ...(input.strategicPlanCompiler === undefined
           ? {}
           : { strategicPlanCompiler: input.strategicPlanCompiler }),
-      }),
+      });
+      await recordSteeringTrace({
+        storage: input.storage,
+        sequence: record.sequence,
+        command,
+        steering,
+        recordedAt: input.checkpointUpdatedAt,
+      });
+      return steering;
+    },
   });
 }
 
@@ -93,6 +105,13 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
       });
 
       if (steering.commandDrafts.length === 0) {
+        await recordSteeringTrace({
+          storage: input.storage,
+          sequence: record.sequence,
+          command,
+          steering,
+          recordedAt: input.checkpointUpdatedAt,
+        });
         return { steering };
       }
 
@@ -114,6 +133,13 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
       });
       projection = dispatch.projection;
       worldDispatchResults.push(dispatch);
+      await recordSteeringTrace({
+        storage: input.storage,
+        sequence: record.sequence,
+        command,
+        steering,
+        recordedAt: input.checkpointUpdatedAt,
+      });
       return { steering, dispatch };
     },
   }).then((result) => ({
@@ -136,4 +162,101 @@ function createSteeringWorldCommandIdPrefix(input: {
   readonly commandId: string;
 }): string {
   return `steering-world-${input.sequence}-${input.commandId}`;
+}
+
+async function recordSteeringTrace(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly sequence: number;
+  readonly command: WorkerSteeringCommand;
+  readonly steering: WorkerSteeringResult;
+  readonly recordedAt: number;
+}): Promise<void> {
+  await input.storage.steeringTraceRepository.record(createSteeringTrace(input));
+}
+
+function createSteeringTrace(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly sequence: number;
+  readonly command: WorkerSteeringCommand;
+  readonly steering: WorkerSteeringResult;
+  readonly recordedAt: number;
+}): SteeringTrace {
+  const base = {
+    traceId: `${input.command.simulationId}:${input.storage.partition.partitionKey}:${input.sequence}:${input.command.id}`,
+    simulationId: input.command.simulationId,
+    partitionKey: input.storage.partition.partitionKey,
+    commandId: input.command.id,
+    commandType: input.command.type,
+    source: input.command.source,
+    agentId: requireActorId(input.command),
+    resultKind: input.steering.kind,
+    commandDraftCount: input.steering.commandDrafts.length,
+    shortTermMemoryRecordIds: input.steering.shortTermMemoryRecords.map((record) => record.id),
+    issuedAt: input.command.issuedAt,
+    recordedAt: input.recordedAt,
+  };
+
+  if (input.steering.kind === 'long-horizon-objective-set') {
+    const objectiveId = input.steering.intentionState.activeObjective?.id;
+    return {
+      ...base,
+      ...(objectiveId === undefined ? {} : { objectiveId }),
+      ...(input.steering.planRecord === undefined
+        ? {}
+        : {
+            planId: input.steering.planRecord.planId,
+            ...(input.steering.planRecord.planningTrace === undefined
+              ? {}
+              : {
+                  strategicPlan: mapStrategicPlanTrace(input.steering.planRecord.planningTrace),
+                }),
+          }),
+      candidateActionCount: 0,
+    };
+  }
+
+  return {
+    ...base,
+    reactiveCommandId: readReactiveCommandId(input.command),
+    ...(input.steering.routeResult.selectedPlannerDomain === undefined
+      ? {}
+      : { selectedPlannerDomain: input.steering.routeResult.selectedPlannerDomain }),
+    candidateActionCount: input.steering.routeResult.candidateActions.length,
+  };
+}
+
+function mapStrategicPlanTrace(trace: StrategicPlanCompilationTrace): SteeringStrategicPlanTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({ ...attempt, usage: { ...attempt.usage } })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function readReactiveCommandId(command: WorkerSteeringCommand): string {
+  const payload = command.payload;
+  if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
+    const reactiveCommandId = (payload as Readonly<Record<string, unknown>>).reactiveCommandId;
+    if (typeof reactiveCommandId === 'string' && reactiveCommandId.trim().length > 0) {
+      return reactiveCommandId;
+    }
+  }
+  return command.id;
+}
+
+function requireActorId(command: WorkerSteeringCommand): string {
+  if (command.actorId === undefined) {
+    throw new Error(`${command.type} requires actorId`);
+  }
+  return command.actorId;
 }

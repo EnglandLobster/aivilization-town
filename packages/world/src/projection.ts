@@ -279,6 +279,18 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           balance: event.payload.nextBalance,
         }),
       );
+    case 'MedicalTreatmentCharged':
+      return updateAgent(
+        {
+          ...projection,
+          moneySupply: projection.moneySupply - event.payload.amount,
+        },
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: event.payload.nextBalance,
+        }),
+      );
     case 'SocialInteractionCompleted':
       return {
         ...projection,

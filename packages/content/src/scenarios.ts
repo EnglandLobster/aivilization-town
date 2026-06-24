@@ -69,11 +69,20 @@ export type ScenarioSafetyNetSubsidyPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioMedicalTreatmentCostConfig = {
+  readonly currencyCostPerSecond: number;
+  readonly source: string;
+};
+
 export type ScenarioSurvivalTimePolicyDefaults = {
   readonly sleepDeprivation: ScenarioSleepDeprivationPolicyConfig;
   readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
   readonly residentialUpkeep: ScenarioResidentialUpkeepPolicyConfig;
   readonly safetyNetSubsidy: ScenarioSafetyNetSubsidyPolicyConfig;
+};
+
+export type ScenarioHealthcarePolicyDefaults = {
+  readonly seeDoctorTreatmentCost: ScenarioMedicalTreatmentCostConfig;
 };
 
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
@@ -182,6 +191,8 @@ const residentialPhysiologyCapSource =
   'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps';
 const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
+const healthcarePolicySource =
+  'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -289,6 +300,13 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     source: survivalTimePolicySource,
   },
 } as const satisfies ScenarioSurvivalTimePolicyDefaults;
+
+export const aivilizationHealthcarePolicyDefaults = {
+  seeDoctorTreatmentCost: {
+    currencyCostPerSecond: 0.02,
+    source: healthcarePolicySource,
+  },
+} as const satisfies ScenarioHealthcarePolicyDefaults;
 
 export function createAivilizationAblationAgentSeeds(
   input: CreateAivilizationAblationAgentSeedsInput = {},

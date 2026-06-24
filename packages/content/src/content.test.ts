@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   activities,
   aivilizationAblationScenarioPreset,
+  aivilizationHealthcarePolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
@@ -118,6 +119,14 @@ describe('AIvilization source content', () => {
       currencyCostPerHour: 320,
       source:
         'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning',
+    });
+  });
+
+  test('captures source-backed healthcare defaults for medical treatment costs', () => {
+    expect(aivilizationHealthcarePolicyDefaults.seeDoctorTreatmentCost).toMatchObject({
+      currencyCostPerSecond: 0.02,
+      source:
+        'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning',
     });
   });
 

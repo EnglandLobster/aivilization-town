@@ -103,6 +103,7 @@ export async function runCanonicalWorkerActivePlanTick(
   const agents = await buildWorkerTickAgentsFromActivePlans({
     projection,
     intentionRepository: input.intentionRepository,
+    longTermProfileRepository: input.longTermProfileRepository,
     planRepository: input.planRepository,
     ...(input.planProgressRepository === undefined
       ? {}

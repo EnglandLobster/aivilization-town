@@ -13,6 +13,7 @@ import {
   resolveProductionDefinition,
   type ProductionChainStep,
 } from '@aivilization/economy';
+import type { LongTermProfileEntry } from '@aivilization/memory';
 import { asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
@@ -396,11 +397,10 @@ export function createSocialDomainRuntimeRegistration(
         resolveTargetLocationId: () =>
           config.targetAgentId === undefined
             ? DEFAULT_DOMAIN_LOCATION_IDS.social
-            : context.projection.agents[config.targetAgentId]?.locationId ??
-              DEFAULT_DOMAIN_LOCATION_IDS.social,
+            : (context.projection.agents[config.targetAgentId]?.locationId ??
+              DEFAULT_DOMAIN_LOCATION_IDS.social),
         propose: (selectedSubtask) => {
-          const targetAgentId =
-            config.targetAgentId ?? resolveObservedSocialTargetAgentId(context);
+          const targetAgentId = config.targetAgentId ?? resolveSocialTargetAgentId(context);
           if (targetAgentId === undefined) {
             return {
               id: createCanonicalActionId('social', selectedSubtask),
@@ -410,6 +410,11 @@ export function createSocialDomainRuntimeRegistration(
               payload: { focus: selectedSubtask.description },
             };
           }
+          const topic = resolveSocialTopic({
+            config,
+            context,
+            selectedSubtask,
+          });
 
           return {
             id: createCanonicalActionId('social', selectedSubtask),
@@ -418,13 +423,13 @@ export function createSocialDomainRuntimeRegistration(
             priority: selectedSubtask.score,
             payload: {
               targetAgentId,
-              topic: config.topic ?? selectedSubtask.description,
+              topic: topic.value,
               relationDelta: config.relationDelta ?? DEFAULT_SOCIAL_RELATION_DELTA,
               attitudeDelta: config.attitudeDelta ?? DEFAULT_SOCIAL_ATTITUDE_DELTA,
               turns: [
                 {
                   speakerAgentId: context.agentId,
-                  utterance: config.openingUtterance ?? DEFAULT_SOCIAL_OPENING_UTTERANCE,
+                  utterance: config.openingUtterance ?? createDefaultSocialOpening(topic),
                   intent: 'social-plan',
                 },
                 {
@@ -432,7 +437,7 @@ export function createSocialDomainRuntimeRegistration(
                   utterance:
                     config.responseUtterance ??
                     `I will remember this conversation about ${formatConversationTopicForSentence(
-                      config.topic ?? selectedSubtask.description,
+                      topic.value,
                     )}.`,
                   intent: 'acknowledge-topic',
                 },
@@ -1063,12 +1068,24 @@ function createProductionResourceEstimate(input: {
   };
 }
 
-function resolveObservedSocialTargetAgentId(
+type SocialTopicResolution = {
+  readonly value: string;
+  readonly source: 'config' | 'profile' | 'plan';
+};
+
+function resolveSocialTargetAgentId(context: WorkerDomainRuntimeFactoryInput): AgentId | undefined {
+  const candidates = resolveObservedSocialTargetAgentIds(context);
+  return [...candidates].sort((left, right) =>
+    compareSocialTargetCandidates(context, left, right),
+  )[0];
+}
+
+function resolveObservedSocialTargetAgentIds(
   context: WorkerDomainRuntimeFactoryInput,
-): AgentId | undefined {
+): readonly AgentId[] {
   const locationId = context.agent.locationId;
   if (locationId === null) {
-    return undefined;
+    return [];
   }
 
   const latestObservation = [...context.projection.locationObservations]
@@ -1076,13 +1093,102 @@ function resolveObservedSocialTargetAgentId(
     .filter((observation) => observation.locationId === locationId)
     .sort((left, right) => right.observedAt - left.observedAt)[0];
   if (latestObservation === undefined) {
-    return undefined;
+    return [];
   }
 
   return latestObservation.observedAgentIds
     .filter((candidate) => candidate !== context.agentId)
     .filter((candidate) => context.projection.agents[candidate]?.locationId === locationId)
-    .sort((left, right) => left.localeCompare(right))[0];
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function compareSocialTargetCandidates(
+  context: WorkerDomainRuntimeFactoryInput,
+  left: AgentId,
+  right: AgentId,
+): number {
+  const leftScore = scoreSocialTargetCandidate(context, left);
+  const rightScore = scoreSocialTargetCandidate(context, right);
+  if (leftScore !== rightScore) {
+    return rightScore - leftScore;
+  }
+  return left.localeCompare(right);
+}
+
+function scoreSocialTargetCandidate(
+  context: WorkerDomainRuntimeFactoryInput,
+  candidateAgentId: AgentId,
+): number {
+  const socialRecord = context.longTermProfile?.socialRecords.find(
+    (entry) => entry.key === candidateAgentId,
+  );
+  if (socialRecord === undefined) {
+    return 0;
+  }
+  return (
+    socialRecord.confidence + (socialRecord.relationDelta ?? 0) + (socialRecord.attitudeDelta ?? 0)
+  );
+}
+
+function resolveSocialTopic(input: {
+  readonly config: SocialDomainRuntimeConfig;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+}): SocialTopicResolution {
+  if (input.config.topic !== undefined) {
+    return { value: input.config.topic, source: 'config' };
+  }
+
+  const profileTopic = resolveProfileSocialTopic(input.context);
+  if (profileTopic !== undefined) {
+    return { value: profileTopic, source: 'profile' };
+  }
+
+  return { value: input.selectedSubtask.description, source: 'plan' };
+}
+
+function resolveProfileSocialTopic(context: WorkerDomainRuntimeFactoryInput): string | undefined {
+  const valuesTopic = selectProfileTopicKey(context.longTermProfile?.values);
+  if (valuesTopic !== undefined) {
+    return humanizeProfileTopicKey(valuesTopic);
+  }
+
+  const personalityTopic = selectProfileTopicKey(context.longTermProfile?.personality);
+  return personalityTopic === undefined ? undefined : humanizeProfileTopicKey(personalityTopic);
+}
+
+function selectProfileTopicKey(
+  entries: readonly LongTermProfileEntry[] | undefined,
+): string | undefined {
+  return [...(entries ?? [])].sort(compareProfileTopicEntries)[0]?.key;
+}
+
+function compareProfileTopicEntries(
+  left: LongTermProfileEntry,
+  right: LongTermProfileEntry,
+): number {
+  if (left.confidence !== right.confidence) {
+    return right.confidence - left.confidence;
+  }
+  if (left.updatedAt !== right.updatedAt) {
+    return right.updatedAt - left.updatedAt;
+  }
+  return left.key.localeCompare(right.key);
+}
+
+function humanizeProfileTopicKey(key: string): string {
+  return key
+    .trim()
+    .split(/[-_]+/u)
+    .filter((token) => token.length > 0)
+    .join(' ');
+}
+
+function createDefaultSocialOpening(topic: SocialTopicResolution): string {
+  if (topic.source === 'profile') {
+    return `Discuss ${formatConversationTopicForSentence(topic.value)}.`;
+  }
+  return DEFAULT_SOCIAL_OPENING_UTTERANCE;
 }
 
 function createCanonicalActionId(

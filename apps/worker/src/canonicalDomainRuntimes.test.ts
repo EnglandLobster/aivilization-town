@@ -4,7 +4,11 @@ import {
   type DomainMicroPlanner,
   type PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
-import type { LongHorizonObjective } from '@aivilization/memory';
+import {
+  asMemoryRecordId,
+  type LongHorizonObjective,
+  type LongTermAgentProfile,
+} from '@aivilization/memory';
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
@@ -362,6 +366,86 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('uses long-term social profile evidence to choose conversation target and topic', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+    });
+    const context = createRuntimeContext({
+      agent,
+      longTermProfile: {
+        agentId: agentA,
+        beliefs: [],
+        habits: [],
+        values: [
+          {
+            key: 'community-cooperation',
+            statement: 'Agent values cooperative community routines.',
+            confidence: 0.9,
+            updatedAt: 90,
+            provenanceRecordIds: [asMemoryRecordId('memory-social-value-1')],
+          },
+        ],
+        personality: [],
+        socialRecords: [
+          {
+            key: 'agent-c',
+            statement: 'Agent C is a trusted work partner.',
+            confidence: 0.8,
+            updatedAt: 80,
+            provenanceRecordIds: [asMemoryRecordId('memory-social-agent-c-1')],
+            relationDelta: 0.4,
+            attitudeDelta: 0.3,
+          },
+        ],
+      },
+      projection: createProjection({
+        agents: [
+          agent,
+          createAgent({ agentId: agentC, locationId: asLocationId('town-square') }),
+          createAgent({ agentId: agentB, locationId: asLocationId('town-square') }),
+        ],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentB, agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'community routines',
+          },
+        ],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentC,
+        topic: 'community cooperation',
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Discuss community cooperation.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: 'I will remember this conversation about community cooperation.',
+            intent: 'acknowledge-topic',
+          },
+        ],
+      },
+    });
+  });
+
   test('proposes movement to the target agent location before socializing', async () => {
     const sourceAgent = createAgent({
       agentId: agentA,
@@ -543,6 +627,7 @@ type WorkerResolverTestContext = {
   readonly projection: WorldProjection;
   readonly activeObjective: LongHorizonObjective;
   readonly planRecord: BranchPlanRecord;
+  readonly longTermProfile?: LongTermAgentProfile;
 };
 
 function createRuntimeContext(input: {
@@ -550,6 +635,7 @@ function createRuntimeContext(input: {
   readonly projection?: WorldProjection;
   readonly activeObjective?: LongHorizonObjective;
   readonly planRecord?: BranchPlanRecord;
+  readonly longTermProfile?: LongTermAgentProfile;
 }): WorkerResolverTestContext {
   const projection =
     input.projection ??
@@ -567,6 +653,7 @@ function createRuntimeContext(input: {
     projection,
     activeObjective: input.activeObjective ?? createObjective(input.agent.agentId),
     planRecord: input.planRecord ?? createPlanRecord(input.agent.agentId),
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
   };
 }
 

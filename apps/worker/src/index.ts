@@ -11,6 +11,7 @@ export * from './canonicalWorkerRuntimeResolver';
 export * from './domainRuntimeRegistry';
 export * from './economicRuntime';
 export * from './localRuntimeStorage';
+export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';
 export * from './objectiveLifecycle';

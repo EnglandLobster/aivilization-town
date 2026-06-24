@@ -135,6 +135,79 @@ describe('local runtime town orchestration', () => {
     expect(orchestration.runQueueSchedulerHost?.getStatus()).toMatchObject({ running: false });
     expect(orchestration.runQueueRecoveryHost?.getStatus()).toMatchObject({ running: false });
   });
+
+  test('aggregates daemon health from supervisor, queue stats, and host status', async () => {
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const orchestration = createLocalRuntimeTownOrchestration({
+      host,
+      supervisor,
+      clock: { now: () => 500 },
+    });
+    await orchestration.runQueueRepository.enqueue({
+      jobId: 'job-dead-health-1',
+      manifestId: 'town-runtime',
+      enqueuedAt: 120,
+      runRequest: {
+        operationId: 'op-dead-health-1',
+        requestedAt: 130,
+        cycleCount: 1,
+      },
+    });
+    await orchestration.runQueueRepository.claimNext({
+      workerId: 'worker-health',
+      claimedAt: 140,
+      leaseDurationMs: 10,
+    });
+    await orchestration.runQueueRepository.fail({
+      jobId: 'job-dead-health-1',
+      failedAt: 150,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'health failure' },
+    });
+
+    await expect(orchestration.runtimeDaemonApi.getRuntimeDaemonStatus()).resolves.toMatchObject({
+      manifestId: 'town-runtime',
+      observedAt: 500,
+      health: 'attention',
+      components: {
+        supervisor: {
+          health: 'healthy',
+          partitionCount: 1,
+          healthyPartitionCount: 1,
+          attentionPartitionCount: 0,
+        },
+        runQueue: {
+          health: 'attention',
+          stats: {
+            observedAt: 500,
+            manifestId: 'town-runtime',
+            statusCounts: {
+              'dead-lettered': 1,
+            },
+          },
+        },
+        worker: {
+          configured: true,
+          desiredRunning: false,
+          health: 'healthy',
+          status: {
+            running: false,
+            processedJobCount: 0,
+          },
+        },
+      },
+    });
+  });
 });
 
 function createRootDir(): string {

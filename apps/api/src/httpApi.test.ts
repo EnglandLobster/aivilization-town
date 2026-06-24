@@ -3,6 +3,7 @@ import { createCommandEnvelope } from '@aivilization/sim-core';
 import { createTownHttpApiHandler } from './index';
 import type { SimulationApiService } from './simulationApi';
 import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
+import type { RuntimeDaemonApiService } from './runtimeDaemonApi';
 import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
 import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
 import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
@@ -145,6 +146,19 @@ type TestRuntimeRecoveryStatus = {
 type TestRuntimeRecoveryReport = {
   readonly status: 'idle' | 'recovered';
   readonly observedAt: number;
+};
+
+type TestRuntimeDaemonStatus = {
+  readonly manifestId: string;
+  readonly health: 'healthy' | 'degraded' | 'attention';
+  readonly components: {
+    readonly supervisor: {
+      readonly health: 'healthy' | 'attention';
+    };
+    readonly runQueue: {
+      readonly health: 'healthy' | 'degraded' | 'attention';
+    };
+  };
 };
 
 describe('town HTTP API router', () => {
@@ -825,6 +839,32 @@ describe('town HTTP API router', () => {
     ]);
   });
 
+  test('routes runtime daemon health requests to the optional daemon service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeDaemon: createRuntimeDaemonService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/daemon/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        manifestId: 'town-runtime',
+        health: 'degraded',
+        components: {
+          supervisor: { health: 'healthy' },
+          runQueue: { health: 'degraded' },
+        },
+      },
+    });
+
+    expect(calls).toEqual([{ method: 'getRuntimeDaemonStatus' }]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
@@ -1339,6 +1379,24 @@ function createRuntimeRecoveryService(
     runRuntimeRecoveryOnce: () => {
       calls.push({ method: 'runRuntimeRecoveryOnce' });
       return Promise.resolve({ status: 'recovered', observedAt: 250 });
+    },
+  };
+}
+
+function createRuntimeDaemonService(
+  calls: unknown[],
+): RuntimeDaemonApiService<TestRuntimeDaemonStatus> {
+  return {
+    getRuntimeDaemonStatus: () => {
+      calls.push({ method: 'getRuntimeDaemonStatus' });
+      return Promise.resolve({
+        manifestId: 'town-runtime',
+        health: 'degraded',
+        components: {
+          supervisor: { health: 'healthy' },
+          runQueue: { health: 'degraded' },
+        },
+      });
     },
   };
 }

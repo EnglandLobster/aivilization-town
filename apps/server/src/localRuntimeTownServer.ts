@@ -42,6 +42,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeSchedulerApi?: LocalRuntimeTownOrchestration['runtimeSchedulerApi'];
   readonly runQueueRecoveryHost?: LocalRuntimeTownOrchestration['runQueueRecoveryHost'];
   readonly runtimeRecoveryApi?: LocalRuntimeTownOrchestration['runtimeRecoveryApi'];
+  readonly runtimeDaemonApi: LocalRuntimeTownOrchestration['runtimeDaemonApi'];
   readonly handler: TownHttpApiHandler;
 };
 
@@ -73,6 +74,7 @@ export async function createLocalRuntimeTownApi(
     ...(runtimeOrchestration.runtimeRecoveryApi === undefined
       ? {}
       : { runtimeRecovery: runtimeOrchestration.runtimeRecoveryApi }),
+    runtimeDaemon: runtimeOrchestration.runtimeDaemonApi,
   });
 
   return {
@@ -95,6 +97,7 @@ export async function createLocalRuntimeTownApi(
     ...(runtimeOrchestration.runtimeRecoveryApi === undefined
       ? {}
       : { runtimeRecoveryApi: runtimeOrchestration.runtimeRecoveryApi }),
+    runtimeDaemonApi: runtimeOrchestration.runtimeDaemonApi,
     handler,
   };
 }

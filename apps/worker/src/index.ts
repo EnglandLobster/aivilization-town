@@ -13,6 +13,7 @@ export * from './domainRuntimeRegistry';
 export * from './economicRuntime';
 export * from './localRuntimeStorage';
 export * from './localCommandDrain';
+export * from './localRuntimeStep';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';

@@ -14,6 +14,15 @@ const educationEfficiencyPolicy = {
   educationScoreForMaxEfficiency: 500,
 };
 
+const fullEfficiencyPolicy = {
+  minEfficiency: 0.5,
+  educationScoreForMaxEfficiency: 500,
+  physiologyCaps: {
+    caps: [{ residentialTier: 5, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 }],
+  },
+  residentialTierForMaxEfficiency: 5,
+};
+
 describe('planProductionChain', () => {
   test('plans missing upstream production before the target commodity', () => {
     const plan = planProductionChain({
@@ -97,6 +106,32 @@ describe('planProductionChain', () => {
       satietyCost: 20,
       laborSeconds: 4,
     });
+  });
+
+  test('applies full production efficiency policy to chain totals', () => {
+    const plan = planProductionChain({
+      commodityName: 'Book',
+      quantity: 1,
+      agent: {
+        ...baseAgent,
+        educationScore: 500,
+        energy: 50,
+        satiety: 100,
+        health: 100,
+      },
+      productionEfficiency: fullEfficiencyPolicy,
+    });
+
+    expect(plan.status).toBe('accepted');
+    if (plan.status !== 'accepted') {
+      throw new Error(`expected accepted production chain, got ${plan.reason}: ${plan.detail}`);
+    }
+    expect(plan.energyCost).toBeCloseTo(40 / 0.95);
+    expect(plan.satietyCost).toBeCloseTo(10 / 0.95);
+    expect(plan.laborSeconds).toBeCloseTo(2 / 0.95);
+    expect(plan.steps).toHaveLength(2);
+    expect(plan.steps[0]?.productionEfficiency).toBeCloseTo(0.95);
+    expect(plan.steps[1]?.productionEfficiency).toBeCloseTo(0.95);
   });
 
   test('reuses existing upstream inventory before planning new inputs', () => {

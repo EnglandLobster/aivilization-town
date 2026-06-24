@@ -74,9 +74,22 @@ export type ScenarioMedicalTreatmentCostConfig = {
   readonly source: string;
 };
 
+export type ScenarioProductionEfficiencyPhysiologyCapConfig = {
+  readonly residentialTier: number;
+  readonly maxEnergy: number;
+  readonly maxSatiety: number;
+  readonly maxHealth: number;
+};
+
+export type ScenarioProductionEfficiencyPhysiologyCapPolicyConfig = {
+  readonly caps: readonly ScenarioProductionEfficiencyPhysiologyCapConfig[];
+};
+
 export type ScenarioProductionEfficiencyPolicyConfig = {
   readonly minEfficiency: number;
   readonly educationScoreForMaxEfficiency: number;
+  readonly physiologyCaps: ScenarioProductionEfficiencyPhysiologyCapPolicyConfig;
+  readonly residentialTierForMaxEfficiency: number;
   readonly source: string;
 };
 
@@ -92,7 +105,7 @@ export type ScenarioHealthcarePolicyDefaults = {
 };
 
 export type ScenarioProductionPolicyDefaults = {
-  readonly educationEfficiency: ScenarioProductionEfficiencyPolicyConfig;
+  readonly productionEfficiency: ScenarioProductionEfficiencyPolicyConfig;
 };
 
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
@@ -204,7 +217,7 @@ const survivalTimePolicySource =
 const healthcarePolicySource =
   'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning';
 const productionPolicySource =
-  'AIvilization v0 Section 3.1.1 productive efficiency and Section 3.2.1 education score default runtime tuning';
+  'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -321,9 +334,18 @@ export const aivilizationHealthcarePolicyDefaults = {
 } as const satisfies ScenarioHealthcarePolicyDefaults;
 
 export const aivilizationProductionPolicyDefaults = {
-  educationEfficiency: {
+  productionEfficiency: {
     minEfficiency: 0.5,
     educationScoreForMaxEfficiency: 500,
+    physiologyCaps: {
+      caps: aivilizationResidentialPhysiologyCaps.map((cap) => ({
+        residentialTier: cap.residentialTier,
+        maxEnergy: cap.maxEnergy,
+        maxSatiety: cap.maxSatiety,
+        maxHealth: cap.maxHealth,
+      })),
+    },
+    residentialTierForMaxEfficiency: 5,
     source: productionPolicySource,
   },
 } as const satisfies ScenarioProductionPolicyDefaults;

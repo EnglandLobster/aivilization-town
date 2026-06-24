@@ -55,9 +55,22 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
     },
     production: {
       efficiency: {
-        minEfficiency: aivilizationProductionPolicyDefaults.educationEfficiency.minEfficiency,
+        minEfficiency: aivilizationProductionPolicyDefaults.productionEfficiency.minEfficiency,
         educationScoreForMaxEfficiency:
-          aivilizationProductionPolicyDefaults.educationEfficiency.educationScoreForMaxEfficiency,
+          aivilizationProductionPolicyDefaults.productionEfficiency.educationScoreForMaxEfficiency,
+        physiologyCaps: {
+          caps: aivilizationProductionPolicyDefaults.productionEfficiency.physiologyCaps.caps.map(
+            (cap) => ({
+              residentialTier: cap.residentialTier,
+              maxEnergy: cap.maxEnergy,
+              maxSatiety: cap.maxSatiety,
+              maxHealth: cap.maxHealth,
+            }),
+          ),
+        },
+        residentialTierForMaxEfficiency:
+          aivilizationProductionPolicyDefaults.productionEfficiency
+            .residentialTierForMaxEfficiency,
       },
     },
     jobApplication: {

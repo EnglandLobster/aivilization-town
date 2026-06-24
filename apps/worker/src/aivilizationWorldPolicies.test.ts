@@ -27,6 +27,17 @@ describe('AIvilization default world command policies', () => {
       efficiency: {
         minEfficiency: 0.5,
         educationScoreForMaxEfficiency: 500,
+        physiologyCaps: {
+          caps: [
+            { residentialTier: 1, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 },
+            { residentialTier: 2, maxEnergy: 200, maxSatiety: 200, maxHealth: 200 },
+            { residentialTier: 3, maxEnergy: 300, maxSatiety: 300, maxHealth: 300 },
+            { residentialTier: 4, maxEnergy: 400, maxSatiety: 400, maxHealth: 400 },
+            { residentialTier: 5, maxEnergy: 500, maxSatiety: 500, maxHealth: 500 },
+            { residentialTier: 6, maxEnergy: 500, maxSatiety: 500, maxHealth: 500 },
+          ],
+        },
+        residentialTierForMaxEfficiency: 5,
       },
     });
     expect(policies.satietyRecoveryByCommodity).toMatchObject({

@@ -12,13 +12,27 @@ export type ProductionAgentState = {
   readonly educationScore?: number;
   readonly energy: number;
   readonly satiety: number;
+  readonly health?: number;
   readonly availableLaborSeconds: number;
   readonly inventory: Inventory;
+};
+
+export type ProductionEfficiencyPhysiologyCap = {
+  readonly residentialTier: number;
+  readonly maxEnergy: number;
+  readonly maxSatiety: number;
+  readonly maxHealth: number;
+};
+
+export type ProductionEfficiencyPhysiologyCapPolicy = {
+  readonly caps: readonly ProductionEfficiencyPhysiologyCap[];
 };
 
 export type ProductionEfficiencyPolicy = {
   readonly minEfficiency: number;
   readonly educationScoreForMaxEfficiency: number;
+  readonly physiologyCaps?: ProductionEfficiencyPhysiologyCapPolicy;
+  readonly residentialTierForMaxEfficiency?: number;
 };
 
 export type ProductionEfficiencyDecision =
@@ -111,7 +125,7 @@ export function planProduction(input: {
     input.productionEfficiency === undefined
       ? undefined
       : evaluateProductionEfficiency({
-          educationScore: input.agent.educationScore ?? 0,
+          agent: input.agent,
           policy: input.productionEfficiency,
         });
   if (efficiencyDecision?.status === 'rejected') {
@@ -176,7 +190,10 @@ export function planProduction(input: {
 }
 
 export function evaluateProductionEfficiency(input: {
-  readonly educationScore: number;
+  readonly agent: Pick<
+    ProductionAgentState,
+    'residentialTier' | 'educationScore' | 'energy' | 'satiety' | 'health'
+  >;
   readonly policy: ProductionEfficiencyPolicy;
 }): ProductionEfficiencyDecision {
   const minEfficiencyError = validateMinEfficiency(input.policy.minEfficiency);
@@ -189,18 +206,113 @@ export function evaluateProductionEfficiency(input: {
   if (input.policy.educationScoreForMaxEfficiency <= 0) {
     return rejectEfficiency('educationScoreForMaxEfficiency must be positive');
   }
-  if (!Number.isFinite(input.educationScore) || input.educationScore < 0) {
+  if (
+    input.policy.residentialTierForMaxEfficiency !== undefined &&
+    !isPositiveFinite(input.policy.residentialTierForMaxEfficiency)
+  ) {
+    return rejectEfficiency('residentialTierForMaxEfficiency must be positive');
+  }
+  const physiologyCapsError = validatePhysiologyCapsPolicy(input.policy.physiologyCaps);
+  if (physiologyCapsError !== undefined) {
+    return rejectEfficiency(physiologyCapsError);
+  }
+
+  const educationScore = input.agent.educationScore ?? 0;
+  if (!isNonNegativeFinite(educationScore)) {
     return rejectEfficiency('educationScore must be non-negative');
   }
 
-  const educationProgress = Math.min(
-    1,
-    input.educationScore / input.policy.educationScoreForMaxEfficiency,
-  );
+  const factors = [
+    capProgress(educationScore, input.policy.educationScoreForMaxEfficiency),
+  ];
+
+  if (input.policy.physiologyCaps !== undefined) {
+    const cap = input.policy.physiologyCaps.caps.find(
+      (candidate) => candidate.residentialTier === input.agent.residentialTier,
+    );
+    if (cap === undefined) {
+      return rejectEfficiency(
+        `physiology cap missing for residentialTier ${input.agent.residentialTier}`,
+      );
+    }
+
+    if (!isNonNegativeFinite(input.agent.energy)) {
+      return rejectEfficiency('energy must be non-negative');
+    }
+    if (!isNonNegativeFinite(input.agent.satiety)) {
+      return rejectEfficiency('satiety must be non-negative');
+    }
+    if (!isNonNegativeFinite(input.agent.health)) {
+      return rejectEfficiency('health must be non-negative');
+    }
+
+    factors.push(
+      capProgress(input.agent.energy, cap.maxEnergy),
+      capProgress(input.agent.satiety, cap.maxSatiety),
+      capProgress(input.agent.health, cap.maxHealth),
+    );
+  }
+
+  if (input.policy.residentialTierForMaxEfficiency !== undefined) {
+    if (!isNonNegativeFinite(input.agent.residentialTier)) {
+      return rejectEfficiency('residentialTier must be non-negative');
+    }
+    factors.push(
+      capProgress(input.agent.residentialTier, input.policy.residentialTierForMaxEfficiency),
+    );
+  }
+
+  const progress =
+    factors.reduce((sum, factor) => sum + factor, 0) / factors.length;
   return {
     status: 'accepted',
-    efficiency: input.policy.minEfficiency + (1 - input.policy.minEfficiency) * educationProgress,
+    efficiency: input.policy.minEfficiency + (1 - input.policy.minEfficiency) * progress,
   };
+}
+
+function validatePhysiologyCapsPolicy(
+  policy: ProductionEfficiencyPhysiologyCapPolicy | undefined,
+): string | undefined {
+  if (policy === undefined) {
+    return undefined;
+  }
+  if (policy.caps.length === 0) {
+    return 'physiologyCaps.caps must not be empty';
+  }
+
+  const residentialTiers = new Set<number>();
+  for (const cap of policy.caps) {
+    if (!Number.isInteger(cap.residentialTier) || cap.residentialTier <= 0) {
+      return 'physiology cap residentialTier must be a positive integer';
+    }
+    if (residentialTiers.has(cap.residentialTier)) {
+      return `duplicate physiology cap for residentialTier ${cap.residentialTier}`;
+    }
+    residentialTiers.add(cap.residentialTier);
+
+    if (!isPositiveFinite(cap.maxEnergy)) {
+      return 'physiology cap maxEnergy must be positive';
+    }
+    if (!isPositiveFinite(cap.maxSatiety)) {
+      return 'physiology cap maxSatiety must be positive';
+    }
+    if (!isPositiveFinite(cap.maxHealth)) {
+      return 'physiology cap maxHealth must be positive';
+    }
+  }
+  return undefined;
+}
+
+function capProgress(value: number, maximum: number): number {
+  return Math.min(1, value / maximum);
+}
+
+function isPositiveFinite(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isNonNegativeFinite(value: number | undefined): value is number {
+  return value !== undefined && Number.isFinite(value) && value >= 0;
 }
 
 export function scaleProductionCost(

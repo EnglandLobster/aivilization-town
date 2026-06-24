@@ -79,7 +79,7 @@ export function planProductionChain(input: ProductionChainInput): ProductionChai
     input.productionEfficiency === undefined
       ? undefined
       : evaluateProductionEfficiency({
-          educationScore: input.agent.educationScore ?? 0,
+          agent: input.agent,
           policy: input.productionEfficiency,
         });
   if (efficiencyDecision?.status === 'rejected') {

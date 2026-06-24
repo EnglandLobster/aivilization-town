@@ -18,6 +18,25 @@ const educationEfficiencyPolicy = {
   educationScoreForMaxEfficiency: 500,
 };
 
+const fullEfficiencyPolicy = {
+  minEfficiency: 0.5,
+  educationScoreForMaxEfficiency: 500,
+  physiologyCaps: {
+    caps: [{ residentialTier: 5, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 }],
+  },
+  residentialTierForMaxEfficiency: 5,
+};
+
+const bookReadyAgent = {
+  residentialTier: 5,
+  educationScore: 500,
+  energy: 50,
+  satiety: 100,
+  health: 100,
+  availableLaborSeconds: 10,
+  inventory: { Wood: 1 },
+};
+
 describe('planProduction', () => {
   test('accepts chip production with exact non-substitutable inputs and physiological costs', () => {
     const plan = planProduction({
@@ -94,6 +113,44 @@ describe('planProduction', () => {
       satietyCost: 25,
       laborSeconds: 5,
       productionEfficiency: 1,
+    });
+  });
+
+  test('combines physiology, residential tier, and education into production efficiency', () => {
+    const plan = planProduction({
+      commodityName: 'Book',
+      quantity: 1,
+      agent: bookReadyAgent,
+      productionEfficiency: fullEfficiencyPolicy,
+    });
+
+    expect(plan.status).toBe('accepted');
+    if (plan.status !== 'accepted') {
+      throw new Error(`expected accepted production plan, got ${plan.reason}: ${plan.detail}`);
+    }
+    expect(plan.productionEfficiency).toBeCloseTo(0.95);
+    expect(plan.energyCost).toBeCloseTo(32 / 0.95);
+    expect(plan.satietyCost).toBeCloseTo(8 / 0.95);
+    expect(plan.laborSeconds).toBeCloseTo(1.6 / 0.95);
+  });
+
+  test('rejects production efficiency policies missing a physiology cap for the agent tier', () => {
+    const plan = planProduction({
+      commodityName: 'Book',
+      quantity: 1,
+      agent: bookReadyAgent,
+      productionEfficiency: {
+        ...fullEfficiencyPolicy,
+        physiologyCaps: {
+          caps: [{ residentialTier: 1, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 }],
+        },
+      },
+    });
+
+    expect(plan).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'physiology cap missing for residentialTier 5',
     });
   });
 

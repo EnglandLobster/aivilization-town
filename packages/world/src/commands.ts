@@ -14,6 +14,20 @@ export type AgentObserveLocationPayload = {
   readonly focus?: string;
 };
 
+export type AgentStartConversationTurnPayload = {
+  readonly speakerAgentId: AgentId;
+  readonly utterance: string;
+  readonly intent?: string;
+};
+
+export type AgentStartConversationPayload = {
+  readonly targetAgentId: AgentId;
+  readonly topic: string;
+  readonly relationDelta: number;
+  readonly attitudeDelta: number;
+  readonly turns: readonly AgentStartConversationTurnPayload[];
+};
+
 export type AgentStudyPayload = {
   readonly durationSeconds: number;
   readonly educationRatePerSecond: number;
@@ -113,6 +127,39 @@ export function assertAgentObserveLocationPayload(payload: unknown): AgentObserv
   }
 
   return focus === undefined ? {} : { focus: focus.trim() };
+}
+
+export function assertAgentStartConversationPayload(
+  payload: unknown,
+): AgentStartConversationPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentStartConversation payload must be an object');
+  }
+  const targetAgentId = payload['targetAgentId'];
+  const topic = payload['topic'];
+  const relationDelta = payload['relationDelta'];
+  const attitudeDelta = payload['attitudeDelta'];
+  const turns = payload['turns'];
+
+  if (typeof targetAgentId !== 'string' || targetAgentId.trim().length === 0) {
+    throw new Error('AgentStartConversation targetAgentId must not be empty');
+  }
+  if (typeof topic !== 'string' || topic.trim().length === 0) {
+    throw new Error('AgentStartConversation topic must not be empty');
+  }
+  assertFinite(relationDelta, 'AgentStartConversation relationDelta');
+  assertFinite(attitudeDelta, 'AgentStartConversation attitudeDelta');
+  if (!Array.isArray(turns) || turns.length === 0) {
+    throw new Error('AgentStartConversation turns must not be empty');
+  }
+
+  return {
+    targetAgentId: asAgentId(targetAgentId.trim()),
+    topic: topic.trim(),
+    relationDelta,
+    attitudeDelta,
+    turns: turns.map((turn, index) => assertAgentStartConversationTurnPayload(turn, index)),
+  };
 }
 
 export function assertAgentStudyPayload(payload: unknown): AgentStudyPayload {
@@ -303,4 +350,31 @@ function assertFinite(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new Error(`${name} must be finite`);
   }
+}
+
+function assertAgentStartConversationTurnPayload(
+  payload: unknown,
+  index: number,
+): AgentStartConversationTurnPayload {
+  if (!isRecord(payload)) {
+    throw new Error(`AgentStartConversation turn ${index} must be an object`);
+  }
+  const speakerAgentId = payload['speakerAgentId'];
+  const utterance = payload['utterance'];
+  const intent = payload['intent'];
+  if (typeof speakerAgentId !== 'string' || speakerAgentId.trim().length === 0) {
+    throw new Error(`AgentStartConversation turn ${index} speakerAgentId must not be empty`);
+  }
+  if (typeof utterance !== 'string' || utterance.trim().length === 0) {
+    throw new Error(`AgentStartConversation turn ${index} utterance must not be empty`);
+  }
+  if (intent !== undefined && (typeof intent !== 'string' || intent.trim().length === 0)) {
+    throw new Error(`AgentStartConversation turn ${index} intent must not be empty`);
+  }
+
+  return {
+    speakerAgentId: asAgentId(speakerAgentId.trim()),
+    utterance: utterance.trim(),
+    ...(intent === undefined ? {} : { intent: intent.trim() }),
+  };
 }

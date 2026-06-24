@@ -1,5 +1,11 @@
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, asLocationId, createEventEnvelope, replayEvents } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  asConversationId,
+  asLocationId,
+  createEventEnvelope,
+  replayEvents,
+} from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { applyWorldEvent, createWorldProjection } from './index';
 
@@ -177,6 +183,100 @@ describe('world projection', () => {
       },
     ]);
     expect(projection.agents['agent-1']).toEqual(initial.agents['agent-1']);
+  });
+
+  test('replays conversation records without mutating agent state', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 40, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 2 },
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 90, satiety: 70, health: 100 },
+          educationScore: 20,
+          balance: 80,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-conversation',
+        simulationId: 'sim-1',
+        commandId: 'command-conversation',
+        type: 'ConversationRecorded',
+        payload: {
+          conversationId: asConversationId('conversation-command-conversation'),
+          initiatorAgentId: asAgentId('agent-1'),
+          participantAgentIds: [asAgentId('agent-1'), asAgentId('agent-2')],
+          locationId: asLocationId('school'),
+          topic: 'homework',
+          turns: [
+            {
+              turnIndex: 0,
+              speakerAgentId: asAgentId('agent-1'),
+              utterance: 'Do you want to study together?',
+              intent: 'invite-study',
+            },
+            {
+              turnIndex: 1,
+              speakerAgentId: asAgentId('agent-2'),
+              utterance: 'Yes, let us review after class.',
+            },
+          ],
+        },
+        occurredAt: 20,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.conversationRecords).toEqual([
+      {
+        conversationId: 'conversation-command-conversation',
+        initiatorAgentId: 'agent-1',
+        participantAgentIds: ['agent-1', 'agent-2'],
+        locationId: 'school',
+        topic: 'homework',
+        turns: [
+          {
+            turnIndex: 0,
+            speakerAgentId: 'agent-1',
+            utterance: 'Do you want to study together?',
+            intent: 'invite-study',
+          },
+          {
+            turnIndex: 1,
+            speakerAgentId: 'agent-2',
+            utterance: 'Yes, let us review after class.',
+          },
+        ],
+        recordedAt: 20,
+      },
+    ]);
+    expect(projection.agents['agent-1']).toEqual(initial.agents['agent-1']);
+    expect(projection.agents['agent-2']).toEqual(initial.agents['agent-2']);
   });
 
   test('replays agent state and memory events deterministically', () => {

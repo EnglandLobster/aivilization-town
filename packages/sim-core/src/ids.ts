@@ -3,6 +3,7 @@ export type Brand<TValue, TBrand extends string> = TValue & { readonly __brand: 
 export type SimulationId = Brand<string, 'SimulationId'>;
 export type AgentId = Brand<string, 'AgentId'>;
 export type LocationId = Brand<string, 'LocationId'>;
+export type ConversationId = Brand<string, 'ConversationId'>;
 export type CommandId = Brand<string, 'CommandId'>;
 export type CommandIdempotencyKey = Brand<string, 'CommandIdempotencyKey'>;
 export type EventId = Brand<string, 'EventId'>;
@@ -17,6 +18,10 @@ export function asAgentId(value: string): AgentId {
 
 export function asLocationId(value: string): LocationId {
   return value as LocationId;
+}
+
+export function asConversationId(value: string): ConversationId {
+  return value as ConversationId;
 }
 
 export function asCommandId(value: string): CommandId {

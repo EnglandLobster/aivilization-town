@@ -1,0 +1,139 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, test } from 'vitest';
+import {
+  FileLocalSimulationRuntimeRunSessionRepository,
+  InMemoryLocalSimulationRuntimeRunSessionRepository,
+  type LocalSimulationRuntimeRunSessionState,
+} from './index';
+
+const tmpRoots: string[] = [];
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+describe('local simulation runtime run session repository', () => {
+  test('in-memory repository stores defensive clones of run session state', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunSessionRepository();
+    const session = createRunningSession();
+
+    await repository.save(session);
+
+    (session.cycles as unknown as ReturnType<typeof createCycle>[]).push(createCycle(2, 150));
+    const firstRead = await repository.get('op-run-session');
+    expect(firstRead).toMatchObject({
+      traceId: 'op-run-session',
+      status: 'running',
+      completedCycleCount: 1,
+      cycles: [{ cycleIndex: 1 }],
+    });
+    expect(firstRead?.cycles).toHaveLength(1);
+
+    (firstRead?.cycles as unknown as ReturnType<typeof createCycle>[] | undefined)?.push(
+      createCycle(3, 200),
+    );
+    await expect(repository.get('op-run-session')).resolves.toMatchObject({
+      cycles: [{ cycleIndex: 1 }],
+    });
+  });
+
+  test('file repository returns the latest run session after restart', async () => {
+    const rootDir = createRootDir();
+    const firstRepository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    await firstRepository.save(createRunningSession());
+
+    const restartedRepository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    await expect(restartedRepository.get('op-run-session')).resolves.toMatchObject({
+      traceId: 'op-run-session',
+      status: 'running',
+      completedCycleCount: 1,
+      cycles: [{ cycleIndex: 1 }],
+    });
+
+    await restartedRepository.save({
+      ...createRunningSession(),
+      status: 'completed',
+      outcome: 'succeeded',
+      stopReason: 'cycle-count-completed',
+      completedCycleCount: 2,
+      cycles: [createCycle(1, 100), createCycle(2, 150)],
+      updatedAt: 150,
+    });
+
+    const finalRepository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    await expect(finalRepository.get('op-run-session')).resolves.toMatchObject({
+      traceId: 'op-run-session',
+      status: 'completed',
+      outcome: 'succeeded',
+      stopReason: 'cycle-count-completed',
+      completedCycleCount: 2,
+      cycles: [{ cycleIndex: 1 }, { cycleIndex: 2 }],
+      updatedAt: 150,
+    });
+  });
+});
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-run-session-'));
+  tmpRoots.push(root);
+  return root;
+}
+
+function createRunningSession(): LocalSimulationRuntimeRunSessionState {
+  return {
+    traceId: 'op-run-session',
+    manifestId: 'town-runtime',
+    requestedAt: 100,
+    requestedCycleCount: 2,
+    cycleIntervalMs: 50,
+    stopOnAttention: true,
+    status: 'running',
+    completedCycleCount: 1,
+    cycles: [createCycle(1, 100)],
+    statusSnapshot: createStatus(1),
+    updatedAt: 100,
+  };
+}
+
+function createCycle(cycleIndex: number, requestedAt: number) {
+  return {
+    cycleIndex,
+    traceId: `op-run-session:cycle:${cycleIndex}`,
+    requestedAt,
+    outcome: 'succeeded' as const,
+    succeededPartitionCount: 2,
+    failedPartitionCount: 0,
+    attentionPartitionCount: 0,
+  };
+}
+
+function createStatus(nextTickIndex: number) {
+  return {
+    manifestId: 'town-runtime',
+    partitionCount: 1,
+    healthyPartitionCount: 1,
+    attentionPartitionCount: 0,
+    partitions: [
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        scenarioPresetId: 'scenario-main',
+        status: 'completed' as const,
+        health: 'healthy' as const,
+        initializedCheckpoint: true,
+        seededAgentCount: 1,
+        skippedAgentCount: 0,
+        lastAppliedSequence: nextTickIndex - 1,
+        nextTickIndex,
+        updatedAt: 100,
+      },
+    ],
+  };
+}

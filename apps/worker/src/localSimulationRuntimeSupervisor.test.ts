@@ -1,10 +1,7 @@
-import {
-  asAgentId,
-  asLocationId,
-  type AgentId,
-} from '@aivilization/sim-core';
+import { createAmmPool } from '@aivilization/economy';
+import { asAgentId, asLocationId, createEventEnvelope, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
-import { type WorldCommandPolicies } from '@aivilization/world';
+import { type WorldCommandPolicies, type WorldEvent } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,7 +9,9 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
   createLocalSimulationRuntimeSupervisor,
+  type LocalSimulationLifecycleValidationSchedule,
   type LocalSimulationRuntimeManifest,
+  type LocalWorldRuntimeStorage,
 } from './index';
 
 const agentOne = asAgentId('agent-1');
@@ -284,9 +283,81 @@ describe('local simulation runtime supervisor', () => {
       },
     });
   });
+
+  test('records generated validation report links in start-all operation traces', async () => {
+    const host = await bootstrapTestHost({ validationSchedule: createValidationSchedule() });
+    appendTradeEvents(host.partitions[0]!.bootstrap.storage, agentOne, [100, 110, 99]);
+    appendTradeEvents(host.partitions[1]!.bootstrap.storage, agentTwo, [100, 105, 95]);
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-validation-400',
+      requestedAt: 400,
+    });
+
+    expect(
+      startResult.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        status: partition.status,
+        validationRunId:
+          partition.outcome === 'succeeded'
+            ? partition.result.validationReport?.report.run.runId
+            : undefined,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        status: 'completed',
+        validationRunId: 'town-runtime:sim-1:world-main:validation:400:4',
+      },
+      {
+        partitionKey: 'world-east',
+        status: 'completed',
+        validationRunId: 'town-runtime:sim-1:world-east:validation:400:4',
+      },
+    ]);
+    await expect(supervisor.getOperationTrace('op-start-validation-400')).resolves.toMatchObject({
+      traceId: 'op-start-validation-400',
+      command: 'start-all',
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+          validationReport: {
+            runId: 'town-runtime:sim-1:world-main:validation:400:4',
+            generatedAt: 400,
+            source: 'local-lifecycle-validation',
+            streamVersion: 4,
+            fromSequence: 0,
+            toSequence: 3,
+            eventCount: 3,
+            projectionSequence: 3,
+          },
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'succeeded',
+          status: 'completed',
+          validationReport: {
+            runId: 'town-runtime:sim-1:world-east:validation:400:4',
+            generatedAt: 400,
+            source: 'local-lifecycle-validation',
+            streamVersion: 4,
+            fromSequence: 0,
+            toSequence: 3,
+            eventCount: 3,
+            projectionSequence: 3,
+          },
+        },
+      ],
+    });
+  });
 });
 
-function toStatusSummary(status: ReturnType<ReturnType<typeof createLocalSimulationRuntimeSupervisor>['getStatus']>) {
+function toStatusSummary(
+  status: ReturnType<ReturnType<typeof createLocalSimulationRuntimeSupervisor>['getStatus']>,
+) {
   return {
     manifestId: status.manifestId,
     partitionCount: status.partitionCount,
@@ -307,7 +378,11 @@ function toStatusSummary(status: ReturnType<ReturnType<typeof createLocalSimulat
   };
 }
 
-async function bootstrapTestHost() {
+async function bootstrapTestHost(
+  input: {
+    readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
+  } = {},
+) {
   return bootstrapLocalSimulationRuntimeHostFromManifest({
     rootDir: createRootDir(),
     bootstrappedAt: 100,
@@ -317,6 +392,9 @@ async function bootstrapTestHost() {
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
     agents: [],
+    ...(input.validationSchedule === undefined
+      ? {}
+      : { validationSchedule: input.validationSchedule }),
   });
 }
 
@@ -400,4 +478,84 @@ function createScenarioPreset(input: {
     ],
     source: 'test',
   };
+}
+
+function appendTradeEvents(
+  storage: LocalWorldRuntimeStorage,
+  agentId: AgentId,
+  closePrices: readonly number[],
+): void {
+  storage.eventStore.appendToStream({
+    streamName: storage.partition.eventStreamName,
+    expectedVersion: 0,
+    events: closePrices.map((closePrice, index) =>
+      createTradeEvent({
+        id: `${storage.partition.partitionKey}:trade-${index + 1}`,
+        agentId,
+        price: closePrice,
+        occurredAt: index,
+        sequence: index + 1,
+      }),
+    ),
+  });
+}
+
+function createTradeEvent(input: {
+  readonly id: string;
+  readonly agentId: AgentId;
+  readonly price: number;
+  readonly occurredAt: number;
+  readonly sequence: number;
+}): WorldEvent {
+  return createEventEnvelope({
+    id: input.id,
+    simulationId: 'sim-1',
+    type: 'TradeExecuted',
+    payload: {
+      agentId: input.agentId,
+      side: 'buy' as const,
+      commodityName: 'Fish',
+      commodityQuantity: 1,
+      currencyQuantity: input.price,
+      poolAfter: createAmmPool({
+        commodity: 'Fish',
+        commodityReserve: 10,
+        currencyReserve: input.price * 10,
+      }),
+      moneySupplyDelta: 0,
+    },
+    occurredAt: input.occurredAt,
+    sequence: input.sequence,
+  });
+}
+
+function createValidationSchedule(): LocalSimulationLifecycleValidationSchedule {
+  return {
+    plannerRuns: createPlannerRuns(),
+    eventWindow: { afterSequence: 0, toSequence: 3 },
+    expectedTrajectoryAgentIds: ['agent-1', 'agent-2'],
+    trajectories: [
+      { agentId: 'agent-1', stepCount: 1 },
+      { agentId: 'agent-2', stepCount: 1 },
+    ],
+    thresholds: {
+      heavyTailReturns: { minimumExcessKurtosis: -2 },
+      volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+    },
+  };
+}
+
+function createPlannerRuns() {
+  return [
+    {
+      taskId: 'high-tech-production',
+      variant: 'default',
+      metrics: [{ metricId: 'net-worth', value: 110_098, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-branch',
+      metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+    },
+  ];
 }

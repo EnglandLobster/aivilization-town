@@ -76,6 +76,10 @@ export type WealthStratificationThresholds = {
 
 export type PlannerAblationThresholds = {
   readonly minimumDefaultWinRate?: number;
+  readonly minimumDefaultCommandEmittingCycleRatio?: number;
+  readonly maximumDefaultSimulatorRejectedRatio?: number;
+  readonly maximumDefaultReplanningCycleRatio?: number;
+  readonly maximumDefaultSingleBranchPlanRatio?: number;
 };
 
 export type TrajectoryCoverageThresholds = {
@@ -141,6 +145,32 @@ type PlannerComparison = {
   readonly higherIsBetter: boolean;
 };
 
+type PlannerNamedMetricSummary = {
+  readonly comparisonCount: number;
+  readonly defaultValue: number;
+  readonly ablatedValue: number;
+  readonly defaultAdvantage: number;
+};
+
+const PLANNER_SHAPE_METRIC_IDS = new Set([
+  'planner-plan-count',
+  'planner-mean-branch-count',
+  'planner-mean-subtask-count',
+  'planner-single-branch-plan-ratio',
+]);
+
+const PLANNER_OUTCOME_METRIC_IDS = new Set([
+  'planner-cycle-trace-count',
+  'planner-command-emitting-cycle-ratio',
+  'planner-simulator-accepted-ratio',
+  'planner-simulator-repaired-ratio',
+  'planner-simulator-rejected-ratio',
+  'planner-replanning-cycle-ratio',
+  'planner-mean-accepted-action-count',
+  'planner-mean-emitted-command-count',
+  'planner-distinct-selected-branch-count',
+]);
+
 const DEFAULT_THRESHOLDS = {
   marketStability: {
     maximumLogPriceRange: 2,
@@ -159,6 +189,10 @@ const DEFAULT_THRESHOLDS = {
   },
   plannerAblation: {
     minimumDefaultWinRate: 0.5,
+    minimumDefaultCommandEmittingCycleRatio: 0,
+    maximumDefaultSimulatorRejectedRatio: 1,
+    maximumDefaultReplanningCycleRatio: 1,
+    maximumDefaultSingleBranchPlanRatio: 1,
   },
   trajectoryCoverage: {
     minimumCoverageRatio: 1,
@@ -380,9 +414,15 @@ function calculateWealthDiagnostics(wealthSnapshot: readonly WealthSnapshotObser
 
 function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[]): {
   readonly taskMetricCount: number;
+  readonly plannerShapeMetricCount: number;
+  readonly plannerOutcomeMetricCount: number;
   readonly comparisonCount: number;
   readonly defaultWinRate: number;
   readonly meanNormalizedDefaultAdvantage: number;
+  readonly commandEmittingCycleRatio: PlannerNamedMetricSummary;
+  readonly simulatorRejectedRatio: PlannerNamedMetricSummary;
+  readonly replanningCycleRatio: PlannerNamedMetricSummary;
+  readonly singleBranchPlanRatio: PlannerNamedMetricSummary;
 } {
   if (plannerRuns.length === 0) {
     throw new Error('plannerRuns requires at least one planner experiment run');
@@ -435,10 +475,25 @@ function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[
   const winningComparisons = comparisons.filter((comparison) => isDefaultAtLeastAsGood(comparison));
   return {
     taskMetricCount: groups.size,
+    plannerShapeMetricCount: countPlannerMetricGroups(groups, PLANNER_SHAPE_METRIC_IDS),
+    plannerOutcomeMetricCount: countPlannerMetricGroups(groups, PLANNER_OUTCOME_METRIC_IDS),
     comparisonCount: comparisons.length,
     defaultWinRate: winningComparisons.length / comparisons.length,
     meanNormalizedDefaultAdvantage: calculateMean(
       comparisons.map((comparison) => calculateNormalizedDefaultAdvantage(comparison)),
+    ),
+    commandEmittingCycleRatio: summarizeNamedPlannerMetric(
+      groups,
+      'planner-command-emitting-cycle-ratio',
+    ),
+    simulatorRejectedRatio: summarizeNamedPlannerMetric(
+      groups,
+      'planner-simulator-rejected-ratio',
+    ),
+    replanningCycleRatio: summarizeNamedPlannerMetric(groups, 'planner-replanning-cycle-ratio'),
+    singleBranchPlanRatio: summarizeNamedPlannerMetric(
+      groups,
+      'planner-single-branch-plan-ratio',
     ),
   };
 }
@@ -603,17 +658,53 @@ function createPlannerAblationMetric(
   diagnostics: ReturnType<typeof calculatePlannerDiagnostics>,
   thresholds: Required<PlannerAblationThresholds>,
 ): ExperimentValidationMetric {
+  const status =
+    diagnostics.defaultWinRate >= thresholds.minimumDefaultWinRate &&
+    thresholdPassesMinimum(
+      diagnostics.commandEmittingCycleRatio,
+      thresholds.minimumDefaultCommandEmittingCycleRatio,
+    ) &&
+    thresholdPassesMaximum(
+      diagnostics.simulatorRejectedRatio,
+      thresholds.maximumDefaultSimulatorRejectedRatio,
+    ) &&
+    thresholdPassesMaximum(
+      diagnostics.replanningCycleRatio,
+      thresholds.maximumDefaultReplanningCycleRatio,
+    ) &&
+    thresholdPassesMaximum(
+      diagnostics.singleBranchPlanRatio,
+      thresholds.maximumDefaultSingleBranchPlanRatio,
+    )
+      ? 'pass'
+      : 'watch';
+
   return {
     id: 'planner-ablation',
     label: 'Planner ablation',
-    status: diagnostics.defaultWinRate >= thresholds.minimumDefaultWinRate ? 'pass' : 'watch',
+    status,
     value: diagnostics.defaultWinRate,
     unit: 'default win rate',
     evidence: {
       taskMetricCount: diagnostics.taskMetricCount,
+      plannerShapeMetricCount: diagnostics.plannerShapeMetricCount,
+      plannerOutcomeMetricCount: diagnostics.plannerOutcomeMetricCount,
       comparisonCount: diagnostics.comparisonCount,
       defaultWinRate: diagnostics.defaultWinRate,
       meanNormalizedDefaultAdvantage: diagnostics.meanNormalizedDefaultAdvantage,
+      defaultCommandEmittingCycleRatio: diagnostics.commandEmittingCycleRatio.defaultValue,
+      ablatedCommandEmittingCycleRatio: diagnostics.commandEmittingCycleRatio.ablatedValue,
+      commandEmittingCycleRatioDefaultAdvantage:
+        diagnostics.commandEmittingCycleRatio.defaultAdvantage,
+      defaultSimulatorRejectedRatio: diagnostics.simulatorRejectedRatio.defaultValue,
+      ablatedSimulatorRejectedRatio: diagnostics.simulatorRejectedRatio.ablatedValue,
+      simulatorRejectedRatioDefaultAdvantage: diagnostics.simulatorRejectedRatio.defaultAdvantage,
+      defaultReplanningCycleRatio: diagnostics.replanningCycleRatio.defaultValue,
+      ablatedReplanningCycleRatio: diagnostics.replanningCycleRatio.ablatedValue,
+      replanningCycleRatioDefaultAdvantage: diagnostics.replanningCycleRatio.defaultAdvantage,
+      defaultSingleBranchPlanRatio: diagnostics.singleBranchPlanRatio.defaultValue,
+      ablatedSingleBranchPlanRatio: diagnostics.singleBranchPlanRatio.ablatedValue,
+      singleBranchPlanRatioDefaultAdvantage: diagnostics.singleBranchPlanRatio.defaultAdvantage,
     },
   };
 }
@@ -797,6 +888,53 @@ function parseTaskMetricKey(key: string): { readonly taskId: string; readonly me
   return { taskId, metricId };
 }
 
+function countPlannerMetricGroups(
+  groups: ReadonlyMap<string, readonly PlannerExperimentRun[]>,
+  metricIds: ReadonlySet<string>,
+): number {
+  return [...groups.keys()].filter((key) => metricIds.has(parseTaskMetricKey(key).metricId))
+    .length;
+}
+
+function summarizeNamedPlannerMetric(
+  groups: ReadonlyMap<string, readonly PlannerExperimentRun[]>,
+  metricId: string,
+): PlannerNamedMetricSummary {
+  const defaultValues: number[] = [];
+  const ablatedValues: number[] = [];
+  const defaultAdvantages: number[] = [];
+
+  for (const [key, runs] of groups) {
+    if (parseTaskMetricKey(key).metricId !== metricId) {
+      continue;
+    }
+    const defaultRun = runs.find((run) => run.variant === 'default');
+    if (defaultRun === undefined) {
+      continue;
+    }
+    const defaultMetric = getMetricFromRun(defaultRun, metricId);
+    for (const ablatedRun of runs.filter((run) => run.variant !== 'default')) {
+      const ablatedMetric = getMetricFromRun(ablatedRun, metricId);
+      defaultValues.push(defaultMetric.value);
+      ablatedValues.push(ablatedMetric.value);
+      defaultAdvantages.push(
+        calculateAbsoluteDefaultAdvantage({
+          defaultValue: defaultMetric.value,
+          ablatedValue: ablatedMetric.value,
+          higherIsBetter: defaultMetric.higherIsBetter,
+        }),
+      );
+    }
+  }
+
+  return {
+    comparisonCount: defaultAdvantages.length,
+    defaultValue: calculateMean(defaultValues),
+    ablatedValue: calculateMean(ablatedValues),
+    defaultAdvantage: calculateMean(defaultAdvantages),
+  };
+}
+
 function getMetricFromRun(run: PlannerExperimentRun, metricId: string): PlannerExperimentMetric {
   const metric = run.metrics.find((candidate) => candidate.metricId === metricId);
   if (metric === undefined) {
@@ -816,6 +954,26 @@ function calculateNormalizedDefaultAdvantage(comparison: PlannerComparison): num
     ? comparison.defaultValue - comparison.ablatedValue
     : comparison.ablatedValue - comparison.defaultValue;
   return numerator / Math.max(Math.abs(comparison.ablatedValue), 1);
+}
+
+function calculateAbsoluteDefaultAdvantage(comparison: PlannerComparison): number {
+  return comparison.higherIsBetter
+    ? comparison.defaultValue - comparison.ablatedValue
+    : comparison.ablatedValue - comparison.defaultValue;
+}
+
+function thresholdPassesMinimum(
+  summary: PlannerNamedMetricSummary,
+  minimumValue: number,
+): boolean {
+  return summary.comparisonCount === 0 || summary.defaultValue >= minimumValue;
+}
+
+function thresholdPassesMaximum(
+  summary: PlannerNamedMetricSummary,
+  maximumValue: number,
+): boolean {
+  return summary.comparisonCount === 0 || summary.defaultValue <= maximumValue;
 }
 
 function safeRatio(numerator: number, denominator: number): number {

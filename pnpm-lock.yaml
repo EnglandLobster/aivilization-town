@@ -59,6 +59,9 @@ importers:
       '@aivilization/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      '@aivilization/api':
+        specifier: workspace:*
+        version: link:../api
       '@aivilization/content':
         specifier: workspace:*
         version: link:../../packages/content

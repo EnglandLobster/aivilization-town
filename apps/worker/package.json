@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aivilization/agent-runtime": "workspace:*",
+    "@aivilization/api": "workspace:*",
     "@aivilization/content": "workspace:*",
     "@aivilization/memory": "workspace:*",
     "@aivilization/observability": "workspace:*",

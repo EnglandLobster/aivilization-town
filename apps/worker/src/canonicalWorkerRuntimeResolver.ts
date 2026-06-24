@@ -13,6 +13,7 @@ import {
 } from '@aivilization/sim-core';
 import {
   dispatchWorldCommand,
+  type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
   type WorldCommandPolicies,
@@ -119,6 +120,11 @@ function createCanonicalSubtaskCompletionPolicy(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;
 }): CycleSubtaskCompletionPolicy {
   return ({ selectedSubtask, simulationResults }) => {
+    const movementCompletion = decideMovementSubtaskCompletion({ simulationResults });
+    if (movementCompletion !== undefined) {
+      return movementCompletion;
+    }
+
     const residentialCompletion = decideResidentialSubtaskCompletion({
       context: input.context,
       selectedSubtask,
@@ -135,6 +141,22 @@ function createCanonicalSubtaskCompletionPolicy(input: {
       simulationResults,
       ...(input.productionConfig === undefined ? {} : { config: input.productionConfig }),
     });
+  };
+}
+
+function decideMovementSubtaskCompletion(input: {
+  readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
+}): ReturnType<CycleSubtaskCompletionPolicy> | undefined {
+  const movementAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentMoveToAction);
+  if (movementAction === undefined) {
+    return undefined;
+  }
+
+  return {
+    status: 'in-progress',
+    reason: 'moved to required location before executing subtask',
   };
 }
 
@@ -213,6 +235,12 @@ function isAgentProduceAction(
   action: AtomicActionProposal | undefined,
 ): action is AtomicActionProposal<'AgentProduce', AgentProducePayload> {
   return action !== undefined && action.commandType === 'AgentProduce';
+}
+
+function isAgentMoveToAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<'AgentMoveTo', AgentMoveToPayload> {
+  return action !== undefined && action.commandType === 'AgentMoveTo';
 }
 
 function isAgentUpgradeResidentialTierAction(

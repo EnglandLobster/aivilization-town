@@ -17,7 +17,10 @@ import {
   type PartitionKey,
   type SimulationPartition,
 } from '@aivilization/sim-core';
-import { FileAgentCycleTraceRepository } from '@aivilization/observability';
+import {
+  FileAgentCycleTraceRepository,
+  FileExperimentValidationReportRepository,
+} from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { join, resolve } from 'node:path';
 import type {
@@ -64,6 +67,7 @@ export type LocalWorldRuntimeStorage = {
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
+  readonly experimentValidationReportRepository: FileExperimentValidationReportRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
   readonly checkpointHydration: WorkerTickProjectionCheckpointHydrationInput;
@@ -116,6 +120,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const agentCycleTraceRepository = new FileAgentCycleTraceRepository({
     rootDir: paths.observabilityDir,
   });
+  const experimentValidationReportRepository = new FileExperimentValidationReportRepository({
+    rootDir: paths.observabilityDir,
+  });
   const repositories = {
     intentionRepository,
     longTermProfileRepository,
@@ -143,6 +150,7 @@ export function createLocalWorldRuntimeStorage(input: {
     planRepository,
     planProgressRepository,
     agentCycleTraceRepository,
+    experimentValidationReportRepository,
     repositories,
     checkpointing,
     checkpointHydration: checkpointing,

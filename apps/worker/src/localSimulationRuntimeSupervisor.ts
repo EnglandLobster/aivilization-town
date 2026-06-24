@@ -1,6 +1,7 @@
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import { join } from 'node:path';
 import type {
+  LocalSimulationLifecycleMemoryConsolidationStatus,
   LocalSimulationLifecycleValidationFailure,
   LocalSimulationLifecyclePauseResult,
   LocalSimulationLifecycleStartResult,
@@ -12,6 +13,8 @@ import type { LocalSimulationRuntimeHost } from './localSimulationRuntimeHost';
 import {
   FileLocalSimulationRuntimeOperationTraceRepository,
   type LocalSimulationRuntimeOperationCommand,
+  type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace,
+  type LocalSimulationRuntimeOperationMemoryConsolidationTrace,
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeOperationTraceQuery,
   type LocalSimulationRuntimeOperationTraceRepository,
@@ -41,6 +44,12 @@ export type LocalSimulationRuntimeSupervisorPartition = {
   readonly lastValidationReportRunId?: string;
   readonly lastValidationGeneratedAt?: SimulationTimestamp;
   readonly lastValidationFailure?: LocalSimulationLifecycleValidationFailure;
+  readonly lastMemoryConsolidationStatus?: LocalSimulationLifecycleMemoryConsolidationStatus;
+  readonly lastMemoryConsolidationAt?: SimulationTimestamp;
+  readonly lastMemoryConsolidationAgentCount?: number;
+  readonly lastMemoryConsolidationPatchCount?: number;
+  readonly lastMemoryConsolidationCursorCount?: number;
+  readonly lastMemoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationRuntimeSupervisorStatus = {
@@ -297,6 +306,10 @@ function createOperationTrace(input: {
       }
       const validationReport = createOperationValidationReportTrace(partition.result);
       const validationFailure = createOperationValidationFailureTrace(partition.result);
+      const memoryConsolidation = createOperationMemoryConsolidationTrace(partition.result);
+      const memoryConsolidationFailure = createOperationMemoryConsolidationFailureTrace(
+        partition.result,
+      );
       return {
         simulationId: partition.simulationId,
         partitionKey: partition.partitionKey,
@@ -304,6 +317,8 @@ function createOperationTrace(input: {
         status: partition.status,
         ...(validationReport === undefined ? {} : { validationReport }),
         ...(validationFailure === undefined ? {} : { validationFailure }),
+        ...(memoryConsolidation === undefined ? {} : { memoryConsolidation }),
+        ...(memoryConsolidationFailure === undefined ? {} : { memoryConsolidationFailure }),
       };
     }),
     status: input.result.status,
@@ -347,6 +362,38 @@ function createOperationValidationFailureTrace(
   };
 }
 
+function createOperationMemoryConsolidationTrace(
+  result: LocalSimulationLifecycleStartResult | LocalSimulationLifecyclePauseResult,
+): LocalSimulationRuntimeOperationMemoryConsolidationTrace | undefined {
+  if (!('memoryConsolidation' in result) || result.memoryConsolidation === undefined) {
+    return undefined;
+  }
+  return {
+    agentCount: result.memoryConsolidation.results.length,
+    patchCount: result.memoryConsolidation.patchCount,
+    cursorCount: result.memoryConsolidation.cursors.length,
+    consolidatedAt: result.state.lastMemoryConsolidationAt ?? result.state.updatedAt,
+  };
+}
+
+function createOperationMemoryConsolidationFailureTrace(
+  result: LocalSimulationLifecycleStartResult | LocalSimulationLifecyclePauseResult,
+): LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace | undefined {
+  if (
+    !('memoryConsolidationFailure' in result) ||
+    result.memoryConsolidationFailure === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    name: result.memoryConsolidationFailure.name,
+    message: result.memoryConsolidationFailure.message,
+    ...(result.memoryConsolidationFailure.stack === undefined
+      ? {}
+      : { stack: result.memoryConsolidationFailure.stack }),
+  };
+}
+
 function createOperationTraceId(
   host: LocalSimulationRuntimeHost,
   command: LocalSimulationRuntimeOperationCommand,
@@ -372,6 +419,7 @@ function createSupervisorStatus(
     const health: LocalSimulationRuntimeSupervisorHealth = partitionRequiresAttention({
       status,
       lastValidationStatus: lifecycleState?.lastValidationStatus,
+      lastMemoryConsolidationStatus: lifecycleState?.lastMemoryConsolidationStatus,
     })
       ? 'attention'
       : 'healthy';
@@ -401,6 +449,30 @@ function createSupervisorStatus(
       ...(lifecycleState?.lastValidationFailure === undefined
         ? {}
         : { lastValidationFailure: lifecycleState.lastValidationFailure }),
+      ...(lifecycleState?.lastMemoryConsolidationStatus === undefined
+        ? {}
+        : { lastMemoryConsolidationStatus: lifecycleState.lastMemoryConsolidationStatus }),
+      ...(lifecycleState?.lastMemoryConsolidationAt === undefined
+        ? {}
+        : { lastMemoryConsolidationAt: lifecycleState.lastMemoryConsolidationAt }),
+      ...(lifecycleState?.lastMemoryConsolidationAgentCount === undefined
+        ? {}
+        : {
+            lastMemoryConsolidationAgentCount: lifecycleState.lastMemoryConsolidationAgentCount,
+          }),
+      ...(lifecycleState?.lastMemoryConsolidationPatchCount === undefined
+        ? {}
+        : {
+            lastMemoryConsolidationPatchCount: lifecycleState.lastMemoryConsolidationPatchCount,
+          }),
+      ...(lifecycleState?.lastMemoryConsolidationCursorCount === undefined
+        ? {}
+        : {
+            lastMemoryConsolidationCursorCount: lifecycleState.lastMemoryConsolidationCursorCount,
+          }),
+      ...(lifecycleState?.lastMemoryConsolidationFailure === undefined
+        ? {}
+        : { lastMemoryConsolidationFailure: lifecycleState.lastMemoryConsolidationFailure }),
     };
   });
   const healthyPartitionCount = partitions.filter(
@@ -423,8 +495,15 @@ function statusRequiresAttention(status: LocalSimulationRuntimeSupervisorPartiti
 function partitionRequiresAttention(input: {
   readonly status: LocalSimulationRuntimeSupervisorPartitionStatus;
   readonly lastValidationStatus: LocalSimulationLifecycleValidationStatus | undefined;
+  readonly lastMemoryConsolidationStatus:
+    | LocalSimulationLifecycleMemoryConsolidationStatus
+    | undefined;
 }): boolean {
-  return statusRequiresAttention(input.status) || input.lastValidationStatus === 'failed';
+  return (
+    statusRequiresAttention(input.status) ||
+    input.lastValidationStatus === 'failed' ||
+    input.lastMemoryConsolidationStatus === 'failed'
+  );
 }
 
 function assertStartResult(

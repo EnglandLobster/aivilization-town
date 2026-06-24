@@ -292,6 +292,13 @@ describe('local simulation lifecycle controller', () => {
     const first = await controller.start(createRequest(1000));
 
     expect(first.status).toBe('completed');
+    expect(first.state).toMatchObject({
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationAt: 1000,
+      lastMemoryConsolidationAgentCount: 1,
+      lastMemoryConsolidationPatchCount: 1,
+      lastMemoryConsolidationCursorCount: 1,
+    });
     expect(first.memoryConsolidation).toMatchObject({
       agentIds: ['agent-1'],
       patchCount: 1,
@@ -316,6 +323,18 @@ describe('local simulation lifecycle controller', () => {
       lastProcessedOccurredAt: 3,
       updatedAt: 1000,
     });
+    const storedFirstState = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    }).lifecycleStateStore.getState(createRequest(1500));
+    expect(storedFirstState).toMatchObject({
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationAt: 1000,
+      lastMemoryConsolidationAgentCount: 1,
+      lastMemoryConsolidationPatchCount: 1,
+      lastMemoryConsolidationCursorCount: 1,
+    });
 
     const restartedStorage = createLocalWorldRuntimeStorage({
       rootDir,
@@ -338,6 +357,53 @@ describe('local simulation lifecycle controller', () => {
       agentIds: ['agent-1'],
       patchCount: 0,
       cursors: [],
+    });
+  });
+
+  test('returns memory consolidation failure metadata without failing a completed lifecycle start', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 0,
+        minPatternCount: 3,
+      },
+    });
+
+    const result = await controller.start(createRequest(1050));
+
+    expect(result.status).toBe('completed');
+    expect(result.memoryConsolidation).toBeUndefined();
+    expect(result.memoryConsolidationFailure).toMatchObject({
+      name: 'Error',
+      message: 'limit must be a positive integer',
+    });
+    expect(result.state).toMatchObject({
+      lastMemoryConsolidationStatus: 'failed',
+      lastMemoryConsolidationFailure: {
+        name: 'Error',
+        message: 'limit must be a positive integer',
+      },
+    });
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(restartedStorage.lifecycleStateStore.getState(createRequest(1055))).toMatchObject({
+      lastMemoryConsolidationStatus: 'failed',
+      lastMemoryConsolidationFailure: {
+        name: 'Error',
+        message: 'limit must be a positive integer',
+      },
     });
   });
 

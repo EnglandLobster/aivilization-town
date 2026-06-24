@@ -51,6 +51,8 @@ export type AgentTrajectoryObservation = {
   readonly stepCount: number;
   readonly firstEventId?: string;
   readonly lastEventId?: string;
+  readonly firstCommandId?: string;
+  readonly lastCommandId?: string;
 };
 
 export type MarketStabilityThresholds = {
@@ -451,6 +453,7 @@ function calculateTrajectoryDiagnostics(
   readonly missingAgentCount: number;
   readonly minimumStepCount: number;
   readonly maximumStepCount: number;
+  readonly commandBackedTrajectoryCount: number;
 } {
   if (expectedAgentIds.length === 0) {
     throw new Error('expectedTrajectoryAgentIds requires at least one agent id');
@@ -475,12 +478,19 @@ function calculateTrajectoryDiagnostics(
     if (trajectory.lastEventId !== undefined) {
       assertNonEmptyString(trajectory.lastEventId, 'trajectories lastEventId');
     }
+    if (trajectory.firstCommandId !== undefined) {
+      assertNonEmptyString(trajectory.firstCommandId, 'trajectories firstCommandId');
+    }
+    if (trajectory.lastCommandId !== undefined) {
+      assertNonEmptyString(trajectory.lastCommandId, 'trajectories lastCommandId');
+    }
     trajectoryByAgent.set(trajectory.agentId, trajectory);
   }
 
-  const coveredStepCounts = [...expected]
-    .map((agentId) => trajectoryByAgent.get(agentId)?.stepCount)
-    .filter((stepCount): stepCount is number => stepCount !== undefined);
+  const coveredTrajectories = [...expected]
+    .map((agentId) => trajectoryByAgent.get(agentId))
+    .filter((trajectory): trajectory is AgentTrajectoryObservation => trajectory !== undefined);
+  const coveredStepCounts = coveredTrajectories.map((trajectory) => trajectory.stepCount);
 
   return {
     expectedAgentCount: expected.size,
@@ -489,6 +499,7 @@ function calculateTrajectoryDiagnostics(
     missingAgentCount: expected.size - coveredStepCounts.length,
     minimumStepCount: coveredStepCounts.length === 0 ? 0 : Math.min(...coveredStepCounts),
     maximumStepCount: coveredStepCounts.length === 0 ? 0 : Math.max(...coveredStepCounts),
+    commandBackedTrajectoryCount: coveredTrajectories.filter(hasCommandSpan).length,
   };
 }
 
@@ -630,8 +641,13 @@ function createTrajectoryCoverageMetric(
       missingAgentCount: diagnostics.missingAgentCount,
       minimumStepCount: diagnostics.minimumStepCount,
       maximumStepCount: diagnostics.maximumStepCount,
+      commandBackedTrajectoryCount: diagnostics.commandBackedTrajectoryCount,
     },
   };
+}
+
+function hasCommandSpan(trajectory: AgentTrajectoryObservation): boolean {
+  return trajectory.firstCommandId !== undefined && trajectory.lastCommandId !== undefined;
 }
 
 function createFinding(metric: ExperimentValidationMetric): ExperimentValidationFinding {

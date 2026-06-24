@@ -59,6 +59,8 @@ describe('experiment validation report', () => {
           stepCount: 5,
           firstEventId: 'event-1',
           lastEventId: 'event-5',
+          firstCommandId: 'cmd-a-1',
+          lastCommandId: 'cmd-a-5',
         },
         {
           agentId: 'agent-b',
@@ -119,6 +121,7 @@ describe('experiment validation report', () => {
     expect(trajectories.value).toBeCloseTo(2 / 3);
     expect(trajectories.evidence.missingAgentCount).toBe(1);
     expect(trajectories.evidence.minimumStepCount).toBe(1);
+    expect(trajectories.evidence.commandBackedTrajectoryCount).toBe(1);
 
     expect(report.findings).toHaveLength(6);
     expect(report.findings.map((finding) => finding.topic)).toEqual(

@@ -154,6 +154,43 @@ describe('canonical worker runtime resolver', () => {
 
     expect(binding?.microPlanners.map((planner) => planner.domain)).toEqual(['study', 'custom']);
   });
+
+  test('keeps residential subtasks in progress until the inferred target tier is reached', async () => {
+    const projection = createProjection();
+    const resolver = createCanonicalWorkerRuntimeResolver({ simulationId, policies });
+    const binding = await resolver({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createComplexTownObjective({ agentId: agentA }),
+      planRecord: createComplexTownPlanRecord({ agentId: agentA }),
+    });
+
+    expect(
+      binding?.subtaskCompletion?.({
+        selectedSubtask: {
+          branchId: 'residential-readiness',
+          subtaskId: 'upgrade-residential-tier',
+          description: 'Upgrade residential tier toward Chip production.',
+          score: 10,
+        },
+        simulationResults: [
+          {
+            status: 'accepted',
+            action: {
+              id: 'upgrade-tier-2',
+              description: 'Upgrade residential tier to 2.',
+              commandType: 'AgentUpgradeResidentialTier',
+              payload: { targetResidentialTier: 2 },
+            },
+          },
+        ],
+      }),
+    ).toEqual({
+      status: 'in-progress',
+      reason: 'upgraded residential tier to 2 toward required tier 5',
+    });
+  });
 });
 
 function createProjection(): WorldProjection {
@@ -191,6 +228,20 @@ function createObjective(input: { readonly agentId: AgentId }): LongHorizonObjec
     priority: 3,
     source: 'human',
     affinityTags: ['study'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createComplexTownObjective(input: { readonly agentId: AgentId }): LongHorizonObjective {
+  return {
+    id: 'objective-complex-town',
+    agentId: input.agentId,
+    statement:
+      'Upgrade residential tier, apply for Stock Clerk work, then craft Chip for the electronics market.',
+    priority: 3,
+    source: 'human',
+    affinityTags: ['residential', 'work', 'production'],
     createdAt: 100,
     updatedAt: 100,
   };
@@ -238,6 +289,33 @@ function createMultiDomainPlanRecord(input: { readonly agentId: AgentId }) {
               description: 'Attend planned activity.',
               basePriority: 5,
               intentionAffinityTags: ['study', 'custom'],
+            },
+          ],
+        },
+      ],
+    }),
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createComplexTownPlanRecord(input: { readonly agentId: AgentId }) {
+  return {
+    planId: 'objective-complex-town',
+    agentId: input.agentId,
+    plan: createBranchPlan({
+      objective:
+        'Upgrade residential tier, apply for Stock Clerk work, then craft Chip for the electronics market.',
+      branches: [
+        {
+          id: 'residential-readiness',
+          objective: 'Prepare residential capacity for Chip production.',
+          subtasks: [
+            {
+              id: 'upgrade-residential-tier',
+              description: 'Upgrade residential tier toward Chip production.',
+              basePriority: 5,
+              intentionAffinityTags: ['residential'],
             },
           ],
         },

@@ -88,6 +88,12 @@ export type ProductionTargetResolutionInput = {
   readonly selectedSubtask?: PrioritizedSubtask;
 };
 
+export type ResidentialTargetResolutionInput = {
+  readonly config?: ResidentialDomainRuntimeConfig;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
+};
+
 export type CanonicalDomainRuntimeConfig = {
   readonly study?: StudyDomainRuntimeConfig;
   readonly work?: WorkDomainRuntimeConfig;
@@ -124,7 +130,10 @@ export function createCanonicalDomainRuntimeRegistrations(
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
     createProductionDomainRuntimeRegistration(config.production),
-    createResidentialDomainRuntimeRegistration(config.residential, policies?.residentialTierUpgrade),
+    createResidentialDomainRuntimeRegistration(
+      config.residential,
+      policies?.residentialTierUpgrade,
+    ),
   ];
 }
 
@@ -371,11 +380,18 @@ export function createResidentialDomainRuntimeRegistration(
         domain: 'residential',
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
-          const targetResidentialTier =
-            config.targetResidentialTier ?? context.agent.residentialTier + 1;
+          const inferredTargetResidentialTier = resolveResidentialTargetTier({
+            config,
+            context,
+            selectedSubtask,
+          });
+          const targetResidentialTier = resolveNextResidentialUpgradeTier({
+            currentResidentialTier: context.agent.residentialTier,
+            targetResidentialTier: inferredTargetResidentialTier,
+          });
           return {
             id: createCanonicalActionId('residential', selectedSubtask),
-            description: `Upgrade residential tier to ${targetResidentialTier}.`,
+            description: `Upgrade residential tier toward ${inferredTargetResidentialTier}.`,
             commandType: 'AgentUpgradeResidentialTier',
             priority: selectedSubtask.score,
             payload: { targetResidentialTier },
@@ -405,6 +421,35 @@ export function resolveProductionTargetCommodityName(
   }
 
   return DEFAULT_PRODUCTION_COMMODITY;
+}
+
+export function resolveResidentialTargetTier(input: ResidentialTargetResolutionInput): number {
+  let targetResidentialTier =
+    input.config?.targetResidentialTier ?? input.context.agent.residentialTier + 1;
+
+  for (const text of collectContextualTargetTexts(input)) {
+    for (const commodityName of findMatchingTargetNamesInText(text, COMMODITY_TARGETS)) {
+      const minResidentialTier = COMMODITY_BY_NAME.get(commodityName)?.minResidentialTier;
+      if (minResidentialTier !== undefined && minResidentialTier !== null) {
+        targetResidentialTier = Math.max(targetResidentialTier, minResidentialTier);
+      }
+    }
+
+    for (const occupationName of findMatchingTargetNamesInText(text, OCCUPATION_TARGETS)) {
+      const occupation = OCCUPATION_BY_NAME.get(occupationName);
+      if (occupation === undefined) {
+        continue;
+      }
+      const jobTier = JOB_TIER_BY_TIER.get(occupation.jobTier);
+      targetResidentialTier = Math.max(
+        targetResidentialTier,
+        occupation.minResidentialTier,
+        jobTier?.minResidentialTier ?? 0,
+      );
+    }
+  }
+
+  return targetResidentialTier;
 }
 
 type ContextualDomainMicroPlannerInput = {
@@ -446,20 +491,17 @@ function selectedSubtaskMatchesDomain(input: {
   const tokens = new Set<string>();
   addTextTokens(input.selectedSubtask.branchId, tokens);
   addTextTokens(input.selectedSubtask.subtaskId, tokens);
-  addTextTokens(input.selectedSubtask.description, tokens);
 
   const branch = input.planRecord.plan.branches.find(
     (candidate) => candidate.id === input.selectedSubtask.branchId,
   );
   if (branch !== undefined) {
     addTextTokens(branch.id, tokens);
-    addTextTokens(branch.objective, tokens);
     const subtask = branch.subtasks.find(
       (candidate) => candidate.id === input.selectedSubtask.subtaskId,
     );
     if (subtask !== undefined) {
       addTextTokens(subtask.id, tokens);
-      addTextTokens(subtask.description, tokens);
       addTagTokens(subtask.intentionAffinityTags, tokens);
       addTagTokens(subtask.memoryAffinityTags, tokens);
       addTagTokens(subtask.profileAffinityTags, tokens);
@@ -490,6 +532,35 @@ const OCCUPATION_TARGETS: readonly TextTargetCandidate[] = occupations
       right.name.length - left.name.length ||
       left.name.localeCompare(right.name),
   );
+
+type CommodityContent = (typeof commodities)[number];
+type OccupationContent = (typeof occupations)[number];
+type JobTierContent = (typeof jobTiers)[number];
+
+const OCCUPATION_BY_NAME: ReadonlyMap<string, OccupationContent> = new Map(
+  occupations.map((occupation) => [occupation.name, occupation]),
+);
+
+const JOB_TIER_BY_TIER: ReadonlyMap<number, JobTierContent> = new Map(
+  jobTiers.map((jobTier) => [jobTier.tier, jobTier]),
+);
+
+const COMMODITY_TARGETS: readonly TextTargetCandidate[] = commodities
+  .map((commodity) => ({
+    name: commodity.name,
+    tokens: tokenizeText(commodity.name),
+  }))
+  .filter((candidate) => candidate.tokens.length > 0)
+  .sort(
+    (left, right) =>
+      right.tokens.length - left.tokens.length ||
+      right.name.length - left.name.length ||
+      left.name.localeCompare(right.name),
+  );
+
+const COMMODITY_BY_NAME: ReadonlyMap<string, CommodityContent> = new Map(
+  commodities.map((commodity) => [commodity.name, commodity]),
+);
 
 const PRODUCIBLE_PRODUCTION_TARGETS: readonly TextTargetCandidate[] = commodities
   .map((commodity) => ({
@@ -554,25 +625,25 @@ function collectContextualTargetTexts(input: {
 }
 
 function findProducibleCommodityNameInText(text: string): string | undefined {
-  const textTokens = tokenizeText(text);
-  if (textTokens.length === 0) {
-    return undefined;
-  }
-
-  return PRODUCIBLE_PRODUCTION_TARGETS.find((candidate) =>
-    containsTokenPhrase(textTokens, candidate.tokens),
-  )?.name;
+  return findMatchingTargetNamesInText(text, PRODUCIBLE_PRODUCTION_TARGETS)[0];
 }
 
 function findOccupationNameInText(text: string): string | undefined {
+  return findMatchingTargetNamesInText(text, OCCUPATION_TARGETS)[0];
+}
+
+function findMatchingTargetNamesInText(
+  text: string,
+  candidates: readonly TextTargetCandidate[],
+): readonly string[] {
   const textTokens = tokenizeText(text);
   if (textTokens.length === 0) {
-    return undefined;
+    return [];
   }
 
-  return OCCUPATION_TARGETS.find((candidate) =>
-    containsTokenPhrase(textTokens, candidate.tokens),
-  )?.name;
+  return candidates
+    .filter((candidate) => containsTokenPhrase(textTokens, candidate.tokens))
+    .map((candidate) => candidate.name);
 }
 
 function createJobApplicationResourceEstimate(input: {
@@ -690,6 +761,17 @@ function createResidentialUpgradeResourceEstimate(input: {
   return Object.keys(resourceEstimate).length === 0 ? {} : { resourceEstimate };
 }
 
+function resolveNextResidentialUpgradeTier(input: {
+  readonly currentResidentialTier: number;
+  readonly targetResidentialTier: number;
+}): number {
+  if (input.targetResidentialTier <= input.currentResidentialTier) {
+    return input.currentResidentialTier + 1;
+  }
+
+  return Math.min(input.targetResidentialTier, input.currentResidentialTier + 1);
+}
+
 function resolveNextProductionStep(input: {
   readonly commodityName: string;
   readonly quantity: number;
@@ -714,9 +796,7 @@ function resolveNextProductionStep(input: {
   return productionChain.steps[0];
 }
 
-function createProductionStepResourceEstimate(
-  step: ProductionChainStep,
-): ActionResourceEstimate {
+function createProductionStepResourceEstimate(step: ProductionChainStep): ActionResourceEstimate {
   return {
     actionSeconds: step.laborSeconds,
     energyCost: step.energyCost,
@@ -798,5 +878,8 @@ function addTextTokens(text: string, tokens: Set<string>): void {
 }
 
 function tokenizeText(text: string): readonly string[] {
-  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 }

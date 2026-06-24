@@ -1,0 +1,62 @@
+import { describe, expect, test } from 'vitest';
+import { createLocalRuntimeTownProfileGateCriteria } from './index';
+
+describe('local runtime town profile gate criteria', () => {
+  test('derives smoke profile gate criteria from the scenario profile', () => {
+    expect(createLocalRuntimeTownProfileGateCriteria('smoke-25')).toMatchObject({
+      criteriaId: 'aivilization-smoke-25:profile-run-gate',
+      profileId: 'smoke-25',
+      manifestId: 'aivilization-smoke-25',
+      partitionCount: 1,
+      totalProjectionAgentCount: 25,
+      minimumCompletedCycleCount: 1,
+      minimumTotalEventCount: 2,
+      minimumTotalAgentTraceCount: 1,
+      requiredDaemonHealth: 'healthy',
+      requiredOutcome: 'succeeded',
+      requiredStopReason: 'cycle-count-completed',
+      allowedPartitionStatuses: ['completed', 'succeeded'],
+      requiredPartitionHealth: 'healthy',
+      requireStreamVersionMatchesEventCount: true,
+      expectedProjectionAgentCountByPartition: {
+        'world-main': 25,
+      },
+    });
+  });
+
+  test('derives multi-partition default and stress profile gate criteria', () => {
+    const standard = createLocalRuntimeTownProfileGateCriteria('default-100');
+    expect(standard).toMatchObject({
+      criteriaId: 'aivilization-default-100:profile-run-gate',
+      profileId: 'default-100',
+      manifestId: 'aivilization-default-100',
+      partitionCount: 2,
+      totalProjectionAgentCount: 100,
+      expectedProjectionAgentCountByPartition: {
+        'world-main': 50,
+        'world-east': 50,
+      },
+    });
+
+    const stress = createLocalRuntimeTownProfileGateCriteria('headless-stress-1000');
+    expect(stress).toMatchObject({
+      criteriaId: 'aivilization-headless-stress-1000:profile-run-gate',
+      profileId: 'headless-stress-1000',
+      manifestId: 'aivilization-headless-stress-1000',
+      partitionCount: 10,
+      totalProjectionAgentCount: 1000,
+      expectedProjectionAgentCountByPartition: {
+        'world-main': 100,
+        'world-east': 100,
+        'world-west': 100,
+        'world-north': 100,
+        'world-south': 100,
+        'world-market': 100,
+        'world-residential': 100,
+        'world-industrial': 100,
+        'world-campus': 100,
+        'world-rural': 100,
+      },
+    });
+  });
+});

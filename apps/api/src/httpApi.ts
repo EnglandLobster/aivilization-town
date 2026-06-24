@@ -317,6 +317,17 @@ async function routeRuntimeSupervisorRequest<
       ),
     );
   }
+  if (segments.length === 3 && segments[1] === 'run-sessions') {
+    assertMethod(request, 'GET');
+    const traceId = segments[2];
+    if (traceId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      200,
+      await runtimeSupervisor.getRuntimeRunSession({ traceId: decodePathPart(traceId) }),
+    );
+  }
   if (segments.length === 3 && segments[1] === 'operation-traces') {
     assertMethod(request, 'GET');
     const traceId = segments[2];

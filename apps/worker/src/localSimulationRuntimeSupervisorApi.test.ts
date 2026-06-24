@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   createLocalSimulationRuntimeSupervisorApiService,
+  type LocalSimulationRuntimeRunSessionState,
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorPauseAllResult,
@@ -44,6 +45,21 @@ describe('local simulation runtime supervisor API adapter', () => {
       cycles: [],
       status,
     };
+    const runSession: LocalSimulationRuntimeRunSessionState = {
+      traceId: 'op-run-200',
+      manifestId: 'town-runtime',
+      requestedAt: 200,
+      requestedCycleCount: 2,
+      cycleIntervalMs: 50,
+      stopOnAttention: true,
+      status: 'completed',
+      completedCycleCount: 2,
+      cycles: [],
+      statusSnapshot: status,
+      outcome: 'succeeded',
+      stopReason: 'cycle-count-completed',
+      updatedAt: 250,
+    };
     const trace: LocalSimulationRuntimeOperationTrace = {
       traceId: 'op-start-100',
       manifestId: 'town-runtime',
@@ -73,7 +89,10 @@ describe('local simulation runtime supervisor API adapter', () => {
         calls.push({ method: 'runCycles', request });
         return Promise.resolve(runResult);
       },
-      getRunSession: () => Promise.resolve(undefined),
+      getRunSession: (traceId) => {
+        calls.push({ method: 'getRunSession', traceId });
+        return Promise.resolve(traceId === runSession.traceId ? runSession : undefined);
+      },
       getOperationTrace: (traceId) => {
         calls.push({ method: 'getOperationTrace', traceId });
         return Promise.resolve(trace);
@@ -99,6 +118,7 @@ describe('local simulation runtime supervisor API adapter', () => {
         cycleCount: 2,
       }),
     ).resolves.toBe(runResult);
+    await expect(api.getRuntimeRunSession({ traceId: 'op-run-200' })).resolves.toBe(runSession);
     await expect(api.getRuntimeOperationTrace({ traceId: 'op-start-100' })).resolves.toBe(trace);
     await expect(
       api.queryRuntimeOperationTraces({ manifestId: 'town-runtime', command: 'start-all' }),
@@ -111,6 +131,7 @@ describe('local simulation runtime supervisor API adapter', () => {
         method: 'runCycles',
         request: { operationId: 'op-run-200', requestedAt: 200, cycleCount: 2 },
       },
+      { method: 'getRunSession', traceId: 'op-run-200' },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       {
         method: 'queryOperationTraces',

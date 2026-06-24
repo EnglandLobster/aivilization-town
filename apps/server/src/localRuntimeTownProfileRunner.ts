@@ -2,6 +2,7 @@ import type { StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
   createRuntimeProfileRunReport,
   type ObjectiveRenewalTrace,
+  type RuntimeProfilePlannerExperiment,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
@@ -35,6 +36,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
+  readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
 };
 
@@ -195,6 +197,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         totalEventCount: summary.totalEventCount,
         totalAgentTraceCount: summary.totalAgentTraceCount,
         partitions: summary.partitions,
+        ...(input.plannerExperiment === undefined
+          ? {}
+          : { plannerExperiment: input.plannerExperiment }),
       }),
     );
   }

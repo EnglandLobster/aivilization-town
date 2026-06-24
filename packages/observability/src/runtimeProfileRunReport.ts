@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PartitionKey } from '@aivilization/sim-core';
+import type { PlannerExperimentMetric, PlannerExperimentRun } from './experimentValidation';
 
 export type RuntimeProfileRunPartitionReport = {
   readonly simulationId: string;
@@ -32,6 +33,13 @@ export type RuntimeProfileRunReport = {
   readonly totalEventCount: number;
   readonly totalAgentTraceCount: number;
   readonly partitions: readonly RuntimeProfileRunPartitionReport[];
+  readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
+};
+
+export type RuntimeProfilePlannerExperiment = {
+  readonly taskId: string;
+  readonly variant: string;
+  readonly metrics: readonly PlannerExperimentMetric[];
 };
 
 export type RuntimeProfileRunReportQuery = {
@@ -126,7 +134,30 @@ export function createRuntimeProfileRunReport(
     totalEventCount: input.totalEventCount,
     totalAgentTraceCount: input.totalAgentTraceCount,
     partitions: input.partitions.map((partition) => ({ ...partition })),
+    ...(input.plannerExperiment === undefined
+      ? {}
+      : { plannerExperiment: clonePlannerExperiment(input.plannerExperiment) }),
   };
+}
+
+export function createPlannerExperimentRunsFromRuntimeProfileReports(
+  reports: readonly RuntimeProfileRunReport[],
+): PlannerExperimentRun[] {
+  return reports
+    .flatMap((report) => {
+      const validated = createRuntimeProfileRunReport(report);
+      if (validated.plannerExperiment === undefined) {
+        return [];
+      }
+      return [
+        {
+          taskId: validated.plannerExperiment.taskId,
+          variant: validated.plannerExperiment.variant,
+          metrics: validated.plannerExperiment.metrics.map(clonePlannerExperimentMetric),
+        },
+      ];
+    })
+    .sort(comparePlannerExperimentRuns);
 }
 
 function queryReports(
@@ -197,6 +228,9 @@ function validateReport(report: RuntimeProfileRunReport): void {
   if (report.totalAgentTraceCount !== totalAgentTraceCount) {
     throw new Error('totalAgentTraceCount must equal partition agent trace total');
   }
+  if (report.plannerExperiment !== undefined) {
+    validatePlannerExperiment(report.plannerExperiment);
+  }
 }
 
 function validatePartition(partition: RuntimeProfileRunPartitionReport): void {
@@ -228,6 +262,61 @@ function assertValidQuery(query: RuntimeProfileRunReportQuery): void {
   if (query.toGeneratedAt !== undefined && !Number.isFinite(query.toGeneratedAt)) {
     throw new Error('toGeneratedAt must be finite');
   }
+}
+
+function clonePlannerExperiment(
+  experiment: RuntimeProfilePlannerExperiment,
+): RuntimeProfilePlannerExperiment {
+  validatePlannerExperiment(experiment);
+  return {
+    taskId: experiment.taskId,
+    variant: experiment.variant,
+    metrics: experiment.metrics.map(clonePlannerExperimentMetric),
+  };
+}
+
+function clonePlannerExperimentMetric(metric: PlannerExperimentMetric): PlannerExperimentMetric {
+  validatePlannerExperimentMetric(metric);
+  return {
+    metricId: metric.metricId,
+    value: metric.value,
+    higherIsBetter: metric.higherIsBetter,
+  };
+}
+
+function validatePlannerExperiment(experiment: RuntimeProfilePlannerExperiment): void {
+  assertNonEmpty(experiment.taskId, 'plannerExperiment taskId');
+  assertNonEmpty(experiment.variant, 'plannerExperiment variant');
+  if (experiment.metrics.length === 0) {
+    throw new Error('plannerExperiment metrics requires at least one metric');
+  }
+  for (const metric of experiment.metrics) {
+    validatePlannerExperimentMetric(metric);
+  }
+}
+
+function validatePlannerExperimentMetric(metric: PlannerExperimentMetric): void {
+  assertNonEmpty(metric.metricId, 'plannerExperiment metricId');
+  assertFinite(metric.value, 'plannerExperiment value');
+  if (typeof metric.higherIsBetter !== 'boolean') {
+    throw new Error('plannerExperiment higherIsBetter must be boolean');
+  }
+}
+
+function comparePlannerExperimentRuns(
+  left: PlannerExperimentRun,
+  right: PlannerExperimentRun,
+): number {
+  if (left.taskId !== right.taskId) {
+    return left.taskId.localeCompare(right.taskId);
+  }
+  if (left.variant === 'default' && right.variant !== 'default') {
+    return -1;
+  }
+  if (left.variant !== 'default' && right.variant === 'default') {
+    return 1;
+  }
+  return left.variant.localeCompare(right.variant);
 }
 
 function ensureFile(filePath: string, rootDir: string): void {

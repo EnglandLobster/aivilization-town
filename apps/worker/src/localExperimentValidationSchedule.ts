@@ -1,8 +1,11 @@
+import { createPlannerExperimentRunsFromRuntimeProfileReports } from '@aivilization/observability';
 import type {
   ExperimentValidationReport,
   ExperimentValidationThresholds,
   PlannerExperimentRun,
   PriceCloseObservation,
+  RuntimeProfileRunReportQuery,
+  RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import type { WorldProjection } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
@@ -29,6 +32,10 @@ export type LocalExperimentValidationMarketObservationSource = {
   readonly limit?: number;
 };
 
+export type LocalExperimentValidationPlannerRunSource = RuntimeProfileRunReportQuery & {
+  readonly repository: RuntimeProfileRunReportRepository;
+};
+
 export type LocalExperimentValidationScheduleInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly initialProjection: WorldProjection;
@@ -37,7 +44,8 @@ export type LocalExperimentValidationScheduleInput = {
   readonly source?: string;
   readonly eventWindow?: LocalExperimentValidationEventWindow;
   readonly marketObservationSource?: LocalExperimentValidationMarketObservationSource;
-  readonly plannerRuns: readonly PlannerExperimentRun[];
+  readonly plannerRuns?: readonly PlannerExperimentRun[];
+  readonly plannerRunSource?: LocalExperimentValidationPlannerRunSource;
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
   readonly trajectories?: readonly { readonly agentId: string; readonly stepCount: number }[];
@@ -85,6 +93,7 @@ export async function runLocalExperimentValidationSchedule(
     input.marketObservationSource === undefined
       ? undefined
       : await createValidationPriceSeriesFromMarketObservationSource(input);
+  const plannerRuns = await resolveValidationPlannerRuns(input);
   const report = await recordWorkerExperimentValidationReport({
     repository: input.storage.experimentValidationReportRepository,
     run: {
@@ -96,7 +105,7 @@ export async function runLocalExperimentValidationSchedule(
     projection: hydrated.projection,
     events,
     ...(priceSeries === undefined ? {} : { priceSeries }),
-    plannerRuns: input.plannerRuns,
+    plannerRuns,
     agentCycleTraceRepository: input.storage.agentCycleTraceRepository,
     ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
     ...(input.expectedTrajectoryAgentIds === undefined
@@ -115,6 +124,39 @@ export async function runLocalExperimentValidationSchedule(
     toSequence: window.toSequence,
     eventCount: events.length,
     projectionSequence: hydrated.lastAppliedSequence,
+  };
+}
+
+async function resolveValidationPlannerRuns(
+  input: LocalExperimentValidationScheduleInput,
+): Promise<readonly PlannerExperimentRun[]> {
+  if (input.plannerRuns !== undefined) {
+    return input.plannerRuns;
+  }
+  if (input.plannerRunSource === undefined) {
+    throw new Error('local validation schedule requires plannerRuns or plannerRunSource');
+  }
+
+  const plannerRuns = createPlannerExperimentRunsFromRuntimeProfileReports(
+    await input.plannerRunSource.repository.query(
+      createPlannerRunSourceQuery(input.plannerRunSource),
+    ),
+  );
+  if (plannerRuns.length === 0) {
+    throw new Error('plannerRunSource must resolve at least one planner experiment run');
+  }
+  return plannerRuns;
+}
+
+function createPlannerRunSourceQuery(
+  source: LocalExperimentValidationPlannerRunSource,
+): RuntimeProfileRunReportQuery {
+  return {
+    ...(source.runId === undefined ? {} : { runId: source.runId }),
+    ...(source.profileId === undefined ? {} : { profileId: source.profileId }),
+    ...(source.fromGeneratedAt === undefined ? {} : { fromGeneratedAt: source.fromGeneratedAt }),
+    ...(source.toGeneratedAt === undefined ? {} : { toGeneratedAt: source.toGeneratedAt }),
+    ...(source.limit === undefined ? {} : { limit: source.limit }),
   };
 }
 

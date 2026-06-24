@@ -81,6 +81,7 @@ export type LocalSimulationLifecycleValidationSchedule = Pick<
   | 'eventWindow'
   | 'marketObservationSource'
   | 'plannerRuns'
+  | 'plannerRunSource'
   | 'priceBinning'
   | 'expectedTrajectoryAgentIds'
   | 'trajectories'
@@ -576,7 +577,12 @@ async function runLifecycleValidationSchedule(input: {
     ...(input.schedule.marketObservationSource === undefined
       ? {}
       : { marketObservationSource: input.schedule.marketObservationSource }),
-    plannerRuns: input.schedule.plannerRuns,
+    ...(input.schedule.plannerRuns === undefined
+      ? {}
+      : { plannerRuns: input.schedule.plannerRuns }),
+    ...(input.schedule.plannerRunSource === undefined
+      ? {}
+      : { plannerRunSource: input.schedule.plannerRunSource }),
     ...(input.schedule.priceBinning === undefined
       ? {}
       : { priceBinning: input.schedule.priceBinning }),

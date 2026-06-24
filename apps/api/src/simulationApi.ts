@@ -21,6 +21,7 @@ export type SimulationLifecycleRequest = {
 
 export type SubmitLongHorizonObjectiveRequest = {
   readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
   readonly agentId: string;
   readonly objectiveId: string;
   readonly statement: string;
@@ -34,6 +35,7 @@ export type SubmitLongHorizonObjectiveRequest = {
 
 export type SubmitReactiveCommandRequest = {
   readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
   readonly agentId: string;
   readonly reactiveCommandId: string;
   readonly summary: string;
@@ -48,8 +50,16 @@ export type ProjectionQueryPort<TProjection> = {
   readonly getProjection: (request: ProjectionQueryRequest) => Promise<TProjection>;
 };
 
+export type SteeringCommandSubmissionContext = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+};
+
 export type SteeringCommandSubmissionPort<TResult> = {
-  readonly submit: (command: CommandEnvelope) => Promise<TResult>;
+  readonly submit: (
+    command: CommandEnvelope,
+    context: SteeringCommandSubmissionContext,
+  ) => Promise<TResult>;
 };
 
 export type SimulationLifecyclePort<TResult> = {
@@ -95,18 +105,28 @@ export function createSimulationApiService<TProjection, TSteeringResult, TLifecy
     getProjection: (request) => input.projectionQueries.getProjection(request),
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
-      const result = await input.steeringCommands.submit(command);
+      const result = await input.steeringCommands.submit(command, createSteeringContext(request));
       return { command, result };
     },
     submitReactiveCommand: async (request) => {
       const command = createReactiveCommand(request);
-      const result = await input.steeringCommands.submit(command);
+      const result = await input.steeringCommands.submit(command, createSteeringContext(request));
       return { command, result };
     },
     startSimulation: (request) => input.lifecycle.start(request),
     pauseSimulation: (request) => input.lifecycle.pause(request),
     resetSimulation: (request) => input.lifecycle.reset(request),
     replaySimulation: (request) => input.lifecycle.replay(request),
+  };
+}
+
+function createSteeringContext(request: {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+}): SteeringCommandSubmissionContext {
+  return {
+    simulationId: request.simulationId,
+    partitionKey: request.partitionKey,
   };
 }
 

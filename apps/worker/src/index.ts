@@ -17,6 +17,7 @@ export * from './localRuntimeStep';
 export * from './localRuntimeLoop';
 export * from './localSimulationLifecycle';
 export * from './localSimulationBackend';
+export * from './localSimulationBackendRegistry';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';

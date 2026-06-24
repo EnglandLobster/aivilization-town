@@ -1,5 +1,6 @@
 import type { ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
+import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,10 +8,18 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   createLocalWorldRuntimeStorage,
   drainLocalRuntimeSteeringCommands,
+  drainLocalRuntimeSteeringCommandsToWorld,
   type WorkerSteeringCommand,
 } from './index';
 
 const agentOne = asAgentId('agent-1');
+const policies: WorldCommandPolicies = {
+  satietyRecoveryByCommodity: {},
+  maxSatiety: 100,
+  wageCalculator: () => 10,
+  laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+  criticalThresholds: { energy: 1, health: 1 },
+};
 const tmpRoots: string[] = [];
 
 afterEach(() => {
@@ -201,6 +210,65 @@ describe('local runtime steering command drain', () => {
       updatedAt: 1100,
     });
   });
+
+  test('dispatches reactive command drafts to the world event stream before checkpointing command consumption', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendCommands(storage.partition.commandStreamName, storage.commandStore, [
+      reactiveTradeCommand({
+        id: 'cmd-reactive-study',
+        reactiveCommandId: 'reactive-study',
+        summary: 'study for one minute now',
+        issuedAt: 200,
+      }),
+    ]);
+
+    const result = await drainLocalRuntimeSteeringCommandsToWorld({
+      storage,
+      consumerId: 'worker-main',
+      checkpointUpdatedAt: 1000,
+      projection: createWorldProjection({
+        agents: [
+          {
+            agentId: agentOne,
+            physiology: { energy: 50, satiety: 80, health: 100 },
+            educationScore: 10,
+            balance: 100,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+      }),
+      policies,
+      localizedPlanners: [studyPlanner()],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.status).toBe('drained');
+    expect(result.results[0]?.steering.kind).toBe('reactive-command-routed');
+    expect(result.results[0]?.dispatch?.events.map((event) => event.type)).toEqual([
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.worldDispatchResults).toHaveLength(1);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(
+      storage.eventStore
+        .readStream(storage.partition.eventStreamName)
+        .map((event) => [event.sequence, event.type]),
+    ).toEqual([
+      [1, 'EducationChanged'],
+      [2, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.checkpoint).toMatchObject({
+      lastConsumedSequence: 1,
+      updatedAt: 1000,
+    });
+  });
 });
 
 function tradePlanner(): ReactiveLocalizedPlanner {
@@ -213,6 +281,21 @@ function tradePlanner(): ReactiveLocalizedPlanner {
         description: 'trade fish',
         commandType: 'AgentTrade',
         payload: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+      },
+    ],
+  };
+}
+
+function studyPlanner(): ReactiveLocalizedPlanner {
+  return {
+    domain: 'study',
+    supports: ({ summary }) => summary.includes('study'),
+    propose: () => [
+      {
+        id: 'study-now',
+        description: 'study now',
+        commandType: 'AgentStudy',
+        payload: { durationSeconds: 60, educationRatePerSecond: 1 },
       },
     ],
   };

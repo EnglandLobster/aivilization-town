@@ -5,6 +5,10 @@ import type {
 } from './runtimeSupervisorApi';
 import type { RuntimeRunQueueApiService, RuntimeRunQueueSubmitRequest } from './runtimeRunQueueApi';
 import type {
+  RuntimeRunQueueWorkerApiService,
+  RuntimeRunQueueWorkerDrainRequest,
+} from './runtimeRunQueueWorkerApi';
+import type {
   ExperimentValidationReportLookupRequest,
   ExperimentValidationReportQueryRequest,
   SimulationApiService,
@@ -45,6 +49,8 @@ export type TownHttpApiServices<
   TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeRunQueueJob,
+  TRuntimeRunQueueWorkerStatus,
+  TRuntimeRunQueueWorkerDrainResult,
   TRuntimeCommand extends string = string,
 > = {
   readonly simulation: SimulationApiService<
@@ -64,6 +70,10 @@ export type TownHttpApiServices<
     TRuntimeCommand
   >;
   readonly runtimeRunQueue: RuntimeRunQueueApiService<TRuntimeRunQueueJob>;
+  readonly runtimeRunQueueWorker: RuntimeRunQueueWorkerApiService<
+    TRuntimeRunQueueWorkerStatus,
+    TRuntimeRunQueueWorkerDrainResult
+  >;
 };
 
 type SimulationRoute = {
@@ -98,6 +108,8 @@ export function createTownHttpApiHandler<
   TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeRunQueueJob,
+  TRuntimeRunQueueWorkerStatus,
+  TRuntimeRunQueueWorkerDrainResult,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -113,6 +125,8 @@ export function createTownHttpApiHandler<
     TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeRunQueueJob,
+    TRuntimeRunQueueWorkerStatus,
+    TRuntimeRunQueueWorkerDrainResult,
     TRuntimeCommand
   >,
 ): TownHttpApiHandler {
@@ -143,6 +157,8 @@ async function routeTownHttpRequest<
   TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeRunQueueJob,
+  TRuntimeRunQueueWorkerStatus,
+  TRuntimeRunQueueWorkerDrainResult,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -158,6 +174,8 @@ async function routeTownHttpRequest<
     TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeRunQueueJob,
+    TRuntimeRunQueueWorkerStatus,
+    TRuntimeRunQueueWorkerDrainResult,
     TRuntimeCommand
   >,
   request: TownHttpApiRequest,
@@ -171,6 +189,7 @@ async function routeTownHttpRequest<
     return routeRuntimeRequest(
       services.runtimeSupervisor,
       services.runtimeRunQueue,
+      services.runtimeRunQueueWorker,
       request,
       segments,
     );
@@ -283,6 +302,8 @@ async function routeRuntimeRequest<
   TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeRunQueueJob,
+  TRuntimeRunQueueWorkerStatus,
+  TRuntimeRunQueueWorkerDrainResult,
   TRuntimeCommand extends string,
 >(
   runtimeSupervisor: RuntimeSupervisorApiService<
@@ -294,9 +315,37 @@ async function routeRuntimeRequest<
     TRuntimeCommand
   >,
   runtimeRunQueue: RuntimeRunQueueApiService<TRuntimeRunQueueJob>,
+  runtimeRunQueueWorker: RuntimeRunQueueWorkerApiService<
+    TRuntimeRunQueueWorkerStatus,
+    TRuntimeRunQueueWorkerDrainResult
+  >,
   request: TownHttpApiRequest,
   segments: readonly string[],
 ): Promise<TownHttpApiResponse> {
+  if (segments.length === 3 && segments[1] === 'run-queue-worker') {
+    const action = segments[2];
+    if (action === 'status') {
+      assertMethod(request, 'GET');
+      return jsonResponse(200, await runtimeRunQueueWorker.getRuntimeRunQueueWorkerStatus());
+    }
+    if (action === 'start') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeRunQueueWorker.startRuntimeRunQueueWorker());
+    }
+    if (action === 'stop') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeRunQueueWorker.stopRuntimeRunQueueWorker());
+    }
+    if (action === 'drain') {
+      assertMethod(request, 'POST');
+      return jsonResponse(
+        202,
+        await runtimeRunQueueWorker.drainRuntimeRunQueueWorker(
+          createRuntimeRunQueueWorkerDrainRequest(request.body),
+        ),
+      );
+    }
+  }
   if (segments.length === 2 && segments[1] === 'run-jobs') {
     assertMethod(request, 'POST');
     return jsonResponse(
@@ -575,6 +624,16 @@ function createRuntimeRunQueueSubmitRequest(body: unknown): RuntimeRunQueueSubmi
   };
 }
 
+function createRuntimeRunQueueWorkerDrainRequest(body: unknown): RuntimeRunQueueWorkerDrainRequest {
+  if (body === undefined) {
+    return {};
+  }
+  const record = requireRecordBody(body);
+  return {
+    ...optionalPositiveInteger(record, 'maxJobs'),
+  };
+}
+
 function createRuntimeRunSessionStopRequest(
   traceId: string,
   body: unknown,
@@ -714,6 +773,16 @@ function optionalNonNegativeNumber(
     throw new TownHttpApiError(400, 'bad_request', `${field} must be a non-negative finite number`);
   }
   return value;
+}
+
+function optionalPositiveInteger(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+): Record<string, number> {
+  if (record[field] === undefined) {
+    return {};
+  }
+  return { [field]: requirePositiveInteger(record, field) };
 }
 
 function optionalBoolean(

@@ -61,6 +61,11 @@ function createTrace(input: {
           description: 'study for one minute',
           commandType: 'AgentStudy',
           priority: 2,
+          synthesisContext: {
+            branchId: 'development',
+            subtaskId: 'study',
+            subtaskScore: 5,
+          },
           resourceEstimate: {
             actionSeconds: 60,
             inventoryCosts: { Book: 1 },
@@ -74,6 +79,11 @@ function createTrace(input: {
             description: 'sleep instead',
             commandType: 'AgentSleep',
             priority: 1,
+            synthesisContext: {
+              branchId: 'recovery',
+              subtaskId: 'sleep',
+              branchUrgency: 2,
+            },
             resourceEstimate: { actionSeconds: 60 },
           },
           reason: 'maxActions exhausted',
@@ -146,6 +156,12 @@ describe('agent cycle trace repositories', () => {
     (
       read!.actionSynthesis.rejectedActions[0]!.action as { description: string }
     ).description = 'mutated';
+    (
+      read!.actionSynthesis.acceptedActions[0]!.synthesisContext as { branchId: string }
+    ).branchId = 'mutated';
+    (
+      read!.actionSynthesis.rejectedActions[0]!.action.synthesisContext as { branchUrgency: number }
+    ).branchUrgency = 999;
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
   });
 

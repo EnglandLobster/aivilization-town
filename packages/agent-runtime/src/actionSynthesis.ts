@@ -11,6 +11,15 @@ export type ActionSynthesisBudget = {
 export type ActionSynthesisPolicy = {
   readonly maxActions?: number;
   readonly budget?: ActionSynthesisBudget;
+  readonly scoring?: {
+    readonly priorityWeight?: number;
+    readonly strategicAlignmentWeight?: number;
+    readonly branchUrgencyWeight?: number;
+    readonly subtaskScoreWeight?: number;
+  };
+  readonly branchLimits?: {
+    readonly maxAcceptedActionsPerBranch?: number;
+  };
 };
 
 export type RejectedSynthesizedAction = {
@@ -37,6 +46,25 @@ type ResourceLedger = {
   satietyCost: number;
   currencyCost: number;
   inventoryCosts: Record<string, number>;
+  acceptedActionCountByBranch: Record<string, number>;
+};
+
+type NormalizedScoringPolicy = {
+  readonly priorityWeight: number;
+  readonly strategicAlignmentWeight: number;
+  readonly branchUrgencyWeight: number;
+  readonly subtaskScoreWeight: number;
+};
+
+type NormalizedBranchLimits = {
+  readonly maxAcceptedActionsPerBranch?: number;
+};
+
+type NormalizedActionSynthesisPolicy = {
+  readonly maxActions?: number;
+  readonly budget?: ActionSynthesisBudget;
+  readonly scoring: NormalizedScoringPolicy;
+  readonly branchLimits: NormalizedBranchLimits;
 };
 
 export function synthesizeActionCandidates(input: {
@@ -50,11 +78,12 @@ export function synthesizeActionCandidates(input: {
     satietyCost: 0,
     currencyCost: 0,
     inventoryCosts: {},
+    acceptedActionCountByBranch: {},
   };
   const acceptedActions: AtomicActionProposal[] = [];
   const rejectedActions: RejectedSynthesizedAction[] = [];
 
-  for (const action of rankActions(input.actions)) {
+  for (const action of rankActions(input.actions, policy.scoring)) {
     if (policy.maxActions !== undefined && acceptedActions.length >= policy.maxActions) {
       rejectedActions.push({ action, reason: 'maxActions exhausted' });
       continue;
@@ -62,9 +91,10 @@ export function synthesizeActionCandidates(input: {
 
     const estimate = normalizeResourceEstimate(action.resourceEstimate, action.id);
     const rejectionReason = firstBudgetRejection({
+      action,
       estimate,
       ledger,
-      budget: policy.budget,
+      policy,
     });
     if (rejectionReason !== undefined) {
       rejectedActions.push({ action, reason: rejectionReason });
@@ -72,7 +102,7 @@ export function synthesizeActionCandidates(input: {
     }
 
     acceptedActions.push(action);
-    applyEstimateToLedger(ledger, estimate);
+    applyAcceptedActionToLedger(ledger, action, estimate);
   }
 
   return {
@@ -81,18 +111,23 @@ export function synthesizeActionCandidates(input: {
   };
 }
 
-function rankActions(actions: readonly AtomicActionProposal[]): readonly AtomicActionProposal[] {
+function rankActions(
+  actions: readonly AtomicActionProposal[],
+  scoring: NormalizedScoringPolicy,
+): readonly AtomicActionProposal[] {
   return actions
     .map((action, index) => ({
       action,
       index,
-      priority: normalizePriority(action.priority, action.id),
+      score: scoreActionForSynthesis(action, scoring),
     }))
-    .sort((left, right) => right.priority - left.priority || left.index - right.index)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ action }) => action);
 }
 
-function normalizePolicy(policy: ActionSynthesisPolicy | undefined): ActionSynthesisPolicy {
+function normalizePolicy(
+  policy: ActionSynthesisPolicy | undefined,
+): NormalizedActionSynthesisPolicy {
   const maxActions = policy?.maxActions;
   if (maxActions !== undefined) {
     if (!Number.isInteger(maxActions) || maxActions < 0) {
@@ -117,7 +152,89 @@ function normalizePolicy(policy: ActionSynthesisPolicy | undefined): ActionSynth
     }
   }
 
-  return policy ?? {};
+  const scoring = normalizeScoringPolicy(policy?.scoring);
+  const branchLimits = normalizeBranchLimits(policy?.branchLimits);
+
+  return {
+    ...(maxActions === undefined ? {} : { maxActions }),
+    ...(budget === undefined ? {} : { budget }),
+    scoring,
+    branchLimits,
+  };
+}
+
+function normalizeScoringPolicy(
+  scoring: ActionSynthesisPolicy['scoring'] | undefined,
+): NormalizedScoringPolicy {
+  return {
+    priorityWeight: normalizeScoringWeight(scoring?.priorityWeight, 'priorityWeight', 1),
+    strategicAlignmentWeight: normalizeScoringWeight(
+      scoring?.strategicAlignmentWeight,
+      'strategicAlignmentWeight',
+      0,
+    ),
+    branchUrgencyWeight: normalizeScoringWeight(
+      scoring?.branchUrgencyWeight,
+      'branchUrgencyWeight',
+      0,
+    ),
+    subtaskScoreWeight: normalizeScoringWeight(scoring?.subtaskScoreWeight, 'subtaskScoreWeight', 0),
+  };
+}
+
+function normalizeScoringWeight(
+  value: number | undefined,
+  name: string,
+  defaultValue: number,
+): number {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (!Number.isFinite(value)) {
+    throw new Error(`action synthesis scoring ${name} must be finite`);
+  }
+  return value;
+}
+
+function normalizeBranchLimits(
+  branchLimits: ActionSynthesisPolicy['branchLimits'] | undefined,
+): NormalizedBranchLimits {
+  const maxAcceptedActionsPerBranch = branchLimits?.maxAcceptedActionsPerBranch;
+  if (
+    maxAcceptedActionsPerBranch !== undefined &&
+    (!Number.isInteger(maxAcceptedActionsPerBranch) || maxAcceptedActionsPerBranch < 0)
+  ) {
+    throw new Error('action synthesis maxAcceptedActionsPerBranch must be a non-negative integer');
+  }
+  return {
+    ...(maxAcceptedActionsPerBranch === undefined ? {} : { maxAcceptedActionsPerBranch }),
+  };
+}
+
+function scoreActionForSynthesis(
+  action: AtomicActionProposal,
+  scoring: NormalizedScoringPolicy,
+): number {
+  const context = action.synthesisContext;
+  assertSynthesisContext(action);
+  return (
+    normalizePriority(action.priority, action.id) * scoring.priorityWeight +
+    normalizeOptionalFinite(
+      context?.strategicAlignment,
+      `action ${action.id} synthesisContext.strategicAlignment`,
+    ) *
+      scoring.strategicAlignmentWeight +
+    normalizeOptionalFinite(
+      context?.branchUrgency,
+      `action ${action.id} synthesisContext.branchUrgency`,
+    ) *
+      scoring.branchUrgencyWeight +
+    normalizeOptionalFinite(
+      context?.subtaskScore,
+      `action ${action.id} synthesisContext.subtaskScore`,
+    ) *
+      scoring.subtaskScoreWeight
+  );
 }
 
 function normalizePriority(priority: number | undefined, actionId: string): number {
@@ -167,11 +284,21 @@ function normalizeResourceEstimate(
 }
 
 function firstBudgetRejection(input: {
+  readonly action: AtomicActionProposal;
   readonly estimate: NormalizedResourceEstimate;
   readonly ledger: ResourceLedger;
-  readonly budget: ActionSynthesisBudget | undefined;
+  readonly policy: NormalizedActionSynthesisPolicy;
 }): string | undefined {
-  const budget = input.budget;
+  const branchLimitRejection = branchLimitRejectionReason({
+    action: input.action,
+    ledger: input.ledger,
+    branchLimits: input.policy.branchLimits,
+  });
+  if (branchLimitRejection !== undefined) {
+    return branchLimitRejection;
+  }
+
+  const budget = input.policy.budget;
   if (budget === undefined) {
     return undefined;
   }
@@ -249,9 +376,64 @@ function applyEstimateToLedger(
   }
 }
 
+function applyAcceptedActionToLedger(
+  ledger: ResourceLedger,
+  action: AtomicActionProposal,
+  estimate: NormalizedResourceEstimate,
+): void {
+  applyEstimateToLedger(ledger, estimate);
+  const branchId = action.synthesisContext?.branchId;
+  if (branchId !== undefined) {
+    ledger.acceptedActionCountByBranch[branchId] =
+      (ledger.acceptedActionCountByBranch[branchId] ?? 0) + 1;
+  }
+}
+
+function branchLimitRejectionReason(input: {
+  readonly action: AtomicActionProposal;
+  readonly ledger: ResourceLedger;
+  readonly branchLimits: NormalizedBranchLimits;
+}): string | undefined {
+  const maxAcceptedActionsPerBranch = input.branchLimits.maxAcceptedActionsPerBranch;
+  const branchId = input.action.synthesisContext?.branchId;
+  if (maxAcceptedActionsPerBranch === undefined || branchId === undefined) {
+    return undefined;
+  }
+  if ((input.ledger.acceptedActionCountByBranch[branchId] ?? 0) >= maxAcceptedActionsPerBranch) {
+    return `branch action budget exhausted for ${branchId}`;
+  }
+  return undefined;
+}
+
+function assertSynthesisContext(action: AtomicActionProposal): void {
+  const context = action.synthesisContext;
+  if (context === undefined) {
+    return;
+  }
+  assertNonEmptyNameIfPresent(context.branchId, `action ${action.id} synthesisContext.branchId`);
+  assertNonEmptyNameIfPresent(context.subtaskId, `action ${action.id} synthesisContext.subtaskId`);
+  assertFiniteIfPresent(context.subtaskScore, `action ${action.id} synthesisContext.subtaskScore`);
+  assertFiniteIfPresent(
+    context.strategicAlignment,
+    `action ${action.id} synthesisContext.strategicAlignment`,
+  );
+  assertFiniteIfPresent(context.branchUrgency, `action ${action.id} synthesisContext.branchUrgency`);
+}
+
+function normalizeOptionalFinite(value: number | undefined, name: string): number {
+  assertFiniteIfPresent(value, name);
+  return value ?? 0;
+}
+
 function assertNonNegativeFiniteIfPresent(value: number | undefined, name: string): void {
   if (value !== undefined) {
     assertNonNegativeFinite(value, name);
+  }
+}
+
+function assertFiniteIfPresent(value: number | undefined, name: string): void {
+  if (value !== undefined && !Number.isFinite(value)) {
+    throw new Error(`${name} must be finite`);
   }
 }
 
@@ -264,5 +446,11 @@ function assertNonNegativeFinite(value: number, name: string): void {
 function assertNonEmptyName(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
+  }
+}
+
+function assertNonEmptyNameIfPresent(value: string | undefined, name: string): void {
+  if (value !== undefined) {
+    assertNonEmptyName(value, name);
   }
 }

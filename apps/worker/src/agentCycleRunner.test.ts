@@ -220,6 +220,11 @@ describe('worker agent cycle runner', () => {
         description: 'study for one minute',
         commandType: 'AgentStudy',
         priority: 3,
+        synthesisContext: {
+          branchId: 'development',
+          subtaskId: 'study',
+          subtaskScore: 5,
+        },
         resourceEstimate: { actionSeconds: 60, energyCost: 2 },
       },
     ]);
@@ -230,6 +235,11 @@ describe('worker agent cycle runner', () => {
           description: 'sleep for one minute',
           commandType: 'AgentSleep',
           priority: 1,
+          synthesisContext: {
+            branchId: 'development',
+            subtaskId: 'study',
+            subtaskScore: 5,
+          },
           resourceEstimate: { actionSeconds: 60 },
         },
         reason: 'maxActions exhausted',

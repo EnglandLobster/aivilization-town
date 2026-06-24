@@ -144,7 +144,9 @@ export function runAgentPlanningCycle(input: {
     throw new Error(`no micro-planner supports subtask ${selectedSubtask.subtaskId}`);
   }
 
-  const proposedActions = [...microPlanner.propose({ selectedSubtask })];
+  const proposedActions = microPlanner
+    .propose({ selectedSubtask })
+    .map((action) => attachSelectedSubtaskSynthesisContext(action, selectedCandidate));
   if (proposedActions.length === 0) {
     throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
   }
@@ -275,6 +277,25 @@ function createActionSynthesisReplanResults(
     action: rejectedAction.action,
     reason: `action synthesis rejected action: ${rejectedAction.reason}`,
   }));
+}
+
+function attachSelectedSubtaskSynthesisContext(
+  action: AtomicActionProposal,
+  selectedCandidate: PrioritizedSubtaskCandidate,
+): AtomicActionProposal {
+  const context = action.synthesisContext;
+  return {
+    ...action,
+    synthesisContext: {
+      branchId: context?.branchId ?? selectedCandidate.branchId,
+      subtaskId: context?.subtaskId ?? selectedCandidate.subtaskId,
+      subtaskScore: context?.subtaskScore ?? selectedCandidate.score,
+      ...(context?.strategicAlignment === undefined
+        ? {}
+        : { strategicAlignment: context.strategicAlignment }),
+      ...(context?.branchUrgency === undefined ? {} : { branchUrgency: context.branchUrgency }),
+    },
+  };
 }
 
 function decideSubtaskCompletion(input: {

@@ -4,6 +4,7 @@ import {
   createAgentCycleTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
+  type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
   type AgentCycleTrace,
   type AgentCycleSelectionTraceEvidence,
@@ -146,9 +147,30 @@ function cloneActionProposal(
     description: action.description,
     commandType: action.commandType,
     ...(action.priority === undefined ? {} : { priority: action.priority }),
+    ...(action.synthesisContext === undefined
+      ? {}
+      : { synthesisContext: cloneSynthesisContext(action.synthesisContext) }),
     ...(action.resourceEstimate === undefined
       ? {}
       : { resourceEstimate: cloneResourceEstimate(action.resourceEstimate) }),
+  };
+}
+
+function cloneSynthesisContext(
+  synthesisContext: AgentCycleActionSynthesisContextTrace,
+): AgentCycleActionSynthesisContextTrace {
+  return {
+    ...(synthesisContext.branchId === undefined ? {} : { branchId: synthesisContext.branchId }),
+    ...(synthesisContext.subtaskId === undefined ? {} : { subtaskId: synthesisContext.subtaskId }),
+    ...(synthesisContext.subtaskScore === undefined
+      ? {}
+      : { subtaskScore: synthesisContext.subtaskScore }),
+    ...(synthesisContext.strategicAlignment === undefined
+      ? {}
+      : { strategicAlignment: synthesisContext.strategicAlignment }),
+    ...(synthesisContext.branchUrgency === undefined
+      ? {}
+      : { branchUrgency: synthesisContext.branchUrgency }),
   };
 }
 

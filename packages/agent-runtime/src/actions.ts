@@ -8,6 +8,14 @@ export type ActionResourceEstimate = {
   readonly inventoryCosts?: Readonly<Record<string, number>>;
 };
 
+export type ActionSynthesisContext = {
+  readonly branchId?: string;
+  readonly subtaskId?: string;
+  readonly subtaskScore?: number;
+  readonly strategicAlignment?: number;
+  readonly branchUrgency?: number;
+};
+
 export type AtomicActionProposal<
   TCommandType extends string = CoreCommandType,
   TPayload = unknown,
@@ -18,6 +26,7 @@ export type AtomicActionProposal<
   readonly payload: TPayload;
   readonly priority?: number;
   readonly resourceEstimate?: ActionResourceEstimate;
+  readonly synthesisContext?: ActionSynthesisContext;
 };
 
 export type ActionSimulationResult =

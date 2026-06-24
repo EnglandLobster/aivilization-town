@@ -6,6 +6,7 @@ import {
   evaluateRuntimeProfileRunReport,
 } from '@aivilization/observability';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
+import { loadLocalRuntimeTownProfileLlmPlanningConfig } from './localRuntimeTownProfileRuntimeConfig';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
@@ -20,6 +21,7 @@ export type LocalRuntimeTownProfileRunnerCliConfig = Pick<
 > & {
   readonly reportRootDir?: string;
   readonly requireGate?: boolean;
+  readonly llmPlanningConfigPath?: string;
 };
 
 export type LocalRuntimeTownProfileRunnerCliWriter = {
@@ -52,6 +54,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
   const requireGate = readOptionalBoolean(args, '--require-gate');
+  const llmPlanningConfigPath = readOptionalString(args, '--llm-planning-config');
 
   return {
     profileId,
@@ -61,6 +64,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
     ...(requireGate === undefined ? {} : { requireGate }),
+    ...(llmPlanningConfigPath === undefined ? {} : { llmPlanningConfigPath }),
   };
 }
 
@@ -73,7 +77,7 @@ export async function runLocalRuntimeTownProfileRunnerCli(
 
   try {
     const config = parseLocalRuntimeTownProfileRunnerCliArgs(input.argv ?? process.argv.slice(2));
-    const summary = await runProfile(createRunnerInput(config));
+    const summary = await runProfile(await createRunnerInput(config));
     stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     if (config.requireGate === true) {
       const gate = evaluateRuntimeProfileRunReport(
@@ -92,13 +96,21 @@ export async function runLocalRuntimeTownProfileRunnerCli(
   }
 }
 
-function createRunnerInput(
+async function createRunnerInput(
   config: LocalRuntimeTownProfileRunnerCliConfig,
-): LocalRuntimeTownProfileRunnerInput {
+): Promise<LocalRuntimeTownProfileRunnerInput> {
   const profileRunReportRepository =
     config.reportRootDir === undefined
       ? undefined
       : new FileRuntimeProfileRunReportRepository({ rootDir: config.reportRootDir });
+  const llmPlanning =
+    config.llmPlanningConfigPath === undefined
+      ? undefined
+      : await loadLocalRuntimeTownProfileLlmPlanningConfig({
+          profileId: config.profileId,
+          path: config.llmPlanningConfigPath,
+          env: process.env,
+        });
 
   return {
     profileId: config.profileId,
@@ -107,6 +119,7 @@ function createRunnerInput(
     requestedAt: config.requestedAt,
     ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
     ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
+    ...(llmPlanning === undefined ? {} : { llmPlanning }),
   };
 }
 

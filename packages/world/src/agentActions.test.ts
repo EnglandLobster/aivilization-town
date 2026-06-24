@@ -1365,6 +1365,16 @@ describe('agent trade command handling', () => {
     });
 
     expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
+    expect(events[0]?.type).toBe('TradeExecuted');
+    if (events[0]?.type !== 'TradeExecuted') {
+      throw new Error('expected first event to be TradeExecuted');
+    }
+    expect(events[0].payload.effectivePrice).toBeCloseTo(11.1111111111);
+    expect(events[0].payload.spotPriceBefore).toBeCloseTo(10);
+    expect(events[0].payload.spotPriceAfter).toBeCloseTo(12.3456790123);
+    expect(events[0].payload.slippageRatio).toBeCloseTo(0.1111111111);
+    expect(events[0].payload.invariantBefore).toBeCloseTo(100000);
+    expect(events[0].payload.invariantAfter).toBeCloseTo(100000);
 
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.inventory).toEqual({ Apple: 10 });
@@ -1412,6 +1422,57 @@ describe('agent trade command handling', () => {
     });
 
     expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
+  });
+
+  test('AgentTrade sell records effective price, spot movement, slippage, and invariant metadata', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: { Apple: 10 },
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade-sell',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'sell', commodityName: 'Apple', quantity: 10 },
+        issuedAt: 60,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
+    expect(events[0]?.type).toBe('TradeExecuted');
+    if (events[0]?.type !== 'TradeExecuted') {
+      throw new Error('expected first event to be TradeExecuted');
+    }
+    expect(events[0].payload.currencyQuantity).toBeCloseTo(90.9090909091);
+    expect(events[0].payload.effectivePrice).toBeCloseTo(9.0909090909);
+    expect(events[0].payload.spotPriceBefore).toBeCloseTo(10);
+    expect(events[0].payload.spotPriceAfter).toBeCloseTo(8.2644628099);
+    expect(events[0].payload.slippageRatio).toBeCloseTo(-0.0909090909);
+    expect(events[0].payload.invariantBefore).toBeCloseTo(100000);
+    expect(events[0].payload.invariantAfter).toBeCloseTo(100000);
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({});
+    expect(updated.agents['agent-1']?.balance).toBeCloseTo(190.9090909091);
+    expect(updated.marketPools['Apple']?.commodityReserve).toBe(110);
   });
 
   test('AgentTrade rejects insufficient balance on buy', () => {

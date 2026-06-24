@@ -24,6 +24,8 @@ describe('constant product AMM', () => {
 
     expect(trade.poolAfter.commodityReserve).toBe(90);
     expect(getInvariant(trade.poolAfter)).toBeCloseTo(getInvariant(pool), 8);
+    expect(trade.invariantBefore).toBeCloseTo(100000, 8);
+    expect(trade.invariantAfter).toBeCloseTo(100000, 8);
     expect(trade.currencyDelta).toBeCloseTo(111.1111111111, 8);
     expect(trade.effectivePrice).toBeGreaterThan(trade.spotPriceBefore);
     expect(trade.spotPriceAfter).toBeGreaterThan(trade.spotPriceBefore);
@@ -41,6 +43,8 @@ describe('constant product AMM', () => {
 
     expect(trade.poolAfter.commodityReserve).toBe(110);
     expect(getInvariant(trade.poolAfter)).toBeCloseTo(getInvariant(pool), 8);
+    expect(trade.invariantBefore).toBeCloseTo(100000, 8);
+    expect(trade.invariantAfter).toBeCloseTo(100000, 8);
     expect(trade.currencyDelta).toBeCloseTo(-90.9090909091, 8);
     expect(trade.effectivePrice).toBeLessThan(trade.spotPriceBefore);
     expect(trade.spotPriceAfter).toBeLessThan(trade.spotPriceBefore);

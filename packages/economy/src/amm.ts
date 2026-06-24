@@ -13,6 +13,8 @@ export type AmmTradeResult = {
   readonly spotPriceBefore: number;
   readonly spotPriceAfter: number;
   readonly slippageRatio: number;
+  readonly invariantBefore: number;
+  readonly invariantAfter: number;
   readonly moneySupplyDelta: number;
 };
 
@@ -40,9 +42,9 @@ export function buyFromPool(pool: AmmPool, commodityAmount: number): AmmTradeRes
   }
 
   const spotPriceBefore = getSpotPrice(pool);
-  const invariant = getInvariant(pool);
+  const invariantBefore = getInvariant(pool);
   const commodityReserveAfter = pool.commodityReserve - commodityAmount;
-  const currencyReserveAfter = invariant / commodityReserveAfter;
+  const currencyReserveAfter = invariantBefore / commodityReserveAfter;
   const currencyPaid = currencyReserveAfter - pool.currencyReserve;
   const poolAfter = createAmmPool({
     commodity: pool.commodity,
@@ -61,6 +63,8 @@ export function buyFromPool(pool: AmmPool, commodityAmount: number): AmmTradeRes
     spotPriceBefore,
     spotPriceAfter,
     slippageRatio: effectivePrice / spotPriceBefore - 1,
+    invariantBefore,
+    invariantAfter: getInvariant(poolAfter),
     moneySupplyDelta: -currencyPaid,
   };
 }
@@ -69,9 +73,9 @@ export function sellToPool(pool: AmmPool, commodityAmount: number): AmmTradeResu
   assertPositiveFinite(commodityAmount, 'commodityAmount');
 
   const spotPriceBefore = getSpotPrice(pool);
-  const invariant = getInvariant(pool);
+  const invariantBefore = getInvariant(pool);
   const commodityReserveAfter = pool.commodityReserve + commodityAmount;
-  const currencyReserveAfter = invariant / commodityReserveAfter;
+  const currencyReserveAfter = invariantBefore / commodityReserveAfter;
   const currencyPaidOut = pool.currencyReserve - currencyReserveAfter;
   const poolAfter = createAmmPool({
     commodity: pool.commodity,
@@ -90,6 +94,8 @@ export function sellToPool(pool: AmmPool, commodityAmount: number): AmmTradeResu
     spotPriceBefore,
     spotPriceAfter,
     slippageRatio: effectivePrice / spotPriceBefore - 1,
+    invariantBefore,
+    invariantAfter: getInvariant(poolAfter),
     moneySupplyDelta: currencyPaidOut,
   };
 }

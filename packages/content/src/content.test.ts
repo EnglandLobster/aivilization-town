@@ -3,6 +3,7 @@ import {
   activities,
   aivilizationAblationScenarioPreset,
   aivilizationHealthcarePolicyDefaults,
+  aivilizationProductionPolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
@@ -127,6 +128,15 @@ describe('AIvilization source content', () => {
       currencyCostPerSecond: 0.02,
       source:
         'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning',
+    });
+  });
+
+  test('captures source-backed production efficiency defaults', () => {
+    expect(aivilizationProductionPolicyDefaults.educationEfficiency).toMatchObject({
+      minEfficiency: 0.5,
+      educationScoreForMaxEfficiency: 500,
+      source:
+        'AIvilization v0 Section 3.1.1 productive efficiency and Section 3.2.1 education score default runtime tuning',
     });
   });
 

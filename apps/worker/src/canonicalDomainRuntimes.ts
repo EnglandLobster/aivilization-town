@@ -163,7 +163,7 @@ export function createCanonicalDomainRuntimeRegistrations(
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
-    createProductionDomainRuntimeRegistration(config.production),
+    createProductionDomainRuntimeRegistration(config.production, policies?.production),
     createResidentialDomainRuntimeRegistration(
       config.residential,
       policies?.residentialTierUpgrade,
@@ -452,6 +452,7 @@ export function createSocialDomainRuntimeRegistration(
 
 export function createProductionDomainRuntimeRegistration(
   config: ProductionDomainRuntimeConfig = {},
+  productionPolicy?: WorldCommandPolicies['production'],
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'production',
@@ -474,6 +475,7 @@ export function createProductionDomainRuntimeRegistration(
             quantity,
             availableLaborSeconds,
             context,
+            productionPolicy,
           });
           const actionCommodityName = nextProductionStep?.commodityName ?? commodityName;
           const actionQuantity = nextProductionStep?.quantity ?? quantity;
@@ -497,6 +499,7 @@ export function createProductionDomainRuntimeRegistration(
                   quantity,
                   availableLaborSeconds,
                   context,
+                  productionPolicy,
                 })
               : { resourceEstimate: createProductionStepResourceEstimate(nextProductionStep) }),
           };
@@ -1005,6 +1008,7 @@ function resolveNextProductionStep(input: {
   readonly quantity: number;
   readonly availableLaborSeconds: number;
   readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly productionPolicy?: WorldCommandPolicies['production'];
 }): ProductionChainStep | undefined {
   const productionChain = planProductionChain({
     commodityName: input.commodityName,
@@ -1015,7 +1019,14 @@ function resolveNextProductionStep(input: {
       satiety: input.context.agent.physiology.satiety,
       availableLaborSeconds: input.availableLaborSeconds,
       inventory: input.context.agent.inventory,
+      educationScore: input.context.agent.educationScore,
     },
+    ...(input.productionPolicy?.recipeOverrides === undefined
+      ? {}
+      : { recipeOverrides: input.productionPolicy.recipeOverrides }),
+    ...(input.productionPolicy?.efficiency === undefined
+      ? {}
+      : { productionEfficiency: input.productionPolicy.efficiency }),
   });
   if (productionChain.status === 'rejected') {
     return undefined;
@@ -1040,6 +1051,7 @@ function createProductionResourceEstimate(input: {
   readonly quantity: number;
   readonly availableLaborSeconds: number;
   readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly productionPolicy?: WorldCommandPolicies['production'];
 }): { readonly resourceEstimate?: ActionResourceEstimate } {
   const productionPlan = planProduction({
     commodityName: input.commodityName,
@@ -1050,7 +1062,14 @@ function createProductionResourceEstimate(input: {
       satiety: input.context.agent.physiology.satiety,
       availableLaborSeconds: input.availableLaborSeconds,
       inventory: input.context.agent.inventory,
+      educationScore: input.context.agent.educationScore,
     },
+    ...(input.productionPolicy?.recipeOverrides === undefined
+      ? {}
+      : { recipeOverrides: input.productionPolicy.recipeOverrides }),
+    ...(input.productionPolicy?.efficiency === undefined
+      ? {}
+      : { productionEfficiency: input.productionPolicy.efficiency }),
   });
   if (productionPlan.status === 'rejected') {
     return {};

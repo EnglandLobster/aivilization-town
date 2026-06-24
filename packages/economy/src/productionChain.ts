@@ -1,10 +1,13 @@
 import type { CommodityConfig, ProductionRecipe } from '@aivilization/content';
 import { addInventory, getInventoryQuantity, removeInventory, type Inventory } from './inventory';
 import {
+  evaluateProductionEfficiency,
   resolveProductionDefinition,
+  scaleProductionCost,
   type ProductionAgentState,
   type ProductionCatalogInput,
   type ProductionDefinition,
+  type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
   type ProductionRejectionReason,
 } from './production';
@@ -17,6 +20,7 @@ export type ProductionChainStep = {
   readonly energyCost: number;
   readonly satietyCost: number;
   readonly laborSeconds: number;
+  readonly productionEfficiency?: number;
 };
 
 export type ProductionChainRejectionReason = ProductionRejectionReason | 'cyclic-recipe';
@@ -47,6 +51,7 @@ type ProductionChainInput = {
   readonly commodityCatalog?: readonly CommodityConfig[];
   readonly recipeCatalog?: readonly ProductionRecipe[];
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
+  readonly productionEfficiency?: ProductionEfficiencyPolicy;
 };
 
 type PlanningState = {
@@ -55,6 +60,7 @@ type PlanningState = {
   readonly virtualInventory: Record<string, number>;
   readonly requiredProduction: Map<string, number>;
   readonly definitions: Map<string, ProductionDefinition>;
+  readonly productionEfficiency?: number;
 };
 
 type ProductionChainAcceptedPlan = Extract<ProductionChainPlan, { readonly status: 'accepted' }>;
@@ -62,7 +68,22 @@ type ProductionChainRejectedPlan = Extract<ProductionChainPlan, { readonly statu
 
 export function planProductionChain(input: ProductionChainInput): ProductionChainPlan {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
-    return reject('commodity-not-producible', 'quantity must be a positive integer', input.commodityName);
+    return reject(
+      'commodity-not-producible',
+      'quantity must be a positive integer',
+      input.commodityName,
+    );
+  }
+
+  const efficiencyDecision =
+    input.productionEfficiency === undefined
+      ? undefined
+      : evaluateProductionEfficiency({
+          educationScore: input.agent.educationScore ?? 0,
+          policy: input.productionEfficiency,
+        });
+  if (efficiencyDecision?.status === 'rejected') {
+    return reject(efficiencyDecision.reason, efficiencyDecision.detail, input.commodityName);
   }
 
   const state: PlanningState = {
@@ -75,6 +96,9 @@ export function planProductionChain(input: ProductionChainInput): ProductionChai
     virtualInventory: { ...input.agent.inventory },
     requiredProduction: new Map(),
     definitions: new Map(),
+    ...(efficiencyDecision === undefined
+      ? {}
+      : { productionEfficiency: efficiencyDecision.efficiency }),
   };
   const expansion = addProductionRequirement(state, input.commodityName, input.quantity, []);
   if (expansion !== undefined) {
@@ -91,6 +115,9 @@ export function planProductionChain(input: ProductionChainInput): ProductionChai
       commodityName,
       quantity: requireRequiredQuantity(state, commodityName),
       definition: requireDefinition(state, commodityName),
+      ...(state.productionEfficiency === undefined
+        ? {}
+        : { productionEfficiency: state.productionEfficiency }),
     }),
   );
   const totals = sumStepResources(steps);
@@ -137,7 +164,11 @@ function addProductionRequirement(
 
   const definition = resolveProductionDefinition(commodityName, state.catalog);
   if (definition === undefined) {
-    return reject('commodity-not-producible', `${commodityName} has no production recipe`, commodityName);
+    return reject(
+      'commodity-not-producible',
+      `${commodityName} has no production recipe`,
+      commodityName,
+    );
   }
   if (
     definition.commodity.minResidentialTier !== null &&
@@ -251,15 +282,28 @@ function createProductionChainStep(input: {
   readonly commodityName: string;
   readonly quantity: number;
   readonly definition: ProductionDefinition;
+  readonly productionEfficiency?: number;
 }): ProductionChainStep {
   return {
     commodityName: input.commodityName,
     quantity: input.quantity,
     produced: { [input.commodityName]: input.quantity },
     consumedInputs: multiplyInventory(input.definition.recipe.inputs, input.quantity),
-    energyCost: input.definition.recipe.energyCost * input.quantity,
-    satietyCost: input.definition.recipe.satietyCost * input.quantity,
-    laborSeconds: input.definition.recipe.timeCostSeconds * input.quantity,
+    energyCost: scaleProductionCost(
+      input.definition.recipe.energyCost * input.quantity,
+      input.productionEfficiency,
+    ),
+    satietyCost: scaleProductionCost(
+      input.definition.recipe.satietyCost * input.quantity,
+      input.productionEfficiency,
+    ),
+    laborSeconds: scaleProductionCost(
+      input.definition.recipe.timeCostSeconds * input.quantity,
+      input.productionEfficiency,
+    ),
+    ...(input.productionEfficiency === undefined
+      ? {}
+      : { productionEfficiency: input.productionEfficiency }),
   };
 }
 
@@ -328,7 +372,8 @@ function calculateInventoryDelta(
 ): Readonly<Record<string, number>> {
   const delta: Record<string, number> = {};
   for (const itemName of sortedUnique([...Object.keys(before), ...Object.keys(after)])) {
-    const quantityDelta = getInventoryQuantity(after, itemName) - getInventoryQuantity(before, itemName);
+    const quantityDelta =
+      getInventoryQuantity(after, itemName) - getInventoryQuantity(before, itemName);
     if (quantityDelta !== 0) {
       delta[itemName] = quantityDelta;
     }

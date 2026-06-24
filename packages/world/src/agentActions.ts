@@ -3,6 +3,7 @@ import {
   getInventoryQuantity,
   planProduction,
   sellToPool,
+  type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
 } from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
@@ -76,6 +77,7 @@ export type WorldCommandPolicies = {
   readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly production?: {
     readonly recipeOverrides?: readonly ProductionRecipeOverride[];
+    readonly efficiency?: ProductionEfficiencyPolicy;
   };
   readonly sleep?: {
     readonly energyRecoveryPerSecond: number;
@@ -204,6 +206,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.production?.recipeOverrides === undefined
           ? {}
           : { recipeOverrides: input.policies.production.recipeOverrides }),
+        ...(input.policies.production?.efficiency === undefined
+          ? {}
+          : { productionEfficiency: input.policies.production.efficiency }),
         nextSequence: input.nextSequence,
       });
     case 'AgentTrade':
@@ -957,6 +962,7 @@ export function handleAgentProduceCommand(input: {
   readonly command: CommandEnvelope<'AgentProduce', unknown>;
   readonly projection: WorldProjection;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
+  readonly productionEfficiency?: ProductionEfficiencyPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -975,9 +981,13 @@ export function handleAgentProduceCommand(input: {
       satiety: agent.physiology.satiety,
       availableLaborSeconds: payload.availableLaborSeconds,
       inventory: agent.inventory,
+      educationScore: agent.educationScore,
     },
     rng: createSeededRandom(createProductionRewardSeed({ input, payload, agent })),
     ...(input.recipeOverrides === undefined ? {} : { recipeOverrides: input.recipeOverrides }),
+    ...(input.productionEfficiency === undefined
+      ? {}
+      : { productionEfficiency: input.productionEfficiency }),
   });
 
   if (productionPlan.status === 'rejected') {
@@ -996,6 +1006,9 @@ export function handleAgentProduceCommand(input: {
       energyCost: productionPlan.energyCost,
       satietyCost: productionPlan.satietyCost,
       laborSeconds: productionPlan.laborSeconds,
+      ...(productionPlan.productionEfficiency === undefined
+        ? {}
+        : { productionEfficiency: productionPlan.productionEfficiency }),
     }),
     makeMemoryEvent(input, 1, {
       summary: `Produced ${payload.quantity} ${payload.commodityName}.`,

@@ -23,6 +23,12 @@ describe('AIvilization default world command policies', () => {
       maxHealth: 500,
       treatmentCost: { currencyCostPerSecond: 0.02 },
     });
+    expect(policies.production).toEqual({
+      efficiency: {
+        minEfficiency: 0.5,
+        educationScoreForMaxEfficiency: 500,
+      },
+    });
     expect(policies.satietyRecoveryByCommodity).toMatchObject({
       Apple: 25,
       Wheat: 25,

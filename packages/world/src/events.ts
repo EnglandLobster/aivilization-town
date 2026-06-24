@@ -52,6 +52,7 @@ export type CommodityProducedPayload = {
   readonly energyCost: number;
   readonly satietyCost: number;
   readonly laborSeconds: number;
+  readonly productionEfficiency?: number;
 };
 
 export type TradeExecutedPayload = {

@@ -74,6 +74,12 @@ export type ScenarioMedicalTreatmentCostConfig = {
   readonly source: string;
 };
 
+export type ScenarioProductionEfficiencyPolicyConfig = {
+  readonly minEfficiency: number;
+  readonly educationScoreForMaxEfficiency: number;
+  readonly source: string;
+};
+
 export type ScenarioSurvivalTimePolicyDefaults = {
   readonly sleepDeprivation: ScenarioSleepDeprivationPolicyConfig;
   readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
@@ -83,6 +89,10 @@ export type ScenarioSurvivalTimePolicyDefaults = {
 
 export type ScenarioHealthcarePolicyDefaults = {
   readonly seeDoctorTreatmentCost: ScenarioMedicalTreatmentCostConfig;
+};
+
+export type ScenarioProductionPolicyDefaults = {
+  readonly educationEfficiency: ScenarioProductionEfficiencyPolicyConfig;
 };
 
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
@@ -193,6 +203,8 @@ const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
 const healthcarePolicySource =
   'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning';
+const productionPolicySource =
+  'AIvilization v0 Section 3.1.1 productive efficiency and Section 3.2.1 education score default runtime tuning';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -307,6 +319,14 @@ export const aivilizationHealthcarePolicyDefaults = {
     source: healthcarePolicySource,
   },
 } as const satisfies ScenarioHealthcarePolicyDefaults;
+
+export const aivilizationProductionPolicyDefaults = {
+  educationEfficiency: {
+    minEfficiency: 0.5,
+    educationScoreForMaxEfficiency: 500,
+    source: productionPolicySource,
+  },
+} as const satisfies ScenarioProductionPolicyDefaults;
 
 export function createAivilizationAblationAgentSeeds(
   input: CreateAivilizationAblationAgentSeedsInput = {},

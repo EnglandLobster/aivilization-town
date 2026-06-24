@@ -520,6 +520,42 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('applies education-driven production efficiency policy to resource estimates', async () => {
+    const agent = {
+      ...createAgent({ agentId: agentA, educationScore: 0, inventory: { Wood: 1 } }),
+      physiology: { energy: 100, satiety: 100, health: 100 },
+    };
+    const context = createRuntimeContext({
+      agent,
+      activeObjective: createBookProductionObjective(agentA),
+      planRecord: createBookProductionPlanRecord(agentA),
+    });
+    const binding = await resolveCanonicalBinding(
+      context,
+      { production: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 4 } },
+      {
+        ...policies,
+        production: {
+          efficiency: {
+            minEfficiency: 0.5,
+            educationScoreForMaxEfficiency: 500,
+          },
+        },
+      },
+    );
+
+    expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
+      commandType: 'AgentProduce',
+      payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 4 },
+      resourceEstimate: {
+        actionSeconds: 3.2,
+        energyCost: 64,
+        satietyCost: 16,
+        inventoryCosts: { Wood: 1 },
+      },
+    });
+  });
+
   test('routes domain support through structural plan metadata instead of target prose', async () => {
     const context = createRuntimeContext({
       agent: createAgent({ agentId: agentA, residentialTier: 1 }),
@@ -592,9 +628,10 @@ describe('canonical domain runtimes', () => {
 async function resolveCanonicalBinding(
   context: WorkerResolverTestContext,
   config: Parameters<typeof createCanonicalDomainRuntimeRegistrations>[0] = {},
+  runtimePolicies: WorldCommandPolicies = policies,
 ) {
   const resolver = createDomainRuntimeResolver({
-    registrations: createCanonicalDomainRuntimeRegistrations(config, policies),
+    registrations: createCanonicalDomainRuntimeRegistrations(config, runtimePolicies),
     simulate: ({ action }) => ({ status: 'accepted', action }),
   });
   const binding = await resolver(context);

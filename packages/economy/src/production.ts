@@ -9,11 +9,28 @@ import { getInventoryQuantity, type Inventory } from './inventory';
 
 export type ProductionAgentState = {
   readonly residentialTier: number;
+  readonly educationScore?: number;
   readonly energy: number;
   readonly satiety: number;
   readonly availableLaborSeconds: number;
   readonly inventory: Inventory;
 };
+
+export type ProductionEfficiencyPolicy = {
+  readonly minEfficiency: number;
+  readonly educationScoreForMaxEfficiency: number;
+};
+
+export type ProductionEfficiencyDecision =
+  | {
+      readonly status: 'accepted';
+      readonly efficiency: number;
+    }
+  | {
+      readonly status: 'rejected';
+      readonly reason: 'policy-invalid';
+      readonly detail: string;
+    };
 
 export type ProductionRejectionReason =
   | 'commodity-not-producible'
@@ -21,7 +38,8 @@ export type ProductionRejectionReason =
   | 'insufficient-input'
   | 'insufficient-energy'
   | 'insufficient-satiety'
-  | 'insufficient-labor';
+  | 'insufficient-labor'
+  | 'policy-invalid';
 
 export type ProductionPlan =
   | {
@@ -31,6 +49,7 @@ export type ProductionPlan =
       readonly energyCost: number;
       readonly satietyCost: number;
       readonly laborSeconds: number;
+      readonly productionEfficiency?: number;
     }
   | {
       readonly status: 'rejected';
@@ -61,6 +80,7 @@ export function planProduction(input: {
   readonly commodityCatalog?: readonly CommodityConfig[];
   readonly recipeCatalog?: readonly ProductionRecipe[];
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
+  readonly productionEfficiency?: ProductionEfficiencyPolicy;
 }): ProductionPlan {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     return reject('commodity-not-producible', `quantity must be a positive integer`);
@@ -87,6 +107,18 @@ export function planProduction(input: {
     );
   }
 
+  const efficiencyDecision =
+    input.productionEfficiency === undefined
+      ? undefined
+      : evaluateProductionEfficiency({
+          educationScore: input.agent.educationScore ?? 0,
+          policy: input.productionEfficiency,
+        });
+  if (efficiencyDecision?.status === 'rejected') {
+    return reject(efficiencyDecision.reason, efficiencyDecision.detail);
+  }
+  const productionEfficiency = efficiencyDecision?.efficiency;
+
   const consumedInputs = multiplyInventory(recipe.inputs, input.quantity);
   for (const [itemName, requiredQuantity] of Object.entries(consumedInputs)) {
     const availableQuantity = getInventoryQuantity(input.agent.inventory, itemName);
@@ -98,7 +130,7 @@ export function planProduction(input: {
     }
   }
 
-  const energyCost = recipe.energyCost * input.quantity;
+  const energyCost = scaleProductionCost(recipe.energyCost * input.quantity, productionEfficiency);
   if (input.agent.energy < energyCost) {
     return reject(
       'insufficient-energy',
@@ -106,7 +138,10 @@ export function planProduction(input: {
     );
   }
 
-  const satietyCost = recipe.satietyCost * input.quantity;
+  const satietyCost = scaleProductionCost(
+    recipe.satietyCost * input.quantity,
+    productionEfficiency,
+  );
   if (input.agent.satiety < satietyCost) {
     return reject(
       'insufficient-satiety',
@@ -114,7 +149,10 @@ export function planProduction(input: {
     );
   }
 
-  const laborSeconds = recipe.timeCostSeconds * input.quantity;
+  const laborSeconds = scaleProductionCost(
+    recipe.timeCostSeconds * input.quantity,
+    productionEfficiency,
+  );
   if (input.agent.availableLaborSeconds < laborSeconds) {
     return reject(
       'insufficient-labor',
@@ -133,7 +171,43 @@ export function planProduction(input: {
     energyCost,
     satietyCost,
     laborSeconds,
+    ...(productionEfficiency === undefined ? {} : { productionEfficiency }),
   };
+}
+
+export function evaluateProductionEfficiency(input: {
+  readonly educationScore: number;
+  readonly policy: ProductionEfficiencyPolicy;
+}): ProductionEfficiencyDecision {
+  const minEfficiencyError = validateMinEfficiency(input.policy.minEfficiency);
+  if (minEfficiencyError !== undefined) {
+    return rejectEfficiency(minEfficiencyError);
+  }
+  if (!Number.isFinite(input.policy.educationScoreForMaxEfficiency)) {
+    return rejectEfficiency('educationScoreForMaxEfficiency must be positive');
+  }
+  if (input.policy.educationScoreForMaxEfficiency <= 0) {
+    return rejectEfficiency('educationScoreForMaxEfficiency must be positive');
+  }
+  if (!Number.isFinite(input.educationScore) || input.educationScore < 0) {
+    return rejectEfficiency('educationScore must be non-negative');
+  }
+
+  const educationProgress = Math.min(
+    1,
+    input.educationScore / input.policy.educationScoreForMaxEfficiency,
+  );
+  return {
+    status: 'accepted',
+    efficiency: input.policy.minEfficiency + (1 - input.policy.minEfficiency) * educationProgress,
+  };
+}
+
+export function scaleProductionCost(
+  cost: number,
+  productionEfficiency: number | undefined,
+): number {
+  return productionEfficiency === undefined ? cost : cost / productionEfficiency;
 }
 
 export function resolveProductionDefinition(
@@ -157,6 +231,17 @@ export function resolveProductionDefinition(
 
 function reject(reason: ProductionRejectionReason, detail: string): ProductionPlan {
   return { status: 'rejected', reason, detail };
+}
+
+function rejectEfficiency(detail: string): ProductionEfficiencyDecision {
+  return { status: 'rejected', reason: 'policy-invalid', detail };
+}
+
+function validateMinEfficiency(value: number): string | undefined {
+  if (!Number.isFinite(value) || value <= 0 || value > 1) {
+    return 'minEfficiency must be within (0, 1]';
+  }
+  return undefined;
 }
 
 function multiplyInventory(inventory: Inventory, quantity: number): Inventory {

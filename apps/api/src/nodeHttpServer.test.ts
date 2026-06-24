@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import type { Server } from 'node:http';
-import { createTownNodeHttpServer, type TownHttpApiHandler } from './index';
+import {
+  createTownNodeHttpServer,
+  type TownHttpApiHandler,
+  type TownServerSentEventRoute,
+} from './index';
 
 const servers: Server[] = [];
 
@@ -86,6 +90,65 @@ describe('Node HTTP API server adapter', () => {
       error: { code: 'bad_request', message: 'request body must be valid JSON' },
     });
     expect(requests).toEqual([]);
+  });
+
+  test('streams matching server-sent event routes without invoking the JSON handler', async () => {
+    const requests: unknown[] = [];
+    const routeRequests: unknown[] = [];
+    const route: TownServerSentEventRoute = {
+      match: (request) =>
+        request.method === 'GET' && request.path === '/simulations/sim-1/partitions/world-main/sync-stream',
+      createStream: async function* (request) {
+        routeRequests.push(request);
+        await Promise.resolve();
+        yield {
+          id: '1',
+          event: 'sync',
+          data: {
+            streamVersion: 1,
+            nextAfterSequence: 1,
+          },
+        };
+      },
+    };
+    const server = await listen(
+      createTownNodeHttpServer({
+        handler: (request) => {
+          requests.push(request);
+          return Promise.resolve({
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+            body: {},
+          });
+        },
+        serverSentEventRoutes: [route],
+      }),
+    );
+
+    const response = await fetch(
+      `${server.baseUrl}/simulations/sim-1/partitions/world-main/sync-stream?afterSequence=0`,
+      { headers: { accept: 'text/event-stream' } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    await expect(response.text()).resolves.toBe(
+      [
+        'id: 1',
+        'event: sync',
+        'data: {"streamVersion":1,"nextAfterSequence":1}',
+        '',
+        '',
+      ].join('\n'),
+    );
+    expect(requests).toEqual([]);
+    expect(routeRequests).toEqual([
+      {
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync-stream',
+        query: { afterSequence: '0' },
+      },
+    ]);
   });
 
   test('serializes unexpected handler failures as 500 JSON responses', async () => {

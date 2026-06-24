@@ -1,4 +1,5 @@
 import {
+  createSimulationSyncSseRoute,
   createTownHttpApiHandler,
   createTownNodeHttpServer,
   type TownHttpApiHandler,
@@ -52,6 +53,13 @@ export async function createLocalRuntimeTownNodeHttpServer(
   const api = await createLocalRuntimeTownApi(input);
   return {
     ...api,
-    server: createTownNodeHttpServer({ handler: api.handler }),
+    server: createTownNodeHttpServer({
+      handler: api.handler,
+      serverSentEventRoutes: [
+        createSimulationSyncSseRoute({
+          sync: api.host.registry.api,
+        }),
+      ],
+    }),
   };
 }

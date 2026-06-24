@@ -6,9 +6,11 @@ import {
   type ServerResponse,
 } from 'node:http';
 import type { TownHttpApiHandler, TownHttpApiRequest, TownHttpMethod } from './httpApi';
+import { formatServerSentEvent, type TownServerSentEventRoute } from './serverSentEvents';
 
 export type TownNodeHttpServerInput = {
   readonly handler: TownHttpApiHandler;
+  readonly serverSentEventRoutes?: readonly TownServerSentEventRoute[];
 };
 
 type AdapterError = {
@@ -35,18 +37,24 @@ export function createTownNodeHttpServer(input: TownNodeHttpServerInput): Server
 
 export function createTownNodeHttpRequestListener(input: TownNodeHttpServerInput): RequestListener {
   return (request, response) => {
-    void handleNodeRequest(input.handler, request, response);
+    void handleNodeRequest(input, request, response);
   };
 }
 
 async function handleNodeRequest(
-  handler: TownHttpApiHandler,
+  input: TownNodeHttpServerInput,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
   try {
     const townRequest = await createTownRequest(request);
-    const townResponse = await handler(townRequest);
+    if (isServerSentEventRequest(request)) {
+      const handled = await tryWriteServerSentEventResponse(input, townRequest, request, response);
+      if (handled) {
+        return;
+      }
+    }
+    const townResponse = await input.handler(townRequest);
     writeJsonResponse(response, townResponse.status, townResponse.headers, townResponse.body);
   } catch (error) {
     const adapterError = toAdapterError(error);
@@ -145,6 +153,59 @@ function writeJsonResponse(
     response.setHeader('content-type', 'application/json');
   }
   response.end(JSON.stringify(body));
+}
+
+function isServerSentEventRequest(request: IncomingMessage): boolean {
+  const accept = request.headers.accept;
+  if (accept === undefined) {
+    return false;
+  }
+  return accept.split(',').some((value) => value.trim().startsWith('text/event-stream'));
+}
+
+async function tryWriteServerSentEventResponse(
+  input: TownNodeHttpServerInput,
+  townRequest: TownHttpApiRequest,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<boolean> {
+  const route = input.serverSentEventRoutes?.find((candidate) => candidate.match(townRequest));
+  if (route === undefined) {
+    return false;
+  }
+
+  const abort = new AbortController();
+  const abortStream = () => abort.abort();
+  request.on('close', abortStream);
+  response.on('close', abortStream);
+  response.statusCode = 200;
+  response.setHeader('content-type', 'text/event-stream; charset=utf-8');
+  response.setHeader('cache-control', 'no-cache, no-transform');
+  response.setHeader('connection', 'keep-alive');
+  response.flushHeaders();
+
+  try {
+    for await (const event of route.createStream(townRequest, { signal: abort.signal })) {
+      if (abort.signal.aborted) {
+        break;
+      }
+      await writeResponseChunk(response, formatServerSentEvent(event));
+    }
+  } finally {
+    response.end();
+  }
+
+  return true;
+}
+
+function writeResponseChunk(response: ServerResponse, chunk: string): Promise<void> {
+  if (response.write(chunk)) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    response.once('drain', resolve);
+    response.once('error', reject);
+  });
 }
 
 function toAdapterError(error: unknown): AdapterError {

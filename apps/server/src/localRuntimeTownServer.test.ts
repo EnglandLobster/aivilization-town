@@ -129,6 +129,15 @@ describe('local runtime town HTTP gateway', () => {
       [1, 'SimulationTimeAdvanced'],
     ]);
 
+    const syncEvent = await fetchFirstSseEvent(
+      `${server.baseUrl}/simulations/sim-1/partitions/world-main/sync-stream?afterSequence=0&limit=1`,
+    );
+    expect(syncEvent).toContain('id: 1\n');
+    expect(syncEvent).toContain('event: sync\n');
+    expect(syncEvent).toContain('"streamName":"simulation/sim-1/partition/world-main/events"');
+    expect(syncEvent).toContain('"nextAfterSequence":1');
+    expect(syncEvent).toContain('"type":"SimulationTimeAdvanced"');
+
     const trace = await fetchJson(`${server.baseUrl}/runtime/operation-traces/op-start-all-200`);
     expect(trace).toMatchObject({
       traceId: 'op-start-all-200',
@@ -257,6 +266,39 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   expect(response.status).toBeGreaterThanOrEqual(200);
   expect(response.status).toBeLessThan(300);
   return response.json() as Promise<unknown>;
+}
+
+async function fetchFirstSseEvent(url: string): Promise<string> {
+  const abort = new AbortController();
+  const response = await fetch(url, {
+    headers: { accept: 'text/event-stream' },
+    signal: abort.signal,
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toContain('text/event-stream');
+  const reader = response.body?.getReader();
+  if (reader === undefined) {
+    throw new Error('expected response body reader');
+  }
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (!buffer.includes('\n\n')) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        break;
+      }
+      buffer += decoder.decode(chunk.value, { stream: true });
+    }
+  } finally {
+    abort.abort();
+    await reader.cancel().catch((error: unknown) => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        throw error;
+      }
+    });
+  }
+  return buffer.slice(0, buffer.indexOf('\n\n') + 2);
 }
 
 function requireEventFeed(value: unknown): {

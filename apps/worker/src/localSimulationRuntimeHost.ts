@@ -25,6 +25,7 @@ export type LocalSimulationRuntimeHostPartition = {
 };
 
 export type LocalSimulationRuntimeHost = {
+  readonly rootDir: string;
   readonly manifestId: string;
   readonly registry: LocalSimulationBackendRegistry;
   readonly partitions: readonly LocalSimulationRuntimeHostPartition[];
@@ -75,6 +76,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
   });
 
   return {
+    rootDir: input.rootDir,
     manifestId: resolvedManifest.id,
     registry,
     partitions,

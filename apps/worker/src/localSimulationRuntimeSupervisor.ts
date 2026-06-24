@@ -1,4 +1,5 @@
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
+import { join } from 'node:path';
 import type {
   LocalSimulationLifecyclePauseResult,
   LocalSimulationLifecycleStartResult,
@@ -6,6 +7,13 @@ import type {
 } from './localSimulationLifecycle';
 import type { LocalSimulationBackendLifecycleResult } from './localSimulationBackend';
 import type { LocalSimulationRuntimeHost } from './localSimulationRuntimeHost';
+import {
+  FileLocalSimulationRuntimeOperationTraceRepository,
+  type LocalSimulationRuntimeOperationCommand,
+  type LocalSimulationRuntimeOperationTrace,
+  type LocalSimulationRuntimeOperationTraceQuery,
+  type LocalSimulationRuntimeOperationTraceRepository,
+} from './localSimulationRuntimeOperationTrace';
 
 export type LocalSimulationRuntimeSupervisorHealth = 'healthy' | 'attention';
 
@@ -36,6 +44,7 @@ export type LocalSimulationRuntimeSupervisorStatus = {
 };
 
 export type LocalSimulationRuntimeSupervisorRequest = {
+  readonly operationId?: string;
   readonly requestedAt: SimulationTimestamp;
 };
 
@@ -84,6 +93,7 @@ export type LocalSimulationRuntimeSupervisorPausePartitionResult =
   | LocalSimulationRuntimeSupervisorPartitionCommandFailure;
 
 export type LocalSimulationRuntimeSupervisorStartAllResult = {
+  readonly traceId: string;
   readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
   readonly succeededPartitionCount: number;
   readonly failedPartitionCount: number;
@@ -92,6 +102,7 @@ export type LocalSimulationRuntimeSupervisorStartAllResult = {
 };
 
 export type LocalSimulationRuntimeSupervisorPauseAllResult = {
+  readonly traceId: string;
   readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
   readonly succeededPartitionCount: number;
   readonly failedPartitionCount: number;
@@ -101,6 +112,12 @@ export type LocalSimulationRuntimeSupervisorPauseAllResult = {
 
 export type LocalSimulationRuntimeSupervisor = {
   readonly getStatus: () => LocalSimulationRuntimeSupervisorStatus;
+  readonly getOperationTrace: (
+    traceId: string,
+  ) => Promise<LocalSimulationRuntimeOperationTrace | undefined>;
+  readonly queryOperationTraces: (
+    query: LocalSimulationRuntimeOperationTraceQuery,
+  ) => Promise<LocalSimulationRuntimeOperationTrace[]>;
   readonly startAll: (
     request: LocalSimulationRuntimeSupervisorRequest,
   ) => Promise<LocalSimulationRuntimeSupervisorStartAllResult>;
@@ -111,11 +128,21 @@ export type LocalSimulationRuntimeSupervisor = {
 
 export function createLocalSimulationRuntimeSupervisor(input: {
   readonly host: LocalSimulationRuntimeHost;
+  readonly operationTraceRepository?: LocalSimulationRuntimeOperationTraceRepository;
 }): LocalSimulationRuntimeSupervisor {
+  const operationTraceRepository =
+    input.operationTraceRepository ??
+    new FileLocalSimulationRuntimeOperationTraceRepository({
+      rootDir: join(input.host.rootDir, 'operations'),
+    });
+
   return {
     getStatus: () => createSupervisorStatus(input.host),
+    getOperationTrace: (traceId) => operationTraceRepository.get(traceId),
+    queryOperationTraces: (query) => operationTraceRepository.query(query),
     startAll: async (request) => {
       assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+      const traceId = createOperationTraceId(input.host, 'start-all', request);
       const partitions = await Promise.all(
         input.host.partitions.map(async (partition) => {
           try {
@@ -138,13 +165,25 @@ export function createLocalSimulationRuntimeSupervisor(input: {
           }
         }),
       );
-      return createBulkCommandResult({
+      const result = createBulkCommandResult({
+        traceId,
         partitions,
         status: createSupervisorStatus(input.host),
       });
+      await operationTraceRepository.record(
+        createOperationTrace({
+          traceId,
+          host: input.host,
+          command: 'start-all',
+          requestedAt: request.requestedAt,
+          result,
+        }),
+      );
+      return result;
     },
     pauseAll: async (request) => {
       assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+      const traceId = createOperationTraceId(input.host, 'pause-all', request);
       const partitions = await Promise.all(
         input.host.partitions.map(async (partition) => {
           try {
@@ -167,10 +206,21 @@ export function createLocalSimulationRuntimeSupervisor(input: {
           }
         }),
       );
-      return createBulkCommandResult({
+      const result = createBulkCommandResult({
+        traceId,
         partitions,
         status: createSupervisorStatus(input.host),
       });
+      await operationTraceRepository.record(
+        createOperationTrace({
+          traceId,
+          host: input.host,
+          command: 'pause-all',
+          requestedAt: request.requestedAt,
+          result,
+        }),
+      );
+      return result;
     },
   };
 }
@@ -180,9 +230,11 @@ function createBulkCommandResult<
     | LocalSimulationRuntimeSupervisorStartPartitionResult
     | LocalSimulationRuntimeSupervisorPausePartitionResult,
 >(input: {
+  readonly traceId: string;
   readonly partitions: readonly TPartition[];
   readonly status: LocalSimulationRuntimeSupervisorStatus;
 }): {
+  readonly traceId: string;
   readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
   readonly succeededPartitionCount: number;
   readonly failedPartitionCount: number;
@@ -195,6 +247,7 @@ function createBulkCommandResult<
   const succeededPartitionCount = input.partitions.length - failedPartitionCount;
 
   return {
+    traceId: input.traceId,
     outcome: createCommandOutcome({
       partitionCount: input.partitions.length,
       failedPartitionCount,
@@ -204,6 +257,57 @@ function createBulkCommandResult<
     partitions: input.partitions,
     status: input.status,
   };
+}
+
+function createOperationTrace(input: {
+  readonly traceId: string;
+  readonly host: LocalSimulationRuntimeHost;
+  readonly command: LocalSimulationRuntimeOperationCommand;
+  readonly requestedAt: SimulationTimestamp;
+  readonly result:
+    | LocalSimulationRuntimeSupervisorStartAllResult
+    | LocalSimulationRuntimeSupervisorPauseAllResult;
+}): LocalSimulationRuntimeOperationTrace {
+  return {
+    traceId: input.traceId,
+    manifestId: input.host.manifestId,
+    command: input.command,
+    requestedAt: input.requestedAt,
+    recordedAt: input.requestedAt,
+    outcome: input.result.outcome,
+    succeededPartitionCount: input.result.succeededPartitionCount,
+    failedPartitionCount: input.result.failedPartitionCount,
+    partitions: input.result.partitions.map((partition) => {
+      if (partition.outcome === 'failed') {
+        return {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+          outcome: partition.outcome,
+          status: partition.status,
+          error: partition.error,
+        };
+      }
+      return {
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        outcome: partition.outcome,
+        status: partition.status,
+      };
+    }),
+    status: input.result.status,
+  };
+}
+
+function createOperationTraceId(
+  host: LocalSimulationRuntimeHost,
+  command: LocalSimulationRuntimeOperationCommand,
+  request: LocalSimulationRuntimeSupervisorRequest,
+): string {
+  if (request.operationId !== undefined) {
+    assertNonEmpty(request.operationId, 'operationId');
+    return request.operationId;
+  }
+  return `${host.manifestId}:${command}:${request.requestedAt}`;
 }
 
 function createSupervisorStatus(
@@ -320,5 +424,11 @@ function serializeCommandError(
 function assertNonNegativeFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
+  }
+}
+
+function assertNonEmpty(value: string, name: string): void {
+  if (value.trim().length === 0) {
+    throw new Error(`${name} must not be empty`);
   }
 }

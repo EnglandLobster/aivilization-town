@@ -136,6 +136,74 @@ describe('local world runtime step', () => {
       }),
     ).toEqual(result.tick.checkpoint);
   });
+
+  test('builds tick agents from a provider after command drain updates projection', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    storage.commandStore.appendToStream({
+      streamName: storage.partition.commandStreamName,
+      expectedVersion: 0,
+      idempotencyKey: 'append-command-provider',
+      commands: [
+        createCommandEnvelope({
+          id: 'cmd-provider-study',
+          simulationId: 'sim-1',
+          actorId: agentOne,
+          source: 'human',
+          type: 'IssueReactiveCommand',
+          payload: {
+            reactiveCommandId: 'reactive-provider-study',
+            summary: 'study before provider resolves agents',
+            tags: ['study'],
+          },
+          issuedAt: 100,
+        }),
+      ],
+    });
+    const providerObservedEducation: number[] = [];
+
+    const result = await runLocalWorldRuntimeStep({
+      storage,
+      tickId: 'tick-provider',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createInitialProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [reactiveStudyPlanner()],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      agentProvider: ({ projection }) => {
+        providerObservedEducation.push(projection.agents['agent-1']?.educationScore ?? -1);
+        return [
+          {
+            agentId: agentOne,
+            observedStateSummary: 'provider-built study agent',
+            plan: createStudyPlan(),
+            signals: [],
+            microPlanners: [
+              studyMicroPlanner({
+                id: 'study-from-provider',
+                description: 'study from provider',
+                commandType: 'AgentStudy',
+                payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+              }),
+            ],
+            simulate: ({ action }) => ({ status: 'accepted', action }),
+          },
+        ];
+      },
+    });
+
+    expect(providerObservedEducation).toEqual([70]);
+    if (result.status !== 'ticked') {
+      throw new Error('expected ticked result');
+    }
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(100);
+  });
 });
 
 function createInitialProjection() {

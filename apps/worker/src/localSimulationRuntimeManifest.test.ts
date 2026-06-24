@@ -1,4 +1,9 @@
-import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import {
+  createBranchPlan,
+  type AtomicActionProposal,
+  type DomainMicroPlanner,
+  type ReactiveLocalizedPlanner,
+} from '@aivilization/agent-runtime';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies } from '@aivilization/world';
@@ -217,6 +222,78 @@ describe('local simulation runtime manifest', () => {
     ).toThrow('scenario preset is not registered: missing-scenario');
   });
 
+  test('propagates a dynamic agent provider into manifest-created backends', async () => {
+    const manifest: LocalSimulationRuntimeManifest = {
+      id: 'town-runtime-provider',
+      defaults: {
+        tickBatchSize: 1,
+        tickIntervalMs: 100,
+        commandConsumerIdPrefix: 'worker',
+      },
+      partitions: [
+        {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          scenarioPresetId: 'scenario-main',
+        },
+      ],
+    };
+    const providerObserved: string[] = [];
+    const registry = createLocalSimulationBackendRegistryFromManifest({
+      rootDir: createRootDir(),
+      manifest,
+      scenarioPresets: [
+        createScenarioPreset({
+          id: 'scenario-main',
+          agentId: agentOne,
+          educationScore: 10,
+        }),
+      ],
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      agentProvider: ({ projection, storage }) => {
+        providerObserved.push(
+          `${storage.partition.partitionKey}:${projection.agents['agent-1']?.educationScore ?? -1}`,
+        );
+        return [
+          {
+            agentId: agentOne,
+            observedStateSummary: 'provider-built manifest agent',
+            plan: createStudyPlan(),
+            signals: [],
+            microPlanners: [
+              studyMicroPlanner({
+                id: 'study-from-manifest-provider',
+                description: 'study from manifest provider',
+                commandType: 'AgentStudy',
+                payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+              }),
+            ],
+            simulate: ({ action }) => ({ status: 'accepted', action }),
+          },
+        ];
+      },
+    });
+
+    const started = requireCompletedStartResult(
+      await registry.api.startSimulation({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt: 200,
+      }),
+    );
+    expect(started.state.lastAppliedSequence).toBe(3);
+    expect(providerObserved).toEqual(['world-main:10']);
+
+    const projection = await registry.api.getProjection({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(projection.projection.agents['agent-1']?.educationScore).toBe(40);
+  });
+
   test('rejects duplicate scenario preset ids in the catalog input', () => {
     const duplicate = createScenarioPreset({
       id: 'scenario-main',
@@ -377,6 +454,27 @@ function reactiveStudyPlanner(): ReactiveLocalizedPlanner {
         payload: { durationSeconds: 60, educationRatePerSecond: 1 },
       },
     ],
+  };
+}
+
+function createStudyPlan() {
+  return createBranchPlan({
+    objective: 'develop education',
+    branches: [
+      {
+        id: 'development',
+        objective: 'improve education',
+        subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+      },
+    ],
+  });
+}
+
+function studyMicroPlanner(action: AtomicActionProposal): DomainMicroPlanner {
+  return {
+    domain: 'study',
+    supports: ({ subtaskId }) => subtaskId === 'study',
+    propose: () => [action],
   };
 }
 

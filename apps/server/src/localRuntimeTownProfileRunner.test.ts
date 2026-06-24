@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileBranchPlanRepository } from '@aivilization/agent-runtime';
+import { FileBranchPlanRepository, createBranchPlan } from '@aivilization/agent-runtime';
 import {
   FileAgentCycleTraceRepository,
   FileObjectiveRenewalTraceRepository,
@@ -328,6 +328,134 @@ describe('local runtime town profile runner', () => {
           'profile-llm-plan:smoke-25:smoke-25-world-main-agent-001:auto-objective-smoke-25-world-main-agent-001-100:100',
         providerId: 'scripted-profile-planner',
         model: 'profile-planner-model',
+      },
+    });
+  });
+
+  test('uses an injected strategic plan compiler for autonomous objective plans', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 140,
+      strategicPlanCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'injected-branch',
+              objective: 'Use the injected study compiler.',
+              subtasks: [
+                {
+                  id: 'study',
+                  description: `Study through injected plan for: ${objective.statement}`,
+                  basePriority: 99,
+                  signalKeys: ['study'],
+                  intentionAffinityTags: ['study'],
+                  memoryAffinityTags: ['study'],
+                  profileAffinityTags: ['study'],
+                },
+              ],
+            },
+          ],
+        }),
+        planningTrace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          message: 'Injected strategic plan compiler',
+        },
+      }),
+    });
+
+    const agentId = asAgentId('smoke-25-world-main-agent-001');
+    const objectiveId = 'auto-objective-smoke-25-world-main-agent-001-140';
+    const planRepository = new FileBranchPlanRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'planning',
+      ),
+    });
+    const traceRepository = new FileAgentCycleTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const objectiveTraceRepository = new FileObjectiveRenewalTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+
+    const plan = await planRepository.require({
+      planId: objectiveId,
+      agentId,
+    });
+    const traces = await traceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      agentId,
+      limit: 1,
+    });
+    const objectiveTraces = await objectiveTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      limit: 1,
+    });
+
+    expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(plan.plan.branches).toEqual([
+      {
+        id: 'injected-branch',
+        objective: 'Use the injected study compiler.',
+        subtasks: [
+          {
+            id: 'study',
+            description:
+              'Study through injected plan for: Improve education to qualify for better town opportunities.',
+            basePriority: 99,
+            signalKeys: ['study'],
+            intentionAffinityTags: ['study'],
+            memoryAffinityTags: ['study'],
+            profileAffinityTags: ['study'],
+          },
+        ],
+      },
+    ]);
+    expect(plan.planningTrace).toEqual({
+      status: 'deterministic',
+      source: 'deterministic',
+      message: 'Injected strategic plan compiler',
+    });
+    expect(traces[0]).toMatchObject({
+      agentId,
+      selectedBranch: 'injected-branch',
+      selectionEvidence: {
+        selectedSubtaskId: 'study',
+      },
+    });
+    expect(objectiveTraces[0]).toMatchObject({
+      agentId,
+      objectiveId,
+      strategicPlan: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'Injected strategic plan compiler',
       },
     });
   });

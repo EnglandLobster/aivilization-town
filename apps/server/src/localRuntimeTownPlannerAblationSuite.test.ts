@@ -1,7 +1,9 @@
+import { normalizeStrategicPlanCompilerOutput } from '@aivilization/agent-runtime';
 import {
   InMemoryRuntimeProfileRunReportRepository,
   createPlannerExperimentRunsFromRuntimeProfileReports,
 } from '@aivilization/observability';
+import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { runLocalRuntimeTownPlannerAblationSuite } from './localRuntimeTownPlannerAblationSuite';
 import {
@@ -68,6 +70,74 @@ describe('local runtime town planner ablation suite', () => {
       { taskId: 'high-tech-production', variant: 'default' },
       { taskId: 'high-tech-production', variant: 'without-branch' },
     ]);
+  });
+
+  test('wires default without-branch variant to a real strategic compiler', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+
+    await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir: '/tmp/aivilization-planner-ablation',
+      profileId: 'smoke-25',
+      taskId: 'high-tech-production',
+      requestedAt: 300,
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createVariantSummary(input));
+      },
+    });
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]?.runIdSuffix).toBe('default');
+    expect(inputs[0]?.strategicPlanCompiler).toBeUndefined();
+    expect(inputs[1]?.runIdSuffix).toBe('without-branch');
+    expect(inputs[1]?.strategicPlanCompiler).not.toBeUndefined();
+
+    const compiler = inputs[1]?.strategicPlanCompiler;
+    if (compiler === undefined) {
+      throw new Error('expected without-branch compiler');
+    }
+    const compiled = normalizeStrategicPlanCompilerOutput(
+      await compiler({
+        objective: {
+          id: 'objective-study',
+          agentId: asAgentId('agent-1'),
+          statement: 'Study before applying for work.',
+          priority: 4,
+          source: 'agent',
+          affinityTags: ['study', 'work', 'study'],
+          createdAt: 300,
+          updatedAt: 300,
+        },
+        issuedAt: 333,
+      }),
+    );
+
+    expect(compiled.plan).toEqual({
+      objective: 'Study before applying for work.',
+      branches: [
+        {
+          id: 'without-branch',
+          objective: 'Pursue the objective without alternative branch decomposition.',
+          subtasks: [
+            {
+              id: 'pursue-objective',
+              description:
+                'Pursue the objective directly without branch decomposition: Study before applying for work.',
+              basePriority: 12,
+              signalKeys: ['study', 'work'],
+              intentionAffinityTags: ['study', 'work'],
+              memoryAffinityTags: ['study', 'work'],
+              profileAffinityTags: ['study', 'work'],
+            },
+          ],
+        },
+      ],
+    });
+    expect(compiled.planningTrace).toEqual({
+      status: 'deterministic',
+      source: 'deterministic',
+      message: 'Planner ablation without branch decomposition',
+    });
   });
 });
 

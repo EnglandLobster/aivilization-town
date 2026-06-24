@@ -1115,6 +1115,52 @@ describe('agent produce command handling', () => {
     });
   });
 
+  test('AgentProduce passes physiology and residential state into full production efficiency policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 50, satiety: 100, health: 100 },
+          educationScore: 500,
+          balance: 0,
+          residentialTier: 5,
+          job: null,
+          inventory: { Wood: 1 },
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-full-efficiency',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 2 },
+        issuedAt: 50,
+      }),
+      projection,
+      nextSequence: 1,
+      productionEfficiency: {
+        minEfficiency: 0.5,
+        educationScoreForMaxEfficiency: 500,
+        physiologyCaps: {
+          caps: [{ residentialTier: 5, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 }],
+        },
+        residentialTierForMaxEfficiency: 5,
+      },
+    });
+
+    expect(events[0]?.type).toBe('CommodityProduced');
+    if (events[0]?.type !== 'CommodityProduced') {
+      throw new Error('expected first event to be CommodityProduced');
+    }
+    expect(events[0].payload.productionEfficiency).toBeCloseTo(0.95);
+    expect(events[0].payload.energyCost).toBeCloseTo(32 / 0.95);
+    expect(events[0].payload.satietyCost).toBeCloseTo(8 / 0.95);
+    expect(events[0].payload.laborSeconds).toBeCloseTo(1.6 / 0.95);
+  });
+
   test('AgentProduce applies deterministic special rewards through world command handling', () => {
     const projection = createWorldProjection({
       agents: [

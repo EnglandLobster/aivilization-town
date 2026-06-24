@@ -996,6 +996,7 @@ export function handleAgentProduceCommand(input: {
       residentialTier: agent.residentialTier,
       energy: agent.physiology.energy,
       satiety: agent.physiology.satiety,
+      health: agent.physiology.health,
       availableLaborSeconds: payload.availableLaborSeconds,
       inventory: agent.inventory,
       educationScore: agent.educationScore,

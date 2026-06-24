@@ -132,11 +132,20 @@ describe('AIvilization source content', () => {
   });
 
   test('captures source-backed production efficiency defaults', () => {
-    expect(aivilizationProductionPolicyDefaults.educationEfficiency).toMatchObject({
+    expect(aivilizationProductionPolicyDefaults.productionEfficiency).toMatchObject({
       minEfficiency: 0.5,
       educationScoreForMaxEfficiency: 500,
+      physiologyCaps: {
+        caps: aivilizationResidentialPhysiologyCaps.map((cap) => ({
+          residentialTier: cap.residentialTier,
+          maxEnergy: cap.maxEnergy,
+          maxSatiety: cap.maxSatiety,
+          maxHealth: cap.maxHealth,
+        })),
+      },
+      residentialTierForMaxEfficiency: 5,
       source:
-        'AIvilization v0 Section 3.1.1 productive efficiency and Section 3.2.1 education score default runtime tuning',
+        'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning',
     });
   });
 

@@ -2,6 +2,7 @@ export * from './agentProfileApi';
 export * from './commandStoreSubmission';
 export * from './httpApi';
 export * from './nodeHttpServer';
+export * from './objectiveRenewalTraceApi';
 export * from './runtimeDaemonApi';
 export * from './runtimeProfileRunReportApi';
 export * from './runtimeRunQueueApi';

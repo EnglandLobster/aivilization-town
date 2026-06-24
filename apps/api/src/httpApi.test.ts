@@ -10,6 +10,7 @@ import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 import type { AgentProfileApiService } from './agentProfileApi';
+import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -173,6 +174,12 @@ type TestAgentProfile = {
   readonly agentId: string;
   readonly values: readonly string[];
   readonly personality: readonly string[];
+};
+
+type TestObjectiveRenewalTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly objectiveId: string;
 };
 
 describe('town HTTP API router', () => {
@@ -482,6 +489,78 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           agentId: 'agent-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes objective renewal trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      objectiveRenewalTraces: createObjectiveRenewalTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/objective-renewal-traces',
+        query: {
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'trace-1',
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/objective-renewal-traces/trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'trace-1',
+        agentId: 'agent-1',
+        objectiveId: 'objective-1',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryObjectiveRenewalTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getObjectiveRenewalTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'trace-1',
         },
       },
     ]);
@@ -1608,6 +1687,31 @@ function createAgentProfileService(calls: unknown[]): AgentProfileApiService<Tes
           agentId: request.agentId ?? 'agent-1',
           values: ['cooperation'],
           personality: ['sociable'],
+        },
+      ]);
+    },
+  };
+}
+
+function createObjectiveRenewalTraceService(
+  calls: unknown[],
+): ObjectiveRenewalTraceApiService<TestObjectiveRenewalTrace> {
+  return {
+    getObjectiveRenewalTrace: (request) => {
+      calls.push({ method: 'getObjectiveRenewalTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        agentId: 'agent-1',
+        objectiveId: 'objective-1',
+      });
+    },
+    queryObjectiveRenewalTraces: (request) => {
+      calls.push({ method: 'queryObjectiveRenewalTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'trace-1',
+          agentId: request.agentId ?? 'agent-1',
+          objectiveId: request.objectiveId ?? 'objective-1',
         },
       ]);
     },

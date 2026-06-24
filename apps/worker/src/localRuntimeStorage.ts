@@ -20,6 +20,7 @@ import {
 import {
   FileAgentCycleTraceRepository,
   FileExperimentValidationReportRepository,
+  FileObjectiveRenewalTraceRepository,
 } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { join, resolve } from 'node:path';
@@ -70,6 +71,7 @@ export type LocalWorldRuntimeStorage = {
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
+  readonly objectiveRenewalTraceRepository: FileObjectiveRenewalTraceRepository;
   readonly experimentValidationReportRepository: FileExperimentValidationReportRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
@@ -126,6 +128,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const agentCycleTraceRepository = new FileAgentCycleTraceRepository({
     rootDir: paths.observabilityDir,
   });
+  const objectiveRenewalTraceRepository = new FileObjectiveRenewalTraceRepository({
+    rootDir: paths.observabilityDir,
+  });
   const experimentValidationReportRepository = new FileExperimentValidationReportRepository({
     rootDir: paths.observabilityDir,
   });
@@ -158,6 +163,7 @@ export function createLocalWorldRuntimeStorage(input: {
     planRepository,
     planProgressRepository,
     agentCycleTraceRepository,
+    objectiveRenewalTraceRepository,
     experimentValidationReportRepository,
     repositories,
     checkpointing,

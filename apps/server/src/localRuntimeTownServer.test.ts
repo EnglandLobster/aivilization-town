@@ -169,6 +169,53 @@ describe('local runtime town HTTP gateway', () => {
     });
     await runtime.host.registry
       .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.objectiveRenewalTraceRepository.record({
+        traceId: 'trace-objective-agent-1-300',
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-1',
+        objectiveId: 'objective-study-300',
+        selectedCandidateId: 'education-development',
+        rationale: 'Agent 1 should study before applying for better work.',
+        score: 88,
+        shortTermMemoryContextIds: ['memory-study-1'],
+        profileEntryKeys: ['values:education'],
+        profileEvidenceRecordIds: ['profile-education-1'],
+        strategicPlan: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'llm-plan-objective-study-300',
+          providerId: 'scripted-profile-planner',
+          model: 'planner-model',
+        },
+        issuedAt: 300,
+      });
+    const objectiveRenewalTraces = requireObjectiveRenewalTraceList(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/objective-renewal-traces?agentId=agent-1&limit=1`,
+      ),
+    );
+    expect(objectiveRenewalTraces).toHaveLength(1);
+    expect(objectiveRenewalTraces[0]).toMatchObject({
+      traceId: 'trace-objective-agent-1-300',
+      agentId: 'agent-1',
+      objectiveId: 'objective-study-300',
+      strategicPlan: {
+        source: 'llm',
+        providerId: 'scripted-profile-planner',
+      },
+    });
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/objective-renewal-traces/trace-objective-agent-1-300`,
+      ),
+    ).resolves.toMatchObject({
+      traceId: 'trace-objective-agent-1-300',
+      selectedCandidateId: 'education-development',
+      issuedAt: 300,
+    });
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
       .storage.longTermProfileRepository.applyPatches(agentOne, [
         {
           id: 'ltm-patch-agent-1-value-community-220',
@@ -1185,6 +1232,29 @@ function requireAgentProfile(value: unknown): {
     readonly personality: readonly unknown[];
     readonly socialRecords: readonly unknown[];
   };
+}
+
+function requireObjectiveRenewalTraceList(value: unknown): readonly {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly objectiveId: string;
+  readonly strategicPlan?: {
+    readonly source?: string;
+    readonly providerId?: string;
+  };
+}[] {
+  if (!Array.isArray(value)) {
+    throw new Error('expected objective renewal trace list response');
+  }
+  return value as readonly {
+    readonly traceId: string;
+    readonly agentId: string;
+    readonly objectiveId: string;
+    readonly strategicPlan?: {
+      readonly source?: string;
+      readonly providerId?: string;
+    };
+  }[];
 }
 
 function requireEventFeed(value: unknown): {

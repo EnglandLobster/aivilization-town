@@ -1,5 +1,6 @@
 import {
   createAgentProfileApiService,
+  createObjectiveRenewalTraceApiService,
   createSimulationSyncSseRoute,
   createRuntimeProfileRunReportApiService,
   createTownHttpApiHandler,
@@ -49,6 +50,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeDaemonApi: LocalRuntimeTownOrchestration['runtimeDaemonApi'];
   readonly runtimeProfileRunReportsApi?: ReturnType<typeof createRuntimeProfileRunReportApiService>;
   readonly agentProfilesApi: ReturnType<typeof createAgentProfileApiService>;
+  readonly objectiveRenewalTracesApi: ReturnType<typeof createObjectiveRenewalTraceApiService>;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -81,9 +83,28 @@ export async function createLocalRuntimeTownApi(
   const agentProfilesApi = createAgentProfileApiService({
     profiles: host.registry.agentProfiles,
   });
+  const objectiveRenewalTracesApi = createObjectiveRenewalTraceApiService({
+    traces: {
+      getTrace: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.objectiveRenewalTraceRepository.get(request.traceId),
+      queryTraces: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.objectiveRenewalTraceRepository.query(request),
+    },
+  });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     agentProfiles: agentProfilesApi,
+    objectiveRenewalTraces: objectiveRenewalTracesApi,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeOrchestration.runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeOrchestration.runtimeRunQueueWorkerApi,
@@ -122,6 +143,7 @@ export async function createLocalRuntimeTownApi(
     runtimeDaemonApi: runtimeOrchestration.runtimeDaemonApi,
     ...(runtimeProfileRunReportsApi === undefined ? {} : { runtimeProfileRunReportsApi }),
     agentProfilesApi,
+    objectiveRenewalTracesApi,
     handler,
   };
 }

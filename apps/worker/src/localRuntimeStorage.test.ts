@@ -185,6 +185,20 @@ describe('local world runtime storage', () => {
     await storage.planRepository.save(planRecord);
     const validationReport = createValidationReport();
     await storage.experimentValidationReportRepository.record(validationReport);
+    await storage.objectiveRenewalTraceRepository.record({
+      traceId: 'objective-trace-1',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      objectiveId: 'objective-study',
+      selectedCandidateId: 'education-development',
+      rationale: 'Education score is below the next job threshold.',
+      score: 42,
+      shortTermMemoryContextIds: ['memory-study-observed'],
+      profileEntryKeys: ['values:education'],
+      profileEvidenceRecordIds: ['profile-record-1'],
+      issuedAt: 176,
+    });
     await handleWorkerSteeringCommand({
       command: createCommandEnvelope({
         id: 'cmd-objective-study',
@@ -217,6 +231,22 @@ describe('local world runtime storage', () => {
     await expect(
       restarted.experimentValidationReportRepository.get('validation-run-1'),
     ).resolves.toEqual(validationReport);
+    await expect(
+      restarted.objectiveRenewalTraceRepository.get('objective-trace-1'),
+    ).resolves.toEqual({
+      traceId: 'objective-trace-1',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      objectiveId: 'objective-study',
+      selectedCandidateId: 'education-development',
+      rationale: 'Education score is below the next job threshold.',
+      score: 42,
+      shortTermMemoryContextIds: ['memory-study-observed'],
+      profileEntryKeys: ['values:education'],
+      profileEvidenceRecordIds: ['profile-record-1'],
+      issuedAt: 176,
+    });
     await expect(
       restarted.planRepository.require({
         planId: 'plan-1',

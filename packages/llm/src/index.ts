@@ -1,3 +1,5 @@
+export * from './openAiCompatibleProvider';
+export * from './providerFactory';
 export * from './scriptedProvider';
 export * from './structuredGateway';
 

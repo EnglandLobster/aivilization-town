@@ -6,6 +6,7 @@ import {
   markSubtaskCompleted,
 } from '@aivilization/agent-runtime';
 import {
+  asMemoryRecordId,
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
@@ -35,6 +36,7 @@ import { handleWorkerSteeringCommand, runCanonicalWorkerActivePlanTick } from '.
 const simulationId = asSimulationId('sim-canonical-active-plan');
 const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
+const agentC = asAgentId('agent-c');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
 
 const policies: WorldCommandPolicies = {
@@ -608,6 +610,116 @@ describe('canonical active-plan worker tick', () => {
         planId: 'objective-social',
       },
     ]);
+  });
+
+  test('uses long-term profile evidence after social observation hydration', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const initialProjection = createProjection({
+      agents: [
+        createAgent(agentA, { locationId: asLocationId('town-square') }),
+        createAgent(agentB, { locationId: asLocationId('town-square') }),
+        createAgent(agentC, { locationId: asLocationId('town-square') }),
+      ],
+      locations: [townSquare()],
+    });
+    await repositories.intentionRepository.setObjective(agentA, createSocialObjective(agentA));
+    await repositories.planRepository.save(createSocialPlanRecord(agentA));
+
+    const first = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-social-profile-observe',
+      simulationId,
+      issuedAt: 100,
+      projection: initialProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(first.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentObserveLocation',
+    });
+    expect(first.projection.locationObservations[0]?.observedAgentIds).toEqual([agentB, agentC]);
+
+    await repositories.longTermProfileRepository.applyPatches(agentA, [
+      {
+        id: 'profile-value-community-cooperation',
+        agentId: agentA,
+        section: 'values',
+        key: 'community-cooperation',
+        statement: 'Agent values cooperative community routines.',
+        confidence: 0.9,
+        provenanceRecordIds: [asMemoryRecordId('memory-community-cooperation')],
+        proposedAt: 150,
+      },
+      {
+        id: 'profile-social-agent-c',
+        agentId: agentA,
+        section: 'socialRecords',
+        key: agentC,
+        statement: 'Agent C is a trusted community partner.',
+        confidence: 0.8,
+        provenanceRecordIds: [asMemoryRecordId('memory-social-agent-c')],
+        proposedAt: 150,
+        relationDelta: 0.4,
+        attitudeDelta: 0.3,
+      },
+    ]);
+
+    const second = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-social-profile-conversation-after-observe',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentC,
+        topic: 'community cooperation',
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Discuss community cooperation.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: 'I will remember this conversation about community cooperation.',
+            intent: 'acknowledge-topic',
+          },
+        ],
+      },
+    });
+    expect(second.projection.conversationRecords[0]).toMatchObject({
+      initiatorAgentId: agentA,
+      participantAgentIds: [agentA, agentC],
+      topic: 'community cooperation',
+    });
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-social',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-social',
+      agentId: agentA,
+      completedSubtaskIds: ['social-step'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
   });
 
   test('infers job application occupation from active plan context', async () => {
@@ -1368,28 +1480,30 @@ function createRepositories() {
   };
 }
 
-function createProjection(input: {
-  readonly agents?: readonly WorldAgentState[];
-  readonly locations?: readonly {
-    readonly locationId: LocationId;
-    readonly name: string;
-    readonly kind:
-      | 'residence'
-      | 'education'
-      | 'healthcare'
-      | 'food'
-      | 'market'
-      | 'production'
-      | 'social';
-    readonly activityAffinities: readonly string[];
-    readonly capacity: number | null;
-  }[];
-  readonly marketPools?: readonly {
-    readonly commodity: string;
-    readonly commodityReserve: number;
-    readonly currencyReserve: number;
-  }[];
-} = {}): WorldProjection {
+function createProjection(
+  input: {
+    readonly agents?: readonly WorldAgentState[];
+    readonly locations?: readonly {
+      readonly locationId: LocationId;
+      readonly name: string;
+      readonly kind:
+        | 'residence'
+        | 'education'
+        | 'healthcare'
+        | 'food'
+        | 'market'
+        | 'production'
+        | 'social';
+      readonly activityAffinities: readonly string[];
+      readonly capacity: number | null;
+    }[];
+    readonly marketPools?: readonly {
+      readonly commodity: string;
+      readonly commodityReserve: number;
+      readonly currencyReserve: number;
+    }[];
+  } = {},
+): WorldProjection {
   return createWorldProjection({
     agents: input.agents ?? [createAgent(agentA), createAgent(agentB)],
     ...(input.locations === undefined ? {} : { locations: input.locations }),

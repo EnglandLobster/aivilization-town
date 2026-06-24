@@ -7,7 +7,12 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
-import { InMemoryAgentIntentionRepository } from '@aivilization/memory';
+import {
+  asMemoryRecordId,
+  InMemoryAgentIntentionRepository,
+  InMemoryLongTermProfileRepository,
+  type LongTermAgentProfile,
+} from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
@@ -183,6 +188,57 @@ describe('worker agent scheduling', () => {
     });
 
     expect(agents).toEqual([]);
+  });
+
+  test('passes long-term profile context into runtime resolution when available', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createWorldProjection({
+      agents: [createProjectedAgent({ agentId: agentA })],
+    });
+    await intentionRepository.setObjective(
+      agentA,
+      createObjective({
+        id: 'objective-social',
+        agentId: agentA,
+        statement: 'Coordinate with the town.',
+        priority: 3,
+        affinityTags: ['social'],
+      }),
+    );
+    await planRepository.save(createPlanRecord({ planId: 'objective-social', agentId: agentA }));
+    await longTermProfileRepository.applyPatches(agentA, [
+      {
+        id: 'ltm-patch-agent-a-value-community-100',
+        agentId: agentA,
+        section: 'values',
+        key: 'community-cooperation',
+        statement: 'Agent values cooperative community routines.',
+        confidence: 0.9,
+        provenanceRecordIds: [asMemoryRecordId('memory-social-value-1')],
+        proposedAt: 100,
+      },
+    ]);
+    let observedProfile: LongTermAgentProfile | undefined;
+
+    await buildWorkerTickAgentsFromActivePlans({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      planRepository,
+      resolveRuntime: ({ longTermProfile }) => {
+        observedProfile = longTermProfile;
+        return createRuntimeBinding('social');
+      },
+    });
+
+    expect(observedProfile?.values).toEqual([
+      expect.objectContaining({
+        key: 'community-cooperation',
+        statement: 'Agent values cooperative community routines.',
+      }),
+    ]);
   });
 });
 

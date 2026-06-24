@@ -9,7 +9,12 @@ import {
   type CycleSubtaskCompletionPolicy,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
-import type { AgentIntentionRepository, LongHorizonObjective } from '@aivilization/memory';
+import type {
+  AgentIntentionRepository,
+  LongHorizonObjective,
+  LongTermAgentProfile,
+  LongTermProfileRepository,
+} from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 import type { WorkerTickAgentInput } from './tickRunner';
@@ -28,6 +33,7 @@ export type WorkerAgentRuntimeResolver = (input: {
   readonly projection: WorldProjection;
   readonly activeObjective: LongHorizonObjective;
   readonly planRecord: BranchPlanRecord;
+  readonly longTermProfile?: LongTermAgentProfile;
 }) => WorkerAgentRuntimeBinding | undefined | Promise<WorkerAgentRuntimeBinding | undefined>;
 
 export async function buildWorkerTickAgentsFromActivePlans(input: {
@@ -35,6 +41,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly intentionRepository: AgentIntentionRepository;
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
+  readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
   const agents: WorkerTickAgentInput[] = [];
@@ -65,19 +72,21 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
             planId: activeObjective.id,
             agentId: agent.agentId,
           });
-    if (
-      progress !== undefined &&
-      !hasSelectableSubtasks({ plan: planRecord.plan, progress })
-    ) {
+    if (progress !== undefined && !hasSelectableSubtasks({ plan: planRecord.plan, progress })) {
       continue;
     }
 
+    const longTermProfile =
+      input.longTermProfileRepository === undefined
+        ? undefined
+        : await input.longTermProfileRepository.getOrCreate(agent.agentId);
     const runtime = await input.resolveRuntime({
       agentId: agent.agentId,
       agent,
       projection: input.projection,
       activeObjective,
       planRecord,
+      ...(longTermProfile === undefined ? {} : { longTermProfile }),
     });
     if (runtime === undefined) {
       continue;

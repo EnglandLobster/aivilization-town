@@ -17,6 +17,13 @@ export type SimulationEventFeedRequest = {
   readonly limit?: number;
 };
 
+export type SimulationSyncRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly afterSequence?: number;
+  readonly limit?: number;
+};
+
 export type SimulationLifecycleRequest = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -61,6 +68,10 @@ export type SimulationEventFeedPort<TResult> = {
   readonly getEvents: (request: SimulationEventFeedRequest) => Promise<TResult>;
 };
 
+export type SimulationSyncPort<TResult> = {
+  readonly getSync: (request: SimulationSyncRequest) => Promise<TResult>;
+};
+
 export type SteeringCommandSubmissionContext = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -85,9 +96,11 @@ export type SimulationApiService<
   TSteeringResult,
   TLifecycleResult,
   TEventFeed,
+  TSync,
 > = {
   readonly getProjection: (request: ProjectionQueryRequest) => Promise<TProjection>;
   readonly getEvents: (request: SimulationEventFeedRequest) => Promise<TEventFeed>;
+  readonly getSync: (request: SimulationSyncRequest) => Promise<TSync>;
   readonly submitLongHorizonObjective: (
     request: SubmitLongHorizonObjectiveRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
@@ -118,15 +131,18 @@ export function createSimulationApiService<
   TSteeringResult,
   TLifecycleResult,
   TEventFeed,
+  TSync,
 >(input: {
   readonly projectionQueries: ProjectionQueryPort<TProjection>;
   readonly eventFeeds: SimulationEventFeedPort<TEventFeed>;
+  readonly sync: SimulationSyncPort<TSync>;
   readonly steeringCommands: SteeringCommandSubmissionPort<TSteeringResult>;
   readonly lifecycle: SimulationLifecyclePort<TLifecycleResult>;
-}): SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed> {
+}): SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed, TSync> {
   return {
     getProjection: async (request) => input.projectionQueries.getProjection(request),
     getEvents: async (request) => input.eventFeeds.getEvents(request),
+    getSync: async (request) => input.sync.getSync(request),
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));

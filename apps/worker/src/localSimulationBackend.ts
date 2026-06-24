@@ -3,6 +3,7 @@ import {
   createSimulationApiService,
   type CommandStoreSteeringSubmissionResult,
   type SimulationEventFeedPort,
+  type SimulationSyncPort,
   type ProjectionQueryPort,
   type SimulationApiService,
   type SimulationLifecyclePort,
@@ -34,6 +35,16 @@ export type LocalWorldEventFeedResult = {
   readonly events: readonly WorldEvent[];
 };
 
+export type LocalWorldSyncResult = {
+  readonly streamName: string;
+  readonly streamVersion: number;
+  readonly projectionSequence: number;
+  readonly projection: WorldProjection;
+  readonly nextAfterSequence: number;
+  readonly hasMoreEvents: boolean;
+  readonly events: readonly WorldEvent[];
+};
+
 export type LocalSimulationBackendLifecycleResult =
   | LocalSimulationLifecycleStartResult
   | LocalSimulationLifecyclePauseResult
@@ -48,10 +59,12 @@ export type LocalSimulationBackend = {
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
-    LocalWorldEventFeedResult
+    LocalWorldEventFeedResult,
+    LocalWorldSyncResult
   >;
   readonly projectionQueries: ProjectionQueryPort<LocalWorldProjectionQueryResult>;
   readonly eventFeeds: SimulationEventFeedPort<LocalWorldEventFeedResult>;
+  readonly sync: SimulationSyncPort<LocalWorldSyncResult>;
   readonly steeringCommands: SteeringCommandSubmissionPort<CommandStoreSteeringSubmissionResult>;
   readonly lifecycle: SimulationLifecyclePort<LocalSimulationBackendLifecycleResult>;
 };
@@ -65,6 +78,10 @@ export function createLocalSimulationBackend(
   });
   const eventFeeds = createLocalWorldEventFeedPort({
     storage: input.storage,
+  });
+  const sync = createLocalWorldSyncPort({
+    storage: input.storage,
+    initialProjection: input.initialProjection,
   });
   const commandStoreSteeringCommands = createCommandStoreSteeringSubmissionPort({
     commandStore: input.storage.commandStore,
@@ -84,10 +101,12 @@ export function createLocalSimulationBackend(
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
-    LocalWorldEventFeedResult
+    LocalWorldEventFeedResult,
+    LocalWorldSyncResult
   >({
     projectionQueries,
     eventFeeds,
+    sync,
     steeringCommands,
     lifecycle,
   });
@@ -97,6 +116,7 @@ export function createLocalSimulationBackend(
     api,
     projectionQueries,
     eventFeeds,
+    sync,
     steeringCommands,
     lifecycle,
   };
@@ -151,6 +171,51 @@ export function createLocalWorldEventFeedPort(input: {
             input.storage.partition.eventStreamName,
           ),
           nextAfterSequence: lastEvent?.sequence ?? request.afterSequence ?? 0,
+          events,
+        };
+      });
+    },
+  };
+}
+
+export function createLocalWorldSyncPort(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly initialProjection: WorldProjection;
+}): SimulationSyncPort<LocalWorldSyncResult> {
+  return {
+    getSync: (request) => {
+      return Promise.resolve().then(() => {
+        assertRequestMatchesStorage(request, input.storage);
+        const streamName = input.storage.partition.eventStreamName;
+        const hydrated = hydrateWorldProjectionFromEventStream({
+          initialProjection: input.initialProjection,
+          eventStore: input.storage.eventStore,
+          streamName,
+          checkpoint: {
+            checkpointStore: input.storage.checkpointStore,
+            snapshotStore: input.storage.snapshotStore,
+            lookup: {
+              simulationId: input.storage.partition.simulationId,
+              partitionKey: input.storage.partition.partitionKey,
+            },
+          },
+        });
+        const afterSequence = request.afterSequence ?? hydrated.streamVersion;
+        const events = input.storage.eventStore
+          .readStream(streamName, {
+            afterSequence,
+            ...(request.limit === undefined ? {} : { limit: request.limit }),
+          })
+          .filter((event) => event.sequence <= hydrated.streamVersion);
+        const lastEvent = events.at(-1);
+        const nextAfterSequence = lastEvent?.sequence ?? afterSequence;
+        return {
+          streamName,
+          streamVersion: hydrated.streamVersion,
+          projectionSequence: hydrated.lastAppliedSequence,
+          projection: hydrated.projection,
+          nextAfterSequence,
+          hasMoreEvents: nextAfterSequence < hydrated.streamVersion,
           events,
         };
       });

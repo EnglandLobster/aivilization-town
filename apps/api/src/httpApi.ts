@@ -6,6 +6,7 @@ import type {
   SimulationApiService,
   SimulationEventFeedRequest,
   SimulationLifecycleRequest,
+  SimulationSyncRequest,
   SubmitLongHorizonObjectiveRequest,
   SubmitReactiveCommandRequest,
 } from './simulationApi';
@@ -34,6 +35,7 @@ export type TownHttpApiServices<
   TSteeringResult,
   TLifecycleResult,
   TEventFeed,
+  TSync,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -44,7 +46,8 @@ export type TownHttpApiServices<
     TProjection,
     TSteeringResult,
     TLifecycleResult,
-    TEventFeed
+    TEventFeed,
+    TSync
   >;
   readonly runtimeSupervisor: RuntimeSupervisorApiService<
     TRuntimeStatus,
@@ -78,6 +81,7 @@ export function createTownHttpApiHandler<
   TSteeringResult,
   TLifecycleResult,
   TEventFeed,
+  TSync,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -89,6 +93,7 @@ export function createTownHttpApiHandler<
     TSteeringResult,
     TLifecycleResult,
     TEventFeed,
+    TSync,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -115,6 +120,7 @@ async function routeTownHttpRequest<
   TSteeringResult,
   TLifecycleResult,
   TEventFeed,
+  TSync,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -126,6 +132,7 @@ async function routeTownHttpRequest<
     TSteeringResult,
     TLifecycleResult,
     TEventFeed,
+    TSync,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -145,8 +152,20 @@ async function routeTownHttpRequest<
   throw new TownHttpApiError(404, 'not_found', 'route not found');
 }
 
-async function routeSimulationRequest<TProjection, TSteeringResult, TLifecycleResult, TEventFeed>(
-  simulation: SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed>,
+async function routeSimulationRequest<
+  TProjection,
+  TSteeringResult,
+  TLifecycleResult,
+  TEventFeed,
+  TSync,
+>(
+  simulation: SimulationApiService<
+    TProjection,
+    TSteeringResult,
+    TLifecycleResult,
+    TEventFeed,
+    TSync
+  >,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -166,6 +185,10 @@ async function routeSimulationRequest<TProjection, TSteeringResult, TLifecycleRe
       200,
       await simulation.getEvents(createEventFeedRequest(route, request.query)),
     );
+  }
+  if (route.action === 'sync') {
+    assertMethod(request, 'GET');
+    return jsonResponse(200, await simulation.getSync(createSyncRequest(route, request.query)));
   }
   assertMethod(request, 'POST');
 
@@ -341,6 +364,24 @@ function createEventFeedRequest(
   route: SimulationRoute,
   query: TownHttpApiRequest['query'],
 ): SimulationEventFeedRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryInteger(query, 'afterSequence', {
+      min: 0,
+      description: 'a non-negative integer',
+    }),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createSyncRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): SimulationSyncRequest {
   return {
     simulationId: route.simulationId,
     partitionKey: route.partitionKey,

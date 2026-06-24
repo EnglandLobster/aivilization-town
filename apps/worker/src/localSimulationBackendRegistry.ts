@@ -11,6 +11,7 @@ import {
   type LocalSimulationBackendLifecycleResult,
   type LocalWorldEventFeedResult,
   type LocalWorldProjectionQueryResult,
+  type LocalWorldSyncResult,
 } from './localSimulationBackend';
 import { createLocalWorldRuntimeStorage } from './localRuntimeStorage';
 
@@ -36,7 +37,8 @@ export type LocalSimulationBackendRegistry = {
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
-    LocalWorldEventFeedResult
+    LocalWorldEventFeedResult,
+    LocalWorldSyncResult
   >;
   readonly listPartitions: () => readonly LocalSimulationBackendLookup[];
   readonly hasBackend: (lookup: LocalSimulationBackendLookup) => boolean;
@@ -93,13 +95,17 @@ export function createLocalSimulationBackendRegistry(
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
     LocalSimulationBackendLifecycleResult,
-    LocalWorldEventFeedResult
+    LocalWorldEventFeedResult,
+    LocalWorldSyncResult
   >({
     projectionQueries: {
       getProjection: (request) => getBackend(request).api.getProjection(request),
     },
     eventFeeds: {
       getEvents: (request) => getBackend(request).eventFeeds.getEvents(request),
+    },
+    sync: {
+      getSync: (request) => getBackend(request).sync.getSync(request),
     },
     steeringCommands: {
       submit: (command, context) => getBackend(context).steeringCommands.submit(command, context),

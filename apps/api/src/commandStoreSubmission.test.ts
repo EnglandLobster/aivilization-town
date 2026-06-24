@@ -16,6 +16,15 @@ describe('command-store-backed steering submission port', () => {
       eventFeeds: {
         getEvents: () => Promise.resolve({ streamVersion: 0, nextAfterSequence: 0, events: [] }),
       },
+      sync: {
+        getSync: () =>
+          Promise.resolve({
+            streamVersion: 0,
+            projectionSequence: 0,
+            nextAfterSequence: 0,
+            hasMoreEvents: false,
+          }),
+      },
       steeringCommands: createCommandStoreSteeringSubmissionPort({ commandStore }),
       lifecycle: createLifecyclePort(),
     });

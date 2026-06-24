@@ -31,6 +31,14 @@ export type ScenarioPhysiologySeed = {
   readonly health: number;
 };
 
+export type ScenarioResidentialPhysiologyCapConfig = {
+  readonly residentialTier: number;
+  readonly maxEnergy: number;
+  readonly maxSatiety: number;
+  readonly maxHealth: number;
+  readonly source: string;
+};
+
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
 
 export type ScenarioAgentProfileSeed = {
@@ -133,6 +141,8 @@ const activityTradeSource =
   'AIvilization v0 Appendix B Table 8 trade excludes Gold Apple; reserves supplied by scenario caller';
 const runtimeScaleProfileSource =
   'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes';
+const residentialPhysiologyCapSource =
+  'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -165,6 +175,51 @@ export const aivilizationScenarioDefaults = {
     defaultClock: 'AIvilization v0 Section 4.1 and Section 5.1 accelerated clock settings',
   },
 } as const satisfies AivilizationScenarioDefaults;
+
+export const aivilizationResidentialPhysiologyCaps = [
+  {
+    residentialTier: 1,
+    maxEnergy: 100,
+    maxSatiety: 100,
+    maxHealth: 100,
+    source: residentialPhysiologyCapSource,
+  },
+  {
+    residentialTier: 2,
+    maxEnergy: 200,
+    maxSatiety: 200,
+    maxHealth: 200,
+    source: residentialPhysiologyCapSource,
+  },
+  {
+    residentialTier: 3,
+    maxEnergy: 300,
+    maxSatiety: 300,
+    maxHealth: 300,
+    source: residentialPhysiologyCapSource,
+  },
+  {
+    residentialTier: 4,
+    maxEnergy: 400,
+    maxSatiety: 400,
+    maxHealth: 400,
+    source: residentialPhysiologyCapSource,
+  },
+  {
+    residentialTier: 5,
+    maxEnergy: 500,
+    maxSatiety: 500,
+    maxHealth: 500,
+    source: residentialPhysiologyCapSource,
+  },
+  {
+    residentialTier: 6,
+    maxEnergy: 500,
+    maxSatiety: 500,
+    maxHealth: 500,
+    source: residentialPhysiologyCapSource,
+  },
+] as const satisfies readonly ScenarioResidentialPhysiologyCapConfig[];
 
 export function createAivilizationAblationAgentSeeds(
   input: CreateAivilizationAblationAgentSeedsInput = {},

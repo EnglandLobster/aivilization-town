@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   activities,
   aivilizationAblationScenarioPreset,
+  aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   commodities,
   createAivilizationAblationAgentSeeds,
@@ -60,6 +61,35 @@ describe('AIvilization source content', () => {
       agentsPerMbtiType: 5,
     });
     expect(aivilizationScenarioDefaults.mbtiTypes).toHaveLength(16);
+  });
+
+  test('captures source-backed residential physiology caps for default world policies', () => {
+    expect(aivilizationResidentialPhysiologyCaps).toHaveLength(6);
+    expect(aivilizationResidentialPhysiologyCaps[0]).toMatchObject({
+      residentialTier: 1,
+      maxEnergy: 100,
+      maxSatiety: 100,
+      maxHealth: 100,
+    });
+    expect(aivilizationResidentialPhysiologyCaps[4]).toMatchObject({
+      residentialTier: 5,
+      maxEnergy: 500,
+      maxSatiety: 500,
+      maxHealth: 500,
+      source:
+        'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps',
+    });
+    expect(
+      aivilizationResidentialPhysiologyCaps.every((cap, index, caps) => {
+        const previous = caps[index - 1];
+        return (
+          previous === undefined ||
+          (cap.maxEnergy >= previous.maxEnergy &&
+            cap.maxSatiety >= previous.maxSatiety &&
+            cap.maxHealth >= previous.maxHealth)
+        );
+      }),
+    ).toBe(true);
   });
 
   test('generates deterministic ablation agent seeds from Section 5.1 assumptions', () => {

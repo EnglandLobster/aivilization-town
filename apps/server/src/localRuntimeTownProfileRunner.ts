@@ -1,20 +1,14 @@
 import type { StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
-  aivilizationScenarioDefaults,
-  commodities,
-  jobTiers,
-  occupations,
-} from '@aivilization/content';
-import {
   createRuntimeProfileRunReport,
   type ObjectiveRenewalTrace,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
-import type { WorldCommandPolicies } from '@aivilization/world';
 import {
   buildWorkerTickAgentsFromActivePlans,
   completeFinishedActiveObjectives,
+  createAivilizationWorldCommandPolicies,
   createCanonicalWorkerRuntimeResolver,
   renewMissingActiveObjectives,
   type ObjectiveRenewalDecisionTrace,
@@ -286,74 +280,7 @@ function createProfileObjectiveRenewalTrace(input: {
 }
 
 export function createLocalRuntimeTownProfileWorldPolicies(): WorldCommandPolicyResolver {
-  return (projection) => {
-    const educationScores = Object.values(projection.agents).map((agent) => agent.educationScore);
-    return createLocalRuntimeTownProfileWorldPoliciesSnapshot(educationScores);
-  };
-}
-
-function createLocalRuntimeTownProfileWorldPoliciesSnapshot(
-  populationEducationScores: readonly number[],
-): WorldCommandPolicies {
-  return {
-    satietyRecoveryByCommodity: createSatietyRecoveryByCommodity(),
-    maxSatiety: aivilizationScenarioDefaults.maxPhysiology.satiety,
-    wageCalculator: calculateOccupationWage,
-    laborCost: {
-      energyCostPerHour: 10,
-      satietyCostPerHour: 10,
-    },
-    criticalThresholds: {
-      energy: 1,
-      health: 1,
-    },
-    sleep: {
-      energyRecoveryPerSecond: 1,
-      maxEnergy: aivilizationScenarioDefaults.maxPhysiology.energy,
-    },
-    seeDoctor: {
-      healthRecoveryPerSecond: 1,
-      maxHealth: aivilizationScenarioDefaults.maxPhysiology.health,
-    },
-    jobApplication: {
-      populationEducationScores,
-      quotaByResidentialTier: [1000, 1000, 1000, 1000, 1000, 1000],
-    },
-    residentialTierUpgrade: {
-      maxResidentialTier: 6,
-      costs: jobTiers
-        .filter((tier) => tier.tier > 1)
-        .map((tier) => ({
-          targetResidentialTier: tier.tier,
-          currencyCost: tier.tier * 100,
-          minEducationScore: tier.minEducationScore,
-          ...(tier.prerequisiteCommodity === null
-            ? {}
-            : { inventoryCosts: { [tier.prerequisiteCommodity]: 1 } }),
-        })),
-    },
-  };
-}
-
-function createSatietyRecoveryByCommodity(): Record<string, number> {
-  const recoveries: Record<string, number> = {};
-  for (const commodity of commodities) {
-    if (commodity.tier === 'Primary' && commodity.role.toLowerCase().includes('food')) {
-      recoveries[commodity.name] = 25;
-    }
-    if (commodity.tier === 'SecondaryProcessedFood') {
-      recoveries[commodity.name] = 50;
-    }
-  }
-  return recoveries;
-}
-
-function calculateOccupationWage(occupationName: string): number {
-  const occupation = occupations.find((candidate) => candidate.name === occupationName);
-  if (occupation === undefined) {
-    throw new Error(`unknown occupation: ${occupationName}`);
-  }
-  return occupation.baseWage;
+  return createAivilizationWorldCommandPolicies();
 }
 
 function sumBy<TValue>(values: readonly TValue[], project: (value: TValue) => number): number {

@@ -5,7 +5,9 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   FileRuntimeProfileRunReportRepository,
   InMemoryRuntimeProfileRunReportRepository,
+  createPlannerExperimentRunsFromRuntimeProfileReports,
   createRuntimeProfileRunReport,
+  type PlannerExperimentMetric,
   type RuntimeProfileRunReport,
 } from './index';
 
@@ -72,6 +74,62 @@ describe('runtime profile run report repositories', () => {
       'limit must be positive',
     );
   });
+
+  test('preserves planner experiment metadata and maps reports to planner runs', async () => {
+    const repository = new InMemoryRuntimeProfileRunReportRepository();
+    const defaultMetric = { metricId: 'net-worth', value: 110_098, higherIsBetter: true };
+    const ablatedMetric = { metricId: 'net-worth', value: 75_237, higherIsBetter: true };
+    const defaultReport = createReport({
+      runId: 'run-default',
+      generatedAt: 200,
+      plannerExperiment: createPlannerExperiment({
+        variant: 'default',
+        metrics: [defaultMetric],
+      }),
+    });
+    const ablatedReport = createReport({
+      runId: 'run-without-branch',
+      generatedAt: 100,
+      plannerExperiment: createPlannerExperiment({
+        variant: 'without-branch',
+        metrics: [ablatedMetric],
+      }),
+    });
+    const nonExperimentReport = createReport({
+      runId: 'run-non-experiment',
+      profileId: 'default-100',
+      generatedAt: 300,
+    });
+
+    await repository.record(ablatedReport);
+    await repository.record(defaultReport);
+    await repository.record(nonExperimentReport);
+
+    await expect(repository.get('run-default')).resolves.toMatchObject({
+      plannerExperiment: {
+        taskId: 'high-tech-production',
+        variant: 'default',
+        metrics: [defaultMetric],
+      },
+    });
+
+    const plannerRuns = createPlannerExperimentRunsFromRuntimeProfileReports(
+      await repository.query({}),
+    );
+
+    expect(plannerRuns).toEqual([
+      {
+        taskId: 'high-tech-production',
+        variant: 'default',
+        metrics: [defaultMetric],
+      },
+      {
+        taskId: 'high-tech-production',
+        variant: 'without-branch',
+        metrics: [ablatedMetric],
+      },
+    ]);
+  });
 });
 
 function createRootDir(): string {
@@ -84,6 +142,11 @@ function createReport(input: {
   readonly runId: string;
   readonly profileId?: string;
   readonly generatedAt?: number;
+  readonly plannerExperiment?: {
+    readonly taskId: string;
+    readonly variant: string;
+    readonly metrics: readonly PlannerExperimentMetric[];
+  };
 }): RuntimeProfileRunReport {
   return createRuntimeProfileRunReport({
     runId: input.runId,
@@ -101,6 +164,9 @@ function createReport(input: {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 5,
+    ...(input.plannerExperiment === undefined
+      ? {}
+      : { plannerExperiment: input.plannerExperiment }),
     partitions: [
       {
         simulationId: 'aivilization-smoke-25',
@@ -116,4 +182,15 @@ function createReport(input: {
       },
     ],
   });
+}
+
+function createPlannerExperiment(input: {
+  readonly variant: string;
+  readonly metrics: readonly PlannerExperimentMetric[];
+}) {
+  return {
+    taskId: 'high-tech-production',
+    variant: input.variant,
+    metrics: input.metrics,
+  };
 }

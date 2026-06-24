@@ -172,6 +172,34 @@ describe('local runtime town profile runner', () => {
     });
   });
 
+  test('records planner experiment metadata on runtime profile run reports', async () => {
+    const rootDir = createRootDir();
+    const repository = new InMemoryRuntimeProfileRunReportRepository();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 120,
+      reportGeneratedAt: 180,
+      profileRunReportRepository: repository,
+      plannerExperiment: {
+        taskId: 'high-tech-production',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'completed-cycle-count', value: 1, higherIsBetter: true }],
+      },
+    });
+
+    await expect(repository.get(summary.run.traceId)).resolves.toMatchObject({
+      runId: 'aivilization-smoke-25:profile-run:120',
+      plannerExperiment: {
+        taskId: 'high-tech-production',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'completed-cycle-count', value: 1, higherIsBetter: true }],
+      },
+    });
+  });
+
   test('uses profile LLM planning config for autonomous objective plans', async () => {
     const rootDir = createRootDir();
 

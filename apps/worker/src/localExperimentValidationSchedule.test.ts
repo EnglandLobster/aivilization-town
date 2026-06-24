@@ -1,8 +1,10 @@
 import { createAmmPool } from '@aivilization/economy';
 import {
   createAgentCycleTrace,
+  createRuntimeProfileRunReport,
   type AgentCycleTrace,
   type ExperimentValidationMetric,
+  InMemoryRuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent } from '@aivilization/world';
@@ -159,9 +161,9 @@ describe('local experiment validation schedule', () => {
 
     expect(result.eventCount).toBe(0);
     expect(getMetric(result.report.metrics, 'market-stability').evidence.observationCount).toBe(3);
-    expect(getMetric(result.report.metrics, 'market-stability').evidence.maximumDrawdown).toBeCloseTo(
-      (110 - 99) / 110,
-    );
+    expect(
+      getMetric(result.report.metrics, 'market-stability').evidence.maximumDrawdown,
+    ).toBeCloseTo((110 - 99) / 110);
   });
 
   test('generates market diagnostics from durable trade observations when no OHLC binning is configured', async () => {
@@ -200,6 +202,47 @@ describe('local experiment validation schedule', () => {
     await expect(
       storage.experimentValidationReportRepository.get('validation-market-trades'),
     ).resolves.toEqual(result.report);
+  });
+
+  test('generates planner diagnostics from durable runtime profile run reports', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110]);
+    const profileRunReports = new InMemoryRuntimeProfileRunReportRepository();
+    await profileRunReports.record(
+      createProfileRunReport({ runId: 'profile-run-default', variant: 'default', value: 110_098 }),
+    );
+    await profileRunReports.record(
+      createProfileRunReport({
+        runId: 'profile-run-without-branch',
+        variant: 'without-branch',
+        value: 75_237,
+      }),
+    );
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-planner-profile-source',
+      generatedAt: 900,
+      plannerRunSource: {
+        repository: profileRunReports,
+        profileId: 'planner-ablation-suite',
+      },
+      expectedTrajectoryAgentIds: ['agent-1'],
+      trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      thresholds: {
+        plannerAblation: { minimumDefaultWinRate: 1 },
+      },
+    });
+
+    const plannerAblation = getMetric(result.report.metrics, 'planner-ablation');
+    expect(plannerAblation.status).toBe('pass');
+    expect(plannerAblation.evidence.comparisonCount).toBe(1);
+    expect(plannerAblation.evidence.defaultWinRate).toBe(1);
   });
 });
 
@@ -269,10 +312,7 @@ function createMarketTradeObservation(input: {
   };
 }
 
-function createOhlcBar(input: {
-  readonly intervalStartedAt: number;
-  readonly closePrice: number;
-}) {
+function createOhlcBar(input: { readonly intervalStartedAt: number; readonly closePrice: number }) {
   return {
     barId: `${simulationId}:ohlc:60:0:Fish:${input.intervalStartedAt}`,
     simulationId,
@@ -287,6 +327,49 @@ function createOhlcBar(input: {
     commodityVolume: 1,
     currencyVolume: input.closePrice,
   };
+}
+
+function createProfileRunReport(input: {
+  readonly runId: string;
+  readonly variant: string;
+  readonly value: number;
+}) {
+  return createRuntimeProfileRunReport({
+    runId: input.runId,
+    profileId: 'planner-ablation-suite',
+    manifestId: 'aivilization-planner-ablation-suite',
+    rootDir: '/tmp/aivilization-profile-run',
+    generatedAt: input.variant === 'default' ? 200 : 100,
+    requestedAt: 50,
+    daemonHealth: 'healthy',
+    outcome: 'succeeded',
+    requestedCycleCount: 2,
+    completedCycleCount: 2,
+    stopReason: 'cycle-count-completed',
+    partitionCount: 1,
+    totalProjectionAgentCount: 25,
+    totalEventCount: 10,
+    totalAgentTraceCount: 5,
+    plannerExperiment: {
+      taskId: 'high-tech-production',
+      variant: input.variant,
+      metrics: [{ metricId: 'net-worth', value: input.value, higherIsBetter: true }],
+    },
+    partitions: [
+      {
+        simulationId: 'aivilization-planner-ablation-suite',
+        partitionKey: 'world-main',
+        scenarioPresetId: 'aivilization-planner-ablation-suite-world-main',
+        status: 'succeeded',
+        health: 'healthy',
+        lastAppliedSequence: 10,
+        streamVersion: 10,
+        eventCount: 10,
+        projectionAgentCount: 25,
+        agentTraceCount: 5,
+      },
+    ],
+  });
 }
 
 function createTrace(input: {

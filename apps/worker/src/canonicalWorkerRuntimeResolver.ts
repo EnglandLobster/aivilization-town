@@ -17,7 +17,6 @@ import {
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
-  type WorldCommandPolicies,
   type WorldProjection,
 } from '@aivilization/world';
 import {
@@ -36,10 +35,14 @@ import {
   deriveActionSynthesisPolicyFromWorldState,
   type WorldStateActionSynthesisPolicyConfig,
 } from './actionSynthesisPolicy';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 
 export type CanonicalWorkerRuntimeResolverConfig = {
   readonly simulationId: SimulationId;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
@@ -53,7 +56,7 @@ export type WorldCommandDryRunSimulatorConfig = {
   readonly simulationId: SimulationId;
   readonly agentId: AgentId;
   readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly issuedAt?: SimulationTimestamp;
   readonly nextSequence?: number;
   readonly commandIdPrefix?: string;
@@ -65,16 +68,19 @@ const DEFAULT_DRY_RUN_SEQUENCE = 1;
 export function createCanonicalWorkerRuntimeResolver(
   config: CanonicalWorkerRuntimeResolverConfig,
 ): WorkerAgentRuntimeResolver {
-  const registryResolver = createDomainRuntimeResolver({
-    registrations: [
-      ...createCanonicalDomainRuntimeRegistrations(config.domainConfig, config.policies),
-      ...(config.additionalRegistrations ?? []),
-    ],
-    simulate: ({ action }) => ({ status: 'accepted', action }),
-    ...(config.repair === undefined ? {} : { repair: config.repair }),
-  });
-
   return async (context) => {
+    const policies = resolveWorldCommandPolicies({
+      policies: config.policies,
+      projection: context.projection,
+    });
+    const registryResolver = createDomainRuntimeResolver({
+      registrations: [
+        ...createCanonicalDomainRuntimeRegistrations(config.domainConfig, policies),
+        ...(config.additionalRegistrations ?? []),
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...(config.repair === undefined ? {} : { repair: config.repair }),
+    });
     const binding = await registryResolver(context);
     if (binding === undefined) {
       return undefined;
@@ -296,7 +302,10 @@ export function createWorldCommandDryRunSimulator(
           issuedAt: config.issuedAt ?? config.projection.clock.now,
         }),
         projection: config.projection,
-        policies: config.policies,
+        policies: resolveWorldCommandPolicies({
+          policies: config.policies,
+          projection: config.projection,
+        }),
         nextSequence: config.nextSequence ?? DEFAULT_DRY_RUN_SEQUENCE,
       });
       const rejection = events.find((event) => event.type === 'ActionRejected');

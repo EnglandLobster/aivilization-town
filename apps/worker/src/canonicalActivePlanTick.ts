@@ -15,7 +15,7 @@ import type {
   SimulationId,
   SimulationTimestamp,
 } from '@aivilization/sim-core';
-import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
+import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { buildWorkerTickAgentsFromActivePlans } from './agentScheduling';
 import type { WorkerAgentCycleTraceSink } from './agentCycleRunner';
 import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
@@ -34,12 +34,13 @@ import {
   type WorkerTickProjectionHydrationInput,
   type WorkerTickResult,
 } from './tickRunner';
+import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
   readonly issuedAt: SimulationTimestamp;
-  readonly policies: WorldCommandPolicies;
+  readonly policies: WorldCommandPolicySource;
   readonly eventStore: EventStore<WorldEvent>;
   readonly streamName: EventStreamName;
   readonly intentionRepository: AgentIntentionRepository;

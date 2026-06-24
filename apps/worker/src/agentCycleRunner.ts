@@ -28,11 +28,12 @@ import {
   type SimulatorTraceResult,
 } from '@aivilization/observability';
 import type { AgentId, EventStore, EventStreamName, SimulationId } from '@aivilization/sim-core';
-import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
+import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
 } from './commandDispatch';
+import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type WorkerAgentCycleTraceSink = {
   readonly record: (trace: AgentCycleTrace) => void | Promise<void>;
@@ -72,7 +73,7 @@ export async function runWorkerAgentCycle(
     readonly planProgressId?: string;
     readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
     readonly projection: WorldProjection;
-    readonly policies: WorldCommandPolicies;
+    readonly policies: WorldCommandPolicySource;
     readonly eventStore: EventStore<WorldEvent>;
     readonly streamName: EventStreamName;
     readonly appendIdempotencyKey: string;

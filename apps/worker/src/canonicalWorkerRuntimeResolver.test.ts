@@ -110,6 +110,35 @@ describe('canonical worker runtime resolver', () => {
     });
   });
 
+  test('world dry-run simulator resolves policy sources against the configured projection', () => {
+    const projection = createProjection();
+    const resolvedAgentCounts: number[] = [];
+    const simulate = createWorldCommandDryRunSimulator({
+      simulationId,
+      agentId: agentA,
+      projection,
+      policies: (currentProjection) => {
+        resolvedAgentCounts.push(Object.keys(currentProjection.agents).length);
+        return policies;
+      },
+      issuedAt: 500,
+      nextSequence: 10,
+      commandIdPrefix: 'test-dry-run',
+    });
+    const action: AtomicActionProposal = {
+      id: 'sleep',
+      description: 'sleep briefly',
+      commandType: 'AgentSleep',
+      payload: { durationSeconds: 10 },
+    };
+
+    expect(simulate({ action, selectedSubtask: selectedSubtask() })).toEqual({
+      status: 'accepted',
+      action,
+    });
+    expect(resolvedAgentCounts).toEqual([2]);
+  });
+
   test('returns undefined when no canonical or additional registration matches', async () => {
     const projection = createProjection();
     const resolver = createCanonicalWorkerRuntimeResolver({ simulationId, policies });

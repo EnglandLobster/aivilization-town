@@ -99,7 +99,7 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
     branchObjective: 'Recover health before pursuing the long-horizon objective.',
     subtaskDescription: (objectiveText) => `See doctor toward: ${objectiveText}`,
     priorityOffset: 11,
-    affinityAliases: ['health', 'doctor', 'hospital', 'medical', 'recover'],
+    affinityAliases: ['health', 'doctor', 'hospital', 'medical'],
     keywords: [
       'doctor',
       'health',

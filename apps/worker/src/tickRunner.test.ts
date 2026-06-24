@@ -5,6 +5,7 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
+import { createAmmPool } from '@aivilization/economy';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
@@ -83,6 +84,26 @@ function createProjection() {
   });
 }
 
+function createMarketProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 1000,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+    marketPools: [
+      createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+    ],
+    moneySupply: 1000,
+  });
+}
+
 function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-worker-tick-'));
   tmpRoots.push(root);
@@ -151,6 +172,39 @@ function createTickAgents() {
       simulate: ({ action }) => ({ status: 'accepted', action }),
     },
   ] satisfies Parameters<typeof runWorkerSimulationTick>[0]['agents'];
+}
+
+function createTradeTickAgent() {
+  return {
+    agentId: agentOne,
+    observedStateSummary: 'agent-1 is checking the Apple market',
+    plan: createBranchPlan({
+      objective: 'buy food from the market',
+      branches: [
+        {
+          id: 'market',
+          objective: 'buy Apple',
+          subtasks: [{ id: 'buy-apple', description: 'buy Apple', basePriority: 5 }],
+        },
+      ],
+    }),
+    signals: [],
+    microPlanners: [
+      {
+        domain: 'trade',
+        supports: ({ subtaskId }) => subtaskId === 'buy-apple',
+        propose: () => [
+          {
+            id: 'buy-apple',
+            description: 'buy Apple from AMM',
+            commandType: 'AgentTrade',
+            payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+          },
+        ],
+      },
+    ],
+    simulate: ({ action }) => ({ status: 'accepted', action }),
+  } satisfies Parameters<typeof runWorkerSimulationTick>[0]['agents'][number];
 }
 
 describe('worker tick runner', () => {
@@ -306,6 +360,43 @@ describe('worker tick runner', () => {
     expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(result.streamVersion).toBe(1);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(1);
+  });
+
+  test('records a market price index after agent actions when market metrics are configured', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const baselineProjection = createMarketProjection();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-market-index',
+      simulationId,
+      issuedAt: 100,
+      projection: baselineProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createTradeTickAgent()],
+      marketMetrics: { baselineProjection, baselineAt: 0 },
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'TradeExecuted'],
+      [3, 'ShortTermMemoryRecorded'],
+      [4, 'MarketPriceIndexRecorded'],
+    ]);
+    expect(result.projection.marketPriceIndices[0]).toMatchObject({
+      baselineAt: 0,
+      recordedAt: 100,
+      foodCount: 1,
+      nonFoodCount: 0,
+    });
+    expect(result.projection.marketPriceIndices[0]?.overall).toBeCloseTo(1.2345679012);
+    expect(result.projection.marketPriceIndices[0]?.ratios['Apple']).toBeCloseTo(1.2345679012);
+    expect(result.streamVersion).toBe(4);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
   });
 
   test('saves the final projection snapshot and checkpoint when checkpointing is configured', async () => {

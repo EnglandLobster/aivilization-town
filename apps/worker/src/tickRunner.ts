@@ -25,6 +25,7 @@ import {
   type ProjectionCheckpointStore,
   type ProjectionSnapshotStore,
   type SimulationId,
+  type SimulationTimestamp,
   type SnapshotReference,
 } from '@aivilization/sim-core';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
@@ -34,6 +35,7 @@ import {
   type WorkerAgentCycleTraceSink,
 } from './agentCycleRunner';
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
+import { recordMarketPriceIndexToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
@@ -85,6 +87,12 @@ export type WorkerTickProjectionHydrationInput = {
   readonly checkpoint?: WorkerTickProjectionCheckpointHydrationInput;
 };
 
+export type WorkerTickMarketMetricsInput = {
+  readonly baselineProjection: WorldProjection;
+  readonly baselineAt: SimulationTimestamp;
+  readonly appendIdempotencyKey?: string;
+};
+
 type WorkerTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
@@ -99,6 +107,7 @@ type WorkerTickBaseInput = {
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly agents: readonly WorkerTickAgentInput[];
   readonly timeDeltaMs?: number;
+  readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -191,6 +200,25 @@ export async function runWorkerSimulationTick(
   }
 
   const agentEvents = agentResults.flatMap((result) => result.events);
+  let marketMetricEvents: readonly WorldEvent[] = [];
+  if (input.marketMetrics !== undefined) {
+    const marketMetricsResult = recordMarketPriceIndexToEventStream({
+      baselineProjection: input.marketMetrics.baselineProjection,
+      currentProjection: projection,
+      simulationId: input.simulationId,
+      baselineAt: input.marketMetrics.baselineAt,
+      issuedAt: input.issuedAt,
+      eventStore: input.eventStore,
+      streamName: input.streamName,
+      expectedVersion,
+      appendIdempotencyKey:
+        input.marketMetrics.appendIdempotencyKey ??
+        `${input.tickId}:append:market-price-index`,
+    });
+    projection = marketMetricsResult.projection;
+    expectedVersion = marketMetricsResult.appendResult.streamVersion;
+    marketMetricEvents = marketMetricsResult.events;
+  }
   const checkpointResult = saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
 
   return {
@@ -198,10 +226,10 @@ export async function runWorkerSimulationTick(
     simulationId: input.simulationId,
     issuedAt: input.issuedAt,
     agentResults,
-    events: [...timeAdvanceResult.events, ...agentEvents],
     projection,
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,
+    events: [...timeAdvanceResult.events, ...agentEvents, ...marketMetricEvents],
     ...(checkpointResult === undefined
       ? {}
       : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),

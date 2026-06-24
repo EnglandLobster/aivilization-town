@@ -26,10 +26,12 @@ import {
   calculateStochasticIllnessProbabilityPercent,
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
+  evaluateResidentialUpkeep,
   evaluateResidentialTierUpgrade,
   evaluateOccupationApplication,
   evaluateSafetyNetSubsidy,
   isIncapacitated,
+  type ResidentialUpkeepPolicy,
   type ResidentialTierUpgradePolicy,
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
@@ -76,6 +78,7 @@ export type WorldCommandPolicies = {
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
@@ -101,6 +104,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.stochasticIllness === undefined
           ? {}
           : { stochasticIllness: input.policies.stochasticIllness }),
+        ...(input.policies.residentialUpkeep === undefined
+          ? {}
+          : { residentialUpkeep: input.policies.residentialUpkeep }),
         ...(input.policies.safetyNetSubsidy === undefined
           ? {}
           : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),
@@ -222,6 +228,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly projection: WorldProjection;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -239,6 +246,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   if (
     input.sleepDeprivation === undefined &&
     input.stochasticIllness === undefined &&
+    input.residentialUpkeep === undefined &&
     input.safetyNetSubsidy === undefined
   ) {
     return events;
@@ -249,6 +257,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     left.agentId.localeCompare(right.agentId),
   );
   const physiologyByAgent = new Map<AgentId, WorldAgentState['physiology']>();
+  const balanceByAgent = new Map<AgentId, number>();
 
   if (input.sleepDeprivation !== undefined) {
     for (const agent of agents) {
@@ -295,10 +304,39 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }
   }
 
+  if (input.residentialUpkeep !== undefined) {
+    for (const agent of agents) {
+      const decision = evaluateResidentialUpkeep({
+        residentialTier: agent.residentialTier,
+        balance: getCurrentBalance(balanceByAgent, agent),
+        durationSeconds,
+        policy: input.residentialUpkeep,
+      });
+      if (decision.status === 'rejected') {
+        throw new Error(decision.detail);
+      }
+      if (decision.status === 'uncharged') {
+        continue;
+      }
+      events.push(
+        makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
+          agentId: agent.agentId,
+          residentialTier: decision.residentialTier,
+          amount: decision.amount,
+          unpaidAmount: decision.unpaidAmount,
+          previousBalance: decision.previousBalance,
+          nextBalance: decision.nextBalance,
+          reason: 'residential-upkeep',
+        }),
+      );
+      balanceByAgent.set(agent.agentId, decision.nextBalance);
+    }
+  }
+
   if (input.safetyNetSubsidy !== undefined) {
     for (const agent of agents) {
       const decision = evaluateSafetyNetSubsidy({
-        balance: agent.balance,
+        balance: getCurrentBalance(balanceByAgent, agent),
         minimumBalance: input.safetyNetSubsidy.minimumBalance,
         maxSubsidy: input.safetyNetSubsidy.maxSubsidy,
       });
@@ -314,6 +352,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
           reason: 'safety-net',
         }),
       );
+      balanceByAgent.set(agent.agentId, decision.nextBalance);
     }
   }
 
@@ -1423,6 +1462,13 @@ function getCurrentPhysiology(
   agent: WorldAgentState,
 ): WorldAgentState['physiology'] {
   return physiologyByAgent.get(agent.agentId) ?? agent.physiology;
+}
+
+function getCurrentBalance(
+  balanceByAgent: ReadonlyMap<AgentId, number>,
+  agent: WorldAgentState,
+): number {
+  return balanceByAgent.get(agent.agentId) ?? agent.balance;
 }
 
 function createStochasticIllnessSeed(input: {

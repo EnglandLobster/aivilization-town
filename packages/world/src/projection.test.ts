@@ -410,6 +410,47 @@ describe('world economy projection', () => {
     expect(projection.moneySupply).toBe(125);
   });
 
+  test('replays residential upkeep charges into agent balance and money supply', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 2,
+          job: null,
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-upkeep',
+        simulationId: 'sim-1',
+        commandId: 'command-time',
+        type: 'ResidentialUpkeepCharged',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          residentialTier: 2,
+          amount: 10,
+          unpaidAmount: 0,
+          previousBalance: 100,
+          nextBalance: 90,
+          reason: 'residential-upkeep',
+        },
+        occurredAt: 20,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.agents['agent-1']?.balance).toBe(90);
+    expect(projection.moneySupply).toBe(990);
+  });
+
   test('replays AMM trade into agent balance, inventory, pool state, and money supply', () => {
     const initial = createWorldProjection({
       agents: [

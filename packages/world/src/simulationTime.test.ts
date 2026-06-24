@@ -360,6 +360,80 @@ describe('world simulation time', () => {
     expect(updated.moneySupply).toBe(125);
   });
 
+  test('charges residential upkeep before applying safety net subsidies', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-residential-pressure'),
+          locationId: null,
+          physiology: { energy: 80, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 55,
+          residentialTier: 2,
+          job: null,
+          inventory: {},
+        },
+      ],
+      moneySupply: 100,
+      clock: { now: 1000, tickDurationMs: 1800_000 },
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-time-residential-upkeep',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 1800_000 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies: {
+        ...policies,
+        residentialUpkeep: {
+          costs: [{ residentialTier: 2, currencyCostPerHour: 20 }],
+        },
+        safetyNetSubsidy: {
+          minimumBalance: 50,
+          maxSubsidy: 25,
+        },
+      },
+      nextSequence: 7,
+    });
+
+    expect(events.map((event) => [event.sequence, event.type])).toEqual([
+      [7, 'SimulationTimeAdvanced'],
+      [8, 'ResidentialUpkeepCharged'],
+      [9, 'SubsidyPaid'],
+    ]);
+    expect(events[1]).toMatchObject({
+      type: 'ResidentialUpkeepCharged',
+      payload: {
+        agentId: 'agent-residential-pressure',
+        residentialTier: 2,
+        amount: 10,
+        unpaidAmount: 0,
+        previousBalance: 55,
+        nextBalance: 45,
+        reason: 'residential-upkeep',
+      },
+    });
+    expect(events[2]).toMatchObject({
+      type: 'SubsidyPaid',
+      payload: {
+        agentId: 'agent-residential-pressure',
+        amount: 5,
+        previousBalance: 45,
+        nextBalance: 50,
+        reason: 'safety-net',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-residential-pressure']?.balance).toBe(50);
+    expect(updated.moneySupply).toBe(95);
+  });
+
   test('rejects invalid AdvanceSimulationTime payloads before mutating projection time', () => {
     expect(() => assertAdvanceSimulationTimePayload({ deltaMs: -1 })).toThrow(
       /AdvanceSimulationTime deltaMs/,

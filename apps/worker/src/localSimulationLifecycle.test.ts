@@ -1,4 +1,5 @@
 import { createAmmPool } from '@aivilization/economy';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, createEventEnvelope, type SimulationTimestamp } from '@aivilization/sim-core';
 import {
   createWorldProjection,
@@ -13,6 +14,7 @@ import {
   createLocalSimulationLifecycleController,
   createLocalWorldRuntimeStorage,
   type LocalSimulationLifecycleValidationSchedule,
+  type LocalSimulationLifecycleMemoryConsolidationSchedule,
 } from './index';
 
 const agentOne = asAgentId('agent-1');
@@ -263,6 +265,109 @@ describe('local simulation lifecycle controller', () => {
       },
     });
   });
+
+  test('runs configured memory consolidation schedule after a completed lifecycle start', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await storage.shortTermMemoryRepository.appendMany([
+      createStudyMemory(1),
+      createStudyMemory(2),
+      createStudyMemory(3),
+    ]);
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+      },
+    });
+
+    const first = await controller.start(createRequest(1000));
+
+    expect(first.status).toBe('completed');
+    expect(first.memoryConsolidation).toMatchObject({
+      agentIds: ['agent-1'],
+      patchCount: 1,
+      cursors: [
+        {
+          agentId: 'agent-1',
+          lastProcessedOccurredAt: 3,
+          updatedAt: 1000,
+        },
+      ],
+    });
+    await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      habits: [
+        {
+          key: 'study-before-work',
+          statement: 'Studies before starting work.',
+        },
+      ],
+    });
+    await expect(storage.memoryConsolidationCursorStore.getCursor(agentOne)).resolves.toEqual({
+      agentId: 'agent-1',
+      lastProcessedOccurredAt: 3,
+      updatedAt: 1000,
+    });
+
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const restartedController = createController({
+      storage: restartedStorage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+      },
+    });
+    const second = await restartedController.start(createRequest(2000));
+
+    expect(second.status).toBe('completed');
+    expect(second.memoryConsolidation).toMatchObject({
+      agentIds: ['agent-1'],
+      patchCount: 0,
+      cursors: [],
+    });
+  });
+
+  test('skips configured memory consolidation schedule when lifecycle start pauses before ticking', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      pauseBeforeTick: () => true,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+      },
+    });
+
+    const result = await controller.start(createRequest(1100));
+
+    expect(result.status).toBe('paused');
+    expect(result.memoryConsolidation).toBeUndefined();
+    expect(result.memoryConsolidationFailure).toBeUndefined();
+    await expect(
+      storage.memoryConsolidationCursorStore.getCursor(agentOne),
+    ).resolves.toBeUndefined();
+  });
 });
 
 function createController(input: {
@@ -271,6 +376,7 @@ function createController(input: {
   readonly tickBatchSize?: number;
   readonly pauseBeforeTick?: () => boolean;
   readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
+  readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
 }) {
   return createLocalSimulationLifecycleController({
     storage: input.storage,
@@ -289,6 +395,9 @@ function createController(input: {
     ...(input.validationSchedule === undefined
       ? {}
       : { validationSchedule: input.validationSchedule }),
+    ...(input.memoryConsolidationSchedule === undefined
+      ? {}
+      : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
   });
 }
 
@@ -376,4 +485,23 @@ function createPlannerRuns() {
       metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
     },
   ];
+}
+
+function createStudyMemory(index: number) {
+  return createShortTermMemoryRecord({
+    id: `study-memory-${index}`,
+    agentId: agentOne,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Completed a focused study session.',
+    occurredAt: index,
+    importanceScore: 0.6,
+    source: { eventIds: [] },
+    tags: ['study'],
+    consolidationHint: {
+      kind: 'habit',
+      patternKey: 'study-before-work',
+      statement: 'Studies before starting work.',
+    },
+  });
 }

@@ -11,6 +11,7 @@ import {
   createLocalSimulationBackendRegistrationsFromManifest,
   type LocalSimulationBackendLifecycleResult,
   type LocalSimulationLifecycleStartResult,
+  type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationLifecycleValidationSchedule,
   type LocalSimulationRuntimeManifest,
 } from './index';
@@ -135,6 +136,21 @@ describe('local simulation runtime manifest', () => {
       validationSchedule,
       validationSchedule,
     ]);
+    const memoryConsolidationSchedule = createMemoryConsolidationSchedule();
+    const memoryConsolidationRegistrations = createLocalSimulationBackendRegistrationsFromManifest({
+      manifest,
+      scenarioPresets,
+      policies,
+      localizedPlanners: [reactiveStudyPlanner()],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      memoryConsolidationSchedule,
+    });
+    expect(
+      memoryConsolidationRegistrations.map(
+        (registration) => registration.memoryConsolidationSchedule,
+      ),
+    ).toEqual([memoryConsolidationSchedule, memoryConsolidationSchedule]);
 
     const registry = createLocalSimulationBackendRegistryFromManifest({
       rootDir: createRootDir(),
@@ -339,6 +355,13 @@ function createValidationSchedule(): LocalSimulationLifecycleValidationSchedule 
     ],
     expectedTrajectoryAgentIds: ['agent-1'],
     trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+  };
+}
+
+function createMemoryConsolidationSchedule(): LocalSimulationLifecycleMemoryConsolidationSchedule {
+  return {
+    retrievalLimit: 10,
+    minPatternCount: 3,
   };
 }
 

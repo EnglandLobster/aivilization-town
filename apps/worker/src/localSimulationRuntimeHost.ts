@@ -75,6 +75,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       ...(input.validationSchedule === undefined
         ? {}
         : { validationSchedule: input.validationSchedule }),
+      ...(input.memoryConsolidationSchedule === undefined
+        ? {}
+        : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
     }),
   });
 

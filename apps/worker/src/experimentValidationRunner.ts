@@ -17,16 +17,44 @@ export type WorkerExperimentValidationTraceWindow = {
   readonly toCycleStartedAt?: number;
 };
 
+export type WorkerExperimentValidationPriceBinning = {
+  readonly intervalMs: number;
+  readonly originAt?: number;
+};
+
 export type WorkerExperimentValidationReportInput = {
   readonly run: ExperimentValidationRunMetadata;
   readonly projection: WorldProjection;
   readonly events: readonly WorldEvent[];
   readonly plannerRuns: readonly PlannerExperimentRun[];
+  readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
   readonly trajectories?: readonly AgentTrajectoryObservation[];
   readonly agentCycleTraceRepository?: AgentCycleTraceRepository;
   readonly traceWindow?: WorkerExperimentValidationTraceWindow;
   readonly thresholds?: ExperimentValidationThresholds;
+};
+
+export type WorkerTradePriceObservation = {
+  readonly commodityId: string;
+  readonly observedAt: number;
+  readonly sourceSequence: number;
+  readonly price: number;
+  readonly commodityQuantity: number;
+  readonly currencyQuantity: number;
+};
+
+export type WorkerOhlcPriceBar = {
+  readonly commodityId: string;
+  readonly intervalStartedAt: number;
+  readonly intervalEndedAt: number;
+  readonly openPrice: number;
+  readonly highPrice: number;
+  readonly lowPrice: number;
+  readonly closePrice: number;
+  readonly tradeCount: number;
+  readonly commodityVolume: number;
+  readonly currencyVolume: number;
 };
 
 export async function createWorkerExperimentValidationReport(
@@ -45,9 +73,10 @@ export async function createWorkerExperimentValidationReport(
 
   return createExperimentValidationReport({
     run: input.run,
-    priceSeries: createPriceCloseObservationsFromWorldEvents({
+    priceSeries: createValidationPriceSeriesFromWorldEvents({
       simulationId: input.run.simulationId,
       events: input.events,
+      ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
     }),
     wealthSnapshot: createWealthSnapshotFromWorldProjection(input.projection),
     plannerRuns: input.plannerRuns,
@@ -57,11 +86,11 @@ export async function createWorkerExperimentValidationReport(
   });
 }
 
-export function createPriceCloseObservationsFromWorldEvents(input: {
+export function createTradePriceObservationsFromWorldEvents(input: {
   readonly simulationId: string;
   readonly events: readonly WorldEvent[];
-}): PriceCloseObservation[] {
-  const observations: PriceCloseObservation[] = [];
+}): WorkerTradePriceObservation[] {
+  const observations: WorkerTradePriceObservation[] = [];
 
   for (const event of [...input.events].sort((left, right) => left.sequence - right.sequence)) {
     if (event.simulationId !== input.simulationId) {
@@ -81,14 +110,86 @@ export function createPriceCloseObservationsFromWorldEvents(input: {
     observations.push({
       commodityId: event.payload.commodityName,
       observedAt: event.occurredAt,
-      closePrice,
+      sourceSequence: event.sequence,
+      price: closePrice,
+      commodityQuantity: event.payload.commodityQuantity,
+      currencyQuantity: event.payload.currencyQuantity,
     });
   }
 
   if (observations.length === 0) {
     throw new Error('events must include at least one TradeExecuted observation');
   }
-  return observations;
+  return sortTradePriceObservations(observations);
+}
+
+export function createPriceCloseObservationsFromWorldEvents(input: {
+  readonly simulationId: string;
+  readonly events: readonly WorldEvent[];
+}): PriceCloseObservation[] {
+  return createPriceCloseObservationsFromTradePriceObservations(
+    createTradePriceObservationsFromWorldEvents(input),
+  );
+}
+
+export function createOhlcPriceBarsFromTradePriceObservations(input: {
+  readonly observations: readonly WorkerTradePriceObservation[];
+  readonly intervalMs: number;
+  readonly originAt?: number;
+}): WorkerOhlcPriceBar[] {
+  assertPositiveInteger(input.intervalMs, 'priceBinning intervalMs');
+  if (input.originAt !== undefined) {
+    assertFinite(input.originAt, 'priceBinning originAt');
+  }
+
+  const originAt = input.originAt ?? 0;
+  const buckets = new Map<string, WorkerTradePriceObservation[]>();
+  for (const observation of sortTradePriceObservations(input.observations)) {
+    const intervalStartedAt =
+      originAt +
+      Math.floor((observation.observedAt - originAt) / input.intervalMs) * input.intervalMs;
+    const key = JSON.stringify([observation.commodityId, intervalStartedAt]);
+    const existing = buckets.get(key) ?? [];
+    existing.push(observation);
+    buckets.set(key, existing);
+  }
+
+  return [...buckets.entries()]
+    .map(([key, observations]) => {
+      const { commodityId, intervalStartedAt } = parseOhlcBucketKey(key);
+      const sorted = sortTradePriceObservations(observations);
+      const prices = sorted.map((observation) => observation.price);
+
+      return {
+        commodityId,
+        intervalStartedAt,
+        intervalEndedAt: intervalStartedAt + input.intervalMs,
+        openPrice: sorted[0]!.price,
+        highPrice: Math.max(...prices),
+        lowPrice: Math.min(...prices),
+        closePrice: sorted[sorted.length - 1]!.price,
+        tradeCount: sorted.length,
+        commodityVolume: sorted.reduce(
+          (total, observation) => total + observation.commodityQuantity,
+          0,
+        ),
+        currencyVolume: sorted.reduce(
+          (total, observation) => total + observation.currencyQuantity,
+          0,
+        ),
+      };
+    })
+    .sort(compareOhlcPriceBars);
+}
+
+export function createPriceCloseObservationsFromOhlcBars(
+  bars: readonly WorkerOhlcPriceBar[],
+): PriceCloseObservation[] {
+  return [...bars].sort(compareOhlcPriceBars).map((bar) => ({
+    commodityId: bar.commodityId,
+    observedAt: bar.intervalStartedAt,
+    closePrice: bar.closePrice,
+  }));
 }
 
 export function createWealthSnapshotFromWorldProjection(
@@ -146,6 +247,69 @@ function createExpectedTrajectoryAgentIds(projection: WorldProjection): string[]
   return Object.keys(projection.agents).sort((left, right) => left.localeCompare(right));
 }
 
+function createValidationPriceSeriesFromWorldEvents(input: {
+  readonly simulationId: string;
+  readonly events: readonly WorldEvent[];
+  readonly priceBinning?: WorkerExperimentValidationPriceBinning;
+}): PriceCloseObservation[] {
+  const tradeObservations = createTradePriceObservationsFromWorldEvents(input);
+  if (input.priceBinning === undefined) {
+    return createPriceCloseObservationsFromTradePriceObservations(tradeObservations);
+  }
+
+  return createPriceCloseObservationsFromOhlcBars(
+    createOhlcPriceBarsFromTradePriceObservations({
+      observations: tradeObservations,
+      intervalMs: input.priceBinning.intervalMs,
+      ...(input.priceBinning.originAt === undefined
+        ? {}
+        : { originAt: input.priceBinning.originAt }),
+    }),
+  );
+}
+
+function createPriceCloseObservationsFromTradePriceObservations(
+  observations: readonly WorkerTradePriceObservation[],
+): PriceCloseObservation[] {
+  return sortTradePriceObservations(observations).map((observation) => ({
+    commodityId: observation.commodityId,
+    observedAt: observation.observedAt,
+    closePrice: observation.price,
+  }));
+}
+
+function sortTradePriceObservations(
+  observations: readonly WorkerTradePriceObservation[],
+): WorkerTradePriceObservation[] {
+  return [...observations].sort((left, right) => {
+    if (left.commodityId !== right.commodityId) {
+      return left.commodityId.localeCompare(right.commodityId);
+    }
+    if (left.observedAt !== right.observedAt) {
+      return left.observedAt - right.observedAt;
+    }
+    return left.sourceSequence - right.sourceSequence;
+  });
+}
+
+function compareOhlcPriceBars(left: WorkerOhlcPriceBar, right: WorkerOhlcPriceBar): number {
+  if (left.commodityId !== right.commodityId) {
+    return left.commodityId.localeCompare(right.commodityId);
+  }
+  return left.intervalStartedAt - right.intervalStartedAt;
+}
+
+function parseOhlcBucketKey(key: string): {
+  readonly commodityId: string;
+  readonly intervalStartedAt: number;
+} {
+  const parsed = JSON.parse(key) as [string, number];
+  return {
+    commodityId: parsed[0],
+    intervalStartedAt: parsed[1],
+  };
+}
+
 function requireTraceRepository(
   repository: AgentCycleTraceRepository | undefined,
 ): AgentCycleTraceRepository {
@@ -160,5 +324,17 @@ function requireTraceRepository(
 function assertPositiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${name} must be positive and finite`);
+  }
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+}
+
+function assertFinite(value: number, name: string): void {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${name} must be finite`);
   }
 }

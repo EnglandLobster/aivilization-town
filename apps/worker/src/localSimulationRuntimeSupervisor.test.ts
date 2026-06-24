@@ -81,8 +81,12 @@ describe('local simulation runtime supervisor', () => {
     const host = await bootstrapTestHost();
     const supervisor = createLocalSimulationRuntimeSupervisor({ host });
 
-    const startResult = await supervisor.startAll({ requestedAt: 200 });
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-all-200',
+      requestedAt: 200,
+    });
 
+    expect(startResult.traceId).toBe('op-start-all-200');
     expect(startResult.partitions.map((partition) => partition.status)).toEqual([
       'completed',
       'completed',
@@ -111,9 +115,49 @@ describe('local simulation runtime supervisor', () => {
         lastAppliedSequence: 1,
       },
     ]);
+    await expect(supervisor.getOperationTrace('op-start-all-200')).resolves.toMatchObject({
+      traceId: 'op-start-all-200',
+      manifestId: 'town-runtime',
+      command: 'start-all',
+      requestedAt: 200,
+      outcome: 'succeeded',
+      succeededPartitionCount: 2,
+      failedPartitionCount: 0,
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'succeeded',
+          status: 'completed',
+        },
+      ],
+      status: {
+        manifestId: 'town-runtime',
+        partitionCount: 2,
+      },
+    });
 
-    const pauseResult = await supervisor.pauseAll({ requestedAt: 300 });
+    const restartedSupervisor = createLocalSimulationRuntimeSupervisor({ host });
+    await expect(
+      restartedSupervisor.queryOperationTraces({ manifestId: 'town-runtime' }),
+    ).resolves.toMatchObject([
+      {
+        traceId: 'op-start-all-200',
+        command: 'start-all',
+        outcome: 'succeeded',
+      },
+    ]);
 
+    const pauseResult = await restartedSupervisor.pauseAll({
+      operationId: 'op-pause-all-300',
+      requestedAt: 300,
+    });
+
+    expect(pauseResult.traceId).toBe('op-pause-all-300');
     expect(pauseResult.partitions.map((partition) => partition.status)).toEqual([
       'paused',
       'paused',
@@ -153,8 +197,12 @@ describe('local simulation runtime supervisor', () => {
       requestedAt: 150,
     });
 
-    const startResult = await supervisor.startAll({ requestedAt: 200 });
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-partial-failure-200',
+      requestedAt: 200,
+    });
 
+    expect(startResult.traceId).toBe('op-start-partial-failure-200');
     expect(startResult.outcome).toBe('partial-failure');
     expect(startResult.succeededPartitionCount).toBe(1);
     expect(startResult.failedPartitionCount).toBe(1);
@@ -197,6 +245,44 @@ describe('local simulation runtime supervisor', () => {
         health: 'attention',
       },
     ]);
+    await expect(
+      supervisor.getOperationTrace('op-start-partial-failure-200'),
+    ).resolves.toMatchObject({
+      traceId: 'op-start-partial-failure-200',
+      manifestId: 'town-runtime',
+      command: 'start-all',
+      outcome: 'partial-failure',
+      succeededPartitionCount: 1,
+      failedPartitionCount: 1,
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'failed',
+          status: 'failed',
+          error: {
+            message: 'local simulation reset has not been materialized',
+          },
+        },
+      ],
+      status: {
+        attentionPartitionCount: 1,
+        partitions: [
+          {
+            partitionKey: 'world-main',
+            health: 'healthy',
+          },
+          {
+            partitionKey: 'world-east',
+            health: 'attention',
+          },
+        ],
+      },
+    });
   });
 });
 

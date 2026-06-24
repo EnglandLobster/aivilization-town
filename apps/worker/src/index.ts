@@ -20,6 +20,7 @@ export * from './localSimulationBackend';
 export * from './localSimulationBackendRegistry';
 export * from './localSimulationRuntimeHost';
 export * from './localSimulationRuntimeManifest';
+export * from './localSimulationRuntimeOperationTrace';
 export * from './localSimulationRuntimeSupervisor';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';

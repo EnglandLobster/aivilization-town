@@ -16,6 +16,7 @@ import {
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
+  AgentEatPayload,
   AgentProducePayload,
   AgentSeeDoctorPayload,
   AgentUpgradeResidentialTierPayload,
@@ -39,7 +40,8 @@ export type CanonicalDomainName =
   | 'social'
   | 'production'
   | 'residential'
-  | 'health';
+  | 'health'
+  | 'eat';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -69,6 +71,11 @@ export type SleepDomainRuntimeConfig = {
 
 export type HealthDomainRuntimeConfig = {
   readonly durationSeconds?: number;
+};
+
+export type EatDomainRuntimeConfig = {
+  readonly commodityName?: string;
+  readonly quantity?: number;
 };
 
 export type SocialDomainRuntimeConfig = {
@@ -106,6 +113,7 @@ export type CanonicalDomainRuntimeConfig = {
   readonly trade?: TradeDomainRuntimeConfig;
   readonly sleep?: SleepDomainRuntimeConfig;
   readonly health?: HealthDomainRuntimeConfig;
+  readonly eat?: EatDomainRuntimeConfig;
   readonly social?: SocialDomainRuntimeConfig;
   readonly production?: ProductionDomainRuntimeConfig;
   readonly residential?: ResidentialDomainRuntimeConfig;
@@ -120,6 +128,8 @@ const DEFAULT_TRADE_QUANTITY = 1;
 const DEFAULT_TRADE_COMMODITY = 'Apple';
 const DEFAULT_SLEEP_DURATION_SECONDS = 28800;
 const DEFAULT_HEALTH_RECOVERY_DURATION_SECONDS = 1800;
+const DEFAULT_EAT_COMMODITY = 'Apple';
+const DEFAULT_EAT_QUANTITY = 1;
 const DEFAULT_SOCIAL_SUMMARY = 'Socialized during planned activity.';
 const DEFAULT_SOCIAL_RELATION_DELTA = 1;
 const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
@@ -143,6 +153,7 @@ export function createCanonicalDomainRuntimeRegistrations(
       policies?.residentialTierUpgrade,
     ),
     createHealthDomainRuntimeRegistration(config.health),
+    createEatDomainRuntimeRegistration(config.eat, policies?.satietyRecoveryByCommodity),
   ];
 }
 
@@ -320,6 +331,37 @@ export function createHealthDomainRuntimeRegistration(
   };
 }
 
+export function createEatDomainRuntimeRegistration(
+  config: EatDomainRuntimeConfig = {},
+  satietyRecoveryByCommodity: Readonly<Record<string, number>> = {},
+): WorkerDomainRuntimeRegistration {
+  return {
+    domain: 'eat',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'eat',
+        planRecord: context.planRecord,
+        propose: (selectedSubtask) => {
+          const commodityName = resolveEatCommodityName({
+            config,
+            context,
+            satietyRecoveryByCommodity,
+          });
+          const quantity = config.quantity ?? DEFAULT_EAT_QUANTITY;
+          return {
+            id: createCanonicalActionId('eat', selectedSubtask),
+            description: `Eat ${commodityName} for ${selectedSubtask.description}.`,
+            commandType: 'AgentEat',
+            priority: selectedSubtask.score,
+            payload: { commodityName, quantity },
+            resourceEstimate: { inventoryCosts: { [commodityName]: quantity } },
+          };
+        },
+      }),
+    ],
+  };
+}
+
 export function createSocialDomainRuntimeRegistration(
   config: SocialDomainRuntimeConfig = {},
 ): WorkerDomainRuntimeRegistration {
@@ -487,6 +529,31 @@ export function resolveResidentialTargetTier(input: ResidentialTargetResolutionI
   return targetResidentialTier;
 }
 
+export function resolveEatCommodityName(input: {
+  readonly config?: EatDomainRuntimeConfig;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly satietyRecoveryByCommodity?: Readonly<Record<string, number>>;
+}): string {
+  if (input.config?.commodityName !== undefined) {
+    return input.config.commodityName;
+  }
+
+  const satietyRecoveryByCommodity = input.satietyRecoveryByCommodity ?? {};
+  const edibleInventoryCommodity = Object.keys(input.context.agent.inventory)
+    .filter((commodityName) => (input.context.agent.inventory[commodityName] ?? 0) > 0)
+    .filter((commodityName) => hasValidSatietyRecovery(satietyRecoveryByCommodity, commodityName))
+    .sort()[0];
+  if (edibleInventoryCommodity !== undefined) {
+    return edibleInventoryCommodity;
+  }
+
+  return (
+    Object.keys(satietyRecoveryByCommodity)
+      .filter((commodityName) => hasValidSatietyRecovery(satietyRecoveryByCommodity, commodityName))
+      .sort()[0] ?? DEFAULT_EAT_COMMODITY
+  );
+}
+
 type ContextualDomainMicroPlannerInput = {
   readonly domain: CanonicalDomainName;
   readonly planRecord: BranchPlanRecord;
@@ -494,6 +561,7 @@ type ContextualDomainMicroPlannerInput = {
 };
 
 type CanonicalActionProposal =
+  | AtomicActionProposal<'AgentEat', AgentEatPayload>
   | AtomicActionProposal<'AgentStudy', AgentStudyPayload>
   | AtomicActionProposal<'AgentSleep', AgentSleepPayload>
   | AtomicActionProposal<'AgentSeeDoctor', AgentSeeDoctorPayload>
@@ -549,6 +617,14 @@ function selectedSubtaskMatchesDomain(input: {
 
 function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): string {
   return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
+}
+
+function hasValidSatietyRecovery(
+  satietyRecoveryByCommodity: Readonly<Record<string, number>>,
+  commodityName: string,
+): boolean {
+  const recovery = satietyRecoveryByCommodity[commodityName];
+  return recovery !== undefined && Number.isFinite(recovery) && recovery >= 0;
 }
 
 type TextTargetCandidate = {

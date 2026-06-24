@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'vitest';
-import { activities, commodities, jobTiers, occupations, productionRecipes } from './index';
+import {
+  activities,
+  aivilizationAblationScenarioPreset,
+  aivilizationScenarioDefaults,
+  commodities,
+  createAivilizationAblationAgentSeeds,
+  createCommodityMarketPoolSeeds,
+  jobTiers,
+  occupations,
+  productionRecipes,
+} from './index';
 
 describe('AIvilization source content', () => {
   test('includes the full paper commodity and production catalog anchors', () => {
@@ -35,6 +45,62 @@ describe('AIvilization source content', () => {
       educationFloor: 604,
       eligibilityShare: 0.065,
       baseWage: 1411,
+    });
+  });
+
+  test('captures paper-backed scenario defaults for initial cohorts', () => {
+    expect(aivilizationScenarioDefaults).toMatchObject({
+      maxPhysiology: { energy: 500, satiety: 500, health: 500 },
+      ablationInitialPhysiology: { energy: 60, satiety: 60, health: 60 },
+      publicTimeScale: 7,
+      ablationTimeScale: 35,
+      ablationCohortSize: 80,
+      agentsPerMbtiType: 5,
+    });
+    expect(aivilizationScenarioDefaults.mbtiTypes).toHaveLength(16);
+  });
+
+  test('generates deterministic ablation agent seeds from Section 5.1 assumptions', () => {
+    const agents = createAivilizationAblationAgentSeeds();
+    const uniqueAgentIds = new Set(agents.map((agent) => agent.agentId));
+    const mbtiCounts = agents.reduce<Record<string, number>>((counts, agent) => {
+      const mbti = agent.profile.personality.mbti;
+      counts[mbti] = (counts[mbti] ?? 0) + 1;
+      return counts;
+    }, {});
+
+    expect(agents).toHaveLength(80);
+    expect(uniqueAgentIds.size).toBe(80);
+    expect(Object.values(mbtiCounts)).toEqual(Array.from({ length: 16 }, () => 5));
+    expect(agents[0]).toMatchObject({
+      agentId: 'ablation-agent-001',
+      physiology: { energy: 60, satiety: 60, health: 60 },
+      educationScore: 0,
+      balance: 0,
+      residentialTier: 1,
+      job: null,
+      inventory: {},
+      locationId: null,
+    });
+    expect(aivilizationAblationScenarioPreset.agentSeeds).toHaveLength(80);
+    expect(aivilizationAblationScenarioPreset.timeScale).toBe(35);
+    expect(aivilizationAblationScenarioPreset.locations).toHaveLength(7);
+  });
+
+  test('derives tradable market pool seeds while keeping reserves explicit', () => {
+    const marketPoolSeeds = createCommodityMarketPoolSeeds({
+      commodityReserve: 100,
+      currencyReserve: 1000,
+    });
+
+    expect(marketPoolSeeds).toHaveLength(commodities.length - 1);
+    expect(marketPoolSeeds.map((pool) => pool.commodity)).not.toContain('Gold Apple');
+    expect(marketPoolSeeds.find((pool) => pool.commodity === 'Fish')).toEqual({
+      commodity: 'Fish',
+      commodityReserve: 100,
+      currencyReserve: 1000,
+      source:
+        'AIvilization v0 Appendix B Table 8 trade excludes Gold Apple; reserves supplied by scenario caller',
     });
   });
 });

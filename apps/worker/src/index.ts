@@ -26,6 +26,7 @@ export * from './localSimulationRuntimeManifest';
 export * from './localSimulationRuntimeOperationTrace';
 export * from './localSimulationRuntimeRunQueue';
 export * from './localSimulationRuntimeRunQueueApi';
+export * from './localSimulationRuntimeRecoveryApi';
 export * from './localSimulationRuntimeRunQueueWorkerApi';
 export * from './localSimulationRuntimeRunQueueWorkerHost';
 export * from './localSimulationRuntimeScheduler';

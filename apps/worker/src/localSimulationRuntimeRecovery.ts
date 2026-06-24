@@ -42,6 +42,41 @@ export type LocalSimulationRuntimeRecovery = {
   ) => Promise<LocalSimulationRuntimeRecoveryReport>;
 };
 
+export type LocalSimulationRuntimeRecoveryHostClock = {
+  readonly now: () => SimulationTimestamp;
+};
+
+export type LocalSimulationRuntimeRecoveryHostTimer = {
+  readonly setTimeout: (callback: () => void, delayMs: number) => unknown;
+  readonly clearTimeout: (handle: unknown) => void;
+};
+
+export type LocalSimulationRuntimeRecoveryHostError = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+};
+
+export type LocalSimulationRuntimeRecoveryHostStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly recoveryIntervalMs: number;
+  readonly attemptedRecoveryCount: number;
+  readonly recoveredCount: number;
+  readonly idleCount: number;
+  readonly lastRecoveryStartedAt?: SimulationTimestamp;
+  readonly lastRecoveryCompletedAt?: SimulationTimestamp;
+  readonly lastReport?: LocalSimulationRuntimeRecoveryReport;
+  readonly lastError?: LocalSimulationRuntimeRecoveryHostError;
+};
+
+export type LocalSimulationRuntimeRecoveryHost = {
+  readonly runOnce: () => Promise<LocalSimulationRuntimeRecoveryReport>;
+  readonly start: () => void;
+  readonly stop: () => void;
+  readonly getStatus: () => LocalSimulationRuntimeRecoveryHostStatus;
+};
+
 export function createLocalSimulationRuntimeRecovery(input: {
   readonly manifestId: string;
   readonly queueRepository: Pick<
@@ -96,6 +131,112 @@ export function createLocalSimulationRuntimeRecovery(input: {
       };
     },
   };
+}
+
+export function createLocalSimulationRuntimeRecoveryHost(input: {
+  readonly recovery: LocalSimulationRuntimeRecovery;
+  readonly recoveryIntervalMs: number;
+  readonly clock?: LocalSimulationRuntimeRecoveryHostClock;
+  readonly timer?: LocalSimulationRuntimeRecoveryHostTimer;
+}): LocalSimulationRuntimeRecoveryHost {
+  assertPositiveFinite(input.recoveryIntervalMs, 'recoveryIntervalMs');
+
+  const clock = input.clock ?? { now: () => Date.now() };
+  const timer = input.timer ?? {
+    setTimeout: (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
+    clearTimeout: (handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  };
+  let running = false;
+  let inFlight = false;
+  let scheduledTimer: { readonly handle: unknown } | undefined;
+  let attemptedRecoveryCount = 0;
+  let recoveredCount = 0;
+  let idleCount = 0;
+  let lastRecoveryStartedAt: SimulationTimestamp | undefined;
+  let lastRecoveryCompletedAt: SimulationTimestamp | undefined;
+  let lastReport: LocalSimulationRuntimeRecoveryReport | undefined;
+  let lastError: LocalSimulationRuntimeRecoveryHostError | undefined;
+
+  const host: LocalSimulationRuntimeRecoveryHost = {
+    runOnce: async () => {
+      const observedAt = clock.now();
+      assertNonNegativeFinite(observedAt, 'observedAt');
+      inFlight = true;
+      lastRecoveryStartedAt = observedAt;
+      attemptedRecoveryCount += 1;
+      try {
+        const report = await input.recovery.recover({ observedAt });
+        if (report.status === 'recovered') {
+          recoveredCount += 1;
+        } else {
+          idleCount += 1;
+        }
+        lastReport = report;
+        lastError = undefined;
+        return report;
+      } catch (error) {
+        lastError = serializeHostError(error);
+        throw error;
+      } finally {
+        lastRecoveryCompletedAt = clock.now();
+        inFlight = false;
+      }
+    },
+    start: () => {
+      if (running) {
+        return;
+      }
+      running = true;
+      scheduleNext(0);
+    },
+    stop: () => {
+      running = false;
+      if (scheduledTimer !== undefined) {
+        timer.clearTimeout(scheduledTimer.handle);
+        scheduledTimer = undefined;
+      }
+    },
+    getStatus: () => ({
+      running,
+      inFlight,
+      recoveryIntervalMs: input.recoveryIntervalMs,
+      attemptedRecoveryCount,
+      recoveredCount,
+      idleCount,
+      ...(lastRecoveryStartedAt === undefined ? {} : { lastRecoveryStartedAt }),
+      ...(lastRecoveryCompletedAt === undefined ? {} : { lastRecoveryCompletedAt }),
+      ...(lastReport === undefined ? {} : { lastReport }),
+      ...(lastError === undefined ? {} : { lastError }),
+    }),
+  };
+
+  function scheduleNext(delayMs: number): void {
+    if (!running || scheduledTimer !== undefined) {
+      return;
+    }
+    scheduledTimer = {
+      handle: timer.setTimeout(() => {
+        scheduledTimer = undefined;
+        void runScheduledTick();
+      }, delayMs),
+    };
+  }
+
+  async function runScheduledTick(): Promise<void> {
+    if (!running || inFlight) {
+      scheduleNext(input.recoveryIntervalMs);
+      return;
+    }
+    try {
+      await host.runOnce();
+    } catch (error) {
+      lastError = serializeHostError(error);
+    } finally {
+      scheduleNext(input.recoveryIntervalMs);
+    }
+  }
+
+  return host;
 }
 
 async function replayDeadLetters(input: {
@@ -185,6 +326,12 @@ function assertNonNegativeFinite(value: number, name: string): void {
   }
 }
 
+function assertPositiveFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive finite number`);
+  }
+}
+
 function assertPositiveInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${name} must be a positive integer`);
@@ -195,4 +342,18 @@ function assertNonEmpty(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
   }
+}
+
+function serializeHostError(error: unknown): LocalSimulationRuntimeRecoveryHostError {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack === undefined ? {} : { stack: error.stack }),
+    };
+  }
+  return {
+    name: 'Error',
+    message: String(error),
+  };
 }

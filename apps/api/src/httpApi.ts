@@ -15,6 +15,7 @@ import type {
   RuntimeRunQueueWorkerApiService,
   RuntimeRunQueueWorkerDrainRequest,
 } from './runtimeRunQueueWorkerApi';
+import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type {
   ExperimentValidationReportLookupRequest,
@@ -61,6 +62,8 @@ export type TownHttpApiServices<
   TRuntimeRunQueueWorkerDrainResult,
   TRuntimeSchedulerStatus = unknown,
   TRuntimeSchedulerDecision = unknown,
+  TRuntimeRecoveryStatus = unknown,
+  TRuntimeRecoveryReport = unknown,
   TRuntimeCommand extends string = string,
 > = {
   readonly simulation: SimulationApiService<
@@ -87,6 +90,10 @@ export type TownHttpApiServices<
   readonly runtimeScheduler?: RuntimeSchedulerApiService<
     TRuntimeSchedulerStatus,
     TRuntimeSchedulerDecision
+  >;
+  readonly runtimeRecovery?: RuntimeRecoveryApiService<
+    TRuntimeRecoveryStatus,
+    TRuntimeRecoveryReport
   >;
 };
 
@@ -126,6 +133,8 @@ export function createTownHttpApiHandler<
   TRuntimeRunQueueWorkerDrainResult,
   TRuntimeSchedulerStatus = unknown,
   TRuntimeSchedulerDecision = unknown,
+  TRuntimeRecoveryStatus = unknown,
+  TRuntimeRecoveryReport = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -145,6 +154,8 @@ export function createTownHttpApiHandler<
     TRuntimeRunQueueWorkerDrainResult,
     TRuntimeSchedulerStatus,
     TRuntimeSchedulerDecision,
+    TRuntimeRecoveryStatus,
+    TRuntimeRecoveryReport,
     TRuntimeCommand
   >,
 ): TownHttpApiHandler {
@@ -179,6 +190,8 @@ async function routeTownHttpRequest<
   TRuntimeRunQueueWorkerDrainResult,
   TRuntimeSchedulerStatus = unknown,
   TRuntimeSchedulerDecision = unknown,
+  TRuntimeRecoveryStatus = unknown,
+  TRuntimeRecoveryReport = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -198,6 +211,8 @@ async function routeTownHttpRequest<
     TRuntimeRunQueueWorkerDrainResult,
     TRuntimeSchedulerStatus,
     TRuntimeSchedulerDecision,
+    TRuntimeRecoveryStatus,
+    TRuntimeRecoveryReport,
     TRuntimeCommand
   >,
   request: TownHttpApiRequest,
@@ -213,6 +228,7 @@ async function routeTownHttpRequest<
       services.runtimeRunQueue,
       services.runtimeRunQueueWorker,
       services.runtimeScheduler,
+      services.runtimeRecovery,
       request,
       segments,
     );
@@ -329,6 +345,8 @@ async function routeRuntimeRequest<
   TRuntimeRunQueueWorkerDrainResult,
   TRuntimeSchedulerStatus,
   TRuntimeSchedulerDecision,
+  TRuntimeRecoveryStatus,
+  TRuntimeRecoveryReport,
   TRuntimeCommand extends string,
 >(
   runtimeSupervisor: RuntimeSupervisorApiService<
@@ -346,6 +364,9 @@ async function routeRuntimeRequest<
   >,
   runtimeScheduler:
     | RuntimeSchedulerApiService<TRuntimeSchedulerStatus, TRuntimeSchedulerDecision>
+    | undefined,
+  runtimeRecovery:
+    | RuntimeRecoveryApiService<TRuntimeRecoveryStatus, TRuntimeRecoveryReport>
     | undefined,
   request: TownHttpApiRequest,
   segments: readonly string[],
@@ -370,6 +391,28 @@ async function routeRuntimeRequest<
     if (action === 'run-once') {
       assertMethod(request, 'POST');
       return jsonResponse(202, await runtimeScheduler.runRuntimeSchedulerOnce());
+    }
+  }
+  if (segments.length === 3 && segments[1] === 'recovery') {
+    if (runtimeRecovery === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    const action = segments[2];
+    if (action === 'status') {
+      assertMethod(request, 'GET');
+      return jsonResponse(200, await runtimeRecovery.getRuntimeRecoveryStatus());
+    }
+    if (action === 'start') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeRecovery.startRuntimeRecovery());
+    }
+    if (action === 'stop') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeRecovery.stopRuntimeRecovery());
+    }
+    if (action === 'run-once') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeRecovery.runRuntimeRecoveryOnce());
     }
   }
   if (segments.length === 3 && segments[1] === 'run-queue-worker') {

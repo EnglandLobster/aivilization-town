@@ -8,6 +8,9 @@ import type { Server } from 'node:http';
 import { join } from 'node:path';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
+  createLocalSimulationRuntimeRecovery,
+  createLocalSimulationRuntimeRecoveryApiService,
+  createLocalSimulationRuntimeRecoveryHost,
   createLocalSimulationRuntimeRunQueueApiService,
   createLocalSimulationRuntimeRunQueueWorker,
   createLocalSimulationRuntimeRunQueueWorkerApiService,
@@ -18,6 +21,8 @@ import {
   createLocalSimulationRuntimeSupervisor,
   createLocalSimulationRuntimeSupervisorApiService,
   FileLocalSimulationRuntimeRunQueueRepository,
+  type LocalSimulationRuntimeRecoveryApiService,
+  type LocalSimulationRuntimeRecoveryHost,
   type LocalSimulationRuntimeHost,
   type LocalSimulationRuntimeHostInput,
   type LocalSimulationRuntimeRunQueueApiService,
@@ -48,9 +53,19 @@ export type LocalRuntimeTownSchedulerInput = {
   readonly autoStart?: boolean;
 };
 
+export type LocalRuntimeTownRecoveryInput = {
+  readonly recoveryIntervalMs?: number;
+  readonly autoStart?: boolean;
+  readonly maxDeadLetterReplaysPerRun?: number;
+  readonly maxReplayCountPerJob?: number;
+  readonly deadLetterReplayMaxAttempts?: number;
+  readonly maxDrainJobsPerRun?: number;
+};
+
 export type LocalRuntimeTownServerInput = LocalSimulationRuntimeHostInput & {
   readonly runtimeRunQueue?: LocalRuntimeTownRunQueueWorkerInput;
   readonly runtimeScheduler?: LocalRuntimeTownSchedulerInput;
+  readonly runtimeRecovery?: LocalRuntimeTownRecoveryInput;
 };
 
 export type LocalRuntimeTownApi = {
@@ -62,6 +77,8 @@ export type LocalRuntimeTownApi = {
   readonly runQueueWorkerHost: LocalSimulationRuntimeRunQueueWorkerHost;
   readonly runQueueSchedulerHost?: LocalSimulationRuntimeSchedulerHost;
   readonly runtimeSchedulerApi?: LocalSimulationRuntimeSchedulerApiService;
+  readonly runQueueRecoveryHost?: LocalSimulationRuntimeRecoveryHost;
+  readonly runtimeRecoveryApi?: LocalSimulationRuntimeRecoveryApiService;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -121,6 +138,33 @@ export async function createLocalRuntimeTownApi(
           }),
           scheduleIntervalMs: input.runtimeScheduler.scheduleIntervalMs ?? 1_000,
         });
+  const runQueueRecoveryHost =
+    input.runtimeRecovery === undefined
+      ? undefined
+      : createLocalSimulationRuntimeRecoveryHost({
+          recovery: createLocalSimulationRuntimeRecovery({
+            manifestId: host.manifestId,
+            queueRepository: runQueueRepository,
+            workerHost: runQueueWorkerHost,
+            policy: {
+              ...(input.runtimeRecovery.maxDeadLetterReplaysPerRun === undefined
+                ? {}
+                : { maxDeadLetterReplaysPerRun: input.runtimeRecovery.maxDeadLetterReplaysPerRun }),
+              ...(input.runtimeRecovery.maxReplayCountPerJob === undefined
+                ? {}
+                : { maxReplayCountPerJob: input.runtimeRecovery.maxReplayCountPerJob }),
+              ...(input.runtimeRecovery.deadLetterReplayMaxAttempts === undefined
+                ? {}
+                : {
+                    deadLetterReplayMaxAttempts: input.runtimeRecovery.deadLetterReplayMaxAttempts,
+                  }),
+              ...(input.runtimeRecovery.maxDrainJobsPerRun === undefined
+                ? {}
+                : { maxDrainJobsPerRun: input.runtimeRecovery.maxDrainJobsPerRun }),
+            },
+          }),
+          recoveryIntervalMs: input.runtimeRecovery.recoveryIntervalMs ?? 1_000,
+        });
   const runtimeRunQueueWorkerApi = createLocalSimulationRuntimeRunQueueWorkerApiService({
     host: runQueueWorkerHost,
   });
@@ -128,12 +172,17 @@ export async function createLocalRuntimeTownApi(
     runQueueSchedulerHost === undefined
       ? undefined
       : createLocalSimulationRuntimeSchedulerApiService({ host: runQueueSchedulerHost });
+  const runtimeRecoveryApi =
+    runQueueRecoveryHost === undefined
+      ? undefined
+      : createLocalSimulationRuntimeRecoveryApiService({ host: runQueueRecoveryHost });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeRunQueueWorkerApi,
     ...(runtimeSchedulerApi === undefined ? {} : { runtimeScheduler: runtimeSchedulerApi }),
+    ...(runtimeRecoveryApi === undefined ? {} : { runtimeRecovery: runtimeRecoveryApi }),
   });
 
   return {
@@ -145,6 +194,8 @@ export async function createLocalRuntimeTownApi(
     runQueueWorkerHost,
     ...(runQueueSchedulerHost === undefined ? {} : { runQueueSchedulerHost }),
     ...(runtimeSchedulerApi === undefined ? {} : { runtimeSchedulerApi }),
+    ...(runQueueRecoveryHost === undefined ? {} : { runQueueRecoveryHost }),
+    ...(runtimeRecoveryApi === undefined ? {} : { runtimeRecoveryApi }),
     handler,
   };
 }
@@ -164,12 +215,16 @@ export async function createLocalRuntimeTownNodeHttpServer(
   server.on('close', () => {
     api.runQueueWorkerHost.stop();
     api.runQueueSchedulerHost?.stop();
+    api.runQueueRecoveryHost?.stop();
   });
   if (input.runtimeRunQueue?.autoStart ?? false) {
     api.runQueueWorkerHost.start();
   }
   if ((input.runtimeScheduler?.autoStart ?? false) && api.runQueueSchedulerHost !== undefined) {
     api.runQueueSchedulerHost.start();
+  }
+  if ((input.runtimeRecovery?.autoStart ?? false) && api.runQueueRecoveryHost !== undefined) {
+    api.runQueueRecoveryHost.start();
   }
   return {
     ...api,

@@ -5,6 +5,7 @@ import type { SimulationApiService } from './simulationApi';
 import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
 import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
 import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
+import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 
 type TestProjection = {
@@ -134,6 +135,17 @@ type TestRuntimeSchedulerDecision =
       readonly status: 'skipped';
       readonly reason: 'pending-job-limit-reached';
     };
+
+type TestRuntimeRecoveryStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly attemptedRecoveryCount: number;
+};
+
+type TestRuntimeRecoveryReport = {
+  readonly status: 'idle' | 'recovered';
+  readonly observedAt: number;
+};
 
 describe('town HTTP API router', () => {
   test('routes projection, steering, and lifecycle requests to the simulation service', async () => {
@@ -768,6 +780,51 @@ describe('town HTTP API router', () => {
     ]);
   });
 
+  test('routes runtime recovery control requests to the optional recovery service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeRecovery: createRuntimeRecoveryService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/recovery/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedRecoveryCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, attemptedRecoveryCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/run-once', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'recovered', observedAt: 250 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedRecoveryCount: 1 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeRecoveryStatus' },
+      { method: 'startRuntimeRecovery' },
+      { method: 'runRuntimeRecoveryOnce' },
+      { method: 'stopRuntimeRecovery' },
+    ]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
@@ -1259,6 +1316,29 @@ function createRuntimeSchedulerService(
         status: 'enqueued',
         job: { jobId: 'job-scheduled-1', status: 'queued' },
       });
+    },
+  };
+}
+
+function createRuntimeRecoveryService(
+  calls: unknown[],
+): RuntimeRecoveryApiService<TestRuntimeRecoveryStatus, TestRuntimeRecoveryReport> {
+  return {
+    getRuntimeRecoveryStatus: () => {
+      calls.push({ method: 'getRuntimeRecoveryStatus' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedRecoveryCount: 0 });
+    },
+    startRuntimeRecovery: () => {
+      calls.push({ method: 'startRuntimeRecovery' });
+      return Promise.resolve({ running: true, inFlight: false, attemptedRecoveryCount: 0 });
+    },
+    stopRuntimeRecovery: () => {
+      calls.push({ method: 'stopRuntimeRecovery' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedRecoveryCount: 1 });
+    },
+    runRuntimeRecoveryOnce: () => {
+      calls.push({ method: 'runRuntimeRecoveryOnce' });
+      return Promise.resolve({ status: 'recovered', observedAt: 250 });
     },
   };
 }

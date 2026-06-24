@@ -237,6 +237,29 @@ describe('local runtime town HTTP gateway', () => {
         cycleCount: 3,
       },
     });
+    await expect(runtime.runQueueWorkerHost.drain({ maxJobs: 1 })).resolves.toMatchObject({
+      processedJobCount: 1,
+      completedJobCount: 1,
+      failedJobCount: 0,
+      results: [{ status: 'completed', job: { jobId: 'job-run-async-600' } }],
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/job-run-async-600`),
+    ).resolves.toMatchObject({
+      jobId: 'job-run-async-600',
+      manifestId: 'town-runtime',
+      status: 'completed',
+      resultTraceId: 'op-run-async-600',
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-async-600`),
+    ).resolves.toMatchObject({
+      traceId: 'op-run-async-600',
+      manifestId: 'town-runtime',
+      status: 'completed',
+      completedCycleCount: 3,
+      stopReason: 'cycle-count-completed',
+    });
 
     const runSession = await fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-cycles-400`);
     expect(runSession).toMatchObject({

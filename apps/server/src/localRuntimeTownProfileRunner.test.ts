@@ -2,8 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FileBranchPlanRepository } from '@aivilization/agent-runtime';
-import { InMemoryRuntimeProfileRunReportRepository } from '@aivilization/observability';
-import { FileAgentCycleTraceRepository } from '@aivilization/observability';
+import {
+  FileAgentCycleTraceRepository,
+  FileObjectiveRenewalTraceRepository,
+  InMemoryRuntimeProfileRunReportRepository,
+} from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runLocalRuntimeTownDaemonScenarioProfile } from './index';
@@ -182,12 +185,28 @@ describe('local runtime town profile runner', () => {
         'observability',
       ),
     });
+    const objectiveTraceRepository = new FileObjectiveRenewalTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
     const plan = await planRepository.require({
       planId: objectiveId,
       agentId,
     });
     const traces = await traceRepository.query({
       simulationId: 'aivilization-smoke-25',
+      agentId,
+      limit: 1,
+    });
+    const objectiveTraces = await objectiveTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
       agentId,
       limit: 1,
     });
@@ -214,6 +233,22 @@ describe('local runtime town profile runner', () => {
       selectedBranch: 'study-llm',
       selectionEvidence: {
         selectedSubtaskId: 'study-from-llm',
+      },
+    });
+    expect(objectiveTraces[0]).toMatchObject({
+      traceId:
+        'aivilization-smoke-25:world-main:smoke-25-world-main-agent-001:auto-objective-smoke-25-world-main-agent-001-100:100',
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      objectiveId,
+      strategicPlan: {
+        status: 'accepted',
+        source: 'llm',
+        requestId:
+          'profile-llm-plan:smoke-25:smoke-25-world-main-agent-001:auto-objective-smoke-25-world-main-agent-001-100:100',
+        providerId: 'scripted-profile-planner',
+        model: 'profile-planner-model',
       },
     });
   });

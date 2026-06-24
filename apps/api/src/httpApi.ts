@@ -1,4 +1,9 @@
 import type {
+  ObjectiveRenewalTraceApiService,
+  ObjectiveRenewalTraceLookupRequest,
+  ObjectiveRenewalTraceQueryRequest,
+} from './objectiveRenewalTraceApi';
+import type {
   AgentProfileApiService,
   AgentProfileLookupRequest,
   AgentProfileQueryRequest,
@@ -110,6 +115,7 @@ export type TownHttpApiServices<
   readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
   readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
   readonly agentProfiles?: AgentProfileApiService<unknown>;
+  readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -118,6 +124,7 @@ type SimulationRoute = {
   readonly action: string;
   readonly runId?: string;
   readonly agentId?: string;
+  readonly traceId?: string;
 };
 
 class TownHttpApiError extends Error {
@@ -243,6 +250,7 @@ async function routeTownHttpRequest<
     return routeSimulationRequest(
       services.simulation,
       services.agentProfiles,
+      services.objectiveRenewalTraces,
       request,
       simulationRoute,
     );
@@ -280,6 +288,7 @@ async function routeSimulationRequest<
     TExperimentValidationReport
   >,
   agentProfiles: AgentProfileApiService<unknown> | undefined,
+  objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -333,6 +342,26 @@ async function routeSimulationRequest<
     return jsonResponse(
       200,
       await agentProfiles.queryAgentProfiles(createAgentProfileQueryRequest(route, request.query)),
+    );
+  }
+  if (route.action === 'objective-renewal-traces') {
+    if (objectiveRenewalTraces === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.traceId !== undefined) {
+      return jsonResponse(
+        200,
+        await objectiveRenewalTraces.getObjectiveRenewalTrace(
+          createObjectiveRenewalTraceLookupRequest(route),
+        ),
+      );
+    }
+    return jsonResponse(
+      200,
+      await objectiveRenewalTraces.queryObjectiveRenewalTraces(
+        createObjectiveRenewalTraceQueryRequest(route, request.query),
+      ),
     );
   }
   assertMethod(request, 'POST');
@@ -696,6 +725,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
       agentId: decodePathPart(agentId),
     };
   }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
+    segments[4] === 'objective-renewal-traces'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const traceId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || traceId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'objective-renewal-traces',
+      traceId: decodePathPart(traceId),
+    };
+  }
   return undefined;
 }
 
@@ -835,6 +883,38 @@ function createAgentProfileQueryRequest(
     simulationId: route.simulationId,
     partitionKey: route.partitionKey,
     ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createObjectiveRenewalTraceLookupRequest(
+  route: SimulationRoute,
+): ObjectiveRenewalTraceLookupRequest {
+  if (route.traceId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    traceId: route.traceId,
+  };
+}
+
+function createObjectiveRenewalTraceQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): ObjectiveRenewalTraceQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'traceId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryString(query, 'objectiveId'),
+    ...optionalQueryNumber(query, 'fromIssuedAt'),
+    ...optionalQueryNumber(query, 'toIssuedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

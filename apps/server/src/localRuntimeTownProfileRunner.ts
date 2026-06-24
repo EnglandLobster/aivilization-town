@@ -7,6 +7,7 @@ import {
 } from '@aivilization/content';
 import {
   createRuntimeProfileRunReport,
+  type ObjectiveRenewalTrace,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
@@ -16,6 +17,7 @@ import {
   completeFinishedActiveObjectives,
   createCanonicalWorkerRuntimeResolver,
   renewMissingActiveObjectives,
+  type ObjectiveRenewalDecisionTrace,
   type LocalWorldRuntimeAgentProvider,
   type WorldCommandPolicyResolver,
   type WorldCommandPolicySource,
@@ -229,6 +231,16 @@ export function createLocalRuntimeTownProfileAgentProvider(
       shortTermMemoryRepository: storage.shortTermMemoryRepository,
       planRepository: storage.planRepository,
       issuedAt,
+      objectiveRenewalTraceSink: {
+        record: (trace) =>
+          storage.objectiveRenewalTraceRepository.record(
+            createProfileObjectiveRenewalTrace({
+              simulationId: storage.partition.simulationId,
+              partitionKey: storage.partition.partitionKey,
+              trace,
+            }),
+          ),
+      },
       ...(input.strategicPlanCompiler === undefined
         ? {}
         : { strategicPlanCompiler: input.strategicPlanCompiler }),
@@ -246,6 +258,30 @@ export function createLocalRuntimeTownProfileAgentProvider(
         commandIdPrefix: `${storage.partition.partitionKey}:profile-provider:${issuedAt}`,
       }),
     });
+  };
+}
+
+function createProfileObjectiveRenewalTrace(input: {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly trace: ObjectiveRenewalDecisionTrace;
+}): ObjectiveRenewalTrace {
+  return {
+    traceId: `${input.simulationId}:${input.partitionKey}:${input.trace.agentId}:${input.trace.objectiveId}:${input.trace.issuedAt}`,
+    simulationId: input.simulationId,
+    partitionKey: input.partitionKey,
+    agentId: input.trace.agentId,
+    objectiveId: input.trace.objectiveId,
+    selectedCandidateId: input.trace.selectedCandidateId,
+    rationale: input.trace.rationale,
+    score: input.trace.score,
+    shortTermMemoryContextIds: [...input.trace.shortTermMemoryContextIds],
+    profileEntryKeys: [...input.trace.profileEntryKeys],
+    profileEvidenceRecordIds: [...input.trace.profileEvidenceRecordIds],
+    ...(input.trace.strategicPlan === undefined
+      ? {}
+      : { strategicPlan: input.trace.strategicPlan }),
+    issuedAt: input.trace.issuedAt,
   };
 }
 

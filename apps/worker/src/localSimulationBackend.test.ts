@@ -114,6 +114,23 @@ describe('local simulation backend composition', () => {
       [3, 'SimulationTimeAdvanced'],
     ]);
 
+    const sync = await backend.api.getSync({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      afterSequence: 1,
+      limit: 1,
+    });
+    expect(sync.streamName).toBe(storage.partition.eventStreamName);
+    expect(sync.streamVersion).toBe(3);
+    expect(sync.projectionSequence).toBe(3);
+    expect(sync.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
+    expect(sync.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(sync.events.map((event) => [event.sequence, event.type])).toEqual([
+      [2, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(sync.nextAfterSequence).toBe(2);
+    expect(sync.hasMoreEvents).toBe(true);
+
     const replayed = requireReplayResult(
       await backend.api.replaySimulation({
         simulationId: 'sim-1',
@@ -178,6 +195,12 @@ describe('local simulation backend composition', () => {
     ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
     await expect(
       backend.api.getEvents({
+        simulationId: 'sim-1',
+        partitionKey: 'world-other',
+      }),
+    ).rejects.toThrow('request partitionKey world-other must match storage partitionKey world-main');
+    await expect(
+      backend.api.getSync({
         simulationId: 'sim-1',
         partitionKey: 'world-other',
       }),

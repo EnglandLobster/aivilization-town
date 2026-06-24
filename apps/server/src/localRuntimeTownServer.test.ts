@@ -112,6 +112,23 @@ describe('local runtime town HTTP gateway', () => {
       [1, 'SimulationTimeAdvanced'],
     ]);
 
+    const sync = requireSyncEnvelope(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/sync?afterSequence=0&limit=1`,
+      ),
+    );
+    expect(sync).toMatchObject({
+      streamName: 'simulation/sim-1/partition/world-main/events',
+      streamVersion: 1,
+      projectionSequence: 1,
+      nextAfterSequence: 1,
+      hasMoreEvents: false,
+    });
+    expect(sync.projection.agents['agent-1']?.educationScore).toBe(10);
+    expect(sync.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+    ]);
+
     const trace = await fetchJson(`${server.baseUrl}/runtime/operation-traces/op-start-all-200`);
     expect(trace).toMatchObject({
       traceId: 'op-start-all-200',
@@ -255,6 +272,33 @@ function requireEventFeed(value: unknown): {
     readonly streamName: string;
     readonly streamVersion: number;
     readonly nextAfterSequence: number;
+    readonly events: readonly { readonly sequence: number; readonly type: string }[];
+  };
+}
+
+function requireSyncEnvelope(value: unknown): {
+  readonly streamName: string;
+  readonly streamVersion: number;
+  readonly projectionSequence: number;
+  readonly nextAfterSequence: number;
+  readonly hasMoreEvents: boolean;
+  readonly projection: {
+    readonly agents: Readonly<Record<string, { readonly educationScore: number }>>;
+  };
+  readonly events: readonly { readonly sequence: number; readonly type: string }[];
+} {
+  if (value === null || typeof value !== 'object' || !('projection' in value)) {
+    throw new Error('expected sync envelope response');
+  }
+  return value as {
+    readonly streamName: string;
+    readonly streamVersion: number;
+    readonly projectionSequence: number;
+    readonly nextAfterSequence: number;
+    readonly hasMoreEvents: boolean;
+    readonly projection: {
+      readonly agents: Readonly<Record<string, { readonly educationScore: number }>>;
+    };
     readonly events: readonly { readonly sequence: number; readonly type: string }[];
   };
 }

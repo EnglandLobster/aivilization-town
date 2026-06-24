@@ -3,6 +3,7 @@ import {
   createSimulationApiService,
   type SimulationEventFeedRequest,
   type SimulationLifecycleRequest,
+  type SimulationSyncRequest,
 } from './index';
 
 describe('simulation API control service', () => {
@@ -14,6 +15,7 @@ describe('simulation API control service', () => {
         getProjection: () => Promise.resolve({ agents: 0 }),
       },
       eventFeeds: createEventFeedPort(),
+      sync: createSyncPort(),
       steeringCommands: {
         submit: (command, context) => {
           submitted.push(command);
@@ -63,6 +65,7 @@ describe('simulation API control service', () => {
         getProjection: () => Promise.resolve({ agents: 0 }),
       },
       eventFeeds: createEventFeedPort(),
+      sync: createSyncPort(),
       steeringCommands: {
         submit: (command) => Promise.resolve({ command }),
       },
@@ -96,6 +99,7 @@ describe('simulation API control service', () => {
   test('delegates projection, event feed, and lifecycle controls to injected ports', async () => {
     const lifecycleRequests: SimulationLifecycleRequest[] = [];
     const eventFeedRequests: SimulationEventFeedRequest[] = [];
+    const syncRequests: SimulationSyncRequest[] = [];
     const service = createSimulationApiService({
       projectionQueries: {
         getProjection: (query) => Promise.resolve({ query, agents: 80 }),
@@ -106,6 +110,19 @@ describe('simulation API control service', () => {
           return Promise.resolve({
             streamVersion: 5,
             nextAfterSequence: 4,
+            events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
+          });
+        },
+      },
+      sync: {
+        getSync: (request) => {
+          syncRequests.push(request);
+          return Promise.resolve({
+            streamVersion: 5,
+            projectionSequence: 5,
+            nextAfterSequence: 4,
+            hasMoreEvents: true,
+            projection: { agents: 80 },
             events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
           });
         },
@@ -152,6 +169,21 @@ describe('simulation API control service', () => {
       events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
     });
     await expect(
+      service.getSync({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        afterSequence: 3,
+        limit: 1,
+      }),
+    ).resolves.toEqual({
+      streamVersion: 5,
+      projectionSequence: 5,
+      nextAfterSequence: 4,
+      hasMoreEvents: true,
+      projection: { agents: 80 },
+      events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
+    });
+    await expect(
       service.startSimulation({
         simulationId: 'sim-1',
         partitionKey: 'world-main',
@@ -191,6 +223,14 @@ describe('simulation API control service', () => {
         limit: 2,
       },
     ]);
+    expect(syncRequests).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        afterSequence: 3,
+        limit: 1,
+      },
+    ]);
   });
 });
 
@@ -198,6 +238,19 @@ function createEventFeedPort() {
   return {
     getEvents: (request: SimulationEventFeedRequest) =>
       Promise.resolve({ request, streamVersion: 0, nextAfterSequence: request.afterSequence ?? 0 }),
+  };
+}
+
+function createSyncPort() {
+  return {
+    getSync: (request: SimulationSyncRequest) =>
+      Promise.resolve({
+        request,
+        streamVersion: 0,
+        projectionSequence: 0,
+        nextAfterSequence: request.afterSequence ?? 0,
+        hasMoreEvents: false,
+      }),
   };
 }
 

@@ -26,6 +26,18 @@ type TestEventFeed = {
   }[];
 };
 
+type TestSyncEnvelope = {
+  readonly streamVersion: number;
+  readonly projectionSequence: number;
+  readonly nextAfterSequence: number;
+  readonly hasMoreEvents: boolean;
+  readonly projection: TestProjection;
+  readonly events: readonly {
+    readonly sequence: number;
+    readonly type: string;
+  }[];
+};
+
 type TestRuntimeStatus = {
   readonly manifestId: string;
 };
@@ -70,6 +82,28 @@ describe('town HTTP API router', () => {
       body: {
         streamVersion: 5,
         nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { afterSequence: '2', limit: '3' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        streamVersion: 5,
+        projectionSequence: 5,
+        nextAfterSequence: 5,
+        hasMoreEvents: false,
+        projection: { agents: 80 },
         events: [
           { sequence: 3, type: 'SimulationTimeAdvanced' },
           { sequence: 4, type: 'EducationChanged' },
@@ -151,6 +185,15 @@ describe('town HTTP API router', () => {
       },
       {
         method: 'getEvents',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          afterSequence: 2,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSync',
         request: {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
@@ -326,13 +369,43 @@ describe('town HTTP API router', () => {
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
     });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { afterSequence: '-1' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'afterSequence must be a non-negative integer' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
     expect(calls).toEqual([]);
   });
 });
 
 function createSimulationService(
   calls: unknown[],
-): SimulationApiService<TestProjection, TestSteeringResult, TestLifecycleResult, TestEventFeed> {
+): SimulationApiService<
+  TestProjection,
+  TestSteeringResult,
+  TestLifecycleResult,
+  TestEventFeed,
+  TestSyncEnvelope
+> {
   return {
     getProjection: (request) => {
       calls.push({ method: 'getProjection', request });
@@ -343,6 +416,21 @@ function createSimulationService(
       return Promise.resolve({
         streamVersion: 5,
         nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      });
+    },
+    getSync: (request) => {
+      calls.push({ method: 'getSync', request });
+      return Promise.resolve({
+        streamVersion: 5,
+        projectionSequence: 5,
+        nextAfterSequence: 5,
+        hasMoreEvents: false,
+        projection: { agents: 80 },
         events: [
           { sequence: 3, type: 'SimulationTimeAdvanced' },
           { sequence: 4, type: 'EducationChanged' },

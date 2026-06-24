@@ -1,4 +1,9 @@
 import type {
+  AgentProfileApiService,
+  AgentProfileLookupRequest,
+  AgentProfileQueryRequest,
+} from './agentProfileApi';
+import type {
   RuntimeSupervisorApiService,
   RuntimeSupervisorOperationTraceQuery,
   RuntimeSupervisorRunRequest,
@@ -104,6 +109,7 @@ export type TownHttpApiServices<
   >;
   readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
   readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
+  readonly agentProfiles?: AgentProfileApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -111,6 +117,7 @@ type SimulationRoute = {
   readonly partitionKey: string;
   readonly action: string;
   readonly runId?: string;
+  readonly agentId?: string;
 };
 
 class TownHttpApiError extends Error {
@@ -233,7 +240,12 @@ async function routeTownHttpRequest<
   const segments = splitPath(request.path);
   const simulationRoute = matchSimulationRoute(segments);
   if (simulationRoute !== undefined) {
-    return routeSimulationRequest(services.simulation, request, simulationRoute);
+    return routeSimulationRequest(
+      services.simulation,
+      services.agentProfiles,
+      request,
+      simulationRoute,
+    );
   }
   if (segments[0] === 'runtime') {
     return routeRuntimeRequest(
@@ -267,6 +279,7 @@ async function routeSimulationRequest<
     TSync,
     TExperimentValidationReport
   >,
+  agentProfiles: AgentProfileApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -304,6 +317,22 @@ async function routeSimulationRequest<
       await simulation.queryExperimentValidationReports(
         createValidationReportQueryRequest(route, request.query),
       ),
+    );
+  }
+  if (route.action === 'agent-profiles') {
+    if (agentProfiles === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.agentId !== undefined) {
+      return jsonResponse(
+        200,
+        await agentProfiles.getAgentProfile(createAgentProfileLookupRequest(route)),
+      );
+    }
+    return jsonResponse(
+      200,
+      await agentProfiles.queryAgentProfiles(createAgentProfileQueryRequest(route, request.query)),
     );
   }
   assertMethod(request, 'POST');
@@ -648,6 +677,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
       runId: decodePathPart(runId),
     };
   }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
+    segments[4] === 'agent-profiles'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const agentId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || agentId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'agent-profiles',
+      agentId: decodePathPart(agentId),
+    };
+  }
   return undefined;
 }
 
@@ -761,6 +809,32 @@ function createValidationReportQueryRequest(
     ...optionalQueryString(query, 'runId'),
     ...optionalQueryNumber(query, 'fromGeneratedAt'),
     ...optionalQueryNumber(query, 'toGeneratedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createAgentProfileLookupRequest(route: SimulationRoute): AgentProfileLookupRequest {
+  if (route.agentId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    agentId: route.agentId,
+  };
+}
+
+function createAgentProfileQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): AgentProfileQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'agentId'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

@@ -1,3 +1,4 @@
+export * from './agentProfileApi';
 export * from './commandStoreSubmission';
 export * from './httpApi';
 export * from './nodeHttpServer';

@@ -9,6 +9,7 @@ import {
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import { type ScenarioPreset } from '@aivilization/content';
+import { asMemoryRecordId } from '@aivilization/memory';
 import {
   InMemoryRuntimeProfileRunReportRepository,
   createExperimentValidationReport,
@@ -166,6 +167,90 @@ describe('local runtime town HTTP gateway', () => {
         },
       },
     });
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.longTermProfileRepository.applyPatches(agentOne, [
+        {
+          id: 'ltm-patch-agent-1-value-community-220',
+          agentId: agentOne,
+          section: 'values',
+          key: 'community-cooperation',
+          statement: 'Agent 1 values cooperative community routines.',
+          confidence: 0.8,
+          provenanceRecordIds: [asMemoryRecordId('memory-social-value-1')],
+          proposedAt: 220,
+        },
+        {
+          id: 'ltm-patch-agent-1-personality-sociable-220',
+          agentId: agentOne,
+          section: 'personality',
+          key: 'sociable',
+          statement: 'Agent 1 shows a sociable disposition.',
+          confidence: 0.7,
+          provenanceRecordIds: [asMemoryRecordId('memory-social-personality-1')],
+          proposedAt: 220,
+        },
+        {
+          id: 'ltm-patch-agent-1-social-agent-2-220',
+          agentId: agentOne,
+          section: 'socialRecords',
+          key: 'agent-2',
+          statement: 'Agent 1 recently cooperated with Agent 2.',
+          confidence: 0.9,
+          provenanceRecordIds: [asMemoryRecordId('memory-social-record-1')],
+          proposedAt: 220,
+          relationDelta: 0.2,
+          attitudeDelta: 0.15,
+        },
+      ]);
+    const agentProfile = requireAgentProfile(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/agent-profiles/agent-1`,
+      ),
+    );
+    expect(agentProfile).toMatchObject({
+      agentId: 'agent-1',
+      values: [
+        {
+          key: 'community-cooperation',
+          statement: 'Agent 1 values cooperative community routines.',
+          confidence: 0.8,
+          updatedAt: 220,
+          provenanceRecordIds: ['memory-social-value-1'],
+        },
+      ],
+    });
+    expect(agentProfile.personality).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'sociable',
+          statement: 'Agent 1 shows a sociable disposition.',
+          confidence: 0.7,
+        }),
+      ]),
+    );
+    expect(agentProfile.socialRecords).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'agent-2',
+          statement: 'Agent 1 recently cooperated with Agent 2.',
+          relationDelta: 0.2,
+          attitudeDelta: 0.15,
+        }),
+      ]),
+    );
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/world-main/agent-profiles?limit=1`),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-1',
+        values: [
+          expect.objectContaining({
+            key: 'community-cooperation',
+          }),
+        ],
+      }),
+    ]);
 
     const start = await fetchJson(`${server.baseUrl}/runtime/start`, {
       method: 'POST',
@@ -1082,6 +1167,23 @@ function requireProjection(value: unknown): {
     readonly projection: {
       readonly agents: Readonly<Record<string, unknown>>;
     };
+  };
+}
+
+function requireAgentProfile(value: unknown): {
+  readonly agentId: string;
+  readonly values: readonly unknown[];
+  readonly personality: readonly unknown[];
+  readonly socialRecords: readonly unknown[];
+} {
+  if (value === null || typeof value !== 'object' || !('agentId' in value)) {
+    throw new Error('expected agent profile response');
+  }
+  return value as {
+    readonly agentId: string;
+    readonly values: readonly unknown[];
+    readonly personality: readonly unknown[];
+    readonly socialRecords: readonly unknown[];
   };
 }
 

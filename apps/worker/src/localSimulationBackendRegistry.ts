@@ -1,5 +1,6 @@
 import {
   createSimulationApiService,
+  type AgentProfileQueryPort,
   type CommandStoreSteeringSubmissionResult,
   type SimulationApiService,
 } from '@aivilization/api';
@@ -9,6 +10,7 @@ import {
   type LocalSimulationBackend,
   type LocalSimulationBackendInput,
   type LocalSimulationBackendLifecycleResult,
+  type LocalAgentProfileQueryResult,
   type LocalExperimentValidationReportQueryResult,
   type LocalWorldEventFeedResult,
   type LocalWorldProjectionQueryResult,
@@ -39,6 +41,7 @@ export type LocalSimulationBackendRegistry = {
     LocalWorldSyncResult,
     LocalExperimentValidationReportQueryResult
   >;
+  readonly agentProfiles: AgentProfileQueryPort<LocalAgentProfileQueryResult>;
   readonly listPartitions: () => readonly LocalSimulationBackendLookup[];
   readonly hasBackend: (lookup: LocalSimulationBackendLookup) => boolean;
   readonly getBackend: (lookup: LocalSimulationBackendLookup) => LocalSimulationBackend;
@@ -121,9 +124,14 @@ export function createLocalSimulationBackendRegistry(
       replay: (request) => getBackend(request).lifecycle.replay(request),
     },
   });
+  const agentProfiles: AgentProfileQueryPort<LocalAgentProfileQueryResult> = {
+    getProfile: async (request) => getBackend(request).agentProfiles.getProfile(request),
+    queryProfiles: async (request) => getBackend(request).agentProfiles.queryProfiles(request),
+  };
 
   return {
     api,
+    agentProfiles,
     listPartitions: () => [...registrations.values()].map(toBackendLookup),
     hasBackend,
     getBackend,

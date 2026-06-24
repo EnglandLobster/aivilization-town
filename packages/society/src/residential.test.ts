@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { evaluateResidentialTierUpgrade, type ResidentialTierUpgradePolicy } from './index';
+import {
+  evaluateResidentialTierUpgrade,
+  evaluateResidentialUpkeep,
+  type ResidentialTierUpgradePolicy,
+  type ResidentialUpkeepPolicy,
+} from './index';
 
 const policy: ResidentialTierUpgradePolicy = {
   maxResidentialTier: 4,
@@ -110,6 +115,80 @@ describe('residential tier upgrades', () => {
       status: 'rejected',
       reason: 'insufficient-education',
       detail: 'educationScore requires 20, available 19',
+    });
+  });
+});
+
+const upkeepPolicy: ResidentialUpkeepPolicy = {
+  costs: [
+    { residentialTier: 2, currencyCostPerHour: 20 },
+    { residentialTier: 3, currencyCostPerHour: 20 },
+  ],
+};
+
+describe('residential upkeep', () => {
+  test('charges elapsed upkeep for the current residential tier', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 2,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: upkeepPolicy,
+      }),
+    ).toEqual({
+      status: 'charged',
+      residentialTier: 2,
+      amount: 10,
+      unpaidAmount: 0,
+      previousBalance: 100,
+      nextBalance: 90,
+    });
+  });
+
+  test('caps upkeep at available balance and records unpaid amount', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 3,
+        balance: 5,
+        durationSeconds: 1800,
+        policy: upkeepPolicy,
+      }),
+    ).toEqual({
+      status: 'charged',
+      residentialTier: 3,
+      amount: 5,
+      unpaidAmount: 5,
+      previousBalance: 5,
+      nextBalance: 0,
+    });
+  });
+
+  test('skips tiers without configured upkeep cost', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 1,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: upkeepPolicy,
+      }),
+    ).toEqual({
+      status: 'uncharged',
+      reason: 'no-upkeep-cost',
+    });
+  });
+
+  test('rejects invalid upkeep policy values', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 2,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: { costs: [{ residentialTier: 2, currencyCostPerHour: -1 }] },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'currencyCostPerHour must be non-negative',
     });
   });
 });

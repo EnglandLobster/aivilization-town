@@ -95,6 +95,16 @@ export type ResidentialTierUpgradedPayload = {
   readonly consumedInventory: Inventory;
 };
 
+export type ResidentialUpkeepChargedPayload = {
+  readonly agentId: AgentId;
+  readonly residentialTier: number;
+  readonly amount: number;
+  readonly unpaidAmount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly reason: string;
+};
+
 export type SocialInteractionCompletedPayload = {
   readonly sourceAgentId: AgentId;
   readonly targetAgentId: AgentId;
@@ -159,6 +169,7 @@ export type WorldEventPayloadByType = {
   readonly JobApplicationSubmitted: JobApplicationSubmittedPayload;
   readonly JobAssigned: JobAssignedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
+  readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
   readonly AgentLocationChanged: AgentLocationChangedPayload;
   readonly LocationObserved: LocationObservedPayload;

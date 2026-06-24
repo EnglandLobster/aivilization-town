@@ -133,6 +133,23 @@ function createLowBalanceProjection() {
   });
 }
 
+function createResidentialUpkeepProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 80, satiety: 80, health: 90 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 2,
+        job: null,
+        inventory: {},
+      },
+    ],
+    moneySupply: 1000,
+  });
+}
+
 function createMarketProjection() {
   return createWorldProjection({
     agents: [
@@ -533,6 +550,50 @@ describe('worker tick runner', () => {
     });
     expect(result.projection.agents[agentOne]?.balance).toBe(35);
     expect(result.projection.moneySupply).toBe(125);
+    expect(result.streamVersion).toBe(2);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('applies residential upkeep during the worker time phase', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-residential-upkeep',
+      simulationId,
+      issuedAt: 100,
+      projection: createResidentialUpkeepProjection(),
+      policies: {
+        ...policies,
+        residentialUpkeep: {
+          costs: [{ residentialTier: 2, currencyCostPerHour: 20 }],
+        },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [],
+      timeDeltaMs: 1800_000,
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'ResidentialUpkeepCharged'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        residentialTier: 2,
+        amount: 10,
+        unpaidAmount: 0,
+        previousBalance: 100,
+        nextBalance: 90,
+        reason: 'residential-upkeep',
+      },
+    });
+    expect(result.projection.agents[agentOne]?.balance).toBe(90);
+    expect(result.projection.moneySupply).toBe(990);
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
   });

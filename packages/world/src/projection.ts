@@ -267,6 +267,18 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         residentialTier: event.payload.nextResidentialTier,
         inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
       }));
+    case 'ResidentialUpkeepCharged':
+      return updateAgent(
+        {
+          ...projection,
+          moneySupply: projection.moneySupply - event.payload.amount,
+        },
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: event.payload.nextBalance,
+        }),
+      );
     case 'SocialInteractionCompleted':
       return {
         ...projection,

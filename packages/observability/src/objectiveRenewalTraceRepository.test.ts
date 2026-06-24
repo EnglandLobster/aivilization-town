@@ -101,6 +101,8 @@ describe('objective renewal trace repositories', () => {
       agentId: 'agent-2',
       objectiveId: 'objective-file',
       issuedAt: 200,
+      selectedCandidateId: 'scheduled-routine-study',
+      scheduledIntentionIds: ['daily-routine:agent-2:0:morning-study'],
     });
 
     await repository.record(trace);
@@ -142,6 +144,9 @@ function createTrace(
     shortTermMemoryContextIds: input.shortTermMemoryContextIds ?? ['memory-1'],
     profileEntryKeys: input.profileEntryKeys ?? ['values:study'],
     profileEvidenceRecordIds: input.profileEvidenceRecordIds ?? ['ltm-1'],
+    ...(input.scheduledIntentionIds === undefined
+      ? {}
+      : { scheduledIntentionIds: input.scheduledIntentionIds }),
     ...(input.strategicPlan === undefined ? {} : { strategicPlan: input.strategicPlan }),
     issuedAt: input.issuedAt,
   };

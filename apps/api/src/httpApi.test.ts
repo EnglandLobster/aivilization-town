@@ -5,6 +5,7 @@ import type { SimulationApiService } from './simulationApi';
 import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
 import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
 import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
+import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -114,6 +115,25 @@ type TestRuntimeRunQueueWorkerDrainResult = {
   readonly failedJobCount: number;
   readonly idle: boolean;
 };
+
+type TestRuntimeSchedulerStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly attemptedScheduleCount: number;
+};
+
+type TestRuntimeSchedulerDecision =
+  | {
+      readonly status: 'enqueued';
+      readonly job: {
+        readonly jobId: string;
+        readonly status: 'queued';
+      };
+    }
+  | {
+      readonly status: 'skipped';
+      readonly reason: 'pending-job-limit-reached';
+    };
 
 describe('town HTTP API router', () => {
   test('routes projection, steering, and lifecycle requests to the simulation service', async () => {
@@ -703,6 +723,51 @@ describe('town HTTP API router', () => {
     ]);
   });
 
+  test('routes runtime scheduler control requests to the optional scheduler service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeScheduler: createRuntimeSchedulerService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/scheduler/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedScheduleCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, attemptedScheduleCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/run-once', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'enqueued', job: { jobId: 'job-scheduled-1', status: 'queued' } },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedScheduleCount: 1 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeSchedulerStatus' },
+      { method: 'startRuntimeScheduler' },
+      { method: 'runRuntimeSchedulerOnce' },
+      { method: 'stopRuntimeScheduler' },
+    ]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
@@ -1167,6 +1232,32 @@ function createRuntimeRunQueueWorkerService(
         completedJobCount: request.maxJobs ?? 1,
         failedJobCount: 0,
         idle: false,
+      });
+    },
+  };
+}
+
+function createRuntimeSchedulerService(
+  calls: unknown[],
+): RuntimeSchedulerApiService<TestRuntimeSchedulerStatus, TestRuntimeSchedulerDecision> {
+  return {
+    getRuntimeSchedulerStatus: () => {
+      calls.push({ method: 'getRuntimeSchedulerStatus' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedScheduleCount: 0 });
+    },
+    startRuntimeScheduler: () => {
+      calls.push({ method: 'startRuntimeScheduler' });
+      return Promise.resolve({ running: true, inFlight: false, attemptedScheduleCount: 0 });
+    },
+    stopRuntimeScheduler: () => {
+      calls.push({ method: 'stopRuntimeScheduler' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedScheduleCount: 1 });
+    },
+    runRuntimeSchedulerOnce: () => {
+      calls.push({ method: 'runRuntimeSchedulerOnce' });
+      return Promise.resolve({
+        status: 'enqueued',
+        job: { jobId: 'job-scheduled-1', status: 'queued' },
       });
     },
   };

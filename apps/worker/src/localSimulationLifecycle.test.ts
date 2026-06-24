@@ -147,6 +147,11 @@ describe('local simulation lifecycle controller', () => {
 
     expect(result.status).toBe('completed');
     expect(result.state.lastAppliedSequence).toBe(4);
+    expect(result.state).toMatchObject({
+      lastValidationStatus: 'succeeded',
+      lastValidationReportRunId: 'lifecycle-validation:500:4',
+      lastValidationGeneratedAt: 500,
+    });
     expect(result.validationReport).toMatchObject({
       streamName: storage.partition.eventStreamName,
       streamVersion: 4,
@@ -166,6 +171,16 @@ describe('local simulation lifecycle controller', () => {
     await expect(
       storage.experimentValidationReportRepository.get('lifecycle-validation:500:4'),
     ).resolves.toEqual(result.validationReport?.report);
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(restartedStorage.lifecycleStateStore.getState(createRequest(550))).toMatchObject({
+      lastValidationStatus: 'succeeded',
+      lastValidationReportRunId: 'lifecycle-validation:500:4',
+      lastValidationGeneratedAt: 500,
+    });
   });
 
   test('skips configured validation schedule when lifecycle start pauses before ticking', async () => {
@@ -220,6 +235,13 @@ describe('local simulation lifecycle controller', () => {
 
     expect(result.status).toBe('completed');
     expect(result.state.lastAppliedSequence).toBe(1);
+    expect(result.state).toMatchObject({
+      lastValidationStatus: 'failed',
+      lastValidationFailure: {
+        name: 'Error',
+        message: 'events must include at least one TradeExecuted observation',
+      },
+    });
     expect(result.validationReport).toBeUndefined();
     expect(result.validationFailure).toMatchObject({
       name: 'Error',
@@ -228,6 +250,18 @@ describe('local simulation lifecycle controller', () => {
     await expect(
       storage.experimentValidationReportRepository.query({ simulationId: 'sim-1' }),
     ).resolves.toEqual([]);
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(restartedStorage.lifecycleStateStore.getState(createRequest(950))).toMatchObject({
+      lastValidationStatus: 'failed',
+      lastValidationFailure: {
+        name: 'Error',
+        message: 'events must include at least one TradeExecuted observation',
+      },
+    });
   });
 });
 

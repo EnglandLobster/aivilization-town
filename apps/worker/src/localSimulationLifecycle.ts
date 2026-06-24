@@ -28,6 +28,14 @@ export type LocalSimulationLifecycleStatus =
   | 'command-drain-failed'
   | 'reset-requested';
 
+export type LocalSimulationLifecycleValidationStatus = 'succeeded' | 'failed';
+
+export type LocalSimulationLifecycleValidationFailure = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+};
+
 export type LocalSimulationLifecycleState = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -37,6 +45,10 @@ export type LocalSimulationLifecycleState = {
   readonly updatedAt: SimulationTimestamp;
   readonly lastLoopId?: string;
   readonly completedTickCount?: number;
+  readonly lastValidationStatus?: LocalSimulationLifecycleValidationStatus;
+  readonly lastValidationReportRunId?: string;
+  readonly lastValidationGeneratedAt?: SimulationTimestamp;
+  readonly lastValidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationLifecycleStateLookup = {
@@ -63,12 +75,6 @@ export type LocalSimulationLifecycleValidationSchedule = Pick<
   | 'thresholds'
 > & {
   readonly runIdPrefix?: string;
-};
-
-export type LocalSimulationLifecycleValidationFailure = {
-  readonly name: string;
-  readonly message: string;
-  readonly stack?: string;
 };
 
 export type LocalSimulationLifecycleControllerInput = Omit<
@@ -234,7 +240,7 @@ export function createLocalSimulationLifecycleController(
           return input.pauseBeforeTick?.(step) === true;
         },
       });
-      const state = lifecycleStateStore.saveState({
+      const loopState = lifecycleStateStore.saveState({
         simulationId: request.simulationId,
         partitionKey: request.partitionKey,
         status: loop.status,
@@ -253,9 +259,17 @@ export function createLocalSimulationLifecycleController(
               request,
               schedule: input.validationSchedule,
               streamVersionBeforeStart,
-              lastAppliedSequence: state.lastAppliedSequence,
+              lastAppliedSequence: loopState.lastAppliedSequence,
             })
           : {};
+      const validationStateFields = createValidationStateFields(validation);
+      const state =
+        Object.keys(validationStateFields).length === 0
+          ? loopState
+          : lifecycleStateStore.saveState({
+              ...loopState,
+              ...validationStateFields,
+            });
 
       return {
         status: loop.status,
@@ -383,6 +397,38 @@ async function runLifecycleValidation(input: {
       validationFailure: serializeValidationFailure(error),
     };
   }
+}
+
+type LocalSimulationLifecycleValidationResult =
+  | { readonly validationReport: LocalExperimentValidationScheduleResult }
+  | { readonly validationFailure: LocalSimulationLifecycleValidationFailure }
+  | Record<string, never>;
+
+function createValidationStateFields(
+  validation: LocalSimulationLifecycleValidationResult,
+): Partial<
+  Pick<
+    LocalSimulationLifecycleState,
+    | 'lastValidationStatus'
+    | 'lastValidationReportRunId'
+    | 'lastValidationGeneratedAt'
+    | 'lastValidationFailure'
+  >
+> {
+  if ('validationReport' in validation) {
+    return {
+      lastValidationStatus: 'succeeded',
+      lastValidationReportRunId: validation.validationReport.report.run.runId,
+      lastValidationGeneratedAt: validation.validationReport.report.run.generatedAt,
+    };
+  }
+  if ('validationFailure' in validation) {
+    return {
+      lastValidationStatus: 'failed',
+      lastValidationFailure: validation.validationFailure,
+    };
+  }
+  return {};
 }
 
 async function runLifecycleValidationSchedule(input: {
@@ -569,6 +615,7 @@ function parseLocalSimulationLifecycleState(
     source,
   );
   const updatedAt = parseNonNegativeFinite(record.updatedAt, 'updatedAt', source);
+  const validationState = parseValidationState(record, source);
 
   return {
     simulationId,
@@ -589,6 +636,7 @@ function parseLocalSimulationLifecycleState(
             source,
           ),
         }),
+    ...validationState,
   };
 }
 
@@ -606,6 +654,75 @@ function parseLocalSimulationLifecycleStatus(
     return value;
   }
   throw new Error(`invalid status in ${source}`);
+}
+
+function parseValidationState(
+  record: Record<string, unknown>,
+  source: string,
+): Partial<
+  Pick<
+    LocalSimulationLifecycleState,
+    | 'lastValidationStatus'
+    | 'lastValidationReportRunId'
+    | 'lastValidationGeneratedAt'
+    | 'lastValidationFailure'
+  >
+> {
+  if (record.lastValidationStatus === undefined) {
+    return {};
+  }
+
+  const lastValidationStatus = parseLocalSimulationLifecycleValidationStatus(
+    record.lastValidationStatus,
+    source,
+  );
+  if (lastValidationStatus === 'succeeded') {
+    return {
+      lastValidationStatus,
+      lastValidationReportRunId: parseString(
+        record.lastValidationReportRunId,
+        'lastValidationReportRunId',
+        source,
+      ),
+      lastValidationGeneratedAt: parseNonNegativeFinite(
+        record.lastValidationGeneratedAt,
+        'lastValidationGeneratedAt',
+        source,
+      ),
+    };
+  }
+
+  return {
+    lastValidationStatus,
+    lastValidationFailure: parseValidationFailure(record.lastValidationFailure, source),
+  };
+}
+
+function parseLocalSimulationLifecycleValidationStatus(
+  value: unknown,
+  source: string,
+): LocalSimulationLifecycleValidationStatus {
+  if (value === 'succeeded' || value === 'failed') {
+    return value;
+  }
+  throw new Error(`invalid lastValidationStatus in ${source}`);
+}
+
+function parseValidationFailure(
+  value: unknown,
+  source: string,
+): LocalSimulationLifecycleValidationFailure {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`invalid lastValidationFailure in ${source}`);
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    name: parseString(record.name, 'lastValidationFailure.name', source),
+    message: parseString(record.message, 'lastValidationFailure.message', source),
+    ...(record.stack === undefined
+      ? {}
+      : { stack: parseString(record.stack, 'lastValidationFailure.stack', source) }),
+  };
 }
 
 function parseString(value: unknown, name: string, source: string): string {

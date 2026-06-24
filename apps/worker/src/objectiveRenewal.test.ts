@@ -206,8 +206,8 @@ describe('worker objective renewal', () => {
     });
 
     expect(objective).toMatchObject({
-      statement: 'Maintain energy, satiety, and health before pursuing growth.',
-      affinityTags: ['maintain', 'health', 'energy', 'satiety'],
+      statement: 'Recover satiety before pursuing growth.',
+      affinityTags: ['maintain', 'eat', 'satiety'],
     });
   });
 

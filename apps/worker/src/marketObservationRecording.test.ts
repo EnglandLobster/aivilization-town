@@ -8,6 +8,35 @@ import { recordWorkerMarketObservations } from './index';
 const simulationId = 'sim-market-recording';
 
 describe('worker market observation recording', () => {
+  test('treats ticks without trade events as an empty recording batch', async () => {
+    const repository = new InMemoryMarketObservationRepository();
+    const events = [
+      createEventEnvelope({
+        id: 'time-advanced',
+        simulationId,
+        type: 'SimulationTimeAdvanced',
+        payload: {
+          previous: { now: 0, tickDurationMs: 1000 },
+          next: { now: 1000, tickDurationMs: 1000 },
+          deltaMs: 1000,
+        },
+        occurredAt: 1000,
+        sequence: 1,
+      }),
+    ];
+
+    await expect(
+      recordWorkerMarketObservations({
+        simulationId,
+        events,
+        repository,
+        priceBinning: { intervalMs: 60 },
+      }),
+    ).resolves.toEqual({ tradeObservationCount: 0, ohlcBarCount: 0 });
+    await expect(repository.queryTrades({ simulationId })).resolves.toEqual([]);
+    await expect(repository.queryOhlcBars({ simulationId })).resolves.toEqual([]);
+  });
+
   test('records trade observations and OHLC bars from TradeExecuted events idempotently', async () => {
     const repository = new InMemoryMarketObservationRepository();
     const events = [

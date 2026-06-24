@@ -230,4 +230,105 @@ describe('experiment validation report', () => {
     expect(trajectories.evidence.minimumStepCount).toBe(0);
     expect(trajectories.evidence.maximumStepCount).toBe(0);
   });
+
+  test('consumes planner shape and outcome metrics in ablation validation', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-planner-metrics',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_003,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 102 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        createPlannerRun({
+          variant: 'default',
+          commandEmittingRatio: 0.4,
+          rejectedRatio: 0.05,
+          replanningRatio: 0.1,
+          singleBranchRatio: 0.25,
+        }),
+        createPlannerRun({
+          variant: 'without-branch',
+          commandEmittingRatio: 0.15,
+          rejectedRatio: 0.35,
+          replanningRatio: 0.6,
+          singleBranchRatio: 1,
+        }),
+      ],
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        plannerAblation: {
+          minimumDefaultWinRate: 0.5,
+          minimumDefaultCommandEmittingCycleRatio: 0.5,
+          maximumDefaultSimulatorRejectedRatio: 0.1,
+          maximumDefaultReplanningCycleRatio: 0.2,
+        },
+      },
+    });
+
+    const ablation = getMetric(report.metrics, 'planner-ablation');
+
+    expect(ablation.status).toBe('watch');
+    expect(ablation.evidence).toMatchObject({
+      defaultWinRate: 1,
+      plannerShapeMetricCount: 1,
+      plannerOutcomeMetricCount: 3,
+      defaultCommandEmittingCycleRatio: 0.4,
+      ablatedCommandEmittingCycleRatio: 0.15,
+      commandEmittingCycleRatioDefaultAdvantage: 0.25,
+      defaultSimulatorRejectedRatio: 0.05,
+      ablatedSimulatorRejectedRatio: 0.35,
+      simulatorRejectedRatioDefaultAdvantage: 0.3,
+      defaultReplanningCycleRatio: 0.1,
+      ablatedReplanningCycleRatio: 0.6,
+      replanningCycleRatioDefaultAdvantage: 0.5,
+      defaultSingleBranchPlanRatio: 0.25,
+      ablatedSingleBranchPlanRatio: 1,
+      singleBranchPlanRatioDefaultAdvantage: 0.75,
+    });
+  });
 });
+
+function createPlannerRun(input: {
+  readonly variant: string;
+  readonly commandEmittingRatio: number;
+  readonly rejectedRatio: number;
+  readonly replanningRatio: number;
+  readonly singleBranchRatio: number;
+}) {
+  return {
+    taskId: 'planner-validation-task',
+    variant: input.variant,
+    metrics: [
+      {
+        metricId: 'planner-command-emitting-cycle-ratio',
+        value: input.commandEmittingRatio,
+        higherIsBetter: true,
+      },
+      {
+        metricId: 'planner-simulator-rejected-ratio',
+        value: input.rejectedRatio,
+        higherIsBetter: false,
+      },
+      {
+        metricId: 'planner-replanning-cycle-ratio',
+        value: input.replanningRatio,
+        higherIsBetter: false,
+      },
+      {
+        metricId: 'planner-single-branch-plan-ratio',
+        value: input.singleBranchRatio,
+        higherIsBetter: false,
+      },
+    ],
+  };
+}

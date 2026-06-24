@@ -11,6 +11,7 @@ import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 import type { AgentProfileApiService } from './agentProfileApi';
 import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
+import type { SteeringTraceApiService } from './steeringTraceApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -180,6 +181,13 @@ type TestObjectiveRenewalTrace = {
   readonly traceId: string;
   readonly agentId: string;
   readonly objectiveId: string;
+};
+
+type TestSteeringTrace = {
+  readonly traceId: string;
+  readonly commandId: string;
+  readonly agentId: string;
+  readonly resultKind: string;
 };
 
 describe('town HTTP API router', () => {
@@ -561,6 +569,86 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           traceId: 'trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes steering trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      steeringTraces: createSteeringTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/steering-traces',
+        query: {
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          resultKind: 'long-horizon-objective-set',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          resultKind: 'long-horizon-objective-set',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/steering-traces/steering-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'steering-trace-1',
+        commandId: 'cmd-objective-study',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'querySteeringTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          resultKind: 'long-horizon-objective-set',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSteeringTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'steering-trace-1',
         },
       },
     ]);
@@ -1712,6 +1800,31 @@ function createObjectiveRenewalTraceService(
           traceId: request.traceId ?? 'trace-1',
           agentId: request.agentId ?? 'agent-1',
           objectiveId: request.objectiveId ?? 'objective-1',
+        },
+      ]);
+    },
+  };
+}
+
+function createSteeringTraceService(calls: unknown[]): SteeringTraceApiService<TestSteeringTrace> {
+  return {
+    getSteeringTrace: (request) => {
+      calls.push({ method: 'getSteeringTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        commandId: 'cmd-objective-study',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+      });
+    },
+    querySteeringTraces: (request) => {
+      calls.push({ method: 'querySteeringTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'steering-trace-1',
+          commandId: request.commandId ?? 'cmd-objective-study',
+          agentId: request.agentId ?? 'agent-1',
+          resultKind: request.resultKind ?? 'long-horizon-objective-set',
         },
       ]);
     },

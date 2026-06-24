@@ -5,3 +5,4 @@ export * from './experimentValidationReportRepository';
 export * from './objectiveRenewalTraceRepository';
 export * from './runtimeProfileRunGate';
 export * from './runtimeProfileRunReport';
+export * from './steeringTraceRepository';

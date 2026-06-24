@@ -199,6 +199,27 @@ describe('local world runtime storage', () => {
       profileEvidenceRecordIds: ['profile-record-1'],
       issuedAt: 176,
     });
+    await storage.steeringTraceRepository.record({
+      traceId: 'sim-1:world-main:1:cmd-objective-study',
+      simulationId,
+      partitionKey: 'world-main',
+      commandId: 'cmd-objective-study',
+      commandType: 'SetLongHorizonObjective',
+      source: 'human',
+      agentId: agentOne,
+      resultKind: 'long-horizon-objective-set',
+      objectiveId: 'objective-study',
+      planId: 'objective-study',
+      candidateActionCount: 0,
+      commandDraftCount: 0,
+      shortTermMemoryRecordIds: [],
+      strategicPlan: {
+        status: 'deterministic',
+        source: 'deterministic',
+      },
+      issuedAt: 175,
+      recordedAt: 1000,
+    });
     await handleWorkerSteeringCommand({
       command: createCommandEnvelope({
         id: 'cmd-objective-study',
@@ -246,6 +267,17 @@ describe('local world runtime storage', () => {
       profileEntryKeys: ['values:education'],
       profileEvidenceRecordIds: ['profile-record-1'],
       issuedAt: 176,
+    });
+    await expect(
+      restarted.steeringTraceRepository.get('sim-1:world-main:1:cmd-objective-study'),
+    ).resolves.toMatchObject({
+      traceId: 'sim-1:world-main:1:cmd-objective-study',
+      commandId: 'cmd-objective-study',
+      resultKind: 'long-horizon-objective-set',
+      objectiveId: 'objective-study',
+      strategicPlan: {
+        source: 'deterministic',
+      },
     });
     await expect(
       restarted.planRepository.require({

@@ -4,6 +4,12 @@ import type {
   ObjectiveRenewalTraceQueryRequest,
 } from './objectiveRenewalTraceApi';
 import type {
+  SteeringTraceApiService,
+  SteeringTraceLookupRequest,
+  SteeringTraceQueryRequest,
+  SteeringTraceResultKind,
+} from './steeringTraceApi';
+import type {
   AgentProfileApiService,
   AgentProfileLookupRequest,
   AgentProfileQueryRequest,
@@ -116,6 +122,7 @@ export type TownHttpApiServices<
   readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
   readonly agentProfiles?: AgentProfileApiService<unknown>;
   readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
+  readonly steeringTraces?: SteeringTraceApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -251,6 +258,7 @@ async function routeTownHttpRequest<
       services.simulation,
       services.agentProfiles,
       services.objectiveRenewalTraces,
+      services.steeringTraces,
       request,
       simulationRoute,
     );
@@ -289,6 +297,7 @@ async function routeSimulationRequest<
   >,
   agentProfiles: AgentProfileApiService<unknown> | undefined,
   objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
+  steeringTraces: SteeringTraceApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -361,6 +370,24 @@ async function routeSimulationRequest<
       200,
       await objectiveRenewalTraces.queryObjectiveRenewalTraces(
         createObjectiveRenewalTraceQueryRequest(route, request.query),
+      ),
+    );
+  }
+  if (route.action === 'steering-traces') {
+    if (steeringTraces === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.traceId !== undefined) {
+      return jsonResponse(
+        200,
+        await steeringTraces.getSteeringTrace(createSteeringTraceLookupRequest(route)),
+      );
+    }
+    return jsonResponse(
+      200,
+      await steeringTraces.querySteeringTraces(
+        createSteeringTraceQueryRequest(route, request.query),
       ),
     );
   }
@@ -744,6 +771,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
       traceId: decodePathPart(traceId),
     };
   }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
+    segments[4] === 'steering-traces'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const traceId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || traceId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'steering-traces',
+      traceId: decodePathPart(traceId),
+    };
+  }
   return undefined;
 }
 
@@ -922,6 +968,39 @@ function createObjectiveRenewalTraceQueryRequest(
   };
 }
 
+function createSteeringTraceLookupRequest(route: SimulationRoute): SteeringTraceLookupRequest {
+  if (route.traceId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    traceId: route.traceId,
+  };
+}
+
+function createSteeringTraceQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): SteeringTraceQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'traceId'),
+    ...optionalQueryString(query, 'commandId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryString(query, 'objectiveId'),
+    ...optionalQueryString(query, 'reactiveCommandId'),
+    ...optionalQueryString(query, 'resultKind', parseSteeringTraceResultKind),
+    ...optionalQueryNumber(query, 'fromIssuedAt'),
+    ...optionalQueryNumber(query, 'toIssuedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
 function createRuntimeRequest(body: unknown): {
   readonly operationId?: string;
   readonly requestedAt: number;
@@ -1060,6 +1139,13 @@ function parseRuntimeRunQueueJobStatus(value: string): RuntimeRunQueueJobStatus 
     return value;
   }
   throw new TownHttpApiError(400, 'bad_request', 'status must be a known run queue job status');
+}
+
+function parseSteeringTraceResultKind(value: string): SteeringTraceResultKind {
+  if (value === 'long-horizon-objective-set' || value === 'reactive-command-routed') {
+    return value;
+  }
+  throw new TownHttpApiError(400, 'bad_request', 'resultKind must be a known steering result kind');
 }
 
 function assertMethod(request: TownHttpApiRequest, method: TownHttpMethod): void {

@@ -216,6 +216,73 @@ describe('local runtime town HTTP gateway', () => {
     });
     await runtime.host.registry
       .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.steeringTraceRepository.record({
+        traceId: 'sim-1:world-main:1:cmd-objective-study',
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commandId: 'cmd-objective-study',
+        commandType: 'SetLongHorizonObjective',
+        source: 'godot',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+        objectiveId: 'objective-study',
+        planId: 'plan-objective-study',
+        selectedPlannerDomain: 'study',
+        candidateActionCount: 2,
+        commandDraftCount: 1,
+        shortTermMemoryRecordIds: ['memory-study-1'],
+        strategicPlan: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'llm-plan-objective-study',
+          providerId: 'scripted-profile-planner',
+          model: 'planner-model',
+          attempts: [
+            {
+              attemptIndex: 1,
+              status: 'accepted',
+              providerId: 'scripted-profile-planner',
+              model: 'planner-model',
+              message: 'compiled branch plan',
+              usage: {
+                inputTokens: 100,
+                outputTokens: 40,
+                totalTokens: 140,
+                estimatedCostMicros: 12,
+              },
+            },
+          ],
+        },
+        issuedAt: 320,
+        recordedAt: 330,
+      });
+    const steeringTraces = requireSteeringTraceList(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/steering-traces?traceId=${encodeURIComponent('sim-1:world-main:1:cmd-objective-study')}&agentId=agent-1&commandId=cmd-objective-study&limit=1`,
+      ),
+    );
+    expect(steeringTraces).toHaveLength(1);
+    expect(steeringTraces[0]).toMatchObject({
+      traceId: 'sim-1:world-main:1:cmd-objective-study',
+      commandId: 'cmd-objective-study',
+      agentId: 'agent-1',
+      resultKind: 'long-horizon-objective-set',
+      strategicPlan: {
+        source: 'llm',
+        providerId: 'scripted-profile-planner',
+      },
+    });
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/steering-traces/${encodeURIComponent('sim-1:world-main:1:cmd-objective-study')}`,
+      ),
+    ).resolves.toMatchObject({
+      traceId: 'sim-1:world-main:1:cmd-objective-study',
+      objectiveId: 'objective-study',
+      issuedAt: 320,
+    });
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
       .storage.longTermProfileRepository.applyPatches(agentOne, [
         {
           id: 'ltm-patch-agent-1-value-community-220',
@@ -1250,6 +1317,31 @@ function requireObjectiveRenewalTraceList(value: unknown): readonly {
     readonly traceId: string;
     readonly agentId: string;
     readonly objectiveId: string;
+    readonly strategicPlan?: {
+      readonly source?: string;
+      readonly providerId?: string;
+    };
+  }[];
+}
+
+function requireSteeringTraceList(value: unknown): readonly {
+  readonly traceId: string;
+  readonly commandId: string;
+  readonly agentId: string;
+  readonly resultKind: string;
+  readonly strategicPlan?: {
+    readonly source?: string;
+    readonly providerId?: string;
+  };
+}[] {
+  if (!Array.isArray(value)) {
+    throw new Error('expected steering trace list response');
+  }
+  return value as readonly {
+    readonly traceId: string;
+    readonly commandId: string;
+    readonly agentId: string;
+    readonly resultKind: string;
     readonly strategicPlan?: {
       readonly source?: string;
       readonly providerId?: string;

@@ -1,4 +1,8 @@
-import type { ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import {
+  createBranchPlan,
+  type ReactiveLocalizedPlanner,
+  type StrategicPlanCompilationTrace,
+} from '@aivilization/agent-runtime';
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -211,6 +215,74 @@ describe('local runtime steering command drain', () => {
     });
   });
 
+  test('records durable steering traces while draining objective and reactive commands', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendCommands(storage.partition.commandStreamName, storage.commandStore, [
+      objectiveCommand(),
+      reactiveTradeCommand({
+        id: 'cmd-reactive-buy-fish',
+        reactiveCommandId: 'reactive-buy-fish',
+        summary: 'buy 10 fish now',
+        issuedAt: 200,
+      }),
+    ]);
+
+    const result = await drainLocalRuntimeSteeringCommands({
+      storage,
+      consumerId: 'worker-main',
+      checkpointUpdatedAt: 1000,
+      localizedPlanners: [tradePlanner()],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      strategicPlanCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'llm-development',
+              objective: 'Use an LLM-proposed route.',
+              subtasks: [{ id: 'study', description: 'Study via LLM.', basePriority: 12 }],
+            },
+          ],
+        }),
+        planningTrace: createPlanningTrace('steering-llm-plan-objective-study'),
+      }),
+    });
+
+    expect(result.status).toBe('drained');
+    const traces = await storage.steeringTraceRepository.query({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(traces).toHaveLength(2);
+    expect(traces[0]).toMatchObject({
+      traceId: 'sim-1:world-main:2:cmd-reactive-buy-fish',
+      commandId: 'cmd-reactive-buy-fish',
+      resultKind: 'reactive-command-routed',
+      reactiveCommandId: 'reactive-buy-fish',
+      selectedPlannerDomain: 'trade',
+      candidateActionCount: 1,
+      commandDraftCount: 1,
+      shortTermMemoryRecordIds: ['reactive-buy-fish:received', 'reactive-buy-fish:outcome'],
+    });
+    expect(traces[1]).toMatchObject({
+      traceId: 'sim-1:world-main:1:cmd-objective-study',
+      commandId: 'cmd-objective-study',
+      resultKind: 'long-horizon-objective-set',
+      objectiveId: 'objective-study',
+      planId: 'objective-study',
+    });
+    expect(traces[1]?.strategicPlan).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'steering-llm-plan-objective-study',
+      providerId: 'scripted-planner',
+    });
+  });
+
   test('dispatches reactive command drafts to the world event stream before checkpointing command consumption', async () => {
     const storage = createLocalWorldRuntimeStorage({
       rootDir: createRootDir(),
@@ -296,6 +368,37 @@ function studyPlanner(): ReactiveLocalizedPlanner {
         description: 'study now',
         commandType: 'AgentStudy',
         payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+      },
+    ],
+  };
+}
+
+function createPlanningTrace(requestId: string): StrategicPlanCompilationTrace {
+  return {
+    status: 'accepted',
+    source: 'llm',
+    requestId,
+    providerId: 'scripted-planner',
+    model: 'planner-model',
+    usage: {
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      estimatedCostMicros: 70,
+    },
+    attempts: [
+      {
+        attemptIndex: 1,
+        status: 'succeeded',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+        message: 'LLM structured response validated',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          estimatedCostMicros: 70,
+        },
       },
     ],
   };

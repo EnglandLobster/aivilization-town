@@ -1,6 +1,7 @@
 import {
   createAgentProfileApiService,
   createObjectiveRenewalTraceApiService,
+  createSteeringTraceApiService,
   createSimulationSyncSseRoute,
   createRuntimeProfileRunReportApiService,
   createTownHttpApiHandler,
@@ -51,6 +52,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeProfileRunReportsApi?: ReturnType<typeof createRuntimeProfileRunReportApiService>;
   readonly agentProfilesApi: ReturnType<typeof createAgentProfileApiService>;
   readonly objectiveRenewalTracesApi: ReturnType<typeof createObjectiveRenewalTraceApiService>;
+  readonly steeringTracesApi: ReturnType<typeof createSteeringTraceApiService>;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -101,10 +103,29 @@ export async function createLocalRuntimeTownApi(
           .storage.objectiveRenewalTraceRepository.query(request),
     },
   });
+  const steeringTracesApi = createSteeringTraceApiService({
+    traces: {
+      getTrace: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.steeringTraceRepository.get(request.traceId),
+      queryTraces: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.steeringTraceRepository.query(request),
+    },
+  });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     agentProfiles: agentProfilesApi,
     objectiveRenewalTraces: objectiveRenewalTracesApi,
+    steeringTraces: steeringTracesApi,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeOrchestration.runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeOrchestration.runtimeRunQueueWorkerApi,
@@ -144,6 +165,7 @@ export async function createLocalRuntimeTownApi(
     ...(runtimeProfileRunReportsApi === undefined ? {} : { runtimeProfileRunReportsApi }),
     agentProfilesApi,
     objectiveRenewalTracesApi,
+    steeringTracesApi,
     handler,
   };
 }

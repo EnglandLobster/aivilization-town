@@ -3,6 +3,7 @@ import {
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
+  applySleepDeprivationHealthDecay,
   isIncapacitated,
 } from './index';
 
@@ -123,6 +124,56 @@ describe('physiology', () => {
       energy: 40,
       satiety: 70,
       health: 100,
+    });
+  });
+
+  test('decays health during low-energy sleep deprivation without crossing the floor', () => {
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 10,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 10,
+      satiety: 70,
+      health: 60,
+    });
+
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 30,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 30,
+      satiety: 70,
+      health: 90,
+    });
+
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 0,
+        satiety: 70,
+        health: 15,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 0,
+      satiety: 70,
+      health: 10,
     });
   });
 

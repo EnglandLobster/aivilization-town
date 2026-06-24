@@ -15,6 +15,7 @@ export * from './experimentValidationRunner';
 export * from './localRuntimeStorage';
 export * from './localCommandDrain';
 export * from './localExperimentValidationSchedule';
+export * from './localSimulationRuntimeRecovery';
 export * from './localRuntimeStep';
 export * from './localRuntimeLoop';
 export * from './localSimulationLifecycle';

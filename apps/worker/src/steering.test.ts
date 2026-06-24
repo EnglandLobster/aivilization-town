@@ -1,4 +1,8 @@
-import { InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
+import {
+  createBranchPlan,
+  InMemoryBranchPlanRepository,
+  type StrategicPlanCompilationTrace,
+} from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryShortTermMemoryRepository,
@@ -106,6 +110,74 @@ describe('worker steering ingress', () => {
     expect(result.planRecord?.plan.branches.map((branch) => branch.id)).toEqual(['development']);
   });
 
+  test('persists traceable strategic compiler evidence for human-set objective plans', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const command = createCommandEnvelope({
+      id: 'cmd-objective-study',
+      simulationId: 'sim-1',
+      actorId: 'agent-1',
+      source: 'human',
+      type: 'SetLongHorizonObjective',
+      payload: {
+        objectiveId: 'objective-study',
+        statement: 'Study before high-tech production.',
+        priority: 2,
+        affinityTags: ['study', 'education'],
+      },
+      issuedAt: 100,
+    });
+    const planningTrace = createPlanningTrace('steering-llm-plan-objective-study');
+
+    const result = await handleWorkerSteeringCommand({
+      command,
+      intentionRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      strategicPlanCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'llm-development',
+              objective: 'Use an LLM-proposed steering route.',
+              subtasks: [
+                {
+                  id: 'study',
+                  description: 'Study via steering LLM plan.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        }),
+        planningTrace,
+      }),
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    if (result.kind !== 'long-horizon-objective-set') {
+      throw new Error('expected long horizon objective result');
+    }
+    expect(result.planRecord?.planningTrace).toEqual(planningTrace);
+    await expect(
+      planRepository.require({
+        planId: 'objective-study',
+        agentId: command.actorId!,
+      }),
+    ).resolves.toMatchObject({
+      planningTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'steering-llm-plan-objective-study',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+      },
+    });
+  });
+
   test('routes IssueReactiveCommand through runtime and appends STM records', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
@@ -177,3 +249,34 @@ describe('worker steering ingress', () => {
     ).rejects.toThrow(/requires actorId/);
   });
 });
+
+function createPlanningTrace(requestId: string): StrategicPlanCompilationTrace {
+  return {
+    status: 'accepted',
+    source: 'llm',
+    requestId,
+    providerId: 'scripted-planner',
+    model: 'planner-model',
+    usage: {
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      estimatedCostMicros: 70,
+    },
+    attempts: [
+      {
+        attemptIndex: 1,
+        status: 'succeeded',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+        message: 'LLM structured response validated',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          estimatedCostMicros: 70,
+        },
+      },
+    ],
+  };
+}

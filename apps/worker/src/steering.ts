@@ -125,6 +125,7 @@ async function createAndSaveStrategicPlanRecord(input: {
     planId: input.objective.id,
     agentId: input.objective.agentId,
     plan: compiled.plan,
+    ...(compiled.planningTrace === undefined ? {} : { planningTrace: compiled.planningTrace }),
     createdAt: input.issuedAt,
     updatedAt: input.issuedAt,
   };

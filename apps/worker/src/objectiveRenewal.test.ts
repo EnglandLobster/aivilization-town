@@ -566,6 +566,13 @@ describe('worker objective renewal', () => {
           },
         ],
       },
+      planningTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'llm-plan-objective-from-llm-compiler',
+        providerId: 'scripted-planner',
+        model: 'planner-model',
+      },
     });
     expect(result[0]?.decisionTrace).toMatchObject({
       objectiveId: 'objective-from-llm-compiler',

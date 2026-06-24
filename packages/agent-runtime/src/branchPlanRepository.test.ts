@@ -8,6 +8,7 @@ import {
   FileBranchPlanRepository,
   InMemoryBranchPlanRepository,
   type BranchPlanRecord,
+  type StrategicPlanCompilationTrace,
 } from './index';
 
 const agentId = asAgentId('agent-1');
@@ -62,12 +63,51 @@ describe('branch plan repositories', () => {
       createPlanRecord({ planId: 'plan-1', basePriority: 9, updatedAt: 200 }),
     );
   });
+
+  test('repositories preserve optional strategic planning provenance across clone and restart', async () => {
+    const planningTrace = createPlanningTrace();
+    const record = createPlanRecord({
+      planId: 'plan-with-provenance',
+      basePriority: 5,
+      updatedAt: 100,
+      planningTrace,
+    });
+    const memoryRepository = new InMemoryBranchPlanRepository();
+
+    await memoryRepository.save(record);
+
+    const firstRead = await memoryRepository.require({
+      planId: 'plan-with-provenance',
+      agentId,
+    });
+    const secondRead = await memoryRepository.require({
+      planId: 'plan-with-provenance',
+      agentId,
+    });
+
+    expect(firstRead).toEqual(record);
+    expect(firstRead.planningTrace).toEqual(planningTrace);
+    expect(firstRead.planningTrace).not.toBe(secondRead.planningTrace);
+    expect(firstRead.planningTrace?.attempts).not.toBe(secondRead.planningTrace?.attempts);
+
+    const rootDir = createTempRoot();
+    await new FileBranchPlanRepository({ rootDir }).save(record);
+    const restarted = new FileBranchPlanRepository({ rootDir });
+
+    await expect(
+      restarted.require({
+        planId: 'plan-with-provenance',
+        agentId,
+      }),
+    ).resolves.toEqual(record);
+  });
 });
 
 function createPlanRecord(input: {
   readonly planId: string;
   readonly basePriority: number;
   readonly updatedAt: number;
+  readonly planningTrace?: StrategicPlanCompilationTrace;
 }): BranchPlanRecord {
   return {
     planId: input.planId,
@@ -88,8 +128,40 @@ function createPlanRecord(input: {
         },
       ],
     }),
+    ...(input.planningTrace === undefined ? {} : { planningTrace: input.planningTrace }),
     createdAt: 50,
     updatedAt: input.updatedAt,
+  };
+}
+
+function createPlanningTrace(): StrategicPlanCompilationTrace {
+  return {
+    status: 'accepted',
+    source: 'llm',
+    requestId: 'request-1',
+    providerId: 'scripted-provider',
+    model: 'planner-model',
+    attempts: [
+      {
+        attemptIndex: 1,
+        status: 'succeeded',
+        providerId: 'scripted-provider',
+        model: 'planner-model',
+        message: 'LLM structured response validated',
+        usage: {
+          inputTokens: 1,
+          outputTokens: 2,
+          totalTokens: 3,
+          estimatedCostMicros: 4,
+        },
+      },
+    ],
+    usage: {
+      inputTokens: 1,
+      outputTokens: 2,
+      totalTokens: 3,
+      estimatedCostMicros: 4,
+    },
   };
 }
 

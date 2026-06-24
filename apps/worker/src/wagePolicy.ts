@@ -25,12 +25,7 @@ export function createProjectionBackedWageCalculator(
   input: ProjectionBackedWagePolicyInput,
 ): (occupationName: string) => number {
   const latestPriceIndex = resolveLatestMarketPriceIndex(input.projection);
-  const populationEducationScores = Object.values(input.projection.agents).map(
-    (agent) => agent.educationScore,
-  );
-  if (populationEducationScores.length === 0) {
-    throw new Error('projection-backed wage policy requires at least one agent education score');
-  }
+  const populationEducationScores = extractPopulationEducationScores(input.projection);
 
   const shortTermAdjustment = input.shortTermAdjustment ?? 0;
   const maxShortTermAdjustment = input.maxShortTermAdjustment ?? Math.abs(shortTermAdjustment);
@@ -70,7 +65,24 @@ export function createProjectionBackedWorldCommandPolicies(
         ? {}
         : { maxShortTermAdjustment: input.maxShortTermAdjustment }),
     }),
+    ...(input.basePolicies.jobApplication === undefined
+      ? {}
+      : {
+          jobApplication: {
+            ...input.basePolicies.jobApplication,
+            populationEducationScores: extractPopulationEducationScores(input.projection),
+          },
+        }),
   };
+}
+
+function extractPopulationEducationScores(projection: WorldProjection): readonly number[] {
+  const scores = Object.values(projection.agents).map((agent) => agent.educationScore);
+  if (scores.length === 0) {
+    throw new Error('projection-backed wage policy requires at least one agent education score');
+  }
+
+  return scores;
 }
 
 function resolveLatestMarketPriceIndex(

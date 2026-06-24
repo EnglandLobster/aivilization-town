@@ -42,6 +42,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sim-core
 
+  apps/server:
+    dependencies:
+      '@aivilization/api':
+        specifier: workspace:*
+        version: link:../api
+      '@aivilization/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../../packages/sim-core
+      '@aivilization/worker':
+        specifier: workspace:*
+        version: link:../worker
+      '@aivilization/world':
+        specifier: workspace:*
+        version: link:../../packages/world
+
   apps/web:
     dependencies:
       '@aivilization/content':

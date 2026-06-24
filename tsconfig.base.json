@@ -13,8 +13,10 @@
       "@aivilization/llm": ["packages/llm/src/index.ts"],
       "@aivilization/memory": ["packages/memory/src/index.ts"],
       "@aivilization/observability": ["packages/observability/src/index.ts"],
+      "@aivilization/server": ["apps/server/src/index.ts"],
       "@aivilization/sim-core": ["packages/sim-core/src/index.ts"],
       "@aivilization/society": ["packages/society/src/index.ts"],
+      "@aivilization/worker": ["apps/worker/src/index.ts"],
       "@aivilization/world": ["packages/world/src/index.ts"]
     },
     "strict": true,

@@ -18,6 +18,7 @@ import {
 
 const agentId = asAgentId('agent-1');
 const otherAgentId = asAgentId('agent-2');
+const thirdAgentId = asAgentId('agent-3');
 const tempRoots: string[] = [];
 
 afterEach(() => {
@@ -61,6 +62,32 @@ function createUnhintedStudyMemory(
     importanceScore: 0.7,
     source: { eventIds: [] },
     tags: ['study', 'education'],
+  });
+}
+
+function createSocialInteractionMemory(input: {
+  readonly index: number;
+  readonly targetAgentId: typeof agentId;
+  readonly summary: string;
+  readonly importanceScore: number;
+}) {
+  return createShortTermMemoryRecord({
+    id: `social-${input.targetAgentId}-${input.index}`,
+    agentId,
+    kind: 'social-interaction',
+    status: 'succeeded',
+    summary: input.summary,
+    occurredAt: input.index,
+    importanceScore: input.importanceScore,
+    source: { eventIds: [] },
+    tags: ['conversation', 'community', input.targetAgentId],
+    consolidationHint: {
+      kind: 'social',
+      targetAgentId: input.targetAgentId,
+      relationDelta: 1,
+      attitudeDelta: 1,
+      summary: input.summary,
+    },
   });
 }
 
@@ -177,6 +204,70 @@ describe('worker memory consolidation', () => {
       },
     ]);
     await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toEqual(result.profile);
+  });
+
+  test('promotes positive social memories into social records, values, and personality', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    await shortTermMemoryRepository.appendMany([
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Talked with agent-2 about community routines.',
+        importanceScore: 0.8,
+      }),
+      createSocialInteractionMemory({
+        index: 2,
+        targetAgentId: thirdAgentId,
+        summary: 'Shared plans with agent-3 after a town meeting.',
+        importanceScore: 0.6,
+      }),
+    ]);
+
+    const result = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 2,
+      proposedAt: 2000,
+    });
+
+    expect(result.reflectiveInsights.map((insight) => insight.kind)).toEqual([
+      'personality',
+      'value',
+    ]);
+    expect(result.patches.map((patch) => `${patch.section}:${patch.key}`)).toEqual([
+      'socialRecords:agent-2',
+      'socialRecords:agent-3',
+      'personality:sociable',
+      'values:community-cooperation',
+    ]);
+    expect(result.profile.socialRecords).toHaveLength(2);
+    expect(result.profile.socialRecords.map((entry) => entry.key)).toEqual([
+      'agent-2',
+      'agent-3',
+    ]);
+    expect(result.profile.personality).toEqual([
+      {
+        key: 'sociable',
+        statement:
+          'Repeated positive social interactions with multiple agents suggest a sociable disposition.',
+        confidence: 0.7,
+        provenanceRecordIds: ['social-agent-2-1', 'social-agent-3-2'],
+        updatedAt: 2000,
+      },
+    ]);
+    expect(result.profile.values).toEqual([
+      {
+        key: 'community-cooperation',
+        statement:
+          'Repeated positive social interactions suggest the agent values cooperative community routines.',
+        confidence: 0.7,
+        provenanceRecordIds: ['social-agent-2-1', 'social-agent-3-2'],
+        updatedAt: 2000,
+      },
+    ]);
   });
 
   test('leaves the profile unchanged when not enough records match a consolidation pattern', async () => {

@@ -17,6 +17,7 @@ export * from './objectiveRenewal';
 export * from './projectionHydration';
 export * from './steering';
 export * from './tickRunner';
+export * from './wagePolicy';
 
 export type WorkerBootContract = {
   readonly agentRuntime: AgentRuntimeModuleStatus;

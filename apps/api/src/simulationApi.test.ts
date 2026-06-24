@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { createSimulationApiService, type SimulationLifecycleRequest } from './index';
+import {
+  createSimulationApiService,
+  type SimulationEventFeedRequest,
+  type SimulationLifecycleRequest,
+} from './index';
 
 describe('simulation API control service', () => {
   test('submits human long-horizon objectives as command envelopes', async () => {
@@ -9,6 +13,7 @@ describe('simulation API control service', () => {
       projectionQueries: {
         getProjection: () => Promise.resolve({ agents: 0 }),
       },
+      eventFeeds: createEventFeedPort(),
       steeringCommands: {
         submit: (command, context) => {
           submitted.push(command);
@@ -57,6 +62,7 @@ describe('simulation API control service', () => {
       projectionQueries: {
         getProjection: () => Promise.resolve({ agents: 0 }),
       },
+      eventFeeds: createEventFeedPort(),
       steeringCommands: {
         submit: (command) => Promise.resolve({ command }),
       },
@@ -87,11 +93,22 @@ describe('simulation API control service', () => {
     });
   });
 
-  test('delegates projection and lifecycle controls to injected ports', async () => {
+  test('delegates projection, event feed, and lifecycle controls to injected ports', async () => {
     const lifecycleRequests: SimulationLifecycleRequest[] = [];
+    const eventFeedRequests: SimulationEventFeedRequest[] = [];
     const service = createSimulationApiService({
       projectionQueries: {
         getProjection: (query) => Promise.resolve({ query, agents: 80 }),
+      },
+      eventFeeds: {
+        getEvents: (request) => {
+          eventFeedRequests.push(request);
+          return Promise.resolve({
+            streamVersion: 5,
+            nextAfterSequence: 4,
+            events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
+          });
+        },
       },
       steeringCommands: {
         submit: (command) => Promise.resolve({ command }),
@@ -121,6 +138,18 @@ describe('simulation API control service', () => {
     ).resolves.toEqual({
       query: { simulationId: 'sim-1', partitionKey: 'world-main' },
       agents: 80,
+    });
+    await expect(
+      service.getEvents({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        afterSequence: 3,
+        limit: 2,
+      }),
+    ).resolves.toEqual({
+      streamVersion: 5,
+      nextAfterSequence: 4,
+      events: [{ sequence: 4, type: 'SimulationTimeAdvanced' }],
     });
     await expect(
       service.startSimulation({
@@ -154,8 +183,23 @@ describe('simulation API control service', () => {
       }),
     ).resolves.toMatchObject({ status: 'replaying' });
     expect(lifecycleRequests).toHaveLength(4);
+    expect(eventFeedRequests).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        afterSequence: 3,
+        limit: 2,
+      },
+    ]);
   });
 });
+
+function createEventFeedPort() {
+  return {
+    getEvents: (request: SimulationEventFeedRequest) =>
+      Promise.resolve({ request, streamVersion: 0, nextAfterSequence: request.afterSequence ?? 0 }),
+  };
+}
 
 function createLifecyclePort() {
   return {

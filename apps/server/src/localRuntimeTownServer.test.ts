@@ -98,6 +98,20 @@ describe('local runtime town HTTP gateway', () => {
       failedPartitionCount: 0,
     });
 
+    const eventFeed = requireEventFeed(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/events?afterSequence=0&limit=5`,
+      ),
+    );
+    expect(eventFeed).toMatchObject({
+      streamName: 'simulation/sim-1/partition/world-main/events',
+      streamVersion: 1,
+      nextAfterSequence: 1,
+    });
+    expect(eventFeed.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+    ]);
+
     const trace = await fetchJson(`${server.baseUrl}/runtime/operation-traces/op-start-all-200`);
     expect(trace).toMatchObject({
       traceId: 'op-start-all-200',
@@ -226,4 +240,21 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   expect(response.status).toBeGreaterThanOrEqual(200);
   expect(response.status).toBeLessThan(300);
   return response.json() as Promise<unknown>;
+}
+
+function requireEventFeed(value: unknown): {
+  readonly streamName: string;
+  readonly streamVersion: number;
+  readonly nextAfterSequence: number;
+  readonly events: readonly { readonly sequence: number; readonly type: string }[];
+} {
+  if (value === null || typeof value !== 'object' || !('events' in value)) {
+    throw new Error('expected event feed response');
+  }
+  return value as {
+    readonly streamName: string;
+    readonly streamVersion: number;
+    readonly nextAfterSequence: number;
+    readonly events: readonly { readonly sequence: number; readonly type: string }[];
+  };
 }

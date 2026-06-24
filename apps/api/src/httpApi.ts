@@ -4,6 +4,7 @@ import type {
 } from './runtimeSupervisorApi';
 import type {
   SimulationApiService,
+  SimulationEventFeedRequest,
   SimulationLifecycleRequest,
   SubmitLongHorizonObjectiveRequest,
   SubmitReactiveCommandRequest,
@@ -32,13 +33,19 @@ export type TownHttpApiServices<
   TProjection,
   TSteeringResult,
   TLifecycleResult,
+  TEventFeed,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
   TRuntimeTrace,
   TRuntimeCommand extends string = string,
 > = {
-  readonly simulation: SimulationApiService<TProjection, TSteeringResult, TLifecycleResult>;
+  readonly simulation: SimulationApiService<
+    TProjection,
+    TSteeringResult,
+    TLifecycleResult,
+    TEventFeed
+  >;
   readonly runtimeSupervisor: RuntimeSupervisorApiService<
     TRuntimeStatus,
     TRuntimeStartResult,
@@ -70,6 +77,7 @@ export function createTownHttpApiHandler<
   TProjection,
   TSteeringResult,
   TLifecycleResult,
+  TEventFeed,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -80,6 +88,7 @@ export function createTownHttpApiHandler<
     TProjection,
     TSteeringResult,
     TLifecycleResult,
+    TEventFeed,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -105,6 +114,7 @@ async function routeTownHttpRequest<
   TProjection,
   TSteeringResult,
   TLifecycleResult,
+  TEventFeed,
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
@@ -115,6 +125,7 @@ async function routeTownHttpRequest<
     TProjection,
     TSteeringResult,
     TLifecycleResult,
+    TEventFeed,
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
@@ -134,8 +145,8 @@ async function routeTownHttpRequest<
   throw new TownHttpApiError(404, 'not_found', 'route not found');
 }
 
-async function routeSimulationRequest<TProjection, TSteeringResult, TLifecycleResult>(
-  simulation: SimulationApiService<TProjection, TSteeringResult, TLifecycleResult>,
+async function routeSimulationRequest<TProjection, TSteeringResult, TLifecycleResult, TEventFeed>(
+  simulation: SimulationApiService<TProjection, TSteeringResult, TLifecycleResult, TEventFeed>,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -147,6 +158,13 @@ async function routeSimulationRequest<TProjection, TSteeringResult, TLifecycleRe
         simulationId: route.simulationId,
         partitionKey: route.partitionKey,
       }),
+    );
+  }
+  if (route.action === 'events') {
+    assertMethod(request, 'GET');
+    return jsonResponse(
+      200,
+      await simulation.getEvents(createEventFeedRequest(route, request.query)),
     );
   }
   assertMethod(request, 'POST');
@@ -319,6 +337,24 @@ function createLifecycleRequest(
   };
 }
 
+function createEventFeedRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): SimulationEventFeedRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryInteger(query, 'afterSequence', {
+      min: 0,
+      description: 'a non-negative integer',
+    }),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
 function createRuntimeRequest(body: unknown): {
   readonly operationId?: string;
   readonly requestedAt: number;
@@ -462,6 +498,22 @@ function optionalQueryNumber(
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
     throw new TownHttpApiError(400, 'bad_request', `${field} must be a number`);
+  }
+  return { [field]: parsed };
+}
+
+function optionalQueryInteger(
+  query: TownHttpApiRequest['query'],
+  field: string,
+  rule: { readonly min: number; readonly description: string },
+): Record<string, number> {
+  const value = getSingleQueryValue(query, field);
+  if (value === undefined) {
+    return {};
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < rule.min) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be ${rule.description}`);
   }
   return { [field]: parsed };
 }

@@ -2,12 +2,13 @@ import {
   createCommandStoreSteeringSubmissionPort,
   createSimulationApiService,
   type CommandStoreSteeringSubmissionResult,
+  type SimulationEventFeedPort,
   type ProjectionQueryPort,
   type SimulationApiService,
   type SimulationLifecyclePort,
   type SteeringCommandSubmissionPort,
 } from '@aivilization/api';
-import type { WorldProjection } from '@aivilization/world';
+import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import type {
   LocalSimulationLifecyclePauseResult,
   LocalSimulationLifecycleReplayResult,
@@ -26,6 +27,13 @@ import {
 
 export type LocalWorldProjectionQueryResult = WorldProjectionHydrationResult;
 
+export type LocalWorldEventFeedResult = {
+  readonly streamName: string;
+  readonly streamVersion: number;
+  readonly nextAfterSequence: number;
+  readonly events: readonly WorldEvent[];
+};
+
 export type LocalSimulationBackendLifecycleResult =
   | LocalSimulationLifecycleStartResult
   | LocalSimulationLifecyclePauseResult
@@ -39,9 +47,11 @@ export type LocalSimulationBackend = {
   readonly api: SimulationApiService<
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
-    LocalSimulationBackendLifecycleResult
+    LocalSimulationBackendLifecycleResult,
+    LocalWorldEventFeedResult
   >;
   readonly projectionQueries: ProjectionQueryPort<LocalWorldProjectionQueryResult>;
+  readonly eventFeeds: SimulationEventFeedPort<LocalWorldEventFeedResult>;
   readonly steeringCommands: SteeringCommandSubmissionPort<CommandStoreSteeringSubmissionResult>;
   readonly lifecycle: SimulationLifecyclePort<LocalSimulationBackendLifecycleResult>;
 };
@@ -52,6 +62,9 @@ export function createLocalSimulationBackend(
   const projectionQueries = createLocalWorldProjectionQueryPort({
     storage: input.storage,
     initialProjection: input.initialProjection,
+  });
+  const eventFeeds = createLocalWorldEventFeedPort({
+    storage: input.storage,
   });
   const commandStoreSteeringCommands = createCommandStoreSteeringSubmissionPort({
     commandStore: input.storage.commandStore,
@@ -70,9 +83,11 @@ export function createLocalSimulationBackend(
   const api = createSimulationApiService<
     LocalWorldProjectionQueryResult,
     CommandStoreSteeringSubmissionResult,
-    LocalSimulationBackendLifecycleResult
+    LocalSimulationBackendLifecycleResult,
+    LocalWorldEventFeedResult
   >({
     projectionQueries,
+    eventFeeds,
     steeringCommands,
     lifecycle,
   });
@@ -81,6 +96,7 @@ export function createLocalSimulationBackend(
     storage: input.storage,
     api,
     projectionQueries,
+    eventFeeds,
     steeringCommands,
     lifecycle,
   };
@@ -108,6 +124,36 @@ export function createLocalWorldProjectionQueryPort(input: {
           },
         }),
       );
+    },
+  };
+}
+
+export function createLocalWorldEventFeedPort(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+}): SimulationEventFeedPort<LocalWorldEventFeedResult> {
+  return {
+    getEvents: (request) => {
+      return Promise.resolve().then(() => {
+        assertRequestMatchesStorage(request, input.storage);
+        const events = input.storage.eventStore.readStream(
+          input.storage.partition.eventStreamName,
+          {
+            ...(request.afterSequence === undefined
+              ? {}
+              : { afterSequence: request.afterSequence }),
+            ...(request.limit === undefined ? {} : { limit: request.limit }),
+          },
+        );
+        const lastEvent = events.at(-1);
+        return {
+          streamName: input.storage.partition.eventStreamName,
+          streamVersion: input.storage.eventStore.getStreamVersion(
+            input.storage.partition.eventStreamName,
+          ),
+          nextAfterSequence: lastEvent?.sequence ?? request.afterSequence ?? 0,
+          events,
+        };
+      });
     },
   };
 }

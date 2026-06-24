@@ -3,6 +3,7 @@ import type {
   RuntimeSupervisorOperationTraceQuery,
   RuntimeSupervisorRunRequest,
 } from './runtimeSupervisorApi';
+import type { RuntimeDaemonApiService } from './runtimeDaemonApi';
 import type {
   RuntimeRunQueueApiService,
   RuntimeRunQueueJobQueryRequest,
@@ -64,6 +65,7 @@ export type TownHttpApiServices<
   TRuntimeSchedulerDecision = unknown,
   TRuntimeRecoveryStatus = unknown,
   TRuntimeRecoveryReport = unknown,
+  TRuntimeDaemonStatus = unknown,
   TRuntimeCommand extends string = string,
 > = {
   readonly simulation: SimulationApiService<
@@ -95,6 +97,7 @@ export type TownHttpApiServices<
     TRuntimeRecoveryStatus,
     TRuntimeRecoveryReport
   >;
+  readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
 };
 
 type SimulationRoute = {
@@ -135,6 +138,7 @@ export function createTownHttpApiHandler<
   TRuntimeSchedulerDecision = unknown,
   TRuntimeRecoveryStatus = unknown,
   TRuntimeRecoveryReport = unknown,
+  TRuntimeDaemonStatus = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -156,6 +160,7 @@ export function createTownHttpApiHandler<
     TRuntimeSchedulerDecision,
     TRuntimeRecoveryStatus,
     TRuntimeRecoveryReport,
+    TRuntimeDaemonStatus,
     TRuntimeCommand
   >,
 ): TownHttpApiHandler {
@@ -192,6 +197,7 @@ async function routeTownHttpRequest<
   TRuntimeSchedulerDecision = unknown,
   TRuntimeRecoveryStatus = unknown,
   TRuntimeRecoveryReport = unknown,
+  TRuntimeDaemonStatus = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -213,6 +219,7 @@ async function routeTownHttpRequest<
     TRuntimeSchedulerDecision,
     TRuntimeRecoveryStatus,
     TRuntimeRecoveryReport,
+    TRuntimeDaemonStatus,
     TRuntimeCommand
   >,
   request: TownHttpApiRequest,
@@ -229,6 +236,7 @@ async function routeTownHttpRequest<
       services.runtimeRunQueueWorker,
       services.runtimeScheduler,
       services.runtimeRecovery,
+      services.runtimeDaemon,
       request,
       segments,
     );
@@ -347,6 +355,7 @@ async function routeRuntimeRequest<
   TRuntimeSchedulerDecision,
   TRuntimeRecoveryStatus,
   TRuntimeRecoveryReport,
+  TRuntimeDaemonStatus,
   TRuntimeCommand extends string,
 >(
   runtimeSupervisor: RuntimeSupervisorApiService<
@@ -368,9 +377,20 @@ async function routeRuntimeRequest<
   runtimeRecovery:
     | RuntimeRecoveryApiService<TRuntimeRecoveryStatus, TRuntimeRecoveryReport>
     | undefined,
+  runtimeDaemon: RuntimeDaemonApiService<TRuntimeDaemonStatus> | undefined,
   request: TownHttpApiRequest,
   segments: readonly string[],
 ): Promise<TownHttpApiResponse> {
+  if (segments.length === 3 && segments[1] === 'daemon') {
+    if (runtimeDaemon === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    const action = segments[2];
+    if (action === 'status') {
+      assertMethod(request, 'GET');
+      return jsonResponse(200, await runtimeDaemon.getRuntimeDaemonStatus());
+    }
+  }
   if (segments.length === 3 && segments[1] === 'scheduler') {
     if (runtimeScheduler === undefined) {
       throw new TownHttpApiError(404, 'not_found', 'route not found');

@@ -78,6 +78,23 @@ describe('local runtime town HTTP gateway', () => {
         },
       ],
     });
+    await expect(fetchJson(`${server.baseUrl}/runtime/daemon/status`)).resolves.toMatchObject({
+      manifestId: 'town-runtime',
+      health: 'healthy',
+      components: {
+        supervisor: {
+          partitionCount: 2,
+          healthyPartitionCount: 2,
+        },
+        worker: {
+          configured: true,
+          desiredRunning: false,
+          status: {
+            running: false,
+          },
+        },
+      },
+    });
 
     const projection = await fetchJson(
       `${server.baseUrl}/simulations/sim-1/partitions/world-main/projection`,

@@ -4,6 +4,7 @@ import {
   type AgentCycleTraceRepository,
   type AgentTrajectoryObservation,
   type ExperimentValidationReport,
+  type ExperimentValidationReportRepository,
   type ExperimentValidationRunMetadata,
   type ExperimentValidationThresholds,
   type PlannerExperimentRun,
@@ -33,6 +34,10 @@ export type WorkerExperimentValidationReportInput = {
   readonly agentCycleTraceRepository?: AgentCycleTraceRepository;
   readonly traceWindow?: WorkerExperimentValidationTraceWindow;
   readonly thresholds?: ExperimentValidationThresholds;
+};
+
+export type RecordWorkerExperimentValidationReportInput = WorkerExperimentValidationReportInput & {
+  readonly repository: ExperimentValidationReportRepository;
 };
 
 export type WorkerTradePriceObservation = {
@@ -84,6 +89,14 @@ export async function createWorkerExperimentValidationReport(
     trajectories,
     ...(input.thresholds === undefined ? {} : { thresholds: input.thresholds }),
   });
+}
+
+export async function recordWorkerExperimentValidationReport(
+  input: RecordWorkerExperimentValidationReportInput,
+): Promise<ExperimentValidationReport> {
+  const report = await createWorkerExperimentValidationReport(input);
+  await input.repository.record(report);
+  return report;
 }
 
 export function createTradePriceObservationsFromWorldEvents(input: {

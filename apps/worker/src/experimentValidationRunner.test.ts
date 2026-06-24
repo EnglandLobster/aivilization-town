@@ -1,6 +1,7 @@
 import { createAmmPool } from '@aivilization/economy';
 import {
   InMemoryAgentCycleTraceRepository,
+  InMemoryExperimentValidationReportRepository,
   createAgentCycleTrace,
   type AgentCycleTrace,
   type ExperimentValidationMetric,
@@ -12,6 +13,7 @@ import {
   createOhlcPriceBarsFromTradePriceObservations,
   createTradePriceObservationsFromWorldEvents,
   createWorkerExperimentValidationReport,
+  recordWorkerExperimentValidationReport,
 } from './index';
 
 const simulationId = 'sim-worker-validation';
@@ -337,6 +339,30 @@ describe('worker experiment validation runner', () => {
     expect(marketStability.evidence.observationCount).toBe(3);
     expect(marketStability.evidence.maximumDrawdown).toBe(0);
     expect(marketStability.evidence.maximumLogPriceRange).toBeCloseTo(Math.log(126) - Math.log(90));
+  });
+
+  test('records a generated validation report through the injected repository', async () => {
+    const repository = new InMemoryExperimentValidationReportRepository();
+
+    const report = await recordWorkerExperimentValidationReport({
+      repository,
+      run: {
+        runId: 'worker-validation-recorded',
+        simulationId,
+        generatedAt: 1_700_000_004,
+      },
+      projection: createProjection(),
+      events: createTradeEvents([100, 110, 99, 120, 105, 126]),
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    await expect(repository.get('worker-validation-recorded')).resolves.toEqual(report);
   });
 
   test('rejects invalid trade quantities before creating a report', async () => {

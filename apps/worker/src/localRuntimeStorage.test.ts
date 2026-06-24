@@ -10,6 +10,7 @@ import {
   asAgentId,
   asSimulationId,
 } from '@aivilization/sim-core';
+import { createExperimentValidationReport } from '@aivilization/observability';
 import {
   createWorldProjection,
   type WorldCommandPolicies,
@@ -182,6 +183,8 @@ describe('local world runtime storage', () => {
       updatedAt: 100,
     };
     await storage.planRepository.save(planRecord);
+    const validationReport = createValidationReport();
+    await storage.experimentValidationReportRepository.record(validationReport);
     await handleWorkerSteeringCommand({
       command: createCommandEnvelope({
         id: 'cmd-objective-study',
@@ -211,6 +214,9 @@ describe('local world runtime storage', () => {
     expect(first.streamVersion).toBe(5);
     expect(storage.paths.partitionDir).toContain('simulations');
     expect(storage.paths.planningDir).toContain('planning');
+    await expect(
+      restarted.experimentValidationReportRepository.get('validation-run-1'),
+    ).resolves.toEqual(validationReport);
     await expect(
       restarted.planRepository.require({
         planId: 'plan-1',
@@ -343,7 +349,9 @@ describe('local world runtime storage', () => {
     });
 
     expect(storage.paths.observabilityDir).toContain('observability');
-    await expect(restarted.agentCycleTraceRepository.query({ simulationId })).resolves.toMatchObject([
+    await expect(
+      restarted.agentCycleTraceRepository.query({ simulationId }),
+    ).resolves.toMatchObject([
       {
         traceId: 'tick-trace:cycle:1:agent-1',
         simulationId: 'sim-1',
@@ -418,3 +426,38 @@ describe('local world runtime storage', () => {
     });
   });
 });
+
+function createValidationReport() {
+  return createExperimentValidationReport({
+    run: {
+      runId: 'validation-run-1',
+      simulationId,
+      generatedAt: 180,
+    },
+    priceSeries: [
+      { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+      { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+    ],
+    wealthSnapshot: [
+      { agentId: 'agent-1', educationScore: 10, netWorth: 100 },
+      { agentId: 'agent-2', educationScore: 20, netWorth: 120 },
+    ],
+    plannerRuns: [
+      {
+        taskId: 'task-1',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-1'],
+    trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+    thresholds: {
+      heavyTailReturns: { minimumExcessKurtosis: -2 },
+    },
+  });
+}

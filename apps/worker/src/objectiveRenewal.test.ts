@@ -148,7 +148,40 @@ describe('worker objective renewal', () => {
       statement: 'Recover from recent setbacks before pursuing new growth.',
       priority: 3,
       source: 'agent',
-      affinityTags: ['recover', 'maintain', 'health', 'energy'],
+      affinityTags: ['recover', 'maintain', 'sleep', 'energy'],
+    });
+  });
+
+  test('uses recent hunger failures to recover through satiety affinity', () => {
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+
+    const objective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [
+        createMemory({
+          id: 'memory-hungry-failed',
+          agentId: agentA,
+          status: 'failed',
+          summary: 'Production failed because the agent was hungry and low on satiety.',
+          tags: ['production', 'failed', 'hungry', 'satiety'],
+          importanceScore: 0.95,
+        }),
+      ],
+      issuedAt: 100,
+    });
+
+    expect(objective).toMatchObject({
+      statement: 'Recover from recent setbacks before pursuing new growth.',
+      affinityTags: ['recover', 'maintain', 'eat', 'satiety'],
     });
   });
 

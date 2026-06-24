@@ -274,7 +274,7 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
       id: 'recent-setback-recovery',
       statement: 'Recover from recent setbacks before pursuing new growth.',
       priority: 3,
-      affinityTags: ['recover', 'maintain', 'health', 'energy'],
+      affinityTags: recentRecoveryNeed.affinityTags,
       score: recentRecoveryNeed.score,
       rationale: 'Recent failed memory suggests recovery before new growth.',
       shortTermMemoryContextIds: recentRecoveryNeed.evidenceMemoryRecordIds,
@@ -335,9 +335,11 @@ function scoreObjectiveCandidates(input: AutonomousObjectiveProposerInput): read
 function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): {
   readonly score: number;
   readonly evidenceMemoryRecordIds: readonly string[];
+  readonly affinityTags: readonly string[];
 } {
   let score = 0;
   let evidenceMemoryRecordIds: readonly string[] = [];
+  let affinityTags: readonly string[] = DEFAULT_RECOVERY_AFFINITY_TAGS;
   for (const memory of memories) {
     if (memory.status !== 'failed' && memory.status !== 'repaired') {
       continue;
@@ -360,11 +362,28 @@ function scoreRecentRecoveryNeed(memories: readonly ShortTermMemoryRecord[]): {
       if (candidateScore > score) {
         score = candidateScore;
         evidenceMemoryRecordIds = [memory.id];
+        affinityTags = inferRecoveryAffinityTags(context);
       }
     }
   }
 
-  return { score, evidenceMemoryRecordIds };
+  return { score, evidenceMemoryRecordIds, affinityTags };
+}
+
+const DEFAULT_RECOVERY_AFFINITY_TAGS = ['recover', 'maintain', 'health', 'energy'] as const;
+
+function inferRecoveryAffinityTags(context: string): readonly string[] {
+  if (containsAny(context, ['hungry', 'hunger', 'satiety'])) {
+    return ['recover', 'maintain', 'eat', 'satiety'];
+  }
+  if (containsAny(context, ['tired', 'fatigue', 'sleep', 'energy'])) {
+    return ['recover', 'maintain', 'sleep', 'energy'];
+  }
+  if (containsAny(context, ['doctor', 'hospital', 'sick', 'ill', 'health'])) {
+    return ['recover', 'maintain', 'health'];
+  }
+
+  return DEFAULT_RECOVERY_AFFINITY_TAGS;
 }
 
 function createProfileRoutineCandidate(

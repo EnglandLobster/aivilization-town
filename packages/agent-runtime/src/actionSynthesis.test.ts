@@ -49,12 +49,80 @@ describe('action synthesis', () => {
       { action: secondMeal, reason: 'inventory budget exceeded for Bread' },
     ]);
   });
+
+  test('enforces per-branch action caps before lower-priority branches are starved', () => {
+    const produceFirst = createAction('produce-first', 5, undefined, {
+      branchId: 'production',
+      subtaskId: 'craft-circuit',
+    });
+    const produceSecond = createAction('produce-second', 4, undefined, {
+      branchId: 'production',
+      subtaskId: 'craft-transistor',
+    });
+    const recover = createAction('recover-energy', 3, undefined, {
+      branchId: 'recovery',
+      subtaskId: 'sleep',
+    });
+
+    const result = synthesizeActionCandidates({
+      actions: [produceFirst, produceSecond, recover],
+      policy: {
+        maxActions: 2,
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+    });
+
+    expect(result.acceptedActions.map((action) => action.id)).toEqual([
+      'produce-first',
+      'recover-energy',
+    ]);
+    expect(result.rejectedActions).toEqual([
+      {
+        action: produceSecond,
+        reason: 'branch action budget exhausted for production',
+      },
+    ]);
+  });
+
+  test('scores strategic alignment and branch urgency alongside base priority', () => {
+    const urgentRecovery = createAction('urgent-recovery', 1, undefined, {
+      branchId: 'recovery',
+      strategicAlignment: 2,
+      branchUrgency: 4,
+    });
+    const highBasePriorityWork = createAction('high-base-priority-work', 5, undefined, {
+      branchId: 'income',
+      strategicAlignment: 0,
+      branchUrgency: 0,
+    });
+
+    const result = synthesizeActionCandidates({
+      actions: [highBasePriorityWork, urgentRecovery],
+      policy: {
+        maxActions: 1,
+        scoring: {
+          priorityWeight: 1,
+          strategicAlignmentWeight: 2,
+          branchUrgencyWeight: 1,
+        },
+      },
+    });
+
+    expect(result.acceptedActions.map((action) => action.id)).toEqual(['urgent-recovery']);
+    expect(result.rejectedActions).toEqual([
+      {
+        action: highBasePriorityWork,
+        reason: 'maxActions exhausted',
+      },
+    ]);
+  });
 });
 
 function createAction(
   id: string,
   priority: number,
   resourceEstimate?: ActionResourceEstimate,
+  synthesisContext?: AtomicActionProposal['synthesisContext'],
 ): AtomicActionProposal {
   return {
     id,
@@ -63,5 +131,6 @@ function createAction(
     payload: { occupationName: 'Cleaner', laborSeconds: 60 },
     priority,
     ...(resourceEstimate === undefined ? {} : { resourceEstimate }),
+    ...(synthesisContext === undefined ? {} : { synthesisContext }),
   };
 }

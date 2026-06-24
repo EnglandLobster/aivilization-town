@@ -55,11 +55,20 @@ export type AgentCycleActionResourceEstimateTrace = {
   readonly inventoryCosts?: Readonly<Record<string, number>>;
 };
 
+export type AgentCycleActionSynthesisContextTrace = {
+  readonly branchId?: string;
+  readonly subtaskId?: string;
+  readonly subtaskScore?: number;
+  readonly strategicAlignment?: number;
+  readonly branchUrgency?: number;
+};
+
 export type AgentCycleActionProposalTrace = {
   readonly id: string;
   readonly description: string;
   readonly commandType: string;
   readonly priority?: number;
+  readonly synthesisContext?: AgentCycleActionSynthesisContextTrace;
   readonly resourceEstimate?: AgentCycleActionResourceEstimateTrace;
 };
 

@@ -32,6 +32,12 @@ describe('createAgentCycleTrace', () => {
             description: 'craft Transistor 1',
             commandType: 'AgentProduce',
             priority: 3,
+            synthesisContext: {
+              branchId: 'production-resource-management',
+              subtaskId: 'craft-transistor',
+              subtaskScore: 7.25,
+              strategicAlignment: 2,
+            },
             resourceEstimate: {
               actionSeconds: 60,
               energyCost: 4,
@@ -46,6 +52,11 @@ describe('createAgentCycleTrace', () => {
               description: 'buy Fish 1',
               commandType: 'AgentTrade',
               priority: 1,
+              synthesisContext: {
+                branchId: 'recovery',
+                subtaskId: 'restore-satiety',
+                branchUrgency: 3,
+              },
               resourceEstimate: { currencyCost: 10 },
             },
             reason: 'maxActions exhausted',
@@ -81,6 +92,17 @@ describe('createAgentCycleTrace', () => {
     expect(trace.selectionEvidence.profileEvidenceRecordIds).toEqual(['reflection-rest-1']);
     expect(trace.subtaskCandidates[0]?.scoreBreakdown.memoryInfluenceScore).toBe(1.25);
     expect(trace.actionSynthesis.rejectedActions[0]?.reason).toBe('maxActions exhausted');
+    expect(trace.actionSynthesis.acceptedActions[0]?.synthesisContext).toEqual({
+      branchId: 'production-resource-management',
+      subtaskId: 'craft-transistor',
+      subtaskScore: 7.25,
+      strategicAlignment: 2,
+    });
+    expect(trace.actionSynthesis.rejectedActions[0]?.action.synthesisContext).toEqual({
+      branchId: 'recovery',
+      subtaskId: 'restore-satiety',
+      branchUrgency: 3,
+    });
     expect(trace.actionSynthesis.acceptedActions[0]?.resourceEstimate?.inventoryCosts).toEqual({
       'Iron Ingot': 1,
     });

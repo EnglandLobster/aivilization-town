@@ -127,6 +127,7 @@ describe('agent planning cycle', () => {
           payload: { occupationName: 'Cleaner', laborSeconds: 60 },
           priority: 3,
           resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+          synthesisContext: { branchId: 'income', subtaskId: 'work', subtaskScore: 5 },
         },
       ],
       rejectedActions: [
@@ -138,6 +139,7 @@ describe('agent planning cycle', () => {
             payload: { durationSeconds: 60, educationRatePerSecond: 1 },
             priority: 2,
             resourceEstimate: { actionSeconds: 60 },
+            synthesisContext: { branchId: 'income', subtaskId: 'work', subtaskScore: 5 },
           },
           reason: 'maxActions exhausted',
         },
@@ -149,6 +151,7 @@ describe('agent planning cycle', () => {
             payload: { durationSeconds: 60 },
             priority: 1,
             resourceEstimate: { actionSeconds: 60 },
+            synthesisContext: { branchId: 'income', subtaskId: 'work', subtaskScore: 5 },
           },
           reason: 'maxActions exhausted',
         },
@@ -156,6 +159,53 @@ describe('agent planning cycle', () => {
     });
     expect(result.commandDrafts).toHaveLength(1);
     expect(result.commandDrafts[0]?.type).toBe('AgentWork');
+  });
+
+  test('attaches selected subtask context to proposed actions before synthesis', () => {
+    const plan = createBranchPlan({
+      objective: 'develop education',
+      branches: [
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      microPlanners: [
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study for one minute',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.actionSynthesisResult.acceptedActions[0]?.synthesisContext).toEqual({
+      branchId: 'development',
+      subtaskId: 'study',
+      subtaskScore: 5,
+    });
+    expect(result.candidateActions[0]?.synthesisContext).toEqual({
+      branchId: 'development',
+      subtaskId: 'study',
+      subtaskScore: 5,
+    });
   });
 
   test('returns replan results when action synthesis rejects every proposal', () => {
@@ -223,6 +273,7 @@ describe('agent planning cycle', () => {
           payload: { durationSeconds: 60, educationRatePerSecond: 1 },
           priority: 3,
           resourceEstimate: { actionSeconds: 60, energyCost: 1 },
+          synthesisContext: { branchId: 'development', subtaskId: 'study', subtaskScore: 5 },
         },
         reason: 'action synthesis rejected action: energy budget exceeded',
       },
@@ -284,6 +335,7 @@ describe('agent planning cycle', () => {
         description: 'work as Cleaner',
         commandType: 'AgentWork',
         payload: { occupation: 'Cleaner' },
+        synthesisContext: { branchId: 'income', subtaskId: 'work', subtaskScore: 5 },
       },
       reason: 'energy too low',
     });

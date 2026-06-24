@@ -500,6 +500,11 @@ describe('worker tick runner', () => {
           description: 'study now',
           commandType: 'AgentStudy',
           priority: 3,
+          synthesisContext: {
+            branchId: 'development',
+            subtaskId: 'study',
+            subtaskScore: 5,
+          },
           resourceEstimate: { actionSeconds: 60 },
         },
       ],
@@ -510,6 +515,11 @@ describe('worker tick runner', () => {
             description: 'sleep before studying',
             commandType: 'AgentSleep',
             priority: 1,
+            synthesisContext: {
+              branchId: 'development',
+              subtaskId: 'study',
+              subtaskScore: 5,
+            },
             resourceEstimate: { actionSeconds: 60 },
           },
           reason: 'maxActions exhausted',

@@ -203,6 +203,7 @@ function createProjection(): WorldProjection {
 function createAgent(agentId: AgentId): WorldAgentState {
   return {
     agentId,
+    locationId: null,
     physiology: { energy: 50, satiety: 50, health: 100 },
     educationScore: 0,
     balance: 1000,

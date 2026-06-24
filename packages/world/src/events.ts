@@ -4,6 +4,7 @@ import type {
   AgentId,
   CoreCommandType,
   EventEnvelope,
+  LocationId,
   SimulationClock,
 } from '@aivilization/sim-core';
 import type { PhysiologicalState, SocialRelationState } from '@aivilization/society';
@@ -84,6 +85,13 @@ export type SocialInteractionCompletedPayload = {
   readonly nextRelation: SocialRelationState;
 };
 
+export type AgentLocationChangedPayload = {
+  readonly agentId: AgentId;
+  readonly previousLocationId: LocationId | null;
+  readonly nextLocationId: LocationId;
+  readonly reason: string;
+};
+
 export type ActionRejectedPayload = {
   readonly agentId: AgentId;
   readonly commandType: CoreCommandType;
@@ -107,6 +115,7 @@ export type WorldEventPayloadByType = {
   readonly JobAssigned: JobAssignedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
+  readonly AgentLocationChanged: AgentLocationChangedPayload;
   readonly InventoryChanged: InventoryChangedPayload;
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly EducationChanged: EducationChangedPayload;

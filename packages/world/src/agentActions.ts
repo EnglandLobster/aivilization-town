@@ -28,6 +28,7 @@ import {
   assertAdvanceSimulationTimePayload,
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
+  assertAgentMoveToPayload,
   assertAgentProducePayload,
   assertAgentSeeDoctorPayload,
   assertAgentUpgradeResidentialTierPayload,
@@ -38,7 +39,7 @@ import {
   assertAgentWorkPayload,
 } from './commands';
 import type { WorldEvent } from './events';
-import type { WorldProjection } from './projection';
+import type { WorldAgentState, WorldProjection } from './projection';
 
 export type WorldCommandPolicies = {
   readonly satietyRecoveryByCommodity: Readonly<Record<string, number>>;
@@ -86,6 +87,12 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         satietyRecoveryByCommodity: input.policies.satietyRecoveryByCommodity,
         maxSatiety: input.policies.maxSatiety,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentMoveTo':
+      return handleAgentMoveToCommand({
+        command: input.command as CommandEnvelope<'AgentMoveTo', unknown>,
+        projection: input.projection,
         nextSequence: input.nextSequence,
       });
     case 'AgentStudy':
@@ -251,6 +258,50 @@ export function handleAgentEatCommand(input: {
       summary: `Ate ${payload.quantity} ${payload.commodityName}.`,
       status: 'succeeded',
       tags: ['eat', payload.commodityName],
+    }),
+  ];
+}
+
+export function handleAgentMoveToCommand(input: {
+  readonly command: CommandEnvelope<'AgentMoveTo', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentMoveToPayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentMoveTo', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  const targetLocation = input.projection.locations[payload.targetLocationId];
+  if (targetLocation === undefined) {
+    return rejectCommand(
+      input,
+      'AgentMoveTo',
+      `unknown target location ${payload.targetLocationId}`,
+    );
+  }
+  if (agent.locationId === payload.targetLocationId) {
+    return rejectCommand(input, 'AgentMoveTo', `agent already at ${payload.targetLocationId}`);
+  }
+
+  return [
+    makeEvent(input, 0, 'AgentLocationChanged', {
+      agentId: agent.agentId,
+      previousLocationId: agent.locationId,
+      nextLocationId: payload.targetLocationId,
+      reason: payload.reason ?? 'move',
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Moved to ${targetLocation.name}.`,
+      status: 'succeeded',
+      tags: ['move', payload.targetLocationId, targetLocation.kind],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: `move:${payload.targetLocationId}`,
+        statement: `Moves to ${targetLocation.name} when the current plan requires ${targetLocation.kind} activities.`,
+      },
     }),
   ];
 }
@@ -740,8 +791,14 @@ export function handleAgentSocializeCommand(input: {
   }
 
   const payload = payloadResult.payload;
-  if (input.projection.agents[payload.targetAgentId] === undefined) {
+  const targetAgent = input.projection.agents[payload.targetAgentId];
+  if (targetAgent === undefined) {
     return rejectCommand(input, 'AgentSocialize', `unknown target agent ${payload.targetAgentId}`);
+  }
+
+  const coLocationFailure = validateKnownCoLocation(agent, targetAgent);
+  if (coLocationFailure !== undefined) {
+    return rejectCommand(input, 'AgentSocialize', coLocationFailure);
   }
 
   const relationKeyResult = parsePayload(() =>
@@ -792,6 +849,20 @@ export function handleAgentSocializeCommand(input: {
       },
     }),
   ];
+}
+
+function validateKnownCoLocation(
+  sourceAgent: WorldAgentState,
+  targetAgent: WorldAgentState,
+): string | undefined {
+  if (sourceAgent.locationId === null || targetAgent.locationId === null) {
+    return undefined;
+  }
+  if (sourceAgent.locationId === targetAgent.locationId) {
+    return undefined;
+  }
+
+  return `target agent ${targetAgent.agentId} is at ${targetAgent.locationId}, not co-located with ${sourceAgent.agentId} at ${sourceAgent.locationId}`;
 }
 
 function createTradeEvents(

@@ -4,6 +4,7 @@ import type { MemoryRecordId } from './records';
 export type LongTermProfileSection =
   | 'beliefs'
   | 'habits'
+  | 'mood'
   | 'values'
   | 'personality'
   | 'socialRecords';
@@ -35,6 +36,7 @@ export type LongTermAgentProfile = {
   readonly agentId: AgentId;
   readonly beliefs: readonly LongTermProfileEntry[];
   readonly habits: readonly LongTermProfileEntry[];
+  readonly mood: readonly LongTermProfileEntry[];
   readonly values: readonly LongTermProfileEntry[];
   readonly personality: readonly LongTermProfileEntry[];
   readonly socialRecords: readonly LongTermProfileEntry[];
@@ -45,6 +47,7 @@ export function createEmptyLongTermAgentProfile(agentId: AgentId): LongTermAgent
     agentId,
     beliefs: [],
     habits: [],
+    mood: [],
     values: [],
     personality: [],
     socialRecords: [],

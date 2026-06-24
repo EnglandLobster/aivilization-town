@@ -20,6 +20,7 @@ export type ProfileInfluenceScore = {
 const sectionWeights = {
   beliefs: 0.5,
   habits: 2,
+  mood: 1.25,
   values: 2,
   personality: 1,
   socialRecords: 1,
@@ -28,9 +29,10 @@ const sectionWeights = {
 const sectionOrder = {
   beliefs: 0,
   habits: 1,
-  values: 2,
-  personality: 3,
-  socialRecords: 4,
+  mood: 2,
+  values: 3,
+  personality: 4,
+  socialRecords: 5,
 } as const satisfies Record<LongTermProfileSection, number>;
 
 export function scoreProfileInfluence(input: {
@@ -47,6 +49,7 @@ export function scoreProfileInfluence(input: {
     [
       ['beliefs', input.profile.beliefs],
       ['habits', input.profile.habits],
+      ['mood', input.profile.mood],
       ['values', input.profile.values],
       ['personality', input.profile.personality],
       ['socialRecords', input.profile.socialRecords],
@@ -93,7 +96,9 @@ function contributionForEntry(
   section: LongTermProfileSection,
   entry: LongTermProfileEntry,
 ): number {
-  return roundScore(section === 'socialRecords' ? socialBonus(entry) : entry.confidence * sectionWeights[section]);
+  return roundScore(
+    section === 'socialRecords' ? socialBonus(entry) : entry.confidence * sectionWeights[section],
+  );
 }
 
 function normalize(value: string): string {

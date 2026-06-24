@@ -377,6 +377,7 @@ describe('canonical domain runtimes', () => {
         agentId: agentA,
         beliefs: [],
         habits: [],
+        mood: [],
         values: [
           {
             key: 'community-cooperation',

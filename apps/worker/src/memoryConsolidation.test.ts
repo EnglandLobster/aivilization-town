@@ -234,25 +234,33 @@ describe('worker memory consolidation', () => {
     });
 
     expect(result.reflectiveInsights.map((insight) => insight.kind)).toEqual([
+      'mood',
       'personality',
       'value',
     ]);
     expect(result.patches.map((patch) => `${patch.section}:${patch.key}`)).toEqual([
       'socialRecords:agent-2',
       'socialRecords:agent-3',
+      'mood:cooperative-composure',
       'personality:sociable',
       'values:community-cooperation',
     ]);
     expect(result.profile.socialRecords).toHaveLength(2);
-    expect(result.profile.socialRecords.map((entry) => entry.key)).toEqual([
-      'agent-2',
-      'agent-3',
-    ]);
+    expect(result.profile.socialRecords.map((entry) => entry.key)).toEqual(['agent-2', 'agent-3']);
     expect(result.profile.personality).toEqual([
       {
         key: 'sociable',
         statement:
           'Repeated positive social interactions with multiple agents suggest a sociable disposition.',
+        confidence: 0.7,
+        provenanceRecordIds: ['social-agent-2-1', 'social-agent-3-2'],
+        updatedAt: 2000,
+      },
+    ]);
+    expect(result.profile.mood).toEqual([
+      {
+        key: 'cooperative-composure',
+        statement: 'Repeated positive social interactions suggest a cooperative and composed mood.',
         confidence: 0.7,
         provenanceRecordIds: ['social-agent-2-1', 'social-agent-3-2'],
         updatedAt: 2000,

@@ -381,6 +381,7 @@ describe('worker agent cycle runner', () => {
           provenanceRecordIds: [asMemoryRecordId('reflection-rest-1')],
         },
       ],
+      mood: [],
       values: [],
       personality: [],
       socialRecords: [],

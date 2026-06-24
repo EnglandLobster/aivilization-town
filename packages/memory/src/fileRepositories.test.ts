@@ -141,6 +141,16 @@ describe('file long-term profile repository', () => {
         provenanceRecordIds: [asMemoryRecordId('memory-1')],
         proposedAt: 200,
       },
+      {
+        id: 'patch-mood',
+        agentId,
+        section: 'mood',
+        key: 'cooperative-composure',
+        statement: 'Maintains cooperative composure.',
+        confidence: 0.75,
+        provenanceRecordIds: [asMemoryRecordId('mood-memory-1')],
+        proposedAt: 250,
+      },
     ]);
     const restartedRepository = new FileLongTermProfileRepository({ rootDir });
 
@@ -153,6 +163,15 @@ describe('file long-term profile repository', () => {
           confidence: 0.7,
           provenanceRecordIds: ['memory-1'],
           updatedAt: 200,
+        },
+      ],
+      mood: [
+        {
+          key: 'cooperative-composure',
+          statement: 'Maintains cooperative composure.',
+          confidence: 0.75,
+          provenanceRecordIds: ['mood-memory-1'],
+          updatedAt: 250,
         },
       ],
     });

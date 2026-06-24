@@ -643,6 +643,7 @@ function createProfile(
     agentId,
     beliefs: [],
     habits: [],
+    mood: [],
     values: [],
     personality: [],
     socialRecords: [],

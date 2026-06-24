@@ -6,7 +6,12 @@ import type {
   LocalSimulationRuntimeSupervisorRunCyclesRequest,
 } from './localSimulationRuntimeSupervisor';
 
-export type LocalSimulationRuntimeRunQueueJobStatus = 'queued' | 'leased' | 'completed' | 'failed';
+export type LocalSimulationRuntimeRunQueueJobStatus =
+  | 'queued'
+  | 'leased'
+  | 'completed'
+  | 'failed'
+  | 'dead-lettered';
 
 export type LocalSimulationRuntimeRunQueueJobInput = {
   readonly jobId: string;
@@ -21,16 +26,33 @@ export type LocalSimulationRuntimeRunQueueJobError = {
   readonly stack?: string;
 };
 
+export type LocalSimulationRuntimeRunQueueJobAttempt = {
+  readonly attemptNumber: number;
+  readonly workerId: string;
+  readonly startedAt: SimulationTimestamp;
+  readonly leaseExpiresAt: SimulationTimestamp;
+  readonly completedAt?: SimulationTimestamp;
+  readonly failedAt?: SimulationTimestamp;
+  readonly resultTraceId?: string;
+  readonly error?: LocalSimulationRuntimeRunQueueJobError;
+};
+
 export type LocalSimulationRuntimeRunQueueJob = LocalSimulationRuntimeRunQueueJobInput & {
   readonly status: LocalSimulationRuntimeRunQueueJobStatus;
   readonly updatedAt: SimulationTimestamp;
+  readonly attemptCount?: number;
+  readonly failedAttemptCount?: number;
+  readonly maxAttempts?: number;
+  readonly nextAttemptAt?: SimulationTimestamp;
   readonly leaseOwnerId?: string;
   readonly leaseExpiresAt?: SimulationTimestamp;
   readonly startedAt?: SimulationTimestamp;
   readonly completedAt?: SimulationTimestamp;
   readonly failedAt?: SimulationTimestamp;
+  readonly deadLetteredAt?: SimulationTimestamp;
   readonly resultTraceId?: string;
   readonly error?: LocalSimulationRuntimeRunQueueJobError;
+  readonly attempts?: readonly LocalSimulationRuntimeRunQueueJobAttempt[];
 };
 
 export type LocalSimulationRuntimeRunQueueClaimRequest = {
@@ -49,6 +71,8 @@ export type LocalSimulationRuntimeRunQueueCompleteRequest = {
 export type LocalSimulationRuntimeRunQueueFailRequest = {
   readonly jobId: string;
   readonly failedAt: SimulationTimestamp;
+  readonly maxAttempts?: number;
+  readonly retryDelayMs?: number;
   readonly error: LocalSimulationRuntimeRunQueueJobError;
 };
 
@@ -247,9 +271,17 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
   readonly queueRepository: LocalSimulationRuntimeRunQueueRepository;
   readonly supervisor: Pick<LocalSimulationRuntimeSupervisor, 'runCycles'>;
   readonly leaseDurationMs: number;
+  readonly maxAttempts?: number;
+  readonly retryDelayMs?: number;
 }): LocalSimulationRuntimeRunQueueWorker {
   assertNonEmpty(input.workerId, 'workerId');
   assertPositiveFinite(input.leaseDurationMs, 'leaseDurationMs');
+  if (input.maxAttempts !== undefined) {
+    assertPositiveInteger(input.maxAttempts, 'maxAttempts');
+  }
+  if (input.retryDelayMs !== undefined) {
+    assertNonNegativeFinite(input.retryDelayMs, 'retryDelayMs');
+  }
 
   return {
     runNext: async (request) => {
@@ -277,6 +309,8 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
         const failed = await input.queueRepository.fail({
           jobId: claimed.jobId,
           failedAt: request.claimedAt,
+          maxAttempts: input.maxAttempts ?? 1,
+          retryDelayMs: input.retryDelayMs ?? 0,
           error: serializeQueueError(error),
         });
         if (failed === undefined) {
@@ -294,6 +328,9 @@ function createQueuedJob(
   return cloneJob({
     ...input,
     status: 'queued',
+    attemptCount: 0,
+    failedAttemptCount: 0,
+    attempts: [],
     updatedAt: input.enqueuedAt,
   });
 }
@@ -302,13 +339,25 @@ function createLeasedJob(
   job: LocalSimulationRuntimeRunQueueJob,
   request: LocalSimulationRuntimeRunQueueClaimRequest,
 ): LocalSimulationRuntimeRunQueueJob {
+  const attemptNumber = (job.attemptCount ?? job.attempts?.length ?? 0) + 1;
+  const leaseExpiresAt = request.claimedAt + request.leaseDurationMs;
   return cloneJob({
     ...job,
     status: 'leased',
+    attemptCount: attemptNumber,
     leaseOwnerId: request.workerId,
-    leaseExpiresAt: request.claimedAt + request.leaseDurationMs,
+    leaseExpiresAt,
     startedAt: job.startedAt ?? request.claimedAt,
     updatedAt: request.claimedAt,
+    attempts: [
+      ...(job.attempts ?? []),
+      {
+        attemptNumber,
+        workerId: request.workerId,
+        startedAt: request.claimedAt,
+        leaseExpiresAt,
+      },
+    ],
   });
 }
 
@@ -322,9 +371,16 @@ function createCompletedJob(
     enqueuedAt: job.enqueuedAt,
     runRequest: job.runRequest,
     status: 'completed',
+    attemptCount: job.attemptCount ?? job.attempts?.length ?? 0,
+    failedAttemptCount: job.failedAttemptCount ?? 0,
+    ...(job.maxAttempts === undefined ? {} : { maxAttempts: job.maxAttempts }),
     ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
     completedAt: request.completedAt,
     resultTraceId: request.resultTraceId,
+    attempts: annotateLatestAttempt(job.attempts ?? [], {
+      completedAt: request.completedAt,
+      resultTraceId: request.resultTraceId,
+    }),
     updatedAt: request.completedAt,
   });
 }
@@ -333,17 +389,61 @@ function createFailedJob(
   job: LocalSimulationRuntimeRunQueueJob,
   request: LocalSimulationRuntimeRunQueueFailRequest,
 ): LocalSimulationRuntimeRunQueueJob {
+  const attemptCount = job.attemptCount ?? job.attempts?.length ?? 0;
+  const failedAttemptCount = (job.failedAttemptCount ?? 0) + 1;
+  const maxAttempts = request.maxAttempts ?? 1;
+  const retryDelayMs = request.retryDelayMs ?? 0;
+  const attempts = annotateLatestAttempt(job.attempts ?? [], {
+    failedAt: request.failedAt,
+    error: request.error,
+  });
+  if (attemptCount < maxAttempts) {
+    return cloneJob({
+      jobId: job.jobId,
+      manifestId: job.manifestId,
+      enqueuedAt: job.enqueuedAt,
+      runRequest: job.runRequest,
+      status: 'queued',
+      attemptCount,
+      failedAttemptCount,
+      maxAttempts,
+      nextAttemptAt: request.failedAt + retryDelayMs,
+      ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
+      failedAt: request.failedAt,
+      error: request.error,
+      attempts,
+      updatedAt: request.failedAt,
+    });
+  }
   return cloneJob({
     jobId: job.jobId,
     manifestId: job.manifestId,
     enqueuedAt: job.enqueuedAt,
     runRequest: job.runRequest,
-    status: 'failed',
+    status: 'dead-lettered',
+    attemptCount,
+    failedAttemptCount,
+    maxAttempts,
     ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
     failedAt: request.failedAt,
+    deadLetteredAt: request.failedAt,
     error: request.error,
+    attempts,
     updatedAt: request.failedAt,
   });
+}
+
+function annotateLatestAttempt(
+  attempts: readonly LocalSimulationRuntimeRunQueueJobAttempt[],
+  patch: Partial<LocalSimulationRuntimeRunQueueJobAttempt>,
+): readonly LocalSimulationRuntimeRunQueueJobAttempt[] {
+  if (attempts.length === 0) {
+    return attempts;
+  }
+  const latestIndex = attempts.length - 1;
+  return attempts.map((attempt, index) =>
+    index === latestIndex ? { ...attempt, ...patch } : attempt,
+  );
 }
 
 function selectClaimCandidate(
@@ -366,7 +466,7 @@ function jobIsClaimEligible(
     return false;
   }
   if (job.status === 'queued') {
-    return true;
+    return (job.nextAttemptAt ?? job.enqueuedAt) <= request.claimedAt;
   }
   return job.status === 'leased' && (job.leaseExpiresAt ?? 0) <= request.claimedAt;
 }
@@ -461,6 +561,12 @@ function assertCompleteRequest(request: LocalSimulationRuntimeRunQueueCompleteRe
 function assertFailRequest(request: LocalSimulationRuntimeRunQueueFailRequest): void {
   assertNonEmpty(request.jobId, 'jobId');
   assertNonNegativeFinite(request.failedAt, 'failedAt');
+  if (request.maxAttempts !== undefined) {
+    assertPositiveInteger(request.maxAttempts, 'maxAttempts');
+  }
+  if (request.retryDelayMs !== undefined) {
+    assertNonNegativeFinite(request.retryDelayMs, 'retryDelayMs');
+  }
   assertNonEmpty(request.error.name, 'error.name');
   assertNonEmpty(request.error.message, 'error.message');
 }

@@ -3,7 +3,13 @@ import type {
   RuntimeSupervisorOperationTraceQuery,
   RuntimeSupervisorRunRequest,
 } from './runtimeSupervisorApi';
-import type { RuntimeRunQueueApiService, RuntimeRunQueueSubmitRequest } from './runtimeRunQueueApi';
+import type {
+  RuntimeRunQueueApiService,
+  RuntimeRunQueueJobQueryRequest,
+  RuntimeRunQueueJobStatus,
+  RuntimeRunQueueReplayRequest,
+  RuntimeRunQueueSubmitRequest,
+} from './runtimeRunQueueApi';
 import type {
   RuntimeRunQueueWorkerApiService,
   RuntimeRunQueueWorkerDrainRequest,
@@ -347,10 +353,31 @@ async function routeRuntimeRequest<
     }
   }
   if (segments.length === 2 && segments[1] === 'run-jobs') {
+    if (request.method === 'GET') {
+      return jsonResponse(
+        200,
+        await runtimeRunQueue.queryRuntimeRunJobs(
+          createRuntimeRunQueueJobQueryRequest(request.query),
+        ),
+      );
+    }
     assertMethod(request, 'POST');
     return jsonResponse(
       202,
       await runtimeRunQueue.enqueueRuntimeRun(createRuntimeRunQueueSubmitRequest(request.body)),
+    );
+  }
+  if (segments.length === 4 && segments[1] === 'run-jobs' && segments[3] === 'replay') {
+    assertMethod(request, 'POST');
+    const jobId = segments[2];
+    if (jobId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      202,
+      await runtimeRunQueue.replayRuntimeRunJob(
+        createRuntimeRunQueueReplayRequest(decodePathPart(jobId), request.body),
+      ),
     );
   }
   if (segments.length === 3 && segments[1] === 'run-jobs') {
@@ -624,6 +651,32 @@ function createRuntimeRunQueueSubmitRequest(body: unknown): RuntimeRunQueueSubmi
   };
 }
 
+function createRuntimeRunQueueJobQueryRequest(
+  query: TownHttpApiRequest['query'],
+): RuntimeRunQueueJobQueryRequest {
+  return {
+    ...optionalQueryString(query, 'status', parseRuntimeRunQueueJobStatus),
+    ...optionalQueryString(query, 'manifestId'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createRuntimeRunQueueReplayRequest(
+  jobId: string,
+  body: unknown,
+): RuntimeRunQueueReplayRequest {
+  const record = requireRecordBody(body);
+  return {
+    jobId,
+    replayedAt: requireNonNegativeNumber(record, 'replayedAt'),
+    ...optionalNonNegativeNumber(record, 'nextAttemptAt'),
+    ...optionalPositiveInteger(record, 'maxAttempts'),
+  };
+}
+
 function createRuntimeRunQueueWorkerDrainRequest(body: unknown): RuntimeRunQueueWorkerDrainRequest {
   if (body === undefined) {
     return {};
@@ -658,6 +711,19 @@ function createTraceQuery<TRuntimeCommand extends string>(
     ...optionalQueryNumber(query, 'toRequestedAt'),
     ...optionalQueryNumber(query, 'limit'),
   };
+}
+
+function parseRuntimeRunQueueJobStatus(value: string): RuntimeRunQueueJobStatus {
+  if (
+    value === 'queued' ||
+    value === 'leased' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'dead-lettered'
+  ) {
+    return value;
+  }
+  throw new TownHttpApiError(400, 'bad_request', 'status must be a known run queue job status');
 }
 
 function assertMethod(request: TownHttpApiRequest, method: TownHttpMethod): void {

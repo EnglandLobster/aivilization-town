@@ -167,6 +167,87 @@ describe('local simulation runtime run queue', () => {
     });
   });
 
+  test('repositories can query dead-lettered jobs and replay one while preserving attempts', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue(createJobInput('job-dead-1', 'op-run-dead-1', 100));
+    await repository.enqueue(createJobInput('job-dead-2', 'op-run-dead-2', 120));
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 200,
+      leaseDurationMs: 100,
+    });
+    await repository.fail({
+      jobId: 'job-dead-1',
+      failedAt: 210,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'permanent failure 1' },
+    });
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 220,
+      leaseDurationMs: 100,
+    });
+    await repository.fail({
+      jobId: 'job-dead-2',
+      failedAt: 230,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'permanent failure 2' },
+    });
+
+    await expect(
+      repository.query({ status: 'dead-lettered', manifestId: 'town-runtime', limit: 1 }),
+    ).resolves.toMatchObject([
+      {
+        jobId: 'job-dead-2',
+        status: 'dead-lettered',
+        deadLetteredAt: 230,
+      },
+    ]);
+    await expect(
+      repository.replayDeadLetter({
+        jobId: 'job-dead-1',
+        replayedAt: 300,
+      }),
+    ).resolves.toMatchObject({
+      jobId: 'job-dead-1',
+      status: 'queued',
+      attemptCount: 1,
+      failedAttemptCount: 1,
+      maxAttempts: 2,
+      nextAttemptAt: 300,
+      replayCount: 1,
+      lastReplayedAt: 300,
+      attempts: [
+        {
+          attemptNumber: 1,
+          failedAt: 210,
+          error: { message: 'permanent failure 1' },
+        },
+      ],
+    });
+    const replayed = await repository.get('job-dead-1');
+    expect(replayed).not.toHaveProperty('deadLetteredAt');
+    expect(replayed).not.toHaveProperty('leaseOwnerId');
+    await expect(repository.query({ status: 'dead-lettered' })).resolves.toMatchObject([
+      { jobId: 'job-dead-2' },
+    ]);
+    await expect(
+      repository.claimNext({
+        workerId: 'worker-b',
+        claimedAt: 300,
+        leaseDurationMs: 100,
+      }),
+    ).resolves.toMatchObject({
+      jobId: 'job-dead-1',
+      status: 'leased',
+      attemptCount: 2,
+      attempts: [
+        { attemptNumber: 1, failedAt: 210 },
+        { attemptNumber: 2, workerId: 'worker-b', startedAt: 300 },
+      ],
+    });
+  });
+
   test('queue worker claims one job and marks it completed after running supervisor cycles', async () => {
     const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
     await repository.enqueue(createJobInput('job-worker-1', 'op-run-worker-1', 100));

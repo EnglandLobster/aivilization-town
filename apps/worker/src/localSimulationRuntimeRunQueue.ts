@@ -44,6 +44,8 @@ export type LocalSimulationRuntimeRunQueueJob = LocalSimulationRuntimeRunQueueJo
   readonly failedAttemptCount?: number;
   readonly maxAttempts?: number;
   readonly nextAttemptAt?: SimulationTimestamp;
+  readonly replayCount?: number;
+  readonly lastReplayedAt?: SimulationTimestamp;
   readonly leaseOwnerId?: string;
   readonly leaseExpiresAt?: SimulationTimestamp;
   readonly startedAt?: SimulationTimestamp;
@@ -76,6 +78,19 @@ export type LocalSimulationRuntimeRunQueueFailRequest = {
   readonly error: LocalSimulationRuntimeRunQueueJobError;
 };
 
+export type LocalSimulationRuntimeRunQueueQueryRequest = {
+  readonly status?: LocalSimulationRuntimeRunQueueJobStatus;
+  readonly manifestId?: string;
+  readonly limit?: number;
+};
+
+export type LocalSimulationRuntimeRunQueueReplayDeadLetterRequest = {
+  readonly jobId: string;
+  readonly replayedAt: SimulationTimestamp;
+  readonly nextAttemptAt?: SimulationTimestamp;
+  readonly maxAttempts?: number;
+};
+
 export type LocalSimulationRuntimeRunQueueRepository = {
   readonly enqueue: (
     input: LocalSimulationRuntimeRunQueueJobInput,
@@ -90,6 +105,12 @@ export type LocalSimulationRuntimeRunQueueRepository = {
     request: LocalSimulationRuntimeRunQueueFailRequest,
   ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
   readonly get: (jobId: string) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
+  readonly query: (
+    request: LocalSimulationRuntimeRunQueueQueryRequest,
+  ) => Promise<readonly LocalSimulationRuntimeRunQueueJob[]>;
+  readonly replayDeadLetter: (
+    request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
+  ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
 };
 
 export type LocalSimulationRuntimeRunQueueWorkerRunRequest = {
@@ -186,6 +207,30 @@ export class InMemoryLocalSimulationRuntimeRunQueueRepository implements LocalSi
       return job === undefined ? undefined : cloneJob(job);
     });
   }
+
+  query(
+    request: LocalSimulationRuntimeRunQueueQueryRequest,
+  ): Promise<readonly LocalSimulationRuntimeRunQueueJob[]> {
+    return Promise.resolve().then(() => {
+      assertQueryRequest(request);
+      return queryJobs([...this.jobs.values()], request).map(cloneJob);
+    });
+  }
+
+  replayDeadLetter(
+    request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueJob | undefined> {
+    return Promise.resolve().then(() => {
+      assertReplayDeadLetterRequest(request);
+      const job = this.jobs.get(request.jobId);
+      if (job === undefined || job.status !== 'dead-lettered') {
+        return undefined;
+      }
+      const replayed = createReplayedDeadLetterJob(job, request);
+      this.jobs.set(replayed.jobId, replayed);
+      return cloneJob(replayed);
+    });
+  }
 }
 
 export class FileLocalSimulationRuntimeRunQueueRepository implements LocalSimulationRuntimeRunQueueRepository {
@@ -262,6 +307,30 @@ export class FileLocalSimulationRuntimeRunQueueRepository implements LocalSimula
       assertNonEmpty(jobId, 'jobId');
       const job = readLatestJob(this.queuePath, jobId);
       return job === undefined ? undefined : cloneJob(job);
+    });
+  }
+
+  query(
+    request: LocalSimulationRuntimeRunQueueQueryRequest,
+  ): Promise<readonly LocalSimulationRuntimeRunQueueJob[]> {
+    return Promise.resolve().then(() => {
+      assertQueryRequest(request);
+      return queryJobs(readLatestJobs(this.queuePath), request).map(cloneJob);
+    });
+  }
+
+  replayDeadLetter(
+    request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueJob | undefined> {
+    return Promise.resolve().then(() => {
+      assertReplayDeadLetterRequest(request);
+      const job = readLatestJob(this.queuePath, request.jobId);
+      if (job === undefined || job.status !== 'dead-lettered') {
+        return undefined;
+      }
+      const replayed = createReplayedDeadLetterJob(job, request);
+      appendJsonLines(this.queuePath, [replayed]);
+      return cloneJob(replayed);
     });
   }
 }
@@ -374,6 +443,8 @@ function createCompletedJob(
     attemptCount: job.attemptCount ?? job.attempts?.length ?? 0,
     failedAttemptCount: job.failedAttemptCount ?? 0,
     ...(job.maxAttempts === undefined ? {} : { maxAttempts: job.maxAttempts }),
+    ...(job.replayCount === undefined ? {} : { replayCount: job.replayCount }),
+    ...(job.lastReplayedAt === undefined ? {} : { lastReplayedAt: job.lastReplayedAt }),
     ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
     completedAt: request.completedAt,
     resultTraceId: request.resultTraceId,
@@ -408,6 +479,8 @@ function createFailedJob(
       failedAttemptCount,
       maxAttempts,
       nextAttemptAt: request.failedAt + retryDelayMs,
+      ...(job.replayCount === undefined ? {} : { replayCount: job.replayCount }),
+      ...(job.lastReplayedAt === undefined ? {} : { lastReplayedAt: job.lastReplayedAt }),
       ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
       failedAt: request.failedAt,
       error: request.error,
@@ -424,12 +497,37 @@ function createFailedJob(
     attemptCount,
     failedAttemptCount,
     maxAttempts,
+    ...(job.replayCount === undefined ? {} : { replayCount: job.replayCount }),
+    ...(job.lastReplayedAt === undefined ? {} : { lastReplayedAt: job.lastReplayedAt }),
     ...(job.startedAt === undefined ? {} : { startedAt: job.startedAt }),
     failedAt: request.failedAt,
     deadLetteredAt: request.failedAt,
     error: request.error,
     attempts,
     updatedAt: request.failedAt,
+  });
+}
+
+function createReplayedDeadLetterJob(
+  job: LocalSimulationRuntimeRunQueueJob,
+  request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
+): LocalSimulationRuntimeRunQueueJob {
+  const attemptCount = job.attemptCount ?? job.attempts?.length ?? 0;
+  const maxAttempts = request.maxAttempts ?? Math.max(job.maxAttempts ?? 0, attemptCount + 1);
+  return cloneJob({
+    jobId: job.jobId,
+    manifestId: job.manifestId,
+    enqueuedAt: job.enqueuedAt,
+    runRequest: job.runRequest,
+    status: 'queued',
+    attemptCount,
+    failedAttemptCount: job.failedAttemptCount ?? 0,
+    maxAttempts,
+    nextAttemptAt: request.nextAttemptAt ?? request.replayedAt,
+    replayCount: (job.replayCount ?? 0) + 1,
+    lastReplayedAt: request.replayedAt,
+    attempts: job.attempts ?? [],
+    updatedAt: request.replayedAt,
   });
 }
 
@@ -456,6 +554,19 @@ function selectClaimCandidate(
       (left, right) => left.enqueuedAt - right.enqueuedAt || left.jobId.localeCompare(right.jobId),
     )
     .at(0);
+}
+
+function queryJobs(
+  jobs: readonly LocalSimulationRuntimeRunQueueJob[],
+  request: LocalSimulationRuntimeRunQueueQueryRequest,
+): readonly LocalSimulationRuntimeRunQueueJob[] {
+  const filtered = jobs
+    .filter((job) => request.status === undefined || job.status === request.status)
+    .filter((job) => request.manifestId === undefined || job.manifestId === request.manifestId)
+    .sort(
+      (left, right) => right.updatedAt - left.updatedAt || left.jobId.localeCompare(right.jobId),
+    );
+  return request.limit === undefined ? filtered : filtered.slice(0, request.limit);
 }
 
 function jobIsClaimEligible(
@@ -569,6 +680,41 @@ function assertFailRequest(request: LocalSimulationRuntimeRunQueueFailRequest): 
   }
   assertNonEmpty(request.error.name, 'error.name');
   assertNonEmpty(request.error.message, 'error.message');
+}
+
+function assertQueryRequest(request: LocalSimulationRuntimeRunQueueQueryRequest): void {
+  if (request.status !== undefined && !isKnownJobStatus(request.status)) {
+    throw new Error('status must be a known run queue job status');
+  }
+  if (request.manifestId !== undefined) {
+    assertNonEmpty(request.manifestId, 'manifestId');
+  }
+  if (request.limit !== undefined) {
+    assertPositiveInteger(request.limit, 'limit');
+  }
+}
+
+function assertReplayDeadLetterRequest(
+  request: LocalSimulationRuntimeRunQueueReplayDeadLetterRequest,
+): void {
+  assertNonEmpty(request.jobId, 'jobId');
+  assertNonNegativeFinite(request.replayedAt, 'replayedAt');
+  if (request.nextAttemptAt !== undefined) {
+    assertNonNegativeFinite(request.nextAttemptAt, 'nextAttemptAt');
+  }
+  if (request.maxAttempts !== undefined) {
+    assertPositiveInteger(request.maxAttempts, 'maxAttempts');
+  }
+}
+
+function isKnownJobStatus(value: string): value is LocalSimulationRuntimeRunQueueJobStatus {
+  return (
+    value === 'queued' ||
+    value === 'leased' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'dead-lettered'
+  );
 }
 
 function assertNonNegativeFinite(value: number, name: string): void {

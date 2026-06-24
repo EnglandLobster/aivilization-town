@@ -12,14 +12,41 @@ export type RuntimeRunQueueJobRequest = {
   readonly jobId: string;
 };
 
+export type RuntimeRunQueueJobStatus =
+  | 'queued'
+  | 'leased'
+  | 'completed'
+  | 'failed'
+  | 'dead-lettered';
+
+export type RuntimeRunQueueJobQueryRequest = {
+  readonly status?: RuntimeRunQueueJobStatus;
+  readonly manifestId?: string;
+  readonly limit?: number;
+};
+
+export type RuntimeRunQueueReplayRequest = RuntimeRunQueueJobRequest & {
+  readonly replayedAt: SimulationTimestamp;
+  readonly nextAttemptAt?: SimulationTimestamp;
+  readonly maxAttempts?: number;
+};
+
 export type RuntimeRunQueueControlPort<TJob> = {
   readonly enqueueRun: (request: RuntimeRunQueueSubmitRequest) => MaybePromise<TJob>;
   readonly getRunJob: (jobId: string) => MaybePromise<TJob | undefined>;
+  readonly queryRunJobs: (request: RuntimeRunQueueJobQueryRequest) => MaybePromise<readonly TJob[]>;
+  readonly replayRunJob: (request: RuntimeRunQueueReplayRequest) => MaybePromise<TJob | undefined>;
 };
 
 export type RuntimeRunQueueApiService<TJob> = {
   readonly enqueueRuntimeRun: (request: RuntimeRunQueueSubmitRequest) => Promise<TJob>;
   readonly getRuntimeRunJob: (request: RuntimeRunQueueJobRequest) => Promise<TJob | undefined>;
+  readonly queryRuntimeRunJobs: (
+    request: RuntimeRunQueueJobQueryRequest,
+  ) => Promise<readonly TJob[]>;
+  readonly replayRuntimeRunJob: (
+    request: RuntimeRunQueueReplayRequest,
+  ) => Promise<TJob | undefined>;
 };
 
 export function createRuntimeRunQueueApiService<TJob>(input: {
@@ -28,6 +55,8 @@ export function createRuntimeRunQueueApiService<TJob>(input: {
   return {
     enqueueRuntimeRun: async (request) => input.control.enqueueRun(normalizeSubmitRequest(request)),
     getRuntimeRunJob: async (request) => input.control.getRunJob(normalizeJobId(request.jobId)),
+    queryRuntimeRunJobs: async (request) => input.control.queryRunJobs(normalizeQuery(request)),
+    replayRuntimeRunJob: async (request) => input.control.replayRunJob(normalizeReplay(request)),
   };
 }
 
@@ -61,6 +90,50 @@ function normalizeSubmitRequest(
 function normalizeJobId(jobId: string): string {
   assertNonEmpty(jobId, 'jobId');
   return jobId;
+}
+
+function normalizeQuery(request: RuntimeRunQueueJobQueryRequest): RuntimeRunQueueJobQueryRequest {
+  if (request.status !== undefined && !isKnownStatus(request.status)) {
+    throw new Error('status must be a known run queue job status');
+  }
+  if (request.manifestId !== undefined) {
+    assertNonEmpty(request.manifestId, 'manifestId');
+  }
+  if (request.limit !== undefined) {
+    assertPositiveInteger(request.limit, 'limit');
+  }
+  return {
+    ...(request.status === undefined ? {} : { status: request.status }),
+    ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
+    ...(request.limit === undefined ? {} : { limit: request.limit }),
+  };
+}
+
+function normalizeReplay(request: RuntimeRunQueueReplayRequest): RuntimeRunQueueReplayRequest {
+  const jobId = normalizeJobId(request.jobId);
+  assertNonNegativeFinite(request.replayedAt, 'replayedAt');
+  if (request.nextAttemptAt !== undefined) {
+    assertNonNegativeFinite(request.nextAttemptAt, 'nextAttemptAt');
+  }
+  if (request.maxAttempts !== undefined) {
+    assertPositiveInteger(request.maxAttempts, 'maxAttempts');
+  }
+  return {
+    jobId,
+    replayedAt: request.replayedAt,
+    ...(request.nextAttemptAt === undefined ? {} : { nextAttemptAt: request.nextAttemptAt }),
+    ...(request.maxAttempts === undefined ? {} : { maxAttempts: request.maxAttempts }),
+  };
+}
+
+function isKnownStatus(value: string): value is RuntimeRunQueueJobStatus {
+  return (
+    value === 'queued' ||
+    value === 'leased' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'dead-lettered'
+  );
 }
 
 function assertNonEmpty(value: string, name: string): void {

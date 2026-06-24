@@ -48,4 +48,58 @@ describe('local simulation runtime run queue API adapter', () => {
       },
     });
   });
+
+  test('queries and replays dead-lettered jobs through the local repository', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    const service = createLocalSimulationRuntimeRunQueueApiService({
+      repository,
+      manifestId: 'town-runtime',
+    });
+    await repository.enqueue({
+      jobId: 'job-dead-100',
+      manifestId: 'town-runtime',
+      enqueuedAt: 90,
+      runRequest: {
+        operationId: 'op-run-dead-100',
+        requestedAt: 100,
+        cycleCount: 1,
+      },
+    });
+    await repository.claimNext({
+      workerId: 'worker-1',
+      claimedAt: 110,
+      leaseDurationMs: 100,
+    });
+    await repository.fail({
+      jobId: 'job-dead-100',
+      failedAt: 120,
+      maxAttempts: 1,
+      error: { name: 'Error', message: 'runtime exploded' },
+    });
+
+    await expect(
+      service.queryRuntimeRunJobs({ status: 'dead-lettered', limit: 1 }),
+    ).resolves.toMatchObject([
+      {
+        jobId: 'job-dead-100',
+        manifestId: 'town-runtime',
+        status: 'dead-lettered',
+        deadLetteredAt: 120,
+      },
+    ]);
+    await expect(
+      service.replayRuntimeRunJob({
+        jobId: 'job-dead-100',
+        replayedAt: 200,
+      }),
+    ).resolves.toMatchObject({
+      jobId: 'job-dead-100',
+      manifestId: 'town-runtime',
+      status: 'queued',
+      nextAttemptAt: 200,
+      replayCount: 1,
+      lastReplayedAt: 200,
+      maxAttempts: 2,
+    });
+  });
 });

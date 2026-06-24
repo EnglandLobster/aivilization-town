@@ -9,6 +9,7 @@ import {
   handleAgentApplyJobCommand,
   handleAgentMoveToCommand,
   handleAgentObserveLocationCommand,
+  handleAgentStartConversationCommand,
   handleAgentProduceCommand,
   handleAgentSeeDoctorCommand,
   handleAgentUpgradeResidentialTierCommand,
@@ -1737,6 +1738,320 @@ describe('agent location observation command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'LocationObserved',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
+describe('agent conversation command handling', () => {
+  test('AgentStartConversation records transcript, bidirectional social impact, and participant STM', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 50,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 90, satiety: 70, health: 100 },
+          educationScore: 30,
+          balance: 80,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'homework',
+          relationDelta: 0.2,
+          attitudeDelta: 0.1,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Do you want to study together?',
+              intent: 'invite-study',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: 'Yes, let us review after class.',
+            },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ConversationRecorded',
+      'SocialInteractionCompleted',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]).toMatchObject({
+      type: 'ConversationRecorded',
+      payload: {
+        conversationId: 'conversation-command-conversation',
+        initiatorAgentId: 'agent-1',
+        participantAgentIds: ['agent-1', 'agent-2'],
+        locationId: 'school',
+        topic: 'homework',
+        turns: [
+          {
+            turnIndex: 0,
+            speakerAgentId: 'agent-1',
+            utterance: 'Do you want to study together?',
+            intent: 'invite-study',
+          },
+          {
+            turnIndex: 1,
+            speakerAgentId: 'agent-2',
+            utterance: 'Yes, let us review after class.',
+          },
+        ],
+      },
+    });
+    expect(events[1]).toMatchObject({
+      type: 'SocialInteractionCompleted',
+      payload: {
+        sourceAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        summary: 'Conversation about homework: Do you want to study together? / Yes, let us review after class.',
+        relationDelta: 0.2,
+        attitudeDelta: 0.1,
+        nextRelation: {
+          relationScore: 0.2,
+          attitudeScore: 0.1,
+          relationLabel: 'acquaintance',
+          interactionCount: 1,
+        },
+      },
+    });
+    expect(events[2]).toMatchObject({
+      type: 'SocialInteractionCompleted',
+      payload: {
+        sourceAgentId: 'agent-2',
+        targetAgentId: 'agent-1',
+        relationDelta: 0.2,
+        attitudeDelta: 0.1,
+      },
+    });
+    expect(events[3]).toMatchObject({
+      payload: {
+        record: {
+          agentId: 'agent-1',
+          kind: 'social-interaction',
+          status: 'succeeded',
+          tags: ['conversation', 'homework', 'agent-2', 'school'],
+        },
+      },
+    });
+    expect(events[4]).toMatchObject({
+      payload: {
+        record: {
+          agentId: 'agent-2',
+          kind: 'social-interaction',
+          status: 'succeeded',
+          tags: ['conversation', 'homework', 'agent-1', 'school'],
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.conversationRecords).toHaveLength(1);
+    expect(updated.conversationRecords[0]).toMatchObject({
+      conversationId: 'conversation-command-conversation',
+      participantAgentIds: ['agent-1', 'agent-2'],
+      locationId: 'school',
+      topic: 'homework',
+      recordedAt: 90,
+    });
+    expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
+      relationScore: 0.2,
+      attitudeScore: 0.1,
+      interactionCount: 1,
+    });
+    expect(updated.socialRelations['agent-2->agent-1']).toMatchObject({
+      relationScore: 0.2,
+      attitudeScore: 0.1,
+      interactionCount: 1,
+    });
+    expect(updated.memoryRecords.map((record) => record.agentId)).toEqual(['agent-1', 'agent-2']);
+  });
+
+  test('AgentStartConversation rejects turns spoken by non-participants', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 50,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 90, satiety: 70, health: 100 },
+          educationScore: 30,
+          balance: 80,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'homework',
+          relationDelta: 0.2,
+          attitudeDelta: 0.1,
+          turns: [
+            {
+              speakerAgentId: 'agent-3',
+              utterance: 'I should not be in this transcript.',
+            },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]).toMatchObject({
+      payload: {
+        commandType: 'AgentStartConversation',
+        reason: 'conversation turn speaker agent-3 is not a participant',
+      },
+    });
+  });
+
+  test('dispatchWorldCommand routes AgentStartConversation through the world handler', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 20,
+          balance: 50,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('school'),
+          physiology: { energy: 90, satiety: 70, health: 100 },
+          educationScore: 30,
+          balance: 80,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study', 'socialize'],
+          capacity: null,
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'homework',
+          relationDelta: 0.2,
+          attitudeDelta: 0.1,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Do you want to study together?',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: 'Yes.',
+            },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ConversationRecorded',
+      'SocialInteractionCompleted',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
       'ShortTermMemoryRecorded',
     ]);
   });

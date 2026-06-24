@@ -2,6 +2,7 @@ import type { AmmPool, Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type {
   AgentId,
+  ConversationId,
   CoreCommandType,
   EventEnvelope,
   LocationId,
@@ -101,6 +102,22 @@ export type LocationObservedPayload = {
   readonly focus?: string;
 };
 
+export type ConversationTurnPayload = {
+  readonly turnIndex: number;
+  readonly speakerAgentId: AgentId;
+  readonly utterance: string;
+  readonly intent?: string;
+};
+
+export type ConversationRecordedPayload = {
+  readonly conversationId: ConversationId;
+  readonly initiatorAgentId: AgentId;
+  readonly participantAgentIds: readonly AgentId[];
+  readonly locationId: LocationId;
+  readonly topic: string;
+  readonly turns: readonly ConversationTurnPayload[];
+};
+
 export type ActionRejectedPayload = {
   readonly agentId: AgentId;
   readonly commandType: CoreCommandType;
@@ -126,6 +143,7 @@ export type WorldEventPayloadByType = {
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
   readonly AgentLocationChanged: AgentLocationChangedPayload;
   readonly LocationObserved: LocationObservedPayload;
+  readonly ConversationRecorded: ConversationRecordedPayload;
   readonly InventoryChanged: InventoryChangedPayload;
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly EducationChanged: EducationChangedPayload;

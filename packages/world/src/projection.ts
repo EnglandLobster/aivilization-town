@@ -1,6 +1,6 @@
 import { addInventory, removeInventory, type AmmPool, type Inventory } from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
-import type { AgentId, LocationId, SimulationClock } from '@aivilization/sim-core';
+import type { AgentId, ConversationId, LocationId, SimulationClock } from '@aivilization/sim-core';
 import {
   createDirectedSocialRelationKey,
   type PhysiologicalState,
@@ -58,6 +58,23 @@ export type WorldLocationObservationState = {
   readonly focus?: string;
 };
 
+export type WorldConversationTurnState = {
+  readonly turnIndex: number;
+  readonly speakerAgentId: AgentId;
+  readonly utterance: string;
+  readonly intent?: string;
+};
+
+export type WorldConversationRecordState = {
+  readonly conversationId: ConversationId;
+  readonly initiatorAgentId: AgentId;
+  readonly participantAgentIds: readonly AgentId[];
+  readonly locationId: LocationId;
+  readonly topic: string;
+  readonly turns: readonly WorldConversationTurnState[];
+  readonly recordedAt: number;
+};
+
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
@@ -66,6 +83,7 @@ export type WorldProjection = {
   readonly moneySupply: number;
   readonly jobApplications: readonly WorldJobApplicationState[];
   readonly locationObservations: readonly WorldLocationObservationState[];
+  readonly conversationRecords: readonly WorldConversationRecordState[];
   readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
@@ -83,6 +101,7 @@ export function createWorldProjection(input: {
   readonly moneySupply?: number;
   readonly jobApplications?: readonly WorldJobApplicationState[];
   readonly locationObservations?: readonly WorldLocationObservationState[];
+  readonly conversationRecords?: readonly WorldConversationRecordState[];
   readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
@@ -137,6 +156,7 @@ export function createWorldProjection(input: {
       observedAgentIds: [...observation.observedAgentIds],
       activityAffinities: [...observation.activityAffinities],
     })),
+    conversationRecords: (input.conversationRecords ?? []).map(cloneConversationRecord),
     socialRelations,
     memoryRecords: [],
     rejectedActions: [],
@@ -243,6 +263,22 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           },
         ],
       };
+    case 'ConversationRecorded':
+      return {
+        ...projection,
+        conversationRecords: [
+          ...projection.conversationRecords,
+          cloneConversationRecord({
+            conversationId: event.payload.conversationId,
+            initiatorAgentId: event.payload.initiatorAgentId,
+            participantAgentIds: event.payload.participantAgentIds,
+            locationId: event.payload.locationId,
+            topic: event.payload.topic,
+            turns: event.payload.turns,
+            recordedAt: event.occurredAt,
+          }),
+        ],
+      };
     case 'InventoryChanged':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,
@@ -296,6 +332,14 @@ function applyInventoryChanges(
         : removeInventory(nextInventory, itemName, quantity),
     inventory,
   );
+}
+
+function cloneConversationRecord(record: WorldConversationRecordState): WorldConversationRecordState {
+  return {
+    ...record,
+    participantAgentIds: [...record.participantAgentIds],
+    turns: record.turns.map((turn) => ({ ...turn })),
+  };
 }
 
 function updateAgent(

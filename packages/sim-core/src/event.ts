@@ -22,6 +22,7 @@ export type CoreEventType =
   | 'SocialInteractionCompleted'
   | 'AgentLocationChanged'
   | 'LocationObserved'
+  | 'ConversationRecorded'
   | 'ShortTermMemoryRecorded'
   | 'LongTermMemoryConsolidated'
   | 'PlannerBranchUpdated'

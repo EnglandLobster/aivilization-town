@@ -6,8 +6,10 @@ import {
 } from '@aivilization/economy';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
+  asConversationId,
   advanceClock,
   createEventEnvelope,
+  type AgentId,
   type CommandEnvelope,
   type CoreCommandType,
 } from '@aivilization/sim-core';
@@ -30,6 +32,7 @@ import {
   assertAgentEatPayload,
   assertAgentMoveToPayload,
   assertAgentObserveLocationPayload,
+  assertAgentStartConversationPayload,
   assertAgentProducePayload,
   assertAgentSeeDoctorPayload,
   assertAgentUpgradeResidentialTierPayload,
@@ -99,6 +102,12 @@ export function dispatchWorldCommand(input: {
     case 'AgentObserveLocation':
       return handleAgentObserveLocationCommand({
         command: input.command as CommandEnvelope<'AgentObserveLocation', unknown>,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentStartConversation':
+      return handleAgentStartConversationCommand({
+        command: input.command as CommandEnvelope<'AgentStartConversation', unknown>,
         projection: input.projection,
         nextSequence: input.nextSequence,
       });
@@ -367,6 +376,146 @@ export function handleAgentObserveLocationCommand(input: {
         ...location.activityAffinities,
         ...observedAgentIds,
       ]),
+    }),
+  ];
+}
+
+export function handleAgentStartConversationCommand(input: {
+  readonly command: CommandEnvelope<'AgentStartConversation', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() =>
+    assertAgentStartConversationPayload(input.command.payload),
+  );
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentStartConversation', payloadResult.reason);
+  }
+
+  const payload = payloadResult.payload;
+  const targetAgent = input.projection.agents[payload.targetAgentId];
+  if (targetAgent === undefined) {
+    return rejectCommand(
+      input,
+      'AgentStartConversation',
+      `unknown target agent ${payload.targetAgentId}`,
+    );
+  }
+  if (agent.agentId === targetAgent.agentId) {
+    return rejectCommand(input, 'AgentStartConversation', 'conversation target must differ');
+  }
+  if (agent.locationId === null) {
+    return rejectCommand(input, 'AgentStartConversation', 'agent location is unknown');
+  }
+  if (targetAgent.locationId === null) {
+    return rejectCommand(input, 'AgentStartConversation', 'target agent location is unknown');
+  }
+  if (agent.locationId !== targetAgent.locationId) {
+    return rejectCommand(
+      input,
+      'AgentStartConversation',
+      `target agent ${targetAgent.agentId} is at ${targetAgent.locationId}, not co-located with ${agent.agentId} at ${agent.locationId}`,
+    );
+  }
+
+  const location = input.projection.locations[agent.locationId];
+  if (location === undefined) {
+    return rejectCommand(
+      input,
+      'AgentStartConversation',
+      `unknown current location ${agent.locationId}`,
+    );
+  }
+
+  const participantAgentIds = [agent.agentId, targetAgent.agentId] as const;
+  const participantSet = new Set<AgentId>(participantAgentIds);
+  for (const turn of payload.turns) {
+    if (!participantSet.has(turn.speakerAgentId)) {
+      return rejectCommand(
+        input,
+        'AgentStartConversation',
+        `conversation turn speaker ${turn.speakerAgentId} is not a participant`,
+      );
+    }
+  }
+  const firstTurn = payload.turns[0];
+  if (firstTurn?.speakerAgentId !== agent.agentId) {
+    return rejectCommand(
+      input,
+      'AgentStartConversation',
+      `conversation first turn must be spoken by initiator ${agent.agentId}`,
+    );
+  }
+
+  const turns = payload.turns.map((turn, index) => ({
+    turnIndex: index,
+    speakerAgentId: turn.speakerAgentId,
+    utterance: turn.utterance,
+    ...(turn.intent === undefined ? {} : { intent: turn.intent }),
+  }));
+  const summary = formatConversationSummary(payload.topic, turns);
+  const sourceRelation = planSocialInteractionEvent({
+    projection: input.projection,
+    sourceAgentId: agent.agentId,
+    targetAgentId: targetAgent.agentId,
+    summary,
+    relationDelta: payload.relationDelta,
+    attitudeDelta: payload.attitudeDelta,
+  });
+  if (sourceRelation.status === 'invalid') {
+    return rejectCommand(input, 'AgentStartConversation', sourceRelation.reason);
+  }
+  const targetRelation = planSocialInteractionEvent({
+    projection: input.projection,
+    sourceAgentId: targetAgent.agentId,
+    targetAgentId: agent.agentId,
+    summary,
+    relationDelta: payload.relationDelta,
+    attitudeDelta: payload.attitudeDelta,
+  });
+  if (targetRelation.status === 'invalid') {
+    return rejectCommand(input, 'AgentStartConversation', targetRelation.reason);
+  }
+
+  return [
+    makeEvent(input, 0, 'ConversationRecorded', {
+      conversationId: asConversationId(`conversation-${input.command.id}`),
+      initiatorAgentId: agent.agentId,
+      participantAgentIds,
+      locationId: location.locationId,
+      topic: payload.topic,
+      turns,
+    }),
+    makeEvent(input, 1, 'SocialInteractionCompleted', sourceRelation.payload),
+    makeEvent(input, 2, 'SocialInteractionCompleted', targetRelation.payload),
+    makeMemoryEvent(input, 3, {
+      agentId: agent.agentId,
+      kind: 'social-interaction',
+      summary,
+      status: 'succeeded',
+      tags: stableUnique(['conversation', payload.topic, targetAgent.agentId, location.locationId]),
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId: targetAgent.agentId,
+        relationDelta: payload.relationDelta,
+        attitudeDelta: payload.attitudeDelta,
+        summary,
+      },
+    }),
+    makeMemoryEvent(input, 4, {
+      agentId: targetAgent.agentId,
+      kind: 'social-interaction',
+      summary,
+      status: 'succeeded',
+      tags: stableUnique(['conversation', payload.topic, agent.agentId, location.locationId]),
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId: agent.agentId,
+        relationDelta: payload.relationDelta,
+        attitudeDelta: payload.attitudeDelta,
+        summary,
+      },
     }),
   ];
 }
@@ -916,6 +1065,64 @@ export function handleAgentSocializeCommand(input: {
   ];
 }
 
+function planSocialInteractionEvent(input: {
+  readonly projection: WorldProjection;
+  readonly sourceAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly summary: string;
+  readonly relationDelta: number;
+  readonly attitudeDelta: number;
+}):
+  | {
+      readonly status: 'valid';
+      readonly payload: Extract<WorldEvent, { readonly type: 'SocialInteractionCompleted' }>['payload'];
+    }
+  | { readonly status: 'invalid'; readonly reason: string } {
+  const relationKeyResult = parsePayload(() =>
+    createDirectedSocialRelationKey({
+      sourceAgentId: input.sourceAgentId,
+      targetAgentId: input.targetAgentId,
+    }),
+  );
+  if (relationKeyResult.status === 'invalid') {
+    return relationKeyResult;
+  }
+
+  const currentRelation = input.projection.socialRelations[relationKeyResult.payload];
+  const relationResult = parsePayload(() =>
+    applySocialInteraction({
+      sourceAgentId: input.sourceAgentId,
+      targetAgentId: input.targetAgentId,
+      ...(currentRelation === undefined ? {} : { current: currentRelation }),
+      relationDelta: input.relationDelta,
+      attitudeDelta: input.attitudeDelta,
+      summary: input.summary,
+    }),
+  );
+  if (relationResult.status === 'invalid') {
+    return relationResult;
+  }
+
+  return {
+    status: 'valid',
+    payload: {
+      sourceAgentId: input.sourceAgentId,
+      targetAgentId: input.targetAgentId,
+      summary: input.summary.trim(),
+      relationDelta: input.relationDelta,
+      attitudeDelta: input.attitudeDelta,
+      nextRelation: relationResult.payload,
+    },
+  };
+}
+
+function formatConversationSummary(
+  topic: string,
+  turns: readonly { readonly utterance: string }[],
+): string {
+  return `Conversation about ${topic}: ${turns.map((turn) => turn.utterance).join(' / ')}`;
+}
+
 function validateKnownCoLocation(
   sourceAgent: WorldAgentState,
   targetAgent: WorldAgentState,
@@ -1028,6 +1235,7 @@ function makeMemoryEvent(
   },
   offset: number,
   memory: {
+    readonly agentId?: AgentId;
     readonly kind?: Parameters<typeof createShortTermMemoryRecord>[0]['kind'];
     readonly summary: string;
     readonly status: Parameters<typeof createShortTermMemoryRecord>[0]['status'];
@@ -1037,11 +1245,14 @@ function makeMemoryEvent(
     >[0]['consolidationHint'];
   },
 ): WorldEvent {
-  const agent = resolveCommandAgent(input.projection, input.command);
+  const agentId = memory.agentId ?? resolveCommandAgent(input.projection, input.command).agentId;
+  if (input.projection.agents[agentId] === undefined) {
+    throw new Error(`unknown agent ${agentId}`);
+  }
   return makeEvent(input, offset, 'ShortTermMemoryRecorded', {
     record: createShortTermMemoryRecord({
       id: `${input.command.id}:memory:${offset}`,
-      agentId: agent.agentId,
+      agentId,
       kind: memory.kind ?? 'action',
       status: memory.status,
       summary: memory.summary,

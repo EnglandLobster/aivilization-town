@@ -16,6 +16,7 @@ export type CoreCommandType =
   | 'AgentEat'
   | 'AgentMoveTo'
   | 'AgentObserveLocation'
+  | 'AgentStartConversation'
   | 'AgentSleep'
   | 'AgentSeeDoctor'
   | 'AgentStudy'

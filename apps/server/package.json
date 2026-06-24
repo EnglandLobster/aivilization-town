@@ -22,6 +22,7 @@
   "dependencies": {
     "@aivilization/api": "workspace:*",
     "@aivilization/content": "workspace:*",
+    "@aivilization/observability": "workspace:*",
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/worker": "workspace:*",
     "@aivilization/world": "workspace:*"

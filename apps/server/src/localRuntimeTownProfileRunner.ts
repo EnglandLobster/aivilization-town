@@ -4,6 +4,10 @@ import {
   jobTiers,
   occupations,
 } from '@aivilization/content';
+import {
+  createRuntimeProfileRunReport,
+  type RuntimeProfileRunReportRepository,
+} from '@aivilization/observability';
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldCommandPolicies } from '@aivilization/world';
 import {
@@ -28,6 +32,8 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
+  readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
+  readonly reportGeneratedAt?: SimulationTimestamp;
 };
 
 export type LocalRuntimeTownProfileRunnerPartitionSummary = {
@@ -71,6 +77,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   assertNonNegativeFinite(input.requestedAt, 'requestedAt');
   if (input.cycleIntervalMs !== undefined) {
     assertNonNegativeFinite(input.cycleIntervalMs, 'cycleIntervalMs');
+  }
+  if (input.reportGeneratedAt !== undefined) {
+    assertNonNegativeFinite(input.reportGeneratedAt, 'reportGeneratedAt');
   }
 
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
@@ -134,7 +143,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     }),
   );
 
-  return {
+  const summary: LocalRuntimeTownProfileRunnerSummary = {
     profileId: profile.profileId,
     manifestId: profile.manifest.id,
     rootDir: input.rootDir,
@@ -153,6 +162,31 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     },
     partitions,
   };
+
+  if (input.profileRunReportRepository !== undefined) {
+    await input.profileRunReportRepository.record(
+      createRuntimeProfileRunReport({
+        runId: summary.run.traceId,
+        profileId: summary.profileId,
+        manifestId: summary.manifestId,
+        rootDir: summary.rootDir,
+        generatedAt: input.reportGeneratedAt ?? Date.now(),
+        requestedAt: summary.requestedAt,
+        daemonHealth: summary.daemonHealth,
+        outcome: summary.run.outcome,
+        requestedCycleCount: summary.run.requestedCycleCount,
+        completedCycleCount: summary.run.completedCycleCount,
+        stopReason: summary.run.stopReason,
+        partitionCount: summary.partitionCount,
+        totalProjectionAgentCount: summary.totalProjectionAgentCount,
+        totalEventCount: summary.totalEventCount,
+        totalAgentTraceCount: summary.totalAgentTraceCount,
+        partitions: summary.partitions,
+      }),
+    );
+  }
+
+  return summary;
 }
 
 export function createLocalRuntimeTownProfileAgentProvider(

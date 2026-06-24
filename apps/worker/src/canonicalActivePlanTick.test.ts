@@ -15,10 +15,12 @@ import {
 import {
   InMemoryEventStore,
   asAgentId,
+  asLocationId,
   asSimulationId,
   createCommandEnvelope,
   createSimulationPartition,
   type AgentId,
+  type LocationId,
 } from '@aivilization/sim-core';
 import {
   createWorldProjection,
@@ -88,6 +90,108 @@ describe('canonical active-plan worker tick', () => {
     ]);
     expect(result.projection.clock.now).toBe(1000);
     expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+  });
+
+  test('moves to the study location before completing the active study plan', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const initialProjection = createProjection({
+      agents: [
+        createAgent(agentA, { locationId: asLocationId('residential-block') }),
+        createAgent(agentB),
+      ],
+      locations: [residentialBlock(), school()],
+    });
+    await repositories.intentionRepository.setObjective(agentA, createObjective(agentA));
+    await repositories.planRepository.save(createStudyPlanRecord(agentA));
+
+    const first = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-study-move',
+      simulationId,
+      issuedAt: 100,
+      projection: initialProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(first.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentMoveTo',
+      payload: { targetLocationId: 'school', reason: 'study' },
+    });
+    expect(first.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'AgentLocationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(first.projection.agents[agentA]?.locationId).toBe(asLocationId('school'));
+    expect(first.projection.agents[agentA]?.educationScore).toBe(0);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-study',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toMatchObject({
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: createObjective(agentA),
+      completedObjectives: [],
+    });
+
+    const second = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-study-at-school',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentStudy',
+      payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+    });
+    expect(second.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'EducationChanged',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(second.events[0]?.sequence).toBe(first.streamVersion + 1);
+    expect(second.projection.agents[agentA]?.locationId).toBe(asLocationId('school'));
+    expect(second.projection.agents[agentA]?.educationScore).toBe(1800);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-study',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toMatchObject({
+      completedSubtaskIds: ['study-step'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
+    const completedIntentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(completedIntentionState.activeObjective).toBeUndefined();
+    expect(completedIntentionState.completedObjectives).toMatchObject([
+      {
+        objective: createObjective(agentA),
+        completedAt: 200,
+        reason: 'plan-completed',
+        planId: 'objective-study',
+      },
+    ]);
   });
 
   test('runs production subtasks through the canonical active-plan pipeline', async () => {
@@ -971,10 +1075,34 @@ function createRepositories() {
   };
 }
 
-function createProjection(): WorldProjection {
+function createProjection(input: {
+  readonly agents?: readonly WorldAgentState[];
+  readonly locations?: readonly {
+    readonly locationId: LocationId;
+    readonly name: string;
+    readonly kind:
+      | 'residence'
+      | 'education'
+      | 'healthcare'
+      | 'food'
+      | 'market'
+      | 'production'
+      | 'social';
+    readonly activityAffinities: readonly string[];
+    readonly capacity: number | null;
+  }[];
+  readonly marketPools?: readonly {
+    readonly commodity: string;
+    readonly commodityReserve: number;
+    readonly currencyReserve: number;
+  }[];
+} = {}): WorldProjection {
   return createWorldProjection({
-    agents: [createAgent(agentA), createAgent(agentB)],
-    marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+    agents: input.agents ?? [createAgent(agentA), createAgent(agentB)],
+    ...(input.locations === undefined ? {} : { locations: input.locations }),
+    marketPools: input.marketPools ?? [
+      { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+    ],
   });
 }
 
@@ -991,6 +1119,26 @@ function createAgent(
     residentialTier: overrides.residentialTier ?? 1,
     job: overrides.job ?? null,
     inventory: overrides.inventory ?? {},
+  };
+}
+
+function residentialBlock() {
+  return {
+    locationId: asLocationId('residential-block'),
+    name: 'Residential Block',
+    kind: 'residence' as const,
+    activityAffinities: ['sleep', 'socialize'],
+    capacity: null,
+  };
+}
+
+function school() {
+  return {
+    locationId: asLocationId('school'),
+    name: 'School',
+    kind: 'education' as const,
+    activityAffinities: ['study', 'socialize'],
+    capacity: null,
   };
 }
 

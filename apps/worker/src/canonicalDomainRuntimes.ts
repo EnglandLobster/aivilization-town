@@ -13,10 +13,11 @@ import {
   resolveProductionDefinition,
   type ProductionChainStep,
 } from '@aivilization/economy';
-import { asAgentId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
   AgentEatPayload,
+  AgentMoveToPayload,
   AgentProducePayload,
   AgentSeeDoctorPayload,
   AgentUpgradeResidentialTierPayload,
@@ -136,6 +137,17 @@ const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
 const DEFAULT_PRODUCTION_COMMODITY = 'Apple';
 const DEFAULT_PRODUCTION_QUANTITY = 1;
 const DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS = 3600;
+const DEFAULT_DOMAIN_LOCATION_IDS: Readonly<Record<CanonicalDomainName, LocationId>> = {
+  study: asLocationId('school'),
+  work: asLocationId('workshop'),
+  trade: asLocationId('market'),
+  sleep: asLocationId('residential-block'),
+  social: asLocationId('town-square'),
+  production: asLocationId('workshop'),
+  residential: asLocationId('residential-block'),
+  health: asLocationId('clinic'),
+  eat: asLocationId('restaurant'),
+};
 
 export function createCanonicalDomainRuntimeRegistrations(
   config: CanonicalDomainRuntimeConfig = {},
@@ -165,6 +177,7 @@ export function createStudyDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'study',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => ({
           id: createCanonicalActionId('study', selectedSubtask),
@@ -194,6 +207,7 @@ export function createWorkDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'work',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const occupationName =
@@ -257,6 +271,7 @@ export function createTradeDomainRuntimeRegistration(
       return [
         createContextualDomainMicroPlanner({
           domain: 'trade',
+          context,
           planRecord: context.planRecord,
           propose: (selectedSubtask) => ({
             id: createCanonicalActionId('trade', selectedSubtask),
@@ -289,6 +304,7 @@ export function createSleepDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'sleep',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => ({
           id: createCanonicalActionId('sleep', selectedSubtask),
@@ -313,6 +329,7 @@ export function createHealthDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'health',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const durationSeconds =
@@ -340,6 +357,7 @@ export function createEatDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'eat',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const commodityName = resolveEatCommodityName({
@@ -372,7 +390,11 @@ export function createSocialDomainRuntimeRegistration(
       return [
         createContextualDomainMicroPlanner({
           domain: 'social',
+          context,
           planRecord: context.planRecord,
+          resolveTargetLocationId: () =>
+            context.projection.agents[targetAgentId]?.locationId ??
+            DEFAULT_DOMAIN_LOCATION_IDS.social,
           propose: (selectedSubtask) => ({
             id: createCanonicalActionId('social', selectedSubtask),
             description: `Socialize for ${selectedSubtask.description}.`,
@@ -399,6 +421,7 @@ export function createProductionDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'production',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const commodityName = resolveProductionTargetCommodityName({
@@ -455,6 +478,7 @@ export function createResidentialDomainRuntimeRegistration(
     createMicroPlanners: (context) => [
       createContextualDomainMicroPlanner({
         domain: 'residential',
+        context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
           const inferredTargetResidentialTier = resolveResidentialTargetTier({
@@ -556,12 +580,15 @@ export function resolveEatCommodityName(input: {
 
 type ContextualDomainMicroPlannerInput = {
   readonly domain: CanonicalDomainName;
+  readonly context: WorkerDomainRuntimeFactoryInput;
   readonly planRecord: BranchPlanRecord;
   readonly propose: (selectedSubtask: PrioritizedSubtask) => CanonicalActionProposal;
+  readonly resolveTargetLocationId?: (selectedSubtask: PrioritizedSubtask) => LocationId | null;
 };
 
 type CanonicalActionProposal =
   | AtomicActionProposal<'AgentEat', AgentEatPayload>
+  | AtomicActionProposal<'AgentMoveTo', AgentMoveToPayload>
   | AtomicActionProposal<'AgentStudy', AgentStudyPayload>
   | AtomicActionProposal<'AgentSleep', AgentSleepPayload>
   | AtomicActionProposal<'AgentSeeDoctor', AgentSeeDoctorPayload>
@@ -583,8 +610,55 @@ function createContextualDomainMicroPlanner(
         planRecord: input.planRecord,
         selectedSubtask,
       }),
-    propose: ({ selectedSubtask }) => [input.propose(selectedSubtask)],
+    propose: ({ selectedSubtask }) =>
+      createLocationAwareActionProposal({
+        domain: input.domain,
+        context: input.context,
+        selectedSubtask,
+        action: input.propose(selectedSubtask),
+        ...(input.resolveTargetLocationId === undefined
+          ? {}
+          : { resolveTargetLocationId: input.resolveTargetLocationId }),
+      }),
   };
+}
+
+function createLocationAwareActionProposal(input: {
+  readonly domain: CanonicalDomainName;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly action: CanonicalActionProposal;
+  readonly resolveTargetLocationId?: (selectedSubtask: PrioritizedSubtask) => LocationId | null;
+}): readonly CanonicalActionProposal[] {
+  const targetLocationId =
+    input.resolveTargetLocationId?.(input.selectedSubtask) ??
+    DEFAULT_DOMAIN_LOCATION_IDS[input.domain];
+  if (targetLocationId === null) {
+    return [input.action];
+  }
+  if (input.context.projection.locations[targetLocationId] === undefined) {
+    return [input.action];
+  }
+  if (
+    input.context.agent.locationId === null ||
+    input.context.agent.locationId === targetLocationId
+  ) {
+    return [input.action];
+  }
+
+  const targetLocation = input.context.projection.locations[targetLocationId];
+  return [
+    {
+      id: `${createCanonicalActionId(input.domain, input.selectedSubtask)}-move`,
+      description: `Move to ${targetLocation.name} before ${input.selectedSubtask.description}.`,
+      commandType: 'AgentMoveTo',
+      priority: input.selectedSubtask.score,
+      payload: {
+        targetLocationId,
+        reason: input.domain,
+      },
+    },
+  ];
 }
 
 function selectedSubtaskMatchesDomain(input: {

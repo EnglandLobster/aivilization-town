@@ -5,7 +5,7 @@ import {
   type PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
 import type { LongHorizonObjective } from '@aivilization/memory';
-import { asAgentId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldAgentState,
@@ -245,6 +245,88 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('proposes movement to the domain location before study when the agent is elsewhere', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('residential-block'),
+    });
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB }), createAgent({ agentId: agentC })],
+        locations: [residentialBlock(), school()],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
+      id: 'canonical-study-step-a-move',
+      commandType: 'AgentMoveTo',
+      payload: { targetLocationId: 'school', reason: 'study' },
+      priority: 10,
+    });
+  });
+
+  test('proposes the domain action when the agent is already at the domain location', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('school'),
+    });
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB }), createAgent({ agentId: agentC })],
+        locations: [residentialBlock(), school()],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
+      id: 'canonical-study-step-a',
+      commandType: 'AgentStudy',
+      payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+      priority: 10,
+    });
+  });
+
+  test('proposes movement to the target agent location before socializing', async () => {
+    const sourceAgent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('school'),
+    });
+    const targetAgent = createAgent({
+      agentId: agentB,
+      locationId: asLocationId('market'),
+    });
+    const context = createRuntimeContext({
+      agent: sourceAgent,
+      projection: createProjection({
+        agents: [sourceAgent, targetAgent, createAgent({ agentId: agentC })],
+        locations: [school(), market()],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      id: 'canonical-social-step-e-move',
+      commandType: 'AgentMoveTo',
+      payload: { targetLocationId: 'market', reason: 'social' },
+      priority: 10,
+    });
+  });
+
   test('infers job application occupation from durable work plan text', async () => {
     const context = createRuntimeContext({
       agent: createAgent({
@@ -423,6 +505,20 @@ function createRuntimeContext(input: {
 
 function createProjection(input: {
   readonly agents: readonly WorldAgentState[];
+  readonly locations?: readonly {
+    readonly locationId: LocationId;
+    readonly name: string;
+    readonly kind:
+      | 'residence'
+      | 'education'
+      | 'healthcare'
+      | 'food'
+      | 'market'
+      | 'production'
+      | 'social';
+    readonly activityAffinities: readonly string[];
+    readonly capacity: number | null;
+  }[];
   readonly marketPools: readonly {
     readonly commodity: string;
     readonly commodityReserve: number;
@@ -431,6 +527,7 @@ function createProjection(input: {
 }): WorldProjection {
   return createWorldProjection({
     agents: input.agents,
+    ...(input.locations === undefined ? {} : { locations: input.locations }),
     marketPools: input.marketPools,
   });
 }
@@ -438,19 +535,50 @@ function createProjection(input: {
 function createAgent(input: {
   readonly agentId: AgentId;
   readonly job?: string | null;
+  readonly locationId?: WorldAgentState['locationId'];
   readonly inventory?: WorldAgentState['inventory'];
   readonly residentialTier?: number;
   readonly educationScore?: number;
 }): WorldAgentState {
   return {
     agentId: input.agentId,
-    locationId: null,
+    locationId: input.locationId ?? null,
     physiology: { energy: 50, satiety: 50, health: 100 },
     educationScore: input.educationScore ?? 0,
     balance: 1000,
     residentialTier: input.residentialTier ?? 1,
     job: input.job ?? null,
     inventory: input.inventory ?? { Book: 3, Wood: 1 },
+  };
+}
+
+function residentialBlock() {
+  return {
+    locationId: asLocationId('residential-block'),
+    name: 'Residential Block',
+    kind: 'residence' as const,
+    activityAffinities: ['sleep', 'socialize'],
+    capacity: null,
+  };
+}
+
+function school() {
+  return {
+    locationId: asLocationId('school'),
+    name: 'School',
+    kind: 'education' as const,
+    activityAffinities: ['study', 'socialize'],
+    capacity: null,
+  };
+}
+
+function market() {
+  return {
+    locationId: asLocationId('market'),
+    name: 'Market',
+    kind: 'market' as const,
+    activityAffinities: ['trade', 'socialize'],
+    capacity: null,
   };
 }
 

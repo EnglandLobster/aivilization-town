@@ -30,10 +30,20 @@ describe('in-memory long-term profile repository', () => {
           provenanceRecordIds: [asMemoryRecordId('memory-1')],
         },
       ],
+      mood: [
+        {
+          key: 'cooperative-composure',
+          statement: 'Maintains cooperative composure.',
+          confidence: 0.75,
+          updatedAt: 12,
+          provenanceRecordIds: [asMemoryRecordId('mood-memory-1')],
+        },
+      ],
     };
 
     await repository.save(profile);
     profile.habits[0]!.provenanceRecordIds.push(asMemoryRecordId('mutated'));
+    profile.mood[0]!.provenanceRecordIds.push(asMemoryRecordId('mutated-mood'));
 
     await expect(repository.getOrCreate(agentId)).resolves.toEqual({
       ...createEmptyLongTermAgentProfile(agentId),
@@ -44,6 +54,15 @@ describe('in-memory long-term profile repository', () => {
           confidence: 0.6,
           updatedAt: 10,
           provenanceRecordIds: ['memory-1'],
+        },
+      ],
+      mood: [
+        {
+          key: 'cooperative-composure',
+          statement: 'Maintains cooperative composure.',
+          confidence: 0.75,
+          updatedAt: 12,
+          provenanceRecordIds: ['mood-memory-1'],
         },
       ],
     });

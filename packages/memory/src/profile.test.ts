@@ -16,6 +16,7 @@ describe('long-term agent profile patch application', () => {
       agentId,
       beliefs: [],
       habits: [],
+      mood: [],
       values: [],
       personality: [],
       socialRecords: [],
@@ -108,6 +109,31 @@ describe('long-term agent profile patch application', () => {
         provenanceRecordIds: ['social-1'],
         relationDelta: 0.25,
         attitudeDelta: 0.5,
+      },
+    ]);
+  });
+
+  test('inserts mood patches into the adaptive profile mood section', () => {
+    const agentId = asAgentId('agent-1');
+    const profile = createEmptyLongTermAgentProfile(agentId);
+    const patch: LongTermMemoryPatch = {
+      id: 'patch-mood-cooperative-composure',
+      agentId,
+      section: 'mood',
+      key: 'cooperative-composure',
+      statement: 'Maintains a cooperative and composed mood after social routines.',
+      confidence: 0.75,
+      provenanceRecordIds: [asMemoryRecordId('social-1')],
+      proposedAt: 40,
+    };
+
+    expect(applyLongTermMemoryPatch(profile, patch).mood).toEqual([
+      {
+        key: 'cooperative-composure',
+        statement: 'Maintains a cooperative and composed mood after social routines.',
+        confidence: 0.75,
+        updatedAt: 40,
+        provenanceRecordIds: ['social-1'],
       },
     ]);
   });

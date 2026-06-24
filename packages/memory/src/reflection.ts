@@ -2,7 +2,7 @@ import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
 
-export type ReflectiveInsightKind = 'habit' | 'caution' | 'value' | 'personality';
+export type ReflectiveInsightKind = 'habit' | 'caution' | 'mood' | 'value' | 'personality';
 
 export type ReflectiveInsightRecord = {
   readonly id: string;
@@ -89,6 +89,8 @@ function resolveLongTermPatchTarget(insight: ReflectiveInsightRecord): Pick<
       return { section: 'habits', key: insight.topicKey, idSegment: 'habit' };
     case 'caution':
       return { section: 'beliefs', key: `caution:${insight.topicKey}`, idSegment: 'belief' };
+    case 'mood':
+      return { section: 'mood', key: insight.topicKey, idSegment: 'mood' };
     case 'value':
       return { section: 'values', key: insight.topicKey, idSegment: 'value' };
     case 'personality':
@@ -206,6 +208,15 @@ function createSocialProfileInsights(input: {
   }
 
   return [
+    createInsight({
+      agentId: input.agentId,
+      kind: 'mood',
+      topicKey: 'cooperative-composure',
+      statement: 'Repeated positive social interactions suggest a cooperative and composed mood.',
+      records: evidence,
+      generatedAt: input.generatedAt,
+      tags: ['social', 'mood', 'cooperative-composure'],
+    }),
     createInsight({
       agentId: input.agentId,
       kind: 'personality',

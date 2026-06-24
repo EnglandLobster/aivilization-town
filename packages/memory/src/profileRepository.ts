@@ -51,6 +51,7 @@ function cloneProfile(profile: LongTermAgentProfile): LongTermAgentProfile {
     agentId: profile.agentId,
     beliefs: profile.beliefs.map((entry) => cloneEntry(entry)),
     habits: profile.habits.map((entry) => cloneEntry(entry)),
+    mood: profile.mood.map((entry) => cloneEntry(entry)),
     values: profile.values.map((entry) => cloneEntry(entry)),
     personality: profile.personality.map((entry) => cloneEntry(entry)),
     socialRecords: profile.socialRecords.map((entry) => cloneEntry(entry)),

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { scoreProfileInfluence, type ProfileInfluenceEntryMatch } from './index';
 
 describe('profile influence scoring', () => {
-  test('scores affinity tags against habit, value, personality, and social profile entries', () => {
+  test('scores affinity tags against habit, mood, value, personality, and social profile entries', () => {
     const profile = {
       agentId: asAgentId('agent-1'),
       beliefs: [],
@@ -15,6 +15,15 @@ describe('profile influence scoring', () => {
           confidence: 0.8,
           updatedAt: 10,
           provenanceRecordIds: [asMemoryRecordId('reflection-study-1')],
+        },
+      ],
+      mood: [
+        {
+          key: 'cooperative-composure',
+          statement: 'Maintains a cooperative and composed mood.',
+          confidence: 0.8,
+          updatedAt: 15,
+          provenanceRecordIds: [asMemoryRecordId('reflection-mood-1')],
         },
       ],
       values: [
@@ -51,10 +60,10 @@ describe('profile influence scoring', () => {
     expect(
       scoreProfileInfluence({
         profile,
-        affinityTags: ['study', 'cooperation', 'patient', 'shared food'],
+        affinityTags: ['study', 'cooperative', 'cooperation', 'patient', 'shared food'],
       }),
     ).toEqual({
-      score: 4.05,
+      score: 5.05,
       matches: [
         {
           section: 'habits',
@@ -62,6 +71,13 @@ describe('profile influence scoring', () => {
           tag: 'study',
           contribution: 1.6,
           provenanceRecordIds: ['reflection-study-1'],
+        },
+        {
+          section: 'mood',
+          key: 'cooperative-composure',
+          tag: 'cooperative',
+          contribution: 1,
+          provenanceRecordIds: ['reflection-mood-1'],
         },
         {
           section: 'values',
@@ -95,6 +111,7 @@ describe('profile influence scoring', () => {
           agentId: asAgentId('agent-1'),
           beliefs: [],
           habits: [],
+          mood: [],
           values: [],
           personality: [],
           socialRecords: [],
@@ -125,6 +142,7 @@ describe('profile influence scoring', () => {
             provenanceRecordIds: [],
           },
         ],
+        mood: [],
         values: [],
         personality: [],
         socialRecords: [],

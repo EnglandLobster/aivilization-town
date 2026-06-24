@@ -1,6 +1,11 @@
-import type { AgentIntentionRepository, ScheduledIntention } from '@aivilization/memory';
+import type {
+  AgentIntentionRepository,
+  LongTermAgentProfile,
+  LongTermProfileRepository,
+  ScheduledIntention,
+} from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { WorldProjection } from '@aivilization/world';
+import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -15,6 +20,17 @@ export type DailyRoutineSlot = {
 };
 
 export type DailyRoutineSchedule = readonly DailyRoutineSlot[];
+
+export type DailyRoutineScheduleResolverInput = {
+  readonly agentId: AgentId;
+  readonly agent: WorldAgentState;
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly baseSchedule?: DailyRoutineSchedule;
+};
+
+export type DailyRoutineScheduleResolver = (
+  input: DailyRoutineScheduleResolverInput,
+) => DailyRoutineSchedule;
 
 export type DailyRoutineScheduledIntentionsInput = {
   readonly agentId: AgentId;
@@ -95,14 +111,57 @@ export function createDailyRoutineScheduledIntentions(
     .sort(compareScheduledIntentions);
 }
 
+export function createProfileAwareDailyRoutineSchedule(
+  input: DailyRoutineScheduleResolverInput,
+): DailyRoutineSchedule {
+  assertNonEmpty(input.agentId, 'agentId');
+  const slotsById = new Map<string, DailyRoutineSlot>();
+  for (const slot of input.baseSchedule ?? defaultDailyRoutineSchedule) {
+    assertSlot(slot);
+    slotsById.set(slot.slotId, cloneSlot(slot));
+  }
+
+  const jobShift = createJobRoutineSlot(input.agent);
+  if (jobShift !== undefined) {
+    slotsById.set(jobShift.slotId, jobShift);
+  }
+
+  if (hasStudyHabit(input.longTermProfile)) {
+    slotsById.set('habit-evening-study', {
+      slotId: 'habit-evening-study',
+      description: 'Follow the learned evening self-study habit.',
+      priority: 3,
+      startsAtOffsetMs: 20 * HOUR_MS,
+      endsAtOffsetMs: 22 * HOUR_MS,
+      affinityTags: ['routine', 'study', 'education', 'profile', 'habit'],
+    });
+  }
+
+  if (hasExtrovertedMbti(input.longTermProfile)) {
+    slotsById.set('profile-evening-social', {
+      slotId: 'profile-evening-social',
+      description: 'Extend the evening social routine from extroverted profile preference.',
+      priority: 2.5,
+      startsAtOffsetMs: 20 * HOUR_MS,
+      endsAtOffsetMs: 22 * HOUR_MS,
+      affinityTags: ['routine', 'social', 'community', 'profile', 'mbti'],
+    });
+  }
+
+  return [...slotsById.values()].sort(compareSlots);
+}
+
 export async function renewDailyRoutineScheduledIntentions(input: {
   readonly projection: WorldProjection;
   readonly intentionRepository: AgentIntentionRepository;
+  readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly issuedAt: SimulationTimestamp;
   readonly schedule?: DailyRoutineSchedule;
+  readonly resolveSchedule?: DailyRoutineScheduleResolver;
 }): Promise<readonly DailyRoutineRenewalResult[]> {
   assertFiniteNonNegative(input.issuedAt, 'issuedAt');
   const results: DailyRoutineRenewalResult[] = [];
+  const resolveSchedule = input.resolveSchedule ?? createProfileAwareDailyRoutineSchedule;
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
@@ -110,11 +169,21 @@ export async function renewDailyRoutineScheduledIntentions(input: {
       continue;
     }
 
+    const longTermProfile =
+      input.longTermProfileRepository === undefined
+        ? undefined
+        : await input.longTermProfileRepository.getOrCreate(agent.agentId);
+    const schedule = resolveSchedule({
+      agentId: agent.agentId,
+      agent,
+      ...(longTermProfile === undefined ? {} : { longTermProfile }),
+      baseSchedule: input.schedule ?? defaultDailyRoutineSchedule,
+    });
     const scheduledIntentions = createDailyRoutineScheduledIntentions({
       agentId: agent.agentId,
       at: input.issuedAt,
       createdAt: input.issuedAt,
-      ...(input.schedule === undefined ? {} : { schedule: input.schedule }),
+      schedule,
     });
     await input.intentionRepository.upsertScheduledIntentions(
       agent.agentId,
@@ -127,6 +196,44 @@ export async function renewDailyRoutineScheduledIntentions(input: {
   }
 
   return results;
+}
+
+function createJobRoutineSlot(agent: WorldAgentState): DailyRoutineSlot | undefined {
+  if (agent.job === null || agent.job.trim().length === 0) {
+    return undefined;
+  }
+
+  const jobTag = slugifyTag(agent.job);
+  return {
+    slotId: 'job-work-shift',
+    description: `Work the scheduled ${agent.job} shift.`,
+    priority: 3,
+    startsAtOffsetMs: 9 * HOUR_MS,
+    endsAtOffsetMs: 17 * HOUR_MS,
+    affinityTags: ['routine', 'work', 'income', 'job', jobTag],
+  };
+}
+
+function hasStudyHabit(profile: LongTermAgentProfile | undefined): boolean {
+  if (profile === undefined) {
+    return false;
+  }
+
+  return profile.habits.some((entry) => {
+    const context = `${entry.key} ${entry.statement}`.toLowerCase();
+    return containsAny(context, ['study', 'education', 'learn', 'self-study']);
+  });
+}
+
+function hasExtrovertedMbti(profile: LongTermAgentProfile | undefined): boolean {
+  if (profile === undefined) {
+    return false;
+  }
+
+  return profile.personality.some((entry) => {
+    const match = /mbti:\s*([a-z]{4})/i.exec(entry.statement);
+    return match?.[1]?.toUpperCase().startsWith('E') ?? false;
+  });
 }
 
 function createScheduledIntention(input: {
@@ -150,6 +257,17 @@ function createScheduledIntention(input: {
   };
 }
 
+function cloneSlot(slot: DailyRoutineSlot): DailyRoutineSlot {
+  return {
+    slotId: slot.slotId,
+    description: slot.description,
+    priority: slot.priority,
+    startsAtOffsetMs: slot.startsAtOffsetMs,
+    endsAtOffsetMs: slot.endsAtOffsetMs,
+    affinityTags: [...slot.affinityTags],
+  };
+}
+
 function assertSlot(slot: DailyRoutineSlot): void {
   assertNonEmpty(slot.slotId, 'slotId');
   assertNonEmpty(slot.description, `slot ${slot.slotId} description`);
@@ -170,6 +288,16 @@ function assertSlot(slot: DailyRoutineSlot): void {
   }
 }
 
+function compareSlots(left: DailyRoutineSlot, right: DailyRoutineSlot): number {
+  if (left.startsAtOffsetMs !== right.startsAtOffsetMs) {
+    return left.startsAtOffsetMs - right.startsAtOffsetMs;
+  }
+  if (left.priority !== right.priority) {
+    return right.priority - left.priority;
+  }
+  return left.slotId.localeCompare(right.slotId);
+}
+
 function compareScheduledIntentions(
   left: ScheduledIntention,
   right: ScheduledIntention,
@@ -181,6 +309,19 @@ function compareScheduledIntentions(
     return right.priority - left.priority;
   }
   return left.id.localeCompare(right.id);
+}
+
+function containsAny(value: string, needles: readonly string[]): boolean {
+  return needles.some((needle) => value.includes(needle));
+}
+
+function slugifyTag(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return slug.length === 0 ? 'job' : slug;
 }
 
 function assertNonEmpty(value: string, name: string): void {

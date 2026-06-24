@@ -1330,6 +1330,75 @@ describe('canonical active-plan worker tick', () => {
     });
   });
 
+  test('uses employment-aware routine policy during autonomous objective renewal', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const renewalTraces: unknown[] = [];
+    const issuedAt = 9.5 * hourMs;
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-from-job-routine',
+      simulationId,
+      issuedAt,
+      projection: createWorldProjection({
+        agents: [
+          createAgent(agentA, {
+            physiology: { energy: 90, satiety: 90, health: 100 },
+            educationScore: 150,
+            balance: 200,
+            job: 'Stock Clerk',
+          }),
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          renewalTraces.push(trace);
+        },
+      },
+      ...repositories,
+    });
+
+    expect(renewalTraces).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'auto-objective-agent-a-34200000',
+        selectedCandidateId: 'scheduled-routine-work',
+        rationale: 'Active scheduled intention daily-routine:agent-a:0:job-work-shift is in window.',
+        score: 32,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+        scheduledIntentionIds: ['daily-routine:agent-a:0:job-work-shift'],
+        issuedAt,
+      },
+    ]);
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(
+      intentionState.scheduledIntentions.find(
+        (intention) => intention.id === 'daily-routine:agent-a:0:job-work-shift',
+      ),
+    ).toMatchObject({
+      priority: 3,
+      affinityTags: ['routine', 'work', 'income', 'job', 'stock-clerk'],
+    });
+    expect(intentionState).toMatchObject({
+      activeObjective: {
+        id: 'auto-objective-agent-a-34200000',
+        agentId: agentA,
+        statement: 'Follow the current work routine: Work the scheduled Stock Clerk shift.',
+        priority: 1,
+        source: 'agent',
+        affinityTags: ['routine', 'work', 'income', 'job', 'stock-clerk'],
+        createdAt: issuedAt,
+        updatedAt: issuedAt,
+      },
+    });
+  });
+
   test('passes memory context into objective renewal before canonical scheduling', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

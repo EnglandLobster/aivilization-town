@@ -1,9 +1,14 @@
-import { InMemoryAgentIntentionRepository } from '@aivilization/memory';
+import {
+  InMemoryAgentIntentionRepository,
+  InMemoryLongTermProfileRepository,
+  type LongTermAgentProfile,
+} from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createDailyRoutineScheduledIntentions,
+  createProfileAwareDailyRoutineSchedule,
   renewDailyRoutineScheduledIntentions,
 } from './index';
 
@@ -75,17 +80,142 @@ describe('daily routine scheduling', () => {
     ]);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  test('adds a higher-priority job shift for employed agents', () => {
+    const schedule = createProfileAwareDailyRoutineSchedule({
+      agentId,
+      agent: createAgent(agentId, { job: 'Stock Clerk' }),
+    });
+
+    expect(schedule.find((slot) => slot.slotId === 'job-work-shift')).toEqual({
+      slotId: 'job-work-shift',
+      description: 'Work the scheduled Stock Clerk shift.',
+      priority: 3,
+      startsAtOffsetMs: 9 * hourMs,
+      endsAtOffsetMs: 17 * hourMs,
+      affinityTags: ['routine', 'work', 'income', 'job', 'stock-clerk'],
+    });
+  });
+
+  test('adds evening study from long-term study habits', () => {
+    const schedule = createProfileAwareDailyRoutineSchedule({
+      agentId,
+      agent: createAgent(agentId),
+      longTermProfile: createProfile(agentId, {
+        habits: [
+          {
+            key: 'study-routine',
+            statement: 'Consistently engages in self-study after completing work tasks.',
+            confidence: 0.9,
+            updatedAt: 100,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+    });
+
+    expect(schedule.find((slot) => slot.slotId === 'habit-evening-study')).toMatchObject({
+      description: 'Follow the learned evening self-study habit.',
+      priority: 3,
+      startsAtOffsetMs: 20 * hourMs,
+      endsAtOffsetMs: 22 * hourMs,
+      affinityTags: ['routine', 'study', 'education', 'profile', 'habit'],
+    });
+  });
+
+  test('adds extroverted evening social routine from seeded MBTI profile', () => {
+    const schedule = createProfileAwareDailyRoutineSchedule({
+      agentId,
+      agent: createAgent(agentId),
+      longTermProfile: createProfile(agentId, {
+        personality: [
+          {
+            key: 'initial-mbti',
+            statement: 'MBTI: ENFP.',
+            confidence: 1,
+            updatedAt: 100,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+    });
+
+    expect(schedule.find((slot) => slot.slotId === 'profile-evening-social')).toMatchObject({
+      description: 'Extend the evening social routine from extroverted profile preference.',
+      priority: 2.5,
+      startsAtOffsetMs: 20 * hourMs,
+      endsAtOffsetMs: 22 * hourMs,
+      affinityTags: ['routine', 'social', 'community', 'profile', 'mbti'],
+    });
+  });
+
+  test('uses long-term profile context during repository-backed routine renewal', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const projection = createWorldProjection({ agents: [createAgent(agentId)] });
+    await longTermProfileRepository.save(
+      createProfile(agentId, {
+        habits: [
+          {
+            key: 'study-routine',
+            statement: 'Repeated successful study sessions suggest a reliable study routine.',
+            confidence: 0.8,
+            updatedAt: 100,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+    );
+
+    await renewDailyRoutineScheduledIntentions({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      issuedAt: 20.5 * hourMs,
+    });
+
+    await expect(intentionRepository.getOrCreate(agentId)).resolves.toMatchObject({
+      scheduledIntentions: [
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:early-rest' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:morning-study' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:midday-meal' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:afternoon-work' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:evening-social' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:habit-evening-study' }),
+        expect.objectContaining({ id: 'daily-routine:agent-a:0:night-rest' }),
+      ],
+    });
+  });
 });
 
-function createAgent(agentId: AgentId): WorldAgentState {
+function createAgent(
+  agentId: AgentId,
+  overrides: Partial<Omit<WorldAgentState, 'agentId'>> = {},
+): WorldAgentState {
   return {
     agentId,
-    locationId: null,
-    physiology: { energy: 90, satiety: 90, health: 100 },
-    educationScore: 150,
-    balance: 200,
-    residentialTier: 1,
-    job: null,
-    inventory: {},
+    locationId: overrides.locationId ?? null,
+    physiology: overrides.physiology ?? { energy: 90, satiety: 90, health: 100 },
+    educationScore: overrides.educationScore ?? 150,
+    balance: overrides.balance ?? 200,
+    residentialTier: overrides.residentialTier ?? 1,
+    job: overrides.job ?? null,
+    inventory: overrides.inventory ?? {},
+  };
+}
+
+function createProfile(
+  agentId: AgentId,
+  partial: Partial<Omit<LongTermAgentProfile, 'agentId'>> = {},
+): LongTermAgentProfile {
+  return {
+    agentId,
+    beliefs: [],
+    habits: [],
+    mood: [],
+    values: [],
+    personality: [],
+    socialRecords: [],
+    ...partial,
   };
 }

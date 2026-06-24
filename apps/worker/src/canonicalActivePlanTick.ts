@@ -23,6 +23,7 @@ import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeRe
 import {
   renewDailyRoutineScheduledIntentions,
   type DailyRoutineSchedule,
+  type DailyRoutineScheduleResolver,
 } from './dailyRoutineSchedule';
 import type { WorkerDomainRuntimeRegistration } from './domainRuntimeRegistry';
 import { completeFinishedActiveObjectives } from './objectiveLifecycle';
@@ -58,6 +59,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly objectiveMemoryRetrievalLimit?: number;
   readonly dailyRoutineSchedule?: DailyRoutineSchedule | null;
+  readonly dailyRoutineScheduleResolver?: DailyRoutineScheduleResolver;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
@@ -91,10 +93,14 @@ export async function runCanonicalWorkerActivePlanTick(
     await renewDailyRoutineScheduledIntentions({
       projection,
       intentionRepository: input.intentionRepository,
+      longTermProfileRepository: input.longTermProfileRepository,
       issuedAt: input.issuedAt,
       ...(input.dailyRoutineSchedule === undefined
         ? {}
         : { schedule: input.dailyRoutineSchedule }),
+      ...(input.dailyRoutineScheduleResolver === undefined
+        ? {}
+        : { resolveSchedule: input.dailyRoutineScheduleResolver }),
     });
   }
   await renewMissingActiveObjectives({

@@ -22,9 +22,20 @@ export type BranchPlanLookup = {
   readonly agentId: AgentId;
 };
 
+export type BranchPlanQuery = {
+  readonly planId?: string;
+  readonly agentId?: AgentId;
+  readonly fromCreatedAt?: number;
+  readonly toCreatedAt?: number;
+  readonly fromUpdatedAt?: number;
+  readonly toUpdatedAt?: number;
+  readonly limit?: number;
+};
+
 export type BranchPlanRepository = {
   readonly get: (lookup: BranchPlanLookup) => Promise<BranchPlanRecord | undefined>;
   readonly require: (lookup: BranchPlanLookup) => Promise<BranchPlanRecord>;
+  readonly query: (query: BranchPlanQuery) => Promise<BranchPlanRecord[]>;
   readonly save: (record: BranchPlanRecord) => Promise<void>;
 };
 
@@ -42,6 +53,10 @@ export class InMemoryBranchPlanRepository implements BranchPlanRepository {
       throw new Error(notFoundMessage(lookup));
     }
     return record;
+  }
+
+  query(query: BranchPlanQuery): Promise<BranchPlanRecord[]> {
+    return Promise.resolve(queryBranchPlanRecords([...this.recordsByKey.values()], query));
   }
 
   save(record: BranchPlanRecord): Promise<void> {
@@ -76,10 +91,59 @@ export class FileBranchPlanRepository implements BranchPlanRepository {
     return record;
   }
 
+  query(query: BranchPlanQuery): Promise<BranchPlanRecord[]> {
+    return Promise.resolve().then(() =>
+      queryBranchPlanRecords(
+        latestRecordsByPlanKey(readJsonLines<BranchPlanRecord>(this.plansPath)),
+        query,
+      ),
+    );
+  }
+
   save(record: BranchPlanRecord): Promise<void> {
     appendJsonLines(this.plansPath, [cloneRecord(record)]);
     return Promise.resolve();
   }
+}
+
+function latestRecordsByPlanKey(records: readonly BranchPlanRecord[]): readonly BranchPlanRecord[] {
+  const latestByKey = new Map<string, BranchPlanRecord>();
+  for (const record of records) {
+    latestByKey.set(planKey(record.planId, record.agentId), record);
+  }
+  return [...latestByKey.values()];
+}
+
+function queryBranchPlanRecords(
+  records: readonly BranchPlanRecord[],
+  query: BranchPlanQuery,
+): BranchPlanRecord[] {
+  assertValidQuery(query);
+  return records
+    .map((record) => cloneRecord(record))
+    .filter((record) => query.planId === undefined || record.planId === query.planId)
+    .filter((record) => query.agentId === undefined || record.agentId === query.agentId)
+    .filter(
+      (record) => query.fromCreatedAt === undefined || record.createdAt >= query.fromCreatedAt,
+    )
+    .filter((record) => query.toCreatedAt === undefined || record.createdAt <= query.toCreatedAt)
+    .filter(
+      (record) => query.fromUpdatedAt === undefined || record.updatedAt >= query.fromUpdatedAt,
+    )
+    .filter((record) => query.toUpdatedAt === undefined || record.updatedAt <= query.toUpdatedAt)
+    .sort(compareBranchPlanRecordsLatestFirst)
+    .slice(0, query.limit)
+    .map((record) => cloneRecord(record));
+}
+
+function compareBranchPlanRecordsLatestFirst(
+  left: BranchPlanRecord,
+  right: BranchPlanRecord,
+): number {
+  if (left.updatedAt !== right.updatedAt) {
+    return right.updatedAt - left.updatedAt;
+  }
+  return planKey(right.planId, right.agentId).localeCompare(planKey(left.planId, left.agentId));
 }
 
 function cloneRecord(record: BranchPlanRecord): BranchPlanRecord {
@@ -171,6 +235,27 @@ function planKey(planId: string, agentId: AgentId): string {
 
 function notFoundMessage(lookup: BranchPlanLookup): string {
   return `branch plan ${lookup.planId} for agent ${lookup.agentId} was not found`;
+}
+
+function assertValidQuery(query: BranchPlanQuery): void {
+  if (query.planId !== undefined) {
+    assertNonEmpty(query.planId, 'planId');
+  }
+  if (query.fromCreatedAt !== undefined) {
+    assertFiniteNumber(query.fromCreatedAt, 'fromCreatedAt');
+  }
+  if (query.toCreatedAt !== undefined) {
+    assertFiniteNumber(query.toCreatedAt, 'toCreatedAt');
+  }
+  if (query.fromUpdatedAt !== undefined) {
+    assertFiniteNumber(query.fromUpdatedAt, 'fromUpdatedAt');
+  }
+  if (query.toUpdatedAt !== undefined) {
+    assertFiniteNumber(query.toUpdatedAt, 'toUpdatedAt');
+  }
+  if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1)) {
+    throw new Error('limit must be a positive integer');
+  }
 }
 
 function ensureFile(filePath: string, rootDir: string): void {

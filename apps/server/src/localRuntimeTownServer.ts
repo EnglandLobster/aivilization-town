@@ -12,6 +12,8 @@ import {
   createLocalSimulationRuntimeRunQueueWorker,
   createLocalSimulationRuntimeRunQueueWorkerApiService,
   createLocalSimulationRuntimeRunQueueWorkerHost,
+  createLocalSimulationRuntimeScheduler,
+  createLocalSimulationRuntimeSchedulerHost,
   createLocalSimulationRuntimeSupervisor,
   createLocalSimulationRuntimeSupervisorApiService,
   FileLocalSimulationRuntimeRunQueueRepository,
@@ -20,6 +22,7 @@ import {
   type LocalSimulationRuntimeRunQueueApiService,
   type LocalSimulationRuntimeRunQueueWorkerApiService,
   type LocalSimulationRuntimeRunQueueWorkerHost,
+  type LocalSimulationRuntimeSchedulerHost,
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorApiService,
 } from '@aivilization/worker';
@@ -32,8 +35,20 @@ export type LocalRuntimeTownRunQueueWorkerInput = {
   readonly autoStart?: boolean;
 };
 
+export type LocalRuntimeTownSchedulerInput = {
+  readonly schedulerId?: string;
+  readonly cycleCount?: number;
+  readonly cycleIntervalMs?: number;
+  readonly stopOnAttention?: boolean;
+  readonly maxPendingJobs?: number;
+  readonly allowWhenDeadLettered?: boolean;
+  readonly scheduleIntervalMs?: number;
+  readonly autoStart?: boolean;
+};
+
 export type LocalRuntimeTownServerInput = LocalSimulationRuntimeHostInput & {
   readonly runtimeRunQueue?: LocalRuntimeTownRunQueueWorkerInput;
+  readonly runtimeScheduler?: LocalRuntimeTownSchedulerInput;
 };
 
 export type LocalRuntimeTownApi = {
@@ -43,6 +58,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeRunQueueApi: LocalSimulationRuntimeRunQueueApiService;
   readonly runtimeRunQueueWorkerApi: LocalSimulationRuntimeRunQueueWorkerApiService;
   readonly runQueueWorkerHost: LocalSimulationRuntimeRunQueueWorkerHost;
+  readonly runQueueSchedulerHost?: LocalSimulationRuntimeSchedulerHost;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -76,6 +92,32 @@ export async function createLocalRuntimeTownApi(
       ? {}
       : { maxJobsPerPoll: input.runtimeRunQueue.maxJobsPerPoll }),
   });
+  const runQueueSchedulerHost =
+    input.runtimeScheduler === undefined
+      ? undefined
+      : createLocalSimulationRuntimeSchedulerHost({
+          scheduler: createLocalSimulationRuntimeScheduler({
+            manifestId: host.manifestId,
+            queueRepository: runQueueRepository,
+            policy: {
+              schedulerId: input.runtimeScheduler.schedulerId ?? `${host.manifestId}:scheduler`,
+              cycleCount: input.runtimeScheduler.cycleCount ?? 1,
+              ...(input.runtimeScheduler.cycleIntervalMs === undefined
+                ? {}
+                : { cycleIntervalMs: input.runtimeScheduler.cycleIntervalMs }),
+              ...(input.runtimeScheduler.stopOnAttention === undefined
+                ? {}
+                : { stopOnAttention: input.runtimeScheduler.stopOnAttention }),
+              ...(input.runtimeScheduler.maxPendingJobs === undefined
+                ? {}
+                : { maxPendingJobs: input.runtimeScheduler.maxPendingJobs }),
+              ...(input.runtimeScheduler.allowWhenDeadLettered === undefined
+                ? {}
+                : { allowWhenDeadLettered: input.runtimeScheduler.allowWhenDeadLettered }),
+            },
+          }),
+          scheduleIntervalMs: input.runtimeScheduler.scheduleIntervalMs ?? 1_000,
+        });
   const runtimeRunQueueWorkerApi = createLocalSimulationRuntimeRunQueueWorkerApiService({
     host: runQueueWorkerHost,
   });
@@ -93,6 +135,7 @@ export async function createLocalRuntimeTownApi(
     runtimeRunQueueApi,
     runtimeRunQueueWorkerApi,
     runQueueWorkerHost,
+    ...(runQueueSchedulerHost === undefined ? {} : { runQueueSchedulerHost }),
     handler,
   };
 }
@@ -111,9 +154,13 @@ export async function createLocalRuntimeTownNodeHttpServer(
   });
   server.on('close', () => {
     api.runQueueWorkerHost.stop();
+    api.runQueueSchedulerHost?.stop();
   });
   if (input.runtimeRunQueue?.autoStart ?? false) {
     api.runQueueWorkerHost.start();
+  }
+  if ((input.runtimeScheduler?.autoStart ?? false) && api.runQueueSchedulerHost !== undefined) {
+    api.runQueueSchedulerHost.start();
   }
   return {
     ...api,

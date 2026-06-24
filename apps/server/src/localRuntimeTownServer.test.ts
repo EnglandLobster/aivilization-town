@@ -473,6 +473,53 @@ describe('local runtime town HTTP gateway', () => {
       ],
     });
   });
+
+  test('optionally wires a runtime scheduler host into the local server API', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      runtimeScheduler: {
+        schedulerId: 'main-loop',
+        cycleCount: 2,
+        cycleIntervalMs: 50,
+        scheduleIntervalMs: 1_000,
+      },
+    });
+    const server = await listen(runtime.server);
+
+    const scheduled = await runtime.runQueueSchedulerHost?.runOnce();
+    expect(scheduled).toMatchObject({
+      status: 'enqueued',
+      job: {
+        manifestId: 'town-runtime',
+        status: 'queued',
+        runRequest: {
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+        },
+      },
+    });
+    if (scheduled?.status !== 'enqueued') {
+      throw new Error('expected scheduler to enqueue a run job');
+    }
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/${encodeURIComponent(scheduled.job.jobId)}`),
+    ).resolves.toMatchObject({
+      jobId: scheduled.job.jobId,
+      manifestId: 'town-runtime',
+      status: 'queued',
+      runRequest: {
+        cycleCount: 2,
+        cycleIntervalMs: 50,
+      },
+    });
+  });
 });
 
 function createRootDir(): string {

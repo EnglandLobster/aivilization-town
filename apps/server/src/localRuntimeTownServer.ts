@@ -1,10 +1,12 @@
 import {
   createSimulationSyncSseRoute,
+  createRuntimeProfileRunReportApiService,
   createTownHttpApiHandler,
   createTownNodeHttpServer,
   type TownHttpApiHandler,
 } from '@aivilization/api';
 import type { Server } from 'node:http';
+import type { RuntimeProfileRunReportRepository } from '@aivilization/observability';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
   createLocalSimulationRuntimeSupervisor,
@@ -28,6 +30,7 @@ export type LocalRuntimeTownServerInput = LocalSimulationRuntimeHostInput & {
   readonly runtimeRunQueue?: LocalRuntimeTownRunQueueWorkerInput;
   readonly runtimeScheduler?: LocalRuntimeTownSchedulerInput;
   readonly runtimeRecovery?: LocalRuntimeTownRecoveryInput;
+  readonly runtimeProfileRunReports?: RuntimeProfileRunReportRepository;
 };
 
 export type LocalRuntimeTownApi = {
@@ -43,6 +46,7 @@ export type LocalRuntimeTownApi = {
   readonly runQueueRecoveryHost?: LocalRuntimeTownOrchestration['runQueueRecoveryHost'];
   readonly runtimeRecoveryApi?: LocalRuntimeTownOrchestration['runtimeRecoveryApi'];
   readonly runtimeDaemonApi: LocalRuntimeTownOrchestration['runtimeDaemonApi'];
+  readonly runtimeProfileRunReportsApi?: ReturnType<typeof createRuntimeProfileRunReportApiService>;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -63,6 +67,15 @@ export async function createLocalRuntimeTownApi(
     ...(input.runtimeScheduler === undefined ? {} : { runtimeScheduler: input.runtimeScheduler }),
     ...(input.runtimeRecovery === undefined ? {} : { runtimeRecovery: input.runtimeRecovery }),
   });
+  const runtimeProfileRunReportsApi =
+    input.runtimeProfileRunReports === undefined
+      ? undefined
+      : createRuntimeProfileRunReportApiService({
+          reports: {
+            getReport: (request) => input.runtimeProfileRunReports?.get(request.runId),
+            queryReports: (request) => input.runtimeProfileRunReports?.query(request) ?? [],
+          },
+        });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     runtimeSupervisor: runtimeSupervisorApi,
@@ -75,6 +88,9 @@ export async function createLocalRuntimeTownApi(
       ? {}
       : { runtimeRecovery: runtimeOrchestration.runtimeRecoveryApi }),
     runtimeDaemon: runtimeOrchestration.runtimeDaemonApi,
+    ...(runtimeProfileRunReportsApi === undefined
+      ? {}
+      : { runtimeProfileRunReports: runtimeProfileRunReportsApi }),
   });
 
   return {
@@ -98,6 +114,7 @@ export async function createLocalRuntimeTownApi(
       ? {}
       : { runtimeRecoveryApi: runtimeOrchestration.runtimeRecoveryApi }),
     runtimeDaemonApi: runtimeOrchestration.runtimeDaemonApi,
+    ...(runtimeProfileRunReportsApi === undefined ? {} : { runtimeProfileRunReportsApi }),
     handler,
   };
 }

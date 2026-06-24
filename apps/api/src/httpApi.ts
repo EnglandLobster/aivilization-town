@@ -5,6 +5,11 @@ import type {
 } from './runtimeSupervisorApi';
 import type { RuntimeDaemonApiService } from './runtimeDaemonApi';
 import type {
+  RuntimeProfileRunReportApiService,
+  RuntimeProfileRunReportLookupRequest,
+  RuntimeProfileRunReportQueryRequest,
+} from './runtimeProfileRunReportApi';
+import type {
   RuntimeRunQueueApiService,
   RuntimeRunQueueJobQueryRequest,
   RuntimeRunQueueJobStatus,
@@ -98,6 +103,7 @@ export type TownHttpApiServices<
     TRuntimeRecoveryReport
   >;
   readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
+  readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -237,6 +243,7 @@ async function routeTownHttpRequest<
       services.runtimeScheduler,
       services.runtimeRecovery,
       services.runtimeDaemon,
+      services.runtimeProfileRunReports,
       request,
       segments,
     );
@@ -378,6 +385,7 @@ async function routeRuntimeRequest<
     | RuntimeRecoveryApiService<TRuntimeRecoveryStatus, TRuntimeRecoveryReport>
     | undefined,
   runtimeDaemon: RuntimeDaemonApiService<TRuntimeDaemonStatus> | undefined,
+  runtimeProfileRunReports: RuntimeProfileRunReportApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   segments: readonly string[],
 ): Promise<TownHttpApiResponse> {
@@ -390,6 +398,34 @@ async function routeRuntimeRequest<
       assertMethod(request, 'GET');
       return jsonResponse(200, await runtimeDaemon.getRuntimeDaemonStatus());
     }
+  }
+  if (segments.length === 2 && segments[1] === 'profile-run-reports') {
+    if (runtimeProfileRunReports === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    return jsonResponse(
+      200,
+      await runtimeProfileRunReports.queryRuntimeProfileRunReports(
+        createRuntimeProfileRunReportQueryRequest(request.query),
+      ),
+    );
+  }
+  if (segments.length === 3 && segments[1] === 'profile-run-reports') {
+    if (runtimeProfileRunReports === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    const runId = segments[2];
+    if (runId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      200,
+      await runtimeProfileRunReports.getRuntimeProfileRunReport(
+        createRuntimeProfileRunReportLookupRequest(decodePathPart(runId)),
+      ),
+    );
   }
   if (segments.length === 3 && segments[1] === 'scheduler') {
     if (runtimeScheduler === undefined) {
@@ -773,6 +809,27 @@ function createRuntimeRunQueueJobQueryRequest(
   return {
     ...optionalQueryString(query, 'status', parseRuntimeRunQueueJobStatus),
     ...optionalQueryString(query, 'manifestId'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createRuntimeProfileRunReportLookupRequest(
+  runId: string,
+): RuntimeProfileRunReportLookupRequest {
+  return { runId };
+}
+
+function createRuntimeProfileRunReportQueryRequest(
+  query: TownHttpApiRequest['query'],
+): RuntimeProfileRunReportQueryRequest {
+  return {
+    ...optionalQueryString(query, 'runId'),
+    ...optionalQueryString(query, 'profileId'),
+    ...optionalQueryNumber(query, 'fromGeneratedAt'),
+    ...optionalQueryNumber(query, 'toGeneratedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

@@ -99,6 +99,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     runtimeRunQueue: profile.runtimeRunQueue,
     runtimeScheduler: profile.runtimeScheduler,
     runtimeRecovery: profile.runtimeRecovery,
+    ...(input.profileRunReportRepository === undefined
+      ? {}
+      : { runtimeProfileRunReports: input.profileRunReportRepository }),
   });
   const run = await runtime.supervisor.runCycles({
     operationId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,

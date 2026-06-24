@@ -9,7 +9,11 @@ import {
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import { type ScenarioPreset } from '@aivilization/content';
-import { createExperimentValidationReport } from '@aivilization/observability';
+import {
+  InMemoryRuntimeProfileRunReportRepository,
+  createExperimentValidationReport,
+  createRuntimeProfileRunReport,
+} from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import {
@@ -98,6 +102,7 @@ describe('local runtime town HTTP gateway', () => {
   });
 
   test('serves supervisor and projection routes from a manifest-bootstrapped local runtime', async () => {
+    const profileRunReportRepository = new InMemoryRuntimeProfileRunReportRepository();
     const runtime = await createLocalRuntimeTownNodeHttpServer({
       rootDir: createRootDir(),
       bootstrappedAt: 100,
@@ -107,6 +112,7 @@ describe('local runtime town HTTP gateway', () => {
       localizedPlanners: [],
       steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
       agents: [],
+      runtimeProfileRunReports: profileRunReportRepository,
     });
     const server = await listen(runtime.server);
 
@@ -228,6 +234,25 @@ describe('local runtime town HTTP gateway', () => {
         },
       },
     ]);
+    await profileRunReportRepository.record(createProfileRunReport());
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/profile-run-reports?profileId=smoke-25&limit=1`),
+    ).resolves.toMatchObject([
+      {
+        runId: 'run-server-1',
+        profileId: 'smoke-25',
+        manifestId: 'aivilization-smoke-25',
+        totalProjectionAgentCount: 25,
+      },
+    ]);
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/profile-run-reports/run-server-1`),
+    ).resolves.toMatchObject({
+      runId: 'run-server-1',
+      profileId: 'smoke-25',
+      manifestId: 'aivilization-smoke-25',
+      totalProjectionAgentCount: 25,
+    });
 
     const trace = await fetchJson(`${server.baseUrl}/runtime/operation-traces/op-start-all-200`);
     expect(trace).toMatchObject({
@@ -940,6 +965,40 @@ function createValidationReport() {
     thresholds: {
       heavyTailReturns: { minimumExcessKurtosis: -2 },
     },
+  });
+}
+
+function createProfileRunReport() {
+  return createRuntimeProfileRunReport({
+    runId: 'run-server-1',
+    profileId: 'smoke-25',
+    manifestId: 'aivilization-smoke-25',
+    rootDir: '/tmp/aivilization-profile-run-server',
+    generatedAt: 600,
+    requestedAt: 500,
+    daemonHealth: 'healthy',
+    outcome: 'succeeded',
+    requestedCycleCount: 1,
+    completedCycleCount: 1,
+    stopReason: 'cycle-count-completed',
+    partitionCount: 1,
+    totalProjectionAgentCount: 25,
+    totalEventCount: 10,
+    totalAgentTraceCount: 5,
+    partitions: [
+      {
+        simulationId: 'aivilization-smoke-25',
+        partitionKey: 'world-main',
+        scenarioPresetId: 'aivilization-smoke-25-world-main',
+        status: 'completed',
+        health: 'healthy',
+        lastAppliedSequence: 10,
+        streamVersion: 10,
+        eventCount: 10,
+        projectionAgentCount: 25,
+        agentTraceCount: 5,
+      },
+    ],
   });
 }
 

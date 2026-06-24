@@ -2,6 +2,7 @@ export * from './commandStoreSubmission';
 export * from './httpApi';
 export * from './nodeHttpServer';
 export * from './runtimeDaemonApi';
+export * from './runtimeProfileRunReportApi';
 export * from './runtimeRunQueueApi';
 export * from './runtimeRunQueueWorkerApi';
 export * from './runtimeRecoveryApi';

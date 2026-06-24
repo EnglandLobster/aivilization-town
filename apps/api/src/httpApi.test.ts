@@ -8,6 +8,7 @@ import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
 import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
 import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
+import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -159,6 +160,12 @@ type TestRuntimeDaemonStatus = {
       readonly health: 'healthy' | 'degraded' | 'attention';
     };
   };
+};
+
+type TestRuntimeProfileRunReport = {
+  readonly runId: string;
+  readonly profileId: string;
+  readonly generatedAt: number;
 };
 
 describe('town HTTP API router', () => {
@@ -865,6 +872,83 @@ describe('town HTTP API router', () => {
     expect(calls).toEqual([{ method: 'getRuntimeDaemonStatus' }]);
   });
 
+  test('routes runtime profile run report requests to the optional report service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeProfileRunReports: createRuntimeProfileRunReportService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports',
+        query: {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          fromGeneratedAt: '100',
+          toGeneratedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          generatedAt: 200,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports/aivilization-smoke-25%3Aprofile-run%3A100',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        runId: 'aivilization-smoke-25:profile-run:100',
+        profileId: 'smoke-25',
+        generatedAt: 200,
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryRuntimeProfileRunReports',
+        request: {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'getRuntimeProfileRunReport',
+        request: { runId: 'aivilization-smoke-25:profile-run:100' },
+      },
+    ]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
@@ -1397,6 +1481,31 @@ function createRuntimeDaemonService(
           runQueue: { health: 'degraded' },
         },
       });
+    },
+  };
+}
+
+function createRuntimeProfileRunReportService(
+  calls: unknown[],
+): RuntimeProfileRunReportApiService<TestRuntimeProfileRunReport> {
+  return {
+    getRuntimeProfileRunReport: (request) => {
+      calls.push({ method: 'getRuntimeProfileRunReport', request });
+      return Promise.resolve({
+        runId: request.runId,
+        profileId: 'smoke-25',
+        generatedAt: 200,
+      });
+    },
+    queryRuntimeProfileRunReports: (request) => {
+      calls.push({ method: 'queryRuntimeProfileRunReports', request });
+      return Promise.resolve([
+        {
+          runId: request.runId ?? 'aivilization-smoke-25:profile-run:100',
+          profileId: request.profileId ?? 'smoke-25',
+          generatedAt: 200,
+        },
+      ]);
     },
   };
 }

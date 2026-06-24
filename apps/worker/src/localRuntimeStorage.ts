@@ -8,6 +8,8 @@ import {
   FileShortTermMemoryRepository,
 } from '@aivilization/memory';
 import {
+  FileCommandConsumerCheckpointStore,
+  FileCommandStore,
   FileEventStore,
   FileProjectionCheckpointStore,
   FileProjectionSnapshotStore,
@@ -22,11 +24,14 @@ import type {
   WorkerTickProjectionCheckpointHydrationInput,
   WorkerTickProjectionCheckpointingInput,
 } from './tickRunner';
+import type { WorkerSteeringCommand } from './steering';
 
 export type LocalWorldRuntimeStoragePaths = {
   readonly rootDir: string;
   readonly simulationDir: string;
   readonly partitionDir: string;
+  readonly commandStoreDir: string;
+  readonly commandConsumerCheckpointStoreDir: string;
   readonly eventStoreDir: string;
   readonly checkpointStoreDir: string;
   readonly snapshotStoreDir: string;
@@ -45,6 +50,8 @@ export type LocalWorldRuntimeRepositories = {
 
 export type LocalWorldRuntimeStorage = {
   readonly partition: SimulationPartition;
+  readonly commandStore: FileCommandStore<WorkerSteeringCommand>;
+  readonly commandConsumerCheckpointStore: FileCommandConsumerCheckpointStore;
   readonly eventStore: FileEventStore<WorldEvent>;
   readonly checkpointStore: FileProjectionCheckpointStore;
   readonly snapshotStore: FileProjectionSnapshotStore<WorldProjection>;
@@ -73,6 +80,12 @@ export function createLocalWorldRuntimeStorage(input: {
     rootDir: input.rootDir,
     simulationId: partition.simulationId,
     partitionKey: partition.partitionKey,
+  });
+  const commandStore = new FileCommandStore<WorkerSteeringCommand>({
+    rootDir: paths.commandStoreDir,
+  });
+  const commandConsumerCheckpointStore = new FileCommandConsumerCheckpointStore({
+    rootDir: paths.commandConsumerCheckpointStoreDir,
   });
   const eventStore = new FileEventStore<WorldEvent>({ rootDir: paths.eventStoreDir });
   const checkpointStore = new FileProjectionCheckpointStore({
@@ -112,6 +125,8 @@ export function createLocalWorldRuntimeStorage(input: {
 
   return {
     partition,
+    commandStore,
+    commandConsumerCheckpointStore,
     eventStore,
     checkpointStore,
     snapshotStore,
@@ -141,6 +156,8 @@ function createLocalWorldRuntimeStoragePaths(input: {
     rootDir,
     simulationDir,
     partitionDir,
+    commandStoreDir: join(partitionDir, 'commands'),
+    commandConsumerCheckpointStoreDir: join(partitionDir, 'command-consumer-checkpoints'),
     eventStoreDir: join(partitionDir, 'events'),
     checkpointStoreDir: join(partitionDir, 'checkpoints'),
     snapshotStoreDir: join(partitionDir, 'snapshots'),

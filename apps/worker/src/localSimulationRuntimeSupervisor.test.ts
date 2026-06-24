@@ -1,4 +1,5 @@
 import { createAmmPool } from '@aivilization/economy';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asLocationId, createEventEnvelope, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies, type WorldEvent } from '@aivilization/world';
@@ -9,6 +10,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
   createLocalSimulationRuntimeSupervisor,
+  type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationLifecycleValidationSchedule,
   type LocalSimulationRuntimeManifest,
   type LocalWorldRuntimeStorage,
@@ -439,6 +441,141 @@ describe('local simulation runtime supervisor', () => {
       ],
     });
   });
+
+  test('records memory consolidation summaries in start-all operation traces and status', async () => {
+    const host = await bootstrapTestHost({
+      memoryConsolidationSchedule: createMemoryConsolidationSchedule(),
+    });
+    await appendStudyMemories(host.partitions[0]!.bootstrap.storage, agentOne);
+    await appendStudyMemories(host.partitions[1]!.bootstrap.storage, agentTwo);
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-memory-600',
+      requestedAt: 600,
+    });
+
+    expect(startResult.outcome).toBe('succeeded');
+    expect(
+      startResult.status.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        health: partition.health,
+        lastMemoryConsolidationStatus: partition.lastMemoryConsolidationStatus,
+        lastMemoryConsolidationPatchCount: partition.lastMemoryConsolidationPatchCount,
+        lastMemoryConsolidationCursorCount: partition.lastMemoryConsolidationCursorCount,
+        lastMemoryConsolidationAgentCount: partition.lastMemoryConsolidationAgentCount,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        health: 'healthy',
+        lastMemoryConsolidationStatus: 'succeeded',
+        lastMemoryConsolidationPatchCount: 1,
+        lastMemoryConsolidationCursorCount: 1,
+        lastMemoryConsolidationAgentCount: 1,
+      },
+      {
+        partitionKey: 'world-east',
+        health: 'healthy',
+        lastMemoryConsolidationStatus: 'succeeded',
+        lastMemoryConsolidationPatchCount: 1,
+        lastMemoryConsolidationCursorCount: 1,
+        lastMemoryConsolidationAgentCount: 1,
+      },
+    ]);
+    await expect(supervisor.getOperationTrace('op-start-memory-600')).resolves.toMatchObject({
+      traceId: 'op-start-memory-600',
+      outcome: 'succeeded',
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+          memoryConsolidation: {
+            agentCount: 1,
+            patchCount: 1,
+            cursorCount: 1,
+            consolidatedAt: 600,
+          },
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'succeeded',
+          status: 'completed',
+          memoryConsolidation: {
+            agentCount: 1,
+            patchCount: 1,
+            cursorCount: 1,
+            consolidatedAt: 600,
+          },
+        },
+      ],
+    });
+  });
+
+  test('keeps completed start-all partitions successful when memory consolidation fails', async () => {
+    const host = await bootstrapTestHost({
+      memoryConsolidationSchedule: createFailingMemoryConsolidationSchedule(),
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-memory-failure-700',
+      requestedAt: 700,
+    });
+
+    expect(startResult.outcome).toBe('succeeded');
+    expect(startResult.succeededPartitionCount).toBe(2);
+    expect(startResult.failedPartitionCount).toBe(0);
+    expect(startResult.status.attentionPartitionCount).toBe(2);
+    expect(
+      startResult.status.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        health: partition.health,
+        lastMemoryConsolidationStatus: partition.lastMemoryConsolidationStatus,
+        lastMemoryConsolidationFailure: partition.lastMemoryConsolidationFailure?.message,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        health: 'attention',
+        lastMemoryConsolidationStatus: 'failed',
+        lastMemoryConsolidationFailure: 'limit must be a positive integer',
+      },
+      {
+        partitionKey: 'world-east',
+        health: 'attention',
+        lastMemoryConsolidationStatus: 'failed',
+        lastMemoryConsolidationFailure: 'limit must be a positive integer',
+      },
+    ]);
+    await expect(
+      supervisor.getOperationTrace('op-start-memory-failure-700'),
+    ).resolves.toMatchObject({
+      traceId: 'op-start-memory-failure-700',
+      outcome: 'succeeded',
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+          memoryConsolidationFailure: {
+            name: 'Error',
+            message: 'limit must be a positive integer',
+          },
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'succeeded',
+          status: 'completed',
+          memoryConsolidationFailure: {
+            name: 'Error',
+            message: 'limit must be a positive integer',
+          },
+        },
+      ],
+    });
+  });
 });
 
 function toStatusSummary(
@@ -467,6 +604,7 @@ function toStatusSummary(
 async function bootstrapTestHost(
   input: {
     readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
+    readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
   } = {},
 ) {
   return bootstrapLocalSimulationRuntimeHostFromManifest({
@@ -481,6 +619,9 @@ async function bootstrapTestHost(
     ...(input.validationSchedule === undefined
       ? {}
       : { validationSchedule: input.validationSchedule }),
+    ...(input.memoryConsolidationSchedule === undefined
+      ? {}
+      : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
   });
 }
 
@@ -586,6 +727,32 @@ function appendTradeEvents(
   });
 }
 
+async function appendStudyMemories(
+  storage: LocalWorldRuntimeStorage,
+  agentId: AgentId,
+): Promise<void> {
+  await storage.shortTermMemoryRepository.appendMany(
+    [1, 2, 3].map((index) =>
+      createShortTermMemoryRecord({
+        id: `${storage.partition.partitionKey}:study-memory-${agentId}-${index}`,
+        agentId,
+        kind: 'action',
+        status: 'succeeded',
+        summary: 'Completed a focused study session.',
+        occurredAt: index,
+        importanceScore: 0.6,
+        source: { eventIds: [] },
+        tags: ['study'],
+        consolidationHint: {
+          kind: 'habit',
+          patternKey: 'study-before-work',
+          statement: 'Studies before starting work.',
+        },
+      }),
+    ),
+  );
+}
+
 function createTradeEvent(input: {
   readonly id: string;
   readonly agentId: AgentId;
@@ -639,6 +806,20 @@ function createFailingValidationSchedule(): LocalSimulationLifecycleValidationSc
       { agentId: 'agent-1', stepCount: 1 },
       { agentId: 'agent-2', stepCount: 1 },
     ],
+  };
+}
+
+function createMemoryConsolidationSchedule(): LocalSimulationLifecycleMemoryConsolidationSchedule {
+  return {
+    retrievalLimit: 10,
+    minPatternCount: 3,
+  };
+}
+
+function createFailingMemoryConsolidationSchedule(): LocalSimulationLifecycleMemoryConsolidationSchedule {
+  return {
+    retrievalLimit: 0,
+    minPatternCount: 3,
   };
 }
 

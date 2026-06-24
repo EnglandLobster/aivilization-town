@@ -26,6 +26,19 @@ export type LocalSimulationRuntimeOperationValidationFailureTrace = {
   readonly stack?: string;
 };
 
+export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {
+  readonly agentCount: number;
+  readonly patchCount: number;
+  readonly cursorCount: number;
+  readonly consolidatedAt: SimulationTimestamp;
+};
+
+export type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+};
+
 export type LocalSimulationRuntimeOperationPartitionTrace =
   | {
       readonly simulationId: string;
@@ -34,6 +47,8 @@ export type LocalSimulationRuntimeOperationPartitionTrace =
       readonly status: string;
       readonly validationReport?: LocalSimulationRuntimeOperationValidationReportTrace;
       readonly validationFailure?: LocalSimulationRuntimeOperationValidationFailureTrace;
+      readonly memoryConsolidation?: LocalSimulationRuntimeOperationMemoryConsolidationTrace;
+      readonly memoryConsolidationFailure?: LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace;
     }
   | {
       readonly simulationId: string;

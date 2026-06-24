@@ -34,6 +34,8 @@ export type LocalSimulationLifecycleStatus =
 
 export type LocalSimulationLifecycleValidationStatus = 'succeeded' | 'failed';
 
+export type LocalSimulationLifecycleMemoryConsolidationStatus = 'succeeded' | 'failed';
+
 export type LocalSimulationLifecycleValidationFailure = {
   readonly name: string;
   readonly message: string;
@@ -53,6 +55,12 @@ export type LocalSimulationLifecycleState = {
   readonly lastValidationReportRunId?: string;
   readonly lastValidationGeneratedAt?: SimulationTimestamp;
   readonly lastValidationFailure?: LocalSimulationLifecycleValidationFailure;
+  readonly lastMemoryConsolidationStatus?: LocalSimulationLifecycleMemoryConsolidationStatus;
+  readonly lastMemoryConsolidationAt?: SimulationTimestamp;
+  readonly lastMemoryConsolidationAgentCount?: number;
+  readonly lastMemoryConsolidationPatchCount?: number;
+  readonly lastMemoryConsolidationCursorCount?: number;
+  readonly lastMemoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationLifecycleStateLookup = {
@@ -276,7 +284,7 @@ export function createLocalSimulationLifecycleController(
             })
           : {};
       const validationStateFields = createValidationStateFields(validation);
-      const state =
+      let state =
         Object.keys(validationStateFields).length === 0
           ? loopState
           : lifecycleStateStore.saveState({
@@ -291,6 +299,17 @@ export function createLocalSimulationLifecycleController(
               schedule: input.memoryConsolidationSchedule,
             })
           : {};
+      const memoryConsolidationStateFields = createMemoryConsolidationStateFields(
+        memoryConsolidation,
+        request.requestedAt,
+      );
+      state =
+        Object.keys(memoryConsolidationStateFields).length === 0
+          ? state
+          : lifecycleStateStore.saveState({
+              ...state,
+              ...memoryConsolidationStateFields,
+            });
 
       return {
         status: loop.status,
@@ -426,6 +445,11 @@ type LocalSimulationLifecycleValidationResult =
   | { readonly validationFailure: LocalSimulationLifecycleValidationFailure }
   | Record<string, never>;
 
+type LocalSimulationLifecycleMemoryConsolidationResult =
+  | { readonly memoryConsolidation: WorkerMemoryConsolidationScheduleResult }
+  | { readonly memoryConsolidationFailure: LocalSimulationLifecycleValidationFailure }
+  | Record<string, never>;
+
 function createValidationStateFields(
   validation: LocalSimulationLifecycleValidationResult,
 ): Partial<
@@ -448,6 +472,38 @@ function createValidationStateFields(
     return {
       lastValidationStatus: 'failed',
       lastValidationFailure: validation.validationFailure,
+    };
+  }
+  return {};
+}
+
+function createMemoryConsolidationStateFields(
+  memoryConsolidation: LocalSimulationLifecycleMemoryConsolidationResult,
+  consolidatedAt: SimulationTimestamp,
+): Partial<
+  Pick<
+    LocalSimulationLifecycleState,
+    | 'lastMemoryConsolidationStatus'
+    | 'lastMemoryConsolidationAt'
+    | 'lastMemoryConsolidationAgentCount'
+    | 'lastMemoryConsolidationPatchCount'
+    | 'lastMemoryConsolidationCursorCount'
+    | 'lastMemoryConsolidationFailure'
+  >
+> {
+  if ('memoryConsolidation' in memoryConsolidation) {
+    return {
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationAt: consolidatedAt,
+      lastMemoryConsolidationAgentCount: memoryConsolidation.memoryConsolidation.results.length,
+      lastMemoryConsolidationPatchCount: memoryConsolidation.memoryConsolidation.patchCount,
+      lastMemoryConsolidationCursorCount: memoryConsolidation.memoryConsolidation.cursors.length,
+    };
+  }
+  if ('memoryConsolidationFailure' in memoryConsolidation) {
+    return {
+      lastMemoryConsolidationStatus: 'failed',
+      lastMemoryConsolidationFailure: memoryConsolidation.memoryConsolidationFailure,
     };
   }
   return {};
@@ -675,6 +731,7 @@ function parseLocalSimulationLifecycleState(
   );
   const updatedAt = parseNonNegativeFinite(record.updatedAt, 'updatedAt', source);
   const validationState = parseValidationState(record, source);
+  const memoryConsolidationState = parseMemoryConsolidationState(record, source);
 
   return {
     simulationId,
@@ -696,6 +753,7 @@ function parseLocalSimulationLifecycleState(
           ),
         }),
     ...validationState,
+    ...memoryConsolidationState,
   };
 }
 
@@ -753,7 +811,11 @@ function parseValidationState(
 
   return {
     lastValidationStatus,
-    lastValidationFailure: parseValidationFailure(record.lastValidationFailure, source),
+    lastValidationFailure: parseLifecycleFailure(
+      record.lastValidationFailure,
+      'lastValidationFailure',
+      source,
+    ),
   };
 }
 
@@ -767,20 +829,89 @@ function parseLocalSimulationLifecycleValidationStatus(
   throw new Error(`invalid lastValidationStatus in ${source}`);
 }
 
-function parseValidationFailure(
+function parseLocalSimulationLifecycleMemoryConsolidationStatus(
   value: unknown,
+  source: string,
+): LocalSimulationLifecycleMemoryConsolidationStatus {
+  if (value === 'succeeded' || value === 'failed') {
+    return value;
+  }
+  throw new Error(`invalid lastMemoryConsolidationStatus in ${source}`);
+}
+
+function parseMemoryConsolidationState(
+  record: Record<string, unknown>,
+  source: string,
+): Partial<
+  Pick<
+    LocalSimulationLifecycleState,
+    | 'lastMemoryConsolidationStatus'
+    | 'lastMemoryConsolidationAt'
+    | 'lastMemoryConsolidationAgentCount'
+    | 'lastMemoryConsolidationPatchCount'
+    | 'lastMemoryConsolidationCursorCount'
+    | 'lastMemoryConsolidationFailure'
+  >
+> {
+  if (record.lastMemoryConsolidationStatus === undefined) {
+    return {};
+  }
+
+  const lastMemoryConsolidationStatus = parseLocalSimulationLifecycleMemoryConsolidationStatus(
+    record.lastMemoryConsolidationStatus,
+    source,
+  );
+  if (lastMemoryConsolidationStatus === 'succeeded') {
+    return {
+      lastMemoryConsolidationStatus,
+      lastMemoryConsolidationAt: parseNonNegativeFinite(
+        record.lastMemoryConsolidationAt,
+        'lastMemoryConsolidationAt',
+        source,
+      ),
+      lastMemoryConsolidationAgentCount: parseNonNegativeInteger(
+        record.lastMemoryConsolidationAgentCount,
+        'lastMemoryConsolidationAgentCount',
+        source,
+      ),
+      lastMemoryConsolidationPatchCount: parseNonNegativeInteger(
+        record.lastMemoryConsolidationPatchCount,
+        'lastMemoryConsolidationPatchCount',
+        source,
+      ),
+      lastMemoryConsolidationCursorCount: parseNonNegativeInteger(
+        record.lastMemoryConsolidationCursorCount,
+        'lastMemoryConsolidationCursorCount',
+        source,
+      ),
+    };
+  }
+
+  return {
+    lastMemoryConsolidationStatus,
+    lastMemoryConsolidationFailure: parseLifecycleFailure(
+      record.lastMemoryConsolidationFailure,
+      'lastMemoryConsolidationFailure',
+      source,
+    ),
+  };
+}
+
+function parseLifecycleFailure(
+  value: unknown,
+  fieldName: string,
   source: string,
 ): LocalSimulationLifecycleValidationFailure {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`invalid lastValidationFailure in ${source}`);
+    throw new Error(`invalid ${fieldName} in ${source}`);
   }
   const record = value as Record<string, unknown>;
   return {
-    name: parseString(record.name, 'lastValidationFailure.name', source),
-    message: parseString(record.message, 'lastValidationFailure.message', source),
+    name: parseString(record.name, `${fieldName}.name`, source),
+    message: parseString(record.message, `${fieldName}.message`, source),
     ...(record.stack === undefined
       ? {}
-      : { stack: parseString(record.stack, 'lastValidationFailure.stack', source) }),
+      : { stack: parseString(record.stack, `${fieldName}.stack`, source) }),
   };
 }
 

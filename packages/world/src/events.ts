@@ -56,6 +56,16 @@ export type TradeExecutedPayload = {
   readonly moneySupplyDelta: number;
 };
 
+export type MarketPriceIndexRecordedPayload = {
+  readonly baselineAt: number;
+  readonly food: number;
+  readonly nonFood: number;
+  readonly overall: number;
+  readonly foodCount: number;
+  readonly nonFoodCount: number;
+  readonly ratios: Readonly<Record<string, number>>;
+};
+
 export type JobApplicationSubmittedPayload = {
   readonly agentId: AgentId;
   readonly occupationName: string;
@@ -137,6 +147,7 @@ export type SimulationTimeAdvancedPayload = {
 export type WorldEventPayloadByType = {
   readonly CommodityProduced: CommodityProducedPayload;
   readonly TradeExecuted: TradeExecutedPayload;
+  readonly MarketPriceIndexRecorded: MarketPriceIndexRecordedPayload;
   readonly JobApplicationSubmitted: JobApplicationSubmittedPayload;
   readonly JobAssigned: JobAssignedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;

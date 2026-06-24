@@ -10,6 +10,7 @@ export * from './canonicalDomainRuntimes';
 export * from './canonicalWorkerRuntimeResolver';
 export * from './domainRuntimeRegistry';
 export * from './localRuntimeStorage';
+export * from './marketMetrics';
 export * from './memoryConsolidation';
 export * from './objectiveLifecycle';
 export * from './objectiveRenewal';

@@ -420,6 +420,43 @@ describe('world economy projection', () => {
     expect(projection.marketPools['Apple']?.commodityReserve).toBe(90);
     expect(projection.moneySupply).toBeCloseTo(888.8888888889);
   });
+
+  test('replays market price index records into projection state', () => {
+    const initial = createWorldProjection({ agents: [] });
+    const events = [
+      createEventEnvelope({
+        id: 'event-market-index',
+        simulationId: 'sim-1',
+        type: 'MarketPriceIndexRecorded',
+        payload: {
+          baselineAt: 0,
+          food: 4,
+          nonFood: 2,
+          overall: 3,
+          foodCount: 2,
+          nonFoodCount: 2,
+          ratios: { Apple: 2, Bread: 8, Wood: 4, Book: 1 },
+        },
+        occurredAt: 100,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+
+    expect(projection.marketPriceIndices).toEqual([
+      {
+        baselineAt: 0,
+        recordedAt: 100,
+        food: 4,
+        nonFood: 2,
+        overall: 3,
+        foodCount: 2,
+        nonFoodCount: 2,
+        ratios: { Apple: 2, Bread: 8, Wood: 4, Book: 1 },
+      },
+    ]);
+  });
 });
 
 describe('world job projection', () => {

@@ -48,6 +48,17 @@ export type WorldJobApplicationState = {
   readonly submittedAt: number;
 };
 
+export type WorldMarketPriceIndexState = {
+  readonly baselineAt: number;
+  readonly recordedAt: number;
+  readonly food: number;
+  readonly nonFood: number;
+  readonly overall: number;
+  readonly foodCount: number;
+  readonly nonFoodCount: number;
+  readonly ratios: Readonly<Record<string, number>>;
+};
+
 export type WorldLocationObservationState = {
   readonly agentId: AgentId;
   readonly locationId: LocationId;
@@ -81,6 +92,7 @@ export type WorldProjection = {
   readonly locations: Readonly<Record<string, WorldLocationState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
+  readonly marketPriceIndices: readonly WorldMarketPriceIndexState[];
   readonly jobApplications: readonly WorldJobApplicationState[];
   readonly locationObservations: readonly WorldLocationObservationState[];
   readonly conversationRecords: readonly WorldConversationRecordState[];
@@ -99,6 +111,7 @@ export function createWorldProjection(input: {
   readonly locations?: readonly WorldLocationStateInput[];
   readonly marketPools?: readonly AmmPool[];
   readonly moneySupply?: number;
+  readonly marketPriceIndices?: readonly WorldMarketPriceIndexState[];
   readonly jobApplications?: readonly WorldJobApplicationState[];
   readonly locationObservations?: readonly WorldLocationObservationState[];
   readonly conversationRecords?: readonly WorldConversationRecordState[];
@@ -150,6 +163,7 @@ export function createWorldProjection(input: {
     locations,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
+    marketPriceIndices: (input.marketPriceIndices ?? []).map(cloneMarketPriceIndex),
     jobApplications: [...(input.jobApplications ?? [])],
     locationObservations: (input.locationObservations ?? []).map((observation) => ({
       ...observation,
@@ -210,6 +224,23 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
                 ),
         }),
       );
+    case 'MarketPriceIndexRecorded':
+      return {
+        ...projection,
+        marketPriceIndices: [
+          ...projection.marketPriceIndices,
+          cloneMarketPriceIndex({
+            baselineAt: event.payload.baselineAt,
+            recordedAt: event.occurredAt,
+            food: event.payload.food,
+            nonFood: event.payload.nonFood,
+            overall: event.payload.overall,
+            foodCount: event.payload.foodCount,
+            nonFoodCount: event.payload.nonFoodCount,
+            ratios: event.payload.ratios,
+          }),
+        ],
+      };
     case 'JobApplicationSubmitted':
       return {
         ...projection,
@@ -339,6 +370,13 @@ function cloneConversationRecord(record: WorldConversationRecordState): WorldCon
     ...record,
     participantAgentIds: [...record.participantAgentIds],
     turns: record.turns.map((turn) => ({ ...turn })),
+  };
+}
+
+function cloneMarketPriceIndex(index: WorldMarketPriceIndexState): WorldMarketPriceIndexState {
+  return {
+    ...index,
+    ratios: { ...index.ratios },
   };
 }
 

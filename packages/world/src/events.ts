@@ -37,6 +37,14 @@ export type WagePaidPayload = {
   readonly amount: number;
 };
 
+export type SubsidyPaidPayload = {
+  readonly agentId: AgentId;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly reason: string;
+};
+
 export type CommodityProducedPayload = {
   readonly agentId: AgentId;
   readonly produced: Inventory;
@@ -159,6 +167,7 @@ export type WorldEventPayloadByType = {
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly EducationChanged: EducationChangedPayload;
   readonly WagePaid: WagePaidPayload;
+  readonly SubsidyPaid: SubsidyPaidPayload;
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;

@@ -19,6 +19,7 @@ export type CoreEventType =
   | 'JobAssigned'
   | 'ResidentialTierUpgraded'
   | 'WagePaid'
+  | 'SubsidyPaid'
   | 'MarketPriceIndexRecorded'
   | 'SocialInteractionCompleted'
   | 'AgentLocationChanged'

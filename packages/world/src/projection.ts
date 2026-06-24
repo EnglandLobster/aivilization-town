@@ -135,7 +135,9 @@ export function createWorldProjection(input: {
     }
     const locationId = agent.locationId ?? null;
     if (locationId !== null && locations[locationId] === undefined) {
-      throw new Error(`agent ${agent.agentId} location ${locationId} is not in projection locations`);
+      throw new Error(
+        `agent ${agent.agentId} location ${locationId} is not in projection locations`,
+      );
     }
     agents[agent.agentId] = {
       ...agent,
@@ -333,6 +335,18 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...agent,
         balance: agent.balance + event.payload.amount,
       }));
+    case 'SubsidyPaid':
+      return updateAgent(
+        {
+          ...projection,
+          moneySupply: projection.moneySupply + event.payload.amount,
+        },
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: event.payload.nextBalance,
+        }),
+      );
     case 'ShortTermMemoryRecorded':
       return {
         ...projection,
@@ -365,7 +379,9 @@ function applyInventoryChanges(
   );
 }
 
-function cloneConversationRecord(record: WorldConversationRecordState): WorldConversationRecordState {
+function cloneConversationRecord(
+  record: WorldConversationRecordState,
+): WorldConversationRecordState {
   return {
     ...record,
     participantAgentIds: [...record.participantAgentIds],

@@ -116,6 +116,23 @@ function createIllnessProjection() {
   });
 }
 
+function createLowBalanceProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 80, satiety: 80, health: 90 },
+        educationScore: 10,
+        balance: 10,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+    moneySupply: 100,
+  });
+}
+
 function createMarketProjection() {
   return createWorldProjection({
     agents: [
@@ -474,6 +491,48 @@ describe('worker tick runner', () => {
       satiety: 80,
       health: 78,
     });
+    expect(result.streamVersion).toBe(2);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('applies safety net subsidies during the worker time phase', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-safety-net',
+      simulationId,
+      issuedAt: 100,
+      projection: createLowBalanceProjection(),
+      policies: {
+        ...policies,
+        safetyNetSubsidy: {
+          minimumBalance: 50,
+          maxSubsidy: 25,
+        },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [],
+      ...repositories,
+    });
+
+    expect(result.agentResults).toEqual([]);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'SubsidyPaid'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        amount: 25,
+        previousBalance: 10,
+        nextBalance: 35,
+        reason: 'safety-net',
+      },
+    });
+    expect(result.projection.agents[agentOne]?.balance).toBe(35);
+    expect(result.projection.moneySupply).toBe(125);
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
   });

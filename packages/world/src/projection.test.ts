@@ -371,6 +371,45 @@ describe('world economy projection', () => {
     expect(projection.agents['agent-1']?.physiology.energy).toBe(96);
   });
 
+  test('replays subsidy payments into agent balance and money supply', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 10,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      moneySupply: 100,
+    });
+
+    const events = [
+      createEventEnvelope({
+        id: 'event-subsidy',
+        simulationId: 'sim-1',
+        commandId: 'command-time',
+        type: 'SubsidyPaid',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          amount: 25,
+          previousBalance: 10,
+          nextBalance: 35,
+          reason: 'safety-net',
+        },
+        occurredAt: 20,
+        sequence: 1,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.agents['agent-1']?.balance).toBe(35);
+    expect(projection.moneySupply).toBe(125);
+  });
+
   test('replays AMM trade into agent balance, inventory, pool state, and money supply', () => {
     const initial = createWorldProjection({
       agents: [

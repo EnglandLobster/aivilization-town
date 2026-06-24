@@ -65,6 +65,12 @@ export type LocalSimulationLifecycleValidationSchedule = Pick<
   readonly runIdPrefix?: string;
 };
 
+export type LocalSimulationLifecycleValidationFailure = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+};
+
 export type LocalSimulationLifecycleControllerInput = Omit<
   LocalWorldRuntimeLoopInput,
   'loopId' | 'firstTickIndex' | 'tickCount' | 'issuedAtStart' | 'pauseBeforeTick'
@@ -85,6 +91,7 @@ export type LocalSimulationLifecycleStartResult = {
   readonly state: LocalSimulationLifecycleState;
   readonly loop: LocalWorldRuntimeLoopResult;
   readonly validationReport?: LocalExperimentValidationScheduleResult;
+  readonly validationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationLifecyclePauseResult = {
@@ -239,22 +246,22 @@ export function createLocalSimulationLifecycleController(
         lastLoopId: input.loopId,
         completedTickCount: loop.completedTickCount,
       });
-      const validationReport =
+      const validation =
         loop.status === 'completed' && input.validationSchedule !== undefined
-          ? await runLifecycleValidationSchedule({
+          ? await runLifecycleValidation({
               controllerInput: input,
               request,
               schedule: input.validationSchedule,
               streamVersionBeforeStart,
               lastAppliedSequence: state.lastAppliedSequence,
             })
-          : undefined;
+          : {};
 
       return {
         status: loop.status,
         state,
         loop,
-        ...(validationReport === undefined ? {} : { validationReport }),
+        ...validation,
       };
     },
     pause: (request) => {
@@ -357,6 +364,27 @@ export function createLocalSimulationLifecycleController(
   };
 }
 
+async function runLifecycleValidation(input: {
+  readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly request: LocalSimulationLifecycleRequest;
+  readonly schedule: LocalSimulationLifecycleValidationSchedule;
+  readonly streamVersionBeforeStart: number;
+  readonly lastAppliedSequence: number;
+}): Promise<
+  | { readonly validationReport: LocalExperimentValidationScheduleResult }
+  | { readonly validationFailure: LocalSimulationLifecycleValidationFailure }
+> {
+  try {
+    return {
+      validationReport: await runLifecycleValidationSchedule(input),
+    };
+  } catch (error) {
+    return {
+      validationFailure: serializeValidationFailure(error),
+    };
+  }
+}
+
 async function runLifecycleValidationSchedule(input: {
   readonly controllerInput: LocalSimulationLifecycleControllerInput;
   readonly request: LocalSimulationLifecycleRequest;
@@ -409,6 +437,20 @@ function createLifecycleValidationRunId(input: {
   const prefix = input.runIdPrefix ?? `${input.loopId}:validation`;
   assertNonEmpty(prefix, 'validationSchedule runIdPrefix');
   return `${prefix}:${input.requestedAt}:${input.lastAppliedSequence}`;
+}
+
+function serializeValidationFailure(error: unknown): LocalSimulationLifecycleValidationFailure {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack === undefined ? {} : { stack: error.stack }),
+    };
+  }
+  return {
+    name: 'Error',
+    message: String(error),
+  };
 }
 
 function toLoopBaseInput(

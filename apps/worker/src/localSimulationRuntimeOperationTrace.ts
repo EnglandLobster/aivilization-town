@@ -20,6 +20,12 @@ export type LocalSimulationRuntimeOperationValidationReportTrace = {
   readonly projectionSequence: number;
 };
 
+export type LocalSimulationRuntimeOperationValidationFailureTrace = {
+  readonly name: string;
+  readonly message: string;
+  readonly stack?: string;
+};
+
 export type LocalSimulationRuntimeOperationPartitionTrace =
   | {
       readonly simulationId: string;
@@ -27,6 +33,7 @@ export type LocalSimulationRuntimeOperationPartitionTrace =
       readonly outcome: 'succeeded';
       readonly status: string;
       readonly validationReport?: LocalSimulationRuntimeOperationValidationReportTrace;
+      readonly validationFailure?: LocalSimulationRuntimeOperationValidationFailureTrace;
     }
   | {
       readonly simulationId: string;

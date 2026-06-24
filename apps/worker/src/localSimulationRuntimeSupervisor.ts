@@ -13,6 +13,7 @@ import {
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeOperationTraceQuery,
   type LocalSimulationRuntimeOperationTraceRepository,
+  type LocalSimulationRuntimeOperationValidationFailureTrace,
   type LocalSimulationRuntimeOperationValidationReportTrace,
 } from './localSimulationRuntimeOperationTrace';
 
@@ -289,12 +290,14 @@ function createOperationTrace(input: {
         };
       }
       const validationReport = createOperationValidationReportTrace(partition.result);
+      const validationFailure = createOperationValidationFailureTrace(partition.result);
       return {
         simulationId: partition.simulationId,
         partitionKey: partition.partitionKey,
         outcome: partition.outcome,
         status: partition.status,
         ...(validationReport === undefined ? {} : { validationReport }),
+        ...(validationFailure === undefined ? {} : { validationFailure }),
       };
     }),
     status: input.result.status,
@@ -320,6 +323,21 @@ function createOperationValidationReportTrace(
     toSequence: validationReport.toSequence,
     eventCount: validationReport.eventCount,
     projectionSequence: validationReport.projectionSequence,
+  };
+}
+
+function createOperationValidationFailureTrace(
+  result: LocalSimulationLifecycleStartResult | LocalSimulationLifecyclePauseResult,
+): LocalSimulationRuntimeOperationValidationFailureTrace | undefined {
+  if (!('validationFailure' in result) || result.validationFailure === undefined) {
+    return undefined;
+  }
+  return {
+    name: result.validationFailure.name,
+    message: result.validationFailure.message,
+    ...(result.validationFailure.stack === undefined
+      ? {}
+      : { stack: result.validationFailure.stack }),
   };
 }
 

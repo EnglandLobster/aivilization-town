@@ -353,6 +353,70 @@ describe('local simulation runtime supervisor', () => {
       ],
     });
   });
+
+  test('keeps completed start-all partitions successful when validation report generation fails', async () => {
+    const host = await bootstrapTestHost({ validationSchedule: createFailingValidationSchedule() });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const startResult = await supervisor.startAll({
+      operationId: 'op-start-validation-failure-500',
+      requestedAt: 500,
+    });
+
+    expect(startResult.outcome).toBe('succeeded');
+    expect(startResult.succeededPartitionCount).toBe(2);
+    expect(startResult.failedPartitionCount).toBe(0);
+    expect(
+      startResult.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        outcome: partition.outcome,
+        status: partition.status,
+        validationFailure:
+          partition.outcome === 'succeeded'
+            ? partition.result.validationFailure?.message
+            : undefined,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        outcome: 'succeeded',
+        status: 'completed',
+        validationFailure: 'events must include at least one TradeExecuted observation',
+      },
+      {
+        partitionKey: 'world-east',
+        outcome: 'succeeded',
+        status: 'completed',
+        validationFailure: 'events must include at least one TradeExecuted observation',
+      },
+    ]);
+    await expect(
+      supervisor.getOperationTrace('op-start-validation-failure-500'),
+    ).resolves.toMatchObject({
+      traceId: 'op-start-validation-failure-500',
+      outcome: 'succeeded',
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          outcome: 'succeeded',
+          status: 'completed',
+          validationFailure: {
+            name: 'Error',
+            message: 'events must include at least one TradeExecuted observation',
+          },
+        },
+        {
+          partitionKey: 'world-east',
+          outcome: 'succeeded',
+          status: 'completed',
+          validationFailure: {
+            name: 'Error',
+            message: 'events must include at least one TradeExecuted observation',
+          },
+        },
+      ],
+    });
+  });
 });
 
 function toStatusSummary(
@@ -542,6 +606,17 @@ function createValidationSchedule(): LocalSimulationLifecycleValidationSchedule 
       heavyTailReturns: { minimumExcessKurtosis: -2 },
       volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
     },
+  };
+}
+
+function createFailingValidationSchedule(): LocalSimulationLifecycleValidationSchedule {
+  return {
+    plannerRuns: createPlannerRuns(),
+    expectedTrajectoryAgentIds: ['agent-1', 'agent-2'],
+    trajectories: [
+      { agentId: 'agent-1', stepCount: 1 },
+      { agentId: 'agent-2', stepCount: 1 },
+    ],
   };
 }
 

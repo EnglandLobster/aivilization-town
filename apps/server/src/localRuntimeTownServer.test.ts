@@ -7,7 +7,10 @@ import { type ScenarioPreset } from '@aivilization/content';
 import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
-import { createLocalRuntimeTownNodeHttpServer } from './index';
+import {
+  createLocalRuntimeTownDaemonScenarioProfile,
+  createLocalRuntimeTownNodeHttpServer,
+} from './index';
 import {
   FileLocalSimulationRuntimeRunQueueRepository,
   FileLocalSimulationRuntimeRunSessionRepository,
@@ -45,6 +48,50 @@ afterEach(async () => {
 });
 
 describe('local runtime town HTTP gateway', () => {
+  test('boots the smoke scale profile through the local HTTP gateway', async () => {
+    const profile = createLocalRuntimeTownDaemonScenarioProfile('smoke-25');
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: profile.manifest,
+      scenarioPresets: profile.scenarioPresets,
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      runtimeRunQueue: profile.runtimeRunQueue,
+      runtimeScheduler: profile.runtimeScheduler,
+      runtimeRecovery: profile.runtimeRecovery,
+    });
+    const server = await listen(runtime.server);
+
+    await expect(fetchJson(`${server.baseUrl}/runtime/daemon/status`)).resolves.toMatchObject({
+      manifestId: 'aivilization-smoke-25',
+      health: 'healthy',
+      components: {
+        supervisor: {
+          partitionCount: 1,
+          healthyPartitionCount: 1,
+        },
+        scheduler: {
+          configured: true,
+          desiredRunning: false,
+        },
+        recovery: {
+          configured: true,
+          desiredRunning: false,
+        },
+      },
+    });
+
+    const projection = requireProjection(
+      await fetchJson(
+        `${server.baseUrl}/simulations/aivilization-smoke-25/partitions/world-main/projection`,
+      ),
+    );
+    expect(Object.keys(projection.projection.agents)).toHaveLength(25);
+  });
+
   test('serves supervisor and projection routes from a manifest-bootstrapped local runtime', async () => {
     const runtime = await createLocalRuntimeTownNodeHttpServer({
       rootDir: createRootDir(),
@@ -876,6 +923,21 @@ async function fetchFirstSseEvent(url: string): Promise<string> {
     });
   }
   return buffer.slice(0, buffer.indexOf('\n\n') + 2);
+}
+
+function requireProjection(value: unknown): {
+  readonly projection: {
+    readonly agents: Readonly<Record<string, unknown>>;
+  };
+} {
+  if (value === null || typeof value !== 'object' || !('projection' in value)) {
+    throw new Error('expected projection response');
+  }
+  return value as {
+    readonly projection: {
+      readonly agents: Readonly<Record<string, unknown>>;
+    };
+  };
 }
 
 function requireEventFeed(value: unknown): {

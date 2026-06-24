@@ -96,6 +96,31 @@ export type CreateAivilizationAblationAgentSeedsInput = {
   readonly source?: string;
 };
 
+export type CreateAivilizationPopulationAgentSeedsInput = {
+  readonly agentCount: number;
+  readonly idPrefix?: string;
+  readonly displayNamePrefix?: string;
+  readonly startingIndex?: number;
+  readonly locationIds?: readonly LocationId[];
+  readonly residentialTier?: number;
+  readonly source?: string;
+};
+
+export type CreateAivilizationPopulationScenarioPresetInput = {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly agentCount: number;
+  readonly idPrefix?: string;
+  readonly displayNamePrefix?: string;
+  readonly startingIndex?: number;
+  readonly residentialTier?: number;
+  readonly timeScale?: number;
+  readonly clock?: SimulationClock;
+  readonly locations?: readonly TownLocationConfig[];
+  readonly source?: string;
+};
+
 export type CreateCommodityMarketPoolSeedsInput = {
   readonly commodityReserve: number;
   readonly currencyReserve: number;
@@ -106,6 +131,8 @@ const profileExampleSource = 'AIvilization v0 Appendix A Table 6';
 const ablationSetupSource = 'AIvilization v0 Section 5.1 Experimental Setup';
 const activityTradeSource =
   'AIvilization v0 Appendix B Table 8 trade excludes Gold Apple; reserves supplied by scenario caller';
+const runtimeScaleProfileSource =
+  'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -196,6 +223,92 @@ export function createCommodityMarketPoolSeeds(
     }));
 }
 
+export function createAivilizationPopulationAgentSeeds(
+  input: CreateAivilizationPopulationAgentSeedsInput,
+): ScenarioAgentSeed[] {
+  const idPrefix = input.idPrefix ?? 'agent';
+  const displayNamePrefix = input.displayNamePrefix ?? 'Agent';
+  const startingIndex = input.startingIndex ?? 1;
+  const residentialTier = input.residentialTier ?? 1;
+  const source = input.source ?? runtimeScaleProfileSource;
+  const locationIds = input.locationIds ?? townLocations.map((location) => location.locationId);
+
+  assertPositiveInteger(input.agentCount, 'agentCount');
+  assertNonEmptyString(idPrefix, 'idPrefix');
+  assertNonEmptyString(displayNamePrefix, 'displayNamePrefix');
+  assertPositiveInteger(startingIndex, 'startingIndex');
+  assertPositiveInteger(residentialTier, 'residentialTier');
+  assertNonEmptyString(source, 'source');
+  assertNonEmptyArray(locationIds, 'locationIds');
+
+  return Array.from({ length: input.agentCount }, (_, index) => {
+    const serial = startingIndex + index;
+    const serialLabel = formatAgentSerial(serial);
+    const mbti =
+      aivilizationScenarioDefaults.mbtiTypes[
+        index % aivilizationScenarioDefaults.mbtiTypes.length
+      ] ?? 'INTJ';
+    const locationId = locationIds[index % locationIds.length];
+    if (locationId === undefined) {
+      throw new Error('locationIds must not be empty');
+    }
+
+    return {
+      agentId: asAgentId(`${idPrefix}-${serialLabel}`),
+      displayName: `${displayNamePrefix} ${serialLabel}`,
+      profile: {
+        personality: { mbti },
+        source: profileExampleSource,
+      },
+      physiology: { ...aivilizationScenarioDefaults.maxPhysiology },
+      educationScore: (index % 6) * 80,
+      balance: 100 + (index % 20) * 25,
+      residentialTier,
+      job: null,
+      inventory: {},
+      locationId,
+      source,
+      tags: ['runtime-scale', 'profile-seeded'],
+    };
+  });
+}
+
+export function createAivilizationPopulationScenarioPreset(
+  input: CreateAivilizationPopulationScenarioPresetInput,
+): ScenarioPreset {
+  const source = input.source ?? runtimeScaleProfileSource;
+  const locations = input.locations ?? townLocations;
+  const timeScale = input.timeScale ?? aivilizationScenarioDefaults.publicTimeScale;
+
+  assertNonEmptyString(input.id, 'id');
+  assertNonEmptyString(input.name, 'name');
+  assertNonEmptyString(input.description, 'description');
+  assertNonEmptyString(source, 'source');
+  assertPositiveFinite(timeScale, 'timeScale');
+  assertNonEmptyArray(locations, 'locations');
+
+  return {
+    id: input.id,
+    name: input.name,
+    description: input.description,
+    clock: input.clock ?? { now: 0, tickDurationMs: 1000 },
+    timeScale,
+    locations,
+    agentSeeds: createAivilizationPopulationAgentSeeds({
+      agentCount: input.agentCount,
+      ...(input.idPrefix === undefined ? {} : { idPrefix: input.idPrefix }),
+      ...(input.displayNamePrefix === undefined
+        ? {}
+        : { displayNamePrefix: input.displayNamePrefix }),
+      ...(input.startingIndex === undefined ? {} : { startingIndex: input.startingIndex }),
+      ...(input.residentialTier === undefined ? {} : { residentialTier: input.residentialTier }),
+      locationIds: locations.map((location) => location.locationId),
+      source,
+    }),
+    source,
+  };
+}
+
 export const aivilizationAblationScenarioPreset = {
   id: 'aivilization-ablation-80-agent-cohort',
   name: 'AIvilization Ablation Cohort',
@@ -227,5 +340,11 @@ function assertPositiveInteger(value: number, name: string): void {
 function assertPositiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${name} must be positive`);
+  }
+}
+
+function assertNonEmptyArray<TValue>(values: readonly TValue[], name: string): void {
+  if (values.length === 0) {
+    throw new Error(`${name} must not be empty`);
   }
 }

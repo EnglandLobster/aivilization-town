@@ -16,8 +16,10 @@ import {
   runWorkerSimulationTick,
   type WorkerTickAgentInput,
   type WorkerTickMarketMetricsInput,
+  type WorkerTickMarketObservationsInput,
   type WorkerTickResult,
 } from './tickRunner';
+import type { WorkerExperimentValidationPriceBinning } from './experimentValidationRunner';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type LocalWorldRuntimeAgentProviderInput = {
@@ -30,6 +32,15 @@ export type LocalWorldRuntimeAgentProviderInput = {
 export type LocalWorldRuntimeAgentProvider = (
   input: LocalWorldRuntimeAgentProviderInput,
 ) => readonly WorkerTickAgentInput[] | Promise<readonly WorkerTickAgentInput[]>;
+
+export type LocalWorldRuntimeMarketObservationsInput =
+  | {
+      readonly enabled?: true;
+      readonly priceBinning?: WorkerExperimentValidationPriceBinning;
+    }
+  | {
+      readonly enabled: false;
+    };
 
 export type LocalWorldRuntimeStepInput = {
   readonly storage: LocalWorldRuntimeStorage;
@@ -49,6 +60,7 @@ export type LocalWorldRuntimeStepInput = {
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
+  readonly marketObservations?: LocalWorldRuntimeMarketObservationsInput;
 };
 
 export type LocalWorldRuntimeStepResult =
@@ -121,6 +133,7 @@ export async function runLocalWorldRuntimeStep(
     ...input.storage.repositories,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+    ...createTickMarketObservationsInput(input),
   });
 
   return {
@@ -128,6 +141,23 @@ export async function runLocalWorldRuntimeStep(
     commandDrain,
     tick,
     projection: tick.projection,
+  };
+}
+
+function createTickMarketObservationsInput(input: LocalWorldRuntimeStepInput):
+  | { readonly marketObservations: WorkerTickMarketObservationsInput }
+  | Record<string, never> {
+  if (input.marketObservations?.enabled === false) {
+    return {};
+  }
+
+  return {
+    marketObservations: {
+      repository: input.storage.marketObservationRepository,
+      ...(input.marketObservations?.priceBinning === undefined
+        ? {}
+        : { priceBinning: input.marketObservations.priceBinning }),
+    },
   };
 }
 

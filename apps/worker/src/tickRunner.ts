@@ -13,7 +13,7 @@ import type {
   LongTermProfileRepository,
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
-import type { AgentCycleTrace } from '@aivilization/observability';
+import type { AgentCycleTrace, MarketObservationRepository } from '@aivilization/observability';
 import {
   createProjectionCheckpoint,
   createCommandEnvelope,
@@ -35,6 +35,11 @@ import {
   type WorkerAgentCycleTraceSink,
 } from './agentCycleRunner';
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
+import type { WorkerExperimentValidationPriceBinning } from './experimentValidationRunner';
+import {
+  recordWorkerMarketObservations,
+  type RecordWorkerMarketObservationsResult,
+} from './marketObservationRecording';
 import { recordMarketPriceIndexToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
@@ -71,6 +76,7 @@ export type WorkerTickResult = {
   readonly streamVersion: number;
   readonly checkpoint?: ProjectionCheckpoint;
   readonly snapshot?: SnapshotReference;
+  readonly marketObservationRecording?: RecordWorkerMarketObservationsResult;
 };
 
 export type WorkerTickProjectionCheckpointingInput = {
@@ -93,6 +99,11 @@ export type WorkerTickMarketMetricsInput = {
   readonly appendIdempotencyKey?: string;
 };
 
+export type WorkerTickMarketObservationsInput = {
+  readonly repository: MarketObservationRepository;
+  readonly priceBinning?: WorkerExperimentValidationPriceBinning;
+};
+
 type WorkerTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
@@ -108,6 +119,7 @@ type WorkerTickBaseInput = {
   readonly agents: readonly WorkerTickAgentInput[];
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
+  readonly marketObservations?: WorkerTickMarketObservationsInput;
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -219,6 +231,18 @@ export async function runWorkerSimulationTick(
     expectedVersion = marketMetricsResult.appendResult.streamVersion;
     marketMetricEvents = marketMetricsResult.events;
   }
+  const events = [...timeAdvanceResult.events, ...agentEvents, ...marketMetricEvents];
+  const marketObservationRecording =
+    input.marketObservations === undefined
+      ? undefined
+      : await recordWorkerMarketObservations({
+          simulationId: input.simulationId,
+          events,
+          repository: input.marketObservations.repository,
+          ...(input.marketObservations.priceBinning === undefined
+            ? {}
+            : { priceBinning: input.marketObservations.priceBinning }),
+        });
   const checkpointResult = saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
 
   return {
@@ -229,7 +253,8 @@ export async function runWorkerSimulationTick(
     projection,
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,
-    events: [...timeAdvanceResult.events, ...agentEvents, ...marketMetricEvents],
+    events,
+    ...(marketObservationRecording === undefined ? {} : { marketObservationRecording }),
     ...(checkpointResult === undefined
       ? {}
       : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),

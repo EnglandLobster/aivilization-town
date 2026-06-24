@@ -6,6 +6,7 @@ import {
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
+import { InMemoryMarketObservationRepository } from '@aivilization/observability';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
@@ -881,6 +882,59 @@ describe('worker tick runner', () => {
     expect(result.projection.marketPriceIndices[0]?.ratios['Apple']).toBeCloseTo(1.2345679012);
     expect(result.streamVersion).toBe(4);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+  });
+
+  test('records market observations after all tick events when configured', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const repository = new InMemoryMarketObservationRepository();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-market-observations',
+      simulationId,
+      issuedAt: 100,
+      projection: createMarketProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createTradeTickAgent()],
+      marketObservations: {
+        repository,
+        priceBinning: { intervalMs: 1000, originAt: 0 },
+      },
+      ...repositories,
+    });
+
+    expect(result.marketObservationRecording).toEqual({
+      tradeObservationCount: 1,
+      ohlcBarCount: 1,
+    });
+    const trades = await repository.queryTrades({ simulationId, commodityId: 'Apple' });
+    expect(trades).toMatchObject([
+      {
+        simulationId,
+        commodityId: 'Apple',
+        sourceSequence: 2,
+        side: 'buy',
+        observedAt: 100,
+        commodityQuantity: 10,
+      },
+    ]);
+    expect(trades[0]?.observationId).toContain(`${simulationId}:trade:2:`);
+    expect(trades[0]?.sourceEventId).toContain('tick-market-observations');
+    await expect(
+      repository.queryOhlcBars({ simulationId, commodityId: 'Apple' }),
+    ).resolves.toMatchObject([
+      {
+        barId: `${simulationId}:ohlc:1000:0:Apple:0`,
+        simulationId,
+        commodityId: 'Apple',
+        intervalStartedAt: 0,
+        intervalEndedAt: 1000,
+        tradeCount: 1,
+      },
+    ]);
   });
 
   test('saves the final projection snapshot and checkpoint when checkpointing is configured', async () => {

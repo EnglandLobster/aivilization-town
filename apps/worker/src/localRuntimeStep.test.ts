@@ -4,6 +4,7 @@ import {
   type DomainMicroPlanner,
   type ReactiveLocalizedPlanner,
 } from '@aivilization/agent-runtime';
+import { createAmmPool } from '@aivilization/economy';
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -204,6 +205,86 @@ describe('local world runtime step', () => {
     }
     expect(result.projection.agents['agent-1']?.educationScore).toBe(100);
   });
+
+  test('records market observations through local storage during a runtime step', async () => {
+    const rootDir = createRootDir();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+
+    const result = await runLocalWorldRuntimeStep({
+      storage,
+      tickId: 'tick-market-observations',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createInitialMarketProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 needs food from the Apple market',
+          plan: createTradePlan(),
+          signals: [],
+          microPlanners: [
+            tradeMicroPlanner({
+              id: 'buy-apple',
+              description: 'buy Apple from AMM',
+              commandType: 'AgentTrade',
+              payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      marketObservations: { priceBinning: { intervalMs: 1000, originAt: 0 } },
+    });
+
+    if (result.status !== 'ticked') {
+      throw new Error('expected ticked result');
+    }
+    expect(result.tick.marketObservationRecording).toEqual({
+      tradeObservationCount: 1,
+      ohlcBarCount: 1,
+    });
+    await expect(
+      storage.marketObservationRepository.queryTrades({
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+      }),
+    ).resolves.toMatchObject([
+      {
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        sourceSequence: 2,
+        side: 'buy',
+      },
+    ]);
+
+    const restarted = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await expect(
+      restarted.marketObservationRepository.queryOhlcBars({
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+      }),
+    ).resolves.toMatchObject([
+      {
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        intervalStartedAt: 0,
+        intervalEndedAt: 1000,
+        tradeCount: 1,
+      },
+    ]);
+  });
 });
 
 function createInitialProjection() {
@@ -222,6 +303,26 @@ function createInitialProjection() {
   });
 }
 
+function createInitialMarketProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 1000,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+    marketPools: [
+      createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+    ],
+    moneySupply: 1000,
+  });
+}
+
 function createStudyPlan() {
   return createBranchPlan({
     objective: 'develop education',
@@ -230,6 +331,19 @@ function createStudyPlan() {
         id: 'development',
         objective: 'improve education',
         subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+      },
+    ],
+  });
+}
+
+function createTradePlan() {
+  return createBranchPlan({
+    objective: 'buy food from the market',
+    branches: [
+      {
+        id: 'market',
+        objective: 'buy Apple',
+        subtasks: [{ id: 'buy-apple', description: 'buy Apple', basePriority: 5 }],
       },
     ],
   });
@@ -254,6 +368,14 @@ function studyMicroPlanner(action: AtomicActionProposal): DomainMicroPlanner {
   return {
     domain: 'study',
     supports: ({ subtaskId }) => subtaskId === 'study',
+    propose: () => [action],
+  };
+}
+
+function tradeMicroPlanner(action: AtomicActionProposal): DomainMicroPlanner {
+  return {
+    domain: 'trade',
+    supports: ({ subtaskId }) => subtaskId === 'buy-apple',
     propose: () => [action],
   };
 }

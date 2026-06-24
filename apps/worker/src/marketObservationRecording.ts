@@ -27,6 +27,13 @@ export type RecordWorkerMarketObservationsResult = {
 export async function recordWorkerMarketObservations(
   input: RecordWorkerMarketObservationsInput,
 ): Promise<RecordWorkerMarketObservationsResult> {
+  if (!input.events.some((event) => event.type === 'TradeExecuted')) {
+    return {
+      tradeObservationCount: 0,
+      ohlcBarCount: 0,
+    };
+  }
+
   const tradePriceObservations = createTradePriceObservationsFromWorldEvents({
     simulationId: input.simulationId,
     events: input.events,

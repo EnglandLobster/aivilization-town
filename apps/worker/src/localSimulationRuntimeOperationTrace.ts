@@ -7,7 +7,7 @@ import type {
   LocalSimulationRuntimeSupervisorStatus,
 } from './localSimulationRuntimeSupervisor';
 
-export type LocalSimulationRuntimeOperationCommand = 'start-all' | 'pause-all';
+export type LocalSimulationRuntimeOperationCommand = 'start-all' | 'pause-all' | 'run-cycles';
 
 export type LocalSimulationRuntimeOperationValidationReportTrace = {
   readonly runId: string;
@@ -39,6 +39,16 @@ export type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace = {
   readonly stack?: string;
 };
 
+export type LocalSimulationRuntimeOperationRunCycleTrace = {
+  readonly cycleIndex: number;
+  readonly traceId: string;
+  readonly requestedAt: SimulationTimestamp;
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
+  readonly attentionPartitionCount: number;
+};
+
 export type LocalSimulationRuntimeOperationPartitionTrace =
   | {
       readonly simulationId: string;
@@ -68,6 +78,7 @@ export type LocalSimulationRuntimeOperationTrace = {
   readonly succeededPartitionCount: number;
   readonly failedPartitionCount: number;
   readonly partitions: readonly LocalSimulationRuntimeOperationPartitionTrace[];
+  readonly cycles?: readonly LocalSimulationRuntimeOperationRunCycleTrace[];
   readonly status: LocalSimulationRuntimeSupervisorStatus;
 };
 

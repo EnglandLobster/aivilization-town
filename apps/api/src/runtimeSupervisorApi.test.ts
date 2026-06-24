@@ -8,7 +8,7 @@ type TestStatus = {
 
 type TestTrace = {
   readonly traceId: string;
-  readonly command: 'start-all' | 'pause-all';
+  readonly command: 'start-all' | 'pause-all' | 'run-cycles';
   readonly requestedAt: number;
 };
 
@@ -36,6 +36,15 @@ describe('runtime supervisor API service', () => {
             traceId: request.operationId ?? 'generated-pause',
             outcome: 'succeeded',
             requestedAt: request.requestedAt,
+          });
+        },
+        runCycles: (request) => {
+          calls.push({ method: 'runCycles', request });
+          return Promise.resolve({
+            traceId: request.operationId ?? 'generated-run',
+            outcome: 'succeeded',
+            requestedAt: request.requestedAt,
+            completedCycleCount: request.cycleCount,
           });
         },
         getOperationTrace: (traceId) => {
@@ -69,8 +78,19 @@ describe('runtime supervisor API service', () => {
       requestedAt: 150,
     });
     await expect(
-      service.getRuntimeOperationTrace({ traceId: 'op-start-100' }),
+      service.runRuntime({
+        operationId: 'op-run-200',
+        requestedAt: 200,
+        cycleCount: 3,
+        cycleIntervalMs: 50,
+      }),
     ).resolves.toEqual({
+      traceId: 'op-run-200',
+      outcome: 'succeeded',
+      requestedAt: 200,
+      completedCycleCount: 3,
+    });
+    await expect(service.getRuntimeOperationTrace({ traceId: 'op-start-100' })).resolves.toEqual({
       traceId: 'op-start-100',
       command: 'start-all',
       requestedAt: 100,
@@ -88,6 +108,15 @@ describe('runtime supervisor API service', () => {
       { method: 'getStatus' },
       { method: 'startAll', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'pauseAll', request: { requestedAt: 150 } },
+      {
+        method: 'runCycles',
+        request: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 3,
+          cycleIntervalMs: 50,
+        },
+      },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       {
         method: 'queryOperationTraces',
@@ -112,11 +141,24 @@ describe('runtime supervisor API service', () => {
         },
         startAll: (request) => {
           calls.push('startAll');
-          return Promise.resolve({ traceId: request.operationId ?? 'op-start', outcome: 'succeeded' });
+          return Promise.resolve({
+            traceId: request.operationId ?? 'op-start',
+            outcome: 'succeeded',
+          });
         },
         pauseAll: (request) => {
           calls.push('pauseAll');
-          return Promise.resolve({ traceId: request.operationId ?? 'op-pause', outcome: 'succeeded' });
+          return Promise.resolve({
+            traceId: request.operationId ?? 'op-pause',
+            outcome: 'succeeded',
+          });
+        },
+        runCycles: (request) => {
+          calls.push('runCycles');
+          return Promise.resolve({
+            traceId: request.operationId ?? 'op-run',
+            outcome: 'succeeded',
+          });
         },
         getOperationTrace: (traceId) => {
           calls.push(traceId);
@@ -131,6 +173,9 @@ describe('runtime supervisor API service', () => {
 
     await expect(service.getRuntimeOperationTrace({ traceId: '   ' })).rejects.toThrow(
       'traceId must not be empty',
+    );
+    await expect(service.runRuntime({ requestedAt: 100, cycleCount: 0 })).rejects.toThrow(
+      'cycleCount must be a positive integer',
     );
     expect(calls).toEqual([]);
   });

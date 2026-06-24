@@ -576,6 +576,163 @@ describe('local simulation runtime supervisor', () => {
       ],
     });
   });
+
+  test('runs requested start-all cycles and records a bounded run trace', async () => {
+    const host = await bootstrapTestHost();
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const runResult = await supervisor.runCycles({
+      operationId: 'op-run-cycles-800',
+      requestedAt: 800,
+      cycleCount: 3,
+      cycleIntervalMs: 50,
+    });
+
+    expect(runResult).toMatchObject({
+      traceId: 'op-run-cycles-800',
+      outcome: 'succeeded',
+      requestedCycleCount: 3,
+      completedCycleCount: 3,
+      stopReason: 'cycle-count-completed',
+    });
+    expect(
+      runResult.cycles.map((cycle) => ({
+        cycleIndex: cycle.cycleIndex,
+        traceId: cycle.traceId,
+        requestedAt: cycle.requestedAt,
+        outcome: cycle.outcome,
+        succeededPartitionCount: cycle.succeededPartitionCount,
+        failedPartitionCount: cycle.failedPartitionCount,
+        attentionPartitionCount: cycle.attentionPartitionCount,
+      })),
+    ).toEqual([
+      {
+        cycleIndex: 1,
+        traceId: 'op-run-cycles-800:cycle:1',
+        requestedAt: 800,
+        outcome: 'succeeded',
+        succeededPartitionCount: 2,
+        failedPartitionCount: 0,
+        attentionPartitionCount: 0,
+      },
+      {
+        cycleIndex: 2,
+        traceId: 'op-run-cycles-800:cycle:2',
+        requestedAt: 850,
+        outcome: 'succeeded',
+        succeededPartitionCount: 2,
+        failedPartitionCount: 0,
+        attentionPartitionCount: 0,
+      },
+      {
+        cycleIndex: 3,
+        traceId: 'op-run-cycles-800:cycle:3',
+        requestedAt: 900,
+        outcome: 'succeeded',
+        succeededPartitionCount: 2,
+        failedPartitionCount: 0,
+        attentionPartitionCount: 0,
+      },
+    ]);
+    expect(
+      runResult.status.partitions.map((partition) => ({
+        partitionKey: partition.partitionKey,
+        nextTickIndex: partition.nextTickIndex,
+        lastAppliedSequence: partition.lastAppliedSequence,
+      })),
+    ).toEqual([
+      {
+        partitionKey: 'world-main',
+        nextTickIndex: 4,
+        lastAppliedSequence: 3,
+      },
+      {
+        partitionKey: 'world-east',
+        nextTickIndex: 4,
+        lastAppliedSequence: 3,
+      },
+    ]);
+    await expect(supervisor.getOperationTrace('op-run-cycles-800:cycle:2')).resolves.toMatchObject({
+      traceId: 'op-run-cycles-800:cycle:2',
+      command: 'start-all',
+      requestedAt: 850,
+    });
+    await expect(supervisor.getOperationTrace('op-run-cycles-800')).resolves.toMatchObject({
+      traceId: 'op-run-cycles-800',
+      command: 'run-cycles',
+      requestedAt: 800,
+      outcome: 'succeeded',
+      cycles: [
+        {
+          cycleIndex: 1,
+          traceId: 'op-run-cycles-800:cycle:1',
+          requestedAt: 800,
+          outcome: 'succeeded',
+          attentionPartitionCount: 0,
+        },
+        {
+          cycleIndex: 2,
+          traceId: 'op-run-cycles-800:cycle:2',
+          requestedAt: 850,
+          outcome: 'succeeded',
+          attentionPartitionCount: 0,
+        },
+        {
+          cycleIndex: 3,
+          traceId: 'op-run-cycles-800:cycle:3',
+          requestedAt: 900,
+          outcome: 'succeeded',
+          attentionPartitionCount: 0,
+        },
+      ],
+    });
+  });
+
+  test('stops run cycles when a successful cycle leaves partitions needing attention', async () => {
+    const host = await bootstrapTestHost({
+      memoryConsolidationSchedule: createFailingMemoryConsolidationSchedule(),
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    const runResult = await supervisor.runCycles({
+      operationId: 'op-run-memory-attention-900',
+      requestedAt: 900,
+      cycleCount: 3,
+    });
+
+    expect(runResult).toMatchObject({
+      traceId: 'op-run-memory-attention-900',
+      outcome: 'succeeded',
+      requestedCycleCount: 3,
+      completedCycleCount: 1,
+      stopReason: 'attention',
+    });
+    expect(runResult.cycles).toHaveLength(1);
+    expect(runResult.cycles[0]).toMatchObject({
+      cycleIndex: 1,
+      traceId: 'op-run-memory-attention-900:cycle:1',
+      requestedAt: 900,
+      outcome: 'succeeded',
+      attentionPartitionCount: 2,
+    });
+    expect(runResult.status.attentionPartitionCount).toBe(2);
+    await expect(
+      supervisor.getOperationTrace('op-run-memory-attention-900'),
+    ).resolves.toMatchObject({
+      traceId: 'op-run-memory-attention-900',
+      command: 'run-cycles',
+      outcome: 'succeeded',
+      cycles: [
+        {
+          cycleIndex: 1,
+          traceId: 'op-run-memory-attention-900:cycle:1',
+          requestedAt: 900,
+          outcome: 'succeeded',
+          attentionPartitionCount: 2,
+        },
+      ],
+    });
+  });
 });
 
 function toStatusSummary(

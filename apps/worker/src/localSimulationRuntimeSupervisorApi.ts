@@ -2,10 +2,14 @@ import {
   createRuntimeSupervisorApiService,
   type RuntimeSupervisorApiService,
 } from '@aivilization/api';
-import type { LocalSimulationRuntimeOperationCommand, LocalSimulationRuntimeOperationTrace } from './localSimulationRuntimeOperationTrace';
+import type {
+  LocalSimulationRuntimeOperationCommand,
+  LocalSimulationRuntimeOperationTrace,
+} from './localSimulationRuntimeOperationTrace';
 import type {
   LocalSimulationRuntimeSupervisor,
   LocalSimulationRuntimeSupervisorPauseAllResult,
+  LocalSimulationRuntimeSupervisorRunCyclesResult,
   LocalSimulationRuntimeSupervisorStartAllResult,
   LocalSimulationRuntimeSupervisorStatus,
 } from './localSimulationRuntimeSupervisor';
@@ -14,6 +18,7 @@ export type LocalSimulationRuntimeSupervisorApiService = RuntimeSupervisorApiSer
   LocalSimulationRuntimeSupervisorStatus,
   LocalSimulationRuntimeSupervisorStartAllResult,
   LocalSimulationRuntimeSupervisorPauseAllResult,
+  LocalSimulationRuntimeSupervisorRunCyclesResult,
   LocalSimulationRuntimeOperationTrace,
   LocalSimulationRuntimeOperationCommand
 >;

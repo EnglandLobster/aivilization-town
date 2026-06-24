@@ -5,6 +5,7 @@ import type {
 import type { ScenarioMarketPoolSeed, ScenarioPreset } from '@aivilization/content';
 import type { CommandConsumerId, PartitionKey } from '@aivilization/sim-core';
 import type { LocalWorldRuntimeLoopPausePredicate } from './localRuntimeLoop';
+import type { LocalWorldRuntimeAgentProvider } from './localRuntimeStep';
 import type {
   LocalSimulationLifecycleMemoryConsolidationSchedule,
   LocalSimulationLifecycleValidationSchedule,
@@ -75,6 +76,7 @@ export type LocalSimulationRuntimeWiringInput = {
   readonly commandDrainLimit?: LocalRuntimeSteeringCommandDrainInput['limit'];
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
+  readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
   readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
 };
@@ -126,6 +128,7 @@ export function createLocalSimulationBackendRegistrationsFromManifest(
       : { commandDrainLimit: input.commandDrainLimit }),
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+    ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
     ...(input.validationSchedule === undefined
       ? {}
       : { validationSchedule: input.validationSchedule }),
@@ -161,6 +164,7 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
         : { commandDrainLimit: input.commandDrainLimit }),
       ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
       ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+      ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
       ...(input.validationSchedule === undefined
         ? {}
         : { validationSchedule: input.validationSchedule }),

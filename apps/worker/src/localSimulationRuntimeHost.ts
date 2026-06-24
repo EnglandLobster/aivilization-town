@@ -72,6 +72,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
         : { commandDrainLimit: input.commandDrainLimit }),
       ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
       ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+      ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
       ...(input.validationSchedule === undefined
         ? {}
         : { validationSchedule: input.validationSchedule }),

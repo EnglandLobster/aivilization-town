@@ -3,6 +3,11 @@ import type { Server } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {
+  createBranchPlan,
+  type AtomicActionProposal,
+  type DomainMicroPlanner,
+} from '@aivilization/agent-runtime';
 import { type ScenarioPreset } from '@aivilization/content';
 import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
@@ -538,6 +543,66 @@ describe('local runtime town HTTP gateway', () => {
     });
   });
 
+  test('passes dynamic agent providers through server runtime composition', async () => {
+    const providerObserved: string[] = [];
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      agentProvider: ({ projection, storage }) => {
+        providerObserved.push(
+          `${storage.partition.partitionKey}:${projection.agents['agent-1']?.educationScore ?? -1}`,
+        );
+        if (storage.partition.partitionKey !== 'world-main') {
+          return [];
+        }
+        return [
+          {
+            agentId: agentOne,
+            observedStateSummary: 'server provider study agent',
+            plan: createStudyPlan(),
+            signals: [],
+            microPlanners: [
+              studyMicroPlanner({
+                id: 'server-provider-study',
+                description: 'server provider study',
+                commandType: 'AgentStudy',
+                payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+              }),
+            ],
+            simulate: ({ action }) => ({ status: 'accepted', action }),
+          },
+        ];
+      },
+    });
+    const server = await listen(runtime.server);
+
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/start`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ operationId: 'op-provider-start', requestedAt: 200 }),
+      }),
+    ).resolves.toMatchObject({
+      traceId: 'op-provider-start',
+      outcome: 'succeeded',
+      succeededPartitionCount: 2,
+    });
+    expect(providerObserved).toContain('world-main:10');
+
+    const projection = requireProjection(
+      await fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/world-main/projection`),
+    );
+    expect(projection.projection.agents['agent-1']).toMatchObject({
+      educationScore: 40,
+    });
+  });
+
   test('optionally wires a runtime scheduler host into the local server API', async () => {
     const runtime = await createLocalRuntimeTownNodeHttpServer({
       rootDir: createRootDir(),
@@ -803,6 +868,27 @@ function createScenarioPreset(input: {
       },
     ],
     source: 'test',
+  };
+}
+
+function createStudyPlan() {
+  return createBranchPlan({
+    objective: 'develop education',
+    branches: [
+      {
+        id: 'development',
+        objective: 'improve education',
+        subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+      },
+    ],
+  });
+}
+
+function studyMicroPlanner(action: AtomicActionProposal): DomainMicroPlanner {
+  return {
+    domain: 'study',
+    supports: ({ subtaskId }) => subtaskId === 'study',
+    propose: () => [action],
   };
 }
 

@@ -20,6 +20,17 @@ import {
 } from './tickRunner';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
+export type LocalWorldRuntimeAgentProviderInput = {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly simulationId: SimulationId | string;
+  readonly issuedAt: number;
+  readonly projection: WorldProjection;
+};
+
+export type LocalWorldRuntimeAgentProvider = (
+  input: LocalWorldRuntimeAgentProviderInput,
+) => readonly WorkerTickAgentInput[] | Promise<readonly WorkerTickAgentInput[]>;
+
 export type LocalWorldRuntimeStepInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly tickId: string;
@@ -35,6 +46,7 @@ export type LocalWorldRuntimeStepInput = {
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly commandDrainLimit?: number;
   readonly agents: readonly WorkerTickAgentInput[];
+  readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
 };
@@ -91,6 +103,10 @@ export async function runLocalWorldRuntimeStep(
     };
   }
 
+  const agents = await resolveTickAgents({
+    input,
+    projection: commandDrain.projection,
+  });
   const tick = await runWorkerSimulationTick({
     tickId: input.tickId,
     simulationId: input.storage.partition.simulationId,
@@ -101,7 +117,7 @@ export async function runLocalWorldRuntimeStep(
     streamName: input.storage.partition.eventStreamName,
     checkpointing: input.storage.checkpointing,
     traceSink: input.storage.agentCycleTraceRepository,
-    agents: input.agents,
+    agents,
     ...input.storage.repositories,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
@@ -113,4 +129,19 @@ export async function runLocalWorldRuntimeStep(
     tick,
     projection: tick.projection,
   };
+}
+
+async function resolveTickAgents(input: {
+  readonly input: LocalWorldRuntimeStepInput;
+  readonly projection: WorldProjection;
+}): Promise<readonly WorkerTickAgentInput[]> {
+  const providedAgents =
+    (await input.input.agentProvider?.({
+      storage: input.input.storage,
+      simulationId: input.input.simulationId,
+      issuedAt: input.input.issuedAt,
+      projection: input.projection,
+    })) ?? [];
+
+  return [...input.input.agents, ...providedAgents];
 }

@@ -25,6 +25,7 @@ import type {
   WorkerTickProjectionCheckpointingInput,
 } from './tickRunner';
 import type { WorkerSteeringCommand } from './steering';
+import { FileLocalSimulationLifecycleStateStore } from './localSimulationLifecycle';
 
 export type LocalWorldRuntimeStoragePaths = {
   readonly rootDir: string;
@@ -35,6 +36,7 @@ export type LocalWorldRuntimeStoragePaths = {
   readonly eventStoreDir: string;
   readonly checkpointStoreDir: string;
   readonly snapshotStoreDir: string;
+  readonly lifecycleStateStoreDir: string;
   readonly memoryDir: string;
   readonly planningDir: string;
   readonly observabilityDir: string;
@@ -55,6 +57,7 @@ export type LocalWorldRuntimeStorage = {
   readonly eventStore: FileEventStore<WorldEvent>;
   readonly checkpointStore: FileProjectionCheckpointStore;
   readonly snapshotStore: FileProjectionSnapshotStore<WorldProjection>;
+  readonly lifecycleStateStore: FileLocalSimulationLifecycleStateStore;
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
@@ -94,6 +97,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
     rootDir: paths.snapshotStoreDir,
   });
+  const lifecycleStateStore = new FileLocalSimulationLifecycleStateStore({
+    rootDir: paths.lifecycleStateStoreDir,
+  });
   const intentionRepository = new FileAgentIntentionRepository({ rootDir: paths.memoryDir });
   const longTermProfileRepository = new FileLongTermProfileRepository({
     rootDir: paths.memoryDir,
@@ -130,6 +136,7 @@ export function createLocalWorldRuntimeStorage(input: {
     eventStore,
     checkpointStore,
     snapshotStore,
+    lifecycleStateStore,
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
@@ -161,6 +168,7 @@ function createLocalWorldRuntimeStoragePaths(input: {
     eventStoreDir: join(partitionDir, 'events'),
     checkpointStoreDir: join(partitionDir, 'checkpoints'),
     snapshotStoreDir: join(partitionDir, 'snapshots'),
+    lifecycleStateStoreDir: join(partitionDir, 'lifecycle'),
     memoryDir: join(partitionDir, 'memory'),
     planningDir: join(partitionDir, 'planning'),
     observabilityDir: join(partitionDir, 'observability'),

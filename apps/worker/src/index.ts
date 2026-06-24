@@ -15,6 +15,7 @@ export * from './localRuntimeStorage';
 export * from './localCommandDrain';
 export * from './localRuntimeStep';
 export * from './localRuntimeLoop';
+export * from './localSimulationLifecycle';
 export * from './localScenarioBootstrap';
 export * from './marketMetrics';
 export * from './memoryConsolidation';

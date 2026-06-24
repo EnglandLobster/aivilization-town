@@ -3,6 +3,7 @@ import type {
   RuntimeSupervisorOperationTraceQuery,
   RuntimeSupervisorRunRequest,
 } from './runtimeSupervisorApi';
+import type { RuntimeRunQueueApiService, RuntimeRunQueueSubmitRequest } from './runtimeRunQueueApi';
 import type {
   ExperimentValidationReportLookupRequest,
   ExperimentValidationReportQueryRequest,
@@ -43,6 +44,7 @@ export type TownHttpApiServices<
   TRuntimePauseResult,
   TRuntimeRunResult,
   TRuntimeTrace,
+  TRuntimeRunQueueJob,
   TRuntimeCommand extends string = string,
 > = {
   readonly simulation: SimulationApiService<
@@ -61,6 +63,7 @@ export type TownHttpApiServices<
     TRuntimeTrace,
     TRuntimeCommand
   >;
+  readonly runtimeRunQueue: RuntimeRunQueueApiService<TRuntimeRunQueueJob>;
 };
 
 type SimulationRoute = {
@@ -94,6 +97,7 @@ export function createTownHttpApiHandler<
   TRuntimePauseResult,
   TRuntimeRunResult,
   TRuntimeTrace,
+  TRuntimeRunQueueJob,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -108,6 +112,7 @@ export function createTownHttpApiHandler<
     TRuntimePauseResult,
     TRuntimeRunResult,
     TRuntimeTrace,
+    TRuntimeRunQueueJob,
     TRuntimeCommand
   >,
 ): TownHttpApiHandler {
@@ -137,6 +142,7 @@ async function routeTownHttpRequest<
   TRuntimePauseResult,
   TRuntimeRunResult,
   TRuntimeTrace,
+  TRuntimeRunQueueJob,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -151,6 +157,7 @@ async function routeTownHttpRequest<
     TRuntimePauseResult,
     TRuntimeRunResult,
     TRuntimeTrace,
+    TRuntimeRunQueueJob,
     TRuntimeCommand
   >,
   request: TownHttpApiRequest,
@@ -161,7 +168,12 @@ async function routeTownHttpRequest<
     return routeSimulationRequest(services.simulation, request, simulationRoute);
   }
   if (segments[0] === 'runtime') {
-    return routeRuntimeSupervisorRequest(services.runtimeSupervisor, request, segments);
+    return routeRuntimeRequest(
+      services.runtimeSupervisor,
+      services.runtimeRunQueue,
+      request,
+      segments,
+    );
   }
   throw new TownHttpApiError(404, 'not_found', 'route not found');
 }
@@ -264,12 +276,13 @@ async function routeSimulationRequest<
   throw new TownHttpApiError(404, 'not_found', 'route not found');
 }
 
-async function routeRuntimeSupervisorRequest<
+async function routeRuntimeRequest<
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
   TRuntimeRunResult,
   TRuntimeTrace,
+  TRuntimeRunQueueJob,
   TRuntimeCommand extends string,
 >(
   runtimeSupervisor: RuntimeSupervisorApiService<
@@ -280,9 +293,28 @@ async function routeRuntimeSupervisorRequest<
     TRuntimeTrace,
     TRuntimeCommand
   >,
+  runtimeRunQueue: RuntimeRunQueueApiService<TRuntimeRunQueueJob>,
   request: TownHttpApiRequest,
   segments: readonly string[],
 ): Promise<TownHttpApiResponse> {
+  if (segments.length === 2 && segments[1] === 'run-jobs') {
+    assertMethod(request, 'POST');
+    return jsonResponse(
+      202,
+      await runtimeRunQueue.enqueueRuntimeRun(createRuntimeRunQueueSubmitRequest(request.body)),
+    );
+  }
+  if (segments.length === 3 && segments[1] === 'run-jobs') {
+    assertMethod(request, 'GET');
+    const jobId = segments[2];
+    if (jobId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      200,
+      await runtimeRunQueue.getRuntimeRunJob({ jobId: decodePathPart(jobId) }),
+    );
+  }
   if (segments.length === 2 && segments[1] === 'status') {
     assertMethod(request, 'GET');
     return jsonResponse(200, await runtimeSupervisor.getRuntimeStatus());
@@ -530,6 +562,19 @@ function createRuntimeRunRequest(body: unknown): RuntimeSupervisorRunRequest {
   };
 }
 
+function createRuntimeRunQueueSubmitRequest(body: unknown): RuntimeRunQueueSubmitRequest {
+  const record = requireRecordBody(body);
+  return {
+    jobId: requireString(record, 'jobId'),
+    enqueuedAt: requireNonNegativeNumber(record, 'enqueuedAt'),
+    requestedAt: requireNonNegativeNumber(record, 'requestedAt'),
+    cycleCount: requirePositiveInteger(record, 'cycleCount'),
+    ...optionalString(record, 'operationId'),
+    ...optionalNonNegativeNumber(record, 'cycleIntervalMs'),
+    ...optionalBoolean(record, 'stopOnAttention'),
+  };
+}
+
 function createRuntimeRunSessionStopRequest(
   traceId: string,
   body: unknown,
@@ -597,6 +642,17 @@ function requireNumber(record: Readonly<Record<string, unknown>>, field: string)
   const value = record[field];
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TownHttpApiError(400, 'bad_request', `${field} must be a number`);
+  }
+  return value;
+}
+
+function requireNonNegativeNumber(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+): number {
+  const value = requireNumber(record, field);
+  if (value < 0) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a non-negative finite number`);
   }
   return value;
 }

@@ -3,6 +3,7 @@ export * from './actionSynthesis';
 export * from './branchPlanRepository';
 export * from './cycle';
 export * from './intentionInfluence';
+export * from './llmStrategicPlanner';
 export * from './memoryInfluence';
 export * from './planner';
 export * from './planProgress';

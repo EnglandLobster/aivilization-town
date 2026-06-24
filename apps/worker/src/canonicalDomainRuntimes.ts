@@ -13,11 +13,12 @@ import {
   resolveProductionDefinition,
   type ProductionChainStep,
 } from '@aivilization/economy';
-import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
+import { asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
   AgentEatPayload,
   AgentMoveToPayload,
+  AgentObserveLocationPayload,
   AgentProducePayload,
   AgentSeeDoctorPayload,
   AgentStartConversationPayload,
@@ -387,17 +388,30 @@ export function createSocialDomainRuntimeRegistration(
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'social',
-    createMicroPlanners: (context) => {
-      const targetAgentId = resolveSocialTargetAgentId(context, config.targetAgentId);
-      return [
-        createContextualDomainMicroPlanner({
-          domain: 'social',
-          context,
-          planRecord: context.planRecord,
-          resolveTargetLocationId: () =>
-            context.projection.agents[targetAgentId]?.locationId ??
-            DEFAULT_DOMAIN_LOCATION_IDS.social,
-          propose: (selectedSubtask) => ({
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'social',
+        context,
+        planRecord: context.planRecord,
+        resolveTargetLocationId: () =>
+          config.targetAgentId === undefined
+            ? DEFAULT_DOMAIN_LOCATION_IDS.social
+            : context.projection.agents[config.targetAgentId]?.locationId ??
+              DEFAULT_DOMAIN_LOCATION_IDS.social,
+        propose: (selectedSubtask) => {
+          const targetAgentId =
+            config.targetAgentId ?? resolveObservedSocialTargetAgentId(context);
+          if (targetAgentId === undefined) {
+            return {
+              id: createCanonicalActionId('social', selectedSubtask),
+              description: `Observe location before ${selectedSubtask.description}.`,
+              commandType: 'AgentObserveLocation',
+              priority: selectedSubtask.score,
+              payload: { focus: selectedSubtask.description },
+            };
+          }
+
+          return {
             id: createCanonicalActionId('social', selectedSubtask),
             description: `Start conversation for ${selectedSubtask.description}.`,
             commandType: 'AgentStartConversation',
@@ -424,10 +438,10 @@ export function createSocialDomainRuntimeRegistration(
                 },
               ],
             },
-          }),
-        }),
-      ];
-    },
+          };
+        },
+      }),
+    ],
   };
 }
 
@@ -607,6 +621,7 @@ type ContextualDomainMicroPlannerInput = {
 type CanonicalActionProposal =
   | AtomicActionProposal<'AgentEat', AgentEatPayload>
   | AtomicActionProposal<'AgentMoveTo', AgentMoveToPayload>
+  | AtomicActionProposal<'AgentObserveLocation', AgentObserveLocationPayload>
   | AtomicActionProposal<'AgentStudy', AgentStudyPayload>
   | AtomicActionProposal<'AgentSleep', AgentSleepPayload>
   | AtomicActionProposal<'AgentSeeDoctor', AgentSeeDoctorPayload>
@@ -1048,22 +1063,26 @@ function createProductionResourceEstimate(input: {
   };
 }
 
-function resolveSocialTargetAgentId(
+function resolveObservedSocialTargetAgentId(
   context: WorkerDomainRuntimeFactoryInput,
-  configuredTargetAgentId: AgentId | undefined,
-): AgentId {
-  if (configuredTargetAgentId !== undefined) {
-    return configuredTargetAgentId;
+): AgentId | undefined {
+  const locationId = context.agent.locationId;
+  if (locationId === null) {
+    return undefined;
   }
 
-  const targetAgentId = Object.keys(context.projection.agents)
+  const latestObservation = [...context.projection.locationObservations]
+    .filter((observation) => observation.agentId === context.agentId)
+    .filter((observation) => observation.locationId === locationId)
+    .sort((left, right) => right.observedAt - left.observedAt)[0];
+  if (latestObservation === undefined) {
+    return undefined;
+  }
+
+  return latestObservation.observedAgentIds
     .filter((candidate) => candidate !== context.agentId)
-    .sort()[0];
-  if (targetAgentId === undefined) {
-    throw new Error('social domain requires targetAgentId or another projected agent');
-  }
-
-  return asAgentId(targetAgentId);
+    .filter((candidate) => context.projection.agents[candidate]?.locationId === locationId)
+    .sort((left, right) => left.localeCompare(right))[0];
 }
 
 function createCanonicalActionId(

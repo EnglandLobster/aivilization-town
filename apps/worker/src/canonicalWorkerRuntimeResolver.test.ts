@@ -191,6 +191,43 @@ describe('canonical worker runtime resolver', () => {
       reason: 'upgraded residential tier to 2 toward required tier 5',
     });
   });
+
+  test('keeps observation-only subtasks in progress', async () => {
+    const projection = createProjection();
+    const resolver = createCanonicalWorkerRuntimeResolver({ simulationId, policies });
+    const binding = await resolver({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'social' }),
+    });
+
+    expect(
+      binding?.subtaskCompletion?.({
+        selectedSubtask: {
+          branchId: 'social-lane',
+          subtaskId: 'planned-step',
+          description: 'Find someone nearby to talk with.',
+          score: 10,
+        },
+        simulationResults: [
+          {
+            status: 'accepted',
+            action: {
+              id: 'observe-nearby-agents',
+              description: 'Observe nearby agents before conversation.',
+              commandType: 'AgentObserveLocation',
+              payload: { focus: 'Find someone nearby to talk with.' },
+            },
+          },
+        ],
+      }),
+    ).toEqual({
+      status: 'in-progress',
+      reason: 'observed current location before executing subtask',
+    });
+  });
 });
 
 function createProjection(): WorldProjection {

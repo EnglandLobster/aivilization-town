@@ -10,6 +10,7 @@ import {
   createWorldProjection,
   type WorldAgentState,
   type WorldCommandPolicies,
+  type WorldLocationObservationState,
   type WorldProjection,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
@@ -232,25 +233,8 @@ describe('canonical domain runtimes', () => {
       payload: { side: 'buy', commodityName: 'Apple', quantity: 1 },
     });
     expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
-      commandType: 'AgentStartConversation',
-      payload: {
-        targetAgentId: agentB,
-        topic: 'Attend planned activity.',
-        relationDelta: 1,
-        attitudeDelta: 1,
-        turns: [
-          {
-            speakerAgentId: agentA,
-            utterance: 'Socialized during planned activity.',
-            intent: 'social-plan',
-          },
-          {
-            speakerAgentId: agentB,
-            utterance: 'I will remember this conversation about Attend planned activity.',
-            intent: 'acknowledge-topic',
-          },
-        ],
-      },
+      commandType: 'AgentObserveLocation',
+      payload: { focus: 'Attend planned activity.' },
     });
     expect(firstProposal(binding.microPlanners, 'production')).toMatchObject({
       commandType: 'AgentProduce',
@@ -323,6 +307,61 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('uses observed co-located agents before starting an unconfigured social conversation', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+    });
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [
+          agent,
+          createAgent({ agentId: agentC, locationId: asLocationId('town-square') }),
+          createAgent({ agentId: agentB, locationId: asLocationId('town-square') }),
+        ],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'community routines',
+          },
+        ],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      id: 'canonical-social-step-e',
+      commandType: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentC,
+        topic: 'Attend planned activity.',
+        turns: [
+          {
+            speakerAgentId: agentA,
+            utterance: 'Socialized during planned activity.',
+            intent: 'social-plan',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: 'I will remember this conversation about Attend planned activity.',
+            intent: 'acknowledge-topic',
+          },
+        ],
+      },
+    });
+  });
+
   test('proposes movement to the target agent location before socializing', async () => {
     const sourceAgent = createAgent({
       agentId: agentA,
@@ -343,7 +382,9 @@ describe('canonical domain runtimes', () => {
         ],
       }),
     });
-    const binding = await resolveCanonicalBinding(context);
+    const binding = await resolveCanonicalBinding(context, {
+      social: { targetAgentId: agentB },
+    });
 
     expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
       id: 'canonical-social-step-e-move',
@@ -550,10 +591,14 @@ function createProjection(input: {
     readonly commodityReserve: number;
     readonly currencyReserve: number;
   }[];
+  readonly locationObservations?: readonly WorldLocationObservationState[];
 }): WorldProjection {
   return createWorldProjection({
     agents: input.agents,
     ...(input.locations === undefined ? {} : { locations: input.locations }),
+    ...(input.locationObservations === undefined
+      ? {}
+      : { locationObservations: input.locationObservations }),
     marketPools: input.marketPools,
   });
 }
@@ -604,6 +649,16 @@ function market() {
     name: 'Market',
     kind: 'market' as const,
     activityAffinities: ['trade', 'socialize'],
+    capacity: null,
+  };
+}
+
+function townSquare() {
+  return {
+    locationId: asLocationId('town-square'),
+    name: 'Town Square',
+    kind: 'social' as const,
+    activityAffinities: ['socialize'],
     capacity: null,
   };
 }

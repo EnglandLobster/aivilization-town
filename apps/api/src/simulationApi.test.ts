@@ -3,6 +3,8 @@ import {
   createSimulationApiService,
   type ExperimentValidationReportLookupRequest,
   type ExperimentValidationReportQueryRequest,
+  type MarketOhlcBarQueryRequest,
+  type MarketTradeObservationQueryRequest,
   type SimulationEventFeedRequest,
   type SimulationLifecycleRequest,
   type SimulationSyncRequest,
@@ -19,6 +21,7 @@ describe('simulation API control service', () => {
       eventFeeds: createEventFeedPort(),
       sync: createSyncPort(),
       validationReports: createValidationReportsPort(),
+      marketObservations: createMarketObservationsPort(),
       steeringCommands: {
         submit: (command, context) => {
           submitted.push(command);
@@ -70,6 +73,7 @@ describe('simulation API control service', () => {
       eventFeeds: createEventFeedPort(),
       sync: createSyncPort(),
       validationReports: createValidationReportsPort(),
+      marketObservations: createMarketObservationsPort(),
       steeringCommands: {
         submit: (command) => Promise.resolve({ command }),
       },
@@ -106,6 +110,8 @@ describe('simulation API control service', () => {
     const syncRequests: SimulationSyncRequest[] = [];
     const validationReportQueries: ExperimentValidationReportQueryRequest[] = [];
     const validationReportLookups: ExperimentValidationReportLookupRequest[] = [];
+    const marketTradeQueries: MarketTradeObservationQueryRequest[] = [];
+    const marketOhlcQueries: MarketOhlcBarQueryRequest[] = [];
     const service = createSimulationApiService({
       projectionQueries: {
         getProjection: (query) => Promise.resolve({ query, agents: 80 }),
@@ -141,6 +147,44 @@ describe('simulation API control service', () => {
         getReport: (request) => {
           validationReportLookups.push(request);
           return Promise.resolve({ run: { runId: request.runId } });
+        },
+      },
+      marketObservations: {
+        queryMarketTradeObservations: (request) => {
+          marketTradeQueries.push(request);
+          return Promise.resolve([
+            {
+              observationId: 'trade-1',
+              simulationId: request.simulationId,
+              commodityId: request.commodityId ?? 'Apple',
+              sourceEventId: 'event-trade-1',
+              sourceSequence: 2,
+              side: 'buy' as const,
+              observedAt: request.fromObservedAt ?? 100,
+              price: 11,
+              commodityQuantity: 1,
+              currencyQuantity: 11,
+            },
+          ]);
+        },
+        queryMarketOhlcBars: (request) => {
+          marketOhlcQueries.push(request);
+          return Promise.resolve([
+            {
+              barId: 'bar-1',
+              simulationId: request.simulationId,
+              commodityId: request.commodityId ?? 'Apple',
+              intervalStartedAt: request.fromIntervalStartedAt ?? 100,
+              intervalEndedAt: 200,
+              openPrice: 10,
+              highPrice: 12,
+              lowPrice: 9,
+              closePrice: 11,
+              tradeCount: 3,
+              commodityVolume: 4,
+              currencyVolume: 44,
+            },
+          ]);
         },
       },
       steeringCommands: {
@@ -216,6 +260,54 @@ describe('simulation API control service', () => {
       }),
     ).resolves.toEqual({ run: { runId: 'validation-2' } });
     await expect(
+      service.queryMarketTradeObservations({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromObservedAt: 100,
+        toObservedAt: 200,
+        limit: 2,
+      }),
+    ).resolves.toEqual([
+      {
+        observationId: 'trade-1',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        sourceEventId: 'event-trade-1',
+        sourceSequence: 2,
+        side: 'buy',
+        observedAt: 100,
+        price: 11,
+        commodityQuantity: 1,
+        currencyQuantity: 11,
+      },
+    ]);
+    await expect(
+      service.queryMarketOhlcBars({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromIntervalStartedAt: 100,
+        toIntervalStartedAt: 200,
+        limit: 2,
+      }),
+    ).resolves.toEqual([
+      {
+        barId: 'bar-1',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        intervalStartedAt: 100,
+        intervalEndedAt: 200,
+        openPrice: 10,
+        highPrice: 12,
+        lowPrice: 9,
+        closePrice: 11,
+        tradeCount: 3,
+        commodityVolume: 4,
+        currencyVolume: 44,
+      },
+    ]);
+    await expect(
       service.startSimulation({
         simulationId: 'sim-1',
         partitionKey: 'world-main',
@@ -279,6 +371,26 @@ describe('simulation API control service', () => {
         runId: 'validation-2',
       },
     ]);
+    expect(marketTradeQueries).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromObservedAt: 100,
+        toObservedAt: 200,
+        limit: 2,
+      },
+    ]);
+    expect(marketOhlcQueries).toEqual([
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromIntervalStartedAt: 100,
+        toIntervalStartedAt: 200,
+        limit: 2,
+      },
+    ]);
   });
 });
 
@@ -308,6 +420,43 @@ function createValidationReportsPort() {
       Promise.resolve([{ run: { runId: request.runId ?? 'validation-1' } }]),
     getReport: (request: ExperimentValidationReportLookupRequest) =>
       Promise.resolve({ run: { runId: request.runId } }),
+  };
+}
+
+function createMarketObservationsPort() {
+  return {
+    queryMarketTradeObservations: (request: MarketTradeObservationQueryRequest) =>
+      Promise.resolve([
+        {
+          observationId: 'trade-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          sourceEventId: 'event-trade-1',
+          sourceSequence: 2,
+          side: 'buy' as const,
+          observedAt: request.fromObservedAt ?? 100,
+          price: 11,
+          commodityQuantity: 1,
+          currencyQuantity: 11,
+        },
+      ]),
+    queryMarketOhlcBars: (request: MarketOhlcBarQueryRequest) =>
+      Promise.resolve([
+        {
+          barId: 'bar-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          intervalStartedAt: request.fromIntervalStartedAt ?? 100,
+          intervalEndedAt: 200,
+          openPrice: 10,
+          highPrice: 12,
+          lowPrice: 9,
+          closePrice: 11,
+          tradeCount: 3,
+          commodityVolume: 4,
+          currencyVolume: 44,
+        },
+      ]),
   };
 }
 

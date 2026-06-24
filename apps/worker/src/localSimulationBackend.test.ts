@@ -162,6 +162,69 @@ describe('local simulation backend composition', () => {
       }),
     ).resolves.toBeUndefined();
 
+    await storage.marketObservationRepository.recordTrades([
+      {
+        observationId: 'sim-1:trade:2:event-trade-1',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        sourceEventId: 'event-trade-1',
+        sourceSequence: 2,
+        side: 'buy',
+        observedAt: 250,
+        price: 11,
+        commodityQuantity: 1,
+        currencyQuantity: 11,
+      },
+    ]);
+    await storage.marketObservationRepository.recordOhlcBars([
+      {
+        barId: 'sim-1:ohlc:100:0:Apple:200',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        intervalStartedAt: 200,
+        intervalEndedAt: 300,
+        openPrice: 10,
+        highPrice: 12,
+        lowPrice: 9,
+        closePrice: 11,
+        tradeCount: 3,
+        commodityVolume: 4,
+        currencyVolume: 44,
+      },
+    ]);
+    await expect(
+      backend.api.queryMarketTradeObservations({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromObservedAt: 200,
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([
+      {
+        observationId: 'sim-1:trade:2:event-trade-1',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        observedAt: 250,
+      },
+    ]);
+    await expect(
+      backend.marketObservations.queryMarketOhlcBars({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        commodityId: 'Apple',
+        fromIntervalStartedAt: 200,
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([
+      {
+        barId: 'sim-1:ohlc:100:0:Apple:200',
+        simulationId: 'sim-1',
+        commodityId: 'Apple',
+        intervalStartedAt: 200,
+      },
+    ]);
+
     const replayed = requireReplayResult(
       await backend.api.replaySimulation({
         simulationId: 'sim-1',
@@ -244,6 +307,14 @@ describe('local simulation backend composition', () => {
     );
     await expect(
       backend.api.queryExperimentValidationReports({
+        simulationId: 'sim-1',
+        partitionKey: 'world-other',
+      }),
+    ).rejects.toThrow(
+      'request partitionKey world-other must match storage partitionKey world-main',
+    );
+    await expect(
+      backend.api.queryMarketTradeObservations({
         simulationId: 'sim-1',
         partitionKey: 'world-other',
       }),

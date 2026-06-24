@@ -53,6 +53,34 @@ type TestValidationReport = {
   };
 };
 
+type TestMarketTradeObservation = {
+  readonly observationId: string;
+  readonly simulationId: string;
+  readonly commodityId: string;
+  readonly sourceEventId: string;
+  readonly sourceSequence: number;
+  readonly side: 'buy' | 'sell';
+  readonly observedAt: number;
+  readonly price: number;
+  readonly commodityQuantity: number;
+  readonly currencyQuantity: number;
+};
+
+type TestMarketOhlcBar = {
+  readonly barId: string;
+  readonly simulationId: string;
+  readonly commodityId: string;
+  readonly intervalStartedAt: number;
+  readonly intervalEndedAt: number;
+  readonly openPrice: number;
+  readonly highPrice: number;
+  readonly lowPrice: number;
+  readonly closePrice: number;
+  readonly tradeCount: number;
+  readonly commodityVolume: number;
+  readonly currencyVolume: number;
+};
+
 type TestRuntimeStatus = {
   readonly manifestId: string;
 };
@@ -274,6 +302,66 @@ describe('town HTTP API router', () => {
     });
     await expect(
       handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/trades',
+        query: {
+          commodityId: 'Apple',
+          fromObservedAt: '100',
+          toObservedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          observationId: 'trade-1',
+          simulationId: 'sim-1',
+          commodityId: 'Apple',
+          sourceEventId: 'event-trade-1',
+          sourceSequence: 2,
+          side: 'buy',
+          observedAt: 100,
+          price: 11,
+          commodityQuantity: 1,
+          currencyQuantity: 11,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/ohlc-bars',
+        query: {
+          commodityId: 'Apple',
+          fromIntervalStartedAt: '100',
+          toIntervalStartedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          barId: 'bar-1',
+          simulationId: 'sim-1',
+          commodityId: 'Apple',
+          intervalStartedAt: 100,
+          intervalEndedAt: 200,
+          openPrice: 10,
+          highPrice: 12,
+          lowPrice: 9,
+          closePrice: 11,
+          tradeCount: 3,
+          commodityVolume: 4,
+          currencyVolume: 44,
+        },
+      ],
+    });
+    await expect(
+      handler({
         method: 'POST',
         path: '/simulations/sim-1/partitions/world-main/objectives',
         body: {
@@ -378,6 +466,28 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           runId: 'validation-2',
+        },
+      },
+      {
+        method: 'queryMarketTradeObservations',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          commodityId: 'Apple',
+          fromObservedAt: 100,
+          toObservedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'queryMarketOhlcBars',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          commodityId: 'Apple',
+          fromIntervalStartedAt: 100,
+          toIntervalStartedAt: 200,
+          limit: 2,
         },
       },
       {
@@ -1374,6 +1484,17 @@ describe('town HTTP API router', () => {
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
     });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/trades',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
     expect(calls).toEqual([]);
   });
 });
@@ -1427,6 +1548,42 @@ function createSimulationService(
     getExperimentValidationReport: (request) => {
       calls.push({ method: 'getExperimentValidationReport', request });
       return Promise.resolve({ run: { runId: request.runId } });
+    },
+    queryMarketTradeObservations: (request) => {
+      calls.push({ method: 'queryMarketTradeObservations', request });
+      return Promise.resolve([
+        {
+          observationId: 'trade-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          sourceEventId: 'event-trade-1',
+          sourceSequence: 2,
+          side: 'buy',
+          observedAt: request.fromObservedAt ?? 100,
+          price: 11,
+          commodityQuantity: 1,
+          currencyQuantity: 11,
+        },
+      ] satisfies TestMarketTradeObservation[]);
+    },
+    queryMarketOhlcBars: (request) => {
+      calls.push({ method: 'queryMarketOhlcBars', request });
+      return Promise.resolve([
+        {
+          barId: 'bar-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          intervalStartedAt: request.fromIntervalStartedAt ?? 100,
+          intervalEndedAt: 200,
+          openPrice: 10,
+          highPrice: 12,
+          lowPrice: 9,
+          closePrice: 11,
+          tradeCount: 3,
+          commodityVolume: 4,
+          currencyVolume: 44,
+        },
+      ] satisfies TestMarketOhlcBar[]);
     },
     submitLongHorizonObjective: (request) => {
       calls.push({ method: 'submitLongHorizonObjective', request });

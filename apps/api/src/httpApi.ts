@@ -42,6 +42,8 @@ import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type {
   ExperimentValidationReportLookupRequest,
   ExperimentValidationReportQueryRequest,
+  MarketOhlcBarQueryRequest,
+  MarketTradeObservationQueryRequest,
   SimulationApiService,
   SimulationEventFeedRequest,
   SimulationLifecycleRequest,
@@ -132,6 +134,7 @@ type SimulationRoute = {
   readonly runId?: string;
   readonly agentId?: string;
   readonly traceId?: string;
+  readonly marketObservationKind?: string;
 };
 
 class TownHttpApiError extends Error {
@@ -336,6 +339,26 @@ async function routeSimulationRequest<
         createValidationReportQueryRequest(route, request.query),
       ),
     );
+  }
+  if (route.action === 'market-observations') {
+    assertMethod(request, 'GET');
+    if (route.marketObservationKind === 'trades') {
+      return jsonResponse(
+        200,
+        await simulation.queryMarketTradeObservations(
+          createMarketTradeObservationQueryRequest(route, request.query),
+        ),
+      );
+    }
+    if (route.marketObservationKind === 'ohlc-bars') {
+      return jsonResponse(
+        200,
+        await simulation.queryMarketOhlcBars(
+          createMarketOhlcBarQueryRequest(route, request.query),
+        ),
+      );
+    }
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
   }
   if (route.action === 'agent-profiles') {
     if (agentProfiles === undefined) {
@@ -737,6 +760,29 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
     segments.length === 6 &&
     segments[0] === 'simulations' &&
     segments[2] === 'partitions' &&
+    segments[4] === 'market-observations'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const marketObservationKind = segments[5];
+    if (
+      simulationId === undefined ||
+      partitionKey === undefined ||
+      marketObservationKind === undefined
+    ) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'market-observations',
+      marketObservationKind: decodePathPart(marketObservationKind),
+    };
+  }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
     segments[4] === 'agent-profiles'
   ) {
     const simulationId = segments[1];
@@ -903,6 +949,40 @@ function createValidationReportQueryRequest(
     ...optionalQueryString(query, 'runId'),
     ...optionalQueryNumber(query, 'fromGeneratedAt'),
     ...optionalQueryNumber(query, 'toGeneratedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createMarketTradeObservationQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): MarketTradeObservationQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'commodityId'),
+    ...optionalQueryNumber(query, 'fromObservedAt'),
+    ...optionalQueryNumber(query, 'toObservedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createMarketOhlcBarQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): MarketOhlcBarQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'commodityId'),
+    ...optionalQueryNumber(query, 'fromIntervalStartedAt'),
+    ...optionalQueryNumber(query, 'toIntervalStartedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

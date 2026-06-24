@@ -1,4 +1,4 @@
-import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
+import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,6 +11,10 @@ import {
   type LocalExperimentValidationScheduleInput,
   type LocalExperimentValidationScheduleResult,
 } from './localExperimentValidationSchedule';
+import {
+  runWorkerMemoryConsolidationSchedule,
+  type WorkerMemoryConsolidationScheduleResult,
+} from './memoryConsolidation';
 
 export type LocalSimulationLifecycleRequest = {
   readonly simulationId: string;
@@ -77,6 +81,12 @@ export type LocalSimulationLifecycleValidationSchedule = Pick<
   readonly runIdPrefix?: string;
 };
 
+export type LocalSimulationLifecycleMemoryConsolidationSchedule = {
+  readonly agentIds?: readonly AgentId[];
+  readonly retrievalLimit: number;
+  readonly minPatternCount: number;
+};
+
 export type LocalSimulationLifecycleControllerInput = Omit<
   LocalWorldRuntimeLoopInput,
   'loopId' | 'firstTickIndex' | 'tickCount' | 'issuedAtStart' | 'pauseBeforeTick'
@@ -87,6 +97,7 @@ export type LocalSimulationLifecycleControllerInput = Omit<
   readonly lifecycleStateStore?: LocalSimulationLifecycleStateStore;
   readonly pauseBeforeTick?: LocalWorldRuntimeLoopInput['pauseBeforeTick'];
   readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
+  readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
 };
 
 export type LocalSimulationLifecycleStartResult = {
@@ -98,6 +109,8 @@ export type LocalSimulationLifecycleStartResult = {
   readonly loop: LocalWorldRuntimeLoopResult;
   readonly validationReport?: LocalExperimentValidationScheduleResult;
   readonly validationFailure?: LocalSimulationLifecycleValidationFailure;
+  readonly memoryConsolidation?: WorkerMemoryConsolidationScheduleResult;
+  readonly memoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
 export type LocalSimulationLifecyclePauseResult = {
@@ -270,12 +283,21 @@ export function createLocalSimulationLifecycleController(
               ...loopState,
               ...validationStateFields,
             });
+      const memoryConsolidation =
+        loop.status === 'completed' && input.memoryConsolidationSchedule !== undefined
+          ? await runLifecycleMemoryConsolidation({
+              controllerInput: input,
+              request,
+              schedule: input.memoryConsolidationSchedule,
+            })
+          : {};
 
       return {
         status: loop.status,
         state,
         loop,
         ...validation,
+        ...memoryConsolidation,
       };
     },
     pause: (request) => {
@@ -429,6 +451,43 @@ function createValidationStateFields(
     };
   }
   return {};
+}
+
+async function runLifecycleMemoryConsolidation(input: {
+  readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly request: LocalSimulationLifecycleRequest;
+  readonly schedule: LocalSimulationLifecycleMemoryConsolidationSchedule;
+}): Promise<
+  | { readonly memoryConsolidation: WorkerMemoryConsolidationScheduleResult }
+  | { readonly memoryConsolidationFailure: LocalSimulationLifecycleValidationFailure }
+> {
+  try {
+    return {
+      memoryConsolidation: await runWorkerMemoryConsolidationSchedule({
+        agentIds:
+          input.schedule.agentIds ??
+          createDefaultMemoryConsolidationAgentIds(input.controllerInput),
+        shortTermMemoryRepository: input.controllerInput.storage.shortTermMemoryRepository,
+        longTermProfileRepository: input.controllerInput.storage.longTermProfileRepository,
+        cursorStore: input.controllerInput.storage.memoryConsolidationCursorStore,
+        retrievalLimit: input.schedule.retrievalLimit,
+        minPatternCount: input.schedule.minPatternCount,
+        proposedAt: input.request.requestedAt,
+      }),
+    };
+  } catch (error) {
+    return {
+      memoryConsolidationFailure: serializeValidationFailure(error),
+    };
+  }
+}
+
+function createDefaultMemoryConsolidationAgentIds(
+  input: LocalSimulationLifecycleControllerInput,
+): AgentId[] {
+  return Object.keys(input.initialProjection.agents).sort((left, right) =>
+    left.localeCompare(right),
+  ) as AgentId[];
 }
 
 async function runLifecycleValidationSchedule(input: {

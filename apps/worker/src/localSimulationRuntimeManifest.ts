@@ -5,7 +5,10 @@ import type {
 import type { ScenarioMarketPoolSeed, ScenarioPreset } from '@aivilization/content';
 import type { CommandConsumerId, PartitionKey } from '@aivilization/sim-core';
 import type { LocalWorldRuntimeLoopPausePredicate } from './localRuntimeLoop';
-import type { LocalSimulationLifecycleValidationSchedule } from './localSimulationLifecycle';
+import type {
+  LocalSimulationLifecycleMemoryConsolidationSchedule,
+  LocalSimulationLifecycleValidationSchedule,
+} from './localSimulationLifecycle';
 import {
   createLocalSimulationBackendRegistry,
   type LocalSimulationBackendRegistry,
@@ -73,6 +76,7 @@ export type LocalSimulationRuntimeWiringInput = {
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
+  readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
 };
 
 export type LocalSimulationRuntimeCatalogInput = LocalSimulationRuntimeManifestResolutionInput &
@@ -125,6 +129,9 @@ export function createLocalSimulationBackendRegistrationsFromManifest(
     ...(input.validationSchedule === undefined
       ? {}
       : { validationSchedule: input.validationSchedule }),
+    ...(input.memoryConsolidationSchedule === undefined
+      ? {}
+      : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
   });
 }
 
@@ -157,6 +164,9 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
       ...(input.validationSchedule === undefined
         ? {}
         : { validationSchedule: input.validationSchedule }),
+      ...(input.memoryConsolidationSchedule === undefined
+        ? {}
+        : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
     };
   });
 }

@@ -29,6 +29,7 @@ import type {
 } from './tickRunner';
 import type { WorkerSteeringCommand } from './steering';
 import { FileLocalSimulationLifecycleStateStore } from './localSimulationLifecycle';
+import { FileMemoryConsolidationCursorStore } from './memoryConsolidation';
 
 export type LocalWorldRuntimeStoragePaths = {
   readonly rootDir: string;
@@ -49,6 +50,7 @@ export type LocalWorldRuntimeRepositories = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly memoryConsolidationCursorStore: FileMemoryConsolidationCursorStore;
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
 };
@@ -64,6 +66,7 @@ export type LocalWorldRuntimeStorage = {
   readonly intentionRepository: FileAgentIntentionRepository;
   readonly longTermProfileRepository: FileLongTermProfileRepository;
   readonly shortTermMemoryRepository: FileShortTermMemoryRepository;
+  readonly memoryConsolidationCursorStore: FileMemoryConsolidationCursorStore;
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
@@ -111,6 +114,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const shortTermMemoryRepository = new FileShortTermMemoryRepository({
     rootDir: paths.memoryDir,
   });
+  const memoryConsolidationCursorStore = new FileMemoryConsolidationCursorStore({
+    rootDir: paths.memoryDir,
+  });
   const planRepository = new FileBranchPlanRepository({
     rootDir: paths.planningDir,
   });
@@ -127,6 +133,7 @@ export function createLocalWorldRuntimeStorage(input: {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    memoryConsolidationCursorStore,
     planRepository,
     planProgressRepository,
   };
@@ -147,6 +154,7 @@ export function createLocalWorldRuntimeStorage(input: {
     intentionRepository,
     longTermProfileRepository,
     shortTermMemoryRepository,
+    memoryConsolidationCursorStore,
     planRepository,
     planProgressRepository,
     agentCycleTraceRepository,

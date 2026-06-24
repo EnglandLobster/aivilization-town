@@ -18,6 +18,7 @@ import {
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
+  applySleepDeprivationHealthDecay,
   applySocialInteraction,
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
@@ -25,6 +26,7 @@ import {
   evaluateOccupationApplication,
   isIncapacitated,
   type ResidentialTierUpgradePolicy,
+  type SleepDeprivationHealthDecayPolicy,
 } from '@aivilization/society';
 import {
   assertAdvanceSimulationTimePayload,
@@ -65,6 +67,7 @@ export type WorldCommandPolicies = {
     readonly healthRecoveryPerSecond: number;
     readonly maxHealth: number;
   };
+  readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
@@ -83,6 +86,9 @@ export function dispatchWorldCommand(input: {
       return handleAdvanceSimulationTimeCommand({
         command: input.command as CommandEnvelope<'AdvanceSimulationTime', unknown>,
         projection: input.projection,
+        ...(input.policies.sleepDeprivation === undefined
+          ? {}
+          : { sleepDeprivation: input.policies.sleepDeprivation }),
         nextSequence: input.nextSequence,
       });
     case 'AgentEat':
@@ -199,19 +205,49 @@ export function dispatchWorldCommand(input: {
 export function handleAdvanceSimulationTimeCommand(input: {
   readonly command: CommandEnvelope<'AdvanceSimulationTime', unknown>;
   readonly projection: WorldProjection;
+  readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
   const previous = input.projection.clock;
   const next = advanceClock(previous, payload.deltaMs);
-
-  return [
+  const events: WorldEvent[] = [
     makeEvent(input, 0, 'SimulationTimeAdvanced', {
       previous: { ...previous },
       next: { ...next },
       deltaMs: payload.deltaMs,
     }),
   ];
+
+  if (input.sleepDeprivation === undefined) {
+    return events;
+  }
+
+  const durationSeconds = payload.deltaMs / 1000;
+  for (const agent of Object.values(input.projection.agents).sort((left, right) =>
+    left.agentId.localeCompare(right.agentId),
+  )) {
+    const nextPhysiology = applySleepDeprivationHealthDecay({
+      ...agent.physiology,
+      durationSeconds,
+      energyThreshold: input.sleepDeprivation.energyThreshold,
+      healthDecayPerSecond: input.sleepDeprivation.healthDecayPerSecond,
+      minHealth: input.sleepDeprivation.minHealth,
+    });
+    if (isSamePhysiology(agent.physiology, nextPhysiology)) {
+      continue;
+    }
+    events.push(
+      makeEvent(input, events.length, 'PhysiologyChanged', {
+        agentId: agent.agentId,
+        previous: agent.physiology,
+        next: nextPhysiology,
+        reason: 'sleep-deprivation',
+      }),
+    );
+  }
+
+  return events;
 }
 
 export function handleAgentEatCommand(input: {
@@ -328,7 +364,9 @@ export function handleAgentObserveLocationCommand(input: {
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
-  const payloadResult = parsePayload(() => assertAgentObserveLocationPayload(input.command.payload));
+  const payloadResult = parsePayload(() =>
+    assertAgentObserveLocationPayload(input.command.payload),
+  );
   if (payloadResult.status === 'invalid') {
     return rejectCommand(input, 'AgentObserveLocation', payloadResult.reason);
   }
@@ -1075,7 +1113,10 @@ function planSocialInteractionEvent(input: {
 }):
   | {
       readonly status: 'valid';
-      readonly payload: Extract<WorldEvent, { readonly type: 'SocialInteractionCompleted' }>['payload'];
+      readonly payload: Extract<
+        WorldEvent,
+        { readonly type: 'SocialInteractionCompleted' }
+      >['payload'];
     }
   | { readonly status: 'invalid'; readonly reason: string } {
   const relationKeyResult = parsePayload(() =>
@@ -1272,6 +1313,15 @@ function makeMemoryEvent(
 
 function stableUnique<TValue>(values: readonly TValue[]): readonly TValue[] {
   return [...new Set(values)];
+}
+
+function isSamePhysiology(
+  left: WorldAgentState['physiology'],
+  right: WorldAgentState['physiology'],
+): boolean {
+  return (
+    left.energy === right.energy && left.satiety === right.satiety && left.health === right.health
+  );
 }
 
 function makeEvent<TType extends WorldEvent['type']>(

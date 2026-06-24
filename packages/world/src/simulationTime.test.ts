@@ -1,4 +1,4 @@
-import { createCommandEnvelope } from '@aivilization/sim-core';
+import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -70,6 +70,82 @@ describe('world simulation time', () => {
     expect(updated.clock).toEqual({ now: 1250, tickDurationMs: 250 });
     expect(updated.agents).toEqual(projection.agents);
     expect(updated.rejectedActions).toEqual([]);
+  });
+
+  test('applies sleep deprivation health decay as a deterministic time effect', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-tired'),
+          locationId: null,
+          physiology: { energy: 10, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-rested'),
+          locationId: null,
+          physiology: { energy: 30, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      clock: { now: 1000, tickDurationMs: 60_000 },
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-time-sleep-deprivation',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 60_000 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies: {
+        ...policies,
+        sleepDeprivation: {
+          energyThreshold: 20,
+          healthDecayPerSecond: 0.5,
+          minHealth: 10,
+        },
+      },
+      nextSequence: 7,
+    });
+
+    expect(events.map((event) => [event.sequence, event.type])).toEqual([
+      [7, 'SimulationTimeAdvanced'],
+      [8, 'PhysiologyChanged'],
+    ]);
+    expect(events[1]).toMatchObject({
+      type: 'PhysiologyChanged',
+      payload: {
+        agentId: 'agent-tired',
+        previous: { energy: 10, satiety: 80, health: 90 },
+        next: { energy: 10, satiety: 80, health: 60 },
+        reason: 'sleep-deprivation',
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.clock).toEqual({ now: 61_000, tickDurationMs: 60_000 });
+    expect(updated.agents['agent-tired']?.physiology).toEqual({
+      energy: 10,
+      satiety: 80,
+      health: 60,
+    });
+    expect(updated.agents['agent-rested']?.physiology).toEqual({
+      energy: 30,
+      satiety: 80,
+      health: 90,
+    });
   });
 
   test('rejects invalid AdvanceSimulationTime payloads before mutating projection time', () => {

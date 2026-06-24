@@ -1,4 +1,5 @@
 import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import { asMemoryRecordId } from '@aivilization/memory';
 import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
@@ -186,6 +187,70 @@ describe('local simulation backend registry', () => {
         mainBackend.storage.partition.commandStreamName,
       ),
     ).toBe(0);
+  });
+
+  test('routes agent profile queries to the requested partition backend', async () => {
+    const registry = createLocalSimulationBackendRegistry({
+      rootDir: createRootDir(),
+      registrations: [
+        createRegistration({
+          partitionKey: 'world-main',
+          agentId: agentOne,
+          educationScore: 10,
+        }),
+        createRegistration({
+          partitionKey: 'world-east',
+          agentId: agentTwo,
+          educationScore: 20,
+        }),
+      ],
+    });
+    const eastBackend = registry.getBackend({
+      simulationId: 'sim-1',
+      partitionKey: 'world-east',
+    });
+    await eastBackend.storage.longTermProfileRepository.applyPatches(agentTwo, [
+      {
+        id: 'ltm-patch-agent-2-personality-sociable-300',
+        agentId: agentTwo,
+        section: 'personality',
+        key: 'sociable',
+        statement: 'Agent 2 is sociable with east-side neighbors.',
+        confidence: 0.75,
+        provenanceRecordIds: [asMemoryRecordId('memory-east-social')],
+        proposedAt: 300,
+      },
+    ]);
+
+    await expect(
+      registry.agentProfiles.queryProfiles({
+        simulationId: 'sim-1',
+        partitionKey: 'world-east',
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        agentId: agentTwo,
+        personality: [
+          expect.objectContaining({
+            key: 'sociable',
+            statement: 'Agent 2 is sociable with east-side neighbors.',
+          }),
+        ],
+      }),
+    ]);
+    await expect(
+      registry.agentProfiles.getProfile({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-2',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      registry.agentProfiles.queryProfiles({
+        simulationId: 'sim-1',
+        partitionKey: 'world-missing',
+      }),
+    ).rejects.toThrow('local simulation backend is not registered: sim-1/world-missing');
   });
 
   test('rejects duplicate partition registrations at startup', () => {

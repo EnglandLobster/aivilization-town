@@ -1,4 +1,5 @@
 import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import { asMemoryRecordId } from '@aivilization/memory';
 import { createExperimentValidationReport } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
@@ -16,6 +17,7 @@ import {
 } from './index';
 
 const agentOne = asAgentId('agent-1');
+const agentTwo = asAgentId('agent-2');
 
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: {},
@@ -250,10 +252,97 @@ describe('local simulation backend composition', () => {
     );
     expect(storage.commandStore.getStreamVersion(storage.partition.commandStreamName)).toBe(0);
   });
+
+  test('queries long-term agent profiles from projected agent state without creating unknown agents', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const backend = createBackend(
+      storage,
+      createWorldProjection({
+        agents: [
+          createAgentState({ agentId: agentOne, educationScore: 10 }),
+          createAgentState({ agentId: agentTwo, educationScore: 20 }),
+        ],
+      }),
+    );
+    await storage.longTermProfileRepository.applyPatches(agentTwo, [
+      {
+        id: 'ltm-patch-agent-2-value-community-300',
+        agentId: agentTwo,
+        section: 'values',
+        key: 'community-cooperation',
+        statement: 'Agent 2 values cooperative community routines.',
+        confidence: 0.8,
+        provenanceRecordIds: [asMemoryRecordId('memory-social-2')],
+        proposedAt: 300,
+      },
+    ]);
+
+    await expect(
+      backend.agentProfiles.queryProfiles({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ agentId: agentOne, values: [] }),
+      expect.objectContaining({
+        agentId: agentTwo,
+        values: [
+          expect.objectContaining({
+            key: 'community-cooperation',
+            statement: 'Agent 2 values cooperative community routines.',
+          }),
+        ],
+      }),
+    ]);
+    await expect(
+      backend.agentProfiles.queryProfiles({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        limit: 1,
+      }),
+    ).resolves.toEqual([expect.objectContaining({ agentId: agentOne })]);
+    await expect(
+      backend.agentProfiles.getProfile({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-2',
+      }),
+    ).resolves.toMatchObject({
+      agentId: agentTwo,
+      values: [
+        {
+          key: 'community-cooperation',
+          statement: 'Agent 2 values cooperative community routines.',
+          confidence: 0.8,
+          updatedAt: 300,
+          provenanceRecordIds: ['memory-social-2'],
+        },
+      ],
+    });
+    await expect(
+      backend.agentProfiles.getProfile({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-missing',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      backend.agentProfiles.queryProfiles({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-missing',
+      }),
+    ).resolves.toEqual([]);
+  });
 });
 
 function createBackend(
   storage: ReturnType<typeof createLocalWorldRuntimeStorage>,
+  initialProjection = createInitialProjection(),
 ): LocalSimulationBackend {
   return createLocalSimulationBackend({
     storage,
@@ -261,7 +350,7 @@ function createBackend(
     tickBatchSize: 1,
     tickIntervalMs: 100,
     simulationId: 'sim-1',
-    initialProjection: createInitialProjection(),
+    initialProjection,
     policies,
     commandConsumerId: 'worker-main',
     localizedPlanners: [reactiveStudyPlanner()],
@@ -272,18 +361,23 @@ function createBackend(
 
 function createInitialProjection() {
   return createWorldProjection({
-    agents: [
-      {
-        agentId: agentOne,
-        physiology: { energy: 50, satiety: 80, health: 100 },
-        educationScore: 10,
-        balance: 100,
-        residentialTier: 1,
-        job: null,
-        inventory: {},
-      },
-    ],
+    agents: [createAgentState({ agentId: agentOne, educationScore: 10 })],
   });
+}
+
+function createAgentState(input: {
+  readonly agentId: typeof agentOne;
+  readonly educationScore: number;
+}) {
+  return {
+    agentId: input.agentId,
+    physiology: { energy: 50, satiety: 80, health: 100 },
+    educationScore: input.educationScore,
+    balance: 100,
+    residentialTier: 1,
+    job: null,
+    inventory: {},
+  };
 }
 
 function reactiveStudyPlanner(): ReactiveLocalizedPlanner {

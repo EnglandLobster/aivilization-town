@@ -1,4 +1,5 @@
 import {
+  createAgentProfileApiService,
   createSimulationSyncSseRoute,
   createRuntimeProfileRunReportApiService,
   createTownHttpApiHandler,
@@ -47,6 +48,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeRecoveryApi?: LocalRuntimeTownOrchestration['runtimeRecoveryApi'];
   readonly runtimeDaemonApi: LocalRuntimeTownOrchestration['runtimeDaemonApi'];
   readonly runtimeProfileRunReportsApi?: ReturnType<typeof createRuntimeProfileRunReportApiService>;
+  readonly agentProfilesApi: ReturnType<typeof createAgentProfileApiService>;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -76,8 +78,12 @@ export async function createLocalRuntimeTownApi(
             queryReports: (request) => input.runtimeProfileRunReports?.query(request) ?? [],
           },
         });
+  const agentProfilesApi = createAgentProfileApiService({
+    profiles: host.registry.agentProfiles,
+  });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
+    agentProfiles: agentProfilesApi,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeOrchestration.runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeOrchestration.runtimeRunQueueWorkerApi,
@@ -115,6 +121,7 @@ export async function createLocalRuntimeTownApi(
       : { runtimeRecoveryApi: runtimeOrchestration.runtimeRecoveryApi }),
     runtimeDaemonApi: runtimeOrchestration.runtimeDaemonApi,
     ...(runtimeProfileRunReportsApi === undefined ? {} : { runtimeProfileRunReportsApi }),
+    agentProfilesApi,
     handler,
   };
 }

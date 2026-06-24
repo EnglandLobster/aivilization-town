@@ -9,6 +9,7 @@ import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi
 import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
+import type { AgentProfileApiService } from './agentProfileApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -166,6 +167,12 @@ type TestRuntimeProfileRunReport = {
   readonly runId: string;
   readonly profileId: string;
   readonly generatedAt: number;
+};
+
+type TestAgentProfile = {
+  readonly agentId: string;
+  readonly values: readonly string[];
+  readonly personality: readonly string[];
 };
 
 describe('town HTTP API router', () => {
@@ -401,6 +408,80 @@ describe('town HTTP API router', () => {
           requestedAt: 200,
           fromSequence: 10,
           toSequence: 20,
+        },
+      },
+    ]);
+  });
+
+  test('routes agent profile requests to the optional profile service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      agentProfiles: createAgentProfileService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles',
+        query: { agentId: 'agent-1', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          agentId: 'agent-1',
+          values: ['cooperation'],
+          personality: ['sociable'],
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles/agent-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        agentId: 'agent-1',
+        values: ['cooperation'],
+        personality: ['sociable'],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryAgentProfiles',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          limit: 2,
+        },
+      },
+      {
+        method: 'getAgentProfile',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
         },
       },
     ]);
@@ -1504,6 +1585,29 @@ function createRuntimeProfileRunReportService(
           runId: request.runId ?? 'aivilization-smoke-25:profile-run:100',
           profileId: request.profileId ?? 'smoke-25',
           generatedAt: 200,
+        },
+      ]);
+    },
+  };
+}
+
+function createAgentProfileService(calls: unknown[]): AgentProfileApiService<TestAgentProfile> {
+  return {
+    getAgentProfile: (request) => {
+      calls.push({ method: 'getAgentProfile', request });
+      return Promise.resolve({
+        agentId: request.agentId,
+        values: ['cooperation'],
+        personality: ['sociable'],
+      });
+    },
+    queryAgentProfiles: (request) => {
+      calls.push({ method: 'queryAgentProfiles', request });
+      return Promise.resolve([
+        {
+          agentId: request.agentId ?? 'agent-1',
+          values: ['cooperation'],
+          personality: ['sociable'],
         },
       ]);
     },

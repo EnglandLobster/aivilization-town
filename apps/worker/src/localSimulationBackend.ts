@@ -1,6 +1,7 @@
 import {
   createCommandStoreSteeringSubmissionPort,
   createSimulationApiService,
+  type AgentProfileQueryPort,
   type CommandStoreSteeringSubmissionResult,
   type ExperimentValidationReportQueryPort,
   type SimulationEventFeedPort,
@@ -10,7 +11,9 @@ import {
   type SimulationLifecyclePort,
   type SteeringCommandSubmissionPort,
 } from '@aivilization/api';
+import { type LongTermAgentProfile } from '@aivilization/memory';
 import type { ExperimentValidationReport } from '@aivilization/observability';
+import { asAgentId } from '@aivilization/sim-core';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import type {
   LocalSimulationLifecyclePauseResult,
@@ -48,6 +51,7 @@ export type LocalWorldSyncResult = {
 };
 
 export type LocalExperimentValidationReportQueryResult = ExperimentValidationReport;
+export type LocalAgentProfileQueryResult = LongTermAgentProfile;
 
 export type LocalSimulationBackendLifecycleResult =
   | LocalSimulationLifecycleStartResult
@@ -67,6 +71,7 @@ export type LocalSimulationBackend = {
     LocalWorldSyncResult,
     LocalExperimentValidationReportQueryResult
   >;
+  readonly agentProfiles: AgentProfileQueryPort<LocalAgentProfileQueryResult>;
   readonly projectionQueries: ProjectionQueryPort<LocalWorldProjectionQueryResult>;
   readonly eventFeeds: SimulationEventFeedPort<LocalWorldEventFeedResult>;
   readonly sync: SimulationSyncPort<LocalWorldSyncResult>;
@@ -91,6 +96,10 @@ export function createLocalSimulationBackend(
   });
   const validationReports = createLocalExperimentValidationReportQueryPort({
     storage: input.storage,
+  });
+  const agentProfiles = createLocalAgentProfileQueryPort({
+    storage: input.storage,
+    initialProjection: input.initialProjection,
   });
   const commandStoreSteeringCommands = createCommandStoreSteeringSubmissionPort({
     commandStore: input.storage.commandStore,
@@ -125,6 +134,7 @@ export function createLocalSimulationBackend(
   return {
     storage: input.storage,
     api,
+    agentProfiles,
     projectionQueries,
     eventFeeds,
     sync,
@@ -262,6 +272,54 @@ export function createLocalExperimentValidationReportQueryPort(input: {
       });
     },
   };
+}
+
+export function createLocalAgentProfileQueryPort(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly initialProjection: WorldProjection;
+}): AgentProfileQueryPort<LocalAgentProfileQueryResult> {
+  return {
+    getProfile: async (request) => {
+      assertRequestMatchesStorage(request, input.storage);
+      const agentIds = getProjectedAgentIds(input);
+      if (!agentIds.includes(request.agentId)) {
+        return undefined;
+      }
+      return input.storage.longTermProfileRepository.getOrCreate(asAgentId(request.agentId));
+    },
+    queryProfiles: async (request) => {
+      assertRequestMatchesStorage(request, input.storage);
+      const agentIds = getProjectedAgentIds(input)
+        .filter((agentId) => request.agentId === undefined || agentId === request.agentId)
+        .slice(0, request.limit);
+      return Promise.all(
+        agentIds.map((agentId) =>
+          input.storage.longTermProfileRepository.getOrCreate(asAgentId(agentId)),
+        ),
+      );
+    },
+  };
+}
+
+function getProjectedAgentIds(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly initialProjection: WorldProjection;
+}): readonly string[] {
+  const hydrated = hydrateWorldProjectionFromEventStream({
+    initialProjection: input.initialProjection,
+    eventStore: input.storage.eventStore,
+    streamName: input.storage.partition.eventStreamName,
+    checkpoint: {
+      checkpointStore: input.storage.checkpointStore,
+      snapshotStore: input.storage.snapshotStore,
+      lookup: {
+        simulationId: input.storage.partition.simulationId,
+        partitionKey: input.storage.partition.partitionKey,
+      },
+    },
+  });
+
+  return Object.keys(hydrated.projection.agents).sort((left, right) => left.localeCompare(right));
 }
 
 function assertRequestMatchesStorage(

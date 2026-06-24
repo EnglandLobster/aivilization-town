@@ -21,6 +21,7 @@ export type CoreEventType =
   | 'WagePaid'
   | 'SocialInteractionCompleted'
   | 'AgentLocationChanged'
+  | 'LocationObserved'
   | 'ShortTermMemoryRecorded'
   | 'LongTermMemoryConsolidated'
   | 'PlannerBranchUpdated'

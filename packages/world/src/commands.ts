@@ -10,6 +10,10 @@ export type AgentMoveToPayload = {
   readonly reason?: string;
 };
 
+export type AgentObserveLocationPayload = {
+  readonly focus?: string;
+};
+
 export type AgentStudyPayload = {
   readonly durationSeconds: number;
   readonly educationRatePerSecond: number;
@@ -97,6 +101,18 @@ export function assertAgentMoveToPayload(payload: unknown): AgentMoveToPayload {
         targetLocationId: asLocationId(targetLocationId),
         reason: reason.trim(),
       };
+}
+
+export function assertAgentObserveLocationPayload(payload: unknown): AgentObserveLocationPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentObserveLocation payload must be an object');
+  }
+  const focus = payload['focus'];
+  if (focus !== undefined && (typeof focus !== 'string' || focus.trim().length === 0)) {
+    throw new Error('AgentObserveLocation focus must not be empty');
+  }
+
+  return focus === undefined ? {} : { focus: focus.trim() };
 }
 
 export function assertAgentStudyPayload(payload: unknown): AgentStudyPayload {

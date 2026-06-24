@@ -150,6 +150,22 @@ function createResidentialUpkeepProjection() {
   });
 }
 
+function createRewardProductionProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: agentOne,
+        physiology: { energy: 100, satiety: 25, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 5,
+        job: null,
+        inventory: { Transistor: 1, 'Circuit Board': 1 },
+      },
+    ],
+  });
+}
+
 function createMarketProjection() {
   return createWorldProjection({
     agents: [
@@ -265,6 +281,43 @@ function createTradeTickAgent() {
             description: 'buy Apple from AMM',
             commandType: 'AgentTrade',
             payload: { side: 'buy', commodityName: 'Apple', quantity: 10 },
+          },
+        ],
+      },
+    ],
+    simulate: ({ action }) => ({ status: 'accepted', action }),
+  } satisfies Parameters<typeof runWorkerSimulationTick>[0]['agents'][number];
+}
+
+function createRewardProductionTickAgent() {
+  return {
+    agentId: agentOne,
+    observedStateSummary: 'agent-1 is producing a Chip',
+    plan: createBranchPlan({
+      objective: 'produce high-tech goods',
+      branches: [
+        {
+          id: 'production',
+          objective: 'produce Chip',
+          subtasks: [{ id: 'produce-chip', description: 'craft Chip', basePriority: 5 }],
+        },
+      ],
+    }),
+    signals: [],
+    microPlanners: [
+      {
+        domain: 'production',
+        supports: ({ subtaskId }) => subtaskId === 'produce-chip',
+        propose: () => [
+          {
+            id: 'produce-chip',
+            description: 'produce Chip with possible special reward',
+            commandType: 'AgentProduce',
+            payload: {
+              commodityName: 'Chip',
+              quantity: 1,
+              availableLaborSeconds: 5,
+            },
           },
         ],
       },
@@ -596,6 +649,47 @@ describe('worker tick runner', () => {
     expect(result.projection.moneySupply).toBe(990);
     expect(result.streamVersion).toBe(2);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+  });
+
+  test('persists deterministic production rewards during worker action dispatch', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-production-reward',
+      simulationId,
+      issuedAt: 100,
+      projection: createRewardProductionProjection(),
+      policies: {
+        ...policies,
+        production: {
+          recipeOverrides: [{ output: 'Chip', rewardProbabilityPercent: 100 }],
+        },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createRewardProductionTickAgent()],
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+      [2, 'CommodityProduced'],
+      [3, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.events[1]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        produced: { Chip: 1, 'Gold Apple': 1 },
+        consumedInputs: { Transistor: 1, 'Circuit Board': 1 },
+      },
+    });
+    expect(result.projection.agents[agentOne]?.inventory).toEqual({
+      Chip: 1,
+      'Gold Apple': 1,
+    });
+    expect(result.streamVersion).toBe(3);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
   });
 
   test('records a market price index after agent actions when market metrics are configured', async () => {

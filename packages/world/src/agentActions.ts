@@ -209,6 +209,7 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.production?.efficiency === undefined
           ? {}
           : { productionEfficiency: input.policies.production.efficiency }),
+        criticalThresholds: input.policies.criticalThresholds,
         nextSequence: input.nextSequence,
       });
     case 'AgentTrade':
@@ -963,6 +964,10 @@ export function handleAgentProduceCommand(input: {
   readonly projection: WorldProjection;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   readonly productionEfficiency?: ProductionEfficiencyPolicy;
+  readonly criticalThresholds?: {
+    readonly energy: number;
+    readonly health: number;
+  };
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -972,6 +977,18 @@ export function handleAgentProduceCommand(input: {
   }
 
   const payload = payloadResult.payload;
+  if (
+    input.criticalThresholds !== undefined &&
+    isIncapacitated({
+      energy: agent.physiology.energy,
+      health: agent.physiology.health,
+      energyCriticalThreshold: input.criticalThresholds.energy,
+      healthCriticalThreshold: input.criticalThresholds.health,
+    })
+  ) {
+    return rejectCommand(input, 'AgentProduce', 'agent is incapacitated');
+  }
+
   const productionPlan = planProduction({
     commodityName: payload.commodityName,
     quantity: payload.quantity,

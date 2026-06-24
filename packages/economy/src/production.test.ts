@@ -13,6 +13,11 @@ const chipReadyAgent: ProductionAgentState = {
   },
 };
 
+const educationEfficiencyPolicy = {
+  minEfficiency: 0.5,
+  educationScoreForMaxEfficiency: 500,
+};
+
 describe('planProduction', () => {
   test('accepts chip production with exact non-substitutable inputs and physiological costs', () => {
     const plan = planProduction({
@@ -28,6 +33,85 @@ describe('planProduction', () => {
       energyCost: 100,
       satietyCost: 25,
       laborSeconds: 5,
+    });
+  });
+
+  test('keeps recipe costs unchanged when no production efficiency policy is present', () => {
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: {
+        ...chipReadyAgent,
+        educationScore: 0,
+      },
+    });
+
+    expect(plan).toMatchObject({
+      status: 'accepted',
+      energyCost: 100,
+      satietyCost: 25,
+      laborSeconds: 5,
+    });
+  });
+
+  test('scales production costs by education-driven efficiency policy', () => {
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: {
+        ...chipReadyAgent,
+        energy: 200,
+        satiety: 50,
+        availableLaborSeconds: 10,
+        educationScore: 0,
+      },
+      productionEfficiency: educationEfficiencyPolicy,
+    });
+
+    expect(plan).toMatchObject({
+      status: 'accepted',
+      energyCost: 200,
+      satietyCost: 50,
+      laborSeconds: 10,
+      productionEfficiency: 0.5,
+    });
+  });
+
+  test('keeps base recipe costs once education reaches maximum efficiency', () => {
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: {
+        ...chipReadyAgent,
+        educationScore: 500,
+      },
+      productionEfficiency: educationEfficiencyPolicy,
+    });
+
+    expect(plan).toMatchObject({
+      status: 'accepted',
+      energyCost: 100,
+      satietyCost: 25,
+      laborSeconds: 5,
+      productionEfficiency: 1,
+    });
+  });
+
+  test('rejects invalid production efficiency policy values', () => {
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: chipReadyAgent,
+      productionEfficiency: {
+        minEfficiency: 0,
+        educationScoreForMaxEfficiency: 500,
+      },
+    });
+
+    expect(plan).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'minEfficiency must be within (0, 1]',
     });
   });
 

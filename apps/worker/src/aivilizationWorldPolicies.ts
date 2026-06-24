@@ -1,5 +1,6 @@
 import {
   aivilizationHealthcarePolicyDefaults,
+  aivilizationProductionPolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
@@ -50,6 +51,13 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
       treatmentCost: {
         currencyCostPerSecond:
           aivilizationHealthcarePolicyDefaults.seeDoctorTreatmentCost.currencyCostPerSecond,
+      },
+    },
+    production: {
+      efficiency: {
+        minEfficiency: aivilizationProductionPolicyDefaults.educationEfficiency.minEfficiency,
+        educationScoreForMaxEfficiency:
+          aivilizationProductionPolicyDefaults.educationEfficiency.educationScoreForMaxEfficiency,
       },
     },
     jobApplication: {

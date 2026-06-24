@@ -9,6 +9,11 @@ const baseAgent = {
   inventory: {},
 } satisfies ProductionAgentState;
 
+const educationEfficiencyPolicy = {
+  minEfficiency: 0.5,
+  educationScoreForMaxEfficiency: 500,
+};
+
 describe('planProductionChain', () => {
   test('plans missing upstream production before the target commodity', () => {
     const plan = planProductionChain({
@@ -46,6 +51,51 @@ describe('planProductionChain', () => {
       energyCost: 40,
       satietyCost: 10,
       laborSeconds: 2,
+    });
+  });
+
+  test('applies education-driven efficiency to each chain step and aggregate budget', () => {
+    const plan = planProductionChain({
+      commodityName: 'Book',
+      quantity: 1,
+      agent: {
+        ...baseAgent,
+        educationScore: 0,
+      },
+      productionEfficiency: educationEfficiencyPolicy,
+    });
+
+    expect(plan).toEqual({
+      status: 'accepted',
+      targetCommodityName: 'Book',
+      targetQuantity: 1,
+      steps: [
+        {
+          commodityName: 'Wood',
+          quantity: 1,
+          produced: { Wood: 1 },
+          consumedInputs: {},
+          energyCost: 16,
+          satietyCost: 4,
+          laborSeconds: 0.8,
+          productionEfficiency: 0.5,
+        },
+        {
+          commodityName: 'Book',
+          quantity: 1,
+          produced: { Book: 1 },
+          consumedInputs: { Wood: 1 },
+          energyCost: 64,
+          satietyCost: 16,
+          laborSeconds: 3.2,
+          productionEfficiency: 0.5,
+        },
+      ],
+      inventoryAfter: { Book: 1 },
+      inventoryDelta: { Book: 1 },
+      energyCost: 80,
+      satietyCost: 20,
+      laborSeconds: 4,
     });
   });
 

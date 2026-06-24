@@ -1062,6 +1062,59 @@ describe('agent produce command handling', () => {
     expect(updated.agents['agent-1']?.physiology.energy).toBe(96);
   });
 
+  test('AgentProduce applies education-driven production efficiency policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: { Wood: 1 },
+        },
+      ],
+    });
+
+    const events = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-efficiently',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Book', quantity: 1, availableLaborSeconds: 3.2 },
+        issuedAt: 50,
+      }),
+      projection,
+      nextSequence: 1,
+      productionEfficiency: {
+        minEfficiency: 0.5,
+        educationScoreForMaxEfficiency: 500,
+      },
+    });
+
+    expect(events[0]).toMatchObject({
+      type: 'CommodityProduced',
+      payload: {
+        agentId: 'agent-1',
+        produced: { Book: 1 },
+        consumedInputs: { Wood: 1 },
+        energyCost: 64,
+        satietyCost: 16,
+        laborSeconds: 3.2,
+        productionEfficiency: 0.5,
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.inventory).toEqual({ Book: 1 });
+    expect(updated.agents['agent-1']?.physiology).toMatchObject({
+      energy: 36,
+      satiety: 84,
+    });
+  });
+
   test('AgentProduce applies deterministic special rewards through world command handling', () => {
     const projection = createWorldProjection({
       agents: [

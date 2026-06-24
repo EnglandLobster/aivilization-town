@@ -62,12 +62,21 @@ importers:
       '@aivilization/content':
         specifier: workspace:*
         version: link:../../packages/content
+      '@aivilization/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
+      '@aivilization/society':
+        specifier: workspace:*
+        version: link:../../packages/society
+      '@aivilization/world':
+        specifier: workspace:*
+        version: link:../../packages/world
 
   packages/agent-runtime:
     dependencies:

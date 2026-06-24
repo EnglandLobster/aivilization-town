@@ -1,6 +1,7 @@
 import type {
   RuntimeSupervisorApiService,
   RuntimeSupervisorOperationTraceQuery,
+  RuntimeSupervisorRunRequest,
 } from './runtimeSupervisorApi';
 import type {
   ExperimentValidationReportLookupRequest,
@@ -40,6 +41,7 @@ export type TownHttpApiServices<
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
+  TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeCommand extends string = string,
 > = {
@@ -55,6 +57,7 @@ export type TownHttpApiServices<
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
+    TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeCommand
   >;
@@ -89,6 +92,7 @@ export function createTownHttpApiHandler<
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
+  TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeCommand extends string = string,
 >(
@@ -102,6 +106,7 @@ export function createTownHttpApiHandler<
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
+    TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeCommand
   >,
@@ -130,6 +135,7 @@ async function routeTownHttpRequest<
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
+  TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeCommand extends string = string,
 >(
@@ -143,6 +149,7 @@ async function routeTownHttpRequest<
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
+    TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeCommand
   >,
@@ -261,6 +268,7 @@ async function routeRuntimeSupervisorRequest<
   TRuntimeStatus,
   TRuntimeStartResult,
   TRuntimePauseResult,
+  TRuntimeRunResult,
   TRuntimeTrace,
   TRuntimeCommand extends string,
 >(
@@ -268,6 +276,7 @@ async function routeRuntimeSupervisorRequest<
     TRuntimeStatus,
     TRuntimeStartResult,
     TRuntimePauseResult,
+    TRuntimeRunResult,
     TRuntimeTrace,
     TRuntimeCommand
   >,
@@ -290,6 +299,13 @@ async function routeRuntimeSupervisorRequest<
     return jsonResponse(
       202,
       await runtimeSupervisor.pauseRuntime(createRuntimeRequest(request.body)),
+    );
+  }
+  if (segments.length === 2 && segments[1] === 'run') {
+    assertMethod(request, 'POST');
+    return jsonResponse(
+      202,
+      await runtimeSupervisor.runRuntime(createRuntimeRunRequest(request.body)),
     );
   }
   if (segments.length === 2 && segments[1] === 'operation-traces') {
@@ -479,6 +495,17 @@ function createRuntimeRequest(body: unknown): {
   };
 }
 
+function createRuntimeRunRequest(body: unknown): RuntimeSupervisorRunRequest {
+  const record = requireRecordBody(body);
+  return {
+    requestedAt: requireNumber(record, 'requestedAt'),
+    cycleCount: requirePositiveInteger(record, 'cycleCount'),
+    ...optionalString(record, 'operationId'),
+    ...optionalNonNegativeNumber(record, 'cycleIntervalMs'),
+    ...optionalBoolean(record, 'stopOnAttention'),
+  };
+}
+
 function createTraceQuery<TRuntimeCommand extends string>(
   query: TownHttpApiRequest['query'],
 ): RuntimeSupervisorOperationTraceQuery<TRuntimeCommand> {
@@ -536,6 +563,14 @@ function requireNumber(record: Readonly<Record<string, unknown>>, field: string)
   return value;
 }
 
+function requirePositiveInteger(record: Readonly<Record<string, unknown>>, field: string): number {
+  const value = requireNumber(record, field);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a positive integer`);
+  }
+  return value;
+}
+
 function requireStringArray(
   record: Readonly<Record<string, unknown>>,
   field: string,
@@ -571,6 +606,32 @@ function optionalNumber(
   }
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new TownHttpApiError(400, 'bad_request', `${field} must be a number`);
+  }
+  return { [field]: value };
+}
+
+function optionalNonNegativeNumber(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+): Record<string, number> {
+  const value = optionalNumber(record, field);
+  const parsed = value[field];
+  if (parsed !== undefined && parsed < 0) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a non-negative finite number`);
+  }
+  return value;
+}
+
+function optionalBoolean(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+): Record<string, boolean> {
+  const value = record[field];
+  if (value === undefined) {
+    return {};
+  }
+  if (typeof value !== 'boolean') {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must be a boolean`);
   }
   return { [field]: value };
 }

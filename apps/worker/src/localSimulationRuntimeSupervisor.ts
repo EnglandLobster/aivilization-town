@@ -15,6 +15,7 @@ import {
   type LocalSimulationRuntimeOperationCommand,
   type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace,
   type LocalSimulationRuntimeOperationMemoryConsolidationTrace,
+  type LocalSimulationRuntimeOperationRunCycleTrace,
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeOperationTraceQuery,
   type LocalSimulationRuntimeOperationTraceRepository,
@@ -65,10 +66,22 @@ export type LocalSimulationRuntimeSupervisorRequest = {
   readonly requestedAt: SimulationTimestamp;
 };
 
+export type LocalSimulationRuntimeSupervisorRunCyclesRequest =
+  LocalSimulationRuntimeSupervisorRequest & {
+    readonly cycleCount: number;
+    readonly cycleIntervalMs?: number;
+    readonly stopOnAttention?: boolean;
+  };
+
 export type LocalSimulationRuntimeSupervisorCommandOutcome =
   | 'succeeded'
   | 'partial-failure'
   | 'failed';
+
+export type LocalSimulationRuntimeSupervisorRunCyclesStopReason =
+  | 'cycle-count-completed'
+  | 'partition-failure'
+  | 'attention';
 
 export type LocalSimulationRuntimeSupervisorPartitionCommandError = {
   readonly name: string;
@@ -127,6 +140,26 @@ export type LocalSimulationRuntimeSupervisorPauseAllResult = {
   readonly status: LocalSimulationRuntimeSupervisorStatus;
 };
 
+export type LocalSimulationRuntimeSupervisorRunCycleSummary = {
+  readonly cycleIndex: number;
+  readonly traceId: string;
+  readonly requestedAt: SimulationTimestamp;
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
+  readonly attentionPartitionCount: number;
+};
+
+export type LocalSimulationRuntimeSupervisorRunCyclesResult = {
+  readonly traceId: string;
+  readonly outcome: LocalSimulationRuntimeSupervisorCommandOutcome;
+  readonly requestedCycleCount: number;
+  readonly completedCycleCount: number;
+  readonly stopReason: LocalSimulationRuntimeSupervisorRunCyclesStopReason;
+  readonly cycles: readonly LocalSimulationRuntimeSupervisorRunCycleSummary[];
+  readonly status: LocalSimulationRuntimeSupervisorStatus;
+};
+
 export type LocalSimulationRuntimeSupervisor = {
   readonly getStatus: () => LocalSimulationRuntimeSupervisorStatus;
   readonly getOperationTrace: (
@@ -141,6 +174,9 @@ export type LocalSimulationRuntimeSupervisor = {
   readonly pauseAll: (
     request: LocalSimulationRuntimeSupervisorRequest,
   ) => Promise<LocalSimulationRuntimeSupervisorPauseAllResult>;
+  readonly runCycles: (
+    request: LocalSimulationRuntimeSupervisorRunCyclesRequest,
+  ) => Promise<LocalSimulationRuntimeSupervisorRunCyclesResult>;
 };
 
 export function createLocalSimulationRuntimeSupervisor(input: {
@@ -153,92 +189,152 @@ export function createLocalSimulationRuntimeSupervisor(input: {
       rootDir: join(input.host.rootDir, 'operations'),
     });
 
+  async function startAll(
+    request: LocalSimulationRuntimeSupervisorRequest,
+  ): Promise<LocalSimulationRuntimeSupervisorStartAllResult> {
+    assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+    const traceId = createOperationTraceId(input.host, 'start-all', request);
+    const partitions = await Promise.all(
+      input.host.partitions.map(async (partition) => {
+        try {
+          const result = assertStartResult(
+            await input.host.registry.api.startSimulation({
+              simulationId: partition.simulationId,
+              partitionKey: partition.partitionKey,
+              requestedAt: request.requestedAt,
+            }),
+          );
+          return {
+            simulationId: partition.simulationId,
+            partitionKey: partition.partitionKey,
+            outcome: 'succeeded' as const,
+            status: result.status,
+            result,
+          };
+        } catch (error) {
+          return createPartitionCommandFailure(partition, error);
+        }
+      }),
+    );
+    const result = createBulkCommandResult({
+      traceId,
+      partitions,
+      status: createSupervisorStatus(input.host),
+    });
+    await operationTraceRepository.record(
+      createOperationTrace({
+        traceId,
+        host: input.host,
+        command: 'start-all',
+        requestedAt: request.requestedAt,
+        result,
+      }),
+    );
+    return result;
+  }
+
+  async function pauseAll(
+    request: LocalSimulationRuntimeSupervisorRequest,
+  ): Promise<LocalSimulationRuntimeSupervisorPauseAllResult> {
+    assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+    const traceId = createOperationTraceId(input.host, 'pause-all', request);
+    const partitions = await Promise.all(
+      input.host.partitions.map(async (partition) => {
+        try {
+          const result = assertPauseResult(
+            await input.host.registry.api.pauseSimulation({
+              simulationId: partition.simulationId,
+              partitionKey: partition.partitionKey,
+              requestedAt: request.requestedAt,
+            }),
+          );
+          return {
+            simulationId: partition.simulationId,
+            partitionKey: partition.partitionKey,
+            outcome: 'succeeded' as const,
+            status: result.status,
+            result,
+          };
+        } catch (error) {
+          return createPartitionCommandFailure(partition, error);
+        }
+      }),
+    );
+    const result = createBulkCommandResult({
+      traceId,
+      partitions,
+      status: createSupervisorStatus(input.host),
+    });
+    await operationTraceRepository.record(
+      createOperationTrace({
+        traceId,
+        host: input.host,
+        command: 'pause-all',
+        requestedAt: request.requestedAt,
+        result,
+      }),
+    );
+    return result;
+  }
+
+  async function runCycles(
+    request: LocalSimulationRuntimeSupervisorRunCyclesRequest,
+  ): Promise<LocalSimulationRuntimeSupervisorRunCyclesResult> {
+    assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+    assertPositiveInteger(request.cycleCount, 'cycleCount');
+    const cycleIntervalMs = request.cycleIntervalMs ?? 0;
+    assertNonNegativeFinite(cycleIntervalMs, 'cycleIntervalMs');
+
+    const traceId = createOperationTraceId(input.host, 'run-cycles', request);
+    const cycles: LocalSimulationRuntimeSupervisorRunCycleSummary[] = [];
+    let stopReason: LocalSimulationRuntimeSupervisorRunCyclesStopReason = 'cycle-count-completed';
+    for (let offset = 0; offset < request.cycleCount; offset += 1) {
+      const cycleIndex = offset + 1;
+      const cycleRequestedAt = request.requestedAt + offset * cycleIntervalMs;
+      const cycleResult = await startAll({
+        operationId: `${traceId}:cycle:${cycleIndex}`,
+        requestedAt: cycleRequestedAt,
+      });
+      const cycle = createRunCycleSummary(cycleIndex, cycleRequestedAt, cycleResult);
+      cycles.push(cycle);
+      if (cycleResult.outcome !== 'succeeded') {
+        stopReason = 'partition-failure';
+        break;
+      }
+      if (request.stopOnAttention !== false && cycleResult.status.attentionPartitionCount > 0) {
+        stopReason = 'attention';
+        break;
+      }
+    }
+
+    const result: LocalSimulationRuntimeSupervisorRunCyclesResult = {
+      traceId,
+      outcome: createRunCyclesOutcome(cycles),
+      requestedCycleCount: request.cycleCount,
+      completedCycleCount: cycles.length,
+      stopReason,
+      cycles,
+      status: createSupervisorStatus(input.host),
+    };
+    await operationTraceRepository.record(
+      createOperationTrace({
+        traceId,
+        host: input.host,
+        command: 'run-cycles',
+        requestedAt: request.requestedAt,
+        result,
+      }),
+    );
+    return result;
+  }
+
   return {
     getStatus: () => createSupervisorStatus(input.host),
     getOperationTrace: (traceId) => operationTraceRepository.get(traceId),
     queryOperationTraces: (query) => operationTraceRepository.query(query),
-    startAll: async (request) => {
-      assertNonNegativeFinite(request.requestedAt, 'requestedAt');
-      const traceId = createOperationTraceId(input.host, 'start-all', request);
-      const partitions = await Promise.all(
-        input.host.partitions.map(async (partition) => {
-          try {
-            const result = assertStartResult(
-              await input.host.registry.api.startSimulation({
-                simulationId: partition.simulationId,
-                partitionKey: partition.partitionKey,
-                requestedAt: request.requestedAt,
-              }),
-            );
-            return {
-              simulationId: partition.simulationId,
-              partitionKey: partition.partitionKey,
-              outcome: 'succeeded' as const,
-              status: result.status,
-              result,
-            };
-          } catch (error) {
-            return createPartitionCommandFailure(partition, error);
-          }
-        }),
-      );
-      const result = createBulkCommandResult({
-        traceId,
-        partitions,
-        status: createSupervisorStatus(input.host),
-      });
-      await operationTraceRepository.record(
-        createOperationTrace({
-          traceId,
-          host: input.host,
-          command: 'start-all',
-          requestedAt: request.requestedAt,
-          result,
-        }),
-      );
-      return result;
-    },
-    pauseAll: async (request) => {
-      assertNonNegativeFinite(request.requestedAt, 'requestedAt');
-      const traceId = createOperationTraceId(input.host, 'pause-all', request);
-      const partitions = await Promise.all(
-        input.host.partitions.map(async (partition) => {
-          try {
-            const result = assertPauseResult(
-              await input.host.registry.api.pauseSimulation({
-                simulationId: partition.simulationId,
-                partitionKey: partition.partitionKey,
-                requestedAt: request.requestedAt,
-              }),
-            );
-            return {
-              simulationId: partition.simulationId,
-              partitionKey: partition.partitionKey,
-              outcome: 'succeeded' as const,
-              status: result.status,
-              result,
-            };
-          } catch (error) {
-            return createPartitionCommandFailure(partition, error);
-          }
-        }),
-      );
-      const result = createBulkCommandResult({
-        traceId,
-        partitions,
-        status: createSupervisorStatus(input.host),
-      });
-      await operationTraceRepository.record(
-        createOperationTrace({
-          traceId,
-          host: input.host,
-          command: 'pause-all',
-          requestedAt: request.requestedAt,
-          result,
-        }),
-      );
-      return result;
-    },
+    startAll,
+    pauseAll,
+    runCycles,
   };
 }
 
@@ -276,6 +372,35 @@ function createBulkCommandResult<
   };
 }
 
+function createRunCycleSummary(
+  cycleIndex: number,
+  requestedAt: SimulationTimestamp,
+  result: LocalSimulationRuntimeSupervisorStartAllResult,
+): LocalSimulationRuntimeSupervisorRunCycleSummary {
+  return {
+    cycleIndex,
+    traceId: result.traceId,
+    requestedAt,
+    outcome: result.outcome,
+    succeededPartitionCount: result.succeededPartitionCount,
+    failedPartitionCount: result.failedPartitionCount,
+    attentionPartitionCount: result.status.attentionPartitionCount,
+  };
+}
+
+function createRunCyclesOutcome(
+  cycles: readonly LocalSimulationRuntimeSupervisorRunCycleSummary[],
+): LocalSimulationRuntimeSupervisorCommandOutcome {
+  const failedCycleCount = cycles.filter((cycle) => cycle.outcome === 'failed').length;
+  if (failedCycleCount === 0 && cycles.every((cycle) => cycle.outcome === 'succeeded')) {
+    return 'succeeded';
+  }
+  if (failedCycleCount === cycles.length) {
+    return 'failed';
+  }
+  return 'partial-failure';
+}
+
 function createOperationTrace(input: {
   readonly traceId: string;
   readonly host: LocalSimulationRuntimeHost;
@@ -283,8 +408,10 @@ function createOperationTrace(input: {
   readonly requestedAt: SimulationTimestamp;
   readonly result:
     | LocalSimulationRuntimeSupervisorStartAllResult
-    | LocalSimulationRuntimeSupervisorPauseAllResult;
+    | LocalSimulationRuntimeSupervisorPauseAllResult
+    | LocalSimulationRuntimeSupervisorRunCyclesResult;
 }): LocalSimulationRuntimeOperationTrace {
+  const counts = createOperationTraceCounts(input.result);
   return {
     traceId: input.traceId,
     manifestId: input.host.manifestId,
@@ -292,36 +419,93 @@ function createOperationTrace(input: {
     requestedAt: input.requestedAt,
     recordedAt: input.requestedAt,
     outcome: input.result.outcome,
-    succeededPartitionCount: input.result.succeededPartitionCount,
-    failedPartitionCount: input.result.failedPartitionCount,
-    partitions: input.result.partitions.map((partition) => {
-      if (partition.outcome === 'failed') {
-        return {
-          simulationId: partition.simulationId,
-          partitionKey: partition.partitionKey,
-          outcome: partition.outcome,
-          status: partition.status,
-          error: partition.error,
-        };
-      }
-      const validationReport = createOperationValidationReportTrace(partition.result);
-      const validationFailure = createOperationValidationFailureTrace(partition.result);
-      const memoryConsolidation = createOperationMemoryConsolidationTrace(partition.result);
-      const memoryConsolidationFailure = createOperationMemoryConsolidationFailureTrace(
-        partition.result,
-      );
+    succeededPartitionCount: counts.succeededPartitionCount,
+    failedPartitionCount: counts.failedPartitionCount,
+    partitions: createOperationPartitionTraces(input.result),
+    ...createOperationRunCycleTraces(input.result),
+    status: input.result.status,
+  };
+}
+
+function createOperationTraceCounts(
+  result:
+    | LocalSimulationRuntimeSupervisorStartAllResult
+    | LocalSimulationRuntimeSupervisorPauseAllResult
+    | LocalSimulationRuntimeSupervisorRunCyclesResult,
+): {
+  readonly succeededPartitionCount: number;
+  readonly failedPartitionCount: number;
+} {
+  if ('partitions' in result) {
+    return {
+      succeededPartitionCount: result.succeededPartitionCount,
+      failedPartitionCount: result.failedPartitionCount,
+    };
+  }
+  const lastCycle = result.cycles.at(-1);
+  return {
+    succeededPartitionCount: lastCycle?.succeededPartitionCount ?? 0,
+    failedPartitionCount: lastCycle?.failedPartitionCount ?? 0,
+  };
+}
+
+function createOperationPartitionTraces(
+  result:
+    | LocalSimulationRuntimeSupervisorStartAllResult
+    | LocalSimulationRuntimeSupervisorPauseAllResult
+    | LocalSimulationRuntimeSupervisorRunCyclesResult,
+): LocalSimulationRuntimeOperationTrace['partitions'] {
+  if (!('partitions' in result)) {
+    return [];
+  }
+  return result.partitions.map((partition) => {
+    if (partition.outcome === 'failed') {
       return {
         simulationId: partition.simulationId,
         partitionKey: partition.partitionKey,
         outcome: partition.outcome,
         status: partition.status,
-        ...(validationReport === undefined ? {} : { validationReport }),
-        ...(validationFailure === undefined ? {} : { validationFailure }),
-        ...(memoryConsolidation === undefined ? {} : { memoryConsolidation }),
-        ...(memoryConsolidationFailure === undefined ? {} : { memoryConsolidationFailure }),
+        error: partition.error,
       };
-    }),
-    status: input.result.status,
+    }
+    const validationReport = createOperationValidationReportTrace(partition.result);
+    const validationFailure = createOperationValidationFailureTrace(partition.result);
+    const memoryConsolidation = createOperationMemoryConsolidationTrace(partition.result);
+    const memoryConsolidationFailure = createOperationMemoryConsolidationFailureTrace(
+      partition.result,
+    );
+    return {
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      outcome: partition.outcome,
+      status: partition.status,
+      ...(validationReport === undefined ? {} : { validationReport }),
+      ...(validationFailure === undefined ? {} : { validationFailure }),
+      ...(memoryConsolidation === undefined ? {} : { memoryConsolidation }),
+      ...(memoryConsolidationFailure === undefined ? {} : { memoryConsolidationFailure }),
+    };
+  });
+}
+
+function createOperationRunCycleTraces(
+  result:
+    | LocalSimulationRuntimeSupervisorStartAllResult
+    | LocalSimulationRuntimeSupervisorPauseAllResult
+    | LocalSimulationRuntimeSupervisorRunCyclesResult,
+): { readonly cycles?: readonly LocalSimulationRuntimeOperationRunCycleTrace[] } {
+  if (!('cycles' in result)) {
+    return {};
+  }
+  return {
+    cycles: result.cycles.map((cycle) => ({
+      cycleIndex: cycle.cycleIndex,
+      traceId: cycle.traceId,
+      requestedAt: cycle.requestedAt,
+      outcome: cycle.outcome,
+      succeededPartitionCount: cycle.succeededPartitionCount,
+      failedPartitionCount: cycle.failedPartitionCount,
+      attentionPartitionCount: cycle.attentionPartitionCount,
+    })),
   };
 }
 
@@ -574,6 +758,12 @@ function serializeCommandError(
 function assertNonNegativeFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
+  }
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
   }
 }
 

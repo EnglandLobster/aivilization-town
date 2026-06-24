@@ -51,11 +51,12 @@ type TestRuntimeStatus = {
 type TestRuntimeCommandResult = {
   readonly traceId: string;
   readonly requestedAt: number;
+  readonly completedCycleCount?: number;
 };
 
 type TestRuntimeTrace = {
   readonly traceId: string;
-  readonly command: 'start-all' | 'pause-all';
+  readonly command: 'start-all' | 'pause-all' | 'run-cycles';
 };
 
 describe('town HTTP API router', () => {
@@ -329,6 +330,22 @@ describe('town HTTP API router', () => {
     });
     await expect(
       handler({
+        method: 'POST',
+        path: '/runtime/run',
+        body: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { traceId: 'op-run-200', requestedAt: 200, completedCycleCount: 2 },
+    });
+    await expect(
+      handler({
         method: 'GET',
         path: '/runtime/operation-traces',
         query: {
@@ -349,6 +366,15 @@ describe('town HTTP API router', () => {
       { method: 'getRuntimeStatus' },
       { method: 'startRuntime', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'getRuntimeOperationTrace', request: { traceId: 'op-start-100' } },
+      {
+        method: 'runRuntime',
+        request: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+        },
+      },
       {
         method: 'queryRuntimeOperationTraces',
         query: {
@@ -389,6 +415,17 @@ describe('town HTTP API router', () => {
       status: 400,
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'requestedAt must be a number' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run',
+        body: { requestedAt: 100, cycleCount: 0 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'cycleCount must be a positive integer' } },
     });
     await expect(
       handler({
@@ -558,8 +595,9 @@ function createRuntimeSupervisorService(
   TestRuntimeStatus,
   TestRuntimeCommandResult,
   TestRuntimeCommandResult,
+  TestRuntimeCommandResult,
   TestRuntimeTrace,
-  'start-all' | 'pause-all'
+  'start-all' | 'pause-all' | 'run-cycles'
 > {
   return {
     getRuntimeStatus: () => {
@@ -578,6 +616,14 @@ function createRuntimeSupervisorService(
       return Promise.resolve({
         traceId: request.operationId ?? 'generated-pause',
         requestedAt: request.requestedAt,
+      });
+    },
+    runRuntime: (request) => {
+      calls.push({ method: 'runRuntime', request });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-run',
+        requestedAt: request.requestedAt,
+        completedCycleCount: request.cycleCount,
       });
     },
     getRuntimeOperationTrace: (request) => {

@@ -4,6 +4,7 @@ import {
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorPauseAllResult,
+  type LocalSimulationRuntimeSupervisorRunCyclesResult,
   type LocalSimulationRuntimeSupervisorStartAllResult,
   type LocalSimulationRuntimeSupervisorStatus,
 } from './index';
@@ -34,6 +35,15 @@ describe('local simulation runtime supervisor API adapter', () => {
       partitions: [],
       status,
     };
+    const runResult: LocalSimulationRuntimeSupervisorRunCyclesResult = {
+      traceId: 'op-run-200',
+      outcome: 'succeeded',
+      requestedCycleCount: 2,
+      completedCycleCount: 2,
+      stopReason: 'cycle-count-completed',
+      cycles: [],
+      status,
+    };
     const trace: LocalSimulationRuntimeOperationTrace = {
       traceId: 'op-start-100',
       manifestId: 'town-runtime',
@@ -59,6 +69,10 @@ describe('local simulation runtime supervisor API adapter', () => {
         calls.push({ method: 'pauseAll', request });
         return Promise.resolve(pauseResult);
       },
+      runCycles: (request) => {
+        calls.push({ method: 'runCycles', request });
+        return Promise.resolve(runResult);
+      },
       getOperationTrace: (traceId) => {
         calls.push({ method: 'getOperationTrace', traceId });
         return Promise.resolve(trace);
@@ -71,12 +85,19 @@ describe('local simulation runtime supervisor API adapter', () => {
     const api = createLocalSimulationRuntimeSupervisorApiService({ supervisor });
 
     await expect(api.getRuntimeStatus()).resolves.toBe(status);
+    await expect(api.startRuntime({ operationId: 'op-start-100', requestedAt: 100 })).resolves.toBe(
+      startResult,
+    );
+    await expect(api.pauseRuntime({ operationId: 'op-pause-150', requestedAt: 150 })).resolves.toBe(
+      pauseResult,
+    );
     await expect(
-      api.startRuntime({ operationId: 'op-start-100', requestedAt: 100 }),
-    ).resolves.toBe(startResult);
-    await expect(
-      api.pauseRuntime({ operationId: 'op-pause-150', requestedAt: 150 }),
-    ).resolves.toBe(pauseResult);
+      api.runRuntime({
+        operationId: 'op-run-200',
+        requestedAt: 200,
+        cycleCount: 2,
+      }),
+    ).resolves.toBe(runResult);
     await expect(api.getRuntimeOperationTrace({ traceId: 'op-start-100' })).resolves.toBe(trace);
     await expect(
       api.queryRuntimeOperationTraces({ manifestId: 'town-runtime', command: 'start-all' }),
@@ -85,6 +106,10 @@ describe('local simulation runtime supervisor API adapter', () => {
       { method: 'getStatus' },
       { method: 'startAll', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'pauseAll', request: { operationId: 'op-pause-150', requestedAt: 150 } },
+      {
+        method: 'runCycles',
+        request: { operationId: 'op-run-200', requestedAt: 200, cycleCount: 2 },
+      },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       {
         method: 'queryOperationTraces',

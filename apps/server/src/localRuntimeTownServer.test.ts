@@ -162,6 +162,58 @@ describe('local runtime town HTTP gateway', () => {
       command: 'start-all',
       outcome: 'succeeded',
     });
+
+    const run = await fetchJson(`${server.baseUrl}/runtime/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operationId: 'op-run-cycles-400',
+        requestedAt: 400,
+        cycleCount: 2,
+        cycleIntervalMs: 100,
+      }),
+    });
+    expect(run).toMatchObject({
+      traceId: 'op-run-cycles-400',
+      outcome: 'succeeded',
+      requestedCycleCount: 2,
+      completedCycleCount: 2,
+      stopReason: 'cycle-count-completed',
+      cycles: [
+        {
+          traceId: 'op-run-cycles-400:cycle:1',
+          requestedAt: 400,
+          outcome: 'succeeded',
+        },
+        {
+          traceId: 'op-run-cycles-400:cycle:2',
+          requestedAt: 500,
+          outcome: 'succeeded',
+        },
+      ],
+    });
+
+    const runTrace = await fetchJson(
+      `${server.baseUrl}/runtime/operation-traces/op-run-cycles-400`,
+    );
+    expect(runTrace).toMatchObject({
+      traceId: 'op-run-cycles-400',
+      manifestId: 'town-runtime',
+      command: 'run-cycles',
+      outcome: 'succeeded',
+      cycles: [
+        {
+          cycleIndex: 1,
+          traceId: 'op-run-cycles-400:cycle:1',
+          requestedAt: 400,
+        },
+        {
+          cycleIndex: 2,
+          traceId: 'op-run-cycles-400:cycle:2',
+          requestedAt: 500,
+        },
+      ],
+    });
   });
 });
 

@@ -2,11 +2,17 @@ import type { AgentId } from '@aivilization/sim-core';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createBranchPlan, type BranchPlan } from './planner';
+import type {
+  StrategicPlanCompilationAttemptTrace,
+  StrategicPlanCompilationTrace,
+  StrategicPlanCompilationUsage,
+} from './strategicPlanning';
 
 export type BranchPlanRecord = {
   readonly planId: string;
   readonly agentId: AgentId;
   readonly plan: BranchPlan;
+  readonly planningTrace?: StrategicPlanCompilationTrace;
   readonly createdAt: number;
   readonly updatedAt: number;
 };
@@ -84,6 +90,9 @@ function cloneRecord(record: BranchPlanRecord): BranchPlanRecord {
     planId: record.planId,
     agentId: record.agentId,
     plan: clonePlan(record.plan),
+    ...(record.planningTrace === undefined
+      ? {}
+      : { planningTrace: clonePlanningTrace(record.planningTrace) }),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -115,6 +124,44 @@ function clonePlan(plan: BranchPlan): BranchPlan {
       })),
     })),
   });
+}
+
+function clonePlanningTrace(trace: StrategicPlanCompilationTrace): StrategicPlanCompilationTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.attempts === undefined
+      ? {}
+      : { attempts: trace.attempts.map(clonePlanningAttemptTrace) }),
+    ...(trace.usage === undefined ? {} : { usage: clonePlanningUsage(trace.usage) }),
+  };
+}
+
+function clonePlanningAttemptTrace(
+  attempt: StrategicPlanCompilationAttemptTrace,
+): StrategicPlanCompilationAttemptTrace {
+  return {
+    attemptIndex: attempt.attemptIndex,
+    status: attempt.status,
+    providerId: attempt.providerId,
+    model: attempt.model,
+    message: attempt.message,
+    usage: clonePlanningUsage(attempt.usage),
+  };
+}
+
+function clonePlanningUsage(usage: StrategicPlanCompilationUsage): StrategicPlanCompilationUsage {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    estimatedCostMicros: usage.estimatedCostMicros,
+  };
 }
 
 function planKey(planId: string, agentId: AgentId): string {

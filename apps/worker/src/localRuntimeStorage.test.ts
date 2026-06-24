@@ -4,7 +4,12 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
-import { createCommandEnvelope, asAgentId, asSimulationId } from '@aivilization/sim-core';
+import {
+  createCommandConsumerCheckpoint,
+  createCommandEnvelope,
+  asAgentId,
+  asSimulationId,
+} from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldCommandPolicies,
@@ -349,5 +354,67 @@ describe('local world runtime storage', () => {
         },
       },
     ]);
+  });
+
+  test('restarts file-backed command inbox and command consumer checkpoint storage', () => {
+    const rootDir = createRootDir();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    const command = createCommandEnvelope({
+      id: 'cmd-reactive-buy-fish',
+      simulationId,
+      actorId: agentOne,
+      source: 'human',
+      type: 'IssueReactiveCommand',
+      payload: {
+        reactiveCommandId: 'reactive-buy-fish',
+        summary: 'buy 10 fish now',
+      },
+      issuedAt: 300,
+    });
+
+    storage.commandStore.appendToStream({
+      streamName: storage.partition.commandStreamName,
+      expectedVersion: 0,
+      idempotencyKey: 'append-command-1',
+      commands: [command],
+    });
+    storage.commandConsumerCheckpointStore.saveCheckpoint(
+      createCommandConsumerCheckpoint({
+        consumerId: 'worker-main',
+        streamName: storage.partition.commandStreamName,
+        lastConsumedSequence: 1,
+        updatedAt: 400,
+      }),
+    );
+    const restarted = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId,
+      partitionKey: 'world-main',
+    });
+
+    expect(restarted.paths.commandStoreDir).toContain('commands');
+    expect(restarted.paths.commandConsumerCheckpointStoreDir).toContain(
+      'command-consumer-checkpoints',
+    );
+    expect(
+      restarted.commandStore
+        .readStream(restarted.partition.commandStreamName)
+        .map((record) => ({ sequence: record.sequence, id: record.command.id })),
+    ).toEqual([{ sequence: 1, id: 'cmd-reactive-buy-fish' }]);
+    expect(
+      restarted.commandConsumerCheckpointStore.getLatestCheckpoint({
+        consumerId: 'worker-main',
+        streamName: restarted.partition.commandStreamName,
+      }),
+    ).toEqual({
+      consumerId: 'worker-main',
+      streamName: restarted.partition.commandStreamName,
+      lastConsumedSequence: 1,
+      updatedAt: 400,
+    });
   });
 });

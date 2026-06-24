@@ -3,6 +3,7 @@ import { createCommandEnvelope } from '@aivilization/sim-core';
 import { createTownHttpApiHandler } from './index';
 import type { SimulationApiService } from './simulationApi';
 import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
+import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -66,12 +67,26 @@ type TestRuntimeTrace = {
   readonly command: 'start-all' | 'pause-all' | 'run-cycles';
 };
 
+type TestRuntimeRunQueueJob = {
+  readonly jobId: string;
+  readonly status: 'queued';
+  readonly enqueuedAt: number;
+  readonly runRequest: {
+    readonly operationId?: string;
+    readonly requestedAt: number;
+    readonly cycleCount: number;
+    readonly cycleIntervalMs?: number;
+    readonly stopOnAttention?: boolean;
+  };
+};
+
 describe('town HTTP API router', () => {
   test('routes projection, steering, and lifecycle requests to the simulation service', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
     });
 
     await expect(
@@ -307,6 +322,7 @@ describe('town HTTP API router', () => {
     const handler = createTownHttpApiHandler({
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
     });
 
     await expect(handler({ method: 'GET', path: '/runtime/status' })).resolves.toEqual({
@@ -430,11 +446,92 @@ describe('town HTTP API router', () => {
     ]);
   });
 
+  test('routes async runtime run jobs to the queue service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: {
+          jobId: 'job-run-200',
+          operationId: 'op-run-200',
+          enqueuedAt: 190,
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-run-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/job-run-200',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-run-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'enqueueRuntimeRun',
+        request: {
+          jobId: 'job-run-200',
+          operationId: 'op-run-200',
+          enqueuedAt: 190,
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+      {
+        method: 'getRuntimeRunJob',
+        request: { jobId: 'job-run-200' },
+      },
+    ]);
+  });
+
   test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
     const calls: unknown[] = [];
     const handler = createTownHttpApiHandler({
       simulation: createSimulationService(calls),
       runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
     });
 
     await expect(handler({ method: 'GET', path: '/missing' })).resolves.toEqual({
@@ -468,6 +565,33 @@ describe('town HTTP API router', () => {
       status: 400,
       headers: { 'content-type': 'application/json' },
       body: { error: { code: 'bad_request', message: 'cycleCount must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: { enqueuedAt: 90, requestedAt: 100, cycleCount: 1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'jobId must be a non-empty string' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: { jobId: 'job-run-invalid', enqueuedAt: -1, requestedAt: 100, cycleCount: 1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: {
+          code: 'bad_request',
+          message: 'enqueuedAt must be a non-negative finite number',
+        },
+      },
     });
     await expect(
       handler({
@@ -693,6 +817,47 @@ function createRuntimeSupervisorService(
     queryRuntimeOperationTraces: (query) => {
       calls.push({ method: 'queryRuntimeOperationTraces', query });
       return Promise.resolve([{ traceId: 'op-start-100', command: 'start-all' }]);
+    },
+  };
+}
+
+function createRuntimeRunQueueService(
+  calls: unknown[],
+): RuntimeRunQueueApiService<TestRuntimeRunQueueJob> {
+  return {
+    enqueueRuntimeRun: (request) => {
+      calls.push({ method: 'enqueueRuntimeRun', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: request.enqueuedAt,
+        runRequest: {
+          ...(request.operationId === undefined ? {} : { operationId: request.operationId }),
+          requestedAt: request.requestedAt,
+          cycleCount: request.cycleCount,
+          ...(request.cycleIntervalMs === undefined
+            ? {}
+            : { cycleIntervalMs: request.cycleIntervalMs }),
+          ...(request.stopOnAttention === undefined
+            ? {}
+            : { stopOnAttention: request.stopOnAttention }),
+        },
+      });
+    },
+    getRuntimeRunJob: (request) => {
+      calls.push({ method: 'getRuntimeRunJob', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      });
     },
   };
 }

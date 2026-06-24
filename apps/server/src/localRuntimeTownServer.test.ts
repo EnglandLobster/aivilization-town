@@ -197,6 +197,47 @@ describe('local runtime town HTTP gateway', () => {
       ],
     });
 
+    const queuedRun = await fetchJson(`${server.baseUrl}/runtime/run-jobs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jobId: 'job-run-async-600',
+        operationId: 'op-run-async-600',
+        enqueuedAt: 590,
+        requestedAt: 600,
+        cycleCount: 3,
+        cycleIntervalMs: 75,
+        stopOnAttention: true,
+      }),
+    });
+    expect(queuedRun).toMatchObject({
+      jobId: 'job-run-async-600',
+      manifestId: 'town-runtime',
+      status: 'queued',
+      enqueuedAt: 590,
+      updatedAt: 590,
+      runRequest: {
+        operationId: 'op-run-async-600',
+        requestedAt: 600,
+        cycleCount: 3,
+        cycleIntervalMs: 75,
+        stopOnAttention: true,
+      },
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run-jobs/job-run-async-600`),
+    ).resolves.toMatchObject({
+      jobId: 'job-run-async-600',
+      manifestId: 'town-runtime',
+      status: 'queued',
+      enqueuedAt: 590,
+      runRequest: {
+        operationId: 'op-run-async-600',
+        requestedAt: 600,
+        cycleCount: 3,
+      },
+    });
+
     const runSession = await fetchJson(`${server.baseUrl}/runtime/run-sessions/op-run-cycles-400`);
     expect(runSession).toMatchObject({
       traceId: 'op-run-cycles-400',

@@ -28,6 +28,7 @@ export * from './localSimulationRuntimeRunQueueApi';
 export * from './localSimulationRuntimeRunQueueWorkerApi';
 export * from './localSimulationRuntimeRunQueueWorkerHost';
 export * from './localSimulationRuntimeScheduler';
+export * from './localSimulationRuntimeSchedulerApi';
 export * from './localSimulationRuntimeRunSession';
 export * from './localSimulationRuntimeSupervisor';
 export * from './localSimulationRuntimeSupervisorApi';

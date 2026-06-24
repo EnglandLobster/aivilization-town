@@ -13,6 +13,7 @@ import {
   createLocalSimulationRuntimeRunQueueWorkerApiService,
   createLocalSimulationRuntimeRunQueueWorkerHost,
   createLocalSimulationRuntimeScheduler,
+  createLocalSimulationRuntimeSchedulerApiService,
   createLocalSimulationRuntimeSchedulerHost,
   createLocalSimulationRuntimeSupervisor,
   createLocalSimulationRuntimeSupervisorApiService,
@@ -22,6 +23,7 @@ import {
   type LocalSimulationRuntimeRunQueueApiService,
   type LocalSimulationRuntimeRunQueueWorkerApiService,
   type LocalSimulationRuntimeRunQueueWorkerHost,
+  type LocalSimulationRuntimeSchedulerApiService,
   type LocalSimulationRuntimeSchedulerHost,
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorApiService,
@@ -59,6 +61,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeRunQueueWorkerApi: LocalSimulationRuntimeRunQueueWorkerApiService;
   readonly runQueueWorkerHost: LocalSimulationRuntimeRunQueueWorkerHost;
   readonly runQueueSchedulerHost?: LocalSimulationRuntimeSchedulerHost;
+  readonly runtimeSchedulerApi?: LocalSimulationRuntimeSchedulerApiService;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -121,11 +124,16 @@ export async function createLocalRuntimeTownApi(
   const runtimeRunQueueWorkerApi = createLocalSimulationRuntimeRunQueueWorkerApiService({
     host: runQueueWorkerHost,
   });
+  const runtimeSchedulerApi =
+    runQueueSchedulerHost === undefined
+      ? undefined
+      : createLocalSimulationRuntimeSchedulerApiService({ host: runQueueSchedulerHost });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeRunQueueWorkerApi,
+    ...(runtimeSchedulerApi === undefined ? {} : { runtimeScheduler: runtimeSchedulerApi }),
   });
 
   return {
@@ -136,6 +144,7 @@ export async function createLocalRuntimeTownApi(
     runtimeRunQueueWorkerApi,
     runQueueWorkerHost,
     ...(runQueueSchedulerHost === undefined ? {} : { runQueueSchedulerHost }),
+    ...(runtimeSchedulerApi === undefined ? {} : { runtimeSchedulerApi }),
     handler,
   };
 }

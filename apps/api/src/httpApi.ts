@@ -15,6 +15,7 @@ import type {
   RuntimeRunQueueWorkerApiService,
   RuntimeRunQueueWorkerDrainRequest,
 } from './runtimeRunQueueWorkerApi';
+import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type {
   ExperimentValidationReportLookupRequest,
   ExperimentValidationReportQueryRequest,
@@ -58,6 +59,8 @@ export type TownHttpApiServices<
   TRuntimeRunQueueJob,
   TRuntimeRunQueueWorkerStatus,
   TRuntimeRunQueueWorkerDrainResult,
+  TRuntimeSchedulerStatus = unknown,
+  TRuntimeSchedulerDecision = unknown,
   TRuntimeCommand extends string = string,
 > = {
   readonly simulation: SimulationApiService<
@@ -80,6 +83,10 @@ export type TownHttpApiServices<
   readonly runtimeRunQueueWorker: RuntimeRunQueueWorkerApiService<
     TRuntimeRunQueueWorkerStatus,
     TRuntimeRunQueueWorkerDrainResult
+  >;
+  readonly runtimeScheduler?: RuntimeSchedulerApiService<
+    TRuntimeSchedulerStatus,
+    TRuntimeSchedulerDecision
   >;
 };
 
@@ -117,6 +124,8 @@ export function createTownHttpApiHandler<
   TRuntimeRunQueueJob,
   TRuntimeRunQueueWorkerStatus,
   TRuntimeRunQueueWorkerDrainResult,
+  TRuntimeSchedulerStatus = unknown,
+  TRuntimeSchedulerDecision = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -134,6 +143,8 @@ export function createTownHttpApiHandler<
     TRuntimeRunQueueJob,
     TRuntimeRunQueueWorkerStatus,
     TRuntimeRunQueueWorkerDrainResult,
+    TRuntimeSchedulerStatus,
+    TRuntimeSchedulerDecision,
     TRuntimeCommand
   >,
 ): TownHttpApiHandler {
@@ -166,6 +177,8 @@ async function routeTownHttpRequest<
   TRuntimeRunQueueJob,
   TRuntimeRunQueueWorkerStatus,
   TRuntimeRunQueueWorkerDrainResult,
+  TRuntimeSchedulerStatus = unknown,
+  TRuntimeSchedulerDecision = unknown,
   TRuntimeCommand extends string = string,
 >(
   services: TownHttpApiServices<
@@ -183,6 +196,8 @@ async function routeTownHttpRequest<
     TRuntimeRunQueueJob,
     TRuntimeRunQueueWorkerStatus,
     TRuntimeRunQueueWorkerDrainResult,
+    TRuntimeSchedulerStatus,
+    TRuntimeSchedulerDecision,
     TRuntimeCommand
   >,
   request: TownHttpApiRequest,
@@ -197,6 +212,7 @@ async function routeTownHttpRequest<
       services.runtimeSupervisor,
       services.runtimeRunQueue,
       services.runtimeRunQueueWorker,
+      services.runtimeScheduler,
       request,
       segments,
     );
@@ -311,6 +327,8 @@ async function routeRuntimeRequest<
   TRuntimeRunQueueJob,
   TRuntimeRunQueueWorkerStatus,
   TRuntimeRunQueueWorkerDrainResult,
+  TRuntimeSchedulerStatus,
+  TRuntimeSchedulerDecision,
   TRuntimeCommand extends string,
 >(
   runtimeSupervisor: RuntimeSupervisorApiService<
@@ -326,9 +344,34 @@ async function routeRuntimeRequest<
     TRuntimeRunQueueWorkerStatus,
     TRuntimeRunQueueWorkerDrainResult
   >,
+  runtimeScheduler:
+    | RuntimeSchedulerApiService<TRuntimeSchedulerStatus, TRuntimeSchedulerDecision>
+    | undefined,
   request: TownHttpApiRequest,
   segments: readonly string[],
 ): Promise<TownHttpApiResponse> {
+  if (segments.length === 3 && segments[1] === 'scheduler') {
+    if (runtimeScheduler === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    const action = segments[2];
+    if (action === 'status') {
+      assertMethod(request, 'GET');
+      return jsonResponse(200, await runtimeScheduler.getRuntimeSchedulerStatus());
+    }
+    if (action === 'start') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeScheduler.startRuntimeScheduler());
+    }
+    if (action === 'stop') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeScheduler.stopRuntimeScheduler());
+    }
+    if (action === 'run-once') {
+      assertMethod(request, 'POST');
+      return jsonResponse(202, await runtimeScheduler.runRuntimeSchedulerOnce());
+    }
+  }
   if (segments.length === 3 && segments[1] === 'run-queue-worker') {
     const action = segments[2];
     if (action === 'status') {

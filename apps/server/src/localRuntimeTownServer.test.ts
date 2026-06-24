@@ -493,7 +493,16 @@ describe('local runtime town HTTP gateway', () => {
     });
     const server = await listen(runtime.server);
 
-    const scheduled = await runtime.runQueueSchedulerHost?.runOnce();
+    await expect(fetchJson(`${server.baseUrl}/runtime/scheduler/status`)).resolves.toMatchObject({
+      running: false,
+      inFlight: false,
+      attemptedScheduleCount: 0,
+    });
+    const scheduled = await fetchJson(`${server.baseUrl}/runtime/scheduler/run-once`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
     expect(scheduled).toMatchObject({
       status: 'enqueued',
       job: {
@@ -505,7 +514,17 @@ describe('local runtime town HTTP gateway', () => {
         },
       },
     });
-    if (scheduled?.status !== 'enqueued') {
+    if (
+      scheduled === null ||
+      typeof scheduled !== 'object' ||
+      !('status' in scheduled) ||
+      scheduled.status !== 'enqueued' ||
+      !('job' in scheduled) ||
+      scheduled.job === null ||
+      typeof scheduled.job !== 'object' ||
+      !('jobId' in scheduled.job) ||
+      typeof scheduled.job.jobId !== 'string'
+    ) {
       throw new Error('expected scheduler to enqueue a run job');
     }
     await expect(

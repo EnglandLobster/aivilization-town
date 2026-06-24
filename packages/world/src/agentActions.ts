@@ -9,6 +9,8 @@ import {
   asConversationId,
   advanceClock,
   createEventEnvelope,
+  createSeededRandom,
+  rollProbabilityPercent,
   type AgentId,
   type CommandEnvelope,
   type CoreCommandType,
@@ -19,7 +21,9 @@ import {
   applyHealthRecovery,
   applyLaborPhysiologyCost,
   applySleepDeprivationHealthDecay,
+  applyStochasticIllnessHealthDecay,
   applySocialInteraction,
+  calculateStochasticIllnessProbabilityPercent,
   calculateApplicationQuota,
   createDirectedSocialRelationKey,
   evaluateResidentialTierUpgrade,
@@ -27,6 +31,7 @@ import {
   isIncapacitated,
   type ResidentialTierUpgradePolicy,
   type SleepDeprivationHealthDecayPolicy,
+  type StochasticIllnessPolicy,
 } from '@aivilization/society';
 import {
   assertAdvanceSimulationTimePayload,
@@ -68,6 +73,7 @@ export type WorldCommandPolicies = {
     readonly maxHealth: number;
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
+  readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
@@ -89,6 +95,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.sleepDeprivation === undefined
           ? {}
           : { sleepDeprivation: input.policies.sleepDeprivation }),
+        ...(input.policies.stochasticIllness === undefined
+          ? {}
+          : { stochasticIllness: input.policies.stochasticIllness }),
         nextSequence: input.nextSequence,
       });
     case 'AgentEat':
@@ -206,6 +215,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly command: CommandEnvelope<'AdvanceSimulationTime', unknown>;
   readonly projection: WorldProjection;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
+  readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
@@ -219,32 +229,59 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }),
   ];
 
-  if (input.sleepDeprivation === undefined) {
+  if (input.sleepDeprivation === undefined && input.stochasticIllness === undefined) {
     return events;
   }
 
   const durationSeconds = payload.deltaMs / 1000;
-  for (const agent of Object.values(input.projection.agents).sort((left, right) =>
+  const agents = Object.values(input.projection.agents).sort((left, right) =>
     left.agentId.localeCompare(right.agentId),
-  )) {
-    const nextPhysiology = applySleepDeprivationHealthDecay({
-      ...agent.physiology,
-      durationSeconds,
-      energyThreshold: input.sleepDeprivation.energyThreshold,
-      healthDecayPerSecond: input.sleepDeprivation.healthDecayPerSecond,
-      minHealth: input.sleepDeprivation.minHealth,
-    });
-    if (isSamePhysiology(agent.physiology, nextPhysiology)) {
-      continue;
-    }
-    events.push(
-      makeEvent(input, events.length, 'PhysiologyChanged', {
-        agentId: agent.agentId,
-        previous: agent.physiology,
-        next: nextPhysiology,
+  );
+  const physiologyByAgent = new Map<AgentId, WorldAgentState['physiology']>();
+
+  if (input.sleepDeprivation !== undefined) {
+    for (const agent of agents) {
+      appendPhysiologyTimeEffect({
+        input,
+        events,
+        physiologyByAgent,
+        agent,
         reason: 'sleep-deprivation',
-      }),
-    );
+        nextPhysiology: applySleepDeprivationHealthDecay({
+          ...getCurrentPhysiology(physiologyByAgent, agent),
+          durationSeconds,
+          energyThreshold: input.sleepDeprivation.energyThreshold,
+          healthDecayPerSecond: input.sleepDeprivation.healthDecayPerSecond,
+          minHealth: input.sleepDeprivation.minHealth,
+        }),
+      });
+    }
+  }
+
+  if (input.stochasticIllness !== undefined) {
+    const probabilityPercent = calculateStochasticIllnessProbabilityPercent({
+      illnessProbabilityPercentPerHour: input.stochasticIllness.illnessProbabilityPercentPerHour,
+      durationSeconds,
+    });
+    for (const agent of agents) {
+      const illnessOccurs = rollProbabilityPercent(
+        probabilityPercent,
+        createSeededRandom(createStochasticIllnessSeed({ input, payload, agent })),
+      );
+      appendPhysiologyTimeEffect({
+        input,
+        events,
+        physiologyByAgent,
+        agent,
+        reason: 'stochastic-illness',
+        nextPhysiology: applyStochasticIllnessHealthDecay({
+          ...getCurrentPhysiology(physiologyByAgent, agent),
+          illnessOccurs,
+          healthDamage: input.stochasticIllness.healthDamage,
+          minHealth: input.stochasticIllness.minHealth,
+        }),
+      });
+    }
   }
 
   return events;
@@ -1322,6 +1359,52 @@ function isSamePhysiology(
   return (
     left.energy === right.energy && left.satiety === right.satiety && left.health === right.health
   );
+}
+
+function appendPhysiologyTimeEffect(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly physiologyByAgent: Map<AgentId, WorldAgentState['physiology']>;
+  readonly agent: WorldAgentState;
+  readonly reason: string;
+  readonly nextPhysiology: WorldAgentState['physiology'];
+}): void {
+  const previousPhysiology = getCurrentPhysiology(input.physiologyByAgent, input.agent);
+  if (isSamePhysiology(previousPhysiology, input.nextPhysiology)) {
+    return;
+  }
+
+  input.events.push(
+    makeEvent(input.input, input.events.length, 'PhysiologyChanged', {
+      agentId: input.agent.agentId,
+      previous: previousPhysiology,
+      next: input.nextPhysiology,
+      reason: input.reason,
+    }),
+  );
+  input.physiologyByAgent.set(input.agent.agentId, input.nextPhysiology);
+}
+
+function getCurrentPhysiology(
+  physiologyByAgent: ReadonlyMap<AgentId, WorldAgentState['physiology']>,
+  agent: WorldAgentState,
+): WorldAgentState['physiology'] {
+  return physiologyByAgent.get(agent.agentId) ?? agent.physiology;
+}
+
+function createStochasticIllnessSeed(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly payload: { readonly deltaMs: number };
+  readonly agent: WorldAgentState;
+}): string {
+  return [
+    'stochastic-illness',
+    input.input.command.simulationId,
+    input.input.command.id,
+    input.input.projection.clock.now,
+    input.payload.deltaMs,
+    input.agent.agentId,
+  ].join(':');
 }
 
 function makeEvent<TType extends WorldEvent['type']>(

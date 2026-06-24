@@ -603,6 +603,58 @@ describe('local runtime town HTTP gateway', () => {
       recoveredCount: 1,
     });
   });
+
+  test('delegates daemon auto-start and close cleanup through runtime orchestration', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      runtimeRunQueue: {
+        autoStart: true,
+        pollIntervalMs: 10_000,
+      },
+      runtimeScheduler: {
+        autoStart: true,
+        cycleCount: 1,
+        scheduleIntervalMs: 10_000,
+      },
+      runtimeRecovery: {
+        autoStart: true,
+        recoveryIntervalMs: 10_000,
+      },
+    });
+    await listen(runtime.server);
+
+    expect(runtime.runtimeOrchestration.runQueueWorkerHost.getStatus()).toMatchObject({
+      running: true,
+    });
+    expect(runtime.runtimeOrchestration.runQueueSchedulerHost?.getStatus()).toMatchObject({
+      running: true,
+    });
+    expect(runtime.runtimeOrchestration.runQueueRecoveryHost?.getStatus()).toMatchObject({
+      running: true,
+    });
+
+    const server = servers.pop();
+    expect(server).toBe(runtime.server);
+    if (server !== undefined) {
+      await closeServer(server);
+    }
+    expect(runtime.runtimeOrchestration.runQueueWorkerHost.getStatus()).toMatchObject({
+      running: false,
+    });
+    expect(runtime.runtimeOrchestration.runQueueSchedulerHost?.getStatus()).toMatchObject({
+      running: false,
+    });
+    expect(runtime.runtimeOrchestration.runQueueRecoveryHost?.getStatus()).toMatchObject({
+      running: false,
+    });
+  });
 });
 
 function createRootDir(): string {

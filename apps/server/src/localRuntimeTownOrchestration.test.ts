@@ -1,0 +1,213 @@
+import { afterEach, describe, expect, test } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { type ScenarioPreset } from '@aivilization/content';
+import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
+import { type WorldCommandPolicies } from '@aivilization/world';
+import {
+  bootstrapLocalSimulationRuntimeHostFromManifest,
+  createLocalSimulationRuntimeSupervisor,
+  type LocalSimulationRuntimeManifest,
+} from '@aivilization/worker';
+import {
+  createLocalRuntimeTownOrchestration,
+  startLocalRuntimeTownOrchestration,
+  stopLocalRuntimeTownOrchestration,
+} from './index';
+
+const agentOne = asAgentId('agent-1');
+const mainSquare = asLocationId('main-square');
+const tmpRoots: string[] = [];
+
+const policies: WorldCommandPolicies = {
+  satietyRecoveryByCommodity: {},
+  maxSatiety: 100,
+  wageCalculator: () => 10,
+  laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+  criticalThresholds: { energy: 1, health: 1 },
+};
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+describe('local runtime town orchestration', () => {
+  test('shares queue-backed scheduler, worker, recovery, and API controls', async () => {
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const orchestration = createLocalRuntimeTownOrchestration({
+      host,
+      supervisor,
+      runtimeScheduler: {
+        schedulerId: 'main-loop',
+        cycleCount: 1,
+        cycleIntervalMs: 25,
+        scheduleIntervalMs: 1_000,
+      },
+      runtimeRecovery: {
+        recoveryIntervalMs: 1_000,
+        maxDrainJobsPerRun: 1,
+      },
+    });
+
+    await expect(
+      orchestration.runtimeSchedulerApi?.runRuntimeSchedulerOnce(),
+    ).resolves.toMatchObject({
+      status: 'enqueued',
+      job: {
+        manifestId: 'town-runtime',
+        status: 'queued',
+        runRequest: {
+          cycleCount: 1,
+          cycleIntervalMs: 25,
+        },
+      },
+    });
+    await expect(orchestration.runtimeRecoveryApi?.runRuntimeRecoveryOnce()).resolves.toMatchObject(
+      {
+        status: 'recovered',
+        drainResult: {
+          processedJobCount: 1,
+          completedJobCount: 1,
+          failedJobCount: 0,
+        },
+      },
+    );
+    await expect(
+      orchestration.runtimeRunQueueApi.queryRuntimeRunJobs({
+        status: 'completed',
+        manifestId: 'town-runtime',
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([
+      {
+        manifestId: 'town-runtime',
+        status: 'completed',
+      },
+    ]);
+  });
+
+  test('starts and stops configured daemon hosts from one profile boundary', async () => {
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const profile = {
+      runtimeRunQueue: { autoStart: true, pollIntervalMs: 1_000 },
+      runtimeScheduler: { autoStart: true, cycleCount: 1, scheduleIntervalMs: 1_000 },
+      runtimeRecovery: { autoStart: true, recoveryIntervalMs: 1_000 },
+    };
+    const orchestration = createLocalRuntimeTownOrchestration({
+      host,
+      supervisor,
+      ...profile,
+    });
+
+    startLocalRuntimeTownOrchestration(profile, orchestration);
+    expect(orchestration.runQueueWorkerHost.getStatus()).toMatchObject({ running: true });
+    expect(orchestration.runQueueSchedulerHost?.getStatus()).toMatchObject({ running: true });
+    expect(orchestration.runQueueRecoveryHost?.getStatus()).toMatchObject({ running: true });
+
+    stopLocalRuntimeTownOrchestration(orchestration);
+    expect(orchestration.runQueueWorkerHost.getStatus()).toMatchObject({ running: false });
+    expect(orchestration.runQueueSchedulerHost?.getStatus()).toMatchObject({ running: false });
+    expect(orchestration.runQueueRecoveryHost?.getStatus()).toMatchObject({ running: false });
+  });
+});
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-local-orchestration-'));
+  tmpRoots.push(root);
+  return root;
+}
+
+function createManifest(): LocalSimulationRuntimeManifest {
+  return {
+    id: 'town-runtime',
+    defaults: {
+      tickBatchSize: 1,
+      tickIntervalMs: 100,
+      commandConsumerIdPrefix: 'worker',
+    },
+    partitions: [
+      {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        scenarioPresetId: 'scenario-main',
+      },
+    ],
+  };
+}
+
+function createScenarioPresets(): readonly ScenarioPreset[] {
+  return [
+    createScenarioPreset({
+      id: 'scenario-main',
+      agentId: agentOne,
+      educationScore: 10,
+    }),
+  ];
+}
+
+function createScenarioPreset(input: {
+  readonly id: string;
+  readonly agentId: AgentId;
+  readonly educationScore: number;
+}): ScenarioPreset {
+  return {
+    id: input.id,
+    name: input.id,
+    description: `${input.id} test scenario`,
+    clock: { now: 0, tickDurationMs: 1000 },
+    timeScale: 35,
+    locations: [
+      {
+        locationId: mainSquare,
+        name: 'Main Square',
+        kind: 'social',
+        activityAffinities: ['study'],
+        capacity: null,
+        source: 'test',
+      },
+    ],
+    agentSeeds: [
+      {
+        agentId: input.agentId,
+        displayName: input.agentId,
+        profile: { personality: { mbti: 'INTJ' }, source: 'test' },
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: input.educationScore,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+        locationId: mainSquare,
+        source: 'test',
+        tags: ['test'],
+      },
+    ],
+    source: 'test',
+  };
+}

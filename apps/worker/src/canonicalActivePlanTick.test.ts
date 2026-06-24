@@ -430,6 +430,125 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('observes nearby agents before completing unconfigured social subtasks', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const initialProjection = createProjection({
+      agents: [
+        createAgent(agentA, { locationId: asLocationId('town-square') }),
+        createAgent(agentB, { locationId: asLocationId('town-square') }),
+      ],
+      locations: [townSquare()],
+    });
+    await repositories.intentionRepository.setObjective(agentA, createSocialObjective(agentA));
+    await repositories.planRepository.save(createSocialPlanRecord(agentA));
+
+    const first = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-social-observe',
+      simulationId,
+      issuedAt: 100,
+      projection: initialProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(first.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentObserveLocation',
+      payload: { focus: 'Discuss community routines.' },
+    });
+    expect(first.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'LocationObserved',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(first.projection.locationObservations).toEqual([
+      {
+        agentId: agentA,
+        locationId: 'town-square',
+        locationName: 'Town Square',
+        observedAgentIds: [agentB],
+        activityAffinities: ['socialize'],
+        focus: 'Discuss community routines.',
+        observedAt: 100,
+      },
+    ]);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-social',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-social',
+      agentId: agentA,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: createSocialObjective(agentA),
+      completedObjectives: [],
+    });
+
+    const second = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-social-conversation-after-observe',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+
+    expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
+      type: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentB,
+        topic: 'Discuss community routines.',
+      },
+    });
+    expect(second.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'ConversationRecorded',
+      'SocialInteractionCompleted',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(second.projection.conversationRecords).toHaveLength(1);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'objective-social',
+        agentId: agentA,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual({
+      planId: 'objective-social',
+      agentId: agentA,
+      completedSubtaskIds: ['social-step'],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toBeUndefined();
+    expect(intentionState.completedObjectives).toMatchObject([
+      {
+        objective: createSocialObjective(agentA),
+        completedAt: 200,
+        reason: 'plan-completed',
+        planId: 'objective-social',
+      },
+    ]);
+  });
+
   test('infers job application occupation from active plan context', async () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();

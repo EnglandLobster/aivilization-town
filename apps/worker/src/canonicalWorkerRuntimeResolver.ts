@@ -13,6 +13,7 @@ import {
 } from '@aivilization/sim-core';
 import {
   dispatchWorldCommand,
+  type AgentObserveLocationPayload,
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
@@ -125,6 +126,11 @@ function createCanonicalSubtaskCompletionPolicy(input: {
       return movementCompletion;
     }
 
+    const observationCompletion = decideObservationSubtaskCompletion({ simulationResults });
+    if (observationCompletion !== undefined) {
+      return observationCompletion;
+    }
+
     const residentialCompletion = decideResidentialSubtaskCompletion({
       context: input.context,
       selectedSubtask,
@@ -157,6 +163,22 @@ function decideMovementSubtaskCompletion(input: {
   return {
     status: 'in-progress',
     reason: 'moved to required location before executing subtask',
+  };
+}
+
+function decideObservationSubtaskCompletion(input: {
+  readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
+}): ReturnType<CycleSubtaskCompletionPolicy> | undefined {
+  const observationAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentObserveLocationAction);
+  if (observationAction === undefined) {
+    return undefined;
+  }
+
+  return {
+    status: 'in-progress',
+    reason: 'observed current location before executing subtask',
   };
 }
 
@@ -241,6 +263,12 @@ function isAgentMoveToAction(
   action: AtomicActionProposal | undefined,
 ): action is AtomicActionProposal<'AgentMoveTo', AgentMoveToPayload> {
   return action !== undefined && action.commandType === 'AgentMoveTo';
+}
+
+function isAgentObserveLocationAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<'AgentObserveLocation', AgentObserveLocationPayload> {
+  return action !== undefined && action.commandType === 'AgentObserveLocation';
 }
 
 function isAgentUpgradeResidentialTierAction(

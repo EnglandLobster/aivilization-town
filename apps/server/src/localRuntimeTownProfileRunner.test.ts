@@ -8,8 +8,12 @@ import {
   InMemoryRuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
+import { createWorldProjection } from '@aivilization/world';
 import { afterEach, describe, expect, test } from 'vitest';
-import { runLocalRuntimeTownDaemonScenarioProfile } from './index';
+import {
+  createLocalRuntimeTownProfileWorldPolicies,
+  runLocalRuntimeTownDaemonScenarioProfile,
+} from './index';
 
 const tmpRoots: string[] = [];
 
@@ -23,6 +27,31 @@ afterEach(() => {
 });
 
 describe('local runtime town profile runner', () => {
+  test('default profile world policies include source-backed residential physiology caps', () => {
+    const policies = createLocalRuntimeTownProfileWorldPolicies()(
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('profile-policy-agent'),
+            physiology: { energy: 500, satiety: 500, health: 500 },
+            educationScore: 31,
+            balance: 100,
+            residentialTier: 5,
+            job: 'Stock Clerk',
+            inventory: {},
+          },
+        ],
+      }),
+    );
+
+    expect(policies.residentialPhysiologyCaps?.caps).toContainEqual({
+      residentialTier: 5,
+      maxEnergy: 500,
+      maxSatiety: 500,
+      maxHealth: 500,
+    });
+  });
+
   test('runs the smoke profile headlessly with default canonical agents', async () => {
     const rootDir = createRootDir();
 

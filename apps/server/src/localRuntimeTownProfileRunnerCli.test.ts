@@ -1,8 +1,23 @@
-import { describe, expect, test } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { FileRuntimeProfileRunReportRepository } from '@aivilization/observability';
+import { afterEach, describe, expect, test } from 'vitest';
 import {
   parseLocalRuntimeTownProfileRunnerCliArgs,
   runLocalRuntimeTownProfileRunnerCli,
 } from './localRuntimeTownProfileRunnerCli';
+
+const tmpRoots: string[] = [];
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
 
 describe('local runtime town profile runner CLI', () => {
   test('parses profile runner arguments', () => {
@@ -18,6 +33,8 @@ describe('local runtime town profile runner CLI', () => {
         '100',
         '--cycle-interval-ms',
         '50',
+        '--report-root-dir',
+        '/tmp/reports',
       ]),
     ).toEqual({
       profileId: 'smoke-25',
@@ -25,6 +42,7 @@ describe('local runtime town profile runner CLI', () => {
       cycleCount: 2,
       requestedAt: 100,
       cycleIntervalMs: 50,
+      reportRootDir: '/tmp/reports',
     });
   });
 
@@ -80,4 +98,53 @@ describe('local runtime town profile runner CLI', () => {
     });
     expect(output.endsWith('\n')).toBe(true);
   });
+
+  test('records profile run reports when report root is supplied', async () => {
+    let output = '';
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        rootDir,
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--report-root-dir',
+        reportRootDir,
+      ],
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+    });
+
+    const reportRepository = new FileRuntimeProfileRunReportRepository({ rootDir: reportRootDir });
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output)).toMatchObject({
+      profileId: 'smoke-25',
+      run: {
+        traceId: 'aivilization-smoke-25:profile-run:100',
+      },
+    });
+    await expect(reportRepository.query({ profileId: 'smoke-25' })).resolves.toEqual([
+      expect.objectContaining({
+        runId: 'aivilization-smoke-25:profile-run:100',
+        profileId: 'smoke-25',
+        totalProjectionAgentCount: 25,
+      }),
+    ]);
+  });
 });
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-runner-cli-'));
+  tmpRoots.push(root);
+  return root;
+}

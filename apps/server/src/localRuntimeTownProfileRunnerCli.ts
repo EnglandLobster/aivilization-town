@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
+import { FileRuntimeProfileRunReportRepository } from '@aivilization/observability';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
@@ -10,7 +11,9 @@ import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTown
 export type LocalRuntimeTownProfileRunnerCliConfig = Pick<
   LocalRuntimeTownProfileRunnerInput,
   'profileId' | 'rootDir' | 'cycleCount' | 'requestedAt' | 'cycleIntervalMs'
->;
+> & {
+  readonly reportRootDir?: string;
+};
 
 export type LocalRuntimeTownProfileRunnerCliWriter = {
   readonly write: (chunk: string) => void;
@@ -21,7 +24,7 @@ export type LocalRuntimeTownProfileRunnerCliInput = {
   readonly stdout?: LocalRuntimeTownProfileRunnerCliWriter;
   readonly stderr?: LocalRuntimeTownProfileRunnerCliWriter;
   readonly runProfile?: (
-    input: LocalRuntimeTownProfileRunnerCliConfig,
+    input: LocalRuntimeTownProfileRunnerInput,
   ) => Promise<LocalRuntimeTownProfileRunnerSummary>;
 };
 
@@ -40,6 +43,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
   const cycleCount = readOptionalPositiveInteger(args, '--cycles') ?? 1;
   const requestedAt = readOptionalNonNegativeFinite(args, '--requested-at') ?? Date.now();
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
+  const reportRootDir = readOptionalString(args, '--report-root-dir');
 
   return {
     profileId,
@@ -47,6 +51,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
     cycleCount,
     requestedAt,
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
+    ...(reportRootDir === undefined ? {} : { reportRootDir }),
   };
 }
 
@@ -59,13 +64,31 @@ export async function runLocalRuntimeTownProfileRunnerCli(
 
   try {
     const config = parseLocalRuntimeTownProfileRunnerCliArgs(input.argv ?? process.argv.slice(2));
-    const summary = await runProfile(config);
+    const summary = await runProfile(createRunnerInput(config));
     stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     return 0;
   } catch (error) {
     stderr.write(`${formatError(error)}\n`);
     return 1;
   }
+}
+
+function createRunnerInput(
+  config: LocalRuntimeTownProfileRunnerCliConfig,
+): LocalRuntimeTownProfileRunnerInput {
+  const profileRunReportRepository =
+    config.reportRootDir === undefined
+      ? undefined
+      : new FileRuntimeProfileRunReportRepository({ rootDir: config.reportRootDir });
+
+  return {
+    profileId: config.profileId,
+    rootDir: config.rootDir,
+    cycleCount: config.cycleCount,
+    requestedAt: config.requestedAt,
+    ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
+    ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
+  };
 }
 
 function parseFlagArgs(argv: readonly string[]): ReadonlyMap<string, string> {
@@ -100,6 +123,17 @@ function readRequiredString(args: ReadonlyMap<string, string>, flag: string): st
   const value = args.get(flag);
   if (value === undefined || value.trim().length === 0) {
     throw new Error(`${flag} is required`);
+  }
+  return value;
+}
+
+function readOptionalString(args: ReadonlyMap<string, string>, flag: string): string | undefined {
+  const value = args.get(flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value.trim().length === 0) {
+    throw new Error(`${flag} must not be empty`);
   }
   return value;
 }

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { InMemoryRuntimeProfileRunReportRepository } from '@aivilization/observability';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runLocalRuntimeTownDaemonScenarioProfile } from './index';
 
@@ -101,6 +102,39 @@ describe('local runtime town profile runner', () => {
       expect(partition.eventCount).toBeGreaterThan(2);
       expect(partition.agentTraceCount).toBeGreaterThan(0);
     }
+  });
+
+  test('records a runtime profile run report when a repository is supplied', async () => {
+    const rootDir = createRootDir();
+    const repository = new InMemoryRuntimeProfileRunReportRepository();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 100,
+      reportGeneratedAt: 150,
+      profileRunReportRepository: repository,
+    });
+
+    await expect(repository.get(summary.run.traceId)).resolves.toMatchObject({
+      runId: 'aivilization-smoke-25:profile-run:100',
+      profileId: 'smoke-25',
+      manifestId: 'aivilization-smoke-25',
+      rootDir,
+      generatedAt: 150,
+      requestedAt: 100,
+      daemonHealth: 'healthy',
+      outcome: 'succeeded',
+      requestedCycleCount: 1,
+      completedCycleCount: 1,
+      stopReason: 'cycle-count-completed',
+      partitionCount: 1,
+      totalProjectionAgentCount: 25,
+      totalEventCount: summary.totalEventCount,
+      totalAgentTraceCount: summary.totalAgentTraceCount,
+      partitions: summary.partitions,
+    });
   });
 });
 

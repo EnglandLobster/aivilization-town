@@ -8,6 +8,7 @@ export * from './agentCycleRunner';
 export * from './canonicalActivePlanTick';
 export * from './canonicalDomainRuntimes';
 export * from './canonicalWorkerRuntimeResolver';
+export * from './commandStreamConsumer';
 export * from './domainRuntimeRegistry';
 export * from './economicRuntime';
 export * from './localRuntimeStorage';

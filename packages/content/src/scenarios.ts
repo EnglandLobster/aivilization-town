@@ -39,6 +39,43 @@ export type ScenarioResidentialPhysiologyCapConfig = {
   readonly source: string;
 };
 
+export type ScenarioSleepDeprivationPolicyConfig = {
+  readonly energyThreshold: number;
+  readonly healthDecayPerSecond: number;
+  readonly minHealth: number;
+  readonly source: string;
+};
+
+export type ScenarioStochasticIllnessPolicyConfig = {
+  readonly illnessProbabilityPercentPerHour: number;
+  readonly healthDamage: number;
+  readonly minHealth: number;
+  readonly source: string;
+};
+
+export type ScenarioResidentialUpkeepCostConfig = {
+  readonly residentialTier: number;
+  readonly currencyCostPerHour: number;
+  readonly source: string;
+};
+
+export type ScenarioResidentialUpkeepPolicyConfig = {
+  readonly costs: readonly ScenarioResidentialUpkeepCostConfig[];
+};
+
+export type ScenarioSafetyNetSubsidyPolicyConfig = {
+  readonly minimumBalance: number;
+  readonly maxSubsidy: number;
+  readonly source: string;
+};
+
+export type ScenarioSurvivalTimePolicyDefaults = {
+  readonly sleepDeprivation: ScenarioSleepDeprivationPolicyConfig;
+  readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
+  readonly residentialUpkeep: ScenarioResidentialUpkeepPolicyConfig;
+  readonly safetyNetSubsidy: ScenarioSafetyNetSubsidyPolicyConfig;
+};
+
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
 
 export type ScenarioAgentProfileSeed = {
@@ -143,6 +180,8 @@ const runtimeScaleProfileSource =
   'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes';
 const residentialPhysiologyCapSource =
   'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps';
+const survivalTimePolicySource =
+  'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -220,6 +259,36 @@ export const aivilizationResidentialPhysiologyCaps = [
     source: residentialPhysiologyCapSource,
   },
 ] as const satisfies readonly ScenarioResidentialPhysiologyCapConfig[];
+
+export const aivilizationSurvivalTimePolicyDefaults = {
+  sleepDeprivation: {
+    energyThreshold: 20,
+    healthDecayPerSecond: 0.005,
+    minHealth: 10,
+    source: survivalTimePolicySource,
+  },
+  stochasticIllness: {
+    illnessProbabilityPercentPerHour: 1,
+    healthDamage: 5,
+    minHealth: 10,
+    source: survivalTimePolicySource,
+  },
+  residentialUpkeep: {
+    costs: [
+      { residentialTier: 1, currencyCostPerHour: 0, source: survivalTimePolicySource },
+      { residentialTier: 2, currencyCostPerHour: 20, source: survivalTimePolicySource },
+      { residentialTier: 3, currencyCostPerHour: 40, source: survivalTimePolicySource },
+      { residentialTier: 4, currencyCostPerHour: 80, source: survivalTimePolicySource },
+      { residentialTier: 5, currencyCostPerHour: 160, source: survivalTimePolicySource },
+      { residentialTier: 6, currencyCostPerHour: 320, source: survivalTimePolicySource },
+    ],
+  },
+  safetyNetSubsidy: {
+    minimumBalance: 50,
+    maxSubsidy: 25,
+    source: survivalTimePolicySource,
+  },
+} as const satisfies ScenarioSurvivalTimePolicyDefaults;
 
 export function createAivilizationAblationAgentSeeds(
   input: CreateAivilizationAblationAgentSeedsInput = {},

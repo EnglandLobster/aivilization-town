@@ -1,6 +1,7 @@
 import {
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
+  aivilizationSurvivalTimePolicyDefaults,
   commodities,
   jobTiers,
   occupations,
@@ -62,6 +63,28 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
             ? {}
             : { inventoryCosts: { [tier.prerequisiteCommodity]: 1 } }),
         })),
+    },
+    sleepDeprivation: {
+      energyThreshold: aivilizationSurvivalTimePolicyDefaults.sleepDeprivation.energyThreshold,
+      healthDecayPerSecond:
+        aivilizationSurvivalTimePolicyDefaults.sleepDeprivation.healthDecayPerSecond,
+      minHealth: aivilizationSurvivalTimePolicyDefaults.sleepDeprivation.minHealth,
+    },
+    stochasticIllness: {
+      illnessProbabilityPercentPerHour:
+        aivilizationSurvivalTimePolicyDefaults.stochasticIllness.illnessProbabilityPercentPerHour,
+      healthDamage: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.healthDamage,
+      minHealth: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.minHealth,
+    },
+    residentialUpkeep: {
+      costs: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs.map((cost) => ({
+        residentialTier: cost.residentialTier,
+        currencyCostPerHour: cost.currencyCostPerHour,
+      })),
+    },
+    safetyNetSubsidy: {
+      minimumBalance: aivilizationSurvivalTimePolicyDefaults.safetyNetSubsidy.minimumBalance,
+      maxSubsidy: aivilizationSurvivalTimePolicyDefaults.safetyNetSubsidy.maxSubsidy,
     },
   };
 }

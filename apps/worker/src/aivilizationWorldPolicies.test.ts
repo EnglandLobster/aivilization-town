@@ -45,6 +45,30 @@ describe('AIvilization default world command policies', () => {
       minEducationScore: 180,
       inventoryCosts: { Transistor: 1 },
     });
+    expect(policies.sleepDeprivation).toEqual({
+      energyThreshold: 20,
+      healthDecayPerSecond: 0.005,
+      minHealth: 10,
+    });
+    expect(policies.stochasticIllness).toEqual({
+      illnessProbabilityPercentPerHour: 1,
+      healthDamage: 5,
+      minHealth: 10,
+    });
+    expect(policies.residentialUpkeep).toEqual({
+      costs: [
+        { residentialTier: 1, currencyCostPerHour: 0 },
+        { residentialTier: 2, currencyCostPerHour: 20 },
+        { residentialTier: 3, currencyCostPerHour: 40 },
+        { residentialTier: 4, currencyCostPerHour: 80 },
+        { residentialTier: 5, currencyCostPerHour: 160 },
+        { residentialTier: 6, currencyCostPerHour: 320 },
+      ],
+    });
+    expect(policies.safetyNetSubsidy).toEqual({
+      minimumBalance: 50,
+      maxSubsidy: 25,
+    });
     expect(policies.wageCalculator('CEO')).toBe(1411);
   });
 });

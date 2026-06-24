@@ -1,5 +1,6 @@
 export * from './checkpointStore';
 export * from './command';
+export * from './commandConsumerCheckpointStore';
 export * from './commandStore';
 export * from './event';
 export * from './eventStore';

@@ -1,7 +1,11 @@
-import type { ReactiveActionSimulator, ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
+import type {
+  ReactiveActionSimulator,
+  ReactiveLocalizedPlanner,
+} from '@aivilization/agent-runtime';
 import type { ScenarioMarketPoolSeed, ScenarioPreset } from '@aivilization/content';
 import type { CommandConsumerId, PartitionKey } from '@aivilization/sim-core';
 import type { LocalWorldRuntimeLoopPausePredicate } from './localRuntimeLoop';
+import type { LocalSimulationLifecycleValidationSchedule } from './localSimulationLifecycle';
 import {
   createLocalSimulationBackendRegistry,
   type LocalSimulationBackendRegistry,
@@ -68,6 +72,7 @@ export type LocalSimulationRuntimeWiringInput = {
   readonly commandDrainLimit?: LocalRuntimeSteeringCommandDrainInput['limit'];
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
+  readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
 };
 
 export type LocalSimulationRuntimeCatalogInput = LocalSimulationRuntimeManifestResolutionInput &
@@ -87,7 +92,10 @@ export function resolveLocalSimulationRuntimeManifest(
   assertNonEmpty(input.manifest.id, 'manifest.id');
   assertNonEmptyArray(input.manifest.partitions, 'manifest.partitions');
   assertPositiveInteger(input.manifest.defaults.tickBatchSize, 'manifest.defaults.tickBatchSize');
-  assertNonNegativeFinite(input.manifest.defaults.tickIntervalMs, 'manifest.defaults.tickIntervalMs');
+  assertNonNegativeFinite(
+    input.manifest.defaults.tickIntervalMs,
+    'manifest.defaults.tickIntervalMs',
+  );
 
   const scenarioPresets = createScenarioPresetLookup(input.scenarioPresets);
 
@@ -109,9 +117,14 @@ export function createLocalSimulationBackendRegistrationsFromManifest(
     steeringSimulator: input.steeringSimulator,
     agents: input.agents,
     ...(input.pauseBeforeTick === undefined ? {} : { pauseBeforeTick: input.pauseBeforeTick }),
-    ...(input.commandDrainLimit === undefined ? {} : { commandDrainLimit: input.commandDrainLimit }),
+    ...(input.commandDrainLimit === undefined
+      ? {}
+      : { commandDrainLimit: input.commandDrainLimit }),
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+    ...(input.validationSchedule === undefined
+      ? {}
+      : { validationSchedule: input.validationSchedule }),
   });
 }
 
@@ -141,6 +154,9 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
         : { commandDrainLimit: input.commandDrainLimit }),
       ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
       ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+      ...(input.validationSchedule === undefined
+        ? {}
+        : { validationSchedule: input.validationSchedule }),
     };
   });
 }

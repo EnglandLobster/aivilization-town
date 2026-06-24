@@ -1,9 +1,5 @@
 import { type ReactiveLocalizedPlanner } from '@aivilization/agent-runtime';
-import {
-  asAgentId,
-  asLocationId,
-  type AgentId,
-} from '@aivilization/sim-core';
+import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -15,6 +11,7 @@ import {
   createLocalSimulationBackendRegistrationsFromManifest,
   type LocalSimulationBackendLifecycleResult,
   type LocalSimulationLifecycleStartResult,
+  type LocalSimulationLifecycleValidationSchedule,
   type LocalSimulationRuntimeManifest,
 } from './index';
 
@@ -122,6 +119,21 @@ describe('local simulation runtime manifest', () => {
         commandConsumerId: 'worker-world-east',
         agentIds: ['agent-2'],
       },
+    ]);
+
+    const validationSchedule = createValidationSchedule();
+    const validationRegistrations = createLocalSimulationBackendRegistrationsFromManifest({
+      manifest,
+      scenarioPresets,
+      policies,
+      localizedPlanners: [reactiveStudyPlanner()],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      validationSchedule,
+    });
+    expect(validationRegistrations.map((registration) => registration.validationSchedule)).toEqual([
+      validationSchedule,
+      validationSchedule,
     ]);
 
     const registry = createLocalSimulationBackendRegistryFromManifest({
@@ -307,6 +319,26 @@ function createScenarioPreset(input: {
       },
     ],
     source: 'test',
+  };
+}
+
+function createValidationSchedule(): LocalSimulationLifecycleValidationSchedule {
+  return {
+    runIdPrefix: 'runtime-validation',
+    plannerRuns: [
+      {
+        taskId: 'high-tech-production',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 110_098, higherIsBetter: true }],
+      },
+      {
+        taskId: 'high-tech-production',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-1'],
+    trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
   };
 }
 

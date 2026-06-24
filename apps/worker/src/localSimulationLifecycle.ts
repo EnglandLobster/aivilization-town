@@ -6,6 +6,11 @@ import type { LocalWorldRuntimeLoopInput, LocalWorldRuntimeLoopResult } from './
 import { runLocalWorldRuntimeLoop } from './localRuntimeLoop';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
+import {
+  runLocalExperimentValidationSchedule,
+  type LocalExperimentValidationScheduleInput,
+  type LocalExperimentValidationScheduleResult,
+} from './localExperimentValidationSchedule';
 
 export type LocalSimulationLifecycleRequest = {
   readonly simulationId: string;
@@ -46,6 +51,20 @@ export type LocalSimulationLifecycleStateStore = {
   readonly saveState: (state: LocalSimulationLifecycleState) => LocalSimulationLifecycleState;
 };
 
+export type LocalSimulationLifecycleValidationSchedule = Pick<
+  LocalExperimentValidationScheduleInput,
+  | 'source'
+  | 'eventWindow'
+  | 'plannerRuns'
+  | 'priceBinning'
+  | 'expectedTrajectoryAgentIds'
+  | 'trajectories'
+  | 'traceWindow'
+  | 'thresholds'
+> & {
+  readonly runIdPrefix?: string;
+};
+
 export type LocalSimulationLifecycleControllerInput = Omit<
   LocalWorldRuntimeLoopInput,
   'loopId' | 'firstTickIndex' | 'tickCount' | 'issuedAtStart' | 'pauseBeforeTick'
@@ -55,6 +74,7 @@ export type LocalSimulationLifecycleControllerInput = Omit<
   readonly initialTickIndex?: number;
   readonly lifecycleStateStore?: LocalSimulationLifecycleStateStore;
   readonly pauseBeforeTick?: LocalWorldRuntimeLoopInput['pauseBeforeTick'];
+  readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
 };
 
 export type LocalSimulationLifecycleStartResult = {
@@ -64,6 +84,7 @@ export type LocalSimulationLifecycleStartResult = {
   >;
   readonly state: LocalSimulationLifecycleState;
   readonly loop: LocalWorldRuntimeLoopResult;
+  readonly validationReport?: LocalExperimentValidationScheduleResult;
 };
 
 export type LocalSimulationLifecyclePauseResult = {
@@ -155,10 +176,7 @@ export class FileLocalSimulationLifecycleStateStore implements LocalSimulationLi
   }
 
   private statePath(lookup: LocalSimulationLifecycleStateLookup): string {
-    return join(
-      this.stateParentDir(lookup),
-      `${encodeURIComponent(lookup.partitionKey)}.json`,
-    );
+    return join(this.stateParentDir(lookup), `${encodeURIComponent(lookup.partitionKey)}.json`);
   }
 }
 
@@ -221,11 +239,22 @@ export function createLocalSimulationLifecycleController(
         lastLoopId: input.loopId,
         completedTickCount: loop.completedTickCount,
       });
+      const validationReport =
+        loop.status === 'completed' && input.validationSchedule !== undefined
+          ? await runLifecycleValidationSchedule({
+              controllerInput: input,
+              request,
+              schedule: input.validationSchedule,
+              streamVersionBeforeStart,
+              lastAppliedSequence: state.lastAppliedSequence,
+            })
+          : undefined;
 
       return {
         status: loop.status,
         state,
         loop,
+        ...(validationReport === undefined ? {} : { validationReport }),
       };
     },
     pause: (request) => {
@@ -242,7 +271,9 @@ export function createLocalSimulationLifecycleController(
           input.storage.partition.eventStreamName,
         ),
         updatedAt: request.requestedAt,
-        ...(previousState?.lastLoopId === undefined ? {} : { lastLoopId: previousState.lastLoopId }),
+        ...(previousState?.lastLoopId === undefined
+          ? {}
+          : { lastLoopId: previousState.lastLoopId }),
         ...(previousState?.completedTickCount === undefined
           ? {}
           : { completedTickCount: previousState.completedTickCount }),
@@ -326,6 +357,60 @@ export function createLocalSimulationLifecycleController(
   };
 }
 
+async function runLifecycleValidationSchedule(input: {
+  readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly request: LocalSimulationLifecycleRequest;
+  readonly schedule: LocalSimulationLifecycleValidationSchedule;
+  readonly streamVersionBeforeStart: number;
+  readonly lastAppliedSequence: number;
+}): Promise<LocalExperimentValidationScheduleResult> {
+  const eventWindow = input.schedule.eventWindow ?? {
+    afterSequence: input.streamVersionBeforeStart,
+    toSequence: input.lastAppliedSequence,
+  };
+
+  return runLocalExperimentValidationSchedule({
+    storage: input.controllerInput.storage,
+    initialProjection: input.controllerInput.initialProjection,
+    runId: createLifecycleValidationRunId({
+      loopId: input.controllerInput.loopId,
+      requestedAt: input.request.requestedAt,
+      lastAppliedSequence: input.lastAppliedSequence,
+      ...(input.schedule.runIdPrefix === undefined
+        ? {}
+        : { runIdPrefix: input.schedule.runIdPrefix }),
+    }),
+    generatedAt: input.request.requestedAt,
+    source: input.schedule.source ?? 'local-lifecycle-validation',
+    eventWindow,
+    plannerRuns: input.schedule.plannerRuns,
+    ...(input.schedule.priceBinning === undefined
+      ? {}
+      : { priceBinning: input.schedule.priceBinning }),
+    ...(input.schedule.expectedTrajectoryAgentIds === undefined
+      ? {}
+      : { expectedTrajectoryAgentIds: input.schedule.expectedTrajectoryAgentIds }),
+    ...(input.schedule.trajectories === undefined
+      ? {}
+      : { trajectories: input.schedule.trajectories }),
+    ...(input.schedule.traceWindow === undefined
+      ? {}
+      : { traceWindow: input.schedule.traceWindow }),
+    ...(input.schedule.thresholds === undefined ? {} : { thresholds: input.schedule.thresholds }),
+  });
+}
+
+function createLifecycleValidationRunId(input: {
+  readonly loopId: string;
+  readonly requestedAt: SimulationTimestamp;
+  readonly lastAppliedSequence: number;
+  readonly runIdPrefix?: string;
+}): string {
+  const prefix = input.runIdPrefix ?? `${input.loopId}:validation`;
+  assertNonEmpty(prefix, 'validationSchedule runIdPrefix');
+  return `${prefix}:${input.requestedAt}:${input.lastAppliedSequence}`;
+}
+
 function toLoopBaseInput(
   input: LocalSimulationLifecycleControllerInput,
 ): Omit<
@@ -346,7 +431,9 @@ function toLoopBaseInput(
     ...(input.strategicPlanCompiler === undefined
       ? {}
       : { strategicPlanCompiler: input.strategicPlanCompiler }),
-    ...(input.commandDrainLimit === undefined ? {} : { commandDrainLimit: input.commandDrainLimit }),
+    ...(input.commandDrainLimit === undefined
+      ? {}
+      : { commandDrainLimit: input.commandDrainLimit }),
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
   };
@@ -368,9 +455,7 @@ function assertRequestMatchesStorage(
   }
 }
 
-function assertControllerInputMatchesStorage(
-  input: LocalSimulationLifecycleControllerInput,
-): void {
+function assertControllerInputMatchesStorage(input: LocalSimulationLifecycleControllerInput): void {
   if (input.simulationId !== input.storage.partition.simulationId) {
     throw new Error(
       `controller simulationId ${input.simulationId} must match storage simulationId ${input.storage.partition.simulationId}`,

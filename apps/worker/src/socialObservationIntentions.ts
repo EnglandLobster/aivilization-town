@@ -2,6 +2,7 @@ import {
   evaluateDeterministicSocialObservationReaction,
   normalizeReactionEvaluatorOutput,
   type ReactionDecision,
+  type ReactionEvaluationTrace,
   type ReactionEvaluator,
 } from '@aivilization/agent-runtime';
 import type { ScheduledIntention, ShortTermMemoryRecord } from '@aivilization/memory';
@@ -19,9 +20,27 @@ export type SocialObservationScheduledIntentionsInput = {
   readonly reactionEvaluator?: ReactionEvaluator;
 };
 
+export type SocialObservationReactionEvaluation = {
+  readonly memoryRecord: ShortTermMemoryRecord;
+  readonly decision: ReactionDecision;
+  readonly reactionTrace?: ReactionEvaluationTrace;
+  readonly scheduledIntention?: ScheduledIntention;
+};
+
+export type TraceableSocialObservationScheduledIntentionsResult = {
+  readonly intentions: readonly ScheduledIntention[];
+  readonly evaluations: readonly SocialObservationReactionEvaluation[];
+};
+
 export async function createSocialObservationScheduledIntentions(
   input: SocialObservationScheduledIntentionsInput,
 ): Promise<readonly ScheduledIntention[]> {
+  return (await createTraceableSocialObservationScheduledIntentions(input)).intentions;
+}
+
+export async function createTraceableSocialObservationScheduledIntentions(
+  input: SocialObservationScheduledIntentionsInput,
+): Promise<TraceableSocialObservationScheduledIntentionsResult> {
   if (input.reactionWindowMs !== undefined) {
     assertPositiveFinite(input.reactionWindowMs, 'reactionWindowMs');
   }
@@ -45,6 +64,7 @@ export async function createSocialObservationScheduledIntentions(
   }
 
   const intentionsById = new Map<string, ScheduledIntention>();
+  const evaluations: SocialObservationReactionEvaluation[] = [];
   const reactionEvaluator =
     input.reactionEvaluator ?? evaluateDeterministicSocialObservationReaction;
   for (const record of recordsBySocialEventKey.values()) {
@@ -56,6 +76,11 @@ export async function createSocialObservationScheduledIntentions(
       }),
     );
     if (evaluation.decision.kind === 'ignore') {
+      evaluations.push({
+        memoryRecord: record,
+        decision: evaluation.decision,
+        ...(evaluation.reactionTrace === undefined ? {} : { reactionTrace: evaluation.reactionTrace }),
+      });
       continue;
     }
     const intention = createSocialObservationScheduledIntention({
@@ -66,9 +91,18 @@ export async function createSocialObservationScheduledIntentions(
       createdAt: input.createdAt ?? record.occurredAt,
     });
     intentionsById.set(intention.id, intention);
+    evaluations.push({
+      memoryRecord: record,
+      decision: evaluation.decision,
+      ...(evaluation.reactionTrace === undefined ? {} : { reactionTrace: evaluation.reactionTrace }),
+      scheduledIntention: intention,
+    });
   }
 
-  return [...intentionsById.values()].sort(compareScheduledIntentions);
+  return {
+    intentions: [...intentionsById.values()].sort(compareScheduledIntentions),
+    evaluations,
+  };
 }
 
 function createSocialObservationScheduledIntention(input: {

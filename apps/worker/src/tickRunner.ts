@@ -15,7 +15,11 @@ import type {
   ShortTermMemoryRecord,
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
-import type { AgentCycleTrace, MarketObservationRepository } from '@aivilization/observability';
+import type {
+  AgentCycleTrace,
+  MarketObservationRepository,
+  ReactionEvaluationTrace as ObservabilityReactionEvaluationTrace,
+} from '@aivilization/observability';
 import {
   createProjectionCheckpoint,
   createCommandEnvelope,
@@ -48,7 +52,10 @@ import {
 } from './ambientObservationMemory';
 import { recordMarketPriceIndexToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
-import { createSocialObservationScheduledIntentions } from './socialObservationIntentions';
+import {
+  createTraceableSocialObservationScheduledIntentions,
+  type SocialObservationReactionEvaluation,
+} from './socialObservationIntentions';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 type WorkerTickAgentPlanInput =
@@ -114,6 +121,12 @@ export type WorkerTickMarketObservationsInput = {
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
 };
 
+export type WorkerReactionEvaluationTraceSink = {
+  readonly simulationId: SimulationId;
+  readonly partitionKey: PartitionKey;
+  readonly record: (trace: ObservabilityReactionEvaluationTrace) => Promise<void>;
+};
+
 export type WorkerTickAmbientObservationMemoryInput =
   | {
       readonly enabled?: true;
@@ -142,6 +155,7 @@ type WorkerTickBaseInput = {
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: WorkerTickMarketObservationsInput;
   readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
+  readonly reactionEvaluationTraceSink?: WorkerReactionEvaluationTraceSink;
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -327,6 +341,9 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
       ...(input.input.ambientObservationMemory.reactionEvaluator === undefined
         ? {}
         : { reactionEvaluator: input.input.ambientObservationMemory.reactionEvaluator }),
+      ...(input.input.reactionEvaluationTraceSink === undefined
+        ? {}
+        : { reactionEvaluationTraceSink: input.input.reactionEvaluationTraceSink }),
     });
   }
   return result;
@@ -337,15 +354,22 @@ async function upsertSocialObservationIntentions(input: {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly createdAt: SimulationTimestamp;
   readonly reactionEvaluator?: ReactionEvaluator;
+  readonly reactionEvaluationTraceSink?: WorkerReactionEvaluationTraceSink;
 }): Promise<void> {
-  const intentions = await createSocialObservationScheduledIntentions({
+  const result = await createTraceableSocialObservationScheduledIntentions({
     records: input.records,
     createdAt: input.createdAt,
     ...(input.reactionEvaluator === undefined
       ? {}
       : { reactionEvaluator: input.reactionEvaluator }),
   });
+  const intentions = result.intentions;
   if (intentions.length === 0) {
+    await recordReactionEvaluationTracesIfConfigured({
+      traceSink: input.reactionEvaluationTraceSink,
+      evaluations: result.evaluations,
+      issuedAt: input.createdAt,
+    });
     return;
   }
 
@@ -359,6 +383,83 @@ async function upsertSocialObservationIntentions(input: {
       input.intentionRepository.upsertScheduledIntentions(agentId, scheduledIntentions),
     ),
   );
+  await recordReactionEvaluationTracesIfConfigured({
+    traceSink: input.reactionEvaluationTraceSink,
+    evaluations: result.evaluations,
+    issuedAt: input.createdAt,
+  });
+}
+
+async function recordReactionEvaluationTracesIfConfigured(input: {
+  readonly traceSink: WorkerReactionEvaluationTraceSink | undefined;
+  readonly evaluations: readonly SocialObservationReactionEvaluation[];
+  readonly issuedAt: SimulationTimestamp;
+}): Promise<void> {
+  if (input.traceSink === undefined || input.evaluations.length === 0) {
+    return;
+  }
+  const traceSink = input.traceSink;
+
+  await Promise.all(
+    input.evaluations.map((evaluation) =>
+      traceSink.record(
+        createReactionEvaluationTrace({
+          traceSink,
+          evaluation,
+          issuedAt: input.issuedAt,
+        }),
+      ),
+    ),
+  );
+}
+
+function createReactionEvaluationTrace(input: {
+  readonly traceSink: WorkerReactionEvaluationTraceSink;
+  readonly evaluation: SocialObservationReactionEvaluation;
+  readonly issuedAt: SimulationTimestamp;
+}): ObservabilityReactionEvaluationTrace {
+  return {
+    traceId: createReactionEvaluationTraceId({
+      traceSink: input.traceSink,
+      evaluation: input.evaluation,
+      issuedAt: input.issuedAt,
+    }),
+    simulationId: input.traceSink.simulationId,
+    partitionKey: input.traceSink.partitionKey,
+    agentId: input.evaluation.memoryRecord.agentId,
+    memoryRecordId: input.evaluation.memoryRecord.id,
+    decision:
+      input.evaluation.decision.kind === 'ignore'
+        ? {
+            kind: 'ignore',
+            confidence: input.evaluation.decision.confidence,
+            rationale: input.evaluation.decision.rationale,
+          }
+        : {
+            kind: 'follow-up',
+            confidence: input.evaluation.decision.confidence,
+            rationale: input.evaluation.decision.rationale,
+            description: input.evaluation.decision.description,
+            priority: input.evaluation.decision.priority,
+            reactionWindowMs: input.evaluation.decision.reactionWindowMs,
+            affinityTags: input.evaluation.decision.affinityTags,
+          },
+    ...(input.evaluation.reactionTrace === undefined
+      ? {}
+      : { reactionTrace: input.evaluation.reactionTrace }),
+    ...(input.evaluation.scheduledIntention === undefined
+      ? {}
+      : { scheduledIntentionId: input.evaluation.scheduledIntention.id }),
+    issuedAt: input.issuedAt,
+  };
+}
+
+function createReactionEvaluationTraceId(input: {
+  readonly traceSink: WorkerReactionEvaluationTraceSink;
+  readonly evaluation: SocialObservationReactionEvaluation;
+  readonly issuedAt: SimulationTimestamp;
+}): string {
+  return `reaction-evaluation:${input.traceSink.simulationId}:${input.traceSink.partitionKey}:${input.evaluation.memoryRecord.agentId}:${input.evaluation.memoryRecord.id}:${input.issuedAt}`;
 }
 
 function resolveCyclePlanInput(input: {

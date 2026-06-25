@@ -6,7 +6,10 @@ import {
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
-import { InMemoryMarketObservationRepository } from '@aivilization/observability';
+import {
+  InMemoryMarketObservationRepository,
+  type ReactionEvaluationTrace,
+} from '@aivilization/observability';
 import {
   createShortTermMemoryRecord,
   InMemoryAgentIntentionRepository,
@@ -899,6 +902,93 @@ describe('worker tick runner', () => {
     await expect(repositories.intentionRepository.getOrCreate(agentTwo)).resolves.toMatchObject({
       scheduledIntentions: [],
     });
+  });
+
+  test('records ambient reaction evaluations to a worker trace sink', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const reactionTraces: ReactionEvaluationTrace[] = [];
+
+    await runWorkerSimulationTick({
+      tickId: 'tick-social-observation-reaction-trace',
+      simulationId,
+      issuedAt: 100,
+      projection: createCoLocatedConversationProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      ambientObservationMemory: {
+        enabled: true,
+        reactionEvaluator: () => ({
+          decision: {
+            kind: 'ignore',
+            confidence: 0.95,
+            rationale: 'The bystander intentionally ignores this social cue.',
+          },
+          reactionTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'reaction-trace-ignore',
+            providerId: 'scripted-reaction',
+            model: 'reaction-model',
+          },
+        }),
+      },
+      reactionEvaluationTraceSink: {
+        simulationId,
+        partitionKey: partition.partitionKey,
+        record: (trace) => {
+          reactionTraces.push(trace);
+          return Promise.resolve();
+        },
+      },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 discusses a party while agent-2 listens nearby',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    const conversationMemories = await repositories.shortTermMemoryRepository.retrieve({
+      agentId: agentTwo,
+      kinds: ['observation'],
+      requiredTags: ['ambient-observation', 'ConversationRecorded'],
+      limit: 10,
+    });
+    const memoryRecordId = conversationMemories[0]?.id;
+    if (memoryRecordId === undefined) {
+      throw new Error('expected ambient conversation memory');
+    }
+
+    expect(reactionTraces).toEqual([
+      {
+        traceId: `reaction-evaluation:sim-1:world-main:agent-2:${memoryRecordId}:100`,
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-2',
+        memoryRecordId,
+        decision: {
+          kind: 'ignore',
+          confidence: 0.95,
+          rationale: 'The bystander intentionally ignores this social cue.',
+        },
+        reactionTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reaction-trace-ignore',
+          providerId: 'scripted-reaction',
+          model: 'reaction-model',
+        },
+        issuedAt: 100,
+      },
+    ]);
   });
 
   test('advances simulation time when no agents are scheduled', async () => {

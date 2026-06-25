@@ -23,6 +23,7 @@ import {
   FileExperimentValidationReportRepository,
   FileMarketObservationRepository,
   FileObjectiveRenewalTraceRepository,
+  FileReactionEvaluationTraceRepository,
   FileSteeringTraceRepository,
 } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
@@ -76,6 +77,7 @@ export type LocalWorldRuntimeStorage = {
   readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
   readonly dailyPlanRenewalTraceRepository: FileDailyPlanRenewalTraceRepository;
   readonly objectiveRenewalTraceRepository: FileObjectiveRenewalTraceRepository;
+  readonly reactionEvaluationTraceRepository: FileReactionEvaluationTraceRepository;
   readonly steeringTraceRepository: FileSteeringTraceRepository;
   readonly experimentValidationReportRepository: FileExperimentValidationReportRepository;
   readonly marketObservationRepository: FileMarketObservationRepository;
@@ -140,6 +142,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const objectiveRenewalTraceRepository = new FileObjectiveRenewalTraceRepository({
     rootDir: paths.observabilityDir,
   });
+  const reactionEvaluationTraceRepository = new FileReactionEvaluationTraceRepository({
+    rootDir: paths.observabilityDir,
+  });
   const steeringTraceRepository = new FileSteeringTraceRepository({
     rootDir: paths.observabilityDir,
   });
@@ -180,6 +185,7 @@ export function createLocalWorldRuntimeStorage(input: {
     agentCycleTraceRepository,
     dailyPlanRenewalTraceRepository,
     objectiveRenewalTraceRepository,
+    reactionEvaluationTraceRepository,
     steeringTraceRepository,
     experimentValidationReportRepository,
     marketObservationRepository,

@@ -131,6 +131,11 @@ export async function runLocalWorldRuntimeStep(
     streamName: input.storage.partition.eventStreamName,
     checkpointing: input.storage.checkpointing,
     traceSink: input.storage.agentCycleTraceRepository,
+    reactionEvaluationTraceSink: {
+      simulationId: input.storage.partition.simulationId,
+      partitionKey: input.storage.partition.partitionKey,
+      record: (trace) => input.storage.reactionEvaluationTraceRepository.record(trace),
+    },
     agents,
     ...input.storage.repositories,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),

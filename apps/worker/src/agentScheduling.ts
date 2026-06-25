@@ -42,8 +42,12 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly longTermProfileRepository?: LongTermProfileRepository;
+  readonly memoryRetrievalLimit?: number;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
+  if (input.memoryRetrievalLimit !== undefined) {
+    assertPositiveInteger(input.memoryRetrievalLimit, 'memoryRetrievalLimit');
+  }
   const agents: WorkerTickAgentInput[] = [];
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
@@ -100,6 +104,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
         key: tag,
         weight: activeObjective.priority,
       })),
+      ...(input.memoryRetrievalLimit === undefined
+        ? {}
+        : { memoryRetrievalLimit: input.memoryRetrievalLimit }),
       microPlanners: runtime.microPlanners,
       ...(runtime.actionSynthesis === undefined
         ? {}
@@ -138,4 +145,10 @@ function summarizeInventory(inventory: Readonly<Record<string, number>>): string
   }
 
   return entries.map(([itemName, quantity]) => `${itemName}:${quantity}`).join(',');
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
 }

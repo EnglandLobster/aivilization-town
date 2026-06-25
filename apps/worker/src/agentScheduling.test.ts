@@ -190,6 +190,36 @@ describe('worker agent scheduling', () => {
     expect(agents).toEqual([]);
   });
 
+  test('attaches configured memory retrieval budgets to scheduled tick agents', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createWorldProjection({
+      agents: [createProjectedAgent({ agentId: agentA })],
+    });
+    await intentionRepository.setObjective(
+      agentA,
+      createObjective({
+        id: 'objective-study',
+        agentId: agentA,
+        statement: 'Study before working.',
+        priority: 3,
+        affinityTags: ['study'],
+      }),
+    );
+    await planRepository.save(createPlanRecord({ planId: 'objective-study', agentId: agentA }));
+
+    const agents = await buildWorkerTickAgentsFromActivePlans({
+      projection,
+      intentionRepository,
+      planRepository,
+      memoryRetrievalLimit: 8,
+      resolveRuntime: () => createRuntimeBinding('study'),
+    });
+
+    expect(agents).toHaveLength(1);
+    expect(agents[0]?.memoryRetrievalLimit).toBe(8);
+  });
+
   test('passes long-term profile context into runtime resolution when available', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();

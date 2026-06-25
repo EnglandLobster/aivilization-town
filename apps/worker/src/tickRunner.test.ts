@@ -8,6 +8,7 @@ import {
 import { createAmmPool } from '@aivilization/economy';
 import { InMemoryMarketObservationRepository } from '@aivilization/observability';
 import {
+  createShortTermMemoryRecord,
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
@@ -569,6 +570,56 @@ describe('worker tick runner', () => {
       'EducationChanged',
       'ShortTermMemoryRecorded',
     ]);
+  });
+
+  test('passes tick agent memory retrieval budget into cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'memory-agent-1-observed-study',
+        agentId: agentOne,
+        kind: 'observation',
+        status: 'observed',
+        summary: 'Observed a productive study routine at School.',
+        occurredAt: 50,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['ambient-observation', 'study'],
+      }),
+    );
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-memory-context',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 education=10',
+          plan: createStudyPlan(),
+          signals: [],
+          memoryRetrievalLimit: 1,
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-1',
+              description: 'agent 1 studies with retrieved context',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.traces[0]?.memoryContextIds).toEqual(['memory-agent-1-observed-study']);
   });
 
   test('writes ambient observation memories for co-located bystanders when configured', async () => {

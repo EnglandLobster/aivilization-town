@@ -231,6 +231,32 @@ describe('canonical worker runtime resolver', () => {
     expect(binding).toBeUndefined();
   });
 
+  test('attaches configured adaptive replanning policy to canonical runtime bindings', async () => {
+    const projection = createProjection();
+    const replanningPolicy = {
+      consecutiveFailureThreshold: 2,
+      majorContextShift: {
+        key: 'profile-recovery-drill',
+        reason: 'profile recovery drill requires a fresh plan',
+      },
+    } as const;
+    const resolver = createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies,
+      replanningPolicy,
+    });
+
+    const binding = await resolver({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+    });
+
+    expect(binding?.replanningPolicy).toEqual(replanningPolicy);
+  });
+
   test('appends matching additional domain registrations after canonical registrations', async () => {
     const projection = createProjection();
     const customPlanner: DomainMicroPlanner = {

@@ -1,5 +1,6 @@
 import type {
   ActionSynthesisPolicy,
+  AdaptiveReplanningPolicy,
   BranchPlan,
   BranchPlanRepository,
   BranchPlanProgressRepository,
@@ -80,6 +81,7 @@ export type WorkerTickAgentInput = {
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
 } & WorkerTickAgentPlanInput;
 
 export type WorkerTickResult = {
@@ -249,6 +251,7 @@ export async function runWorkerSimulationTick(
       ...(agent.subtaskCompletion === undefined
         ? {}
         : { subtaskCompletion: agent.subtaskCompletion }),
+      ...(agent.replanningPolicy === undefined ? {} : { replanningPolicy: agent.replanningPolicy }),
       ...(input.materializeFullReplan === undefined
         ? {}
         : { materializeFullReplan: input.materializeFullReplan }),

@@ -1801,6 +1801,53 @@ describe('worker tick runner', () => {
     });
   });
 
+  test('passes agent replanning policies into cycle decisions', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-agent-replanning-policy',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 needs replanning policy drill',
+          plan: createStudyPlan(),
+          signals: [],
+          replanningPolicy: {
+            consecutiveFailureThreshold: 2,
+            majorContextShift: {
+              key: 'policy-drill',
+              reason: 'policy drill requires a replacement plan',
+            },
+          },
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-1',
+              description: 'agent 1 studies',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.cycleResult.replanningDecision).toMatchObject({
+      kind: 'full-replan',
+      trigger: 'major-context-shift',
+      reason: 'policy drill requires a replacement plan',
+    });
+  });
+
   test('loads per-agent branch plans through a shared repository', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

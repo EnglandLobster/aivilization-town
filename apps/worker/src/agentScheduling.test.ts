@@ -28,7 +28,14 @@ describe('worker agent scheduling', () => {
   test('builds deterministic tick agent inputs from active objectives and saved plans', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const planRepository = new InMemoryBranchPlanRepository();
-    const studyRuntime = createRuntimeBinding('study');
+    const replanningPolicy = {
+      consecutiveFailureThreshold: 2,
+      majorContextShift: {
+        key: 'profile-recovery-drill',
+        reason: 'profile recovery drill requires a fresh plan',
+      },
+    } as const;
+    const studyRuntime = { ...createRuntimeBinding('study'), replanningPolicy };
     const tradeRuntime = createRuntimeBinding('trade');
     const projection = createWorldProjection({
       agents: [
@@ -134,6 +141,7 @@ describe('worker agent scheduling', () => {
     });
     expect(agents[0]?.microPlanners).toBe(studyRuntime.microPlanners);
     expect(agents[0]?.simulate).toBe(studyRuntime.simulate);
+    expect(agents[0]?.replanningPolicy).toEqual(studyRuntime.replanningPolicy);
     expect(agents[1]).toMatchObject({
       agentId: agentE,
       planId: 'objective-trade',

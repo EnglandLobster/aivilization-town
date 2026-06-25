@@ -4,6 +4,7 @@ import {
   type ReactionDecision,
   type ReactionEvaluationTrace,
   type ReactionEvaluator,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type { ScheduledIntention, ShortTermMemoryRecord } from '@aivilization/memory';
 
@@ -17,6 +18,7 @@ export type SocialObservationScheduledIntentionsInput = {
   readonly reactionWindowMs?: number;
   readonly priority?: number;
   readonly createdAt?: number;
+  readonly worldDecisionContextByAgentId?: Readonly<Record<string, WorldDecisionContext>>;
   readonly reactionEvaluator?: ReactionEvaluator;
 };
 
@@ -68,18 +70,22 @@ export async function createTraceableSocialObservationScheduledIntentions(
   const reactionEvaluator =
     input.reactionEvaluator ?? evaluateDeterministicSocialObservationReaction;
   for (const record of recordsBySocialEventKey.values()) {
+    const worldDecisionContext = input.worldDecisionContextByAgentId?.[record.agentId];
     const evaluation = normalizeReactionEvaluatorOutput(
       await reactionEvaluator({
         agentId: record.agentId,
         issuedAt: input.createdAt ?? record.occurredAt,
         memory: record,
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
       }),
     );
     if (evaluation.decision.kind === 'ignore') {
       evaluations.push({
         memoryRecord: record,
         decision: evaluation.decision,
-        ...(evaluation.reactionTrace === undefined ? {} : { reactionTrace: evaluation.reactionTrace }),
+        ...(evaluation.reactionTrace === undefined
+          ? {}
+          : { reactionTrace: evaluation.reactionTrace }),
       });
       continue;
     }
@@ -94,7 +100,9 @@ export async function createTraceableSocialObservationScheduledIntentions(
     evaluations.push({
       memoryRecord: record,
       decision: evaluation.decision,
-      ...(evaluation.reactionTrace === undefined ? {} : { reactionTrace: evaluation.reactionTrace }),
+      ...(evaluation.reactionTrace === undefined
+        ? {}
+        : { reactionTrace: evaluation.reactionTrace }),
       scheduledIntention: intention,
     });
   }

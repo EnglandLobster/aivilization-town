@@ -173,6 +173,52 @@ describe('LLM strategic planner seam', () => {
     expect(requestContent).toContain('"cmd-study:strategic-objective"');
   });
 
+  test('includes world decision context in structured strategic planner requests', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            objective: 'Craft Chip for the electronics market.',
+            branches: [
+              {
+                id: 'production',
+                objective: 'Use current inventory and market prices before producing.',
+                subtasks: [
+                  {
+                    id: 'inspect-market',
+                    description: 'Inspect Fish prices before choosing a production path.',
+                    basePriority: 12,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await proposeStrategicBranchPlanWithLlm({
+      objective: objective('Craft Chip for the electronics market.', ['production']),
+      issuedAt: 140,
+      worldDecisionContext: createWorldDecisionContext(),
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: 'llm-plan-with-world-context',
+    });
+
+    const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"balance":191696904');
+    expect(requestContent).toContain('"educationScore":31');
+    expect(requestContent).toContain('"residentialTier":5');
+    expect(requestContent).toContain('"Fish":46');
+    expect(requestContent).toContain('"spotPrice":304.5');
+  });
+
   test('falls back to deterministic strategic planning when LLM output is invalid', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-planner',
@@ -510,5 +556,29 @@ function studyBeforeProductionProfile() {
     ],
     personality: [],
     socialRecords: [],
+  };
+}
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 45, satiety: 30, health: 90 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 0,
+        recordedAt: 100,
+        overall: 1.12,
+        ratios: { Fish: 1.12 },
+      },
+    },
   };
 }

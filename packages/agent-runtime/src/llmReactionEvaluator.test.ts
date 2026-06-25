@@ -89,6 +89,42 @@ describe('LLM reaction evaluator seam', () => {
     expect(tool?.description).toContain('reaction decision');
   });
 
+  test('includes world decision context in structured reaction evaluator requests', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-reaction-evaluator',
+      responses: [
+        {
+          providerId: 'scripted-reaction-evaluator',
+          model: 'reaction-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            kind: 'ignore',
+            confidence: 0.75,
+            rationale: 'The current market context makes this observation non-urgent.',
+          }),
+        },
+      ],
+    });
+
+    await proposeReactionWithLlm({
+      agentId,
+      issuedAt: 10 * hourMs,
+      memory: createConversationMemory(),
+      worldDecisionContext: createWorldDecisionContext(),
+      provider: scripted.provider,
+      model: 'reaction-model',
+      requestId: 'reaction-with-world-context',
+    });
+
+    const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"balance":191696904');
+    expect(requestContent).toContain('"educationScore":31');
+    expect(requestContent).toContain('"residentialTier":5');
+    expect(requestContent).toContain('"Fish":46');
+    expect(requestContent).toContain('"spotPrice":304.5');
+  });
+
   test('falls back to deterministic reaction evaluation when LLM output is invalid', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-reaction-evaluator',
@@ -254,5 +290,29 @@ function createProfile(agentId: AgentId): LongTermAgentProfile {
     values: [],
     personality: [],
     socialRecords: [],
+  };
+}
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 45, satiety: 30, health: 90 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 0,
+        recordedAt: 100,
+        overall: 1.12,
+        ratios: { Fish: 1.12 },
+      },
+    },
   };
 }

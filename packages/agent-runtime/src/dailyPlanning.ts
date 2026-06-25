@@ -5,6 +5,7 @@ import type {
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type { WorldDecisionContext } from './worldDecisionContext';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -53,6 +54,7 @@ export type DeterministicDailyPlanInput = {
   readonly agent?: DailyPlanAgentSnapshot;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly memoryContext?: readonly ShortTermMemoryRecord[];
+  readonly worldDecisionContext?: WorldDecisionContext;
 };
 
 export type DailyPlanCompilerInput = DeterministicDailyPlanInput;
@@ -254,10 +256,7 @@ function isDailyPlanCompilationResult(
   output: DailyPlanCompilerOutput,
 ): output is DailyPlanCompilationResult {
   return (
-    typeof output === 'object' &&
-    output !== null &&
-    'plan' in output &&
-    'planningTrace' in output
+    typeof output === 'object' && output !== null && 'plan' in output && 'planningTrace' in output
   );
 }
 
@@ -349,7 +348,9 @@ function createPhysiologyRecoveryItems(
   return items;
 }
 
-function createProfileStudyItem(profile: LongTermAgentProfile | undefined): DailyPlanItem | undefined {
+function createProfileStudyItem(
+  profile: LongTermAgentProfile | undefined,
+): DailyPlanItem | undefined {
   if (!hasStudyHabit(profile)) {
     return undefined;
   }
@@ -480,10 +481,7 @@ function compareDailyPlanItems(left: DailyPlanItem, right: DailyPlanItem): numbe
   return left.id.localeCompare(right.id);
 }
 
-function compareScheduledIntentions(
-  left: ScheduledIntention,
-  right: ScheduledIntention,
-): number {
+function compareScheduledIntentions(left: ScheduledIntention, right: ScheduledIntention): number {
   if (left.startsAt !== right.startsAt) {
     return left.startsAt - right.startsAt;
   }
@@ -493,10 +491,7 @@ function compareScheduledIntentions(
   return left.id.localeCompare(right.id);
 }
 
-function compareMemoryRecords(
-  left: ShortTermMemoryRecord,
-  right: ShortTermMemoryRecord,
-): number {
+function compareMemoryRecords(left: ShortTermMemoryRecord, right: ShortTermMemoryRecord): number {
   if (left.importanceScore !== right.importanceScore) {
     return right.importanceScore - left.importanceScore;
   }

@@ -19,6 +19,7 @@ import type {
 } from '@aivilization/observability';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -274,6 +275,10 @@ export async function renewDailyPlanScheduledIntentions(input: {
       await compileDailyPlan({
         agentId: agent.agentId,
         issuedAt: input.issuedAt,
+        worldDecisionContext: createWorldDecisionContextFromProjection({
+          projection: input.projection,
+          agentId: agent.agentId,
+        }),
         agent: {
           job: agent.job,
           locationId: agent.locationId,

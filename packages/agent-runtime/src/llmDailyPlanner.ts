@@ -205,6 +205,9 @@ function createDailyPlannerMessages(
         issuedAt: input.issuedAt,
         dayStart: Math.floor(input.issuedAt / (24 * 60 * 60 * 1000)) * (24 * 60 * 60 * 1000),
         agent: input.agent ?? null,
+        ...(input.worldDecisionContext === undefined
+          ? {}
+          : { worldDecisionContext: input.worldDecisionContext }),
         longTermProfile: input.longTermProfile ?? null,
         memoryContext: (input.memoryContext ?? []).map((record) => ({
           id: record.id,
@@ -284,6 +287,9 @@ async function compileFallbackPlan(input: LlmDailyPlanCompilerInput): Promise<Da
     ...(input.agent === undefined ? {} : { agent: input.agent }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
   if (fallbackOutput !== undefined) {
     return normalizeDailyPlanCompilerOutput(fallbackOutput).plan;
@@ -295,6 +301,9 @@ async function compileFallbackPlan(input: LlmDailyPlanCompilerInput): Promise<Da
     ...(input.agent === undefined ? {} : { agent: input.agent }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
 }
 

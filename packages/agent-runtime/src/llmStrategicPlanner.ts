@@ -216,6 +216,9 @@ function createStrategicPlannerMessages(
         },
         issuedAt: input.issuedAt,
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+        ...(input.worldDecisionContext === undefined
+          ? {}
+          : { worldDecisionContext: input.worldDecisionContext }),
         constraints: [
           'Output branch-plan proposal data only.',
           'Subtask ids must be unique across the full plan.',
@@ -301,6 +304,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
     objective: input.objective,
     issuedAt: input.issuedAt,
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
   if (fallbackOutput !== undefined) {
     return normalizeStrategicPlanCompilerOutput(fallbackOutput).plan;
@@ -310,6 +316,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
     objective: input.objective,
     issuedAt: input.issuedAt,
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
 }
 

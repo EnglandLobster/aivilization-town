@@ -1,8 +1,5 @@
 import { createScriptedLlmProvider } from '@aivilization/llm';
-import {
-  createShortTermMemoryRecord,
-  type LongTermAgentProfile,
-} from '@aivilization/memory';
+import { createShortTermMemoryRecord, type LongTermAgentProfile } from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -116,6 +113,54 @@ describe('LLM daily planner seam', () => {
     expect(providerRequest?.tools).toHaveLength(1);
     expect(tool?.name).toBe('submit_daily_plan');
     expect(tool?.description).toContain('high-level daily agenda');
+  });
+
+  test('includes world decision context in structured daily planner requests', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-daily-planner',
+      responses: [
+        {
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            id: 'daily-plan:agent-a:0',
+            agentId,
+            dayStart: 0,
+            generatedAt: 8 * hourMs,
+            summary: 'Use market prices and current inventory for the day.',
+            items: [
+              {
+                id: 'market-aware-work',
+                description: 'Review Fish prices before choosing production or trade.',
+                priority: 4,
+                startsAtOffsetMs: 8 * hourMs,
+                endsAtOffsetMs: 10 * hourMs,
+                affinityTags: ['trade', 'market'],
+                source: 'world-state',
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await proposeDailyPlanWithLlm({
+      agentId,
+      issuedAt: 8 * hourMs,
+      worldDecisionContext: createWorldDecisionContext(),
+      provider: scripted.provider,
+      model: 'daily-planner-model',
+      requestId: 'daily-plan-with-world-context',
+    });
+
+    const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"balance":191696904');
+    expect(requestContent).toContain('"educationScore":31');
+    expect(requestContent).toContain('"residentialTier":5');
+    expect(requestContent).toContain('"Fish":46');
+    expect(requestContent).toContain('"spotPrice":304.5');
   });
 
   test('falls back to deterministic daily planning when LLM output is invalid', async () => {
@@ -299,4 +344,28 @@ function createPartyMemory() {
     source: { eventIds: [] },
     tags: ['social', 'party', 'agent-maria', 'town-square'],
   });
+}
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 45, satiety: 30, health: 90 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 0,
+        recordedAt: 100,
+        overall: 1.12,
+        ratios: { Fish: 1.12 },
+      },
+    },
+  };
 }

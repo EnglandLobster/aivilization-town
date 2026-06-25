@@ -9,6 +9,7 @@ import {
   type CycleRepairPolicy,
   type CycleSubtaskCompletionPolicy,
   type DomainMicroPlanner,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -20,6 +21,7 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 import { resolveMemoryRetrievalCandidateLimit } from './memoryContextSelection';
 import type { WorkerTickAgentInput } from './tickRunner';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type WorkerAgentRuntimeBinding = {
   readonly microPlanners: readonly DomainMicroPlanner[];
@@ -37,6 +39,7 @@ export type WorkerAgentRuntimeResolver = (input: {
   readonly activeObjective: LongHorizonObjective;
   readonly planRecord: BranchPlanRecord;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
 }) => WorkerAgentRuntimeBinding | undefined | Promise<WorkerAgentRuntimeBinding | undefined>;
 
 export async function buildWorkerTickAgentsFromActivePlans(input: {
@@ -86,6 +89,10 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       input.longTermProfileRepository === undefined
         ? undefined
         : await input.longTermProfileRepository.getOrCreate(agent.agentId);
+    const worldDecisionContext = createWorldDecisionContextFromProjection({
+      projection: input.projection,
+      agentId: agent.agentId,
+    });
     const runtime = await input.resolveRuntime({
       agentId: agent.agentId,
       agent,
@@ -93,6 +100,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       activeObjective,
       planRecord,
       ...(longTermProfile === undefined ? {} : { longTermProfile }),
+      worldDecisionContext,
     });
     if (runtime === undefined) {
       continue;
@@ -101,6 +109,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
     agents.push({
       agentId: agent.agentId,
       observedStateSummary: summarizeWorldAgentState(agent),
+      worldDecisionContext,
       planId: activeObjective.id,
       signals: activeObjective.affinityTags.map((tag) => ({
         key: tag,

@@ -3,6 +3,7 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
   type ReactiveLocalizedPlanner,
+  type ReactionEvaluator,
 } from '@aivilization/agent-runtime';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
@@ -156,6 +157,29 @@ describe('local simulation runtime manifest', () => {
         (registration) => registration.memoryConsolidationSchedule,
       ),
     ).toEqual([memoryConsolidationSchedule, memoryConsolidationSchedule]);
+    const reactionEvaluator: ReactionEvaluator = () => ({
+      kind: 'ignore',
+      confidence: 1,
+      rationale: 'manifest wiring test',
+    });
+    const ambientObservationMemory = {
+      enabled: true,
+      importanceScore: 0.4,
+      maxObserversPerEvent: 2,
+      reactionEvaluator,
+    } as const;
+    const ambientObservationRegistrations = createLocalSimulationBackendRegistrationsFromManifest({
+      manifest,
+      scenarioPresets,
+      policies,
+      localizedPlanners: [reactiveStudyPlanner()],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      ambientObservationMemory,
+    });
+    expect(
+      ambientObservationRegistrations.map((registration) => registration.ambientObservationMemory),
+    ).toEqual([ambientObservationMemory, ambientObservationMemory]);
 
     const registry = createLocalSimulationBackendRegistryFromManifest({
       rootDir: createRootDir(),

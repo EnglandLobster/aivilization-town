@@ -125,6 +125,9 @@ async function createRunnerInput(
     ...(runtimeConfig?.dailyPlanning === undefined
       ? {}
       : { dailyPlanning: runtimeConfig.dailyPlanning }),
+    ...(runtimeConfig?.reactionPlanning === undefined
+      ? {}
+      : { reactionPlanning: runtimeConfig.reactionPlanning }),
   };
 }
 

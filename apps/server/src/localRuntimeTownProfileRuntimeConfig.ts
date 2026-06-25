@@ -4,6 +4,8 @@ import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
   LocalRuntimeTownProfileDailyPlanningConfig,
   LocalRuntimeTownProfileLlmPlanningConfig,
+  LocalRuntimeTownProfileReactionEvaluatorConfig,
+  LocalRuntimeTownProfileReactionPlanningConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
@@ -31,6 +33,7 @@ export type LocalRuntimeTownProfileRuntimeConfigLoadInput =
 export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
+  readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
 };
 
 export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
@@ -102,10 +105,20 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const reactionPlanning = parseReactionPlanningNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'reactionPlanning',
+    }),
+    env,
+  });
 
   return {
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
+    ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
   };
 }
 
@@ -134,7 +147,7 @@ function selectProfileLlmPlanningNode(
 function selectProfilePlanningNode(input: {
   readonly document: Readonly<Record<string, unknown>>;
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
-  readonly nodeName: 'llmPlanning' | 'dailyPlanning';
+  readonly nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName;
 }): unknown {
   const profiles = readOptionalRecord(input.document.profiles, 'profiles');
   const profileNode = profiles?.[input.profileId];
@@ -193,10 +206,7 @@ function parseDailyPlanningNode(input: {
     throw new Error(`dailyPlanning.kind must be traceable-llm-daily-planner`);
   }
 
-  const maxAttempts = readOptionalPositiveInteger(
-    record.maxAttempts,
-    'dailyPlanning.maxAttempts',
-  );
+  const maxAttempts = readOptionalPositiveInteger(record.maxAttempts, 'dailyPlanning.maxAttempts');
   const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'dailyPlanning.timeoutMs');
   const pricing = parseOptionalPricing(record.pricing, 'dailyPlanning');
 
@@ -211,10 +221,48 @@ function parseDailyPlanningNode(input: {
   };
 }
 
+function parseReactionPlanningNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileReactionEvaluatorConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'reactionPlanning');
+  const kind = readRequiredString(record.kind, 'reactionPlanning.kind');
+  if (kind !== 'traceable-llm-reaction-evaluator') {
+    throw new Error(`reactionPlanning.kind must be traceable-llm-reaction-evaluator`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'reactionPlanning.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'reactionPlanning.timeoutMs');
+  const pricing = parseOptionalPricing(record.pricing, 'reactionPlanning');
+
+  return {
+    kind: 'traceable-llm-reaction-evaluator',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'reactionPlanning.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'reactionPlanning'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
+type LocalRuntimeTownProfileRuntimeConfigNodeName =
+  | 'llmPlanning'
+  | 'dailyPlanning'
+  | 'reactionPlanning';
+
 function parseOpenAiCompatibleProviderConfig(
   value: unknown,
   env: Readonly<Record<string, string | undefined>>,
-  nodeName: 'llmPlanning' | 'dailyPlanning',
+  nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
 ): LocalRuntimeTownProfileLlmPlanningConfig['provider'] {
   const record = requireRecord(value, `${nodeName}.provider`);
   const kind = readRequiredString(record.kind, `${nodeName}.provider.kind`);
@@ -242,7 +290,7 @@ function parseOpenAiCompatibleProviderConfig(
 function parseOptionalDefaultHeaders(
   value: unknown,
   env: Readonly<Record<string, string | undefined>>,
-  nodeName: 'llmPlanning' | 'dailyPlanning',
+  nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
 ): Readonly<Record<string, string>> | undefined {
   const record = readOptionalRecord(value, `${nodeName}.provider.defaultHeaders`);
   if (record === undefined) {
@@ -263,7 +311,7 @@ function parseOptionalDefaultHeaders(
 
 function parseOptionalPricing(
   value: unknown,
-  nodeName: 'llmPlanning' | 'dailyPlanning',
+  nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
 ): LlmGatewayPricing | undefined {
   const record = readOptionalRecord(value, `${nodeName}.pricing`);
   if (record === undefined) {

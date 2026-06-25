@@ -19,7 +19,11 @@ import {
 } from './localSimulationBackendRegistry';
 import type { LocalSimulationBackendRegistration } from './localSimulationBackendRegistry';
 import { createWorldProjectionFromScenario } from './scenarioProjection';
-import type { WorkerTickAgentInput, WorkerTickMarketMetricsInput } from './tickRunner';
+import type {
+  WorkerTickAgentInput,
+  WorkerTickAmbientObservationMemoryInput,
+  WorkerTickMarketMetricsInput,
+} from './tickRunner';
 import type { LocalRuntimeSteeringCommandDrainInput } from './localCommandDrain';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
@@ -80,6 +84,7 @@ export type LocalSimulationRuntimeWiringInput = {
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: LocalWorldRuntimeMarketObservationsInput;
+  readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly validationSchedule?: LocalSimulationLifecycleValidationSchedule;
   readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
@@ -135,6 +140,9 @@ export function createLocalSimulationBackendRegistrationsFromManifest(
     ...(input.marketObservations === undefined
       ? {}
       : { marketObservations: input.marketObservations }),
+    ...(input.ambientObservationMemory === undefined
+      ? {}
+      : { ambientObservationMemory: input.ambientObservationMemory }),
     ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
     ...(input.validationSchedule === undefined
       ? {}
@@ -174,6 +182,9 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
       ...(input.marketObservations === undefined
         ? {}
         : { marketObservations: input.marketObservations }),
+      ...(input.ambientObservationMemory === undefined
+        ? {}
+        : { ambientObservationMemory: input.ambientObservationMemory }),
       ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
       ...(input.validationSchedule === undefined
         ? {}

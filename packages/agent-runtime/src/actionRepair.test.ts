@@ -1,7 +1,12 @@
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import type { AtomicActionProposal } from './actions';
-import { AGENT_ACTION_COMMAND_TYPES, simulateActionWithTieredRepair } from './actionRepair';
+import {
+  AGENT_ACTION_COMMAND_TYPES,
+  simulateActionWithTieredRepair,
+  type ReactiveCorrectorInput,
+} from './actionRepair';
 import { createBranchPlan } from './planner';
 
 const agentId = asAgentId('agent-1');
@@ -13,6 +18,108 @@ const selectedSubtask = {
 };
 
 describe('tiered action repair', () => {
+  test('passes decision context into local repair before reactive correction', async () => {
+    const rejectedAction = createWorkAction();
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-work-failed-hungry',
+      agentId,
+      kind: 'action',
+      status: 'failed',
+      summary: 'Working while hungry failed; eating before work succeeded.',
+      occurredAt: 480,
+      importanceScore: 0.9,
+      source: { eventIds: [] },
+      tags: ['work', 'satiety', 'repair'],
+    });
+    const repairInputs: unknown[] = [];
+
+    await simulateActionWithTieredRepair({
+      action: rejectedAction,
+      selectedSubtask,
+      simulate: (action) => ({
+        status: 'rejected',
+        action,
+        reason: 'satiety too low',
+      }),
+      localRepair: (input) => {
+        repairInputs.push(input);
+        return undefined;
+      },
+      reactiveCorrector: undefined,
+      reactiveCorrectorInput: createReactiveInput({
+        observedStateSummary:
+          'energy=40 satiety=12 health=95 education=10 balance=50 tier=1 job=Cleaner inventory=Fish:1',
+        shortTermMemoryContext: [memory],
+        longTermProfile: {
+          agentId,
+          beliefs: [
+            {
+              key: 'eat-before-work',
+              statement: 'Eat before working when satiety is low.',
+              confidence: 0.8,
+              updatedAt: 490,
+              provenanceRecordIds: [asMemoryRecordId('memory-work-failed-hungry')],
+            },
+          ],
+          habits: [],
+          mood: [],
+          values: [],
+          personality: [],
+          socialRecords: [],
+        },
+        worldDecisionContext: {
+          agent: {
+            agentId,
+            locationId: 'market',
+            physiology: { energy: 40, satiety: 12, health: 95 },
+            educationScore: 10,
+            balance: 50,
+            residentialTier: 1,
+            job: 'Cleaner',
+            inventory: { Fish: 1 },
+          },
+          market: {
+            spotPrices: [{ commodity: 'Fish', spotPrice: 12 }],
+            latestPriceIndex: {
+              baselineAt: 1,
+              recordedAt: 500,
+              overall: 1.2,
+              ratios: { Fish: 1.2 },
+            },
+          },
+        },
+      }),
+    });
+
+    expect(repairInputs).toHaveLength(1);
+    expect(repairInputs[0]).toMatchObject({
+      agentId,
+      issuedAt: 500,
+      plan: {
+        objective: 'Earn income without collapsing physiology.',
+      },
+      signals: [],
+      selectedSubtask,
+      rejectedAction,
+      reason: 'satiety too low',
+      observedStateSummary:
+        'energy=40 satiety=12 health=95 education=10 balance=50 tier=1 job=Cleaner inventory=Fish:1',
+      shortTermMemoryContext: [{ id: 'memory-work-failed-hungry' }],
+      longTermProfile: { beliefs: [{ key: 'eat-before-work' }] },
+      worldDecisionContext: {
+        agent: {
+          balance: 50,
+          inventory: { Fish: 1 },
+          physiology: { satiety: 12 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Fish', spotPrice: 12 }],
+          latestPriceIndex: { ratios: { Fish: 1.2 } },
+        },
+      },
+    });
+  });
+
   test('short-circuits reactive correction when local repair validates', async () => {
     const rejectedAction = createWorkAction();
     const localAction = {
@@ -211,7 +318,23 @@ describe('tiered action repair', () => {
   });
 });
 
-function createReactiveInput() {
+type TieredRepairReactiveInput = Omit<
+  ReactiveCorrectorInput,
+  | 'selectedSubtask'
+  | 'rejectedAction'
+  | 'rejectionReason'
+  | 'localRepairAttempt'
+  | 'localRepairRejectionReason'
+>;
+
+function createReactiveInput(overrides: Partial<TieredRepairReactiveInput> = {}) {
+  return {
+    ...createBaseReactiveInput(),
+    ...overrides,
+  };
+}
+
+function createBaseReactiveInput(): TieredRepairReactiveInput {
   return {
     agentId,
     issuedAt: 500,

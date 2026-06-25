@@ -10,7 +10,6 @@ import type {
   ActionSimulator,
   ActionWithRepairResult,
   AtomicActionProposal,
-  RepairPolicy,
 } from './actions';
 import type {
   LlmLongTermProfileContextTrace,
@@ -138,9 +137,37 @@ export type ReactiveCorrectorInput = {
   readonly worldDecisionContext?: WorldDecisionContext;
 };
 
+type ReactiveCorrectorBaseInput = Omit<
+  ReactiveCorrectorInput,
+  | 'selectedSubtask'
+  | 'rejectedAction'
+  | 'rejectionReason'
+  | 'localRepairAttempt'
+  | 'localRepairRejectionReason'
+>;
+
 export type ReactiveCorrector = (
   input: ReactiveCorrectorInput,
 ) => Promise<ReactiveCorrectionResult>;
+
+export type LocalActionRepairInput = {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly plan: BranchPlan;
+  readonly signals: readonly ContextSignal[];
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly rejectedAction: AtomicActionProposal;
+  readonly reason: string;
+  readonly observedStateSummary?: string;
+  readonly intentionState?: AgentIntentionState;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
+};
+
+export type LocalActionRepairPolicy = (
+  input: LocalActionRepairInput,
+) => AtomicActionProposal | undefined;
 
 export type LocalActionRepairTrace = {
   readonly status: 'skipped' | 'accepted' | 'rejected';
@@ -179,26 +206,23 @@ export async function simulateActionWithTieredRepair(input: {
   readonly action: AtomicActionProposal;
   readonly selectedSubtask: PrioritizedSubtask;
   readonly simulate: ActionSimulator;
-  readonly localRepair?: RepairPolicy;
+  readonly localRepair?: LocalActionRepairPolicy;
   readonly reactiveCorrector: ReactiveCorrector | undefined;
-  readonly reactiveCorrectorInput: Omit<
-    ReactiveCorrectorInput,
-    | 'selectedSubtask'
-    | 'rejectedAction'
-    | 'rejectionReason'
-    | 'localRepairAttempt'
-    | 'localRepairRejectionReason'
-  >;
+  readonly reactiveCorrectorInput: ReactiveCorrectorBaseInput;
 }): Promise<TieredActionRepairResult> {
   const firstResult = input.simulate(input.action);
   if (firstResult.status === 'accepted') {
     return { result: firstResult, trace: undefined };
   }
 
-  const localAttempt = input.localRepair?.({
-    rejectedAction: firstResult.action,
-    reason: firstResult.reason,
-  });
+  const localAttempt = input.localRepair?.(
+    createLocalActionRepairInput({
+      reactiveCorrectorInput: input.reactiveCorrectorInput,
+      selectedSubtask: input.selectedSubtask,
+      rejectedAction: firstResult.action,
+      reason: firstResult.reason,
+    }),
+  );
   if (localAttempt !== undefined) {
     const localResult = input.simulate(localAttempt);
     if (localResult.status === 'accepted') {
@@ -254,6 +278,35 @@ export async function simulateActionWithTieredRepair(input: {
   });
 }
 
+function createLocalActionRepairInput(input: {
+  readonly reactiveCorrectorInput: ReactiveCorrectorBaseInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly rejectedAction: AtomicActionProposal;
+  readonly reason: string;
+}): LocalActionRepairInput {
+  const context = input.reactiveCorrectorInput;
+  return {
+    agentId: context.agentId,
+    issuedAt: context.issuedAt,
+    plan: context.plan,
+    signals: context.signals,
+    selectedSubtask: input.selectedSubtask,
+    rejectedAction: input.rejectedAction,
+    reason: input.reason,
+    ...(context.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: context.observedStateSummary }),
+    ...(context.intentionState === undefined ? {} : { intentionState: context.intentionState }),
+    ...(context.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: context.shortTermMemoryContext }),
+    ...(context.longTermProfile === undefined ? {} : { longTermProfile: context.longTermProfile }),
+    ...(context.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: context.worldDecisionContext }),
+  };
+}
+
 export function applyReactiveCorrectionDecision(input: {
   readonly decision: ReactiveCorrectionGeneratedDecision;
   readonly allowedCommandTypes: readonly string[];
@@ -297,14 +350,7 @@ function runReactiveCorrectionAfterLocalFailure(input: {
   readonly localRepairRejectionReason?: string;
   readonly localRepairTrace: LocalActionRepairTrace;
   readonly reactiveCorrector: ReactiveCorrector | undefined;
-  readonly reactiveCorrectorInput: Omit<
-    ReactiveCorrectorInput,
-    | 'selectedSubtask'
-    | 'rejectedAction'
-    | 'rejectionReason'
-    | 'localRepairAttempt'
-    | 'localRepairRejectionReason'
-  >;
+  readonly reactiveCorrectorInput: ReactiveCorrectorBaseInput;
   readonly simulate: ActionSimulator;
 }): Promise<TieredActionRepairResult> {
   if (input.reactiveCorrector === undefined) {

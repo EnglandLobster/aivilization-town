@@ -6,6 +6,7 @@ import {
   createBranchPlan,
   normalizeStrategicPlanCompilerOutput,
   type BranchPlanRecord,
+  type SubtaskPrioritizationSensitivityProbeResult,
 } from '@aivilization/agent-runtime';
 import {
   FileAgentCycleTraceRepository,
@@ -366,6 +367,61 @@ describe('local runtime town planner ablation suite', () => {
       ]),
     );
   });
+
+  test('adds planner economic sensitivity metrics from configured probe results', async () => {
+    const result = await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir: '/tmp/aivilization-planner-economic-sensitivity',
+      profileId: 'smoke-25',
+      taskId: 'economic-contextual-prioritization',
+      requestedAt: 550,
+      createEconomicSensitivityProbeResults: (_summary, variant) =>
+        variant.variant === 'default'
+          ? [
+              createSensitivityProbeResult({
+                scenarioId: 'fish-price-spike',
+                status: 'sensitive',
+                selectionChanged: true,
+                completeEconomicContext: true,
+              }),
+              createSensitivityProbeResult({
+                scenarioId: 'missing-market-prices',
+                status: 'insensitive',
+                selectionChanged: false,
+                completeEconomicContext: false,
+              }),
+            ]
+          : [],
+      runProfile: (input) => Promise.resolve(createVariantSummary(input)),
+    });
+
+    const defaultMetrics = result.variants[0]?.report.plannerExperiment?.metrics ?? [];
+    const withoutBranchMetrics = result.variants[1]?.report.plannerExperiment?.metrics ?? [];
+
+    expect(defaultMetrics).toEqual(
+      expect.arrayContaining([
+        {
+          metricId: 'planner-economic-sensitivity-scenario-count',
+          value: 2,
+          higherIsBetter: true,
+        },
+        {
+          metricId: 'planner-economic-sensitivity-selection-change-count',
+          value: 1,
+          higherIsBetter: true,
+        },
+        {
+          metricId: 'planner-economic-sensitivity-complete-economic-context-count',
+          value: 1,
+          higherIsBetter: true,
+        },
+      ]),
+    );
+    expect(withoutBranchMetrics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metricId: 'planner-economic-sensitivity-scenario-count' }),
+      ]),
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -502,6 +558,59 @@ function createStructureMetrics(input: {
       higherIsBetter: true,
     },
   ];
+}
+
+function createSensitivityProbeResult(input: {
+  readonly scenarioId: string;
+  readonly status: SubtaskPrioritizationSensitivityProbeResult['status'];
+  readonly selectionChanged: boolean;
+  readonly completeEconomicContext: boolean;
+}): SubtaskPrioritizationSensitivityProbeResult {
+  const worldDecisionContext = createWorldDecisionContextTrace(input.completeEconomicContext);
+
+  return {
+    scenarioId: input.scenarioId,
+    status: input.status,
+    selectionChanged: input.selectionChanged,
+    completeEconomicContext: input.completeEconomicContext,
+    baseline: {
+      selected: { branchId: 'trade', subtaskId: 'buy-fish', score: 12 },
+      trace: { status: 'deterministic', source: 'deterministic', worldDecisionContext },
+      worldDecisionContext,
+    },
+    comparison: {
+      selected: input.selectionChanged
+        ? { branchId: 'work', subtaskId: 'earn-income', score: 13 }
+        : { branchId: 'trade', subtaskId: 'buy-fish', score: 12 },
+      trace: { status: 'deterministic', source: 'deterministic', worldDecisionContext },
+      worldDecisionContext,
+    },
+  };
+}
+
+function createWorldDecisionContextTrace(
+  completeEconomicContext: boolean,
+): NonNullable<SubtaskPrioritizationSensitivityProbeResult['baseline']['worldDecisionContext']> {
+  return {
+    agentId: asAgentId('agent-1'),
+    hasLocationId: true,
+    hasPhysiology: true,
+    hasJob: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    hasInventory: true,
+    inventoryItemCount: 1,
+    marketSpotPriceCount: completeEconomicContext ? 2 : 0,
+    hasLatestPriceIndex: completeEconomicContext,
+    hasEconomicState: true,
+    hasMarketPrices: completeEconomicContext,
+    completeEconomicContext,
+    occupationRuleCount: 1,
+    eligibleOccupationRuleCount: 1,
+    productionRuleCount: 1,
+    producibleCommodityRuleCount: 1,
+  };
 }
 
 function createSuiteAgentCycleTrace(variant: string, simulationId: string): AgentCycleTrace {

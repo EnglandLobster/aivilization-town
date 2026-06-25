@@ -1,4 +1,8 @@
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
+import {
+  evaluateExperimentValidationReportGate,
+  type ExperimentValidationReportGateResult,
+} from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -434,8 +438,20 @@ async function runLifecycleValidation(input: {
   | { readonly validationFailure: LocalSimulationLifecycleValidationFailure }
 > {
   try {
+    const validationReport = await runLifecycleValidationSchedule(input);
+    const validationGate = evaluateExperimentValidationReportGate(validationReport.report, {
+      criteriaId: `${validationReport.report.run.runId}:lifecycle-validation-gate`,
+      defaultAllowedStatuses: ['pass', 'watch'],
+    });
+    if (validationGate.status === 'fail') {
+      return {
+        validationReport,
+        validationFailure: createValidationReportGateFailure(validationGate),
+      };
+    }
+
     return {
-      validationReport: await runLifecycleValidationSchedule(input),
+      validationReport,
     };
   } catch (error) {
     return {
@@ -445,7 +461,10 @@ async function runLifecycleValidation(input: {
 }
 
 type LocalSimulationLifecycleValidationResult =
-  | { readonly validationReport: LocalExperimentValidationScheduleResult }
+  | {
+      readonly validationReport: LocalExperimentValidationScheduleResult;
+      readonly validationFailure?: LocalSimulationLifecycleValidationFailure;
+    }
   | { readonly validationFailure: LocalSimulationLifecycleValidationFailure }
   | Record<string, never>;
 
@@ -465,6 +484,18 @@ function createValidationStateFields(
     | 'lastValidationFailure'
   >
 > {
+  if ('validationFailure' in validation && validation.validationFailure !== undefined) {
+    return {
+      lastValidationStatus: 'failed',
+      ...(!('validationReport' in validation)
+        ? {}
+        : {
+            lastValidationReportRunId: validation.validationReport.report.run.runId,
+            lastValidationGeneratedAt: validation.validationReport.report.run.generatedAt,
+          }),
+      lastValidationFailure: validation.validationFailure,
+    };
+  }
   if ('validationReport' in validation) {
     return {
       lastValidationStatus: 'succeeded',
@@ -472,13 +503,20 @@ function createValidationStateFields(
       lastValidationGeneratedAt: validation.validationReport.report.run.generatedAt,
     };
   }
-  if ('validationFailure' in validation) {
-    return {
-      lastValidationStatus: 'failed',
-      lastValidationFailure: validation.validationFailure,
-    };
-  }
   return {};
+}
+
+function createValidationReportGateFailure(
+  gate: ExperimentValidationReportGateResult,
+): LocalSimulationLifecycleValidationFailure {
+  const firstFailure = gate.failures[0];
+  return {
+    name: 'Error',
+    message:
+      firstFailure === undefined
+        ? 'validation report gate failed'
+        : `validation report gate failed: ${firstFailure.message}`,
+  };
 }
 
 function createMemoryConsolidationStateFields(
@@ -831,8 +869,25 @@ function parseValidationState(
     };
   }
 
+  const reportFields =
+    record.lastValidationReportRunId === undefined && record.lastValidationGeneratedAt === undefined
+      ? {}
+      : {
+          lastValidationReportRunId: parseString(
+            record.lastValidationReportRunId,
+            'lastValidationReportRunId',
+            source,
+          ),
+          lastValidationGeneratedAt: parseNonNegativeFinite(
+            record.lastValidationGeneratedAt,
+            'lastValidationGeneratedAt',
+            source,
+          ),
+        };
+
   return {
     lastValidationStatus,
+    ...reportFields,
     lastValidationFailure: parseLifecycleFailure(
       record.lastValidationFailure,
       'lastValidationFailure',

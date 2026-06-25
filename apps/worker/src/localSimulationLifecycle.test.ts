@@ -266,6 +266,79 @@ describe('local simulation lifecycle controller', () => {
     });
   });
 
+  test('records validation failure when a generated report contains failing metrics', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110, 99]);
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      validationSchedule: {
+        runIdPrefix: 'lifecycle-validation-critical',
+        plannerRuns: createPlannerRuns(),
+        eventWindow: { afterSequence: 0, toSequence: 3 },
+        expectedTrajectoryAgentIds: ['agent-1'],
+        trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+        thresholds: {
+          marketStability: {
+            maximumLogPriceRange: 1,
+            maximumDrawdown: 0.05,
+            minimumLogReturnStandardDeviation: 0,
+          },
+          heavyTailReturns: { minimumExcessKurtosis: -2 },
+          volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+        },
+      },
+    });
+
+    const result = await controller.start(createRequest(950));
+
+    expect(result.status).toBe('completed');
+    expect(result.validationReport?.report.run.runId).toBe('lifecycle-validation-critical:950:4');
+    expect(
+      result.validationReport?.report.metrics.find((metric) => metric.id === 'market-stability')
+        ?.status,
+    ).toBe('fail');
+    expect(result.validationFailure).toMatchObject({
+      name: 'Error',
+      message: 'validation report gate failed: metric market-stability status fail is not allowed',
+    });
+    expect(result.state).toMatchObject({
+      lastValidationStatus: 'failed',
+      lastValidationReportRunId: 'lifecycle-validation-critical:950:4',
+      lastValidationGeneratedAt: 950,
+      lastValidationFailure: {
+        name: 'Error',
+        message:
+          'validation report gate failed: metric market-stability status fail is not allowed',
+      },
+    });
+    await expect(
+      storage.experimentValidationReportRepository.get('lifecycle-validation-critical:950:4'),
+    ).resolves.toEqual(result.validationReport?.report);
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(restartedStorage.lifecycleStateStore.getState(createRequest(975))).toMatchObject({
+      lastValidationStatus: 'failed',
+      lastValidationReportRunId: 'lifecycle-validation-critical:950:4',
+      lastValidationGeneratedAt: 950,
+      lastValidationFailure: {
+        name: 'Error',
+        message:
+          'validation report gate failed: metric market-stability status fail is not allowed',
+      },
+    });
+  });
+
   test('runs configured memory consolidation schedule after a completed lifecycle start', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();
@@ -368,7 +441,10 @@ describe('local simulation lifecycle controller', () => {
       simulationId: 'sim-1',
       partitionKey: 'world-main',
     });
-    await storage.shortTermMemoryRepository.appendMany([createStudyMemory(1), createStudyMemory(2)]);
+    await storage.shortTermMemoryRepository.appendMany([
+      createStudyMemory(1),
+      createStudyMemory(2),
+    ]);
     const controller = createController({
       storage,
       initialProjection,
@@ -405,7 +481,9 @@ describe('local simulation lifecycle controller', () => {
         },
       ],
     });
-    await expect(storage.memoryConsolidationCursorStore.getCursor(agentOne)).resolves.toBeUndefined();
+    await expect(
+      storage.memoryConsolidationCursorStore.getCursor(agentOne),
+    ).resolves.toBeUndefined();
     await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
       habits: [],
     });
@@ -600,6 +678,11 @@ function createPlannerRuns() {
       taskId: 'high-tech-production',
       variant: 'without-branch',
       metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-objective-decomposition',
+      metrics: [{ metricId: 'net-worth', value: 95_279, higherIsBetter: true }],
     },
   ];
 }

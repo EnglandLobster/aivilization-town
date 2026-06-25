@@ -213,11 +213,13 @@ describe('worker agent scheduling', () => {
       intentionRepository,
       planRepository,
       memoryRetrievalLimit: 8,
+      memoryRetrievalCandidateLimit: 24,
       resolveRuntime: () => createRuntimeBinding('study'),
     });
 
     expect(agents).toHaveLength(1);
     expect(agents[0]?.memoryRetrievalLimit).toBe(8);
+    expect(agents[0]?.memoryRetrievalCandidateLimit).toBe(24);
   });
 
   test('passes long-term profile context into runtime resolution when available', async () => {

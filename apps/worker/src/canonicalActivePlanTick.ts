@@ -59,6 +59,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly objectiveMemoryRetrievalLimit?: number;
   readonly agentMemoryRetrievalLimit?: number;
+  readonly agentMemoryRetrievalCandidateLimit?: number;
   readonly dailyRoutineSchedule?: DailyRoutineSchedule | null;
   readonly dailyRoutineScheduleResolver?: DailyRoutineScheduleResolver;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
@@ -135,6 +136,9 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.agentMemoryRetrievalLimit === undefined
       ? {}
       : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
+    ...(input.agentMemoryRetrievalCandidateLimit === undefined
+      ? {}
+      : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
     resolveRuntime: createCanonicalWorkerRuntimeResolver({
       simulationId: input.simulationId,
       policies: input.policies,

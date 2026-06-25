@@ -113,6 +113,23 @@ describe('local runtime town profile gate suite', () => {
     );
   });
 
+  test('forwards full replan materialization requirements into each profile gate', async () => {
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir: '/tmp/aivilization-suite',
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 2,
+      minimumFullReplanMaterializationCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => Promise.resolve(createPassingSummary(input)),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.profiles[0]?.gate.failures.map((failure) => failure.code)).toContain(
+      'full-replan-materialization-count-too-low',
+    );
+  });
+
   test('defaults to the canonical profile gate order', () => {
     expect(localRuntimeTownProfileGateSuiteDefaultProfileIds).toEqual([
       'smoke-25',

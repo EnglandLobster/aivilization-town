@@ -11,6 +11,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly minimumCompletedCycleCount: number;
   readonly minimumTotalEventCount: number;
   readonly minimumTotalAgentTraceCount: number;
+  readonly minimumFullReplanMaterializationCount: number;
   readonly requiredDaemonHealth: string;
   readonly requiredOutcome: string;
   readonly requiredStopReason: string;
@@ -100,6 +101,12 @@ export function evaluateRuntimeProfileRunReport(
     label: 'totalAgentTraceCount',
     actual: report.totalAgentTraceCount,
     minimum: criteria.minimumTotalAgentTraceCount,
+  });
+  addMinimumFailure(failures, {
+    code: 'full-replan-materialization-count-too-low',
+    label: 'fullReplanMaterializationCount',
+    actual: report.agentCycleDiagnostics.fullReplanMaterializationCount,
+    minimum: criteria.minimumFullReplanMaterializationCount,
   });
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);

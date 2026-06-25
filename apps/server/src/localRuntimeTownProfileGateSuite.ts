@@ -30,6 +30,7 @@ export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly requestedAt: SimulationTimestamp;
   readonly cycleCount?: number;
   readonly cycleIntervalMs?: number;
+  readonly minimumFullReplanMaterializationCount?: number;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly runProfile?: (
     input: LocalRuntimeTownProfileRunnerInput,
@@ -102,6 +103,11 @@ export async function runLocalRuntimeTownProfileGateSuite(
       report,
       createLocalRuntimeTownProfileGateCriteria(profileId, {
         minimumCompletedCycleCount: cycleCount,
+        ...(input.minimumFullReplanMaterializationCount === undefined
+          ? {}
+          : {
+              minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount,
+            }),
       }),
     );
 

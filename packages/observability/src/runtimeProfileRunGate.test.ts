@@ -54,6 +54,33 @@ describe('runtime profile run gate', () => {
       },
     });
   });
+
+  test('requires full replan materialization when criteria asks for recovery evidence', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          fullReplanMaterializationCount: 0,
+          fullReplanMaterializationRatio: 0,
+        },
+      }),
+      {
+        ...createCriteria(),
+        minimumFullReplanMaterializationCount: 1,
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'full-replan-materialization-count-too-low',
+      message: 'fullReplanMaterializationCount must be at least 1',
+      evidence: {
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
 });
 
 function createCriteria(): RuntimeProfileRunGateCriteria {
@@ -66,6 +93,7 @@ function createCriteria(): RuntimeProfileRunGateCriteria {
     minimumCompletedCycleCount: 1,
     minimumTotalEventCount: 2,
     minimumTotalAgentTraceCount: 1,
+    minimumFullReplanMaterializationCount: 0,
     requiredDaemonHealth: 'healthy',
     requiredOutcome: 'succeeded',
     requiredStopReason: 'cycle-count-completed',

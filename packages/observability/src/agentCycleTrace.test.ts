@@ -10,6 +10,21 @@ describe('createAgentCycleTrace', () => {
       cycleStartedAt: 100,
       observedStateSummary: 'energy=450 satiety=290 health=500 balance=191696904',
       selectedBranch: 'production-resource-management',
+      contextualPrioritization: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'trace-1:prioritize',
+        providerId: 'scripted-prioritizer',
+        model: 'prioritizer-model',
+        choices: [
+          {
+            branchId: 'production-resource-management',
+            subtaskId: 'craft-transistor',
+            priorityScore: 7.25,
+            rationale: 'Crafting aligns with production goals after checking inventory.',
+          },
+        ],
+      },
       subtaskCandidates: [
         {
           branchId: 'production-resource-management',
@@ -22,6 +37,7 @@ describe('createAgentCycleTrace', () => {
             intentionInfluenceScore: 0,
             memoryInfluenceScore: 1.25,
             profileInfluenceScore: 1,
+            contextualReasoningScore: 0,
           },
         },
       ],
@@ -130,6 +146,12 @@ describe('createAgentCycleTrace', () => {
     });
 
     expect(trace.selectedBranch).toBe('production-resource-management');
+    expect(trace.contextualPrioritization).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'trace-1:prioritize',
+      choices: [{ subtaskId: 'craft-transistor' }],
+    });
     expect(trace.replanMaterialization).toEqual({
       status: 'replanned',
       objectiveId: 'objective-production',

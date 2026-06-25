@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import {
   createAgentCycleTrace,
+  type AgentCycleContextualPrioritizationTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
@@ -124,6 +125,11 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
     cycleStartedAt: trace.cycleStartedAt,
     observedStateSummary: trace.observedStateSummary,
     selectedBranch: trace.selectedBranch,
+    ...(trace.contextualPrioritization === undefined
+      ? {}
+      : {
+          contextualPrioritization: cloneContextualPrioritization(trace.contextualPrioritization),
+        }),
     subtaskCandidates: trace.subtaskCandidates.map((candidate) => cloneSubtaskCandidate(candidate)),
     actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
@@ -224,7 +230,61 @@ function cloneSubtaskCandidate(
       intentionInfluenceScore: candidate.scoreBreakdown.intentionInfluenceScore,
       memoryInfluenceScore: candidate.scoreBreakdown.memoryInfluenceScore,
       profileInfluenceScore: candidate.scoreBreakdown.profileInfluenceScore,
+      ...(candidate.scoreBreakdown.contextualReasoningScore === undefined
+        ? {}
+        : { contextualReasoningScore: candidate.scoreBreakdown.contextualReasoningScore }),
     },
+  };
+}
+
+function cloneContextualPrioritization(
+  trace: AgentCycleContextualPrioritizationTrace,
+): AgentCycleContextualPrioritizationTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.choices === undefined
+      ? {}
+      : {
+          choices: trace.choices.map((choice) => ({
+            branchId: choice.branchId,
+            subtaskId: choice.subtaskId,
+            priorityScore: choice.priorityScore,
+            rationale: choice.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
   };
 }
 

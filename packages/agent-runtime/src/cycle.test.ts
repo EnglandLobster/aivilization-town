@@ -6,6 +6,7 @@ import {
   createBranchPlanProgress,
   markSubtaskCompleted,
   runAgentPlanningCycle,
+  runAgentPlanningCycleWithPrioritization,
 } from './index';
 
 describe('agent planning cycle', () => {
@@ -56,6 +57,114 @@ describe('agent planning cycle', () => {
         issuedAt: 100,
       },
     ]);
+  });
+
+  test('allows an async contextual prioritizer to rank a lower deterministic subtask first', async () => {
+    const plan = createBranchPlan({
+      objective: 'balance survival and income',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 6 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [{ id: 'eat', description: 'eat Fish before work', basePriority: 2 }],
+        },
+      ],
+    });
+    const simulatedSubtasks: string[] = [];
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      subtaskPrioritizer: async ({ candidates }) => {
+        await Promise.resolve();
+        return {
+          candidates: [
+            {
+              ...candidates[1]!,
+              score: 13,
+              scoreBreakdown: {
+                ...candidates[1]!.scoreBreakdown,
+                contextualReasoningScore: 11,
+              },
+            },
+            candidates[0]!,
+          ],
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'prioritize-agent-1-100',
+            choices: [
+              {
+                branchId: 'recovery',
+                subtaskId: 'eat',
+                priorityScore: 13,
+                rationale: 'Low satiety makes food recovery more urgent than work.',
+              },
+              {
+                branchId: 'income',
+                subtaskId: 'work',
+                priorityScore: 6,
+                rationale: 'Work remains useful after eating.',
+              },
+            ],
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'eat',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-fish',
+              description: 'eat Fish',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Fish', quantity: 1 },
+            },
+          ],
+        },
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-shift',
+              description: 'work shift',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Stock Clerk', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedSubtasks.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(result.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'eat',
+      score: 13,
+    });
+    expect(simulatedSubtasks).toEqual(['eat-fish:recovery/eat']);
+    expect(result.prioritizationTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'prioritize-agent-1-100',
+      choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
+    });
+    expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentEat']);
   });
 
   test('synthesizes candidate actions before simulation and command drafting', () => {

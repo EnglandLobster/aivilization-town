@@ -62,6 +62,42 @@ export type AgentCycleSubtaskCandidateTrace = {
     readonly intentionInfluenceScore: number;
     readonly memoryInfluenceScore: number;
     readonly profileInfluenceScore: number;
+    readonly contextualReasoningScore?: number;
+  };
+};
+
+export type AgentCycleContextualPrioritizationTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly choices?: readonly {
+    readonly branchId: string;
+    readonly subtaskId: string;
+    readonly priorityScore: number;
+    readonly rationale: string;
+  }[];
+  readonly attempts?: readonly {
+    readonly attemptIndex: number;
+    readonly status: string;
+    readonly providerId: string;
+    readonly model: string;
+    readonly message: string;
+    readonly usage: {
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly totalTokens: number;
+      readonly estimatedCostMicros: number;
+    };
+  }[];
+  readonly usage?: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
   };
 };
 
@@ -127,6 +163,7 @@ export type AgentCycleTrace = {
   readonly cycleStartedAt: number;
   readonly observedStateSummary: string;
   readonly selectedBranch: string;
+  readonly contextualPrioritization?: AgentCycleContextualPrioritizationTrace;
   readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
   readonly actionSynthesis: AgentCycleActionSynthesisTrace;
   readonly candidateActions: readonly string[];

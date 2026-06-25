@@ -6,6 +6,7 @@ export * from './dailyPlanning';
 export * from './intentionInfluence';
 export * from './llmDailyPlanner';
 export * from './llmReactionEvaluator';
+export * from './llmSubtaskPrioritizer';
 export * from './llmStrategicPlanner';
 export * from './memoryInfluence';
 export * from './planner';
@@ -16,6 +17,7 @@ export * from './reactionEvaluation';
 export * from './reactiveSteering';
 export * from './replanning';
 export * from './strategicPlanning';
+export * from './subtaskPrioritization';
 export * from './worldDecisionContext';
 
 export type AgentRuntimeModuleStatus = {

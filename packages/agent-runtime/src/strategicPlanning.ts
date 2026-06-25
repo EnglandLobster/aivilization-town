@@ -9,7 +9,7 @@ import {
   type PlannerBranch,
   type PlannerSubtask,
 } from './planner';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type StrategicPlanCompilerInput = {
   readonly objective: LongHorizonObjective;
@@ -44,6 +44,7 @@ export type StrategicPlanCompilationTrace = {
   readonly message?: string;
   readonly attempts?: readonly StrategicPlanCompilationAttemptTrace[];
   readonly usage?: StrategicPlanCompilationUsage;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type StrategicPlanCompilationResult = {

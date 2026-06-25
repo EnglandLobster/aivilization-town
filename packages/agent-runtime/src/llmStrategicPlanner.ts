@@ -20,6 +20,10 @@ import {
   type StrategicPlanCompiler,
   type StrategicPlanCompilerInput,
 } from './strategicPlanning';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmStrategicBranchPlanProposal = {
   readonly objective: string;
@@ -141,7 +145,7 @@ export function createTraceableLlmStrategicPlanCompiler(input: {
 
     return {
       plan: result.plan,
-      planningTrace: mapLlmStrategicPlanTrace(result),
+      planningTrace: mapLlmStrategicPlanTrace(result, compilerInput.worldDecisionContext),
     };
   };
 }
@@ -322,7 +326,10 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
   });
 }
 
-function mapLlmStrategicPlanTrace(result: LlmStrategicPlanResult): StrategicPlanCompilationTrace {
+function mapLlmStrategicPlanTrace(
+  result: LlmStrategicPlanResult,
+  worldDecisionContext: WorldDecisionContext | undefined,
+): StrategicPlanCompilationTrace {
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
   return {
@@ -342,7 +349,14 @@ function mapLlmStrategicPlanTrace(result: LlmStrategicPlanResult): StrategicPlan
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<StrategicPlanCompilationTrace, 'worldDecisionContext'> {
+  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmStrategicPlanResult): LlmStructuredResult<BranchPlan> {

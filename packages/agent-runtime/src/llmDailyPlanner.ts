@@ -20,6 +20,10 @@ import {
   type DailyPlanItem,
   type DailyPlanItemSource,
 } from './dailyPlanning';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmDailyPlanProposal = DailyPlan;
 
@@ -136,7 +140,7 @@ export function createTraceableLlmDailyPlanCompiler(input: {
 
     return {
       plan: result.plan,
-      planningTrace: mapLlmDailyPlanTrace(result),
+      planningTrace: mapLlmDailyPlanTrace(result, compilerInput.worldDecisionContext),
     };
   };
 }
@@ -307,7 +311,10 @@ async function compileFallbackPlan(input: LlmDailyPlanCompilerInput): Promise<Da
   });
 }
 
-function mapLlmDailyPlanTrace(result: LlmDailyPlanResult): DailyPlanCompilationTrace {
+function mapLlmDailyPlanTrace(
+  result: LlmDailyPlanResult,
+  worldDecisionContext: WorldDecisionContext | undefined,
+): DailyPlanCompilationTrace {
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
   return {
@@ -327,7 +334,14 @@ function mapLlmDailyPlanTrace(result: LlmDailyPlanResult): DailyPlanCompilationT
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<DailyPlanCompilationTrace, 'worldDecisionContext'> {
+  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmDailyPlanResult): LlmStructuredResult<DailyPlan> {

@@ -17,6 +17,10 @@ import {
   type ReactionEvaluator,
   type ReactionEvaluatorInput,
 } from './reactionEvaluation';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmReactionDecisionProposal = ReactionDecision;
 
@@ -137,7 +141,7 @@ export function createTraceableLlmReactionEvaluator(input: {
 
     return {
       decision: result.decision,
-      reactionTrace: mapLlmReactionTrace(result),
+      reactionTrace: mapLlmReactionTrace(result, evaluatorInput.worldDecisionContext),
     } satisfies ReactionEvaluationResult;
   };
 }
@@ -262,7 +266,10 @@ async function evaluateFallbackReaction(
   }).decision;
 }
 
-function mapLlmReactionTrace(result: LlmReactionResult): ReactionEvaluationTrace {
+function mapLlmReactionTrace(
+  result: LlmReactionResult,
+  worldDecisionContext: WorldDecisionContext | undefined,
+): ReactionEvaluationTrace {
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
   return {
@@ -282,7 +289,14 @@ function mapLlmReactionTrace(result: LlmReactionResult): ReactionEvaluationTrace
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<ReactionEvaluationTrace, 'worldDecisionContext'> {
+  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmReactionResult): LlmStructuredResult<ReactionDecision> {

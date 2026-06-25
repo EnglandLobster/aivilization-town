@@ -403,6 +403,7 @@ describe('runtime profile run report repositories', () => {
             source: 'llm',
             providerId: 'strategic-provider',
             model: 'strategic-model',
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
         }),
         createObjectiveRenewalTrace({
@@ -417,6 +418,7 @@ describe('runtime profile run report repositories', () => {
             source: 'deterministic-fallback',
             providerId: 'daily-provider',
             model: 'daily-model',
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
         }),
       ],
@@ -427,6 +429,7 @@ describe('runtime profile run report repositories', () => {
             status: 'deterministic',
             source: 'deterministic',
             message: 'static social rule',
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
         }),
         createReactionEvaluationTrace({
@@ -479,7 +482,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingProviderTraceCount: 1,
-        worldDecisionContextCount: 0,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'dailyPlanning',
@@ -488,7 +491,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 1,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
-        worldDecisionContextCount: 0,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'reactionEvaluation',
@@ -497,7 +500,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 1,
         missingProviderTraceCount: 1,
-        worldDecisionContextCount: 0,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'reflectionSynthesis',
@@ -767,6 +770,19 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     deterministicCount: 0,
     missingCycleCount: traceCount,
   }));
+}
+
+function createWorldDecisionContextTrace() {
+  return {
+    agentId: 'agent-1',
+    hasPhysiology: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    inventoryItemCount: 2,
+    marketSpotPriceCount: 1,
+    hasLatestPriceIndex: true,
+  };
 }
 
 function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {

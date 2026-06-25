@@ -284,6 +284,7 @@ describe('LLM daily planner seam', () => {
         agent: {
           physiology: { energy: 30, satiety: 90, health: 100 },
         },
+        worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
       plan: {
@@ -301,6 +302,16 @@ describe('LLM daily planner seam', () => {
           outputTokens: 22,
           totalTokens: 34,
           estimatedCostMicros: 90,
+        },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
         },
         attempts: [
           {

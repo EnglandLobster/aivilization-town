@@ -1,5 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  cloneWorldDecisionContextTrace,
+  type WorldDecisionContextTrace,
+} from './worldDecisionContextTrace';
 
 export type ObjectiveRenewalStrategicPlanUsageTrace = {
   readonly inputTokens: number;
@@ -27,6 +31,7 @@ export type ObjectiveRenewalStrategicPlanTrace = {
   readonly message?: string;
   readonly attempts?: readonly ObjectiveRenewalStrategicPlanAttemptTrace[];
   readonly usage?: ObjectiveRenewalStrategicPlanUsageTrace;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type ObjectiveRenewalTrace = {
@@ -178,6 +183,9 @@ function cloneStrategicPlan(
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneStrategicPlanAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneStrategicPlanUsage(trace.usage) }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 

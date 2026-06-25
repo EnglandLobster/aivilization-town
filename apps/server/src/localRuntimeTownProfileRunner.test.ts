@@ -472,6 +472,10 @@ describe('local runtime town profile runner', () => {
       summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'strategicPlanning')
         ?.llmAcceptedCount,
     ).toBeGreaterThan(0);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'strategicPlanning')
+        ?.worldDecisionContextCount,
+    ).toBeGreaterThan(0);
     expect(plan.plan).toMatchObject({
       objective: 'LLM study objective',
       branches: [
@@ -829,6 +833,72 @@ describe('local runtime town profile runner', () => {
     });
   });
 
+  test('uses profile daily planning config with world decision context coverage', async () => {
+    const rootDir = createRootDir();
+    const observedRequestIds: string[] = [];
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 8.5 * 60 * 60 * 1000,
+      dailyPlanning: {
+        kind: 'traceable-llm-daily-planner',
+        profileId: 'smoke-25',
+        model: 'profile-daily-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-daily',
+          responses: createProfileDailyPlanResponses(25, observedRequestIds),
+        },
+      },
+    });
+
+    const agentId = asAgentId('smoke-25-world-main-agent-001');
+    const dailyPlanTraceRepository = new FileDailyPlanRenewalTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const dailyPlanTraces = await dailyPlanTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      dailyPlanId: `daily-plan:${agentId}:0`,
+      limit: 1,
+    });
+
+    expect(observedRequestIds).toContain(
+      `profile-llm-daily-plan:smoke-25:${agentId}:${8.5 * 60 * 60 * 1000}`,
+    );
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'dailyPlanning')
+        ?.llmAcceptedCount,
+    ).toBeGreaterThan(0);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'dailyPlanning')
+        ?.worldDecisionContextCount,
+    ).toBeGreaterThan(0);
+    expect(dailyPlanTraces[0]?.planningTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      providerId: 'scripted-profile-daily',
+      model: 'profile-daily-model',
+      worldDecisionContext: {
+        agentId,
+        hasPhysiology: true,
+        hasBalance: true,
+        hasEducationScore: true,
+        hasResidentialTier: true,
+      },
+    });
+  });
+
   test('uses profile reaction planning config for ambient social observations', async () => {
     const rootDir = createRootDir();
     const actorId = asAgentId('smoke-25-world-main-agent-001');
@@ -937,6 +1007,11 @@ describe('local runtime town profile runner', () => {
       summary.cognitionLlmStageDiagnostics?.find(
         (stage) => stage.stageName === 'reactionEvaluation',
       )?.llmAcceptedCount,
+    ).toBeGreaterThan(0);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'reactionEvaluation',
+      )?.worldDecisionContextCount,
     ).toBeGreaterThan(0);
     expect(
       reactionRequestIds.some((requestId) =>
@@ -1107,6 +1182,41 @@ function createIgnoreReactionResponses(count: number, observedRequestIds: string
         kind: 'ignore',
         confidence: 0.93,
         rationale: 'The bystander noticed the conversation but should not follow up.',
+      }),
+      finishReason: 'stop' as const,
+    };
+  });
+}
+
+function createProfileDailyPlanResponses(count: number, observedRequestIds: string[]) {
+  return Array.from({ length: count }, () => (request: LlmProviderCompletionRequest) => {
+    observedRequestIds.push(request.requestId);
+    const userContent = request.messages[1]?.content ?? '{}';
+    const payload = JSON.parse(userContent) as {
+      readonly agentId: string;
+      readonly dayStart: number;
+      readonly issuedAt: number;
+    };
+    return {
+      providerId: 'scripted-profile-daily',
+      model: 'profile-daily-model',
+      content: JSON.stringify({
+        id: `daily-plan:${payload.agentId}:${payload.dayStart}`,
+        agentId: payload.agentId,
+        dayStart: payload.dayStart,
+        generatedAt: payload.issuedAt,
+        summary: 'Use LLM daily planning with world context.',
+        items: [
+          {
+            id: 'market-aware-routine',
+            description: 'Review current market and inventory before choosing activities.',
+            priority: 5,
+            startsAtOffsetMs: 8 * 60 * 60 * 1000,
+            endsAtOffsetMs: 10 * 60 * 60 * 1000,
+            affinityTags: ['market', 'routine'],
+            source: 'world-state',
+          },
+        ],
       }),
       finishReason: 'stop' as const,
     };

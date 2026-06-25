@@ -1,0 +1,175 @@
+{
+  "llmPlanning": {
+    "kind": "traceable-llm-strategic-planner",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "dailyPlanning": {
+    "kind": "traceable-llm-daily-planner",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "reactionPlanning": {
+    "kind": "traceable-llm-reaction-evaluator",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "subtaskPrioritization": {
+    "kind": "traceable-llm-subtask-prioritizer",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "actionSequenceGeneration": {
+    "kind": "traceable-llm-action-sequence-generator",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "socialDialogue": {
+    "kind": "traceable-llm-social-dialogue-generator",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "globalSynthesis": {
+    "kind": "traceable-llm-global-synthesizer",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "reactiveCorrection": {
+    "kind": "traceable-llm-reactive-corrector",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "replanningDecision": {
+    "kind": "traceable-llm-replanning-decider",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "reflectionSynthesis": {
+    "kind": "traceable-llm-reflective-insight-synthesizer",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "socialModelSynthesis": {
+    "kind": "traceable-llm-social-model-synthesizer",
+    "model": "aivilization-default-planner",
+    "provider": {
+      "kind": "openai-compatible",
+      "providerId": "aivilization-runtime-llm",
+      "endpoint": "https://llm.example.test/v1/chat/completions",
+      "apiKey": {
+        "env": "AIVILIZATION_LLM_API_KEY"
+      },
+      "responseFormat": "json-schema"
+    },
+    "maxAttempts": 2,
+    "timeoutMs": 30000
+  },
+  "replanningPolicy": {
+    "consecutiveFailureThreshold": 2,
+    "failureTags": ["simulator-rejected-action", "resource-blocked"],
+    "majorContextShift": {
+      "key": "world-decision-context-shift",
+      "reason": "agent state, market, inventory, or memory context changed enough to require a replacement plan"
+    }
+  }
+}

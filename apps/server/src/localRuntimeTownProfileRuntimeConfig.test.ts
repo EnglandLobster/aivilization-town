@@ -1,10 +1,86 @@
+import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
+import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
   loadLocalRuntimeTownProfileLlmPlanningConfig,
   loadLocalRuntimeTownProfileRuntimeConfig,
 } from './localRuntimeTownProfileRuntimeConfig';
 
 describe('local runtime town profile runtime config', () => {
+  test('loads the checked-in full LLM runtime config and drives complete profile gate requirements', async () => {
+    const fixturePath = fileURLToPath(
+      new URL('../examples/full-llm-runtime-config.json', import.meta.url),
+    );
+
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'default-100',
+      path: fixturePath,
+      env: {
+        AIVILIZATION_LLM_API_KEY: 'test-api-key',
+      },
+    });
+
+    expect(Object.keys(config).sort()).toEqual([
+      'actionSequenceGeneration',
+      'dailyPlanning',
+      'globalSynthesis',
+      'reactionPlanning',
+      'reactiveCorrection',
+      'reflectionSynthesis',
+      'replanningDecision',
+      'replanningPolicy',
+      'socialDialogue',
+      'socialModelSynthesis',
+      'strategicPlanning',
+      'subtaskPrioritization',
+    ]);
+    expect(config.strategicPlanning).toMatchObject({
+      kind: 'traceable-llm-strategic-planner',
+      model: 'aivilization-default-planner',
+      provider: {
+        kind: 'openai-compatible',
+        apiKey: 'test-api-key',
+        responseFormat: 'json-schema',
+      },
+    });
+
+    const criteria = createLocalRuntimeTownProfileGateCriteria('default-100', {
+      runtimeConfig: config,
+    });
+
+    expect(criteria.requiredAgentCycleLlmAcceptedStages).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+      'replanningDecision',
+    ]);
+    expect(criteria.requiredAgentCycleLlmEconomicContextStages).toEqual(
+      criteria.requiredAgentCycleLlmAcceptedStages,
+    );
+    expect(criteria.requiredAgentCycleLlmObservedStateStages).toEqual(
+      criteria.requiredAgentCycleLlmAcceptedStages,
+    );
+    expect(criteria.requiredCognitionLlmAcceptedStages).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
+    expect(criteria.requiredCognitionLlmEconomicContextStages).toEqual(
+      criteria.requiredCognitionLlmAcceptedStages,
+    );
+    expect(criteria.requiredCognitionLlmObservedStateStages).toEqual(
+      criteria.requiredCognitionLlmAcceptedStages,
+    );
+    expect(criteria.minimumCognitionLlmOutputArtifactCounts).toEqual({
+      reflectionSynthesis: 1,
+      socialModelSynthesis: 1,
+    });
+  });
+
   test('loads profile-specific OpenAI-compatible LLM planning config and resolves env secrets', async () => {
     const config = await loadLocalRuntimeTownProfileLlmPlanningConfig({
       profileId: 'default-100',

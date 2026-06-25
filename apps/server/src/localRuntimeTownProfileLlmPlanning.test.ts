@@ -16,6 +16,7 @@ import {
   createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
+  createLocalRuntimeTownProfileReplanningDecider,
   createLocalRuntimeTownProfileSocialDialogueGenerator,
   createLocalRuntimeTownProfileSocialModelSynthesizer,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
@@ -649,6 +650,109 @@ describe('local runtime town profile LLM planning config', () => {
     });
   });
 
+  test('creates a traceable replanning decider from scripted provider config', async () => {
+    const decider = createLocalRuntimeTownProfileReplanningDecider({
+      kind: 'traceable-llm-replanning-decider',
+      profileId: 'smoke-25',
+      model: 'profile-replanning-model',
+      pricing: { inputTokenCostMicros: 2, outputTokenCostMicros: 3 },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-replanning',
+        responses: [
+          {
+            providerId: 'scripted-profile-replanning',
+            model: 'profile-replanning-model',
+            content: JSON.stringify({
+              decision: {
+                kind: 'memory-guided-correction',
+                trigger: 'simulator-rejection',
+                reason: 'Recent hungry work failures suggest eating before replanning.',
+                failedActionIds: ['work-hungry'],
+                evidenceRecordIds: ['memory-work-failed-hungry'],
+              },
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 15, outputTokens: 7 },
+          },
+        ],
+      },
+    });
+    expect(decider).not.toBeUndefined();
+    if (decider === undefined) {
+      throw new Error('expected LLM replanning decider');
+    }
+
+    const plan = createBranchPlan({
+      objective: 'Earn income without collapsing physiology.',
+      branches: [
+        {
+          id: 'income',
+          objective: 'Earn wages.',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 8 }],
+        },
+      ],
+    });
+    const result = await decider({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      signals: [],
+      selectedSubtask: {
+        branchId: 'income',
+        subtaskId: 'work',
+        description: 'work shift',
+        score: 8,
+      },
+      simulationResults: [
+        {
+          status: 'needs-replan',
+          action: {
+            id: 'work-hungry',
+            description: 'work while hungry',
+            commandType: 'AgentWork',
+            payload: { occupationName: 'Cleaner', laborSeconds: 300 },
+          },
+          reason: 'satiety too low',
+        },
+      ],
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'memory-work-failed-hungry',
+          agentId: asAgentId('agent-1'),
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to work because satiety was too low.',
+          occurredAt: 320,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['work', 'satiety'],
+        }),
+      ],
+      policy: { consecutiveFailureThreshold: 2 },
+    });
+
+    expect(result.decision).toMatchObject({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      failedActionIds: ['work-hungry'],
+      evidenceRecordIds: ['memory-work-failed-hungry'],
+    });
+    expect(result.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-replanning:smoke-25:agent-1:work:333',
+      providerId: 'scripted-profile-replanning',
+      model: 'profile-replanning-model',
+      usage: {
+        inputTokens: 15,
+        outputTokens: 7,
+        totalTokens: 22,
+        estimatedCostMicros: 51,
+      },
+    });
+  });
+
   test('keeps deterministic planning as the default when config is absent', () => {
     expect(createLocalRuntimeTownProfileStrategicPlanCompiler(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileDailyPlanCompiler(undefined)).toBeUndefined();
@@ -658,6 +762,7 @@ describe('local runtime town profile LLM planning config', () => {
     expect(createLocalRuntimeTownProfileSocialDialogueGenerator(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileGlobalSynthesizer(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileReactiveCorrector(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileReplanningDecider(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileSocialModelSynthesizer(undefined)).toBeUndefined();
   });
 

@@ -5,6 +5,7 @@ import type {
   GlobalActionSynthesizer,
   ReactionEvaluator,
   ReactiveCorrector,
+  ReplanningDecider,
   SocialDialogueGenerator,
   StrategicPlanCompiler,
   SubtaskPrioritizer,
@@ -43,6 +44,7 @@ import {
   createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
+  createLocalRuntimeTownProfileReplanningDecider,
   createLocalRuntimeTownProfileSocialDialogueGenerator,
   createLocalRuntimeTownProfileSocialModelSynthesizer,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
@@ -51,6 +53,7 @@ import {
   type LocalRuntimeTownProfileDailyCompilerConfig,
   type LocalRuntimeTownProfileGlobalSynthesizerConfig,
   type LocalRuntimeTownProfileReactiveCorrectorConfig,
+  type LocalRuntimeTownProfileReplanningDeciderConfig,
   type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
@@ -82,6 +85,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
+  readonly replanningDecider?: ReplanningDecider;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
   readonly socialModelSynthesizer?: SocialModelSynthesizer;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -93,6 +97,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly socialDialogue?: LocalRuntimeTownProfileSocialDialogueGeneratorConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesizerConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectorConfig;
+  readonly replanningDecision?: LocalRuntimeTownProfileReplanningDeciderConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig;
   readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesizerConfig;
   readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
@@ -186,6 +191,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const reactiveCorrector =
     input.reactiveCorrector ??
     createLocalRuntimeTownProfileReactiveCorrector(input.reactiveCorrection);
+  const replanningDecider =
+    input.replanningDecider ??
+    createLocalRuntimeTownProfileReplanningDecider(input.replanningDecision);
   const reflectiveInsightSynthesizer =
     input.reflectiveInsightSynthesizer ??
     createLocalRuntimeTownProfileReflectiveInsightSynthesizer(input.reflectionSynthesis);
@@ -210,6 +218,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ...(socialDialogueGenerator === undefined ? {} : { socialDialogueGenerator }),
       ...(globalSynthesizer === undefined ? {} : { globalSynthesizer }),
       ...(reactiveCorrector === undefined ? {} : { reactiveCorrector }),
+      ...(replanningDecider === undefined ? {} : { replanningDecider }),
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
@@ -448,6 +457,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     readonly socialDialogueGenerator?: SocialDialogueGenerator;
     readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
+    readonly replanningDecider?: ReplanningDecider;
     readonly memoryRetrievalLimit?: number;
     readonly memoryRetrievalCandidateLimit?: number;
   } = {},
@@ -533,6 +543,9 @@ export function createLocalRuntimeTownProfileAgentProvider(
         ...(input.reactiveCorrector === undefined
           ? {}
           : { reactiveCorrector: input.reactiveCorrector }),
+        ...(input.replanningDecider === undefined
+          ? {}
+          : { replanningDecider: input.replanningDecider }),
       }),
     });
   };

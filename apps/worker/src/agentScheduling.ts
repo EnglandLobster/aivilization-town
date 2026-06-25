@@ -12,6 +12,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SocialDialogueGenerator,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
@@ -38,6 +39,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
+  readonly replanningDecider?: ReplanningDecider;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
@@ -150,6 +152,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       ...(runtime.reactiveCorrector === undefined
         ? {}
         : { reactiveCorrector: runtime.reactiveCorrector }),
+      ...(runtime.replanningDecider === undefined
+        ? {}
+        : { replanningDecider: runtime.replanningDecider }),
       simulate: runtime.simulate,
       ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
       ...(runtime.subtaskCompletion === undefined

@@ -11,6 +11,8 @@ import type {
   LocalRuntimeTownProfileLlmPlanningConfig,
   LocalRuntimeTownProfileReactiveCorrectionConfig,
   LocalRuntimeTownProfileReactiveCorrectorConfig,
+  LocalRuntimeTownProfileReplanningDecisionConfig,
+  LocalRuntimeTownProfileReplanningDeciderConfig,
   LocalRuntimeTownProfileReactionEvaluatorConfig,
   LocalRuntimeTownProfileReactionPlanningConfig,
   LocalRuntimeTownProfileReflectionSynthesisConfig,
@@ -54,6 +56,7 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly socialDialogue?: LocalRuntimeTownProfileSocialDialogueGenerationConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesisConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectionConfig;
+  readonly replanningDecision?: LocalRuntimeTownProfileReplanningDecisionConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectionSynthesisConfig;
   readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesisConfig;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -189,6 +192,15 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const replanningDecision = parseReplanningDecisionNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'replanningDecision',
+    }),
+    env,
+  });
   const reflectionSynthesis = parseReflectionSynthesisNode({
     profileId: input.profileId,
     node: selectProfilePlanningNode({
@@ -217,6 +229,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(socialDialogue === undefined ? {} : { socialDialogue }),
     ...(globalSynthesis === undefined ? {} : { globalSynthesis }),
     ...(reactiveCorrection === undefined ? {} : { reactiveCorrection }),
+    ...(replanningDecision === undefined ? {} : { replanningDecision }),
     ...(reflectionSynthesis === undefined ? {} : { reflectionSynthesis }),
     ...(socialModelSynthesis === undefined ? {} : { socialModelSynthesis }),
     ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
@@ -533,6 +546,42 @@ function parseReactiveCorrectionNode(input: {
   };
 }
 
+function parseReplanningDecisionNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileReplanningDeciderConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'replanningDecision');
+  const kind = readRequiredString(record.kind, 'replanningDecision.kind');
+  if (kind !== 'traceable-llm-replanning-decider') {
+    throw new Error(`replanningDecision.kind must be traceable-llm-replanning-decider`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'replanningDecision.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(
+    record.timeoutMs,
+    'replanningDecision.timeoutMs',
+  );
+  const pricing = parseOptionalPricing(record.pricing, 'replanningDecision');
+
+  return {
+    kind: 'traceable-llm-replanning-decider',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'replanningDecision.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'replanningDecision'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
 function parseReflectionSynthesisNode(input: {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
   readonly node: unknown;
@@ -648,6 +697,7 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'socialDialogue'
   | 'globalSynthesis'
   | 'reactiveCorrection'
+  | 'replanningDecision'
   | 'reflectionSynthesis'
   | 'socialModelSynthesis'
   | 'replanningPolicy';

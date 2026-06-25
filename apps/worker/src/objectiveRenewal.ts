@@ -178,6 +178,7 @@ export async function renewMissingActiveObjectives(input: {
     const strategicPlan = await createStrategicPlanRecord({
       objective,
       issuedAt: input.issuedAt,
+      longTermProfile,
       compile,
     });
     await input.planRepository.save(strategicPlan.record);
@@ -200,13 +201,18 @@ export async function renewMissingActiveObjectives(input: {
 async function createStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
+  readonly longTermProfile: LongTermAgentProfile;
   readonly compile: StrategicPlanCompiler;
 }): Promise<{
   readonly record: BranchPlanRecord;
   readonly planningTrace?: StrategicPlanCompilationTrace;
 }> {
   const compiled = normalizeStrategicPlanCompilerOutput(
-    await input.compile({ objective: input.objective, issuedAt: input.issuedAt }),
+    await input.compile({
+      objective: input.objective,
+      issuedAt: input.issuedAt,
+      longTermProfile: input.longTermProfile,
+    }),
   );
   return {
     record: {

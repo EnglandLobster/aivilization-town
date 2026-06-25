@@ -1,4 +1,5 @@
 import { createScriptedLlmProvider } from '@aivilization/llm';
+import { asMemoryRecordId } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -120,6 +121,56 @@ describe('LLM strategic planner seam', () => {
       type: 'object',
       required: ['objective', 'branches'],
     });
+  });
+
+  test('includes long-term profile context in structured strategic planner requests', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            objective: 'Craft Chip for the electronics market.',
+            branches: [
+              {
+                id: 'development',
+                objective: 'Study before high-tech production.',
+                subtasks: [
+                  {
+                    id: 'study',
+                    description: 'Study before crafting chips.',
+                    basePriority: 12,
+                    signalKeys: ['production', 'study'],
+                    intentionAffinityTags: ['study'],
+                    memoryAffinityTags: ['study'],
+                    profileAffinityTags: ['study'],
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await proposeStrategicBranchPlanWithLlm({
+      objective: objective('Craft Chip for the electronics market.', ['production']),
+      issuedAt: 120,
+      longTermProfile: studyBeforeProductionProfile(),
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: 'llm-plan-with-profile',
+    });
+
+    const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"longTermProfile"');
+    expect(requestContent).toContain('"human-objective:study-before-production"');
+    expect(requestContent).toContain(
+      '"Human steering set long-horizon objective: Study before high-tech production."',
+    );
+    expect(requestContent).toContain('"cmd-study:strategic-objective"');
   });
 
   test('falls back to deterministic strategic planning when LLM output is invalid', async () => {
@@ -383,6 +434,50 @@ describe('LLM strategic planner seam', () => {
       },
     });
   });
+
+  test('passes long-term profile context to fallback strategic compilers', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            objective: 'Craft Chip for the electronics market.',
+            branches: [],
+          }),
+        },
+      ],
+    });
+    let fallbackProfileKeys: readonly string[] = [];
+
+    const result = await proposeStrategicBranchPlanWithLlm({
+      objective: objective('Craft Chip for the electronics market.', ['production']),
+      issuedAt: 520,
+      longTermProfile: studyBeforeProductionProfile(),
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: 'llm-plan-profile-fallback',
+      fallbackCompiler: ({ longTermProfile }) => {
+        fallbackProfileKeys = longTermProfile?.values.map((entry) => entry.key) ?? [];
+        return {
+          objective: 'Fallback profile-aware plan.',
+          branches: [
+            {
+              id: 'profile-development',
+              objective: 'Use profile evidence during fallback.',
+              subtasks: [{ id: 'study', description: 'Study from profile.', basePriority: 12 }],
+            },
+          ],
+        };
+      },
+    });
+
+    expect(result.status).toBe('fallback');
+    expect(fallbackProfileKeys).toEqual(['human-objective:study-before-production']);
+    expect(result.plan.branches.map((branch) => branch.id)).toEqual(['profile-development']);
+  });
 });
 
 function objective(statement: string, affinityTags: readonly string[]) {
@@ -395,5 +490,25 @@ function objective(statement: string, affinityTags: readonly string[]) {
     affinityTags,
     createdAt: 100,
     updatedAt: 100,
+  };
+}
+
+function studyBeforeProductionProfile() {
+  return {
+    agentId,
+    beliefs: [],
+    habits: [],
+    mood: [],
+    values: [
+      {
+        key: 'human-objective:study-before-production',
+        statement: 'Human steering set long-horizon objective: Study before high-tech production.',
+        confidence: 0.95,
+        updatedAt: 100,
+        provenanceRecordIds: [asMemoryRecordId('cmd-study:strategic-objective')],
+      },
+    ],
+    personality: [],
+    socialRecords: [],
   };
 }

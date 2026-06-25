@@ -7,7 +7,6 @@ import type {
   LlmStructuredSuccess,
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
-import type { LongHorizonObjective } from '@aivilization/memory';
 import {
   createBranchPlan,
   type BranchPlan,
@@ -69,7 +68,7 @@ export async function proposeStrategicBranchPlanWithLlm(
     request: {
       requestId: input.requestId,
       model: input.model,
-      messages: createStrategicPlannerMessages(input.objective, input.issuedAt),
+      messages: createStrategicPlannerMessages(input),
       tools: [branchPlanToolContract],
       ...(input.maxAttempts === undefined ? {} : { maxAttempts: input.maxAttempts }),
       ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
@@ -194,8 +193,7 @@ const branchPlanToolContract = {
 };
 
 function createStrategicPlannerMessages(
-  objective: LongHorizonObjective,
-  issuedAt: number,
+  input: StrategicPlanCompilerInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
   return [
     {
@@ -207,16 +205,17 @@ function createStrategicPlannerMessages(
       role: 'user',
       content: JSON.stringify({
         objective: {
-          id: objective.id,
-          agentId: objective.agentId,
-          statement: objective.statement,
-          priority: objective.priority,
-          source: objective.source,
-          affinityTags: objective.affinityTags,
-          createdAt: objective.createdAt,
-          updatedAt: objective.updatedAt,
+          id: input.objective.id,
+          agentId: input.objective.agentId,
+          statement: input.objective.statement,
+          priority: input.objective.priority,
+          source: input.objective.source,
+          affinityTags: input.objective.affinityTags,
+          createdAt: input.objective.createdAt,
+          updatedAt: input.objective.updatedAt,
         },
-        issuedAt,
+        issuedAt: input.issuedAt,
+        ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
         constraints: [
           'Output branch-plan proposal data only.',
           'Subtask ids must be unique across the full plan.',
@@ -301,6 +300,7 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
   const fallbackOutput = await input.fallbackCompiler?.({
     objective: input.objective,
     issuedAt: input.issuedAt,
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
   });
   if (fallbackOutput !== undefined) {
     return normalizeStrategicPlanCompilerOutput(fallbackOutput).plan;
@@ -309,6 +309,7 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
   return compileStrategicObjectiveToBranchPlan({
     objective: input.objective,
     issuedAt: input.issuedAt,
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
   });
 }
 

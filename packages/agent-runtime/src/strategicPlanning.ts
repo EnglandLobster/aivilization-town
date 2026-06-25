@@ -1,4 +1,8 @@
-import type { LongHorizonObjective } from '@aivilization/memory';
+import type {
+  LongHorizonObjective,
+  LongTermAgentProfile,
+  LongTermProfileEntry,
+} from '@aivilization/memory';
 import {
   createBranchPlan,
   type BranchPlan,
@@ -9,6 +13,7 @@ import {
 export type StrategicPlanCompilerInput = {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
+  readonly longTermProfile?: LongTermAgentProfile;
 };
 
 export type StrategicPlanCompilationUsage = {
@@ -74,7 +79,11 @@ export function compileStrategicObjectiveToBranchPlan(
   assertFiniteNumber(input.issuedAt, 'issuedAt');
   const objectiveText = input.objective.statement;
   const tags = normalizeTags(input.objective.affinityTags);
-  const context = createPlanningContext({ objectiveText, tags });
+  const context = createPlanningContext({
+    objectiveText,
+    tags,
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+  });
   const branches = STRATEGIC_DOMAIN_RULES.filter((rule) => ruleMatchesContext(rule, context)).map(
     (rule) =>
       createDomainBranch({
@@ -146,6 +155,8 @@ type PlanningTextContext = {
   readonly tokens: ReadonlySet<string>;
   readonly tags: ReadonlySet<string>;
 };
+
+const PROFILE_PLANNING_CONTEXT_MIN_CONFIDENCE = 0.7;
 
 function createDirectActionBranchWithoutObjectiveDecomposition(
   branch: PlannerBranch,
@@ -367,13 +378,43 @@ function normalizeTags(tags: readonly string[]): readonly string[] {
 function createPlanningContext(input: {
   readonly objectiveText: string;
   readonly tags: readonly string[];
+  readonly longTermProfile?: LongTermAgentProfile;
 }): PlanningTextContext {
-  const text = `${input.objectiveText.toLowerCase()} ${input.tags.join(' ')}`;
+  const text = [
+    input.objectiveText.toLowerCase(),
+    input.tags.join(' '),
+    createProfilePlanningText(input.longTermProfile),
+  ].join(' ');
   return {
     text,
     tokens: new Set(tokenizeText(text)),
     tags: new Set(input.tags),
   };
+}
+
+function createProfilePlanningText(profile: LongTermAgentProfile | undefined): string {
+  if (profile === undefined) {
+    return '';
+  }
+
+  return selectProfilePlanningEntries(profile)
+    .map((entry) => `${entry.key} ${entry.statement}`.toLowerCase())
+    .join(' ');
+}
+
+function selectProfilePlanningEntries(
+  profile: LongTermAgentProfile,
+): readonly LongTermProfileEntry[] {
+  return [...profile.values, ...profile.habits]
+    .filter((entry) => entry.confidence >= PROFILE_PLANNING_CONTEXT_MIN_CONFIDENCE)
+    .sort(compareProfileEntries);
+}
+
+function compareProfileEntries(left: LongTermProfileEntry, right: LongTermProfileEntry): number {
+  if (left.updatedAt !== right.updatedAt) {
+    return right.updatedAt - left.updatedAt;
+  }
+  return left.key.localeCompare(right.key);
 }
 
 function ruleMatchesContext(rule: StrategicDomainRule, context: PlanningTextContext): boolean {

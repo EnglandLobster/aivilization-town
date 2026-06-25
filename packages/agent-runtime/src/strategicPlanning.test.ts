@@ -1,3 +1,4 @@
+import { asMemoryRecordId } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -101,6 +102,66 @@ describe('strategic objective planning', () => {
           memoryAffinityTags: ['production'],
           profileAffinityTags: ['production'],
           signalKeys: ['production', 'residential', 'work'],
+        },
+      ],
+    });
+  });
+
+  test('uses long-term profile values to construct delayed-investment branches for production objectives', () => {
+    const statement = 'Craft Chip for the electronics market.';
+    const plan = compileStrategicObjectiveToBranchPlan({
+      objective: {
+        id: 'objective-chip',
+        agentId,
+        statement,
+        priority: 2,
+        source: 'human',
+        affinityTags: ['production'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+      longTermProfile: {
+        agentId,
+        beliefs: [],
+        habits: [],
+        mood: [],
+        values: [
+          {
+            key: 'human-objective:study-before-production',
+            statement:
+              'Human steering set long-horizon objective: Study before high-tech production.',
+            confidence: 0.95,
+            updatedAt: 80,
+            provenanceRecordIds: [asMemoryRecordId('cmd-study:strategic-objective')],
+          },
+        ],
+        personality: [],
+        socialRecords: [],
+      },
+    });
+
+    expect(plan.branches.map((branch) => branch.id)).toEqual(['development', 'production']);
+    expect(plan.branches[0]).toMatchObject({
+      id: 'development',
+      objective: 'Invest in education before short-term labor pressure dominates.',
+      subtasks: [
+        {
+          id: 'study',
+          basePriority: 12,
+          signalKeys: ['production', 'study'],
+          intentionAffinityTags: ['study'],
+          memoryAffinityTags: ['study'],
+          profileAffinityTags: ['study'],
+        },
+      ],
+    });
+    expect(plan.branches[1]).toMatchObject({
+      id: 'production',
+      subtasks: [
+        {
+          id: 'produce-target',
+          signalKeys: ['production'],
         },
       ],
     });

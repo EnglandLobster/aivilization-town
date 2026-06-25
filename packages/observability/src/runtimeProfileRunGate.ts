@@ -26,12 +26,14 @@ export type RuntimeProfileRunGateCriteria = {
   readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmNoDeterministicStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -134,6 +136,11 @@ export function evaluateRuntimeProfileRunReport(
     report,
     criteria.requiredAgentCycleLlmNoFallbackStages ?? [],
   );
+  addRequiredAgentCycleLlmNoDeterministicStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmNoDeterministicStages ?? [],
+  );
   addRequiredAgentCycleLlmWorldContextStageFailures(
     failures,
     report,
@@ -163,6 +170,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmNoFallbackStages ?? [],
+  );
+  addRequiredCognitionLlmNoDeterministicStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmNoDeterministicStages ?? [],
   );
   addRequiredCognitionLlmWorldContextStageFailures(
     failures,
@@ -334,6 +346,33 @@ function addRequiredAgentCycleLlmNoFallbackStageFailures(
   }
 }
 
+function addRequiredAgentCycleLlmNoDeterministicStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.deterministicCount ?? 0;
+    if (actual <= 0) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-deterministic-trace-present',
+      message: `agent-cycle LLM stage ${stageName} deterministicCount must be 0`,
+      evidence: {
+        stageName,
+        actual,
+        maximum: 0,
+      },
+    });
+  }
+}
+
 function addRequiredAgentCycleLlmWorldContextStageFailures(
   failures: RuntimeProfileRunGateFailure[],
   report: RuntimeProfileRunReport,
@@ -491,6 +530,32 @@ function addRequiredCognitionLlmNoFallbackStageFailures(
     failures.push({
       code: 'cognition-llm-stage-deterministic-fallback-present',
       message: `cognition LLM stage ${stageName} deterministicFallbackCount must be 0`,
+      evidence: {
+        stageName,
+        actual,
+        maximum: 0,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmNoDeterministicStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.deterministicCount ?? 0;
+    if (actual <= 0) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-deterministic-trace-present',
+      message: `cognition LLM stage ${stageName} deterministicCount must be 0`,
       evidence: {
         stageName,
         actual,

@@ -59,6 +59,7 @@ import {
   simulateActionWithTieredRepair,
   type ActionRepairTrace,
   type ReactiveCorrector,
+  type TieredActionRepairResult,
 } from './actionRepair';
 import type { GlobalActionSynthesizer, GlobalSynthesisTrace } from './globalSynthesis';
 import type {
@@ -753,14 +754,15 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
     });
   }
 
-  const repairResults = await Promise.all(
-    candidateActions.map((action) => {
-      const selectedSubtask = resolveSelectedSubtaskForAction({
-        action,
-        fallback: input.selectedSubtask,
-        selectedSubtasksByKey: input.synthesisSubtasksByKey,
-      });
-      return simulateActionWithTieredRepair({
+  const repairResults: TieredActionRepairResult[] = [];
+  for (const action of candidateActions) {
+    const selectedSubtask = resolveSelectedSubtaskForAction({
+      action,
+      fallback: input.selectedSubtask,
+      selectedSubtasksByKey: input.synthesisSubtasksByKey,
+    });
+    repairResults.push(
+      await simulateActionWithTieredRepair({
         action,
         selectedSubtask,
         simulate: (candidate) =>
@@ -800,9 +802,9 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
             ? {}
             : { worldDecisionContext: input.worldDecisionContext }),
         },
-      });
-    }),
-  );
+      }),
+    );
+  }
   const simulationResults = repairResults.map((result) => result.result);
   const actionRepairTraces = repairResults.flatMap((result) =>
     result.trace === undefined ? [] : [result.trace],

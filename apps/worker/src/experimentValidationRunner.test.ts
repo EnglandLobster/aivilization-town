@@ -399,6 +399,7 @@ describe('worker experiment validation runner', () => {
       'volatility-clustering',
       'wealth-stratification',
       'planner-ablation',
+      'planner-economic-sensitivity',
       'social-reflection-coverage',
       'steering-memory-propagation',
       'trajectory-coverage',

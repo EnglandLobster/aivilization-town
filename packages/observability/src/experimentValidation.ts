@@ -4,6 +4,7 @@ export type ExperimentValidationMetricId =
   | 'volatility-clustering'
   | 'wealth-stratification'
   | 'planner-ablation'
+  | 'planner-economic-sensitivity'
   | 'social-reflection-coverage'
   | 'steering-memory-propagation'
   | 'trajectory-coverage';
@@ -108,6 +109,12 @@ export type PlannerAblationThresholds = {
   readonly maximumDefaultSingleBranchPlanRatio?: number;
 };
 
+export type PlannerEconomicSensitivityThresholds = {
+  readonly minimumScenarioCount?: number;
+  readonly minimumSensitiveScenarioRatio?: number;
+  readonly minimumCompleteEconomicContextRatio?: number;
+};
+
 export type SocialReflectionCoverageThresholds = {
   readonly minimumObservationCount?: number;
   readonly minimumAgentCoverageRatio?: number;
@@ -134,6 +141,7 @@ export type ExperimentValidationThresholds = {
   readonly volatilityClustering?: VolatilityClusteringThresholds;
   readonly wealthStratification?: WealthStratificationThresholds;
   readonly plannerAblation?: PlannerAblationThresholds;
+  readonly plannerEconomicSensitivity?: PlannerEconomicSensitivityThresholds;
   readonly socialReflectionCoverage?: SocialReflectionCoverageThresholds;
   readonly steeringMemoryPropagation?: SteeringMemoryPropagationThresholds;
   readonly trajectoryCoverage?: TrajectoryCoverageThresholds;
@@ -220,6 +228,16 @@ type PlannerNamedMetricSummary = {
   readonly defaultAdvantage: number;
 };
 
+type PlannerEconomicSensitivityDiagnostics = {
+  readonly metricRunCount: number;
+  readonly scenarioCount: number;
+  readonly sensitiveScenarioCount: number;
+  readonly insensitiveScenarioCount: number;
+  readonly completeEconomicContextScenarioCount: number;
+  readonly sensitivityRatio: number;
+  readonly completeEconomicContextRatio: number;
+};
+
 type SocialReflectionDiagnostics = {
   readonly observationCount: number;
   readonly expectedAgentCount: number;
@@ -273,6 +291,12 @@ const PLANNER_OUTCOME_METRIC_IDS = new Set([
   'planner-distinct-selected-branch-count',
 ]);
 
+const PLANNER_ECONOMIC_SENSITIVITY_METRIC_IDS = new Set([
+  'planner-economic-sensitivity-scenario-count',
+  'planner-economic-sensitivity-selection-change-count',
+  'planner-economic-sensitivity-complete-economic-context-count',
+]);
+
 const DEFAULT_THRESHOLDS = {
   marketStability: {
     maximumLogPriceRange: 2,
@@ -296,6 +320,11 @@ const DEFAULT_THRESHOLDS = {
     maximumDefaultSimulatorRejectedRatio: 1,
     maximumDefaultReplanningCycleRatio: 1,
     maximumDefaultSingleBranchPlanRatio: 1,
+  },
+  plannerEconomicSensitivity: {
+    minimumScenarioCount: 1,
+    minimumSensitiveScenarioRatio: 1,
+    minimumCompleteEconomicContextRatio: 1,
   },
   socialReflectionCoverage: {
     minimumObservationCount: 1,
@@ -331,6 +360,9 @@ export function createExperimentValidationReport(
     input.plannerRuns,
     thresholds.plannerAblation.expectedVariants,
   );
+  const plannerEconomicSensitivityDiagnostics = calculatePlannerEconomicSensitivityDiagnostics(
+    input.plannerRuns,
+  );
   const trajectoryDiagnostics = calculateTrajectoryDiagnostics(
     input.expectedTrajectoryAgentIds,
     input.trajectories,
@@ -351,6 +383,10 @@ export function createExperimentValidationReport(
     createVolatilityClusteringMetric(priceDiagnostics, thresholds.volatilityClustering),
     createWealthStratificationMetric(wealthDiagnostics, thresholds.wealthStratification),
     createPlannerAblationMetric(plannerDiagnostics, thresholds.plannerAblation),
+    createPlannerEconomicSensitivityMetric(
+      plannerEconomicSensitivityDiagnostics,
+      thresholds.plannerEconomicSensitivity,
+    ),
     createSocialReflectionCoverageMetric(
       socialReflectionDiagnostics,
       thresholds.socialReflectionCoverage,
@@ -452,6 +488,10 @@ function mergeThresholds(thresholds: ExperimentValidationThresholds | undefined)
     plannerAblation: {
       ...DEFAULT_THRESHOLDS.plannerAblation,
       ...thresholds?.plannerAblation,
+    },
+    plannerEconomicSensitivity: {
+      ...DEFAULT_THRESHOLDS.plannerEconomicSensitivity,
+      ...thresholds?.plannerEconomicSensitivity,
     },
     socialReflectionCoverage: {
       ...DEFAULT_THRESHOLDS.socialReflectionCoverage,
@@ -635,11 +675,18 @@ function calculatePlannerDiagnostics(
     for (const metric of run.metrics) {
       assertNonEmptyString(metric.metricId, 'plannerRuns metricId');
       assertFinite(metric.value, 'plannerRuns value');
+      if (PLANNER_ECONOMIC_SENSITIVITY_METRIC_IDS.has(metric.metricId)) {
+        continue;
+      }
       const key = createTaskMetricKey(run.taskId, metric.metricId);
       const existing = groups.get(key) ?? [];
       existing.push(run);
       groups.set(key, existing);
     }
+  }
+
+  if (groups.size === 0) {
+    throw new Error('plannerRuns requires at least one planner ablation metric group');
   }
 
   const comparisons: PlannerComparison[] = [];
@@ -692,6 +739,55 @@ function calculatePlannerDiagnostics(
     simulatorRejectedRatio: summarizeNamedPlannerMetric(groups, 'planner-simulator-rejected-ratio'),
     replanningCycleRatio: summarizeNamedPlannerMetric(groups, 'planner-replanning-cycle-ratio'),
     singleBranchPlanRatio: summarizeNamedPlannerMetric(groups, 'planner-single-branch-plan-ratio'),
+  };
+}
+
+function calculatePlannerEconomicSensitivityDiagnostics(
+  plannerRuns: readonly PlannerExperimentRun[],
+): PlannerEconomicSensitivityDiagnostics {
+  let metricRunCount = 0;
+  let scenarioCount = 0;
+  let sensitiveScenarioCount = 0;
+  let completeEconomicContextScenarioCount = 0;
+
+  for (const run of plannerRuns) {
+    let runHasSensitivityMetric = false;
+    for (const metric of run.metrics) {
+      if (!PLANNER_ECONOMIC_SENSITIVITY_METRIC_IDS.has(metric.metricId)) {
+        continue;
+      }
+      runHasSensitivityMetric = true;
+      assertNonNegativeFinite(metric.value, `plannerRuns ${metric.metricId}`);
+      if (metric.metricId === 'planner-economic-sensitivity-scenario-count') {
+        scenarioCount += metric.value;
+      } else if (metric.metricId === 'planner-economic-sensitivity-selection-change-count') {
+        sensitiveScenarioCount += metric.value;
+      } else if (
+        metric.metricId === 'planner-economic-sensitivity-complete-economic-context-count'
+      ) {
+        completeEconomicContextScenarioCount += metric.value;
+      }
+    }
+    metricRunCount += runHasSensitivityMetric ? 1 : 0;
+  }
+
+  const boundedSensitiveScenarioCount = Math.min(sensitiveScenarioCount, scenarioCount);
+  const boundedCompleteEconomicContextScenarioCount = Math.min(
+    completeEconomicContextScenarioCount,
+    scenarioCount,
+  );
+
+  return {
+    metricRunCount,
+    scenarioCount,
+    sensitiveScenarioCount: boundedSensitiveScenarioCount,
+    insensitiveScenarioCount: Math.max(0, scenarioCount - boundedSensitiveScenarioCount),
+    completeEconomicContextScenarioCount: boundedCompleteEconomicContextScenarioCount,
+    sensitivityRatio: safeRatio(boundedSensitiveScenarioCount, scenarioCount),
+    completeEconomicContextRatio: safeRatio(
+      boundedCompleteEconomicContextScenarioCount,
+      scenarioCount,
+    ),
   };
 }
 
@@ -999,6 +1095,36 @@ function createPlannerAblationMetric(
   };
 }
 
+function createPlannerEconomicSensitivityMetric(
+  diagnostics: PlannerEconomicSensitivityDiagnostics,
+  thresholds: Required<PlannerEconomicSensitivityThresholds>,
+): ExperimentValidationMetric {
+  validatePlannerEconomicSensitivityThresholds(thresholds);
+  const status =
+    diagnostics.scenarioCount >= thresholds.minimumScenarioCount &&
+    diagnostics.sensitivityRatio >= thresholds.minimumSensitiveScenarioRatio &&
+    diagnostics.completeEconomicContextRatio >= thresholds.minimumCompleteEconomicContextRatio
+      ? 'pass'
+      : 'watch';
+
+  return {
+    id: 'planner-economic-sensitivity',
+    label: 'Planner economic sensitivity',
+    status,
+    value: diagnostics.sensitivityRatio,
+    unit: 'price-sensitive scenario ratio',
+    evidence: {
+      metricRunCount: diagnostics.metricRunCount,
+      scenarioCount: diagnostics.scenarioCount,
+      sensitiveScenarioCount: diagnostics.sensitiveScenarioCount,
+      insensitiveScenarioCount: diagnostics.insensitiveScenarioCount,
+      completeEconomicContextScenarioCount: diagnostics.completeEconomicContextScenarioCount,
+      sensitivityRatio: diagnostics.sensitivityRatio,
+      completeEconomicContextRatio: diagnostics.completeEconomicContextRatio,
+    },
+  };
+}
+
 function createSocialReflectionCoverageMetric(
   diagnostics: SocialReflectionDiagnostics,
   thresholds: Required<SocialReflectionCoverageThresholds>,
@@ -1186,6 +1312,23 @@ function validateSocialReflectionThresholds(
     'socialReflectionCoverage minimumMeanConfidence',
   );
   assertNonEmptyString(thresholds.requiredTag, 'socialReflectionCoverage requiredTag');
+}
+
+function validatePlannerEconomicSensitivityThresholds(
+  thresholds: Required<PlannerEconomicSensitivityThresholds>,
+): void {
+  assertNonNegativeInteger(
+    thresholds.minimumScenarioCount,
+    'plannerEconomicSensitivity minimumScenarioCount',
+  );
+  assertUnitInterval(
+    thresholds.minimumSensitiveScenarioRatio,
+    'plannerEconomicSensitivity minimumSensitiveScenarioRatio',
+  );
+  assertUnitInterval(
+    thresholds.minimumCompleteEconomicContextRatio,
+    'plannerEconomicSensitivity minimumCompleteEconomicContextRatio',
+  );
 }
 
 function validateSteeringMemoryThresholds(
@@ -1564,6 +1707,12 @@ function assertNonEmptyString(value: string, fieldName: string): void {
 function assertFinite(value: number, fieldName: string): void {
   if (!Number.isFinite(value)) {
     throw new Error(`${fieldName} must be finite`);
+  }
+}
+
+function assertNonNegativeFinite(value: number, fieldName: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${fieldName} must be non-negative and finite`);
   }
 }
 

@@ -155,6 +155,7 @@ describe('experiment validation report', () => {
       'volatility-clustering',
       'wealth-stratification',
       'planner-ablation',
+      'planner-economic-sensitivity',
       'social-reflection-coverage',
       'steering-memory-propagation',
       'trajectory-coverage',
@@ -223,7 +224,7 @@ describe('experiment validation report', () => {
     expect(trajectories.evidence.minimumStepCount).toBe(1);
     expect(trajectories.evidence.commandBackedTrajectoryCount).toBe(1);
 
-    expect(report.findings).toHaveLength(8);
+    expect(report.findings).toHaveLength(9);
     expect(report.findings.map((finding) => finding.topic)).toEqual(
       report.metrics.map((metric) => metric.id),
     );
@@ -592,6 +593,86 @@ describe('experiment validation report', () => {
       defaultSingleBranchPlanRatio: 0.25,
       ablatedSingleBranchPlanRatio: 1,
       singleBranchPlanRatioDefaultAdvantage: 0.75,
+    });
+  });
+
+  test('consumes planner economic sensitivity metrics without polluting ablation comparisons', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-planner-economic-sensitivity',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_004,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 102 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'default',
+          metrics: [
+            { metricId: 'net-worth', value: 120, higherIsBetter: true },
+            {
+              metricId: 'planner-economic-sensitivity-scenario-count',
+              value: 2,
+              higherIsBetter: true,
+            },
+            {
+              metricId: 'planner-economic-sensitivity-selection-change-count',
+              value: 1,
+              higherIsBetter: true,
+            },
+            {
+              metricId: 'planner-economic-sensitivity-complete-economic-context-count',
+              value: 2,
+              higherIsBetter: true,
+            },
+          ],
+        },
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 95, higherIsBetter: true }],
+        },
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 105, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        plannerEconomicSensitivity: {
+          minimumScenarioCount: 2,
+          minimumSensitiveScenarioRatio: 0.5,
+          minimumCompleteEconomicContextRatio: 1,
+        },
+      },
+    });
+
+    const economicSensitivity = getMetric(report.metrics, 'planner-economic-sensitivity');
+    expect(economicSensitivity.status).toBe('pass');
+    expect(economicSensitivity.value).toBeCloseTo(0.5);
+    expect(economicSensitivity.evidence).toMatchObject({
+      scenarioCount: 2,
+      sensitiveScenarioCount: 1,
+      insensitiveScenarioCount: 1,
+      completeEconomicContextScenarioCount: 2,
+      sensitivityRatio: 0.5,
+      completeEconomicContextRatio: 1,
+    });
+
+    const ablation = getMetric(report.metrics, 'planner-ablation');
+    expect(ablation.evidence).toMatchObject({
+      taskMetricCount: 1,
+      comparisonCount: 2,
     });
   });
 

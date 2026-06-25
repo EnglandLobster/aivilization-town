@@ -4,6 +4,7 @@ export * from './branchPlanRepository';
 export * from './cycle';
 export * from './dailyPlanning';
 export * from './intentionInfluence';
+export * from './llmDailyPlanner';
 export * from './llmStrategicPlanner';
 export * from './memoryInfluence';
 export * from './planner';

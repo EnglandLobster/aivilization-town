@@ -55,6 +55,52 @@ export type DeterministicDailyPlanInput = {
   readonly memoryContext?: readonly ShortTermMemoryRecord[];
 };
 
+export type DailyPlanCompilerInput = DeterministicDailyPlanInput;
+
+export type DailyPlanCompilationUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly estimatedCostMicros: number;
+};
+
+export type DailyPlanCompilationAttemptTrace = {
+  readonly attemptIndex: number;
+  readonly status: string;
+  readonly providerId: string;
+  readonly model: string;
+  readonly message: string;
+  readonly usage: DailyPlanCompilationUsage;
+};
+
+export type DailyPlanCompilationTrace = {
+  readonly status: 'accepted' | 'fallback' | 'deterministic';
+  readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly attempts?: readonly DailyPlanCompilationAttemptTrace[];
+  readonly usage?: DailyPlanCompilationUsage;
+};
+
+export type DailyPlanCompilationResult = {
+  readonly plan: DailyPlan;
+  readonly planningTrace: DailyPlanCompilationTrace;
+};
+
+export type DailyPlanCompilerOutput = DailyPlan | DailyPlanCompilationResult;
+
+export type DailyPlanCompiler = (
+  input: DailyPlanCompilerInput,
+) => DailyPlanCompilerOutput | Promise<DailyPlanCompilerOutput>;
+
+export type NormalizedDailyPlanCompilation = {
+  readonly plan: DailyPlan;
+  readonly planningTrace?: DailyPlanCompilationTrace;
+};
+
 export type DailyPlanToScheduledIntentionsInput = {
   readonly plan: DailyPlan;
   readonly createdAt: SimulationTimestamp;
@@ -146,6 +192,19 @@ export function createDailyPlan(input: DailyPlan): DailyPlan {
   };
 }
 
+export function normalizeDailyPlanCompilerOutput(
+  output: DailyPlanCompilerOutput,
+): NormalizedDailyPlanCompilation {
+  if (isDailyPlanCompilationResult(output)) {
+    return {
+      plan: output.plan,
+      planningTrace: output.planningTrace,
+    };
+  }
+
+  return { plan: output };
+}
+
 export function compileDeterministicDailyPlan(input: DeterministicDailyPlanInput): DailyPlan {
   assertNonEmpty(input.agentId, 'agentId');
   assertFiniteNonNegative(input.issuedAt, 'issuedAt');
@@ -189,6 +248,17 @@ export function compileDeterministicDailyPlan(input: DeterministicDailyPlanInput
       'Plan the day around baseline routines, current world state, long-term profile, and recent memories.',
     items: [...itemsById.values()],
   });
+}
+
+function isDailyPlanCompilationResult(
+  output: DailyPlanCompilerOutput,
+): output is DailyPlanCompilationResult {
+  return (
+    typeof output === 'object' &&
+    output !== null &&
+    'plan' in output &&
+    'planningTrace' in output
+  );
 }
 
 export function dailyPlanToScheduledIntentions(

@@ -399,6 +399,7 @@ describe('LLM strategic planner seam', () => {
       compiler({
         objective: objective('Recover satiety.', ['eat', 'satiety']),
         issuedAt: 400,
+        worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
       plan: {
@@ -416,6 +417,16 @@ describe('LLM strategic planner seam', () => {
           outputTokens: 20,
           totalTokens: 32,
           estimatedCostMicros: 84,
+        },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
         },
         attempts: [
           {

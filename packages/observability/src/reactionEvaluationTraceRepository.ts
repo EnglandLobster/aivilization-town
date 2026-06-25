@@ -1,5 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  cloneWorldDecisionContextTrace,
+  type WorldDecisionContextTrace,
+} from './worldDecisionContextTrace';
 
 export type ReactionEvaluationUsageTrace = {
   readonly inputTokens: number;
@@ -27,6 +31,7 @@ export type ReactionEvaluationProviderTrace = {
   readonly message?: string;
   readonly attempts?: readonly ReactionEvaluationAttemptTrace[];
   readonly usage?: ReactionEvaluationUsageTrace;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type IgnoredReactionEvaluationDecisionTrace = {
@@ -221,6 +226,9 @@ function cloneProviderTrace(
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneProviderAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneProviderUsage(trace.usage) }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 

@@ -61,6 +61,7 @@ describe('daily plan renewal trace repositories', () => {
           totalTokens: 18,
           estimatedCostMicros: 47,
         },
+        worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
       },
     });
     const otherPartition = createTrace({
@@ -177,6 +178,19 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-daily-plan-renewal-traces-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createWorldDecisionContextTrace(agentId: string) {
+  return {
+    agentId,
+    hasPhysiology: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    inventoryItemCount: 2,
+    marketSpotPriceCount: 1,
+    hasLatestPriceIndex: true,
+  };
 }
 
 function createTrace(

@@ -5,7 +5,7 @@ import type {
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -85,6 +85,7 @@ export type DailyPlanCompilationTrace = {
   readonly message?: string;
   readonly attempts?: readonly DailyPlanCompilationAttemptTrace[];
   readonly usage?: DailyPlanCompilationUsage;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type DailyPlanCompilationResult = {

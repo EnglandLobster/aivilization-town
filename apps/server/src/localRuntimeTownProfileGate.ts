@@ -142,6 +142,15 @@ export function deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(
   }
 
   const stages: RuntimeProfileCognitionLlmStageName[] = [];
+  if (runtimeConfig.strategicPlanning !== undefined) {
+    stages.push('strategicPlanning');
+  }
+  if (runtimeConfig.dailyPlanning !== undefined) {
+    stages.push('dailyPlanning');
+  }
+  if (runtimeConfig.reactionPlanning !== undefined) {
+    stages.push('reactionEvaluation');
+  }
   if (runtimeConfig.reflectionSynthesis !== undefined) {
     stages.push('reflectionSynthesis');
   }

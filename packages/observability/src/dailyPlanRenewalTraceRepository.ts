@@ -1,5 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  cloneWorldDecisionContextTrace,
+  type WorldDecisionContextTrace,
+} from './worldDecisionContextTrace';
 
 export type DailyPlanRenewalUsageTrace = {
   readonly inputTokens: number;
@@ -27,6 +31,7 @@ export type DailyPlanRenewalPlanningTrace = {
   readonly message?: string;
   readonly attempts?: readonly DailyPlanRenewalAttemptTrace[];
   readonly usage?: DailyPlanRenewalUsageTrace;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type DailyPlanRenewalTrace = {
@@ -170,6 +175,9 @@ function clonePlanningTrace(trace: DailyPlanRenewalPlanningTrace): DailyPlanRene
       ? {}
       : { attempts: trace.attempts.map((attempt) => clonePlanningAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: clonePlanningUsage(trace.usage) }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 

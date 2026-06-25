@@ -59,6 +59,7 @@ describe('reaction evaluation trace repositories', () => {
           totalTokens: 12,
           estimatedCostMicros: 31,
         },
+        worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
       },
     });
     const second = createTrace({
@@ -218,6 +219,19 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-reaction-evaluation-traces-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createWorldDecisionContextTrace(agentId: string) {
+  return {
+    agentId,
+    hasPhysiology: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    inventoryItemCount: 2,
+    marketSpotPriceCount: 1,
+    hasLatestPriceIndex: true,
+  };
 }
 
 function createTrace(

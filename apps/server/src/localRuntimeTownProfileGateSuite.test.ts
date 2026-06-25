@@ -597,8 +597,7 @@ function createAcceptedCognitionLlmStageDiagnostics(
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingProviderTraceCount: 0,
-    worldDecisionContextCount:
-      stageName === 'reflectionSynthesis' || stageName === 'socialModelSynthesis' ? 1 : 0,
+    worldDecisionContextCount: 1,
   }));
 }
 

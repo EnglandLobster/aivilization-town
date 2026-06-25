@@ -220,6 +220,7 @@ describe('LLM reaction evaluator seam', () => {
         agentId,
         issuedAt: 10 * hourMs,
         memory: createConversationMemory(),
+        worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
       decision: {
@@ -237,6 +238,16 @@ describe('LLM reaction evaluator seam', () => {
           outputTokens: 12,
           totalTokens: 22,
           estimatedCostMicros: 56,
+        },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
         },
         attempts: [
           {

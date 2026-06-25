@@ -1,5 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  cloneWorldDecisionContextTrace,
+  type WorldDecisionContextTrace,
+} from './worldDecisionContextTrace';
 
 export type SteeringStrategicPlanUsageTrace = {
   readonly inputTokens: number;
@@ -27,6 +31,7 @@ export type SteeringStrategicPlanTrace = {
   readonly message?: string;
   readonly attempts?: readonly SteeringStrategicPlanAttemptTrace[];
   readonly usage?: SteeringStrategicPlanUsageTrace;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type SteeringTraceResultKind = 'long-horizon-objective-set' | 'reactive-command-routed';
@@ -197,6 +202,9 @@ function cloneStrategicPlan(trace: SteeringStrategicPlanTrace): SteeringStrategi
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneStrategicPlanAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneStrategicPlanUsage(trace.usage) }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 

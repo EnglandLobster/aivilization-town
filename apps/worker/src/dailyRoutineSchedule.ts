@@ -453,6 +453,9 @@ function cloneDailyPlanRenewalPlanningTrace(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 

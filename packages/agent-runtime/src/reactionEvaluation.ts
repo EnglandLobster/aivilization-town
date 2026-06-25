@@ -1,6 +1,6 @@
 import type { LongTermAgentProfile, ShortTermMemoryRecord } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 const DEFAULT_SOCIAL_OBSERVATION_REACTION_WINDOW_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_SOCIAL_OBSERVATION_PRIORITY = 4;
@@ -64,6 +64,7 @@ export type ReactionEvaluationTrace = {
   readonly message?: string;
   readonly attempts?: readonly ReactionEvaluationAttemptTrace[];
   readonly usage?: ReactionEvaluationUsage;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type ReactionEvaluationResult = {
@@ -227,6 +228,9 @@ function cloneReactionTrace(trace: ReactionEvaluationTrace): ReactionEvaluationT
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 

@@ -10,3 +10,4 @@ export * from './runtimeProfileRunGate';
 export * from './runtimeProfileRunReport';
 export * from './socialReflectionObservationRepository';
 export * from './steeringTraceRepository';
+export * from './worldDecisionContextTrace';

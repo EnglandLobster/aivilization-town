@@ -10,6 +10,7 @@ import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
 import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 import type { AgentProfileApiService } from './agentProfileApi';
+import type { AgentCycleTraceApiService } from './agentCycleTraceApi';
 import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
 import type { SteeringTraceApiService } from './steeringTraceApi';
 
@@ -216,6 +217,22 @@ type TestSteeringTrace = {
   readonly commandId: string;
   readonly agentId: string;
   readonly resultKind: string;
+};
+
+type TestAgentCycleTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly simulatorEvents: readonly {
+    readonly actionId: string;
+    readonly attempt: 'original' | 'repair';
+    readonly status: 'accepted' | 'rejected';
+    readonly reason?: string;
+    readonly events: readonly {
+      readonly type: string;
+      readonly sequence?: number;
+      readonly summary?: string;
+    }[];
+  }[];
 };
 
 describe('town HTTP API router', () => {
@@ -759,6 +776,117 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           traceId: 'steering-trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes agent cycle trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      agentCycleTraces: createAgentCycleTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces',
+        query: {
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          fromCycleStartedAt: '100',
+          toCycleStartedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          simulatorEvents: [
+            {
+              actionId: 'eat-1',
+              attempt: 'original',
+              status: 'rejected',
+              reason: 'insufficient Apple',
+              events: [
+                {
+                  type: 'ActionRejected',
+                  sequence: 10,
+                  summary: 'insufficient Apple',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces/cycle-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'cycle-trace-1',
+        agentId: 'agent-1',
+        simulatorEvents: [
+          {
+            actionId: 'eat-1',
+            attempt: 'original',
+            status: 'rejected',
+            reason: 'insufficient Apple',
+            events: [
+              {
+                type: 'ActionRejected',
+                sequence: 10,
+                summary: 'insufficient Apple',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryAgentCycleTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          fromCycleStartedAt: 100,
+          toCycleStartedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getAgentCycleTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'cycle-trace-1',
         },
       },
     ]);
@@ -1985,5 +2113,47 @@ function createSteeringTraceService(calls: unknown[]): SteeringTraceApiService<T
         },
       ]);
     },
+  };
+}
+
+function createAgentCycleTraceService(
+  calls: unknown[],
+): AgentCycleTraceApiService<TestAgentCycleTrace> {
+  return {
+    getAgentCycleTrace: (request) => {
+      calls.push({ method: 'getAgentCycleTrace', request });
+      return Promise.resolve(createTestAgentCycleTrace(request.traceId, 'agent-1'));
+    },
+    queryAgentCycleTraces: (request) => {
+      calls.push({ method: 'queryAgentCycleTraces', request });
+      return Promise.resolve([
+        createTestAgentCycleTrace(
+          request.traceId ?? 'cycle-trace-1',
+          request.agentId ?? 'agent-1',
+        ),
+      ]);
+    },
+  };
+}
+
+function createTestAgentCycleTrace(traceId: string, agentId: string): TestAgentCycleTrace {
+  return {
+    traceId,
+    agentId,
+    simulatorEvents: [
+      {
+        actionId: 'eat-1',
+        attempt: 'original',
+        status: 'rejected',
+        reason: 'insufficient Apple',
+        events: [
+          {
+            type: 'ActionRejected',
+            sequence: 10,
+            summary: 'insufficient Apple',
+          },
+        ],
+      },
+    ],
   };
 }

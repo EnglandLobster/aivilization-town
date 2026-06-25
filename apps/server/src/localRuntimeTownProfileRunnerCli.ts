@@ -21,7 +21,7 @@ export type LocalRuntimeTownProfileRunnerCliConfig = Pick<
 > & {
   readonly reportRootDir?: string;
   readonly requireGate?: boolean;
-  readonly llmPlanningConfigPath?: string;
+  readonly runtimeConfigPath?: string;
 };
 
 export type LocalRuntimeTownProfileRunnerCliWriter = {
@@ -54,7 +54,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
   const requireGate = readOptionalBoolean(args, '--require-gate');
-  const llmPlanningConfigPath = readOptionalString(args, '--llm-planning-config');
+  const runtimeConfigPath = readRuntimeConfigPath(args);
 
   return {
     profileId,
@@ -64,7 +64,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
     ...(requireGate === undefined ? {} : { requireGate }),
-    ...(llmPlanningConfigPath === undefined ? {} : { llmPlanningConfigPath }),
+    ...(runtimeConfigPath === undefined ? {} : { runtimeConfigPath }),
   };
 }
 
@@ -104,11 +104,11 @@ async function createRunnerInput(
       ? undefined
       : new FileRuntimeProfileRunReportRepository({ rootDir: config.reportRootDir });
   const runtimeConfig =
-    config.llmPlanningConfigPath === undefined
+    config.runtimeConfigPath === undefined
       ? undefined
       : await loadLocalRuntimeTownProfileRuntimeConfig({
           profileId: config.profileId,
-          path: config.llmPlanningConfigPath,
+          path: config.runtimeConfigPath,
           env: process.env,
         });
 
@@ -128,7 +128,23 @@ async function createRunnerInput(
     ...(runtimeConfig?.reactionPlanning === undefined
       ? {}
       : { reactionPlanning: runtimeConfig.reactionPlanning }),
+    ...(runtimeConfig?.replanningPolicy === undefined
+      ? {}
+      : { replanningPolicy: runtimeConfig.replanningPolicy }),
   };
+}
+
+function readRuntimeConfigPath(args: ReadonlyMap<string, string>): string | undefined {
+  const runtimeConfigPath = readOptionalString(args, '--runtime-config');
+  const legacyLlmPlanningConfigPath = readOptionalString(args, '--llm-planning-config');
+  if (
+    runtimeConfigPath !== undefined &&
+    legacyLlmPlanningConfigPath !== undefined &&
+    runtimeConfigPath !== legacyLlmPlanningConfigPath
+  ) {
+    throw new Error('--runtime-config and --llm-planning-config must not disagree');
+  }
+  return runtimeConfigPath ?? legacyLlmPlanningConfigPath;
 }
 
 function createProfileRunReportFromSummary(summary: LocalRuntimeTownProfileRunnerSummary) {

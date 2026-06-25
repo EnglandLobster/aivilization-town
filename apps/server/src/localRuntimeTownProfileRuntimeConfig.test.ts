@@ -286,6 +286,66 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toEqual({});
   });
 
+  test('loads adaptive replanning policy with profile overrides and profile disabling', async () => {
+    const document = JSON.stringify({
+      replanningPolicy: {
+        consecutiveFailureThreshold: 3,
+        failureTags: ['eat', 'inventory'],
+      },
+      profiles: {
+        'default-100': {
+          replanningPolicy: {
+            consecutiveFailureThreshold: 2,
+            majorContextShift: {
+              key: 'profile-recovery-drill',
+              reason: 'profile recovery drill requires a replacement plan',
+            },
+          },
+        },
+        'smoke-25': {
+          replanningPolicy: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      replanningPolicy: {
+        consecutiveFailureThreshold: 2,
+        majorContextShift: {
+          key: 'profile-recovery-drill',
+          reason: 'profile recovery drill requires a replacement plan',
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'headless-stress-1000',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      replanningPolicy: {
+        consecutiveFailureThreshold: 3,
+        failureTags: ['eat', 'inventory'],
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
+  });
+
   test('rejects missing env secrets before provider construction', async () => {
     await expect(
       loadLocalRuntimeTownProfileLlmPlanningConfig({
@@ -395,5 +455,20 @@ describe('local runtime town profile runtime config', () => {
           ),
       }),
     ).rejects.toThrow('reactionPlanning.provider.kind must be openai-compatible');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              replanningPolicy: {
+                consecutiveFailureThreshold: 0,
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('replanningPolicy.consecutiveFailureThreshold must be a positive integer');
   });
 });

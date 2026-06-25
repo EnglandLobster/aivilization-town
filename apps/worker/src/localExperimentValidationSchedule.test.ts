@@ -424,6 +424,13 @@ function createTrace(input: {
       profileEvidenceRecordIds: [],
     },
     replanningDecision: { kind: 'none' },
+    subtaskReplanningDecisions: [
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        decision: { kind: 'none' },
+      },
+    ],
     emittedCommandIds: [`${input.traceId}:command`],
     memoryContextIds: [],
     memoryWriteIds: [],

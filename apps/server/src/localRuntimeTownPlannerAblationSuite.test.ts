@@ -410,6 +410,21 @@ function createSuiteAgentCycleTrace(variant: string, simulationId: string): Agen
           evidenceRecordIds: [],
         }
       : { kind: 'none' },
+    subtaskReplanningDecisions: [
+      {
+        branchId: isWithoutBranch ? 'without-branch' : 'development',
+        subtaskId: 'study',
+        decision: isWithoutBranch
+          ? {
+              kind: 'memory-guided-correction',
+              trigger: 'simulator-rejection',
+              reason: 'blocked by ablation test fixture',
+              failedActionIds: [`${variant}:blocked-action`],
+              evidenceRecordIds: [],
+            }
+          : { kind: 'none' },
+      },
+    ],
     emittedCommandIds: isWithoutBranch ? [] : [`${variant}:command-1`],
     memoryContextIds: [],
     memoryWriteIds: [],

@@ -9,6 +9,7 @@ import {
   type AgentCycleTrace,
   type AgentCycleSelectionTraceEvidence,
   type AgentCycleSubtaskCandidateTrace,
+  type AgentCycleSubtaskReplanningDecisionTrace,
   type ReplanningTraceDecision,
   type SimulatorTraceResult,
 } from './agentCycleTrace';
@@ -25,6 +26,10 @@ export type AgentCycleTraceRepository = {
   readonly record: (trace: AgentCycleTrace) => Promise<void>;
   readonly get: (traceId: string) => Promise<AgentCycleTrace | undefined>;
   readonly query: (query: AgentCycleTraceQuery) => Promise<AgentCycleTrace[]>;
+};
+
+type PersistedAgentCycleTrace = Omit<AgentCycleTrace, 'subtaskReplanningDecisions'> & {
+  readonly subtaskReplanningDecisions?: readonly AgentCycleSubtaskReplanningDecisionTrace[];
 };
 
 export class InMemoryAgentCycleTraceRepository implements AgentCycleTraceRepository {
@@ -69,7 +74,7 @@ export class FileAgentCycleTraceRepository implements AgentCycleTraceRepository 
   get(traceId: string): Promise<AgentCycleTrace | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const trace = readJsonLines<AgentCycleTrace>(this.tracesPath).find(
+      const trace = readJsonLines<PersistedAgentCycleTrace>(this.tracesPath).find(
         (candidate) => candidate.traceId === traceId,
       );
       return trace === undefined ? undefined : cloneTrace(trace);
@@ -78,13 +83,13 @@ export class FileAgentCycleTraceRepository implements AgentCycleTraceRepository 
 
   query(query: AgentCycleTraceQuery): Promise<AgentCycleTrace[]> {
     return Promise.resolve().then(() =>
-      queryTraces(readJsonLines<AgentCycleTrace>(this.tracesPath), query),
+      queryTraces(readJsonLines<PersistedAgentCycleTrace>(this.tracesPath), query),
     );
   }
 }
 
 function queryTraces(
-  traces: readonly AgentCycleTrace[],
+  traces: readonly PersistedAgentCycleTrace[],
   query: AgentCycleTraceQuery,
 ): AgentCycleTrace[] {
   assertValidQuery(query);
@@ -105,7 +110,7 @@ function queryTraces(
     .map((trace) => cloneTrace(trace));
 }
 
-function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
+function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: trace.traceId,
     simulationId: trace.simulationId,
@@ -121,6 +126,9 @@ function cloneTrace(trace: AgentCycleTrace): AgentCycleTrace {
     simulatorResult: cloneSimulatorResult(trace.simulatorResult),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
     replanningDecision: cloneReplanningDecision(trace.replanningDecision),
+    subtaskReplanningDecisions: (trace.subtaskReplanningDecisions ?? []).map((decision) =>
+      cloneSubtaskReplanningDecision(decision),
+    ),
     emittedCommandIds: [...trace.emittedCommandIds],
     memoryContextIds: [...trace.memoryContextIds],
     memoryWriteIds: [...trace.memoryWriteIds],
@@ -214,6 +222,16 @@ function cloneSubtaskCandidate(
   };
 }
 
+function cloneSubtaskReplanningDecision(
+  decision: AgentCycleSubtaskReplanningDecisionTrace,
+): AgentCycleSubtaskReplanningDecisionTrace {
+  return {
+    branchId: decision.branchId,
+    subtaskId: decision.subtaskId,
+    decision: cloneReplanningDecision(decision.decision),
+  };
+}
+
 function cloneSimulatorResult(result: SimulatorTraceResult): SimulatorTraceResult {
   switch (result.status) {
     case 'accepted':
@@ -266,7 +284,10 @@ function cloneReplanningDecision(decision: ReplanningTraceDecision): ReplanningT
   }
 }
 
-function compareTraceLatestFirst(left: AgentCycleTrace, right: AgentCycleTrace): number {
+function compareTraceLatestFirst(
+  left: PersistedAgentCycleTrace,
+  right: PersistedAgentCycleTrace,
+): number {
   if (left.cycleStartedAt !== right.cycleStartedAt) {
     return right.cycleStartedAt - left.cycleStartedAt;
   }

@@ -881,6 +881,114 @@ describe('agent planning cycle', () => {
     });
   });
 
+  test('records replanning decisions for each synthesized producer subtask', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'balance income and development',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 6 }],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+        },
+      ],
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      replanningPolicy: { consecutiveFailureThreshold: 1 },
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'stm-study-energy-failure',
+          agentId,
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to study because energy was too low.',
+          occurredAt: 90,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['study', 'energy'],
+        }),
+      ],
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study for one minute',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) =>
+        action.id === 'study-1'
+          ? { status: 'rejected', action, reason: 'energy too low' }
+          : { status: 'accepted', action },
+    });
+
+    expect(result.subtaskReplanningDecisions).toEqual([
+      {
+        selectedSubtask: {
+          branchId: 'income',
+          subtaskId: 'work',
+          description: 'work shift',
+          score: 6,
+        },
+        decision: { kind: 'none' },
+      },
+      {
+        selectedSubtask: {
+          branchId: 'development',
+          subtaskId: 'study',
+          description: 'self study',
+          score: 5,
+        },
+        decision: {
+          kind: 'full-replan',
+          trigger: 'repeated-failure',
+          reason: 'energy too low',
+          failedActionIds: ['study-1'],
+          evidenceRecordIds: ['stm-study-energy-failure'],
+          matchingFailureCount: 1,
+        },
+      },
+    ]);
+  });
+
   test('escalates major context shifts to full replanning during a cycle', () => {
     const plan = createBranchPlan({
       objective: 'survive',

@@ -25,6 +25,7 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleSubtaskReplanningDecisionTrace,
   type AgentCycleTrace,
   type SimulatorTraceResult,
 } from '@aivilization/observability';
@@ -175,6 +176,9 @@ export async function runWorkerAgentCycle(
     simulatorResult: summarizeSimulatorResult(cycleResult),
     selectionEvidence: cycleResult.selectionEvidence,
     replanningDecision: cycleResult.replanningDecision,
+    subtaskReplanningDecisions: cycleResult.subtaskReplanningDecisions.map((entry) =>
+      mapSubtaskReplanningDecisionTrace(entry),
+    ),
     emittedCommandIds: dispatchResult?.commands.map((command) => command.id) ?? [],
     memoryContextIds: shortTermMemoryContext.map((record) => record.id),
     memoryWriteIds: extractShortTermMemoryRecords(dispatchResult?.events ?? []).map(
@@ -207,6 +211,16 @@ function mapActionSynthesisTrace(
       action: mapActionProposalTrace(rejectedAction.action),
       reason: rejectedAction.reason,
     })),
+  };
+}
+
+function mapSubtaskReplanningDecisionTrace(
+  entry: AgentCycleResult['subtaskReplanningDecisions'][number],
+): AgentCycleSubtaskReplanningDecisionTrace {
+  return {
+    branchId: entry.selectedSubtask.branchId,
+    subtaskId: entry.selectedSubtask.subtaskId,
+    decision: entry.decision,
   };
 }
 

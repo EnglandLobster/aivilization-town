@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -102,6 +102,24 @@ function createTrace(input: {
       profileEvidenceRecordIds: [],
     },
     replanningDecision: { kind: 'none' },
+    subtaskReplanningDecisions: [
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        decision: { kind: 'none' },
+      },
+      {
+        branchId: 'recovery',
+        subtaskId: 'sleep',
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'energy too low',
+          failedActionIds: [`${input.traceId}:sleep-1`],
+          evidenceRecordIds: [`${input.traceId}:memory-energy`],
+        },
+      },
+    ],
     emittedCommandIds: [`${input.traceId}:command-1`],
     memoryContextIds: [],
     memoryWriteIds: [`${input.traceId}:memory-1`],
@@ -162,6 +180,11 @@ describe('agent cycle trace repositories', () => {
     (
       read!.actionSynthesis.rejectedActions[0]!.action.synthesisContext as { branchUrgency: number }
     ).branchUrgency = 999;
+    (
+      read!.subtaskReplanningDecisions[1]!.decision as unknown as {
+        failedActionIds: string[];
+      }
+    ).failedActionIds.push('mutated');
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
   });
 
@@ -180,5 +203,20 @@ describe('agent cycle trace repositories', () => {
     await expect(restarted.query({ simulationId: 'sim-1', limit: 0 })).rejects.toThrow(
       'limit must be positive',
     );
+  });
+
+  test('normalizes legacy file traces without subtask replanning decisions', async () => {
+    const rootDir = createRootDir();
+    const trace = createTrace({ traceId: 'legacy-trace', cycleStartedAt: 100 });
+    const legacyTrace: Record<string, unknown> = { ...trace };
+    delete legacyTrace.subtaskReplanningDecisions;
+    writeFileSync(join(rootDir, 'agent-cycle-traces.jsonl'), `${JSON.stringify(legacyTrace)}\n`);
+
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+
+    await expect(repository.get('legacy-trace')).resolves.toEqual({
+      ...trace,
+      subtaskReplanningDecisions: [],
+    });
   });
 });

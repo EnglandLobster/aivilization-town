@@ -19,6 +19,7 @@ import type {
 } from '@aivilization/observability';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { summarizeObservedAgentState } from './agentStateSummary';
 import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
@@ -287,6 +288,7 @@ export async function renewDailyPlanScheduledIntentions(input: {
       await compileDailyPlan({
         agentId: agent.agentId,
         issuedAt: input.issuedAt,
+        observedStateSummary: summarizeObservedAgentState(agent),
         worldDecisionContext: createWorldDecisionContextFromProjection({
           projection: input.projection,
           agentId: agent.agentId,

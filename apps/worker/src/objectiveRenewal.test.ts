@@ -836,6 +836,9 @@ describe('worker objective renewal', () => {
         (rule) => rule.commodity.length > 0 && Number.isFinite(rule.timeCostSeconds),
       ),
     ).toBe(true);
+    expect(compilerInput?.observedStateSummary).toBe(
+      'energy=50 satiety=80 health=100 education=150 balance=100 residentialTier=1 job=unemployed inventory=empty',
+    );
   });
 });
 

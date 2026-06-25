@@ -181,6 +181,9 @@ function createReactionEvaluatorMessages(
         agentId: input.agentId,
         issuedAt: input.issuedAt,
         memory: serializeMemory(input.memory),
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.worldDecisionContext === undefined
           ? {}
           : { worldDecisionContext: input.worldDecisionContext }),
@@ -246,6 +249,9 @@ async function evaluateFallbackReaction(
     memory: input.memory,
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),
@@ -260,6 +266,9 @@ async function evaluateFallbackReaction(
     memory: input.memory,
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),

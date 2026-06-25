@@ -20,6 +20,7 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { summarizeObservedAgentState } from './agentStateSummary';
 import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
@@ -199,6 +200,7 @@ export async function renewMissingActiveObjectives(input: {
       issuedAt: input.issuedAt,
       shortTermMemoryContext,
       longTermProfile,
+      observedStateSummary: summarizeObservedAgentState(agent),
       worldDecisionContext,
       compile,
     });
@@ -224,6 +226,7 @@ async function createStrategicPlanRecord(input: {
   readonly issuedAt: number;
   readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
   readonly longTermProfile: LongTermAgentProfile;
+  readonly observedStateSummary: string;
   readonly worldDecisionContext: WorldDecisionContext;
   readonly compile: StrategicPlanCompiler;
 }): Promise<{
@@ -236,6 +239,7 @@ async function createStrategicPlanRecord(input: {
       issuedAt: input.issuedAt,
       shortTermMemoryContext: input.shortTermMemoryContext,
       longTermProfile: input.longTermProfile,
+      observedStateSummary: input.observedStateSummary,
       worldDecisionContext: input.worldDecisionContext,
     }),
   );

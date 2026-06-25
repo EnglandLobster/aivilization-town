@@ -11,6 +11,7 @@ import type {
   ScheduledIntention,
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
+import { summarizeObservedAgentState } from './agentStateSummary';
 
 const SOCIAL_OBSERVATION_EVENT_TAGS = new Set([
   'ConversationRecorded',
@@ -84,6 +85,9 @@ export async function createTraceableSocialObservationScheduledIntentions(
         agentId: record.agentId,
         issuedAt: input.createdAt ?? record.occurredAt,
         memory: record,
+        ...(worldDecisionContext === undefined
+          ? {}
+          : { observedStateSummary: summarizeObservedAgentState(worldDecisionContext.agent) }),
         ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         ...(longTermProfile === undefined ? {} : { longTermProfile }),
         ...(memoryContext === undefined ? {} : { memoryContext }),

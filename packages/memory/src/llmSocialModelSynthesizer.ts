@@ -248,6 +248,9 @@ function createSocialModelMessages(input: {
         ...(input.input.longTermProfile === undefined
           ? {}
           : { longTermProfile: input.input.longTermProfile }),
+        ...(input.input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.input.observedStateSummary }),
         ...(input.input.worldDecisionContext === undefined
           ? {}
           : { worldDecisionContext: input.input.worldDecisionContext }),
@@ -255,7 +258,7 @@ function createSocialModelMessages(input: {
           'Every targetAgentId must appear in records.consolidationHint.targetAgentId.',
           'Every evidenceRecordIds value must be an id from records.',
           'Every social record patch must update only socialRecords for the matching target agent.',
-          'Do not invent relationships, profile facts, events, inventory, balance, or prices outside records, longTermProfile, and worldDecisionContext.',
+          'Do not invent relationships, profile facts, events, inventory, balance, or prices outside records, longTermProfile, observedStateSummary, and worldDecisionContext.',
           'Return empty arrays only when the provided records do not support a social model update.',
         ],
       }),

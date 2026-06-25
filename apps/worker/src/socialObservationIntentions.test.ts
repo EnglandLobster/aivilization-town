@@ -4,6 +4,7 @@ import {
   type ScheduledIntention,
   type ShortTermMemoryRecord,
 } from '@aivilization/memory';
+import type { WorldDecisionContext } from '@aivilization/agent-runtime';
 import { asAgentId, asCommandId, asEventId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -17,6 +18,7 @@ const hourMs = 60 * 60 * 1000;
 type CapturedReactionContext = {
   readonly longTermProfile: LongTermAgentProfile | undefined;
   readonly memoryContext: readonly ShortTermMemoryRecord[] | undefined;
+  readonly observedStateSummary: string | undefined;
 };
 
 describe('social observation intentions', () => {
@@ -258,10 +260,12 @@ describe('social observation intentions', () => {
       source: { eventIds: [asEventId('event-prior-party')] },
       tags: ['party', 'agent-a'],
     });
+    const worldDecisionContext = createWorldDecisionContext();
 
     const seen: CapturedReactionContext[] = [];
     await createSocialObservationScheduledIntentions({
       records: [memory],
+      worldDecisionContextByAgentId: { [agentId]: worldDecisionContext },
       longTermProfileByAgentId: {
         [agentId]: {
           agentId,
@@ -286,6 +290,7 @@ describe('social observation intentions', () => {
         seen.push({
           longTermProfile: input.longTermProfile,
           memoryContext: input.memoryContext,
+          observedStateSummary: input.observedStateSummary,
         });
         return { kind: 'ignore', confidence: 0.9, rationale: 'captured context' };
       },
@@ -296,6 +301,9 @@ describe('social observation intentions', () => {
       'community-helper',
     ]);
     expect(seen[0]?.memoryContext).toEqual([priorMemory]);
+    expect(seen[0]?.observedStateSummary).toBe(
+      'energy=45 satiety=30 health=90 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
+    );
   });
 
   test('uses an injected evaluator to customize follow-up scheduling metadata', async () => {
@@ -466,3 +474,27 @@ describe('social observation intentions', () => {
     ]);
   });
 });
+
+function createWorldDecisionContext(): WorldDecisionContext {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 45, satiety: 30, health: 90 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 0,
+        recordedAt: 100,
+        overall: 1.12,
+        ratios: { Fish: 1.12 },
+      },
+    },
+  };
+}

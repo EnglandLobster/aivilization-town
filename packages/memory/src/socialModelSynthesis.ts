@@ -61,6 +61,7 @@ export type SocialModelSynthesizerInput = {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly generatedAt: SimulationTimestamp;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 };
 

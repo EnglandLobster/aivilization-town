@@ -249,6 +249,8 @@ describe('LLM strategic planner seam', () => {
     await proposeStrategicBranchPlanWithLlm({
       objective: objective('Craft Chip for the electronics market.', ['production']),
       issuedAt: 140,
+      observedStateSummary:
+        'energy=45 satiety=30 health=90 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
       worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'planner-model',
@@ -256,6 +258,10 @@ describe('LLM strategic planner seam', () => {
     });
 
     const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"observedStateSummary"');
+    expect(requestContent).toContain(
+      'energy=45 satiety=30 health=90 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
+    );
     expect(requestContent).toContain('"worldDecisionContext"');
     expect(requestContent).toContain('"balance":191696904');
     expect(requestContent).toContain('"educationScore":31');

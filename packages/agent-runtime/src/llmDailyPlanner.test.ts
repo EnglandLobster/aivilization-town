@@ -152,6 +152,8 @@ describe('LLM daily planner seam', () => {
     await proposeDailyPlanWithLlm({
       agentId,
       issuedAt: 8 * hourMs,
+      observedStateSummary:
+        'energy=45 satiety=30 health=90 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
       worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'daily-planner-model',
@@ -159,6 +161,10 @@ describe('LLM daily planner seam', () => {
     });
 
     const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"observedStateSummary"');
+    expect(requestContent).toContain(
+      'energy=45 satiety=30 health=90 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
+    );
     expect(requestContent).toContain('"worldDecisionContext"');
     expect(requestContent).toContain('"balance":191696904');
     expect(requestContent).toContain('"educationScore":31');

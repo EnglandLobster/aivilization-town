@@ -227,6 +227,9 @@ function createStrategicPlannerMessages(
           tags: record.tags,
         })),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.worldDecisionContext === undefined
           ? {}
           : { worldDecisionContext: input.worldDecisionContext }),
@@ -319,6 +322,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
       ? {}
       : { shortTermMemoryContext: input.shortTermMemoryContext }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),
@@ -334,6 +340,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
       ? {}
       : { shortTermMemoryContext: input.shortTermMemoryContext }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),

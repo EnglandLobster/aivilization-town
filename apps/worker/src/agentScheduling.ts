@@ -25,6 +25,7 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { summarizeObservedAgentState } from './agentStateSummary';
 import { resolveMemoryRetrievalCandidateLimit } from './memoryContextSelection';
 import type { WorkerTickAgentInput } from './tickRunner';
 import {
@@ -133,7 +134,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
 
     agents.push({
       agentId: agent.agentId,
-      observedStateSummary: summarizeWorldAgentState(agent),
+      observedStateSummary: summarizeObservedAgentState(agent),
       worldDecisionContext,
       planId: activeObjective.id,
       signals: activeObjective.affinityTags.map((tag) => ({
@@ -180,31 +181,6 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   }
 
   return agents;
-}
-
-function summarizeWorldAgentState(agent: WorldAgentState): string {
-  return [
-    `energy=${agent.physiology.energy}`,
-    `satiety=${agent.physiology.satiety}`,
-    `health=${agent.physiology.health}`,
-    `education=${agent.educationScore}`,
-    `balance=${agent.balance}`,
-    `residentialTier=${agent.residentialTier}`,
-    `job=${agent.job ?? 'unemployed'}`,
-    `inventory=${summarizeInventory(agent.inventory)}`,
-  ].join(' ');
-}
-
-function summarizeInventory(inventory: Readonly<Record<string, number>>): string {
-  const entries = Object.entries(inventory)
-    .filter(([, quantity]) => quantity !== 0)
-    .sort(([left], [right]) => left.localeCompare(right));
-
-  if (entries.length === 0) {
-    return 'empty';
-  }
-
-  return entries.map(([itemName, quantity]) => `${itemName}:${quantity}`).join(',');
 }
 
 function validateMemoryRetrievalBudget(input: {

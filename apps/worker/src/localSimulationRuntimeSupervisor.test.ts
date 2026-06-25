@@ -466,6 +466,8 @@ describe('local simulation runtime supervisor', () => {
         lastMemoryConsolidationPatchCount: partition.lastMemoryConsolidationPatchCount,
         lastMemoryConsolidationCursorCount: partition.lastMemoryConsolidationCursorCount,
         lastMemoryConsolidationAgentCount: partition.lastMemoryConsolidationAgentCount,
+        lastMemoryConsolidationSocialReflectionObservationCount:
+          partition.lastMemoryConsolidationSocialReflectionObservationCount,
       })),
     ).toEqual([
       {
@@ -475,6 +477,7 @@ describe('local simulation runtime supervisor', () => {
         lastMemoryConsolidationPatchCount: 1,
         lastMemoryConsolidationCursorCount: 1,
         lastMemoryConsolidationAgentCount: 1,
+        lastMemoryConsolidationSocialReflectionObservationCount: 0,
       },
       {
         partitionKey: 'world-east',
@@ -483,6 +486,7 @@ describe('local simulation runtime supervisor', () => {
         lastMemoryConsolidationPatchCount: 1,
         lastMemoryConsolidationCursorCount: 1,
         lastMemoryConsolidationAgentCount: 1,
+        lastMemoryConsolidationSocialReflectionObservationCount: 0,
       },
     ]);
     await expect(supervisor.getOperationTrace('op-start-memory-600')).resolves.toMatchObject({
@@ -497,6 +501,7 @@ describe('local simulation runtime supervisor', () => {
             agentCount: 1,
             patchCount: 1,
             cursorCount: 1,
+            socialReflectionObservationCount: 0,
             consolidatedAt: 600,
           },
         },
@@ -508,6 +513,7 @@ describe('local simulation runtime supervisor', () => {
             agentCount: 1,
             patchCount: 1,
             cursorCount: 1,
+            socialReflectionObservationCount: 0,
             consolidatedAt: 600,
           },
         },

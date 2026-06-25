@@ -62,6 +62,7 @@ export type LocalSimulationLifecycleState = {
   readonly lastMemoryConsolidationAgentCount?: number;
   readonly lastMemoryConsolidationPatchCount?: number;
   readonly lastMemoryConsolidationCursorCount?: number;
+  readonly lastMemoryConsolidationSocialReflectionObservationCount?: number;
   readonly lastMemoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
@@ -523,6 +524,7 @@ function createMemoryConsolidationStateFields(
     | 'lastMemoryConsolidationAgentCount'
     | 'lastMemoryConsolidationPatchCount'
     | 'lastMemoryConsolidationCursorCount'
+    | 'lastMemoryConsolidationSocialReflectionObservationCount'
     | 'lastMemoryConsolidationFailure'
   >
 > {
@@ -533,6 +535,8 @@ function createMemoryConsolidationStateFields(
       lastMemoryConsolidationAgentCount: memoryConsolidation.memoryConsolidation.results.length,
       lastMemoryConsolidationPatchCount: memoryConsolidation.memoryConsolidation.patchCount,
       lastMemoryConsolidationCursorCount: memoryConsolidation.memoryConsolidation.cursors.length,
+      lastMemoryConsolidationSocialReflectionObservationCount:
+        memoryConsolidation.memoryConsolidation.socialReflectionObservationCount,
     };
   }
   if ('memoryConsolidationFailure' in memoryConsolidation) {
@@ -566,6 +570,11 @@ async function runLifecycleMemoryConsolidation(input: {
         ...(input.schedule.reflectionTrigger === undefined
           ? {}
           : { reflectionTrigger: input.schedule.reflectionTrigger }),
+        socialReflectionObservationSink: {
+          repository: input.controllerInput.storage.socialReflectionObservationRepository,
+          simulationId: input.controllerInput.storage.partition.simulationId,
+          partitionKey: input.controllerInput.storage.partition.partitionKey,
+        },
         proposedAt: input.request.requestedAt,
       }),
     };
@@ -925,6 +934,7 @@ function parseMemoryConsolidationState(
     | 'lastMemoryConsolidationAgentCount'
     | 'lastMemoryConsolidationPatchCount'
     | 'lastMemoryConsolidationCursorCount'
+    | 'lastMemoryConsolidationSocialReflectionObservationCount'
     | 'lastMemoryConsolidationFailure'
   >
 > {
@@ -959,6 +969,15 @@ function parseMemoryConsolidationState(
         'lastMemoryConsolidationCursorCount',
         source,
       ),
+      ...(record.lastMemoryConsolidationSocialReflectionObservationCount === undefined
+        ? {}
+        : {
+            lastMemoryConsolidationSocialReflectionObservationCount: parseNonNegativeInteger(
+              record.lastMemoryConsolidationSocialReflectionObservationCount,
+              'lastMemoryConsolidationSocialReflectionObservationCount',
+              source,
+            ),
+          }),
     };
   }
 

@@ -24,6 +24,7 @@ import {
   FileMarketObservationRepository,
   FileObjectiveRenewalTraceRepository,
   FileReactionEvaluationTraceRepository,
+  FileSocialReflectionObservationRepository,
   FileSteeringTraceRepository,
 } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
@@ -81,6 +82,7 @@ export type LocalWorldRuntimeStorage = {
   readonly steeringTraceRepository: FileSteeringTraceRepository;
   readonly experimentValidationReportRepository: FileExperimentValidationReportRepository;
   readonly marketObservationRepository: FileMarketObservationRepository;
+  readonly socialReflectionObservationRepository: FileSocialReflectionObservationRepository;
   readonly repositories: LocalWorldRuntimeRepositories;
   readonly checkpointing: WorkerTickProjectionCheckpointingInput;
   readonly checkpointHydration: WorkerTickProjectionCheckpointHydrationInput;
@@ -154,6 +156,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const marketObservationRepository = new FileMarketObservationRepository({
     rootDir: paths.observabilityDir,
   });
+  const socialReflectionObservationRepository = new FileSocialReflectionObservationRepository({
+    rootDir: paths.observabilityDir,
+  });
   const repositories = {
     intentionRepository,
     longTermProfileRepository,
@@ -189,6 +194,7 @@ export function createLocalWorldRuntimeStorage(input: {
     steeringTraceRepository,
     experimentValidationReportRepository,
     marketObservationRepository,
+    socialReflectionObservationRepository,
     repositories,
     checkpointing,
     checkpointHydration: checkpointing,

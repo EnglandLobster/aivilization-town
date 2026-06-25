@@ -56,6 +56,7 @@ export type LocalSimulationRuntimeSupervisorPartition = {
   readonly lastMemoryConsolidationAgentCount?: number;
   readonly lastMemoryConsolidationPatchCount?: number;
   readonly lastMemoryConsolidationCursorCount?: number;
+  readonly lastMemoryConsolidationSocialReflectionObservationCount?: number;
   readonly lastMemoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
 };
 
@@ -670,6 +671,7 @@ function createOperationMemoryConsolidationTrace(
     agentCount: result.memoryConsolidation.results.length,
     patchCount: result.memoryConsolidation.patchCount,
     cursorCount: result.memoryConsolidation.cursors.length,
+    socialReflectionObservationCount: result.memoryConsolidation.socialReflectionObservationCount,
     consolidatedAt: result.state.lastMemoryConsolidationAt ?? result.state.updatedAt,
   };
 }
@@ -767,6 +769,12 @@ function createSupervisorStatus(
         ? {}
         : {
             lastMemoryConsolidationCursorCount: lifecycleState.lastMemoryConsolidationCursorCount,
+          }),
+      ...(lifecycleState?.lastMemoryConsolidationSocialReflectionObservationCount === undefined
+        ? {}
+        : {
+            lastMemoryConsolidationSocialReflectionObservationCount:
+              lifecycleState.lastMemoryConsolidationSocialReflectionObservationCount,
           }),
       ...(lifecycleState?.lastMemoryConsolidationFailure === undefined
         ? {}

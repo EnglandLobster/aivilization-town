@@ -3,7 +3,8 @@ import {
   InMemoryShortTermMemoryRepository,
   createShortTermMemoryRecord,
 } from '@aivilization/memory';
-import { asAgentId } from '@aivilization/sim-core';
+import { InMemorySocialReflectionObservationRepository } from '@aivilization/observability';
+import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,6 +20,7 @@ import {
 const agentId = asAgentId('agent-1');
 const otherAgentId = asAgentId('agent-2');
 const thirdAgentId = asAgentId('agent-3');
+const simulationId = asSimulationId('sim-social');
 const tempRoots: string[] = [];
 
 afterEach(() => {
@@ -542,6 +544,66 @@ describe('worker memory consolidation', () => {
     await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toMatchObject({
       habits: [{ key: 'study-routine' }],
     });
+  });
+
+  test('records scheduled social reflection observations through the observability sink', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    const socialReflectionObservationRepository =
+      new InMemorySocialReflectionObservationRepository();
+    await shortTermMemoryRepository.append(
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Shared food after work.',
+        importanceScore: 0.8,
+      }),
+    );
+
+    const result = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 2000,
+      socialReflectionObservationSink: {
+        repository: socialReflectionObservationRepository,
+        simulationId,
+        partitionKey: 'world-main',
+      },
+    });
+
+    expect(result.socialReflectionObservationCount).toBe(1);
+    await expect(
+      socialReflectionObservationRepository.query({
+        simulationId,
+        partitionKey: 'world-main',
+        agentId,
+        targetAgentId: otherAgentId,
+      }),
+    ).resolves.toEqual([
+      {
+        observationId:
+          'sim-social:world-main:social-reflection-agent-1-agent-2-social-agent-2-1-2000',
+        simulationId,
+        partitionKey: 'world-main',
+        reflectionId: 'social-reflection-agent-1-agent-2-social-agent-2-1-2000',
+        agentId,
+        targetAgentId: otherAgentId,
+        statement:
+          'Interaction with agent-2 changed relation by 1 and attitude by 1: Shared food after work.',
+        relationDelta: 1,
+        attitudeDelta: 1,
+        confidence: 0.8,
+        evidenceRecordIds: ['social-agent-2-1'],
+        generatedAt: 2000,
+        tags: ['social', 'post-interaction-reflection', 'agent-2', 'conversation', 'community'],
+        source: 'memory-consolidation',
+      },
+    ]);
   });
 
   test('persists consolidation cursors across store restarts', async () => {

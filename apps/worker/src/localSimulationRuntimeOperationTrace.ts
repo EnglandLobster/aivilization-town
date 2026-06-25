@@ -30,6 +30,7 @@ export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {
   readonly agentCount: number;
   readonly patchCount: number;
   readonly cursorCount: number;
+  readonly socialReflectionObservationCount: number;
   readonly consolidatedAt: SimulationTimestamp;
 };
 

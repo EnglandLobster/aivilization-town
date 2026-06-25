@@ -8,4 +8,5 @@ export * from './objectiveRenewalTraceRepository';
 export * from './reactionEvaluationTraceRepository';
 export * from './runtimeProfileRunGate';
 export * from './runtimeProfileRunReport';
+export * from './socialReflectionObservationRepository';
 export * from './steeringTraceRepository';

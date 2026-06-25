@@ -3,6 +3,7 @@ import {
   InMemoryBranchPlanRepository,
   InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
+  type ActionSequenceGenerator,
   type DomainMicroPlanner,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -806,6 +807,116 @@ describe('worker tick runner', () => {
       requestId: 'prioritize-tick-agent-1',
       choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
     });
+  });
+
+  test('passes tick agent action sequence generator into cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const simulatedActions: string[] = [];
+    const actionSequenceGenerator: ActionSequenceGenerator = async ({
+      deterministicActions,
+      selectedSubtask,
+      worldDecisionContext,
+    }) => {
+      await Promise.resolve();
+      expect(deterministicActions.map((action) => action.id)).toEqual(['study-fallback']);
+      expect(selectedSubtask).toMatchObject({ branchId: 'development', subtaskId: 'study' });
+      expect(worldDecisionContext?.agent.educationScore).toBe(10);
+      return {
+        actions: [
+          {
+            id: 'llm-study-focused',
+            description: 'study with a focused two minute routine',
+            commandType: 'AgentStudy',
+            payload: { durationSeconds: 120, educationRatePerSecond: 1 },
+            priority: 11,
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+          requestId: 'sequence-tick-agent-1',
+          actions: [
+            {
+              id: 'llm-study-focused',
+              commandType: 'AgentStudy',
+              rationale: 'Use a longer study action because health and energy can support it.',
+            },
+          ],
+        },
+      };
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-action-sequence-generation',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 education=10',
+          plan: createBranchPlan({
+            objective: 'develop education',
+            branches: [
+              {
+                id: 'development',
+                objective: 'improve education',
+                subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+              },
+            ],
+          }),
+          signals: [],
+          actionSequenceGenerator,
+          microPlanners: [
+            {
+              domain: 'study',
+              supports: ({ subtaskId }) => subtaskId === 'study',
+              propose: () => [
+                {
+                  id: 'study-fallback',
+                  description: 'study fallback for one minute',
+                  commandType: 'AgentStudy',
+                  payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action, selectedSubtask }) => {
+            simulatedActions.push(
+              `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+            );
+            return { status: 'accepted', action };
+          },
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(simulatedActions).toEqual(['llm-study-focused:development/study']);
+    expect(
+      result.agentResults[0]?.dispatchResult?.commands.map((command) => command.payload),
+    ).toEqual([{ durationSeconds: 120, educationRatePerSecond: 1 }]);
+    expect(result.traces[0]?.actionSequenceGeneration).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+        requestId: 'sequence-tick-agent-1',
+        actions: [
+          {
+            id: 'llm-study-focused',
+            commandType: 'AgentStudy',
+            rationale: 'Use a longer study action because health and energy can support it.',
+          },
+        ],
+      },
+    ]);
   });
 
   test('passes tick agent memory retrieval budget into cycle traces', async () => {

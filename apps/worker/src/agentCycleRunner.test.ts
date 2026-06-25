@@ -4,6 +4,7 @@ import {
   InMemoryBranchPlanRepository,
   InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
+  type ActionSequenceGenerator,
   type DomainMicroPlanner,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -384,6 +385,100 @@ describe('worker agent cycle runner', () => {
       requestId: 'prioritize-cycle-worker',
       choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
     });
+  });
+
+  test('passes action sequence generator into the planning cycle and trace', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActions: string[] = [];
+    const actionSequenceGenerator: ActionSequenceGenerator = async ({
+      deterministicActions,
+      selectedSubtask,
+      worldDecisionContext,
+    }) => {
+      await Promise.resolve();
+      expect(deterministicActions.map((action) => action.id)).toEqual(['study-fallback']);
+      expect(selectedSubtask).toMatchObject({ branchId: 'development', subtaskId: 'study' });
+      expect(worldDecisionContext?.agent.educationScore).toBe(10);
+      return {
+        actions: [
+          {
+            id: 'llm-study-focused',
+            description: 'study with a focused two minute routine',
+            commandType: 'AgentStudy',
+            payload: { durationSeconds: 120, educationRatePerSecond: 1 },
+            priority: 11,
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+          requestId: 'sequence-cycle-worker',
+          actions: [
+            {
+              id: 'llm-study-focused',
+              commandType: 'AgentStudy',
+              rationale: 'Use a longer study action because health and energy can support it.',
+            },
+          ],
+        },
+      };
+    };
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-action-sequence-generation',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createStudyPlan(),
+      signals: [],
+      actionSequenceGenerator,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-action-sequence-generation',
+      commandIdPrefix: 'cycle-action-sequence-generation-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-fallback',
+          description: 'study fallback for one minute',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+        }),
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActions.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActions).toEqual(['llm-study-focused:development/study']);
+    expect(result.dispatchResult?.commands.map((command) => command.payload)).toEqual([
+      { durationSeconds: 120, educationRatePerSecond: 1 },
+    ]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(130);
+    expect(result.trace.actionSequenceGeneration).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+        requestId: 'sequence-cycle-worker',
+        actions: [
+          {
+            id: 'llm-study-focused',
+            commandType: 'AgentStudy',
+            rationale: 'Use a longer study action because health and energy can support it.',
+          },
+        ],
+      },
+    ]);
   });
 
   test('collects and traces actions from multiple candidate subtasks', async () => {

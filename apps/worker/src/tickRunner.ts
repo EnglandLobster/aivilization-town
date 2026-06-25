@@ -1,5 +1,6 @@
 import type {
   ActionSynthesisPolicy,
+  ActionSequenceGenerator,
   AdaptiveReplanningPolicy,
   BranchPlan,
   BranchPlanRepository,
@@ -82,6 +83,7 @@ export type WorkerTickAgentInput = {
   readonly memoryRetrievalCandidateLimit?: number;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly actionSynthesis?: ActionSynthesisPolicy;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
@@ -254,6 +256,9 @@ export async function runWorkerSimulationTick(
         : { memoryRetrievalCandidateLimit: agent.memoryRetrievalCandidateLimit }),
       microPlanners: agent.microPlanners,
       ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
+      ...(agent.actionSequenceGenerator === undefined
+        ? {}
+        : { actionSequenceGenerator: agent.actionSequenceGenerator }),
       simulate: agent.simulate,
       ...(agent.repair === undefined ? {} : { repair: agent.repair }),
       ...(agent.subtaskCompletion === undefined

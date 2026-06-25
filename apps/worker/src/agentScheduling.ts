@@ -1,6 +1,7 @@
 import {
   hasSelectableSubtasks,
   type ActionSynthesisPolicy,
+  type ActionSequenceGenerator,
   type AdaptiveReplanningPolicy,
   type BranchPlanRecord,
   type BranchPlanProgressRepository,
@@ -28,6 +29,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly actionSynthesis?: ActionSynthesisPolicy;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
@@ -125,6 +127,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       ...(runtime.actionSynthesis === undefined
         ? {}
         : { actionSynthesis: runtime.actionSynthesis }),
+      ...(runtime.actionSequenceGenerator === undefined
+        ? {}
+        : { actionSequenceGenerator: runtime.actionSequenceGenerator }),
       simulate: runtime.simulate,
       ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
       ...(runtime.subtaskCompletion === undefined

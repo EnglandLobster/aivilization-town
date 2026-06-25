@@ -40,6 +40,10 @@ import {
   type SubtaskPrioritizationTrace,
   type SubtaskPrioritizer,
 } from './subtaskPrioritization';
+import type {
+  ActionSequenceGenerationTrace,
+  ActionSequenceGenerator,
+} from './actionSequenceGeneration';
 
 export type DomainMicroPlanner = {
   readonly domain: string;
@@ -75,6 +79,7 @@ export type CommandDraft = {
 export type AgentCycleResult = {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly prioritizationTrace?: SubtaskPrioritizationTrace;
+  readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
   readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
   readonly actionSynthesisResult: ActionSynthesisResult;
@@ -130,6 +135,7 @@ export type AgentPlanningCycleInput = {
 
 export type AgentPlanningCycleWithPrioritizationInput = AgentPlanningCycleInput & {
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
 };
 
 export function runAgentPlanningCycle(input: AgentPlanningCycleInput): AgentCycleResult {
@@ -166,12 +172,19 @@ export async function runAgentPlanningCycleWithPrioritization(
             : { worldDecisionContext: input.worldDecisionContext }),
         });
 
-  return runAgentPlanningCycleFromCandidates({
+  const cycleCandidateInput = {
     ...input,
     ...prepared,
     subtaskCandidates: prioritization.candidates,
     prioritizationTrace: prioritization.trace,
-  });
+  };
+
+  return input.actionSequenceGenerator === undefined
+    ? runAgentPlanningCycleFromCandidates(cycleCandidateInput)
+    : runAgentPlanningCycleFromCandidatesWithActionSequenceGeneration({
+        ...cycleCandidateInput,
+        actionSequenceGenerator: input.actionSequenceGenerator,
+      });
 }
 
 function prepareCyclePrioritization(input: AgentPlanningCycleInput): {
@@ -209,15 +222,72 @@ function prepareCyclePrioritization(input: AgentPlanningCycleInput): {
   };
 }
 
-function runAgentPlanningCycleFromCandidates(
-  input: AgentPlanningCycleInput & {
-    readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
-    readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
-    readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
-    readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
-    readonly prioritizationTrace?: SubtaskPrioritizationTrace;
+type CycleCandidateInput = AgentPlanningCycleInput & {
+  readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+  readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
+  readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
+  readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+  readonly prioritizationTrace?: SubtaskPrioritizationTrace;
+};
+
+type PreparedCycleCandidateExecution = {
+  readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly synthesisSubtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+  readonly synthesisSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+  readonly selectionEvidence: AgentCycleSelectionEvidence;
+};
+
+function runAgentPlanningCycleFromCandidates(input: CycleCandidateInput): AgentCycleResult {
+  const prepared = prepareCycleCandidateExecution(input);
+  const proposedActions = collectSynthesisActionProposals({
+    candidates: prepared.synthesisSubtaskCandidates,
+    microPlanners: input.microPlanners,
+  });
+
+  return runAgentPlanningCycleFromProposedActions({
+    ...input,
+    ...prepared,
+    proposedActions,
+  });
+}
+
+async function runAgentPlanningCycleFromCandidatesWithActionSequenceGeneration(
+  input: CycleCandidateInput & {
+    readonly actionSequenceGenerator: ActionSequenceGenerator;
   },
-): AgentCycleResult {
+): Promise<AgentCycleResult> {
+  const prepared = prepareCycleCandidateExecution(input);
+  const generated = await collectSynthesisActionProposalsWithGeneration({
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan: input.plan,
+    signals: input.signals,
+    ...(input.progress === undefined ? {} : { progress: input.progress }),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.shortTermMemoryContext }),
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+    candidates: prepared.synthesisSubtaskCandidates,
+    microPlanners: input.microPlanners,
+    actionSequenceGenerator: input.actionSequenceGenerator,
+  });
+
+  return runAgentPlanningCycleFromProposedActions({
+    ...input,
+    ...prepared,
+    proposedActions: generated.proposedActions,
+    actionSequenceTraces: generated.traces,
+  });
+}
+
+function prepareCycleCandidateExecution(
+  input: CycleCandidateInput,
+): PreparedCycleCandidateExecution {
   const subtaskCandidates = input.subtaskCandidates;
   const selectedCandidate = subtaskCandidates[0];
   if (selectedCandidate === undefined) {
@@ -237,12 +307,26 @@ function runAgentPlanningCycleFromCandidates(
     ...(input.memoryInfluence === undefined ? {} : { memoryInfluence: input.memoryInfluence }),
     ...(input.profileInfluence === undefined ? {} : { profileInfluence: input.profileInfluence }),
   });
-  const proposedActions = collectSynthesisActionProposals({
-    candidates: synthesisSubtaskCandidates,
-    microPlanners: input.microPlanners,
-  });
+
+  return {
+    subtaskCandidates,
+    selectedSubtask,
+    synthesisSubtaskCandidates,
+    synthesisSubtasksByKey,
+    selectionEvidence,
+  };
+}
+
+function runAgentPlanningCycleFromProposedActions(
+  input: CycleCandidateInput &
+    PreparedCycleCandidateExecution & {
+      readonly proposedActions: readonly AtomicActionProposal[];
+      readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
+    },
+): AgentCycleResult {
+  const proposedActions = input.proposedActions;
   if (proposedActions.length === 0) {
-    throw new Error(`no micro-planner supports subtask ${selectedSubtask.subtaskId}`);
+    throw new Error(`no micro-planner supports subtask ${input.selectedSubtask.subtaskId}`);
   }
   const actionSynthesisResult = synthesizeActionCandidates({
     actions: proposedActions,
@@ -261,14 +345,15 @@ function runAgentPlanningCycleFromCandidates(
       replanningPolicy: input.replanningPolicy,
       subtaskCompletion: input.subtaskCompletion,
       shortTermMemoryContext: input.shortTermMemoryContext,
-      selectedSubtask,
+      selectedSubtask: input.selectedSubtask,
       prioritizationTrace: input.prioritizationTrace,
-      selectionEvidence,
-      subtaskCandidates,
+      actionSequenceTraces: input.actionSequenceTraces,
+      selectionEvidence: input.selectionEvidence,
+      subtaskCandidates: input.subtaskCandidates,
       actionSynthesisResult,
       candidateActions,
       simulationResults,
-      selectedSubtasksByKey: synthesisSubtasksByKey,
+      selectedSubtasksByKey: input.synthesisSubtasksByKey,
     });
   }
 
@@ -280,8 +365,8 @@ function runAgentPlanningCycleFromCandidates(
           action: candidate,
           selectedSubtask: resolveSelectedSubtaskForAction({
             action: candidate,
-            fallback: selectedSubtask,
-            selectedSubtasksByKey: synthesisSubtasksByKey,
+            fallback: input.selectedSubtask,
+            selectedSubtasksByKey: input.synthesisSubtasksByKey,
           }),
         }),
       ...(input.repair === undefined
@@ -293,8 +378,8 @@ function runAgentPlanningCycleFromCandidates(
                 reason,
                 selectedSubtask: resolveSelectedSubtaskForAction({
                   action: rejectedAction,
-                  fallback: selectedSubtask,
-                  selectedSubtasksByKey: synthesisSubtasksByKey,
+                  fallback: input.selectedSubtask,
+                  selectedSubtasksByKey: input.synthesisSubtasksByKey,
                 }),
               }),
           }),
@@ -308,14 +393,15 @@ function runAgentPlanningCycleFromCandidates(
     replanningPolicy: input.replanningPolicy,
     subtaskCompletion: input.subtaskCompletion,
     shortTermMemoryContext: input.shortTermMemoryContext,
-    selectedSubtask,
+    selectedSubtask: input.selectedSubtask,
     prioritizationTrace: input.prioritizationTrace,
-    selectionEvidence,
-    subtaskCandidates,
+    actionSequenceTraces: input.actionSequenceTraces,
+    selectionEvidence: input.selectionEvidence,
+    subtaskCandidates: input.subtaskCandidates,
     actionSynthesisResult,
     candidateActions,
     simulationResults,
-    selectedSubtasksByKey: synthesisSubtasksByKey,
+    selectedSubtasksByKey: input.synthesisSubtasksByKey,
   });
 }
 
@@ -329,6 +415,7 @@ function finalizeAgentCycleResult(input: {
   readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[] | undefined;
   readonly selectedSubtask: PrioritizedSubtask;
   readonly prioritizationTrace: SubtaskPrioritizationTrace | undefined;
+  readonly actionSequenceTraces: readonly ActionSequenceGenerationTrace[] | undefined;
   readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
   readonly actionSynthesisResult: ActionSynthesisResult;
@@ -391,6 +478,9 @@ function finalizeAgentCycleResult(input: {
     ...(input.prioritizationTrace === undefined
       ? {}
       : { prioritizationTrace: input.prioritizationTrace }),
+    ...(input.actionSequenceTraces === undefined
+      ? {}
+      : { actionSequenceTraces: input.actionSequenceTraces }),
     selectionEvidence: input.selectionEvidence,
     subtaskCandidates: input.subtaskCandidates,
     actionSynthesisResult: input.actionSynthesisResult,
@@ -643,6 +733,68 @@ function collectSynthesisActionProposals(input: {
   }
 
   return proposedActions;
+}
+
+async function collectSynthesisActionProposalsWithGeneration(input: {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly plan: BranchPlan;
+  readonly signals: readonly ContextSignal[];
+  readonly progress?: BranchPlanProgress;
+  readonly intentionState?: AgentIntentionState;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
+  readonly candidates: readonly PrioritizedSubtaskCandidate[];
+  readonly microPlanners: readonly DomainMicroPlanner[];
+  readonly actionSequenceGenerator: ActionSequenceGenerator;
+}): Promise<{
+  readonly proposedActions: readonly AtomicActionProposal[];
+  readonly traces: readonly ActionSequenceGenerationTrace[];
+}> {
+  const proposedActions: AtomicActionProposal[] = [];
+  const traces: ActionSequenceGenerationTrace[] = [];
+
+  for (const candidate of input.candidates) {
+    const selectedSubtask = toPrioritizedSubtask(candidate);
+    const microPlanner = input.microPlanners.find((planner) => planner.supports(selectedSubtask));
+    if (microPlanner === undefined) {
+      continue;
+    }
+
+    const deterministicActions = microPlanner.propose({ selectedSubtask });
+    if (deterministicActions.length === 0) {
+      throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
+    }
+
+    const result = await input.actionSequenceGenerator({
+      agentId: input.agentId,
+      issuedAt: input.issuedAt,
+      plan: input.plan,
+      selectedSubtask,
+      signals: input.signals,
+      deterministicActions,
+      ...(input.progress === undefined ? {} : { progress: input.progress }),
+      ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+      ...(input.shortTermMemoryContext === undefined
+        ? {}
+        : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+      ...(input.worldDecisionContext === undefined
+        ? {}
+        : { worldDecisionContext: input.worldDecisionContext }),
+    });
+    if (result.actions.length === 0) {
+      throw new Error(`action sequence generator produced no candidate actions`);
+    }
+
+    traces.push(result.trace);
+    proposedActions.push(
+      ...result.actions.map((action) => attachSelectedSubtaskSynthesisContext(action, candidate)),
+    );
+  }
+
+  return { proposedActions, traces };
 }
 
 function createSelectedSubtaskMap(

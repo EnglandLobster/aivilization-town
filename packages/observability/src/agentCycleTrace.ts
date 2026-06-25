@@ -101,6 +101,44 @@ export type AgentCycleContextualPrioritizationTrace = {
   };
 };
 
+export type AgentCycleActionSequenceGenerationTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly selectedSubtask: {
+    readonly branchId: string;
+    readonly subtaskId: string;
+  };
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly actions?: readonly {
+    readonly id: string;
+    readonly commandType: string;
+    readonly rationale: string;
+  }[];
+  readonly attempts?: readonly {
+    readonly attemptIndex: number;
+    readonly status: string;
+    readonly providerId: string;
+    readonly model: string;
+    readonly message: string;
+    readonly usage: {
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly totalTokens: number;
+      readonly estimatedCostMicros: number;
+    };
+  }[];
+  readonly usage?: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
+  };
+};
+
 export type AgentCycleSubtaskReplanningDecisionTrace = {
   readonly branchId: string;
   readonly subtaskId: string;
@@ -164,6 +202,7 @@ export type AgentCycleTrace = {
   readonly observedStateSummary: string;
   readonly selectedBranch: string;
   readonly contextualPrioritization?: AgentCycleContextualPrioritizationTrace;
+  readonly actionSequenceGeneration?: readonly AgentCycleActionSequenceGenerationTrace[];
   readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
   readonly actionSynthesis: AgentCycleActionSynthesisTrace;
   readonly candidateActions: readonly string[];

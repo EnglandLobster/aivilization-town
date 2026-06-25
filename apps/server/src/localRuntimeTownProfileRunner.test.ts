@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  type ActionSequenceGenerator,
   FileBranchPlanRepository,
+  type GlobalActionSynthesizer,
+  type ReactiveCorrector,
+  type SubtaskPrioritizer,
   createBranchPlan,
   createDailyPlan,
 } from '@aivilization/agent-runtime';
@@ -18,7 +22,9 @@ import {
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import { afterEach, describe, expect, test } from 'vitest';
+import { createLocalWorldRuntimeStorage } from '@aivilization/worker';
 import {
+  createLocalRuntimeTownProfileAgentProvider,
   createLocalRuntimeTownProfileWorldPolicies,
   runLocalRuntimeTownDaemonScenarioProfile,
 } from './index';
@@ -261,6 +267,117 @@ describe('local runtime town profile runner', () => {
       profileId: 'smoke-25',
       requestedAt: 130,
     });
+  });
+
+  test('profile agent provider attaches configured agent-cycle LLM stage hooks to generated agents', async () => {
+    const rootDir = createRootDir();
+    const agentId = asAgentId('profile-hook-agent');
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-profile-hooks',
+      partitionKey: 'world-main',
+    });
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          locationId: null,
+          physiology: { energy: 80, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    await storage.intentionRepository.setObjective(agentId, {
+      id: 'objective-profile-hooks',
+      agentId,
+      statement: 'Study with runtime hooks.',
+      priority: 3,
+      source: 'human',
+      affinityTags: ['study'],
+      createdAt: 100,
+      updatedAt: 100,
+    });
+    await storage.planRepository.save({
+      planId: 'objective-profile-hooks',
+      agentId,
+      plan: createBranchPlan({
+        objective: 'Study with runtime hooks.',
+        branches: [
+          {
+            id: 'study-lane',
+            objective: 'Study.',
+            subtasks: [
+              {
+                id: 'study-step',
+                description: 'Study using configured hooks.',
+                basePriority: 5,
+                intentionAffinityTags: ['study'],
+              },
+            ],
+          },
+        ],
+      }),
+      createdAt: 100,
+      updatedAt: 100,
+    });
+    const subtaskPrioritizer: SubtaskPrioritizer = ({ candidates }) => ({
+      candidates,
+      trace: { status: 'deterministic', source: 'deterministic' },
+    });
+    const actionSequenceGenerator: ActionSequenceGenerator = (input) =>
+      Promise.resolve({
+        actions: input.deterministicActions,
+        trace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          selectedSubtask: {
+            branchId: input.selectedSubtask.branchId,
+            subtaskId: input.selectedSubtask.subtaskId,
+          },
+        },
+      });
+    const globalSynthesizer: GlobalActionSynthesizer = (input) =>
+      Promise.resolve({
+        actions: input.candidateActions,
+        trace: { status: 'deterministic', source: 'deterministic' },
+      });
+    const reactiveCorrector: ReactiveCorrector = () =>
+      Promise.resolve({
+        action: undefined,
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          decision: {
+            kind: 'no-correction',
+            rationale: 'test corrector',
+            evidenceRecordIds: [],
+          },
+        },
+      });
+    const provider = createLocalRuntimeTownProfileAgentProvider({
+      subtaskPrioritizer,
+      actionSequenceGenerator,
+      globalSynthesizer,
+      reactiveCorrector,
+    });
+
+    const agents = await provider({
+      storage,
+      simulationId: storage.partition.simulationId,
+      issuedAt: 200,
+      projection,
+    });
+
+    expect(agents).toHaveLength(1);
+    const agent = agents[0];
+    expect(agent?.subtaskPrioritizer).toBe(subtaskPrioritizer);
+    expect(agent?.actionSequenceGenerator).toBe(actionSequenceGenerator);
+    expect(agent?.globalSynthesizer).toBe(globalSynthesizer);
+    expect(agent?.reactiveCorrector).toBe(reactiveCorrector);
   });
 
   test('uses profile LLM planning config for autonomous objective plans', async () => {

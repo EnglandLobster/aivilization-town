@@ -4,9 +4,17 @@ import type { LlmGatewayPricing, OpenAiCompatibleResponseFormatMode } from '@aiv
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
   LocalRuntimeTownProfileDailyPlanningConfig,
+  LocalRuntimeTownProfileActionSequenceGenerationConfig,
+  LocalRuntimeTownProfileActionSequenceGeneratorConfig,
+  LocalRuntimeTownProfileGlobalSynthesisConfig,
+  LocalRuntimeTownProfileGlobalSynthesizerConfig,
   LocalRuntimeTownProfileLlmPlanningConfig,
+  LocalRuntimeTownProfileReactiveCorrectionConfig,
+  LocalRuntimeTownProfileReactiveCorrectorConfig,
   LocalRuntimeTownProfileReactionEvaluatorConfig,
   LocalRuntimeTownProfileReactionPlanningConfig,
+  LocalRuntimeTownProfileSubtaskPrioritizationConfig,
+  LocalRuntimeTownProfileSubtaskPrioritizerConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
@@ -35,6 +43,10 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
+  readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizationConfig;
+  readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGenerationConfig;
+  readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesisConfig;
+  readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectionConfig;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
 
@@ -123,11 +135,51 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
       nodeName: 'replanningPolicy',
     }),
   });
+  const subtaskPrioritization = parseSubtaskPrioritizationNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'subtaskPrioritization',
+    }),
+    env,
+  });
+  const actionSequenceGeneration = parseActionSequenceGenerationNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'actionSequenceGeneration',
+    }),
+    env,
+  });
+  const globalSynthesis = parseGlobalSynthesisNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'globalSynthesis',
+    }),
+    env,
+  });
+  const reactiveCorrection = parseReactiveCorrectionNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'reactiveCorrection',
+    }),
+    env,
+  });
 
   return {
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
+    ...(subtaskPrioritization === undefined ? {} : { subtaskPrioritization }),
+    ...(actionSequenceGeneration === undefined ? {} : { actionSequenceGeneration }),
+    ...(globalSynthesis === undefined ? {} : { globalSynthesis }),
+    ...(reactiveCorrection === undefined ? {} : { reactiveCorrection }),
     ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
   };
 }
@@ -264,6 +316,154 @@ function parseReactionPlanningNode(input: {
   };
 }
 
+function parseSubtaskPrioritizationNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileSubtaskPrioritizerConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'subtaskPrioritization');
+  const kind = readRequiredString(record.kind, 'subtaskPrioritization.kind');
+  if (kind !== 'traceable-llm-subtask-prioritizer') {
+    throw new Error(`subtaskPrioritization.kind must be traceable-llm-subtask-prioritizer`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'subtaskPrioritization.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(
+    record.timeoutMs,
+    'subtaskPrioritization.timeoutMs',
+  );
+  const pricing = parseOptionalPricing(record.pricing, 'subtaskPrioritization');
+
+  return {
+    kind: 'traceable-llm-subtask-prioritizer',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'subtaskPrioritization.model'),
+    provider: parseOpenAiCompatibleProviderConfig(
+      record.provider,
+      input.env,
+      'subtaskPrioritization',
+    ),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
+function parseActionSequenceGenerationNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileActionSequenceGeneratorConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'actionSequenceGeneration');
+  const kind = readRequiredString(record.kind, 'actionSequenceGeneration.kind');
+  if (kind !== 'traceable-llm-action-sequence-generator') {
+    throw new Error(
+      `actionSequenceGeneration.kind must be traceable-llm-action-sequence-generator`,
+    );
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'actionSequenceGeneration.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(
+    record.timeoutMs,
+    'actionSequenceGeneration.timeoutMs',
+  );
+  const pricing = parseOptionalPricing(record.pricing, 'actionSequenceGeneration');
+
+  return {
+    kind: 'traceable-llm-action-sequence-generator',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'actionSequenceGeneration.model'),
+    provider: parseOpenAiCompatibleProviderConfig(
+      record.provider,
+      input.env,
+      'actionSequenceGeneration',
+    ),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
+function parseGlobalSynthesisNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileGlobalSynthesizerConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'globalSynthesis');
+  const kind = readRequiredString(record.kind, 'globalSynthesis.kind');
+  if (kind !== 'traceable-llm-global-synthesizer') {
+    throw new Error(`globalSynthesis.kind must be traceable-llm-global-synthesizer`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'globalSynthesis.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'globalSynthesis.timeoutMs');
+  const pricing = parseOptionalPricing(record.pricing, 'globalSynthesis');
+
+  return {
+    kind: 'traceable-llm-global-synthesizer',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'globalSynthesis.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'globalSynthesis'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
+function parseReactiveCorrectionNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileReactiveCorrectorConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'reactiveCorrection');
+  const kind = readRequiredString(record.kind, 'reactiveCorrection.kind');
+  if (kind !== 'traceable-llm-reactive-corrector') {
+    throw new Error(`reactiveCorrection.kind must be traceable-llm-reactive-corrector`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'reactiveCorrection.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'reactiveCorrection.timeoutMs');
+  const pricing = parseOptionalPricing(record.pricing, 'reactiveCorrection');
+
+  return {
+    kind: 'traceable-llm-reactive-corrector',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'reactiveCorrection.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'reactiveCorrection'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
 function parseReplanningPolicyNode(input: {
   readonly node: unknown;
 }): AdaptiveReplanningPolicy | undefined {
@@ -292,6 +492,10 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'llmPlanning'
   | 'dailyPlanning'
   | 'reactionPlanning'
+  | 'subtaskPrioritization'
+  | 'actionSequenceGeneration'
+  | 'globalSynthesis'
+  | 'reactiveCorrection'
   | 'replanningPolicy';
 
 function parseOpenAiCompatibleProviderConfig(

@@ -2,8 +2,12 @@ import {
   createBranchPlan,
   InMemoryBranchPlanRepository,
   type AtomicActionProposal,
+  type ActionSequenceGenerator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
+  type GlobalActionSynthesizer,
+  type ReactiveCorrector,
+  type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { InMemoryAgentIntentionRepository, type LongHorizonObjective } from '@aivilization/memory';
 import { asAgentId, asSimulationId, type AgentId } from '@aivilization/sim-core';
@@ -255,6 +259,65 @@ describe('canonical worker runtime resolver', () => {
     });
 
     expect(binding?.replanningPolicy).toEqual(replanningPolicy);
+  });
+
+  test('attaches configured agent-cycle LLM stage hooks to canonical runtime bindings', async () => {
+    const projection = createProjection();
+    const subtaskPrioritizer: SubtaskPrioritizer = ({ candidates }) => ({
+      candidates,
+      trace: { status: 'deterministic', source: 'deterministic' },
+    });
+    const actionSequenceGenerator: ActionSequenceGenerator = (input) =>
+      Promise.resolve({
+        actions: input.deterministicActions,
+        trace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          selectedSubtask: {
+            branchId: input.selectedSubtask.branchId,
+            subtaskId: input.selectedSubtask.subtaskId,
+          },
+        },
+      });
+    const globalSynthesizer: GlobalActionSynthesizer = (input) =>
+      Promise.resolve({
+        actions: input.candidateActions,
+        trace: { status: 'deterministic', source: 'deterministic' },
+      });
+    const reactiveCorrector: ReactiveCorrector = () =>
+      Promise.resolve({
+        action: undefined,
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          decision: {
+            kind: 'no-correction',
+            rationale: 'test corrector',
+            evidenceRecordIds: [],
+          },
+        },
+      });
+    const resolver = createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies,
+      subtaskPrioritizer,
+      actionSequenceGenerator,
+      globalSynthesizer,
+      reactiveCorrector,
+    });
+
+    const binding = await resolver({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+    });
+
+    expect(binding?.subtaskPrioritizer).toBe(subtaskPrioritizer);
+    expect(binding?.actionSequenceGenerator).toBe(actionSequenceGenerator);
+    expect(binding?.globalSynthesizer).toBe(globalSynthesizer);
+    expect(binding?.reactiveCorrector).toBe(reactiveCorrector);
   });
 
   test('appends matching additional domain registrations after canonical registrations', async () => {

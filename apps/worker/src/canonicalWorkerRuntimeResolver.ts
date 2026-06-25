@@ -2,10 +2,14 @@ import type {
   ActionWithRepairResult,
   ActionSimulationTraceEvent,
   AtomicActionProposal,
+  ActionSequenceGenerator,
   AdaptiveReplanningPolicy,
   CycleActionSimulator,
   CycleRepairPolicy,
   CycleSubtaskCompletionPolicy,
+  GlobalActionSynthesizer,
+  ReactiveCorrector,
+  SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
   createCommandEnvelope,
@@ -52,6 +56,10 @@ export type CanonicalWorkerRuntimeResolverConfig = {
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly globalSynthesizer?: GlobalActionSynthesizer;
+  readonly reactiveCorrector?: ReactiveCorrector;
   readonly issuedAt?: SimulationTimestamp;
   readonly nextSequence?: number;
   readonly commandIdPrefix?: string;
@@ -116,6 +124,18 @@ export function createCanonicalWorkerRuntimeResolver(
       ...(config.replanningPolicy === undefined
         ? {}
         : { replanningPolicy: config.replanningPolicy }),
+      ...(config.subtaskPrioritizer === undefined
+        ? {}
+        : { subtaskPrioritizer: config.subtaskPrioritizer }),
+      ...(config.actionSequenceGenerator === undefined
+        ? {}
+        : { actionSequenceGenerator: config.actionSequenceGenerator }),
+      ...(config.globalSynthesizer === undefined
+        ? {}
+        : { globalSynthesizer: config.globalSynthesizer }),
+      ...(config.reactiveCorrector === undefined
+        ? {}
+        : { reactiveCorrector: config.reactiveCorrector }),
       subtaskCompletion: createCanonicalSubtaskCompletionPolicy({
         context,
         ...(config.domainConfig?.production === undefined

@@ -1,8 +1,12 @@
 import type {
   AdaptiveReplanningPolicy,
+  ActionSequenceGenerator,
   DailyPlanCompiler,
+  GlobalActionSynthesizer,
   ReactionEvaluator,
+  ReactiveCorrector,
   StrategicPlanCompiler,
+  SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
@@ -28,11 +32,19 @@ import {
 import type { LocalRuntimeTownDaemonHealth } from './localRuntimeTownOrchestration';
 import {
   createLocalRuntimeTownProfileDailyPlanCompiler,
+  createLocalRuntimeTownProfileActionSequenceGenerator,
+  createLocalRuntimeTownProfileGlobalSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
+  createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
+  createLocalRuntimeTownProfileSubtaskPrioritizer,
+  type LocalRuntimeTownProfileActionSequenceGeneratorConfig,
   type LocalRuntimeTownProfileDailyCompilerConfig,
+  type LocalRuntimeTownProfileGlobalSynthesizerConfig,
+  type LocalRuntimeTownProfileReactiveCorrectorConfig,
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
+  type LocalRuntimeTownProfileSubtaskPrioritizerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
@@ -53,10 +65,18 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
   readonly reactionEvaluator?: ReactionEvaluator;
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly globalSynthesizer?: GlobalActionSynthesizer;
+  readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionEvaluatorConfig;
+  readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizerConfig;
+  readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGeneratorConfig;
+  readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesizerConfig;
+  readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectorConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
@@ -131,6 +151,18 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const reactionEvaluator =
     input.reactionEvaluator ??
     createLocalRuntimeTownProfileReactionEvaluator(input.reactionPlanning);
+  const subtaskPrioritizer =
+    input.subtaskPrioritizer ??
+    createLocalRuntimeTownProfileSubtaskPrioritizer(input.subtaskPrioritization);
+  const actionSequenceGenerator =
+    input.actionSequenceGenerator ??
+    createLocalRuntimeTownProfileActionSequenceGenerator(input.actionSequenceGeneration);
+  const globalSynthesizer =
+    input.globalSynthesizer ??
+    createLocalRuntimeTownProfileGlobalSynthesizer(input.globalSynthesis);
+  const reactiveCorrector =
+    input.reactiveCorrector ??
+    createLocalRuntimeTownProfileReactiveCorrector(input.reactiveCorrection);
   const replanningPolicy = input.replanningPolicy ?? profileDefaults.replanningPolicy;
   const agentProvider =
     input.agentProvider ??
@@ -139,6 +171,10 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
       ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
       ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
+      ...(subtaskPrioritizer === undefined ? {} : { subtaskPrioritizer }),
+      ...(actionSequenceGenerator === undefined ? {} : { actionSequenceGenerator }),
+      ...(globalSynthesizer === undefined ? {} : { globalSynthesizer }),
+      ...(reactiveCorrector === undefined ? {} : { reactiveCorrector }),
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
@@ -284,6 +320,10 @@ export function createLocalRuntimeTownProfileAgentProvider(
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
     readonly dailyPlanCompiler?: DailyPlanCompiler;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
+    readonly subtaskPrioritizer?: SubtaskPrioritizer;
+    readonly actionSequenceGenerator?: ActionSequenceGenerator;
+    readonly globalSynthesizer?: GlobalActionSynthesizer;
+    readonly reactiveCorrector?: ReactiveCorrector;
     readonly memoryRetrievalLimit?: number;
     readonly memoryRetrievalCandidateLimit?: number;
   } = {},
@@ -354,6 +394,18 @@ export function createLocalRuntimeTownProfileAgentProvider(
         ...(input.replanningPolicy === undefined
           ? {}
           : { replanningPolicy: input.replanningPolicy }),
+        ...(input.subtaskPrioritizer === undefined
+          ? {}
+          : { subtaskPrioritizer: input.subtaskPrioritizer }),
+        ...(input.actionSequenceGenerator === undefined
+          ? {}
+          : { actionSequenceGenerator: input.actionSequenceGenerator }),
+        ...(input.globalSynthesizer === undefined
+          ? {}
+          : { globalSynthesizer: input.globalSynthesizer }),
+        ...(input.reactiveCorrector === undefined
+          ? {}
+          : { reactiveCorrector: input.reactiveCorrector }),
       }),
     });
   };

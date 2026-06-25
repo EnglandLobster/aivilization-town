@@ -36,13 +36,17 @@ agent-runtime LLM compilers, worker canonical runtime resolver, server profile r
   for the four new stages, then pass them into the profile agent provider.
 - Modify `apps/server/src/localRuntimeTownProfileRunner.test.ts`: prove direct injected hooks reach
   generated agents.
-- Modify `apps/server/src/localRuntimeTownProfileRunnerCli.test.ts` only if existing combined
-  runtime config CLI assertions need the new fields.
+- Modify `apps/server/src/localRuntimeTownProfileRunnerCli.ts`: map parsed runtime config stage
+  nodes into `LocalRuntimeTownProfileRunnerInput`.
+- Modify `apps/server/src/localRuntimeTownProfileRunnerCli.test.ts`: prove CLI runtime config
+  mapping for the four new stage configs.
+- Modify `apps/worker/src/agentScheduling.ts`: pass `subtaskPrioritizer` from runtime binding to
+  tick agent input.
 - Update this plan with verification logs before the implementation commit.
 
 ## Task 1: Runtime Config Parser
 
-- [ ] **Step 1: Write failing parser tests**
+- [x] **Step 1: Write failing parser tests**
 
 Add tests to `apps/server/src/localRuntimeTownProfileRuntimeConfig.test.ts` proving:
 
@@ -62,7 +66,7 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.
 Expected: FAIL because `LocalRuntimeTownProfileRuntimeConfig` has no new fields and parser rejects
 or ignores the new nodes.
 
-- [ ] **Step 2: Implement parser types and functions**
+- [x] **Step 2: Implement parser types and functions**
 
 In `apps/server/src/localRuntimeTownProfileRuntimeConfig.ts`:
 
@@ -80,7 +84,7 @@ In `apps/server/src/localRuntimeTownProfileRuntimeConfig.ts`:
 - reuse `parseOpenAiCompatibleProviderConfig`, `parseOptionalPricing`,
   `readOptionalPositiveInteger`, and `readOptionalNonNegativeFinite`.
 
-- [ ] **Step 3: Verify parser tests pass**
+- [x] **Step 3: Verify parser tests pass**
 
 Run:
 
@@ -90,9 +94,17 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.
 
 Expected: PASS.
 
+### Verification Log
+
+- RED: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.test.ts`
+  failed because `loadLocalRuntimeTownProfileRuntimeConfig` returned `{}` for the four new
+  agent-cycle LLM stage nodes and did not reject invalid new-node config.
+- GREEN: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.test.ts`
+  passed after parser types and node-specific validation were added.
+
 ## Task 2: Server LLM Stage Factories
 
-- [ ] **Step 1: Write failing factory tests**
+- [x] **Step 1: Write failing factory tests**
 
 Add tests to `apps/server/src/localRuntimeTownProfileLlmPlanning.test.ts` proving each factory can
 use a scripted provider:
@@ -117,7 +129,7 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileLlmPlanning.te
 
 Expected: FAIL because the factory exports do not exist.
 
-- [ ] **Step 2: Implement factory types and functions**
+- [x] **Step 2: Implement factory types and functions**
 
 In `apps/server/src/localRuntimeTownProfileLlmPlanning.ts`:
 
@@ -133,7 +145,7 @@ In `apps/server/src/localRuntimeTownProfileLlmPlanning.ts`:
 - add one optional config alias per stage;
 - add factory functions that construct a provider from config and return the traceable stage.
 
-- [ ] **Step 3: Verify factory tests pass**
+- [x] **Step 3: Verify factory tests pass**
 
 Run:
 
@@ -143,9 +155,17 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileLlmPlanning.te
 
 Expected: PASS.
 
+### Verification Log
+
+- RED: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileLlmPlanning.test.ts`
+  failed because `createLocalRuntimeTownProfileSubtaskPrioritizer` and sibling factory exports did
+  not exist.
+- GREEN: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileLlmPlanning.test.ts`
+  passed after all four scripted-provider factory functions were added.
+
 ## Task 3: Worker Canonical Resolver Pass-Through
 
-- [ ] **Step 1: Write failing resolver test**
+- [x] **Step 1: Write failing resolver test**
 
 Add a test to `apps/worker/src/canonicalWorkerRuntimeResolver.test.ts` that passes all four stage
 hooks into `createCanonicalWorkerRuntimeResolver`, resolves a binding for an active production plan,
@@ -164,7 +184,7 @@ pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.t
 
 Expected: FAIL because resolver config does not expose or copy those fields.
 
-- [ ] **Step 2: Implement resolver pass-through**
+- [x] **Step 2: Implement resolver pass-through**
 
 In `apps/worker/src/canonicalWorkerRuntimeResolver.ts`:
 
@@ -172,7 +192,7 @@ In `apps/worker/src/canonicalWorkerRuntimeResolver.ts`:
 - extend `CanonicalWorkerRuntimeResolverConfig`;
 - copy defined hooks into the returned `WorkerAgentRuntimeBinding`.
 
-- [ ] **Step 3: Verify resolver test passes**
+- [x] **Step 3: Verify resolver test passes**
 
 Run:
 
@@ -182,9 +202,16 @@ pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.t
 
 Expected: PASS.
 
+### Verification Log
+
+- RED: `pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.ts`
+  failed because the canonical runtime binding omitted configured agent-cycle LLM stage hooks.
+- GREEN: `pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.ts`
+  passed after resolver config and binding pass-through were added.
+
 ## Task 4: Profile Runner Composition
 
-- [ ] **Step 1: Write failing runner tests**
+- [x] **Step 1: Write failing runner tests**
 
 Add tests to `apps/server/src/localRuntimeTownProfileRunner.test.ts` proving:
 
@@ -202,7 +229,7 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunner.test.ts
 
 Expected: FAIL because runner inputs and agent provider do not accept the new hooks/configs.
 
-- [ ] **Step 2: Implement runner composition**
+- [x] **Step 2: Implement runner composition**
 
 In `apps/server/src/localRuntimeTownProfileRunner.ts`:
 
@@ -211,7 +238,7 @@ In `apps/server/src/localRuntimeTownProfileRunner.ts`:
 - pass hooks into `createLocalRuntimeTownProfileAgentProvider`;
 - extend provider input with the four hooks and pass them to `createCanonicalWorkerRuntimeResolver`.
 
-- [ ] **Step 3: Verify runner tests pass**
+- [x] **Step 3: Verify runner tests pass**
 
 Run:
 
@@ -221,26 +248,40 @@ pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunner.test.ts
 
 Expected: PASS.
 
+### Verification Log
+
+- RED: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunner.test.ts`
+  failed because `createLocalRuntimeTownProfileAgentProvider` did not pass configured agent-cycle
+  LLM stage hooks through to generated tick agents.
+- GREEN: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunner.test.ts`
+  passed after profile runner/provider composition and the missing scheduling pass-through were
+  added.
+- RED: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunnerCli.test.ts`
+  failed because `--runtime-config` loaded the new stage config nodes but did not map them into
+  `LocalRuntimeTownProfileRunnerInput`.
+- GREEN: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRunnerCli.test.ts`
+  passed after CLI runtime config mapping was extended.
+
 ## Task 5: Full Verification And Commit
 
-- [ ] **Step 1: Format touched files**
+- [x] **Step 1: Format touched files**
 
 Run:
 
 ```bash
-pnpm exec prettier --write docs/superpowers/specs/2026-06-25-runtime-agent-cycle-llm-stage-wiring-design.md docs/superpowers/plans/2026-06-25-runtime-agent-cycle-llm-stage-wiring-slice.md apps/server/src/localRuntimeTownProfileRuntimeConfig.ts apps/server/src/localRuntimeTownProfileRuntimeConfig.test.ts apps/server/src/localRuntimeTownProfileLlmPlanning.ts apps/server/src/localRuntimeTownProfileLlmPlanning.test.ts apps/server/src/localRuntimeTownProfileRunner.ts apps/server/src/localRuntimeTownProfileRunner.test.ts apps/worker/src/canonicalWorkerRuntimeResolver.ts apps/worker/src/canonicalWorkerRuntimeResolver.test.ts
+pnpm exec prettier --write docs/superpowers/specs/2026-06-25-runtime-agent-cycle-llm-stage-wiring-design.md docs/superpowers/plans/2026-06-25-runtime-agent-cycle-llm-stage-wiring-slice.md apps/server/src/localRuntimeTownProfileRuntimeConfig.ts apps/server/src/localRuntimeTownProfileRuntimeConfig.test.ts apps/server/src/localRuntimeTownProfileLlmPlanning.ts apps/server/src/localRuntimeTownProfileLlmPlanning.test.ts apps/server/src/localRuntimeTownProfileRunner.ts apps/server/src/localRuntimeTownProfileRunner.test.ts apps/server/src/localRuntimeTownProfileRunnerCli.ts apps/server/src/localRuntimeTownProfileRunnerCli.test.ts apps/worker/src/agentScheduling.ts apps/worker/src/canonicalWorkerRuntimeResolver.ts apps/worker/src/canonicalWorkerRuntimeResolver.test.ts
 ```
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 Run:
 
 ```bash
-pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.test.ts localRuntimeTownProfileLlmPlanning.test.ts localRuntimeTownProfileRunner.test.ts
+pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.test.ts localRuntimeTownProfileLlmPlanning.test.ts localRuntimeTownProfileRunner.test.ts localRuntimeTownProfileRunnerCli.test.ts
 pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.ts
 ```
 
-- [ ] **Step 3: Run full verification**
+- [x] **Step 3: Run full verification**
 
 Run:
 
@@ -251,11 +292,21 @@ git diff --check
 
 Expected: both pass.
 
-- [ ] **Step 4: Commit**
+### Verification Log
+
+- GREEN: `pnpm --filter @aivilization/server test -- localRuntimeTownProfileRuntimeConfig.test.ts localRuntimeTownProfileLlmPlanning.test.ts localRuntimeTownProfileRunner.test.ts localRuntimeTownProfileRunnerCli.test.ts`
+  passed with 14 test files and 75 tests.
+- GREEN: `pnpm --filter @aivilization/worker test -- canonicalWorkerRuntimeResolver.test.ts`
+  passed with 52 test files and 299 tests.
+- GREEN: `pnpm check` passed lint, typecheck, and the full Vitest suite with 161 test files and
+  838 tests.
+- GREEN: `git diff --check` passed.
+
+- [x] **Step 4: Commit**
 
 Commit with a detailed Conventional Commit message:
 
 ```bash
-git add docs/superpowers/specs/2026-06-25-runtime-agent-cycle-llm-stage-wiring-design.md docs/superpowers/plans/2026-06-25-runtime-agent-cycle-llm-stage-wiring-slice.md apps/server/src/localRuntimeTownProfileRuntimeConfig.ts apps/server/src/localRuntimeTownProfileRuntimeConfig.test.ts apps/server/src/localRuntimeTownProfileLlmPlanning.ts apps/server/src/localRuntimeTownProfileLlmPlanning.test.ts apps/server/src/localRuntimeTownProfileRunner.ts apps/server/src/localRuntimeTownProfileRunner.test.ts apps/worker/src/canonicalWorkerRuntimeResolver.ts apps/worker/src/canonicalWorkerRuntimeResolver.test.ts
+git add docs/superpowers/specs/2026-06-25-runtime-agent-cycle-llm-stage-wiring-design.md docs/superpowers/plans/2026-06-25-runtime-agent-cycle-llm-stage-wiring-slice.md apps/server/src/localRuntimeTownProfileRuntimeConfig.ts apps/server/src/localRuntimeTownProfileRuntimeConfig.test.ts apps/server/src/localRuntimeTownProfileLlmPlanning.ts apps/server/src/localRuntimeTownProfileLlmPlanning.test.ts apps/server/src/localRuntimeTownProfileRunner.ts apps/server/src/localRuntimeTownProfileRunner.test.ts apps/server/src/localRuntimeTownProfileRunnerCli.ts apps/server/src/localRuntimeTownProfileRunnerCli.test.ts apps/worker/src/agentScheduling.ts apps/worker/src/canonicalWorkerRuntimeResolver.ts apps/worker/src/canonicalWorkerRuntimeResolver.test.ts
 git commit -m "feat(planning): 接入运行时 agent-cycle LLM 阶段"
 ```

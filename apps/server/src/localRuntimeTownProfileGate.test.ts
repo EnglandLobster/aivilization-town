@@ -70,5 +70,28 @@ describe('local runtime town profile gate criteria', () => {
         'world-rural': 100,
       },
     });
+
+    expect(createLocalRuntimeTownProfileGateCriteria('recovery-drill-25')).toMatchObject({
+      criteriaId: 'aivilization-recovery-drill-25:profile-run-gate',
+      profileId: 'recovery-drill-25',
+      manifestId: 'aivilization-recovery-drill-25',
+      partitionCount: 1,
+      totalProjectionAgentCount: 25,
+      minimumFullReplanMaterializationCount: 1,
+      expectedProjectionAgentCountByPartition: {
+        'world-main': 25,
+      },
+    });
+  });
+
+  test('allows callers to override recovery drill full replan materialization requirements', () => {
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('recovery-drill-25', {
+        minimumFullReplanMaterializationCount: 0,
+      }),
+    ).toMatchObject({
+      criteriaId: 'aivilization-recovery-drill-25:profile-run-gate',
+      minimumFullReplanMaterializationCount: 0,
+    });
   });
 });

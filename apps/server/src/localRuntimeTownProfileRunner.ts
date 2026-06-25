@@ -34,6 +34,7 @@ import {
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
+import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
 import { createLocalRuntimeTownApi } from './localRuntimeTownServer';
@@ -114,11 +115,13 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   }
 
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
+  const profileDefaults = createLocalRuntimeTownProfileDefaults(profile.profileId);
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
   const strategicPlanCompiler =
     input.agentProvider === undefined
       ? (input.strategicPlanCompiler ??
-        createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning))
+        createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning) ??
+        profileDefaults.strategicPlanCompiler)
       : undefined;
   const dailyPlanCompiler =
     input.agentProvider === undefined
@@ -128,13 +131,14 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const reactionEvaluator =
     input.reactionEvaluator ??
     createLocalRuntimeTownProfileReactionEvaluator(input.reactionPlanning);
+  const replanningPolicy = input.replanningPolicy ?? profileDefaults.replanningPolicy;
   const agentProvider =
     input.agentProvider ??
     createLocalRuntimeTownProfileAgentProvider({
       policies,
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
       ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
-      ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
+      ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),

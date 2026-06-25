@@ -52,6 +52,26 @@ describe('local runtime town profile runner CLI', () => {
     });
   });
 
+  test('parses recovery drill profile runner arguments', () => {
+    expect(
+      parseLocalRuntimeTownProfileRunnerCliArgs([
+        '--profile',
+        'recovery-drill-25',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+      ]),
+    ).toMatchObject({
+      profileId: 'recovery-drill-25',
+      rootDir: '/tmp/town',
+      cycleCount: 1,
+      requestedAt: 100,
+    });
+  });
+
   test('runs the injected profile runner and writes JSON to stdout', async () => {
     let output = '';
     const exitCode = await runLocalRuntimeTownProfileRunnerCli({

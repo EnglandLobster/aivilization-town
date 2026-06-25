@@ -25,6 +25,7 @@ export const localRuntimeTownProfileGateSuiteDefaultProfileIds = [
   'smoke-25',
   'default-100',
   'headless-stress-1000',
+  'recovery-drill-25',
 ] as const satisfies readonly LocalRuntimeTownDaemonScenarioProfileId[];
 
 export type LocalRuntimeTownProfileGateSuiteInput = {

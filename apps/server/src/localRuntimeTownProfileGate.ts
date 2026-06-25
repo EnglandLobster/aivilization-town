@@ -1,5 +1,6 @@
 import type { RuntimeProfileRunGateCriteria } from '@aivilization/observability';
 import type { PartitionKey } from '@aivilization/sim-core';
+import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
 
@@ -15,6 +16,7 @@ export function createLocalRuntimeTownProfileGateCriteria(
   input: LocalRuntimeTownProfileGateCriteriaInput = {},
 ): RuntimeProfileRunGateCriteria {
   const profile = createLocalRuntimeTownDaemonScenarioProfile(profileId);
+  const profileDefaults = createLocalRuntimeTownProfileDefaults(profile.profileId);
   const agentCountByPresetId = new Map(
     profile.scenarioPresets.map((preset) => [preset.id, preset.agentSeeds.length]),
   );
@@ -39,7 +41,10 @@ export function createLocalRuntimeTownProfileGateCriteria(
     minimumCompletedCycleCount: input.minimumCompletedCycleCount ?? 1,
     minimumTotalEventCount: input.minimumTotalEventCount ?? profile.manifest.partitions.length + 1,
     minimumTotalAgentTraceCount: input.minimumTotalAgentTraceCount ?? 1,
-    minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount ?? 0,
+    minimumFullReplanMaterializationCount:
+      input.minimumFullReplanMaterializationCount ??
+      profileDefaults.minimumFullReplanMaterializationCount ??
+      0,
     requiredDaemonHealth: 'healthy',
     requiredOutcome: 'succeeded',
     requiredStopReason: 'cycle-count-completed',

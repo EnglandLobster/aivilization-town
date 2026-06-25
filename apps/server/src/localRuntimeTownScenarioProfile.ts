@@ -14,7 +14,8 @@ import type {
 export type LocalRuntimeTownDaemonScenarioProfileId =
   | 'smoke-25'
   | 'default-100'
-  | 'headless-stress-1000';
+  | 'headless-stress-1000'
+  | 'recovery-drill-25';
 
 export type LocalRuntimeTownDaemonScenarioProfile = {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
@@ -114,6 +115,23 @@ const profileConfigs = {
       { partitionKey: 'world-campus', agentCount: 100, label: 'Campus' },
       { partitionKey: 'world-rural', agentCount: 100, label: 'Rural' },
     ],
+  },
+  'recovery-drill-25': {
+    profileId: 'recovery-drill-25',
+    manifestId: 'aivilization-recovery-drill-25',
+    name: 'AIvilization Recovery Drill 25',
+    description:
+      'Single-partition 25-agent headless recovery drill profile for adaptive full-replan verification.',
+    headless: true,
+    commandConsumerIdPrefix: 'recovery-drill-worker',
+    tickBatchSize: 1,
+    tickIntervalMs: 0,
+    maxJobsPerPoll: 1,
+    scheduleIntervalMs: 100,
+    recoveryIntervalMs: 1_000,
+    commodityReserve: 100,
+    currencyReserve: 1_000,
+    partitions: [{ partitionKey: 'world-main', agentCount: 25, label: 'Main' }],
   },
 } as const satisfies Record<
   LocalRuntimeTownDaemonScenarioProfileId,

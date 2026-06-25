@@ -2,6 +2,7 @@ export * from './localRuntimeTownOrchestration';
 export * from './localRuntimeTownPlannerAblationSuite';
 export * from './localRuntimeTownProfileGate';
 export * from './localRuntimeTownProfileGateSuite';
+export * from './localRuntimeTownProfileDefaults';
 export * from './localRuntimeTownProfileLlmPlanning';
 export * from './localRuntimeTownProfileRuntimeConfig';
 export * from './localRuntimeTownProfileRunner';

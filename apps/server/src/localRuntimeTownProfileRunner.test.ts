@@ -567,6 +567,31 @@ describe('local runtime town profile runner', () => {
     ).toBe(true);
   });
 
+  test('runs the recovery drill profile with built-in full replan materialization defaults', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'recovery-drill-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 220,
+    });
+
+    expect(summary).toMatchObject({
+      profileId: 'recovery-drill-25',
+      manifestId: 'aivilization-recovery-drill-25',
+      daemonHealth: 'healthy',
+      run: {
+        traceId: 'aivilization-recovery-drill-25:profile-run:220',
+        outcome: 'succeeded',
+        completedCycleCount: 1,
+        stopReason: 'cycle-count-completed',
+      },
+    });
+    expect(summary.agentCycleDiagnostics.fullReplanMaterializationCount).toBeGreaterThan(0);
+    expect(summary.agentCycleDiagnostics.fullReplanMaterializationRatio).toBeGreaterThan(0);
+  });
+
   test('uses an injected daily plan compiler before autonomous objective renewal', async () => {
     const rootDir = createRootDir();
     const compiledAgentIds: string[] = [];

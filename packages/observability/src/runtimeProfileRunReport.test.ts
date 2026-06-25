@@ -345,6 +345,21 @@ describe('runtime profile run report repositories', () => {
             outcome: 'repaired',
           },
         ],
+        replanningDecisionTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'llm-cycle:replanning-decision',
+          providerId: 'scripted-replanning',
+          model: 'replanning-model',
+          decision: {
+            kind: 'memory-guided-correction',
+            trigger: 'simulator-rejection',
+            reason: 'Use memory evidence before full replan.',
+            failedActionIds: ['llm-cycle:action'],
+            evidenceRecordIds: ['memory-food-shortage'],
+          },
+          worldDecisionContext: createWorldDecisionContextTrace(),
+        },
       }),
       createTrace({
         traceId: 'missing-llm-stage-cycle',
@@ -394,6 +409,15 @@ describe('runtime profile run report repositories', () => {
       },
       {
         stageName: 'reactiveCorrection',
+        traceCount: 1,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+        worldDecisionContextCount: 1,
+      },
+      {
+        stageName: 'replanningDecision',
         traceCount: 1,
         llmAcceptedCount: 1,
         deterministicFallbackCount: 0,
@@ -671,6 +695,7 @@ function createTrace(input: {
   readonly socialDialogueGeneration?: AgentCycleTrace['socialDialogueGeneration'];
   readonly globalSynthesis?: AgentCycleTrace['globalSynthesis'];
   readonly actionRepair?: AgentCycleTrace['actionRepair'];
+  readonly replanningDecisionTrace?: AgentCycleTrace['replanningDecisionTrace'];
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -690,6 +715,9 @@ function createTrace(input: {
       : { socialDialogueGeneration: input.socialDialogueGeneration }),
     ...(input.globalSynthesis === undefined ? {} : { globalSynthesis: input.globalSynthesis }),
     ...(input.actionRepair === undefined ? {} : { actionRepair: input.actionRepair }),
+    ...(input.replanningDecisionTrace === undefined
+      ? {}
+      : { replanningDecisionTrace: input.replanningDecisionTrace }),
     subtaskCandidates: [
       {
         branchId: 'development',
@@ -773,6 +801,7 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     'socialDialogueGeneration',
     'globalSynthesis',
     'reactiveCorrection',
+    'replanningDecision',
   ].map((stageName) => ({
     stageName,
     traceCount: 0,

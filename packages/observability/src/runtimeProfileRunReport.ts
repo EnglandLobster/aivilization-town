@@ -47,7 +47,8 @@ export type RuntimeProfileAgentCycleLlmStageName =
   | 'actionSequenceGeneration'
   | 'socialDialogueGeneration'
   | 'globalSynthesis'
-  | 'reactiveCorrection';
+  | 'reactiveCorrection'
+  | 'replanningDecision';
 
 export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly stageName: RuntimeProfileAgentCycleLlmStageName;
@@ -546,6 +547,7 @@ const AGENT_CYCLE_LLM_STAGE_NAMES = [
   'socialDialogueGeneration',
   'globalSynthesis',
   'reactiveCorrection',
+  'replanningDecision',
 ] as const satisfies readonly RuntimeProfileAgentCycleLlmStageName[];
 
 const COGNITION_LLM_STAGE_NAMES = [
@@ -631,6 +633,12 @@ function createLlmStageDiagnostics(
         trace.actionRepair?.flatMap((repair) =>
           repair.reactiveCorrection === undefined ? [] : [repair.reactiveCorrection],
         ) ?? [],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'replanningDecision',
+      stageTraces:
+        trace.replanningDecisionTrace === undefined ? [] : [trace.replanningDecisionTrace],
     });
   }
 

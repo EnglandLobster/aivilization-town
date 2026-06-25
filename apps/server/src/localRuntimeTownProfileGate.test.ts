@@ -47,6 +47,7 @@ describe('local runtime town profile gate criteria', () => {
       socialDialogue: createLlmConfig('traceable-llm-social-dialogue-generator'),
       globalSynthesis: createLlmConfig('traceable-llm-global-synthesizer'),
       reactiveCorrection: createLlmConfig('traceable-llm-reactive-corrector'),
+      replanningDecision: createLlmConfig('traceable-llm-replanning-decider'),
       reflectionSynthesis: createLlmConfig('traceable-llm-reflective-insight-synthesizer'),
       socialModelSynthesis: createLlmConfig('traceable-llm-social-model-synthesizer'),
     };
@@ -61,6 +62,7 @@ describe('local runtime town profile gate criteria', () => {
       'socialDialogueGeneration',
       'globalSynthesis',
       'reactiveCorrection',
+      'replanningDecision',
     ]);
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
@@ -72,6 +74,7 @@ describe('local runtime town profile gate criteria', () => {
       'socialDialogueGeneration',
       'globalSynthesis',
       'reactiveCorrection',
+      'replanningDecision',
     ]);
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {

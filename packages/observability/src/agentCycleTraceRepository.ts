@@ -12,6 +12,7 @@ import {
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
   type AgentCycleReplanMaterializationTrace,
+  type AgentCycleReplanningDecisionTrace,
   type AgentCycleSimulatorEventTrace,
   type AgentCycleSimulatorTraceEvent,
   type AgentCycleTrace,
@@ -159,6 +160,9 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
     simulatorEvents: (trace.simulatorEvents ?? []).map((entry) => cloneSimulatorEventTrace(entry)),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
     replanningDecision: cloneReplanningDecision(trace.replanningDecision),
+    ...(trace.replanningDecisionTrace === undefined
+      ? {}
+      : { replanningDecisionTrace: cloneReplanningDecisionTrace(trace.replanningDecisionTrace) }),
     ...(trace.replanMaterialization === undefined
       ? {}
       : { replanMaterialization: cloneReplanMaterialization(trace.replanMaterialization) }),
@@ -699,6 +703,51 @@ function cloneReplanningDecision(decision: ReplanningTraceDecision): ReplanningT
         matchingFailureCount: decision.matchingFailureCount,
       };
   }
+}
+
+function cloneReplanningDecisionTrace(
+  trace: AgentCycleReplanningDecisionTrace,
+): AgentCycleReplanningDecisionTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    decision: cloneReplanningDecision(trace.decision),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
+  };
 }
 
 function compareTraceLatestFirst(

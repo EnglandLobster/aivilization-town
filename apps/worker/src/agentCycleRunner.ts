@@ -22,6 +22,7 @@ import {
   type GlobalSynthesisTrace,
   type ReactiveCorrector,
   type ReplanningDecider,
+  type ReplanningDecisionTrace,
   type SocialDialogueGenerationTrace,
   type SocialDialogueGenerator,
   type StrategicPlanCompiler,
@@ -45,6 +46,7 @@ import {
   type AgentCycleSimulatorEventTrace,
   type AgentCycleSimulatorTraceEvent,
   type AgentCycleSubtaskReplanningDecisionTrace,
+  type AgentCycleReplanningDecisionTrace,
   type AgentCycleTrace,
   type SimulatorTraceResult,
 } from '@aivilization/observability';
@@ -318,6 +320,9 @@ export async function runWorkerAgentCycle(
     simulatorEvents: mapSimulatorEventTraces(cycleResult.simulationResults),
     selectionEvidence: cycleResult.selectionEvidence,
     replanningDecision: cycleResult.replanningDecision,
+    ...(cycleResult.replanningTrace === undefined
+      ? {}
+      : { replanningDecisionTrace: mapReplanningDecisionTrace(cycleResult.replanningTrace) }),
     ...(replanMaterialization === undefined
       ? {}
       : { replanMaterialization: mapReplanMaterializationTrace(replanMaterialization) }),
@@ -640,6 +645,55 @@ function mapGlobalSynthesisTrace(trace: GlobalSynthesisTrace): AgentCycleGlobalS
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function mapReplanningDecisionTrace(
+  trace: ReplanningDecisionTrace,
+): AgentCycleReplanningDecisionTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    decision:
+      trace.decision.kind === 'none'
+        ? { kind: 'none' }
+        : trace.decision.kind === 'memory-guided-correction'
+          ? {
+              kind: 'memory-guided-correction',
+              trigger: trace.decision.trigger,
+              reason: trace.decision.reason,
+              failedActionIds: [...trace.decision.failedActionIds],
+              evidenceRecordIds: [...trace.decision.evidenceRecordIds],
+            }
+          : {
+              kind: 'full-replan',
+              trigger: trace.decision.trigger,
+              reason: trace.decision.reason,
+              failedActionIds: [...trace.decision.failedActionIds],
+              evidenceRecordIds: [...trace.decision.evidenceRecordIds],
+              matchingFailureCount: trace.decision.matchingFailureCount,
+            },
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 

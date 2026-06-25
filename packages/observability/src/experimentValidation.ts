@@ -5,6 +5,7 @@ export type ExperimentValidationMetricId =
   | 'wealth-stratification'
   | 'planner-ablation'
   | 'social-reflection-coverage'
+  | 'steering-memory-propagation'
   | 'trajectory-coverage';
 
 export type ExperimentValidationStatus = 'pass' | 'watch' | 'fail';
@@ -66,6 +67,19 @@ export type SocialReflectionValidationObservation = {
   readonly tags: readonly string[];
 };
 
+export type SteeringValidationTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly source: string;
+  readonly resultKind: 'long-horizon-objective-set' | 'reactive-command-routed';
+  readonly objectiveId?: string;
+  readonly planId?: string;
+  readonly reactiveCommandId?: string;
+  readonly commandDraftCount: number;
+  readonly shortTermMemoryRecordIds: readonly string[];
+  readonly issuedAt: number;
+};
+
 export type MarketStabilityThresholds = {
   readonly maximumLogPriceRange?: number;
   readonly maximumDrawdown?: number;
@@ -102,6 +116,13 @@ export type SocialReflectionCoverageThresholds = {
   readonly requiredTag?: string;
 };
 
+export type SteeringMemoryPropagationThresholds = {
+  readonly minimumTraceCount?: number;
+  readonly minimumAgentCoverageRatio?: number;
+  readonly minimumLongHorizonTraceCount?: number;
+  readonly minimumReactiveTraceCount?: number;
+};
+
 export type TrajectoryCoverageThresholds = {
   readonly minimumCoverageRatio?: number;
   readonly minimumMinimumStepCount?: number;
@@ -114,6 +135,7 @@ export type ExperimentValidationThresholds = {
   readonly wealthStratification?: WealthStratificationThresholds;
   readonly plannerAblation?: PlannerAblationThresholds;
   readonly socialReflectionCoverage?: SocialReflectionCoverageThresholds;
+  readonly steeringMemoryPropagation?: SteeringMemoryPropagationThresholds;
   readonly trajectoryCoverage?: TrajectoryCoverageThresholds;
 };
 
@@ -123,6 +145,7 @@ export type ExperimentValidationReportInput = {
   readonly wealthSnapshot: readonly WealthSnapshotObservation[];
   readonly plannerRuns: readonly PlannerExperimentRun[];
   readonly socialReflectionObservations?: readonly SocialReflectionValidationObservation[];
+  readonly steeringTraces?: readonly SteeringValidationTrace[];
   readonly expectedTrajectoryAgentIds: readonly string[];
   readonly trajectories: readonly AgentTrajectoryObservation[];
   readonly thresholds?: ExperimentValidationThresholds;
@@ -209,6 +232,20 @@ type SocialReflectionDiagnostics = {
   readonly latestGeneratedAt: number;
 };
 
+type SteeringMemoryDiagnostics = {
+  readonly traceCount: number;
+  readonly humanTraceCount: number;
+  readonly expectedAgentCount: number;
+  readonly coveredAgentCount: number;
+  readonly agentCoverageRatio: number;
+  readonly longHorizonTraceCount: number;
+  readonly reactiveTraceCount: number;
+  readonly planBackedLongHorizonTraceCount: number;
+  readonly memoryBackedReactiveTraceCount: number;
+  readonly commandDraftBackedReactiveTraceCount: number;
+  readonly latestIssuedAt: number;
+};
+
 const DEFAULT_PLANNER_ABLATION_VARIANTS = [
   'default',
   'without-branch',
@@ -267,6 +304,12 @@ const DEFAULT_THRESHOLDS = {
     minimumMeanConfidence: 0.5,
     requiredTag: 'post-interaction-reflection',
   },
+  steeringMemoryPropagation: {
+    minimumTraceCount: 1,
+    minimumAgentCoverageRatio: 0.5,
+    minimumLongHorizonTraceCount: 1,
+    minimumReactiveTraceCount: 1,
+  },
   trajectoryCoverage: {
     minimumCoverageRatio: 1,
     minimumMinimumStepCount: 1,
@@ -297,6 +340,10 @@ export function createExperimentValidationReport(
     observations: input.socialReflectionObservations ?? [],
     requiredTag: thresholds.socialReflectionCoverage.requiredTag,
   });
+  const steeringMemoryDiagnostics = calculateSteeringMemoryDiagnostics({
+    expectedAgentIds: input.expectedTrajectoryAgentIds,
+    traces: input.steeringTraces ?? [],
+  });
 
   const metrics: ExperimentValidationMetric[] = [
     createMarketStabilityMetric(priceDiagnostics, thresholds.marketStability),
@@ -307,6 +354,10 @@ export function createExperimentValidationReport(
     createSocialReflectionCoverageMetric(
       socialReflectionDiagnostics,
       thresholds.socialReflectionCoverage,
+    ),
+    createSteeringMemoryPropagationMetric(
+      steeringMemoryDiagnostics,
+      thresholds.steeringMemoryPropagation,
     ),
     createTrajectoryCoverageMetric(trajectoryDiagnostics, thresholds.trajectoryCoverage),
   ];
@@ -405,6 +456,10 @@ function mergeThresholds(thresholds: ExperimentValidationThresholds | undefined)
     socialReflectionCoverage: {
       ...DEFAULT_THRESHOLDS.socialReflectionCoverage,
       ...thresholds?.socialReflectionCoverage,
+    },
+    steeringMemoryPropagation: {
+      ...DEFAULT_THRESHOLDS.steeringMemoryPropagation,
+      ...thresholds?.steeringMemoryPropagation,
     },
     trajectoryCoverage: {
       ...DEFAULT_THRESHOLDS.trajectoryCoverage,
@@ -680,6 +735,57 @@ function calculateSocialReflectionDiagnostics(input: {
   };
 }
 
+function calculateSteeringMemoryDiagnostics(input: {
+  readonly expectedAgentIds: readonly string[];
+  readonly traces: readonly SteeringValidationTrace[];
+}): SteeringMemoryDiagnostics {
+  const expected = createExpectedAgentIdSet(input.expectedAgentIds);
+  const coveredAgentIds = new Set<string>();
+  let humanTraceCount = 0;
+  let longHorizonTraceCount = 0;
+  let reactiveTraceCount = 0;
+  let planBackedLongHorizonTraceCount = 0;
+  let memoryBackedReactiveTraceCount = 0;
+  let commandDraftBackedReactiveTraceCount = 0;
+  let latestIssuedAt = 0;
+
+  for (const trace of input.traces) {
+    validateSteeringTrace(trace);
+    latestIssuedAt = Math.max(latestIssuedAt, trace.issuedAt);
+    if (trace.source !== 'human') {
+      continue;
+    }
+
+    humanTraceCount += 1;
+    if (expected.has(trace.agentId)) {
+      coveredAgentIds.add(trace.agentId);
+    }
+    if (trace.resultKind === 'long-horizon-objective-set') {
+      longHorizonTraceCount += 1;
+      planBackedLongHorizonTraceCount +=
+        trace.objectiveId !== undefined && trace.planId !== undefined ? 1 : 0;
+    } else {
+      reactiveTraceCount += 1;
+      memoryBackedReactiveTraceCount += trace.shortTermMemoryRecordIds.length > 0 ? 1 : 0;
+      commandDraftBackedReactiveTraceCount += trace.commandDraftCount > 0 ? 1 : 0;
+    }
+  }
+
+  return {
+    traceCount: input.traces.length,
+    humanTraceCount,
+    expectedAgentCount: expected.size,
+    coveredAgentCount: coveredAgentIds.size,
+    agentCoverageRatio: coveredAgentIds.size / expected.size,
+    longHorizonTraceCount,
+    reactiveTraceCount,
+    planBackedLongHorizonTraceCount,
+    memoryBackedReactiveTraceCount,
+    commandDraftBackedReactiveTraceCount,
+    latestIssuedAt,
+  };
+}
+
 function calculateTrajectoryDiagnostics(
   expectedAgentIds: readonly string[],
   trajectories: readonly AgentTrajectoryObservation[],
@@ -928,6 +1034,44 @@ function createSocialReflectionCoverageMetric(
   };
 }
 
+function createSteeringMemoryPropagationMetric(
+  diagnostics: SteeringMemoryDiagnostics,
+  thresholds: Required<SteeringMemoryPropagationThresholds>,
+): ExperimentValidationMetric {
+  validateSteeringMemoryThresholds(thresholds);
+  const status =
+    diagnostics.humanTraceCount >= thresholds.minimumTraceCount &&
+    diagnostics.agentCoverageRatio >= thresholds.minimumAgentCoverageRatio &&
+    diagnostics.longHorizonTraceCount >= thresholds.minimumLongHorizonTraceCount &&
+    diagnostics.reactiveTraceCount >= thresholds.minimumReactiveTraceCount &&
+    diagnostics.planBackedLongHorizonTraceCount >= thresholds.minimumLongHorizonTraceCount &&
+    diagnostics.memoryBackedReactiveTraceCount >= thresholds.minimumReactiveTraceCount &&
+    diagnostics.commandDraftBackedReactiveTraceCount >= thresholds.minimumReactiveTraceCount
+      ? 'pass'
+      : 'watch';
+
+  return {
+    id: 'steering-memory-propagation',
+    label: 'Steering memory propagation',
+    status,
+    value: diagnostics.agentCoverageRatio,
+    unit: 'covered expected-agent ratio',
+    evidence: {
+      traceCount: diagnostics.traceCount,
+      humanTraceCount: diagnostics.humanTraceCount,
+      expectedAgentCount: diagnostics.expectedAgentCount,
+      coveredAgentCount: diagnostics.coveredAgentCount,
+      agentCoverageRatio: diagnostics.agentCoverageRatio,
+      longHorizonTraceCount: diagnostics.longHorizonTraceCount,
+      reactiveTraceCount: diagnostics.reactiveTraceCount,
+      planBackedLongHorizonTraceCount: diagnostics.planBackedLongHorizonTraceCount,
+      memoryBackedReactiveTraceCount: diagnostics.memoryBackedReactiveTraceCount,
+      commandDraftBackedReactiveTraceCount: diagnostics.commandDraftBackedReactiveTraceCount,
+      latestIssuedAt: diagnostics.latestIssuedAt,
+    },
+  };
+}
+
 function createTrajectoryCoverageMetric(
   diagnostics: ReturnType<typeof calculateTrajectoryDiagnostics>,
   thresholds: Required<TrajectoryCoverageThresholds>,
@@ -987,6 +1131,41 @@ function validateSocialReflectionObservation(
   }
 }
 
+function validateSteeringTrace(trace: SteeringValidationTrace): void {
+  assertNonEmptyString(trace.traceId, 'steeringTraces traceId');
+  assertNonEmptyString(trace.agentId, 'steeringTraces agentId');
+  assertNonEmptyString(trace.source, 'steeringTraces source');
+  assertSteeringResultKind(trace.resultKind);
+  assertNonNegativeInteger(trace.commandDraftCount, 'steeringTraces commandDraftCount');
+  assertFinite(trace.issuedAt, 'steeringTraces issuedAt');
+  for (const recordId of trace.shortTermMemoryRecordIds) {
+    assertNonEmptyString(recordId, 'steeringTraces shortTermMemoryRecordId');
+  }
+
+  if (trace.resultKind === 'long-horizon-objective-set') {
+    if (trace.objectiveId === undefined) {
+      throw new Error('steeringTraces long-horizon trace requires objectiveId');
+    }
+    if (trace.planId === undefined) {
+      throw new Error('steeringTraces long-horizon trace requires planId');
+    }
+    assertNonEmptyString(trace.objectiveId, 'steeringTraces objectiveId');
+    assertNonEmptyString(trace.planId, 'steeringTraces planId');
+    return;
+  }
+
+  if (trace.reactiveCommandId === undefined) {
+    throw new Error('steeringTraces reactive trace requires reactiveCommandId');
+  }
+  assertNonEmptyString(trace.reactiveCommandId, 'steeringTraces reactiveCommandId');
+  if (trace.commandDraftCount === 0) {
+    throw new Error('steeringTraces reactive trace requires at least one command draft');
+  }
+  if (trace.shortTermMemoryRecordIds.length === 0) {
+    throw new Error('steeringTraces reactive trace requires at least one shortTermMemoryRecordId');
+  }
+}
+
 function validateSocialReflectionThresholds(
   thresholds: Required<SocialReflectionCoverageThresholds>,
 ): void {
@@ -1007,6 +1186,35 @@ function validateSocialReflectionThresholds(
     'socialReflectionCoverage minimumMeanConfidence',
   );
   assertNonEmptyString(thresholds.requiredTag, 'socialReflectionCoverage requiredTag');
+}
+
+function validateSteeringMemoryThresholds(
+  thresholds: Required<SteeringMemoryPropagationThresholds>,
+): void {
+  assertNonNegativeInteger(
+    thresholds.minimumTraceCount,
+    'steeringMemoryPropagation minimumTraceCount',
+  );
+  assertUnitInterval(
+    thresholds.minimumAgentCoverageRatio,
+    'steeringMemoryPropagation minimumAgentCoverageRatio',
+  );
+  assertNonNegativeInteger(
+    thresholds.minimumLongHorizonTraceCount,
+    'steeringMemoryPropagation minimumLongHorizonTraceCount',
+  );
+  assertNonNegativeInteger(
+    thresholds.minimumReactiveTraceCount,
+    'steeringMemoryPropagation minimumReactiveTraceCount',
+  );
+}
+
+function assertSteeringResultKind(
+  value: string,
+): asserts value is SteeringValidationTrace['resultKind'] {
+  if (value !== 'long-horizon-objective-set' && value !== 'reactive-command-routed') {
+    throw new Error('steeringTraces resultKind must be a known steering result kind');
+  }
 }
 
 function hasCommandSpan(trajectory: AgentTrajectoryObservation): boolean {

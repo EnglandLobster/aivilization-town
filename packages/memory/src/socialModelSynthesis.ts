@@ -1,4 +1,8 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type {
+  MemorySynthesisLongTermProfileContextTrace,
+  MemorySynthesisShortTermMemoryContextTrace,
+} from './cognitiveContextTrace';
 import { proposeSocialLongTermMemoryPatches } from './consolidation';
 import type { LongTermAgentProfile, LongTermMemoryPatch } from './profile';
 import type { ShortTermMemoryRecord } from './records';
@@ -39,6 +43,8 @@ export type SocialModelSynthesisTrace = {
   readonly reflections?: readonly SocialModelSynthesisReflectionTrace[];
   readonly attempts?: readonly SocialModelSynthesisAttemptTrace[];
   readonly usage?: SocialModelSynthesisUsage;
+  readonly shortTermMemoryContext?: MemorySynthesisShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: MemorySynthesisLongTermProfileContextTrace;
   readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
 };

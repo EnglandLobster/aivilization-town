@@ -370,36 +370,19 @@ export function deriveRequiredCognitionLlmEconomicContextStagesFromRuntimeConfig
 export function deriveRequiredCognitionLlmMemoryContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
-  return deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(runtimeConfig);
+  return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredCognitionLlmProfileContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
-  return deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(runtimeConfig);
+  return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredCognitionLlmObservedStateStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
   return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
-}
-
-function deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(
-  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
-): readonly RuntimeProfileCognitionLlmStageName[] {
-  if (runtimeConfig === undefined) {
-    return [];
-  }
-
-  const stages: RuntimeProfileCognitionLlmStageName[] = [];
-  if (runtimeConfig.strategicPlanning !== undefined) {
-    stages.push('strategicPlanning');
-  }
-  if (runtimeConfig.dailyPlanning !== undefined) {
-    stages.push('dailyPlanning');
-  }
-  return stages;
 }
 
 export function listLocalRuntimeTownProfileGatePartitionKeys(

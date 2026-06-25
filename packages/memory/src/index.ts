@@ -1,4 +1,5 @@
 export * from './consolidation';
+export * from './cognitiveContextTrace';
 export * from './fileRepositories';
 export * from './intentionRepository';
 export * from './intentions';

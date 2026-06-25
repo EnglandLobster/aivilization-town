@@ -8,6 +8,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { asMemoryRecordId } from './records';
+import { createMemorySynthesisCognitiveContextTrace } from './cognitiveContextTrace';
 import {
   applyReflectiveInsightProposal,
   proposeReflectiveInsights,
@@ -117,6 +118,8 @@ export async function proposeReflectiveInsightsWithLlm(
       source: 'llm',
       insights,
       trace: mapAcceptedTrace({
+        records: input.records,
+        longTermProfile: input.longTermProfile,
         gateway,
         observedStateSummary: input.observedStateSummary,
         worldDecisionContext: input.worldDecisionContext,
@@ -325,6 +328,8 @@ function createFallbackResult(input: {
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
+      records: input.input.records,
+      longTermProfile: input.input.longTermProfile,
       observedStateSummary: input.input.observedStateSummary,
       worldDecisionContext: input.input.worldDecisionContext,
     }),
@@ -333,6 +338,8 @@ function createFallbackResult(input: {
 }
 
 function mapAcceptedTrace(input: {
+  readonly records: LlmReflectiveInsightSynthesizerInput['records'];
+  readonly longTermProfile: LlmReflectiveInsightSynthesizerInput['longTermProfile'];
   readonly gateway: LlmStructuredSuccess<LlmReflectiveInsightSynthesisProposal>;
   readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
@@ -348,6 +355,10 @@ function mapAcceptedTrace(input: {
     choices: mapChoices(gateway.value.insights),
     attempts: mapAttempts(gateway),
     usage: { ...gateway.usage },
+    ...createMemorySynthesisCognitiveContextTrace({
+      records: input.records,
+      longTermProfile: input.longTermProfile,
+    }),
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
@@ -359,6 +370,8 @@ function mapFallbackTrace(input: {
   readonly gateway: LlmStructuredResult<LlmReflectiveInsightSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly records: LlmReflectiveInsightSynthesizerInput['records'];
+  readonly longTermProfile: LlmReflectiveInsightSynthesizerInput['longTermProfile'];
   readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): ReflectiveInsightSynthesisTrace {
@@ -376,6 +389,10 @@ function mapFallbackTrace(input: {
       : {}),
     attempts: mapAttempts(input.gateway),
     usage: { ...input.gateway.usage },
+    ...createMemorySynthesisCognitiveContextTrace({
+      records: input.records,
+      longTermProfile: input.longTermProfile,
+    }),
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),

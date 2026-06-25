@@ -242,12 +242,24 @@ describe('local runtime town profile gate criteria', () => {
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
       }).requiredCognitionLlmMemoryContextStages,
-    ).toEqual(['strategicPlanning', 'dailyPlanning']);
+    ).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
       }).requiredCognitionLlmProfileContextStages,
-    ).toEqual(['strategicPlanning', 'dailyPlanning']);
+    ).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,

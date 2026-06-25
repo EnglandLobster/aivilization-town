@@ -14,8 +14,8 @@ export type LlmCognitiveContextTrace = {
 };
 
 export function createLlmCognitiveContextTrace(input: {
-  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
-  readonly longTermProfile?: LongTermAgentProfile;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[] | undefined;
+  readonly longTermProfile?: LongTermAgentProfile | undefined;
 }): LlmCognitiveContextTrace {
   return {
     ...(input.shortTermMemoryContext === undefined

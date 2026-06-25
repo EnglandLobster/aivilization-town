@@ -220,12 +220,15 @@ describe('LLM reaction evaluator seam', () => {
         outputTokenCostMicros: 3,
       },
     });
+    const memory = createConversationMemory();
 
     await expect(
       evaluator({
         agentId,
         issuedAt: 10 * hourMs,
-        memory: createConversationMemory(),
+        memory,
+        longTermProfile: createProfile(agentId),
+        memoryContext: [memory],
         worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
@@ -245,6 +248,8 @@ describe('LLM reaction evaluator seam', () => {
           totalTokens: 22,
           estimatedCostMicros: 56,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,

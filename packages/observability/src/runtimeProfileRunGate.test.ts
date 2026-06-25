@@ -583,7 +583,52 @@ describe('runtime profile run gate', () => {
       evidence: {
         stageName: 'globalSynthesis',
         actual: 0,
+        llmAcceptedCount: 1,
         minimum: 1,
+      },
+    });
+  });
+
+  test('requires short-term memory context for every accepted agent-cycle LLM trace', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 2,
+              llmAcceptedCount: 2,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 2,
+              worldDecisionContextCount: 2,
+              completeWorldDecisionContextCount: 2,
+              rulesContextCount: 2,
+              completeRulesContextCount: 2,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmMemoryContextStages: ['contextualPrioritization'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-memory-context-count-too-low',
+      message:
+        'agent-cycle LLM stage contextualPrioritization shortTermMemoryContextCount must be at least 2',
+      evidence: {
+        stageName: 'contextualPrioritization',
+        actual: 1,
+        llmAcceptedCount: 2,
+        minimum: 2,
       },
     });
   });
@@ -643,7 +688,52 @@ describe('runtime profile run gate', () => {
       evidence: {
         stageName: 'globalSynthesis',
         actual: 0,
+        llmAcceptedCount: 1,
         minimum: 1,
+      },
+    });
+  });
+
+  test('requires long-term profile context for every accepted agent-cycle LLM trace', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 2,
+              llmAcceptedCount: 2,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 2,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 2,
+              completeWorldDecisionContextCount: 2,
+              rulesContextCount: 2,
+              completeRulesContextCount: 2,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmProfileContextStages: ['contextualPrioritization'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-profile-context-count-too-low',
+      message:
+        'agent-cycle LLM stage contextualPrioritization longTermProfileContextCount must be at least 2',
+      evidence: {
+        stageName: 'contextualPrioritization',
+        actual: 1,
+        llmAcceptedCount: 2,
+        minimum: 2,
       },
     });
   });

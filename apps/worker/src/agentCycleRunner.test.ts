@@ -1480,6 +1480,116 @@ describe('worker agent cycle runner', () => {
     expect(result.cycleResult.commandDrafts[0]?.type).toBe('AgentSleep');
   });
 
+  test('injects default short-term memory context into agent-runtime LLM stages', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'default-memory-energy-failure',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Failed to work because energy was too low.',
+        occurredAt: 1000,
+        importanceScore: 0.8,
+        source: { eventIds: [] },
+        tags: ['work', 'energy'],
+      }),
+    );
+    const observedMemoryIds: string[][] = [];
+    const subtaskPrioritizer: SubtaskPrioritizer = async (input) => {
+      await Promise.resolve();
+      observedMemoryIds.push(input.shortTermMemoryContext?.map((record) => record.id) ?? []);
+      return {
+        candidates: input.candidates,
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'default-stm-prioritizer',
+          shortTermMemoryContext: {
+            recordCount: input.shortTermMemoryContext?.length ?? 0,
+          },
+        },
+      };
+    };
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-default-memory-context',
+      simulationId,
+      agentId,
+      issuedAt: 1000,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createBranchPlan({
+        objective: 'recover with memory',
+        branches: [
+          {
+            id: 'income',
+            objective: 'earn wage',
+            subtasks: [{ id: 'work', description: 'work shift', basePriority: 4 }],
+          },
+          {
+            id: 'recovery',
+            objective: 'restore energy',
+            subtasks: [
+              {
+                id: 'sleep',
+                description: 'rest before working',
+                basePriority: 1,
+                memoryAffinityTags: ['energy'],
+              },
+            ],
+          },
+        ],
+      }),
+      signals: [],
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-default-memory-context',
+      commandIdPrefix: 'cycle-default-memory-context-command',
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+            },
+          ],
+        },
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      subtaskPrioritizer,
+      ...repositories,
+    });
+
+    expect(observedMemoryIds).toEqual([['default-memory-energy-failure']]);
+    expect(result.trace.memoryContextIds).toEqual(['default-memory-energy-failure']);
+    expect(result.trace.contextualPrioritization).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'default-stm-prioritizer',
+      shortTermMemoryContext: { recordCount: 1 },
+    });
+  });
+
   test('selects relevant memory context before planning when candidate window contains higher-importance noise', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

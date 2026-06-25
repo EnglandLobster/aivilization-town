@@ -15,6 +15,11 @@ import type {
   AgentProfileQueryRequest,
 } from './agentProfileApi';
 import type {
+  AgentCycleTraceApiService,
+  AgentCycleTraceLookupRequest,
+  AgentCycleTraceQueryRequest,
+} from './agentCycleTraceApi';
+import type {
   RuntimeSupervisorApiService,
   RuntimeSupervisorOperationTraceQuery,
   RuntimeSupervisorRunRequest,
@@ -123,6 +128,7 @@ export type TownHttpApiServices<
   readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
   readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
   readonly agentProfiles?: AgentProfileApiService<unknown>;
+  readonly agentCycleTraces?: AgentCycleTraceApiService<unknown>;
   readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
   readonly steeringTraces?: SteeringTraceApiService<unknown>;
 };
@@ -260,6 +266,7 @@ async function routeTownHttpRequest<
     return routeSimulationRequest(
       services.simulation,
       services.agentProfiles,
+      services.agentCycleTraces,
       services.objectiveRenewalTraces,
       services.steeringTraces,
       request,
@@ -299,6 +306,7 @@ async function routeSimulationRequest<
     TExperimentValidationReport
   >,
   agentProfiles: AgentProfileApiService<unknown> | undefined,
+  agentCycleTraces: AgentCycleTraceApiService<unknown> | undefined,
   objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
   steeringTraces: SteeringTraceApiService<unknown> | undefined,
   request: TownHttpApiRequest,
@@ -374,6 +382,24 @@ async function routeSimulationRequest<
     return jsonResponse(
       200,
       await agentProfiles.queryAgentProfiles(createAgentProfileQueryRequest(route, request.query)),
+    );
+  }
+  if (route.action === 'agent-cycle-traces') {
+    if (agentCycleTraces === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.traceId !== undefined) {
+      return jsonResponse(
+        200,
+        await agentCycleTraces.getAgentCycleTrace(createAgentCycleTraceLookupRequest(route)),
+      );
+    }
+    return jsonResponse(
+      200,
+      await agentCycleTraces.queryAgentCycleTraces(
+        createAgentCycleTraceQueryRequest(route, request.query),
+      ),
     );
   }
   if (route.action === 'objective-renewal-traces') {
@@ -802,6 +828,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
     segments.length === 6 &&
     segments[0] === 'simulations' &&
     segments[2] === 'partitions' &&
+    segments[4] === 'agent-cycle-traces'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const traceId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || traceId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'agent-cycle-traces',
+      traceId: decodePathPart(traceId),
+    };
+  }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
     segments[4] === 'objective-renewal-traces'
   ) {
     const simulationId = segments[1];
@@ -1009,6 +1054,37 @@ function createAgentProfileQueryRequest(
     simulationId: route.simulationId,
     partitionKey: route.partitionKey,
     ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createAgentCycleTraceLookupRequest(
+  route: SimulationRoute,
+): AgentCycleTraceLookupRequest {
+  if (route.traceId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    traceId: route.traceId,
+  };
+}
+
+function createAgentCycleTraceQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): AgentCycleTraceQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'traceId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryNumber(query, 'fromCycleStartedAt'),
+    ...optionalQueryNumber(query, 'toCycleStartedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

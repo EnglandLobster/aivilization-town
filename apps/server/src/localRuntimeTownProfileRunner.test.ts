@@ -6,6 +6,8 @@ import {
   createBranchPlan,
   createDailyPlan,
 } from '@aivilization/agent-runtime';
+import { FileAgentIntentionRepository, FileShortTermMemoryRepository } from '@aivilization/memory';
+import type { LlmProviderCompletionRequest } from '@aivilization/llm';
 import {
   FileAgentCycleTraceRepository,
   FileDailyPlanRenewalTraceRepository,
@@ -582,6 +584,121 @@ describe('local runtime town profile runner', () => {
       scheduledIntentionIds: [`daily-plan:${agentId}:0:party-prep`],
     });
   });
+
+  test('uses profile reaction planning config for ambient social observations', async () => {
+    const rootDir = createRootDir();
+    const actorId = asAgentId('smoke-25-world-main-agent-001');
+    const targetId = asAgentId('smoke-25-world-main-agent-008');
+    const bystanderId = asAgentId('smoke-25-world-main-agent-015');
+    const reactionRequestIds: string[] = [];
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 200,
+      reactionPlanning: {
+        kind: 'traceable-llm-reaction-evaluator',
+        profileId: 'smoke-25',
+        model: 'profile-reaction-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-reaction',
+          responses: createIgnoreReactionResponses(8, reactionRequestIds),
+        },
+      },
+      agentProvider: () => [
+        {
+          agentId: actorId,
+          observedStateSummary: 'agent-001 talks with agent-008 while bystanders are nearby',
+          plan: createBranchPlan({
+            objective: 'coordinate a party',
+            branches: [
+              {
+                id: 'social',
+                objective: 'discuss party logistics',
+                subtasks: [
+                  {
+                    id: 'conversation',
+                    description: 'discuss Valentine party',
+                    basePriority: 5,
+                  },
+                ],
+              },
+            ],
+          }),
+          signals: [],
+          microPlanners: [
+            {
+              domain: 'social',
+              supports: ({ subtaskId }) => subtaskId === 'conversation',
+              propose: () => [
+                {
+                  id: 'conversation-party',
+                  description: 'Discuss Valentine party with agent-008.',
+                  commandType: 'AgentStartConversation',
+                  payload: {
+                    targetAgentId: targetId,
+                    topic: 'Valentine party',
+                    relationDelta: 1,
+                    attitudeDelta: 1,
+                    turns: [
+                      {
+                        speakerAgentId: actorId,
+                        utterance: 'Can you help coordinate the Valentine party?',
+                        intent: 'invite-party-planning',
+                      },
+                      {
+                        speakerAgentId: targetId,
+                        utterance: 'Yes, let us invite more neighbors.',
+                        intent: 'accept-party-planning',
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+    });
+
+    const simulationRoot = join(
+      rootDir,
+      'simulations',
+      'aivilization-smoke-25',
+      'partitions',
+      'world-main',
+    );
+    const memoryRepository = new FileShortTermMemoryRepository({
+      rootDir: join(simulationRoot, 'memory'),
+    });
+    const intentionRepository = new FileAgentIntentionRepository({
+      rootDir: join(simulationRoot, 'memory'),
+    });
+    const conversationMemories = await memoryRepository.retrieve({
+      agentId: bystanderId,
+      kinds: ['observation'],
+      requiredTags: ['ambient-observation', 'ConversationRecorded'],
+      limit: 10,
+    });
+    const intentionState = await intentionRepository.getOrCreate(bystanderId);
+
+    expect(summary.run.completedCycleCount).toBe(1);
+    expect(
+      reactionRequestIds.some((requestId) =>
+        requestId.startsWith('profile-llm-reaction:smoke-25:smoke-25-world-main-agent-015:'),
+      ),
+    ).toBe(true);
+    expect(conversationMemories).toHaveLength(1);
+    expect(conversationMemories[0]).toMatchObject({
+      agentId: bystanderId,
+      summary:
+        'Observed smoke-25-world-main-agent-001 and smoke-25-world-main-agent-008 discuss Valentine party at Town Square.',
+    });
+    expect(intentionState.scheduledIntentions).toEqual([]);
+  });
 });
 
 function createRootDir(): string {
@@ -613,4 +730,20 @@ function createLlmStudyPlanResponses(count: number) {
     }),
     finishReason: 'stop' as const,
   }));
+}
+
+function createIgnoreReactionResponses(count: number, observedRequestIds: string[]) {
+  return Array.from({ length: count }, () => (request: LlmProviderCompletionRequest) => {
+    observedRequestIds.push(request.requestId);
+    return {
+      providerId: 'scripted-profile-reaction',
+      model: 'profile-reaction-model',
+      content: JSON.stringify({
+        kind: 'ignore',
+        confidence: 0.93,
+        rationale: 'The bystander noticed the conversation but should not follow up.',
+      }),
+      finishReason: 'stop' as const,
+    };
+  });
 }

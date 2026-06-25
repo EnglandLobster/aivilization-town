@@ -1,11 +1,14 @@
 import {
   normalizeDailyPlanCompilerOutput,
+  normalizeReactionEvaluatorOutput,
   normalizeStrategicPlanCompilerOutput,
 } from '@aivilization/agent-runtime';
-import { asAgentId } from '@aivilization/sim-core';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
+import { asAgentId, asEventId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   createLocalRuntimeTownProfileDailyPlanCompiler,
+  createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
 } from './localRuntimeTownProfileLlmPlanning';
 
@@ -201,9 +204,102 @@ describe('local runtime town profile LLM planning config', () => {
     });
   });
 
+  test('creates a traceable reaction evaluator from scripted provider config', async () => {
+    const evaluator = createLocalRuntimeTownProfileReactionEvaluator({
+      kind: 'traceable-llm-reaction-evaluator',
+      profileId: 'smoke-25',
+      model: 'profile-reaction-model',
+      maxAttempts: 2,
+      timeoutMs: 1_000,
+      pricing: {
+        inputTokenCostMicros: 2,
+        outputTokenCostMicros: 3,
+      },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-reaction',
+        responses: [
+          {
+            providerId: 'scripted-profile-reaction',
+            model: 'profile-reaction-model',
+            content: JSON.stringify({
+              kind: 'ignore',
+              confidence: 0.77,
+              rationale: 'The agent heard the event but should not follow up now.',
+            }),
+            finishReason: 'stop',
+            usage: {
+              inputTokens: 5,
+              outputTokens: 7,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(evaluator).not.toBeUndefined();
+    if (evaluator === undefined) {
+      throw new Error('expected LLM reaction evaluator');
+    }
+    const evaluated = normalizeReactionEvaluatorOutput(
+      await evaluator({
+        agentId: asAgentId('agent-1'),
+        issuedAt: 333,
+        memory: createShortTermMemoryRecord({
+          id: 'memory-party-observation',
+          agentId: asAgentId('agent-1'),
+          kind: 'observation',
+          status: 'observed',
+          summary: 'Observed agent-2 and agent-3 discuss a party.',
+          occurredAt: 320,
+          importanceScore: 0.7,
+          source: { eventIds: [asEventId('event-party')] },
+          tags: ['ambient-observation', 'ConversationRecorded', 'party'],
+        }),
+      }),
+    );
+
+    expect(evaluated).toEqual({
+      decision: {
+        kind: 'ignore',
+        confidence: 0.77,
+        rationale: 'The agent heard the event but should not follow up now.',
+      },
+      reactionTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'profile-llm-reaction:smoke-25:agent-1:memory-party-observation:333',
+        providerId: 'scripted-profile-reaction',
+        model: 'profile-reaction-model',
+        attempts: [
+          {
+            attemptIndex: 1,
+            status: 'succeeded',
+            providerId: 'scripted-profile-reaction',
+            model: 'profile-reaction-model',
+            message: 'LLM structured response validated',
+            usage: {
+              inputTokens: 5,
+              outputTokens: 7,
+              totalTokens: 12,
+              estimatedCostMicros: 31,
+            },
+          },
+        ],
+        usage: {
+          inputTokens: 5,
+          outputTokens: 7,
+          totalTokens: 12,
+          estimatedCostMicros: 31,
+        },
+      },
+    });
+  });
+
   test('keeps deterministic planning as the default when config is absent', () => {
     expect(createLocalRuntimeTownProfileStrategicPlanCompiler(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileDailyPlanCompiler(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileReactionEvaluator(undefined)).toBeUndefined();
   });
 
   test('rejects invalid provider configuration before runtime use', () => {

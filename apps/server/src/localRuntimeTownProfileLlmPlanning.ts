@@ -1,7 +1,9 @@
 import {
   createTraceableLlmDailyPlanCompiler,
+  createTraceableLlmReactionEvaluator,
   createTraceableLlmStrategicPlanCompiler,
   type DailyPlanCompiler,
+  type ReactionEvaluator,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import {
@@ -30,12 +32,26 @@ export type LocalRuntimeTownProfileDailyPlanningConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileReactionPlanningConfig = {
+  readonly kind: 'traceable-llm-reaction-evaluator';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileStrategicCompilerConfig =
   | LocalRuntimeTownProfileLlmPlanningConfig
   | undefined;
 
 export type LocalRuntimeTownProfileDailyCompilerConfig =
   | LocalRuntimeTownProfileDailyPlanningConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileReactionEvaluatorConfig =
+  | LocalRuntimeTownProfileReactionPlanningConfig
   | undefined;
 
 export function createLocalRuntimeTownProfileStrategicPlanCompiler(
@@ -72,6 +88,26 @@ export function createLocalRuntimeTownProfileDailyPlanCompiler(
     model: config.model,
     requestId: ({ agentId, issuedAt }) =>
       `profile-llm-daily-plan:${config.profileId}:${agentId}:${issuedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileReactionEvaluator(
+  config: LocalRuntimeTownProfileReactionEvaluatorConfig,
+): ReactionEvaluator | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmReactionEvaluator({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, memory, issuedAt }) =>
+      `profile-llm-reaction:${config.profileId}:${agentId}:${memory.id}:${issuedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

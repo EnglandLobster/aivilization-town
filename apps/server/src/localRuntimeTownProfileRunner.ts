@@ -1,4 +1,8 @@
-import type { DailyPlanCompiler, StrategicPlanCompiler } from '@aivilization/agent-runtime';
+import type {
+  DailyPlanCompiler,
+  ReactionEvaluator,
+  StrategicPlanCompiler,
+} from '@aivilization/agent-runtime';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileRunReport,
@@ -23,8 +27,10 @@ import {
 import type { LocalRuntimeTownDaemonHealth } from './localRuntimeTownOrchestration';
 import {
   createLocalRuntimeTownProfileDailyPlanCompiler,
+  createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
   type LocalRuntimeTownProfileDailyCompilerConfig,
+  type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
@@ -44,8 +50,10 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
+  readonly reactionEvaluator?: ReactionEvaluator;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
+  readonly reactionPlanning?: LocalRuntimeTownProfileReactionEvaluatorConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
@@ -115,6 +123,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ? (input.dailyPlanCompiler ??
         createLocalRuntimeTownProfileDailyPlanCompiler(input.dailyPlanning))
       : undefined;
+  const reactionEvaluator =
+    input.reactionEvaluator ??
+    createLocalRuntimeTownProfileReactionEvaluator(input.reactionPlanning);
   const agentProvider =
     input.agentProvider ??
     createLocalRuntimeTownProfileAgentProvider({
@@ -144,6 +155,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { runtimeProfileRunReports: input.profileRunReportRepository }),
+    ...(reactionEvaluator === undefined
+      ? {}
+      : { ambientObservationMemory: { enabled: true, reactionEvaluator } }),
   });
   const run = await runtime.supervisor.runCycles({
     operationId: createProfileRunOperationId({

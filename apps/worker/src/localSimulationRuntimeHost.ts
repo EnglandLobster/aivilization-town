@@ -75,6 +75,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       ...(input.marketObservations === undefined
         ? {}
         : { marketObservations: input.marketObservations }),
+      ...(input.ambientObservationMemory === undefined
+        ? {}
+        : { ambientObservationMemory: input.ambientObservationMemory }),
       ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
       ...(input.validationSchedule === undefined
         ? {}

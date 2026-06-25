@@ -296,6 +296,101 @@ describe('local runtime town profile runner CLI', () => {
     }
   });
 
+  test('loads reaction planning config files and passes resolved provider config to the runner', async () => {
+    let output = '';
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            reactionPlanning: {
+              kind: 'traceable-llm-reaction-evaluator',
+              model: 'default-reaction-evaluator',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-reaction-provider',
+                endpoint: 'https://reaction.example.test/v1/chat/completions',
+                apiKey: { env: 'AIVILIZATION_TEST_REACTION_LLM_KEY' },
+              },
+            },
+          },
+        },
+      }),
+    );
+    const previousKey = process.env.AIVILIZATION_TEST_REACTION_LLM_KEY;
+    process.env.AIVILIZATION_TEST_REACTION_LLM_KEY = 'reaction-secret-key';
+
+    try {
+      const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+        argv: [
+          '--profile',
+          'default-100',
+          '--root-dir',
+          '/tmp/town',
+          '--cycles',
+          '1',
+          '--requested-at',
+          '100',
+          '--llm-planning-config',
+          configPath,
+        ],
+        stdout: {
+          write: (chunk) => {
+            output += chunk;
+          },
+        },
+        runProfile: (input) => {
+          receivedInput = input;
+          return Promise.resolve({
+            profileId: input.profileId,
+            manifestId: 'aivilization-default-100',
+            rootDir: input.rootDir,
+            requestedAt: input.requestedAt,
+            daemonHealth: 'healthy',
+            partitionCount: 1,
+            totalProjectionAgentCount: 100,
+            totalEventCount: 3,
+            totalAgentTraceCount: 1,
+            agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+            run: {
+              traceId: 'trace-1',
+              outcome: 'succeeded',
+              requestedCycleCount: input.cycleCount,
+              completedCycleCount: input.cycleCount,
+              stopReason: 'cycle-count-completed',
+            },
+            partitions: [],
+          });
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(output)).toMatchObject({
+        profileId: 'default-100',
+      });
+      expect(receivedInput?.reactionPlanning).toEqual({
+        kind: 'traceable-llm-reaction-evaluator',
+        profileId: 'default-100',
+        model: 'default-reaction-evaluator',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'default-reaction-provider',
+          endpoint: 'https://reaction.example.test/v1/chat/completions',
+          apiKey: 'reaction-secret-key',
+        },
+      });
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.AIVILIZATION_TEST_REACTION_LLM_KEY;
+      } else {
+        process.env.AIVILIZATION_TEST_REACTION_LLM_KEY = previousKey;
+      }
+    }
+  });
+
   test('records profile run reports when report root is supplied', async () => {
     let output = '';
     const rootDir = createRootDir();

@@ -112,12 +112,13 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toBeUndefined();
   });
 
-  test('loads combined runtime config with profile-specific daily planning config', async () => {
+  test('loads combined runtime config with profile-specific daily and reaction planning config', async () => {
     const config = await loadLocalRuntimeTownProfileRuntimeConfig({
       profileId: 'default-100',
       path: '/runtime/config.json',
       env: {
         DAILY_KEY: 'daily-secret',
+        REACTION_KEY: 'reaction-secret',
       },
       readTextFile: () =>
         Promise.resolve(
@@ -147,6 +148,22 @@ describe('local runtime town profile runtime config', () => {
                   pricing: {
                     inputTokenCostMicros: 1,
                     outputTokenCostMicros: 4,
+                  },
+                },
+                reactionPlanning: {
+                  kind: 'traceable-llm-reaction-evaluator',
+                  model: 'default-reaction-evaluator',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'default-reaction-provider',
+                    endpoint: 'https://reaction.example.test/v1/chat/completions',
+                    apiKey: { env: 'REACTION_KEY' },
+                  },
+                  maxAttempts: 4,
+                  timeoutMs: 10_000,
+                  pricing: {
+                    inputTokenCostMicros: 2,
+                    outputTokenCostMicros: 5,
                   },
                 },
               },
@@ -183,10 +200,27 @@ describe('local runtime town profile runtime config', () => {
           outputTokenCostMicros: 4,
         },
       },
+      reactionPlanning: {
+        kind: 'traceable-llm-reaction-evaluator',
+        profileId: 'default-100',
+        model: 'default-reaction-evaluator',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'default-reaction-provider',
+          endpoint: 'https://reaction.example.test/v1/chat/completions',
+          apiKey: 'reaction-secret',
+        },
+        maxAttempts: 4,
+        timeoutMs: 10_000,
+        pricing: {
+          inputTokenCostMicros: 2,
+          outputTokenCostMicros: 5,
+        },
+      },
     });
   });
 
-  test('uses top-level daily planning config unless a profile disables it', async () => {
+  test('uses top-level daily and reaction planning config unless a profile disables it', async () => {
     const document = JSON.stringify({
       dailyPlanning: {
         kind: 'traceable-llm-daily-planner',
@@ -197,9 +231,19 @@ describe('local runtime town profile runtime config', () => {
           endpoint: 'https://daily.example.test/v1/chat/completions',
         },
       },
+      reactionPlanning: {
+        kind: 'traceable-llm-reaction-evaluator',
+        model: 'global-reaction-evaluator',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-reaction-provider',
+          endpoint: 'https://reaction.example.test/v1/chat/completions',
+        },
+      },
       profiles: {
         'smoke-25': {
           dailyPlanning: null,
+          reactionPlanning: null,
         },
       },
     });
@@ -219,6 +263,16 @@ describe('local runtime town profile runtime config', () => {
           kind: 'openai-compatible',
           providerId: 'global-daily-provider',
           endpoint: 'https://daily.example.test/v1/chat/completions',
+        },
+      },
+      reactionPlanning: {
+        kind: 'traceable-llm-reaction-evaluator',
+        profileId: 'default-100',
+        model: 'global-reaction-evaluator',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-reaction-provider',
+          endpoint: 'https://reaction.example.test/v1/chat/completions',
         },
       },
     });
@@ -300,5 +354,46 @@ describe('local runtime town profile runtime config', () => {
           ),
       }),
     ).rejects.toThrow('llmPlanning.provider.kind must be openai-compatible');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              reactionPlanning: {
+                kind: 'traceable-llm-daily-planner',
+                model: 'reaction-model',
+                provider: {
+                  kind: 'openai-compatible',
+                  providerId: 'reaction-provider',
+                  endpoint: 'https://reaction.example.test/v1/chat/completions',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('reactionPlanning.kind must be traceable-llm-reaction-evaluator');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              reactionPlanning: {
+                kind: 'traceable-llm-reaction-evaluator',
+                model: 'reaction-model',
+                provider: {
+                  kind: 'scripted',
+                  providerId: 'scripted-reaction-provider',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('reactionPlanning.provider.kind must be openai-compatible');
   });
 });

@@ -28,6 +28,7 @@ export * from './replanning';
 export * from './socialDialogueGeneration';
 export * from './strategicPlanning';
 export * from './subtaskPrioritization';
+export * from './subtaskPrioritizationSensitivity';
 export * from './worldDecisionContext';
 
 export type AgentRuntimeModuleStatus = {

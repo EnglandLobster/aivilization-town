@@ -225,6 +225,13 @@ describe('local experiment validation schedule', () => {
         value: 75_237,
       }),
     );
+    await profileRunReports.record(
+      createProfileRunReport({
+        runId: 'profile-run-without-objective-decomposition',
+        variant: 'without-objective-decomposition',
+        value: 95_279,
+      }),
+    );
 
     const result = await runLocalExperimentValidationSchedule({
       storage,
@@ -244,8 +251,47 @@ describe('local experiment validation schedule', () => {
 
     const plannerAblation = getMetric(result.report.metrics, 'planner-ablation');
     expect(plannerAblation.status).toBe('pass');
-    expect(plannerAblation.evidence.comparisonCount).toBe(1);
+    expect(plannerAblation.evidence.comparisonCount).toBe(2);
     expect(plannerAblation.evidence.defaultWinRate).toBe(1);
+    expect(plannerAblation.evidence.expectedVariantCount).toBe(3);
+    expect(plannerAblation.evidence.observedVariantCount).toBe(3);
+  });
+
+  test('rejects durable planner sources that do not cover the paper ablation variants', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110]);
+    const profileRunReports = new InMemoryRuntimeProfileRunReportRepository();
+    await profileRunReports.record(
+      createProfileRunReport({ runId: 'profile-run-default', variant: 'default', value: 110_098 }),
+    );
+    await profileRunReports.record(
+      createProfileRunReport({
+        runId: 'profile-run-without-branch',
+        variant: 'without-branch',
+        value: 75_237,
+      }),
+    );
+
+    await expect(
+      runLocalExperimentValidationSchedule({
+        storage,
+        initialProjection: createInitialProjection(),
+        runId: 'validation-planner-profile-source-missing-variant',
+        generatedAt: 901,
+        plannerRunSource: {
+          repository: profileRunReports,
+          profileId: 'planner-ablation-suite',
+        },
+        expectedTrajectoryAgentIds: ['agent-1'],
+        trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      }),
+    ).rejects.toThrow(
+      'plannerRuns missing expected variants without-objective-decomposition for task high-tech-production metric net-worth',
+    );
   });
 });
 
@@ -467,6 +513,11 @@ function createPlannerRuns() {
       taskId: 'high-tech-production',
       variant: 'without-branch',
       metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-objective-decomposition',
+      metrics: [{ metricId: 'net-worth', value: 95_279, higherIsBetter: true }],
     },
   ];
 }

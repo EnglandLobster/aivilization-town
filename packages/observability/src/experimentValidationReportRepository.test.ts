@@ -56,6 +56,11 @@ function createReport(input: {
         variant: 'without-branch',
         metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
       },
+      {
+        taskId: 'task-1',
+        variant: 'without-objective-decomposition',
+        metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+      },
     ],
     expectedTrajectoryAgentIds: ['agent-a'],
     trajectories: [{ agentId: 'agent-a', stepCount: 1 }],

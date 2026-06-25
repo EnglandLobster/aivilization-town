@@ -75,6 +75,7 @@ export type WealthStratificationThresholds = {
 };
 
 export type PlannerAblationThresholds = {
+  readonly expectedVariants?: readonly string[];
   readonly minimumDefaultWinRate?: number;
   readonly minimumDefaultCommandEmittingCycleRatio?: number;
   readonly maximumDefaultSimulatorRejectedRatio?: number;
@@ -128,6 +129,29 @@ export type ExperimentValidationReport = {
   readonly findings: readonly ExperimentValidationFinding[];
 };
 
+export type ExperimentValidationReportGateCriteria = {
+  readonly criteriaId: string;
+  readonly defaultAllowedStatuses?: readonly ExperimentValidationStatus[];
+  readonly allowedStatusesByMetricId?: Partial<
+    Record<ExperimentValidationMetricId, readonly ExperimentValidationStatus[]>
+  >;
+};
+
+export type ExperimentValidationReportGateFailure = {
+  readonly code: string;
+  readonly message: string;
+  readonly evidence: ExperimentValidationEvidence;
+};
+
+export type ExperimentValidationReportGateResult = {
+  readonly status: 'pass' | 'fail';
+  readonly criteriaId: string;
+  readonly runId: string;
+  readonly simulationId: string;
+  readonly failureCount: number;
+  readonly failures: readonly ExperimentValidationReportGateFailure[];
+};
+
 type PriceSeriesDiagnostics = {
   readonly commodityCount: number;
   readonly observationCount: number;
@@ -151,6 +175,14 @@ type PlannerNamedMetricSummary = {
   readonly ablatedValue: number;
   readonly defaultAdvantage: number;
 };
+
+const DEFAULT_PLANNER_ABLATION_VARIANTS = [
+  'default',
+  'without-branch',
+  'without-objective-decomposition',
+] as const;
+
+const DEFAULT_VALIDATION_REPORT_GATE_ALLOWED_STATUSES = ['pass', 'watch'] as const;
 
 const PLANNER_SHAPE_METRIC_IDS = new Set([
   'planner-plan-count',
@@ -188,6 +220,7 @@ const DEFAULT_THRESHOLDS = {
     minimumEducationWealthRatio: 1.1,
   },
   plannerAblation: {
+    expectedVariants: DEFAULT_PLANNER_ABLATION_VARIANTS,
     minimumDefaultWinRate: 0.5,
     minimumDefaultCommandEmittingCycleRatio: 0,
     maximumDefaultSimulatorRejectedRatio: 1,
@@ -211,7 +244,10 @@ export function createExperimentValidationReport(
   const thresholds = mergeThresholds(input.thresholds);
   const priceDiagnostics = calculatePriceSeriesDiagnostics(input.priceSeries);
   const wealthDiagnostics = calculateWealthDiagnostics(input.wealthSnapshot);
-  const plannerDiagnostics = calculatePlannerDiagnostics(input.plannerRuns);
+  const plannerDiagnostics = calculatePlannerDiagnostics(
+    input.plannerRuns,
+    thresholds.plannerAblation.expectedVariants,
+  );
   const trajectoryDiagnostics = calculateTrajectoryDiagnostics(
     input.expectedTrajectoryAgentIds,
     input.trajectories,
@@ -230,6 +266,46 @@ export function createExperimentValidationReport(
     run,
     metrics,
     findings: metrics.map((metric) => createFinding(metric)),
+  };
+}
+
+export function evaluateExperimentValidationReportGate(
+  report: ExperimentValidationReport,
+  criteria: ExperimentValidationReportGateCriteria,
+): ExperimentValidationReportGateResult {
+  const criteriaId = validateCriteriaId(criteria.criteriaId);
+  const defaultAllowedStatuses = normalizeAllowedValidationStatuses(
+    criteria.defaultAllowedStatuses ?? DEFAULT_VALIDATION_REPORT_GATE_ALLOWED_STATUSES,
+    'defaultAllowedStatuses',
+  );
+  const allowedStatusesByMetricId = normalizeAllowedStatusesByMetricId(
+    criteria.allowedStatusesByMetricId,
+  );
+  const failures: ExperimentValidationReportGateFailure[] = [];
+
+  for (const metric of report.metrics) {
+    const allowedStatuses = allowedStatusesByMetricId[metric.id] ?? defaultAllowedStatuses;
+    if (allowedStatuses.includes(metric.status)) {
+      continue;
+    }
+    failures.push({
+      code: 'metric-status-not-allowed',
+      message: `metric ${metric.id} status ${metric.status} is not allowed`,
+      evidence: {
+        metricId: metric.id,
+        actual: metric.status,
+        allowed: allowedStatuses.join(','),
+      },
+    });
+  }
+
+  return {
+    status: failures.length === 0 ? 'pass' : 'fail',
+    criteriaId,
+    runId: report.run.runId,
+    simulationId: report.run.simulationId,
+    failureCount: failures.length,
+    failures,
   };
 }
 
@@ -412,8 +488,17 @@ function calculateWealthDiagnostics(wealthSnapshot: readonly WealthSnapshotObser
   };
 }
 
-function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[]): {
+function calculatePlannerDiagnostics(
+  plannerRuns: readonly PlannerExperimentRun[],
+  expectedVariantsInput: readonly string[],
+): {
   readonly taskMetricCount: number;
+  readonly expectedVariantCount: number;
+  readonly observedVariantCount: number;
+  readonly missingVariantCount: number;
+  readonly expectedVariants: string;
+  readonly observedVariants: string;
+  readonly missingVariants: string;
   readonly plannerShapeMetricCount: number;
   readonly plannerOutcomeMetricCount: number;
   readonly comparisonCount: number;
@@ -428,10 +513,13 @@ function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[
     throw new Error('plannerRuns requires at least one planner experiment run');
   }
 
+  const expectedVariants = normalizeExpectedPlannerVariants(expectedVariantsInput);
+  const observedVariants: string[] = [];
   const groups = new Map<string, PlannerExperimentRun[]>();
   for (const run of plannerRuns) {
     assertNonEmptyString(run.taskId, 'plannerRuns taskId');
     assertNonEmptyString(run.variant, 'plannerRuns variant');
+    pushUnique(observedVariants, run.variant);
     if (run.metrics.length === 0) {
       throw new Error('plannerRuns metrics requires at least one metric');
     }
@@ -458,6 +546,7 @@ function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[
     if (ablatedRuns.length === 0) {
       throw new Error('plannerRuns must include at least one ablated variant for each task metric');
     }
+    assertPlannerExpectedVariantsPresent({ key, runs, expectedVariants });
 
     for (const ablatedRun of ablatedRuns) {
       const ablatedMetric = getMetricFromRun(ablatedRun, metricId);
@@ -475,6 +564,12 @@ function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[
   const winningComparisons = comparisons.filter((comparison) => isDefaultAtLeastAsGood(comparison));
   return {
     taskMetricCount: groups.size,
+    expectedVariantCount: expectedVariants.length,
+    observedVariantCount: observedVariants.length,
+    missingVariantCount: 0,
+    expectedVariants: expectedVariants.join(','),
+    observedVariants: observedVariants.join(','),
+    missingVariants: '',
     plannerShapeMetricCount: countPlannerMetricGroups(groups, PLANNER_SHAPE_METRIC_IDS),
     plannerOutcomeMetricCount: countPlannerMetricGroups(groups, PLANNER_OUTCOME_METRIC_IDS),
     comparisonCount: comparisons.length,
@@ -486,15 +581,9 @@ function calculatePlannerDiagnostics(plannerRuns: readonly PlannerExperimentRun[
       groups,
       'planner-command-emitting-cycle-ratio',
     ),
-    simulatorRejectedRatio: summarizeNamedPlannerMetric(
-      groups,
-      'planner-simulator-rejected-ratio',
-    ),
+    simulatorRejectedRatio: summarizeNamedPlannerMetric(groups, 'planner-simulator-rejected-ratio'),
     replanningCycleRatio: summarizeNamedPlannerMetric(groups, 'planner-replanning-cycle-ratio'),
-    singleBranchPlanRatio: summarizeNamedPlannerMetric(
-      groups,
-      'planner-single-branch-plan-ratio',
-    ),
+    singleBranchPlanRatio: summarizeNamedPlannerMetric(groups, 'planner-single-branch-plan-ratio'),
   };
 }
 
@@ -687,6 +776,12 @@ function createPlannerAblationMetric(
     unit: 'default win rate',
     evidence: {
       taskMetricCount: diagnostics.taskMetricCount,
+      expectedVariantCount: diagnostics.expectedVariantCount,
+      observedVariantCount: diagnostics.observedVariantCount,
+      missingVariantCount: diagnostics.missingVariantCount,
+      expectedVariants: diagnostics.expectedVariants,
+      observedVariants: diagnostics.observedVariants,
+      missingVariants: diagnostics.missingVariants,
       plannerShapeMetricCount: diagnostics.plannerShapeMetricCount,
       plannerOutcomeMetricCount: diagnostics.plannerOutcomeMetricCount,
       comparisonCount: diagnostics.comparisonCount,
@@ -888,12 +983,110 @@ function parseTaskMetricKey(key: string): { readonly taskId: string; readonly me
   return { taskId, metricId };
 }
 
+function normalizeExpectedPlannerVariants(variants: readonly string[]): string[] {
+  if (variants.length === 0) {
+    throw new Error('plannerAblation expectedVariants must not be empty');
+  }
+
+  const normalized: string[] = [];
+  for (const variant of variants) {
+    assertNonEmptyString(variant, 'plannerAblation expectedVariants');
+    if (normalized.includes(variant)) {
+      throw new Error(`plannerAblation expected variant ${variant} must be unique`);
+    }
+    normalized.push(variant);
+  }
+
+  if (!normalized.includes('default')) {
+    throw new Error('plannerAblation expectedVariants must include default');
+  }
+  if (normalized.every((variant) => variant === 'default')) {
+    throw new Error('plannerAblation expectedVariants must include at least one ablated variant');
+  }
+
+  return normalized;
+}
+
+function assertPlannerExpectedVariantsPresent(input: {
+  readonly key: string;
+  readonly runs: readonly PlannerExperimentRun[];
+  readonly expectedVariants: readonly string[];
+}): void {
+  const observedVariants = new Set(input.runs.map((run) => run.variant));
+  const missingVariants = input.expectedVariants.filter(
+    (variant) => !observedVariants.has(variant),
+  );
+  if (missingVariants.length === 0) {
+    return;
+  }
+
+  const { taskId, metricId } = parseTaskMetricKey(input.key);
+  throw new Error(
+    `plannerRuns missing expected variants ${missingVariants.join(',')} for task ${taskId} metric ${metricId}`,
+  );
+}
+
+function pushUnique(values: string[], value: string): void {
+  if (!values.includes(value)) {
+    values.push(value);
+  }
+}
+
+function validateCriteriaId(criteriaId: string): string {
+  assertNonEmptyString(criteriaId, 'criteriaId');
+  return criteriaId;
+}
+
+function normalizeAllowedStatusesByMetricId(
+  allowedStatusesByMetricId:
+    | Partial<Record<ExperimentValidationMetricId, readonly ExperimentValidationStatus[]>>
+    | undefined,
+): Partial<Record<ExperimentValidationMetricId, readonly ExperimentValidationStatus[]>> {
+  if (allowedStatusesByMetricId === undefined) {
+    return {};
+  }
+
+  const normalized: Partial<
+    Record<ExperimentValidationMetricId, readonly ExperimentValidationStatus[]>
+  > = {};
+  for (const metricId of Object.keys(allowedStatusesByMetricId) as ExperimentValidationMetricId[]) {
+    normalized[metricId] = normalizeAllowedValidationStatuses(
+      allowedStatusesByMetricId[metricId] ?? [],
+      `allowedStatusesByMetricId.${metricId}`,
+    );
+  }
+  return normalized;
+}
+
+function normalizeAllowedValidationStatuses(
+  statuses: readonly ExperimentValidationStatus[],
+  label: string,
+): ExperimentValidationStatus[] {
+  if (statuses.length === 0) {
+    throw new Error(`${label} must not be empty`);
+  }
+
+  const normalized: ExperimentValidationStatus[] = [];
+  for (const status of statuses) {
+    if (!isExperimentValidationStatus(status)) {
+      throw new Error(`${label} contains invalid status`);
+    }
+    if (!normalized.includes(status)) {
+      normalized.push(status);
+    }
+  }
+  return normalized;
+}
+
+function isExperimentValidationStatus(value: string): value is ExperimentValidationStatus {
+  return value === 'pass' || value === 'watch' || value === 'fail';
+}
+
 function countPlannerMetricGroups(
   groups: ReadonlyMap<string, readonly PlannerExperimentRun[]>,
   metricIds: ReadonlySet<string>,
 ): number {
-  return [...groups.keys()].filter((key) => metricIds.has(parseTaskMetricKey(key).metricId))
-    .length;
+  return [...groups.keys()].filter((key) => metricIds.has(parseTaskMetricKey(key).metricId)).length;
 }
 
 function summarizeNamedPlannerMetric(
@@ -962,17 +1155,11 @@ function calculateAbsoluteDefaultAdvantage(comparison: PlannerComparison): numbe
     : comparison.ablatedValue - comparison.defaultValue;
 }
 
-function thresholdPassesMinimum(
-  summary: PlannerNamedMetricSummary,
-  minimumValue: number,
-): boolean {
+function thresholdPassesMinimum(summary: PlannerNamedMetricSummary, minimumValue: number): boolean {
   return summary.comparisonCount === 0 || summary.defaultValue >= minimumValue;
 }
 
-function thresholdPassesMaximum(
-  summary: PlannerNamedMetricSummary,
-  maximumValue: number,
-): boolean {
+function thresholdPassesMaximum(summary: PlannerNamedMetricSummary, maximumValue: number): boolean {
   return summary.comparisonCount === 0 || summary.defaultValue <= maximumValue;
 }
 

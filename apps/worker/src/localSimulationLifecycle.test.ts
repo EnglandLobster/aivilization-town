@@ -31,6 +31,10 @@ const policies: WorldCommandPolicies = {
   wageCalculator: () => 10,
   laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
   criticalThresholds: { energy: 1, health: 1 },
+  jobApplication: {
+    populationEducationScores: [0, 100],
+    quotaByResidentialTier: [1, 1, 1, 1, 1],
+  },
 };
 
 const tmpRoots: string[] = [];
@@ -520,6 +524,12 @@ describe('local simulation lifecycle controller', () => {
         spotPrices: [{ commodity: 'Fish', spotPrice: 10 }],
       },
     });
+    expect(synthesizerCalls[0]?.worldDecisionContext?.rules?.criticalThresholds).toEqual({
+      energy: 1,
+      health: 1,
+    });
+    expect(synthesizerCalls[0]?.worldDecisionContext?.rules?.occupations.length).toBeGreaterThan(0);
+    expect(synthesizerCalls[0]?.worldDecisionContext?.rules?.production.length).toBeGreaterThan(0);
     await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
       values: [
         {
@@ -539,43 +549,47 @@ describe('local simulation lifecycle controller', () => {
       partitionKey: 'world-main',
     });
     await storage.shortTermMemoryRepository.append(createSocialMemory(1));
-    const socialModelSynthesizer: SocialModelSynthesizer = () => ({
-      patches: [
-        {
-          id: 'ltm-patch-agent-1-social-agent-2-1070',
-          agentId: agentOne,
-          section: 'socialRecords',
-          key: agentTwo,
-          statement: 'agent-2 reliably shares food during recovery windows.',
-          confidence: 0.9,
-          provenanceRecordIds: [asMemoryRecordId('social-memory-1')],
-          proposedAt: 1070,
-          relationDelta: 2,
-          attitudeDelta: 1,
+    const socialModelCalls: Parameters<SocialModelSynthesizer>[0][] = [];
+    const socialModelSynthesizer: SocialModelSynthesizer = (input) => {
+      socialModelCalls.push(input);
+      return {
+        patches: [
+          {
+            id: 'ltm-patch-agent-1-social-agent-2-1070',
+            agentId: agentOne,
+            section: 'socialRecords',
+            key: agentTwo,
+            statement: 'agent-2 reliably shares food during recovery windows.',
+            confidence: 0.9,
+            provenanceRecordIds: [asMemoryRecordId('social-memory-1')],
+            proposedAt: 1070,
+            relationDelta: 2,
+            attitudeDelta: 1,
+          },
+        ],
+        socialReflections: [
+          {
+            id: 'social-reflection-agent-1-agent-2-llm-0-1070',
+            agentId: agentOne,
+            targetAgentId: agentTwo,
+            statement: 'agent-2 is becoming a trusted food-sharing partner.',
+            relationDelta: 2,
+            attitudeDelta: 1,
+            confidence: 0.9,
+            evidenceRecordIds: [asMemoryRecordId('social-memory-1')],
+            generatedAt: 1070,
+            tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'social-model-agent-1-1070',
+          providerId: 'scripted-social-model',
+          model: 'social-model',
         },
-      ],
-      socialReflections: [
-        {
-          id: 'social-reflection-agent-1-agent-2-llm-0-1070',
-          agentId: agentOne,
-          targetAgentId: agentTwo,
-          statement: 'agent-2 is becoming a trusted food-sharing partner.',
-          relationDelta: 2,
-          attitudeDelta: 1,
-          confidence: 0.9,
-          evidenceRecordIds: [asMemoryRecordId('social-memory-1')],
-          generatedAt: 1070,
-          tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
-        },
-      ],
-      trace: {
-        status: 'accepted',
-        source: 'llm',
-        requestId: 'social-model-agent-1-1070',
-        providerId: 'scripted-social-model',
-        model: 'social-model',
-      },
-    });
+      };
+    };
     const controller = createController({
       storage,
       initialProjection,
@@ -604,6 +618,12 @@ describe('local simulation lifecycle controller', () => {
         },
       ],
     });
+    expect(socialModelCalls[0]?.worldDecisionContext?.rules?.criticalThresholds).toEqual({
+      energy: 1,
+      health: 1,
+    });
+    expect(socialModelCalls[0]?.worldDecisionContext?.rules?.occupations.length).toBeGreaterThan(0);
+    expect(socialModelCalls[0]?.worldDecisionContext?.rules?.production.length).toBeGreaterThan(0);
     await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
       socialRecords: [
         {

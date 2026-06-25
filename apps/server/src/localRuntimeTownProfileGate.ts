@@ -246,6 +246,12 @@ export function deriveRequiredCognitionLlmRulesContextStagesFromRuntimeConfig(
   if (runtimeConfig.reactionPlanning !== undefined) {
     stages.push('reactionEvaluation');
   }
+  if (runtimeConfig.reflectionSynthesis !== undefined) {
+    stages.push('reflectionSynthesis');
+  }
+  if (runtimeConfig.socialModelSynthesis !== undefined) {
+    stages.push('socialModelSynthesis');
+  }
   return stages;
 }
 

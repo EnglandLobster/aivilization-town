@@ -173,6 +173,9 @@ describe('LLM social model synthesizer seam', () => {
           inventoryItemCount: 2,
           marketSpotPriceCount: 1,
           hasLatestPriceIndex: true,
+          hasEconomicState: true,
+          hasMarketPrices: true,
+          completeEconomicContext: true,
         },
       },
     });

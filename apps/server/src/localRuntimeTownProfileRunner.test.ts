@@ -12,6 +12,7 @@ import {
   FileAgentCycleTraceRepository,
   FileDailyPlanRenewalTraceRepository,
   FileObjectiveRenewalTraceRepository,
+  FileReactionEvaluationTraceRepository,
   InMemoryRuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
@@ -677,6 +678,9 @@ describe('local runtime town profile runner', () => {
     const intentionRepository = new FileAgentIntentionRepository({
       rootDir: join(simulationRoot, 'memory'),
     });
+    const reactionTraceRepository = new FileReactionEvaluationTraceRepository({
+      rootDir: join(simulationRoot, 'observability'),
+    });
     const conversationMemories = await memoryRepository.retrieve({
       agentId: bystanderId,
       kinds: ['observation'],
@@ -691,6 +695,35 @@ describe('local runtime town profile runner', () => {
         requestId.startsWith('profile-llm-reaction:smoke-25:smoke-25-world-main-agent-015:'),
       ),
     ).toBe(true);
+    const reactionTraces = await reactionTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId: bystanderId,
+      decisionKind: 'ignore',
+      limit: 1,
+    });
+
+    expect(reactionTraces).toHaveLength(1);
+    expect(reactionTraces[0]).toMatchObject({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId: bystanderId,
+      decision: {
+        kind: 'ignore',
+        confidence: 0.93,
+        rationale: 'The bystander noticed the conversation but should not follow up.',
+      },
+      reactionTrace: {
+        status: 'accepted',
+        source: 'llm',
+        providerId: 'scripted-profile-reaction',
+        model: 'profile-reaction-model',
+      },
+      issuedAt: 200,
+    });
+    expect(reactionTraces[0]?.reactionTrace?.requestId).toMatch(
+      /^profile-llm-reaction:smoke-25:smoke-25-world-main-agent-015:/,
+    );
     expect(conversationMemories).toHaveLength(1);
     expect(conversationMemories[0]).toMatchObject({
       agentId: bystanderId,

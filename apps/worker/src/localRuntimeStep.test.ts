@@ -14,6 +14,8 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalWorldRuntimeStorage, runLocalWorldRuntimeStep } from './index';
 
 const agentOne = asAgentId('agent-1');
+const agentTwo = asAgentId('agent-2');
+const agentThree = asAgentId('agent-3');
 
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: {},
@@ -354,6 +356,76 @@ describe('local world runtime step', () => {
       }),
     ).resolves.toEqual([]);
   });
+
+  test('persists ambient reaction evaluation traces through local runtime storage', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+
+    const result = await runLocalWorldRuntimeStep({
+      storage,
+      tickId: 'tick-reaction-trace',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createCoLocatedConversationProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      ambientObservationMemory: {
+        enabled: true,
+        reactionEvaluator: () => ({
+          decision: {
+            kind: 'ignore',
+            confidence: 0.93,
+            rationale: 'The bystander notices but chooses not to follow up.',
+          },
+          reactionTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'local-runtime-reaction-ignore',
+            providerId: 'scripted-reaction',
+            model: 'reaction-model',
+          },
+        }),
+      },
+      agents: [createConversationTickAgent()],
+    });
+
+    if (result.status !== 'ticked') {
+      throw new Error('expected reaction trace runtime step to tick');
+    }
+    await expect(
+      storage.reactionEvaluationTraceRepository.query({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: agentThree,
+        decisionKind: 'ignore',
+        limit: 1,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-3',
+        decision: {
+          kind: 'ignore',
+          confidence: 0.93,
+          rationale: 'The bystander notices but chooses not to follow up.',
+        },
+        reactionTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'local-runtime-reaction-ignore',
+          providerId: 'scripted-reaction',
+          model: 'reaction-model',
+        },
+        issuedAt: 200,
+      }),
+    ]);
+  });
 });
 
 function createInitialProjection() {
@@ -428,6 +500,52 @@ function createCoLocatedProjection() {
   });
 }
 
+function createCoLocatedConversationProjection() {
+  return createWorldProjection({
+    locations: [
+      {
+        locationId: asLocationId('school'),
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study', 'socialize'],
+        capacity: null,
+      },
+    ],
+    agents: [
+      {
+        agentId: agentOne,
+        locationId: asLocationId('school'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: agentTwo,
+        locationId: asLocationId('school'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: agentThree,
+        locationId: asLocationId('school'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
 function createStudyPlan() {
   return createBranchPlan({
     objective: 'develop education',
@@ -454,6 +572,19 @@ function createTradePlan() {
   });
 }
 
+function createConversationPlan() {
+  return createBranchPlan({
+    objective: 'build community relationships',
+    branches: [
+      {
+        id: 'social',
+        objective: 'coordinate a community party',
+        subtasks: [{ id: 'socialize', description: 'discuss Valentine party', basePriority: 5 }],
+      },
+    ],
+  });
+}
+
 function createStudyTickAgent() {
   return {
     agentId: agentOne,
@@ -467,6 +598,47 @@ function createStudyTickAgent() {
         commandType: 'AgentStudy',
         payload: { durationSeconds: 30, educationRatePerSecond: 1 },
       }),
+    ],
+    simulate: ({ action }) => ({ status: 'accepted' as const, action }),
+  } satisfies Parameters<typeof runLocalWorldRuntimeStep>[0]['agents'][number];
+}
+
+function createConversationTickAgent() {
+  return {
+    agentId: agentOne,
+    observedStateSummary: 'agent-1 discusses a party while agent-3 listens nearby',
+    plan: createConversationPlan(),
+    signals: [],
+    microPlanners: [
+      {
+        domain: 'social',
+        supports: ({ subtaskId }) => subtaskId === 'socialize',
+        propose: () => [
+          {
+            id: 'conversation-party',
+            description: 'Discuss Valentine party with agent-2.',
+            commandType: 'AgentStartConversation',
+            payload: {
+              targetAgentId: agentTwo,
+              topic: 'Valentine party',
+              relationDelta: 1,
+              attitudeDelta: 1,
+              turns: [
+                {
+                  speakerAgentId: agentOne,
+                  utterance: 'Can you help coordinate the Valentine party?',
+                  intent: 'invite-party-planning',
+                },
+                {
+                  speakerAgentId: agentTwo,
+                  utterance: 'Yes, let us invite more neighbors.',
+                  intent: 'accept-party-planning',
+                },
+              ],
+            },
+          },
+        ],
+      },
     ],
     simulate: ({ action }) => ({ status: 'accepted' as const, action }),
   } satisfies Parameters<typeof runLocalWorldRuntimeStep>[0]['agents'][number];

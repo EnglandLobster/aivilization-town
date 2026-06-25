@@ -216,6 +216,24 @@ describe('local world runtime storage', () => {
       },
       issuedAt: 180,
     });
+    await storage.reactionEvaluationTraceRepository.record({
+      traceId: 'reaction-evaluation:sim-1:world-main:agent-1:memory-social-1:185',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      memoryRecordId: 'memory-social-1',
+      decision: {
+        kind: 'ignore',
+        confidence: 0.88,
+        rationale: 'Storage restart test reaction trace.',
+      },
+      reactionTrace: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'storage restart test reaction trace',
+      },
+      issuedAt: 185,
+    });
     await storage.steeringTraceRepository.record({
       traceId: 'sim-1:world-main:1:cmd-objective-study',
       simulationId,
@@ -305,6 +323,28 @@ describe('local world runtime storage', () => {
         message: 'storage restart test daily plan trace',
       },
       issuedAt: 180,
+    });
+    await expect(
+      restarted.reactionEvaluationTraceRepository.get(
+        'reaction-evaluation:sim-1:world-main:agent-1:memory-social-1:185',
+      ),
+    ).resolves.toEqual({
+      traceId: 'reaction-evaluation:sim-1:world-main:agent-1:memory-social-1:185',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      memoryRecordId: 'memory-social-1',
+      decision: {
+        kind: 'ignore',
+        confidence: 0.88,
+        rationale: 'Storage restart test reaction trace.',
+      },
+      reactionTrace: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'storage restart test reaction trace',
+      },
+      issuedAt: 185,
     });
     await expect(
       restarted.steeringTraceRepository.get('sim-1:world-main:1:cmd-objective-study'),

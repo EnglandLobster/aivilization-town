@@ -1,7 +1,10 @@
 import { createShortTermMemoryRecord, type ScheduledIntention } from '@aivilization/memory';
 import { asAgentId, asCommandId, asEventId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { createSocialObservationScheduledIntentions } from './socialObservationIntentions';
+import {
+  createSocialObservationScheduledIntentions,
+  createTraceableSocialObservationScheduledIntentions,
+} from './socialObservationIntentions';
 
 const agentId = asAgentId('agent-bystander');
 const hourMs = 60 * 60 * 1000;
@@ -271,5 +274,122 @@ describe('social observation intentions', () => {
         updatedAt: 12 * hourMs,
       },
     ] satisfies ScheduledIntention[]);
+  });
+
+  test('returns traceable reaction evaluations for follow-up and ignored social observations', async () => {
+    const followUpMemory = createShortTermMemoryRecord({
+      id: 'memory-conversation-party',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'Observed agent-a and agent-c discuss Valentine party at Town Square.',
+      occurredAt: 10 * hourMs,
+      importanceScore: 0.7,
+      source: { eventIds: [asEventId('event-conversation-1')] },
+      tags: ['ambient-observation', 'ConversationRecorded', 'agent-a', 'agent-c'],
+    });
+    const ignoredMemory = createShortTermMemoryRecord({
+      id: 'memory-conversation-study',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'Observed agent-d and agent-e discuss a quiet study routine.',
+      occurredAt: 11 * hourMs,
+      importanceScore: 0.4,
+      source: { eventIds: [asEventId('event-conversation-2')] },
+      tags: ['ambient-observation', 'ConversationRecorded', 'agent-d', 'agent-e'],
+    });
+
+    const result = await createTraceableSocialObservationScheduledIntentions({
+      records: [followUpMemory, ignoredMemory],
+      createdAt: 12 * hourMs,
+      reactionEvaluator: ({ memory }) =>
+        memory.id === ignoredMemory.id
+          ? {
+              decision: {
+                kind: 'ignore',
+                confidence: 0.92,
+                rationale: 'The study routine is not relevant to the bystander.',
+              },
+              reactionTrace: {
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'reaction-ignore-study',
+                providerId: 'scripted-reaction',
+                model: 'reaction-model',
+              },
+            }
+          : {
+              decision: {
+                kind: 'follow-up',
+                confidence: 0.86,
+                rationale: 'The party topic matches the agent social plan.',
+                description: 'Ask agent-a how to help with the Valentine party.',
+                priority: 6,
+                reactionWindowMs: 30 * 60 * 1000,
+                affinityTags: ['social', 'party', 'agent-a', 'party'],
+              },
+              reactionTrace: {
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'reaction-follow-up-party',
+                providerId: 'scripted-reaction',
+                model: 'reaction-model',
+              },
+            },
+    });
+
+    expect(result.intentions).toEqual([
+      {
+        id: 'social-observation:agent-bystander:memory-conversation-party',
+        agentId,
+        description: 'Ask agent-a how to help with the Valentine party.',
+        priority: 6,
+        startsAt: 10 * hourMs,
+        endsAt: 10 * hourMs + 30 * 60 * 1000,
+        status: 'planned',
+        affinityTags: ['social', 'party', 'agent-a'],
+        provenanceRecordIds: [followUpMemory.id],
+        createdAt: 12 * hourMs,
+        updatedAt: 12 * hourMs,
+      },
+    ] satisfies ScheduledIntention[]);
+    expect(result.evaluations).toEqual([
+      {
+        memoryRecord: followUpMemory,
+        decision: {
+          kind: 'follow-up',
+          confidence: 0.86,
+          rationale: 'The party topic matches the agent social plan.',
+          description: 'Ask agent-a how to help with the Valentine party.',
+          priority: 6,
+          reactionWindowMs: 30 * 60 * 1000,
+          affinityTags: ['social', 'party', 'agent-a'],
+        },
+        reactionTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reaction-follow-up-party',
+          providerId: 'scripted-reaction',
+          model: 'reaction-model',
+        },
+        scheduledIntention: result.intentions[0],
+      },
+      {
+        memoryRecord: ignoredMemory,
+        decision: {
+          kind: 'ignore',
+          confidence: 0.92,
+          rationale: 'The study routine is not relevant to the bystander.',
+        },
+        reactionTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reaction-ignore-study',
+          providerId: 'scripted-reaction',
+          model: 'reaction-model',
+        },
+      },
+    ]);
   });
 });

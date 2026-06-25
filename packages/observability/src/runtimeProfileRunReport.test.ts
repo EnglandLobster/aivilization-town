@@ -433,6 +433,22 @@ describe('runtime profile run report repositories', () => {
           traceId: 'reaction-missing-provider-trace',
         }),
       ],
+      reflectionSynthesisTraces: [
+        {
+          status: 'accepted',
+          source: 'llm',
+        },
+        {
+          status: 'deterministic',
+          source: 'deterministic',
+        },
+      ],
+      socialModelSynthesisTraces: [
+        {
+          status: 'fallback',
+          source: 'deterministic-fallback',
+        },
+      ],
     });
 
     expect(diagnostics).toEqual([
@@ -459,6 +475,22 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 1,
         missingProviderTraceCount: 1,
+      },
+      {
+        stageName: 'reflectionSynthesis',
+        traceCount: 2,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 1,
+        missingProviderTraceCount: 0,
+      },
+      {
+        stageName: 'socialModelSynthesis',
+        traceCount: 1,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 1,
+        deterministicCount: 0,
+        missingProviderTraceCount: 0,
       },
     ]);
   });
@@ -731,6 +763,22 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
     },
     {
       stageName: 'reactionEvaluation',
+      traceCount: 0,
+      llmAcceptedCount: 0,
+      deterministicFallbackCount: 0,
+      deterministicCount: 0,
+      missingProviderTraceCount: 0,
+    },
+    {
+      stageName: 'reflectionSynthesis',
+      traceCount: 0,
+      llmAcceptedCount: 0,
+      deterministicFallbackCount: 0,
+      deterministicCount: 0,
+      missingProviderTraceCount: 0,
+    },
+    {
+      stageName: 'socialModelSynthesis',
       traceCount: 0,
       llmAcceptedCount: 0,
       deterministicFallbackCount: 0,

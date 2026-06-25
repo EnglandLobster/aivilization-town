@@ -66,7 +66,13 @@ describe('local runtime town profile gate criteria', () => {
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
       }).requiredCognitionLlmAcceptedStages,
-    ).toEqual(['strategicPlanning', 'dailyPlanning', 'reactionEvaluation']);
+    ).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
   });
 
   test('derives multi-partition default and stress profile gate criteria', () => {

@@ -79,7 +79,9 @@ export type RuntimeProfileAgentCycleDiagnostics = {
 export type RuntimeProfileCognitionLlmStageName =
   | 'strategicPlanning'
   | 'dailyPlanning'
-  | 'reactionEvaluation';
+  | 'reactionEvaluation'
+  | 'reflectionSynthesis'
+  | 'socialModelSynthesis';
 
 export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly stageName: RuntimeProfileCognitionLlmStageName;
@@ -88,6 +90,11 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingProviderTraceCount: number;
+};
+
+export type RuntimeProfileCognitionProviderTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -261,6 +268,8 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
   readonly objectiveRenewalTraces?: readonly ObjectiveRenewalTrace[];
   readonly dailyPlanRenewalTraces?: readonly DailyPlanRenewalTrace[];
   readonly reactionEvaluationTraces?: readonly ReactionEvaluationTrace[];
+  readonly reflectionSynthesisTraces?: readonly RuntimeProfileCognitionProviderTrace[];
+  readonly socialModelSynthesisTraces?: readonly RuntimeProfileCognitionProviderTrace[];
 }): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {
   const diagnostics = new Map<
     RuntimeProfileCognitionLlmStageName,
@@ -282,7 +291,15 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
   const strategic = diagnostics.get('strategicPlanning');
   const daily = diagnostics.get('dailyPlanning');
   const reaction = diagnostics.get('reactionEvaluation');
-  if (strategic === undefined || daily === undefined || reaction === undefined) {
+  const reflection = diagnostics.get('reflectionSynthesis');
+  const socialModel = diagnostics.get('socialModelSynthesis');
+  if (
+    strategic === undefined ||
+    daily === undefined ||
+    reaction === undefined ||
+    reflection === undefined ||
+    socialModel === undefined
+  ) {
     throw new Error('missing cognition LLM stage diagnostics');
   }
 
@@ -294,6 +311,12 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
   }
   for (const trace of input.reactionEvaluationTraces ?? []) {
     recordCognitionProviderTrace(reaction, trace.reactionTrace);
+  }
+  for (const trace of input.reflectionSynthesisTraces ?? []) {
+    recordCognitionProviderTrace(reflection, trace);
+  }
+  for (const trace of input.socialModelSynthesisTraces ?? []) {
+    recordCognitionProviderTrace(socialModel, trace);
   }
 
   return COGNITION_LLM_STAGE_NAMES.map((stageName) => {
@@ -525,6 +548,8 @@ const COGNITION_LLM_STAGE_NAMES = [
   'strategicPlanning',
   'dailyPlanning',
   'reactionEvaluation',
+  'reflectionSynthesis',
+  'socialModelSynthesis',
 ] as const satisfies readonly RuntimeProfileCognitionLlmStageName[];
 
 type AgentCycleLlmStageTrace = {
@@ -532,10 +557,7 @@ type AgentCycleLlmStageTrace = {
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
 };
 
-type CognitionLlmStageTrace = {
-  readonly status: 'deterministic' | 'accepted' | 'fallback';
-  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
-};
+type CognitionLlmStageTrace = RuntimeProfileCognitionProviderTrace;
 
 type MutableLlmStageDiagnostics = {
   stageName: RuntimeProfileAgentCycleLlmStageName;

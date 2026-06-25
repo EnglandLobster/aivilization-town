@@ -985,7 +985,7 @@ describe('local runtime town profile runner', () => {
     const rootDir = createRootDir();
     const observedRequestIds: string[] = [];
 
-    await runLocalRuntimeTownDaemonScenarioProfile({
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
       profileId: 'smoke-25',
       rootDir,
       cycleCount: 1,
@@ -1011,13 +1011,18 @@ describe('local runtime town profile runner', () => {
     expect(observedRequestIds[0]).toBe(
       'profile-llm-reflection-synthesis:smoke-25:smoke-25-world-main-agent-001:260',
     );
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'reflectionSynthesis',
+      )?.llmAcceptedCount,
+    ).toBe(1);
   });
 
   test('attaches configured social model synthesis to a provided memory consolidation schedule', async () => {
     const rootDir = createRootDir();
     const observedRequestIds: string[] = [];
 
-    await runLocalRuntimeTownDaemonScenarioProfile({
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
       profileId: 'smoke-25',
       rootDir,
       cycleCount: 1,
@@ -1043,6 +1048,11 @@ describe('local runtime town profile runner', () => {
     expect(observedRequestIds[0]).toBe(
       'profile-llm-social-model-synthesis:smoke-25:smoke-25-world-main-agent-001:270',
     );
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'socialModelSynthesis',
+      )?.llmAcceptedCount,
+    ).toBe(1);
   });
 });
 

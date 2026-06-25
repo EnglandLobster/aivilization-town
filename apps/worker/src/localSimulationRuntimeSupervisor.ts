@@ -15,6 +15,7 @@ import {
   type LocalSimulationRuntimeOperationCommand,
   type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace,
   type LocalSimulationRuntimeOperationMemoryConsolidationTrace,
+  type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace,
   type LocalSimulationRuntimeOperationRunCycleTrace,
   type LocalSimulationRuntimeOperationTrace,
   type LocalSimulationRuntimeOperationTraceQuery,
@@ -673,6 +674,36 @@ function createOperationMemoryConsolidationTrace(
     cursorCount: result.memoryConsolidation.cursors.length,
     socialReflectionObservationCount: result.memoryConsolidation.socialReflectionObservationCount,
     consolidatedAt: result.state.lastMemoryConsolidationAt ?? result.state.updatedAt,
+    reflectionSynthesisTraces: result.memoryConsolidation.results.map((consolidation) =>
+      createOperationMemorySynthesisProviderTrace({
+        agentId: consolidation.agentId,
+        trace: consolidation.reflectionSynthesisTrace,
+      }),
+    ),
+    socialModelSynthesisTraces: result.memoryConsolidation.results.map((consolidation) =>
+      createOperationMemorySynthesisProviderTrace({
+        agentId: consolidation.agentId,
+        trace: consolidation.socialModelSynthesisTrace,
+      }),
+    ),
+  };
+}
+
+function createOperationMemorySynthesisProviderTrace(input: {
+  readonly agentId: LocalSimulationRuntimeOperationMemorySynthesisProviderTrace['agentId'];
+  readonly trace: Omit<LocalSimulationRuntimeOperationMemorySynthesisProviderTrace, 'agentId'>;
+}): LocalSimulationRuntimeOperationMemorySynthesisProviderTrace {
+  return {
+    agentId: input.agentId,
+    status: input.trace.status,
+    source: input.trace.source,
+    ...(input.trace.requestId === undefined ? {} : { requestId: input.trace.requestId }),
+    ...(input.trace.providerId === undefined ? {} : { providerId: input.trace.providerId }),
+    ...(input.trace.model === undefined ? {} : { model: input.trace.model }),
+    ...(input.trace.failureReason === undefined
+      ? {}
+      : { failureReason: input.trace.failureReason }),
+    ...(input.trace.message === undefined ? {} : { message: input.trace.message }),
   };
 }
 

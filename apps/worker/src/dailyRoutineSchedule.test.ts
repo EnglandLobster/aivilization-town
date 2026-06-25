@@ -1,11 +1,16 @@
 import {
+  createDailyPlan,
+  type DailyPlanCompiler,
+  type DailyPlanCompilerInput,
+} from '@aivilization/agent-runtime';
+import {
   createShortTermMemoryRecord,
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
   type LongTermAgentProfile,
 } from '@aivilization/memory';
-import { asAgentId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
@@ -260,6 +265,180 @@ describe('daily routine scheduling', () => {
       provenanceRecordIds: [memory.id],
       affinityTags: ['daily-plan', 'social', 'memory', 'party', 'agent-maria', 'town-square'],
     });
+  });
+
+  test('uses an injected daily plan compiler and surfaces planning trace metadata', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const homeLocationId = asLocationId('home');
+    const projection = createWorldProjection({
+      agents: [createAgent(agentId, { job: 'Stock Clerk', locationId: homeLocationId })],
+      locations: [
+        {
+          locationId: homeLocationId,
+          name: 'Home',
+          kind: 'residence',
+          activityAffinities: ['home', 'rest'],
+          capacity: null,
+        },
+      ],
+    });
+    await longTermProfileRepository.save(
+      createProfile(agentId, {
+        habits: [
+          {
+            key: 'study-routine',
+            statement: 'Repeated successful study sessions suggest a reliable study routine.',
+            confidence: 0.8,
+            updatedAt: 100,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+    );
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-social-party',
+      agentId,
+      kind: 'social-interaction',
+      status: 'observed',
+      summary: 'Maria invited agent-a to coordinate the Valentine party at the town square.',
+      occurredAt: 7 * hourMs,
+      importanceScore: 0.9,
+      source: { eventIds: [] },
+      tags: ['social', 'party', 'agent-maria', 'town-square'],
+    });
+    await shortTermMemoryRepository.append(memory);
+
+    let compilerInput: DailyPlanCompilerInput | undefined;
+    const compileDailyPlan: DailyPlanCompiler = (input) => {
+      compilerInput = input;
+      return {
+        plan: createDailyPlan({
+          id: 'daily-plan:agent-a:0',
+          agentId,
+          dayStart: 0,
+          generatedAt: 8 * hourMs,
+          summary: 'Injected LLM-style daily plan.',
+          items: [
+            {
+              id: 'party-follow-up',
+              description: 'Coordinate the Valentine party with Maria.',
+              priority: 4,
+              startsAtOffsetMs: 18 * hourMs,
+              endsAtOffsetMs: 20 * hourMs,
+              affinityTags: ['social', 'party'],
+              source: 'memory-context',
+              evidenceRecordIds: [memory.id],
+            },
+          ],
+        }),
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'daily-plan-agent-a-8',
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+          attempts: [
+            {
+              attemptIndex: 1,
+              status: 'succeeded',
+              providerId: 'scripted-daily-planner',
+              model: 'daily-planner-model',
+              message: 'LLM structured response validated',
+              usage: {
+                inputTokens: 12,
+                outputTokens: 20,
+                totalTokens: 32,
+                estimatedCostMicros: 84,
+              },
+            },
+          ],
+          usage: {
+            inputTokens: 12,
+            outputTokens: 20,
+            totalTokens: 32,
+            estimatedCostMicros: 84,
+          },
+        },
+      };
+    };
+
+    const results = await renewDailyPlanScheduledIntentions({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      issuedAt: 8 * hourMs,
+      memoryRetrievalLimit: 5,
+      compileDailyPlan,
+    });
+
+    expect(compilerInput).toMatchObject({
+      agentId,
+      issuedAt: 8 * hourMs,
+      agent: {
+        job: 'Stock Clerk',
+        locationId: 'home',
+        physiology: { energy: 90, satiety: 90, health: 100 },
+      },
+      longTermProfile: {
+        habits: [expect.objectContaining({ key: 'study-routine' })],
+      },
+      memoryContext: [expect.objectContaining({ id: memory.id })],
+    });
+    expect(results).toEqual([
+      {
+        agentId,
+        dailyPlanId: 'daily-plan:agent-a:0',
+        scheduledIntentionIds: ['daily-plan:agent-a:0:party-follow-up'],
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'daily-plan-agent-a-8',
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+          attempts: [
+            {
+              attemptIndex: 1,
+              status: 'succeeded',
+              providerId: 'scripted-daily-planner',
+              model: 'daily-planner-model',
+              message: 'LLM structured response validated',
+              usage: {
+                inputTokens: 12,
+                outputTokens: 20,
+                totalTokens: 32,
+                estimatedCostMicros: 84,
+              },
+            },
+          ],
+          usage: {
+            inputTokens: 12,
+            outputTokens: 20,
+            totalTokens: 32,
+            estimatedCostMicros: 84,
+          },
+        },
+      },
+    ]);
+    const state = await intentionRepository.getOrCreate(agentId);
+    expect(state.scheduledIntentions).toEqual([
+      {
+        id: 'daily-plan:agent-a:0:party-follow-up',
+        agentId,
+        sourcePlanId: 'daily-plan:agent-a:0',
+        description: 'Coordinate the Valentine party with Maria.',
+        priority: 4,
+        startsAt: 18 * hourMs,
+        endsAt: 20 * hourMs,
+        status: 'planned',
+        affinityTags: ['daily-plan', 'social', 'party'],
+        provenanceRecordIds: [memory.id],
+        createdAt: 8 * hourMs,
+        updatedAt: 8 * hourMs,
+      },
+    ]);
   });
 });
 

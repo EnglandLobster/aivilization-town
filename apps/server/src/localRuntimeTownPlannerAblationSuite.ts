@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import {
   compileStrategicObjectiveWithoutObjectiveDecomposition,
   createBranchPlan,
+  type SubtaskPrioritizationSensitivityProbeResult,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import {
@@ -20,6 +21,7 @@ import {
   evaluateLocalRuntimeTownPlannerAblationStructureGate,
   type LocalRuntimeTownPlannerAblationStructureGateResult,
 } from './localRuntimeTownPlannerAblationStructureGate';
+import { createPlannerEconomicSensitivityMetricsFromProbeResults } from './localRuntimeTownPlannerEconomicSensitivityMetrics';
 import type { LocalRuntimeTownProfileStrategicCompilerConfig } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfilePlannerOutcomeMetrics } from './localRuntimeTownPlannerOutcomeMetrics';
 import { createLocalRuntimeTownProfilePlannerShapeMetrics } from './localRuntimeTownPlannerShapeMetrics';
@@ -67,6 +69,12 @@ export type LocalRuntimeTownPlannerAblationSuiteInput = {
     summary: LocalRuntimeTownProfileRunnerSummary,
     variant: LocalRuntimeTownPlannerAblationVariant,
   ) => readonly PlannerExperimentMetric[] | Promise<readonly PlannerExperimentMetric[]>;
+  readonly createEconomicSensitivityProbeResults?: (
+    summary: LocalRuntimeTownProfileRunnerSummary,
+    variant: LocalRuntimeTownPlannerAblationVariant,
+  ) =>
+    | readonly SubtaskPrioritizationSensitivityProbeResult[]
+    | Promise<readonly SubtaskPrioritizationSensitivityProbeResult[]>;
   readonly runProfile?: (
     input: LocalRuntimeTownProfileRunnerInput,
   ) => Promise<LocalRuntimeTownProfileRunnerSummary>;
@@ -114,7 +122,12 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
 
   const runProfile = input.runProfile ?? runLocalRuntimeTownDaemonScenarioProfile;
   const reportRepository = createReportRepository(input);
-  const createMetrics = input.createMetrics ?? createDefaultPlannerExperimentMetrics;
+  const createMetrics =
+    input.createMetrics ??
+    ((summary: LocalRuntimeTownProfileRunnerSummary, variant: LocalRuntimeTownPlannerAblationVariant) =>
+      createDefaultPlannerExperimentMetrics(summary, variant, {
+        createEconomicSensitivityProbeResults: input.createEconomicSensitivityProbeResults,
+      }));
   const results: LocalRuntimeTownPlannerAblationSuiteVariantResult[] = [];
 
   for (const variant of variants) {
@@ -189,7 +202,16 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
 
 async function createDefaultPlannerExperimentMetrics(
   summary: LocalRuntimeTownProfileRunnerSummary,
+  variant: LocalRuntimeTownPlannerAblationVariant,
+  input: {
+    readonly createEconomicSensitivityProbeResults?: LocalRuntimeTownPlannerAblationSuiteInput['createEconomicSensitivityProbeResults'];
+  } = {},
 ): Promise<PlannerExperimentMetric[]> {
+  const economicSensitivityProbeResults =
+    input.createEconomicSensitivityProbeResults === undefined
+      ? []
+      : await input.createEconomicSensitivityProbeResults(summary, variant);
+
   return [
     {
       metricId: 'completed-cycle-count',
@@ -208,6 +230,7 @@ async function createDefaultPlannerExperimentMetrics(
     },
     ...(await createLocalRuntimeTownProfilePlannerShapeMetrics(summary)),
     ...(await createLocalRuntimeTownProfilePlannerOutcomeMetrics(summary)),
+    ...createPlannerEconomicSensitivityMetricsFromProbeResults(economicSensitivityProbeResults),
   ];
 }
 

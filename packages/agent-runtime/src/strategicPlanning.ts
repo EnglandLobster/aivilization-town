@@ -21,6 +21,7 @@ export type StrategicPlanCompilerInput = {
   readonly issuedAt: number;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContext;
 };
 

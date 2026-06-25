@@ -95,6 +95,8 @@ describe('LLM social model synthesizer seam', () => {
           },
         ],
       },
+      observedStateSummary:
+        'energy=72 satiety=41 health=93 education=31 balance=191696904 residentialTier=5 job=stock-clerk inventory=Fish:46,Transistor:12',
       worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'social-model',
@@ -188,6 +190,10 @@ describe('LLM social model synthesizer seam', () => {
     expect(requestContent).not.toContain('"other-agent-social"');
     expect(requestContent).toContain('"longTermProfile"');
     expect(requestContent).toContain('"deterministicSocialModel"');
+    expect(requestContent).toContain('"observedStateSummary"');
+    expect(requestContent).toContain(
+      'energy=72 satiety=41 health=93 education=31 balance=191696904 residentialTier=5 job=stock-clerk inventory=Fish:46,Transistor:12',
+    );
     expect(requestContent).toContain('"worldDecisionContext"');
     expect(requestContent).toContain('"balance":191696904');
     expect(requestContent).toContain('"educationScore":31');

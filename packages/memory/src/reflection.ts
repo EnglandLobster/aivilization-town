@@ -35,6 +35,7 @@ export type ReflectiveInsightSynthesizerInput = {
   readonly minEvidenceCount: number;
   readonly generatedAt: SimulationTimestamp;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 };
 

@@ -58,6 +58,7 @@ export type DeterministicDailyPlanInput = {
   readonly agent?: DailyPlanAgentSnapshot;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly memoryContext?: readonly ShortTermMemoryRecord[];
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContext;
 };
 

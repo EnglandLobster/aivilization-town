@@ -432,6 +432,9 @@ describe('daily routine scheduling', () => {
       },
       memoryContext: [expect.objectContaining({ id: memory.id })],
     });
+    expect(compilerInput?.observedStateSummary).toBe(
+      'energy=90 satiety=90 health=100 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Transistor:12',
+    );
     const rules = compilerInput?.worldDecisionContext?.rules;
     if (rules === undefined) {
       throw new Error('expected daily compiler world decision rules');

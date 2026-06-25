@@ -35,6 +35,7 @@ export type ReactionEvaluatorInput = {
   readonly memory: ShortTermMemoryRecord;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly memoryContext?: readonly ShortTermMemoryRecord[];
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContext;
 };
 

@@ -719,6 +719,12 @@ describe('worker memory consolidation', () => {
     expect(result.results).toHaveLength(1);
     expect(reflectiveCalls[0]?.worldDecisionContext).toEqual(worldDecisionContext);
     expect(socialCalls[0]?.worldDecisionContext).toEqual(worldDecisionContext);
+    expect(reflectiveCalls[0]?.observedStateSummary).toBe(
+      'energy=72 satiety=41 health=93 education=31 balance=191696904 residentialTier=5 job=stock-clerk inventory=Fish:46,Transistor:12',
+    );
+    expect(socialCalls[0]?.observedStateSummary).toBe(
+      'energy=72 satiety=41 health=93 education=31 balance=191696904 residentialTier=5 job=stock-clerk inventory=Fish:46,Transistor:12',
+    );
   });
 
   test('passes an injected reflective insight synthesizer through scheduled consolidation', async () => {

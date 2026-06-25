@@ -29,6 +29,7 @@ import type {
 } from '@aivilization/sim-core';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { summarizeObservedAgentState } from './agentStateSummary';
 
 export type WorkerMemoryConsolidationInput = {
   readonly agentId: AgentId;
@@ -199,11 +200,16 @@ async function applyWorkerMemoryConsolidation(input: {
   });
   const socialModelSynthesizer =
     input.socialModelSynthesizer ?? createDeterministicSocialModelSynthesizer();
+  const observedStateSummary =
+    input.worldDecisionContext === undefined
+      ? undefined
+      : summarizeObservedAgentState(input.worldDecisionContext.agent);
   const socialModelSynthesis = await socialModelSynthesizer({
     agentId: input.agentId,
     records: input.records,
     generatedAt: input.proposedAt,
     longTermProfile: currentProfile,
+    ...(observedStateSummary === undefined ? {} : { observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),
@@ -216,6 +222,7 @@ async function applyWorkerMemoryConsolidation(input: {
     minEvidenceCount: input.minPatternCount,
     generatedAt: input.proposedAt,
     longTermProfile: currentProfile,
+    ...(observedStateSummary === undefined ? {} : { observedStateSummary }),
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),

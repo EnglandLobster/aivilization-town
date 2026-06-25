@@ -244,12 +244,15 @@ function createReflectiveInsightSynthesizerMessages(input: {
         ...(input.input.longTermProfile === undefined
           ? {}
           : { longTermProfile: input.input.longTermProfile }),
+        ...(input.input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.input.observedStateSummary }),
         ...(input.input.worldDecisionContext === undefined
           ? {}
           : { worldDecisionContext: input.input.worldDecisionContext }),
         constraints: [
           'Every evidenceRecordIds value must be an id from records.',
-          'Do not invent events, profile facts, relationships, inventory, balance, or market prices outside records and worldDecisionContext.',
+          'Do not invent events, profile facts, relationships, inventory, balance, or market prices outside records, observedStateSummary, and worldDecisionContext.',
           'Prefer insights that update habits, cautions, mood, values, or personality.',
           'Return an empty insights array only when the records do not support a durable insight.',
           'Do not emit long-term memory patches; only emit reflective insight proposals.',

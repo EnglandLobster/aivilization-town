@@ -911,6 +911,15 @@ describe('worker agent cycle runner', () => {
               .length,
             marketSpotPriceCount: input.worldDecisionContext?.market.spotPrices.length ?? 0,
             hasLatestPriceIndex: input.worldDecisionContext?.market.latestPriceIndex !== undefined,
+            hasEconomicState:
+              Number.isFinite(input.worldDecisionContext?.agent.balance) &&
+              input.worldDecisionContext?.agent.inventory !== undefined,
+            hasMarketPrices: (input.worldDecisionContext?.market.spotPrices.length ?? 0) > 0,
+            completeEconomicContext:
+              Number.isFinite(input.worldDecisionContext?.agent.balance) &&
+              input.worldDecisionContext?.agent.inventory !== undefined &&
+              (input.worldDecisionContext?.market.spotPrices.length ?? 0) > 0 &&
+              input.worldDecisionContext?.market.latestPriceIndex !== undefined,
             occupationRuleCount: input.worldDecisionContext?.rules?.occupations.length ?? 0,
             eligibleOccupationRuleCount:
               input.worldDecisionContext?.rules?.occupations.filter(
@@ -1014,6 +1023,9 @@ describe('worker agent cycle runner', () => {
           inventoryItemCount: 1,
           marketSpotPriceCount: 1,
           hasLatestPriceIndex: false,
+          hasEconomicState: true,
+          hasMarketPrices: true,
+          completeEconomicContext: false,
         },
       },
     });

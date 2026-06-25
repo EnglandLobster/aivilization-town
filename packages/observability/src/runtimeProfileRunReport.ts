@@ -62,6 +62,8 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly observedStateSummaryCount?: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
+  readonly economicContextCount?: number;
+  readonly completeEconomicContextCount?: number;
   readonly rulesContextCount: number;
   readonly completeRulesContextCount: number;
 };
@@ -526,6 +528,8 @@ function cloneAgentCycleDiagnostics(
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
+            economicContextCount: stage.economicContextCount ?? 0,
+            completeEconomicContextCount: stage.completeEconomicContextCount ?? 0,
             rulesContextCount: stage.rulesContextCount ?? 0,
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
           })),
@@ -632,6 +636,8 @@ type MutableLlmStageDiagnostics = {
   observedStateSummaryCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
+  economicContextCount: number;
+  completeEconomicContextCount: number;
   rulesContextCount: number;
   completeRulesContextCount: number;
 };
@@ -661,6 +667,10 @@ type RuntimeProfileWorldDecisionContextTraceLike = {
   readonly hasResidentialTier?: unknown;
   readonly hasInventory?: unknown;
   readonly marketSpotPriceCount?: unknown;
+  readonly hasLatestPriceIndex?: unknown;
+  readonly hasEconomicState?: unknown;
+  readonly hasMarketPrices?: unknown;
+  readonly completeEconomicContext?: unknown;
   readonly occupationRuleCount?: unknown;
   readonly productionRuleCount?: unknown;
 };
@@ -693,6 +703,8 @@ function createLlmStageDiagnostics(
         observedStateSummaryCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
+        economicContextCount: 0,
+        completeEconomicContextCount: 0,
         rulesContextCount: 0,
         completeRulesContextCount: 0,
       },
@@ -786,6 +798,12 @@ function recordStageTrace(input: {
       if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
         diagnostics.completeWorldDecisionContextCount += 1;
       }
+      if (hasEconomicContextTrace(trace.worldDecisionContext)) {
+        diagnostics.economicContextCount += 1;
+        if (isCompleteEconomicContextTrace(trace.worldDecisionContext)) {
+          diagnostics.completeEconomicContextCount += 1;
+        }
+      }
       if (hasRulesContextTrace(trace.worldDecisionContext)) {
         diagnostics.rulesContextCount += 1;
         if (isCompleteRulesContextTrace(trace.worldDecisionContext)) {
@@ -813,6 +831,41 @@ function isCompleteWorldDecisionContextTrace(value: unknown): boolean {
     typeof trace.marketSpotPriceCount === 'number' &&
     Number.isFinite(trace.marketSpotPriceCount) &&
     trace.marketSpotPriceCount > 0
+  );
+}
+
+function hasEconomicContextTrace(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  return (
+    trace.hasEconomicState === true ||
+    trace.hasMarketPrices === true ||
+    trace.completeEconomicContext === true ||
+    trace.hasBalance === true ||
+    trace.hasInventory === true ||
+    trace.hasLatestPriceIndex === true ||
+    isFinitePositiveNumber(trace.marketSpotPriceCount)
+  );
+}
+
+function isCompleteEconomicContextTrace(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  if (trace.completeEconomicContext === true) {
+    return true;
+  }
+
+  return (
+    trace.hasBalance === true &&
+    trace.hasInventory === true &&
+    trace.hasLatestPriceIndex === true &&
+    isFinitePositiveNumber(trace.marketSpotPriceCount)
   );
 }
 
@@ -910,6 +963,16 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
       completeWorldDecisionContextCount,
       `agentCycleDiagnostics ${stage.stageName} completeWorldDecisionContextCount`,
     );
+    const economicContextCount = stage.economicContextCount ?? 0;
+    assertNonNegativeInteger(
+      economicContextCount,
+      `agentCycleDiagnostics ${stage.stageName} economicContextCount`,
+    );
+    const completeEconomicContextCount = stage.completeEconomicContextCount ?? 0;
+    assertNonNegativeInteger(
+      completeEconomicContextCount,
+      `agentCycleDiagnostics ${stage.stageName} completeEconomicContextCount`,
+    );
     const rulesContextCount = stage.rulesContextCount ?? 0;
     assertNonNegativeInteger(
       rulesContextCount,
@@ -948,6 +1011,16 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} completeWorldDecisionContextCount must not exceed worldDecisionContextCount`,
+      );
+    }
+    if (economicContextCount > stage.worldDecisionContextCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} economicContextCount must not exceed worldDecisionContextCount`,
+      );
+    }
+    if (completeEconomicContextCount > economicContextCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} completeEconomicContextCount must not exceed economicContextCount`,
       );
     }
     if (rulesContextCount > stage.traceCount) {

@@ -20,6 +20,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoDeterministicStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmEconomicContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -56,6 +57,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmWorldContextStages =
     input.requiredAgentCycleLlmWorldContextStages ??
     deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmEconomicContextStages =
+    input.requiredAgentCycleLlmEconomicContextStages ??
+    deriveRequiredAgentCycleLlmEconomicContextStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredAgentCycleLlmRulesContextStages =
     input.requiredAgentCycleLlmRulesContextStages ??
     deriveRequiredAgentCycleLlmRulesContextStagesFromRuntimeConfig(input.runtimeConfig);
@@ -138,6 +142,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmWorldContextStages.length === 0
       ? {}
       : { requiredAgentCycleLlmWorldContextStages }),
+    ...(requiredAgentCycleLlmEconomicContextStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmEconomicContextStages }),
     ...(requiredAgentCycleLlmRulesContextStages.length === 0
       ? {}
       : { requiredAgentCycleLlmRulesContextStages }),
@@ -228,6 +235,12 @@ export function deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(
 }
 
 export function deriveRequiredAgentCycleLlmRulesContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveRequiredAgentCycleLlmEconomicContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileAgentCycleLlmStageName[] {
   return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);

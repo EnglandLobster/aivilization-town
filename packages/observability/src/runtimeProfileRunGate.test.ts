@@ -767,6 +767,53 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires economic context coverage for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 2,
+              llmAcceptedCount: 2,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 2,
+              longTermProfileContextCount: 2,
+              worldDecisionContextCount: 2,
+              completeWorldDecisionContextCount: 2,
+              economicContextCount: 2,
+              completeEconomicContextCount: 1,
+              rulesContextCount: 2,
+              completeRulesContextCount: 2,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmEconomicContextStages: ['contextualPrioritization'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-complete-economic-context-count-too-low',
+      message:
+        'agent-cycle LLM stage contextualPrioritization completeEconomicContextCount must be at least 2',
+      evidence: {
+        stageName: 'contextualPrioritization',
+        actual: 1,
+        economicContextCount: 2,
+        llmAcceptedCount: 2,
+        minimum: 2,
+      },
+    });
+  });
+
   test('requires accepted LLM traces for configured cognition stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({
@@ -1344,8 +1391,7 @@ describe('runtime profile run gate', () => {
     expect(result.status).toBe('fail');
     expect(result.failures).toContainEqual({
       code: 'cognition-llm-stage-observed-state-count-too-low',
-      message:
-        'cognition LLM stage dailyPlanning observedStateSummaryCount must be at least 2',
+      message: 'cognition LLM stage dailyPlanning observedStateSummaryCount must be at least 2',
       evidence: {
         stageName: 'dailyPlanning',
         actual: 1,

@@ -11,12 +11,16 @@ import {
   type ReactiveSteeringResult,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
-import type {
-  AgentIntentionRepository,
-  AgentIntentionState,
-  LongHorizonObjective,
-  ShortTermMemoryRecord,
-  ShortTermMemoryRepository,
+import {
+  createShortTermMemoryRecord,
+  type AgentIntentionRepository,
+  type AgentIntentionState,
+  type LongTermAgentProfile,
+  type LongTermMemoryPatch,
+  type LongTermProfileRepository,
+  type LongHorizonObjective,
+  type ShortTermMemoryRecord,
+  type ShortTermMemoryRepository,
 } from '@aivilization/memory';
 import type {
   AgentId,
@@ -32,6 +36,8 @@ export type WorkerSteeringResult =
       readonly planRecord?: BranchPlanRecord;
       readonly commandDrafts: readonly CommandDraft[];
       readonly shortTermMemoryRecords: readonly ShortTermMemoryRecord[];
+      readonly longTermMemoryPatches: readonly LongTermMemoryPatch[];
+      readonly longTermProfile?: LongTermAgentProfile;
     }
   | {
       readonly kind: 'reactive-command-routed';
@@ -45,6 +51,7 @@ export type WorkerSteeringCommand = CommandEnvelope<CoreCommandType, unknown>;
 export async function handleWorkerSteeringCommand(input: {
   readonly command: WorkerSteeringCommand;
   readonly intentionRepository: AgentIntentionRepository;
+  readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository?: BranchPlanRepository;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
@@ -64,6 +71,25 @@ export async function handleWorkerSteeringCommand(input: {
         issuedAt: input.command.issuedAt,
       });
       const intentionState = await input.intentionRepository.setObjective(agentId, objective);
+      const strategicMemoryRecord = createStrategicSteeringMemoryRecord({
+        command: input.command,
+        objective,
+      });
+      await input.shortTermMemoryRepository.append(strategicMemoryRecord);
+      const longTermProfileRepository = input.longTermProfileRepository;
+      const longTermMemoryPatches =
+        longTermProfileRepository === undefined
+          ? []
+          : [
+              createStrategicSteeringLongTermMemoryPatch({
+                objective,
+                memoryRecord: strategicMemoryRecord,
+              }),
+            ];
+      const longTermProfile =
+        longTermProfileRepository === undefined
+          ? undefined
+          : await longTermProfileRepository.applyPatches(agentId, longTermMemoryPatches);
       const planRecord = await createAndSaveStrategicPlanRecord({
         objective,
         issuedAt: input.command.issuedAt,
@@ -77,7 +103,9 @@ export async function handleWorkerSteeringCommand(input: {
         intentionState,
         ...(planRecord === undefined ? {} : { planRecord }),
         commandDrafts: [],
-        shortTermMemoryRecords: [],
+        shortTermMemoryRecords: [strategicMemoryRecord],
+        longTermMemoryPatches,
+        ...(longTermProfile === undefined ? {} : { longTermProfile }),
       };
     }
     case 'IssueReactiveCommand': {
@@ -131,6 +159,66 @@ async function createAndSaveStrategicPlanRecord(input: {
   };
   await input.planRepository.save(planRecord);
   return planRecord;
+}
+
+function createStrategicSteeringMemoryRecord(input: {
+  readonly command: WorkerSteeringCommand;
+  readonly objective: LongHorizonObjective;
+}): ShortTermMemoryRecord {
+  return createShortTermMemoryRecord({
+    id: `${input.command.id}:strategic-objective`,
+    agentId: input.objective.agentId,
+    kind: 'human-command',
+    status: 'observed',
+    summary: createStrategicSteeringSummary(input.objective),
+    occurredAt: input.command.issuedAt,
+    importanceScore: 0.9,
+    source: {
+      commandId: input.command.id,
+      eventIds: [],
+    },
+    tags: dedupeTags([
+      'steering',
+      'strategic',
+      'long-horizon-objective',
+      ...input.objective.affinityTags,
+    ]),
+  });
+}
+
+function createStrategicSteeringLongTermMemoryPatch(input: {
+  readonly objective: LongHorizonObjective;
+  readonly memoryRecord: ShortTermMemoryRecord;
+}): LongTermMemoryPatch {
+  return {
+    id: `ltm-patch-${input.objective.agentId}-steering-value-human-objective-${input.objective.id}-${input.objective.updatedAt}`,
+    agentId: input.objective.agentId,
+    section: 'values',
+    key: `human-objective:${input.objective.id}`,
+    statement: createStrategicSteeringSummary(input.objective),
+    confidence: strategicObjectiveConfidence(input.objective),
+    provenanceRecordIds: [input.memoryRecord.id],
+    proposedAt: input.objective.updatedAt,
+  };
+}
+
+function createStrategicSteeringSummary(objective: LongHorizonObjective): string {
+  return `Human steering set long-horizon objective: ${objective.statement}`;
+}
+
+function strategicObjectiveConfidence(objective: LongHorizonObjective): number {
+  switch (objective.source) {
+    case 'human':
+      return 0.95;
+    case 'agent':
+      return 0.85;
+    case 'system':
+      return 0.8;
+  }
+}
+
+function dedupeTags(tags: readonly string[]): readonly string[] {
+  return [...new Set(tags)];
 }
 
 function requireActorId(command: WorkerSteeringCommand): AgentId {

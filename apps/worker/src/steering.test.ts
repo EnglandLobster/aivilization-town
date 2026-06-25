@@ -5,6 +5,7 @@ import {
 } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
+  InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
 } from '@aivilization/memory';
 import { createCommandEnvelope } from '@aivilization/sim-core';
@@ -52,7 +53,99 @@ describe('worker steering ingress', () => {
     expect(result).toMatchObject({
       kind: 'long-horizon-objective-set',
       commandDrafts: [],
-      shortTermMemoryRecords: [],
+      shortTermMemoryRecords: [
+        {
+          id: 'cmd-objective-study:strategic-objective',
+          kind: 'human-command',
+          status: 'observed',
+          summary: 'Human steering set long-horizon objective: Study before high-tech production.',
+          occurredAt: 100,
+          importanceScore: 0.9,
+          source: {
+            commandId: 'cmd-objective-study',
+            eventIds: [],
+          },
+          tags: ['steering', 'strategic', 'long-horizon-objective', 'study', 'education'],
+        },
+      ],
+    });
+    await expect(
+      shortTermMemoryRepository.retrieve({
+        agentId: command.actorId!,
+        kinds: ['human-command'],
+        requiredTags: ['strategic', 'long-horizon-objective'],
+        limit: 10,
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'cmd-objective-study:strategic-objective',
+        summary: 'Human steering set long-horizon objective: Study before high-tech production.',
+      },
+    ]);
+  });
+
+  test('applies human-set objectives into long-term profile values when repository is available', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const command = createCommandEnvelope({
+      id: 'cmd-objective-study',
+      simulationId: 'sim-1',
+      actorId: 'agent-1',
+      source: 'human',
+      type: 'SetLongHorizonObjective',
+      payload: {
+        objectiveId: 'objective-study',
+        statement: 'Study before high-tech production.',
+        priority: 2,
+        affinityTags: ['study', 'education'],
+      },
+      issuedAt: 100,
+    });
+
+    const result = await handleWorkerSteeringCommand({
+      command,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    if (result.kind !== 'long-horizon-objective-set') {
+      throw new Error('expected long horizon objective result');
+    }
+    expect(result.longTermMemoryPatches).toEqual([
+      {
+        id: 'ltm-patch-agent-1-steering-value-human-objective-objective-study-100',
+        agentId: 'agent-1',
+        section: 'values',
+        key: 'human-objective:objective-study',
+        statement: 'Human steering set long-horizon objective: Study before high-tech production.',
+        confidence: 0.95,
+        provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
+        proposedAt: 100,
+      },
+    ]);
+    await expect(longTermProfileRepository.getOrCreate(command.actorId!)).resolves.toMatchObject({
+      values: [
+        {
+          key: 'human-objective:objective-study',
+          statement:
+            'Human steering set long-horizon objective: Study before high-tech production.',
+          confidence: 0.95,
+          updatedAt: 100,
+          provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
+        },
+      ],
+    });
+    expect(result.longTermProfile).toMatchObject({
+      values: [
+        {
+          key: 'human-objective:objective-study',
+          provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
+        },
+      ],
     });
   });
 
@@ -105,7 +198,11 @@ describe('worker steering ingress', () => {
         },
       },
       commandDrafts: [],
-      shortTermMemoryRecords: [],
+      shortTermMemoryRecords: [
+        {
+          id: 'cmd-objective-study:strategic-objective',
+        },
+      ],
     });
     expect(result.planRecord?.plan.branches.map((branch) => branch.id)).toEqual(['development']);
   });

@@ -149,6 +149,30 @@ describe('local runtime steering command drain', () => {
       storage.shortTermMemoryRepository.retrieve({
         agentId: agentOne,
         kinds: ['human-command'],
+        requiredTags: ['strategic', 'long-horizon-objective'],
+        limit: 10,
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'cmd-objective-study:strategic-objective',
+        summary:
+          'Human steering set long-horizon objective: Study until education score exceeds 100.',
+      },
+    ]);
+    await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      values: [
+        {
+          key: 'human-objective:objective-study',
+          statement:
+            'Human steering set long-horizon objective: Study until education score exceeds 100.',
+          provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
+        },
+      ],
+    });
+    await expect(
+      storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        kinds: ['human-command'],
         requiredTags: ['reactive'],
         limit: 10,
       }),
@@ -274,6 +298,7 @@ describe('local runtime steering command drain', () => {
       resultKind: 'long-horizon-objective-set',
       objectiveId: 'objective-study',
       planId: 'objective-study',
+      shortTermMemoryRecordIds: ['cmd-objective-study:strategic-objective'],
     });
     expect(traces[1]?.strategicPlan).toMatchObject({
       status: 'accepted',

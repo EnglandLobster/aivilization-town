@@ -44,6 +44,7 @@ export * from './memoryConsolidation';
 export * from './memoryContextSelection';
 export * from './objectiveLifecycle';
 export * from './objectiveRenewal';
+export * from './objectiveReplanning';
 export * from './projectionHydration';
 export * from './scenarioProfileSeeding';
 export * from './scenarioProjection';

@@ -14,6 +14,7 @@ import {
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
+  type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -43,6 +44,10 @@ import {
   resolveMemoryRetrievalCandidateLimit,
   selectRelevantShortTermMemoryContext,
 } from './memoryContextSelection';
+import {
+  materializeFullReplanForActiveObjective,
+  type WorkerFullReplanMaterializationResult,
+} from './objectiveReplanning';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type WorkerAgentCycleTraceSink = {
@@ -56,6 +61,7 @@ export type WorkerAgentCycleResult = {
   readonly projection: WorldProjection;
   readonly shortTermMemoryRecords: readonly ShortTermMemoryRecord[];
   readonly progressUpdate?: BranchPlanProgress;
+  readonly replanMaterialization?: WorkerFullReplanMaterializationResult;
   readonly trace: AgentCycleTrace;
 };
 
@@ -99,6 +105,10 @@ export async function runWorkerAgentCycle(
     readonly repair?: CycleRepairPolicy;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+    readonly materializeFullReplan?: {
+      readonly strategicPlanCompiler?: StrategicPlanCompiler;
+      readonly resetProgress?: boolean;
+    };
     readonly expectedVersion?: number;
     readonly traceSink?: WorkerAgentCycleTraceSink;
   } & WorkerAgentCyclePlanInput,
@@ -178,6 +188,29 @@ export async function runWorkerAgentCycle(
   if (cycleResult.progressUpdate !== undefined && input.planProgressRepository !== undefined) {
     await input.planProgressRepository.save(cycleResult.progressUpdate);
   }
+  const replanMaterialization =
+    cycleResult.replanningDecision.kind === 'full-replan' &&
+    input.materializeFullReplan !== undefined &&
+    input.planRepository !== undefined &&
+    input.planId !== undefined
+      ? await materializeFullReplanForActiveObjective({
+          agentId: input.agentId,
+          planId: input.planId,
+          issuedAt: input.issuedAt,
+          intentionRepository: input.intentionRepository,
+          planRepository: input.planRepository,
+          ...(input.planProgressRepository === undefined
+            ? {}
+            : { planProgressRepository: input.planProgressRepository }),
+          replanningDecision: cycleResult.replanningDecision,
+          ...(input.materializeFullReplan.strategicPlanCompiler === undefined
+            ? {}
+            : { strategicPlanCompiler: input.materializeFullReplan.strategicPlanCompiler }),
+          ...(input.materializeFullReplan.resetProgress === undefined
+            ? {}
+            : { resetProgress: input.materializeFullReplan.resetProgress }),
+        })
+      : undefined;
 
   const trace = createAgentCycleTrace({
     traceId: input.cycleId,
@@ -213,6 +246,7 @@ export async function runWorkerAgentCycle(
     ...(cycleResult.progressUpdate === undefined
       ? {}
       : { progressUpdate: cycleResult.progressUpdate }),
+    ...(replanMaterialization === undefined ? {} : { replanMaterialization }),
     trace,
   };
 }

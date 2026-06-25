@@ -301,6 +301,11 @@ describe('local simulation lifecycle controller', () => {
 
     expect(result.status).toBe('completed');
     expect(result.validationReport?.report.run.runId).toBe('lifecycle-validation-critical:950:4');
+    expect(result.validationReport?.reportGate).toMatchObject({
+      status: 'fail',
+      criteriaId: 'lifecycle-validation-critical:950:4:lifecycle-validation-gate',
+      failureCount: 1,
+    });
     expect(
       result.validationReport?.report.metrics.find((metric) => metric.id === 'market-stability')
         ?.status,

@@ -293,6 +293,57 @@ describe('local experiment validation schedule', () => {
       'plannerRuns missing expected variants without-objective-decomposition for task high-tech-production metric net-worth',
     );
   });
+
+  test('evaluates a validation report gate when configured', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110, 99]);
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-schedule-gated',
+      generatedAt: 950,
+      plannerRuns: createPlannerRuns(),
+      expectedTrajectoryAgentIds: ['agent-1'],
+      trajectories: [{ agentId: 'agent-1', stepCount: 1 }],
+      reportGate: {
+        criteriaId: 'validation-schedule-gate',
+        defaultAllowedStatuses: ['pass', 'watch'],
+      },
+      thresholds: {
+        marketStability: {
+          maximumLogPriceRange: 1,
+          maximumDrawdown: 0.05,
+          minimumLogReturnStandardDeviation: 0,
+        },
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    expect(result.reportGate).toEqual({
+      status: 'fail',
+      criteriaId: 'validation-schedule-gate',
+      runId: 'validation-schedule-gated',
+      simulationId,
+      failureCount: 1,
+      failures: [
+        {
+          code: 'metric-status-not-allowed',
+          message: 'metric market-stability status fail is not allowed',
+          evidence: {
+            metricId: 'market-stability',
+            actual: 'fail',
+            allowed: 'pass,watch',
+          },
+        },
+      ],
+    });
+  });
 });
 
 function appendTradeEvents(

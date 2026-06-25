@@ -7,7 +7,7 @@ const agentId = asAgentId('agent-bystander');
 const hourMs = 60 * 60 * 1000;
 
 describe('social observation intentions', () => {
-  test('creates a scheduled follow-up intention from an observed conversation memory', () => {
+  test('creates a scheduled follow-up intention from an observed conversation memory', async () => {
     const memory = createShortTermMemoryRecord({
       id: 'memory-conversation-party',
       agentId,
@@ -28,7 +28,7 @@ describe('social observation intentions', () => {
     });
 
     expect(
-      createSocialObservationScheduledIntentions({
+      await createSocialObservationScheduledIntentions({
         records: [memory],
         reactionWindowMs: 3 * hourMs,
         createdAt: 10 * hourMs,
@@ -61,7 +61,7 @@ describe('social observation intentions', () => {
     ] satisfies ScheduledIntention[]);
   });
 
-  test('creates a scheduled follow-up intention from an observed social interaction memory', () => {
+  test('creates a scheduled follow-up intention from an observed social interaction memory', async () => {
     const memory = createShortTermMemoryRecord({
       id: 'memory-social-help',
       agentId,
@@ -81,7 +81,7 @@ describe('social observation intentions', () => {
       ],
     });
 
-    const [intention] = createSocialObservationScheduledIntentions({ records: [memory] });
+    const [intention] = await createSocialObservationScheduledIntentions({ records: [memory] });
 
     expect(intention).toMatchObject({
       id: 'social-observation:agent-bystander:memory-social-help',
@@ -104,7 +104,7 @@ describe('social observation intentions', () => {
     );
   });
 
-  test('ignores non-social ambient observations and non-observation memories', () => {
+  test('ignores non-social ambient observations and non-observation memories', async () => {
     const studyObservation = createShortTermMemoryRecord({
       id: 'memory-study-observation',
       agentId,
@@ -129,13 +129,13 @@ describe('social observation intentions', () => {
     });
 
     expect(
-      createSocialObservationScheduledIntentions({
+      await createSocialObservationScheduledIntentions({
         records: [studyObservation, directSocialMemory],
       }),
     ).toEqual([]);
   });
 
-  test('deduplicates duplicate memory inputs by scheduled intention id', () => {
+  test('deduplicates duplicate memory inputs by scheduled intention id', async () => {
     const memory = createShortTermMemoryRecord({
       id: 'memory-conversation-party',
       agentId,
@@ -148,7 +148,7 @@ describe('social observation intentions', () => {
       tags: ['ambient-observation', 'ConversationRecorded', 'agent-a', 'agent-c'],
     });
 
-    const intentions = createSocialObservationScheduledIntentions({
+    const intentions = await createSocialObservationScheduledIntentions({
       records: [memory, memory],
     });
 
@@ -157,7 +157,7 @@ describe('social observation intentions', () => {
     ]);
   });
 
-  test('deduplicates conversation and social impact memories from the same command', () => {
+  test('deduplicates conversation and social impact memories from the same command', async () => {
     const commandId = asCommandId('command-conversation-party');
     const conversation = createShortTermMemoryRecord({
       id: 'memory-conversation-party',
@@ -189,9 +189,87 @@ describe('social observation intentions', () => {
     });
 
     expect(
-      createSocialObservationScheduledIntentions({
-        records: [socialImpact, conversation],
-      }).map((intention) => intention.id),
+      (
+        await createSocialObservationScheduledIntentions({
+          records: [socialImpact, conversation],
+        })
+      ).map((intention) => intention.id),
     ).toEqual(['social-observation:agent-bystander:memory-conversation-party']);
+  });
+
+  test('uses an injected evaluator to ignore an otherwise social observation', async () => {
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-conversation-party',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'Observed agent-a and agent-c discuss Valentine party at Town Square.',
+      occurredAt: 10 * hourMs,
+      importanceScore: 0.7,
+      source: { eventIds: [asEventId('event-conversation-1')] },
+      tags: ['ambient-observation', 'ConversationRecorded', 'agent-a', 'agent-c'],
+    });
+
+    await expect(
+      createSocialObservationScheduledIntentions({
+        records: [memory],
+        reactionEvaluator: () => ({
+          kind: 'ignore',
+          confidence: 0.9,
+          rationale: 'The agent is focused on another objective.',
+        }),
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  test('uses an injected evaluator to customize follow-up scheduling metadata', async () => {
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-conversation-party',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'Observed agent-a and agent-c discuss Valentine party at Town Square.',
+      occurredAt: 10 * hourMs,
+      importanceScore: 0.7,
+      source: { eventIds: [asEventId('event-conversation-1')] },
+      tags: ['ambient-observation', 'ConversationRecorded', 'agent-a', 'agent-c'],
+    });
+
+    await expect(
+      createSocialObservationScheduledIntentions({
+        records: [memory],
+        createdAt: 12 * hourMs,
+        reactionEvaluator: () => ({
+          decision: {
+            kind: 'follow-up',
+            confidence: 0.8,
+            rationale: 'The event is relevant to the party goal.',
+            description: 'Ask agent-a how to help with the Valentine party.',
+            priority: 6,
+            reactionWindowMs: 30 * 60 * 1000,
+            affinityTags: ['social', 'party', 'agent-a', 'party'],
+          },
+          reactionTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'reaction-custom',
+          },
+        }),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'social-observation:agent-bystander:memory-conversation-party',
+        agentId,
+        description: 'Ask agent-a how to help with the Valentine party.',
+        priority: 6,
+        startsAt: 10 * hourMs,
+        endsAt: 10 * hourMs + 30 * 60 * 1000,
+        status: 'planned',
+        affinityTags: ['social', 'party', 'agent-a'],
+        provenanceRecordIds: [memory.id],
+        createdAt: 12 * hourMs,
+        updatedAt: 12 * hourMs,
+      },
+    ] satisfies ScheduledIntention[]);
   });
 });

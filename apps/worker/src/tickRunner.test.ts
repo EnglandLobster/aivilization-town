@@ -850,6 +850,57 @@ describe('worker tick runner', () => {
     });
   });
 
+  test('forwards injected ambient reaction evaluator before seeding social intentions', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const evaluatedMemoryIds: string[] = [];
+
+    await runWorkerSimulationTick({
+      tickId: 'tick-social-observation-ignore',
+      simulationId,
+      issuedAt: 100,
+      projection: createCoLocatedConversationProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      ambientObservationMemory: {
+        enabled: true,
+        reactionEvaluator: ({ memory }) => {
+          evaluatedMemoryIds.push(memory.id);
+          return {
+            kind: 'ignore',
+            confidence: 0.95,
+            rationale: 'The bystander is deliberately ignoring this social cue.',
+          };
+        },
+      },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 discusses a party while agent-2 listens nearby',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    const conversationMemories = await repositories.shortTermMemoryRepository.retrieve({
+      agentId: agentTwo,
+      kinds: ['observation'],
+      requiredTags: ['ambient-observation', 'ConversationRecorded'],
+      limit: 10,
+    });
+    expect(conversationMemories).toHaveLength(1);
+    expect(evaluatedMemoryIds).toEqual(conversationMemories.map((memory) => memory.id));
+    await expect(repositories.intentionRepository.getOrCreate(agentTwo)).resolves.toMatchObject({
+      scheduledIntentions: [],
+    });
+  });
+
   test('advances simulation time when no agents are scheduled', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

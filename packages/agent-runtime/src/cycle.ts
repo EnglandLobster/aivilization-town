@@ -36,9 +36,13 @@ import { markSubtaskBlocked, markSubtaskCompleted, type BranchPlanProgress } fro
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 import {
   applyReplanningDecisionToProgress,
+  createDeterministicReplanningDecisionResult,
   decideAdaptiveReplanning,
   type AdaptiveReplanningPolicy,
+  type ReplanningDecider,
   type ReplanningDecision,
+  type ReplanningDecisionResult,
+  type ReplanningDecisionTrace,
   type SubtaskCompletionDecision,
 } from './replanning';
 import {
@@ -124,6 +128,7 @@ export type AgentCycleResult = {
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
+  readonly replanningTrace?: ReplanningDecisionTrace;
   readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecision[];
   readonly subtaskCompletionDecision: SubtaskCompletionDecision;
   readonly subtaskCompletionDecisions: readonly AgentCycleSubtaskCompletionDecision[];
@@ -176,6 +181,7 @@ export type AgentPlanningCycleWithPrioritizationInput = AgentPlanningCycleInput 
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
+  readonly replanningDecider?: ReplanningDecider;
 };
 
 export function runAgentPlanningCycle(input: AgentPlanningCycleInput): AgentCycleResult {
@@ -222,7 +228,8 @@ export async function runAgentPlanningCycleWithPrioritization(
   return input.actionSequenceGenerator === undefined &&
     input.socialDialogueGenerator === undefined &&
     input.globalSynthesizer === undefined &&
-    input.reactiveCorrector === undefined
+    input.reactiveCorrector === undefined &&
+    input.replanningDecider === undefined
     ? runAgentPlanningCycleFromCandidates(cycleCandidateInput)
     : runAgentPlanningCycleFromCandidatesWithAsyncStages({
         ...cycleCandidateInput,
@@ -238,6 +245,9 @@ export async function runAgentPlanningCycleWithPrioritization(
         ...(input.reactiveCorrector === undefined
           ? {}
           : { reactiveCorrector: input.reactiveCorrector }),
+        ...(input.replanningDecider === undefined
+          ? {}
+          : { replanningDecider: input.replanningDecider }),
       });
 }
 
@@ -313,6 +323,7 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
     readonly socialDialogueGenerator?: SocialDialogueGenerator;
     readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
+    readonly replanningDecider?: ReplanningDecider;
   },
 ): Promise<AgentCycleResult> {
   const prepared = prepareCycleCandidateExecution(input);
@@ -408,10 +419,18 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
     };
 
     return input.reactiveCorrector === undefined
-      ? runAgentPlanningCycleFromProposedActions(proposedInput)
+      ? input.replanningDecider === undefined
+        ? runAgentPlanningCycleFromProposedActions(proposedInput)
+        : runAgentPlanningCycleFromProposedActionsWithAsyncReplanning({
+            ...proposedInput,
+            replanningDecider: input.replanningDecider,
+          })
       : runAgentPlanningCycleFromProposedActionsWithReactiveCorrection({
           ...proposedInput,
           reactiveCorrector: input.reactiveCorrector,
+          ...(input.replanningDecider === undefined
+            ? {}
+            : { replanningDecider: input.replanningDecider }),
         });
   }
 
@@ -426,10 +445,18 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
   };
 
   return input.reactiveCorrector === undefined
-    ? runAgentPlanningCycleFromProposedActions(proposedInput)
+    ? input.replanningDecider === undefined
+      ? runAgentPlanningCycleFromProposedActions(proposedInput)
+      : runAgentPlanningCycleFromProposedActionsWithAsyncReplanning({
+          ...proposedInput,
+          replanningDecider: input.replanningDecider,
+        })
     : runAgentPlanningCycleFromProposedActionsWithReactiveCorrection({
         ...proposedInput,
         reactiveCorrector: input.reactiveCorrector,
+        ...(input.replanningDecider === undefined
+          ? {}
+          : { replanningDecider: input.replanningDecider }),
       });
 }
 
@@ -559,14 +586,14 @@ function runAgentPlanningCycleFromProposedActions(
   });
 }
 
-async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
+async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
   input: CycleCandidateInput &
     PreparedCycleCandidateExecution & {
       readonly proposedActions: readonly AtomicActionProposal[];
       readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
       readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
       readonly globalSynthesisTrace?: GlobalSynthesisTrace;
-      readonly reactiveCorrector: ReactiveCorrector;
+      readonly replanningDecider: ReplanningDecider;
     },
 ): Promise<AgentCycleResult> {
   const proposedActions = input.proposedActions;
@@ -582,14 +609,136 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
     const simulationResults = createActionSynthesisReplanResults(
       actionSynthesisResult.rejectedActions,
     );
-    return finalizeAgentCycleResult({
+    return finalizeAgentCycleResultWithAsyncReplanning({
       simulationId: input.simulationId,
       agentId: input.agentId,
       issuedAt: input.issuedAt,
+      plan: input.plan,
+      signals: input.signals,
       progress: input.progress,
       replanningPolicy: input.replanningPolicy,
+      replanningDecider: input.replanningDecider,
       subtaskCompletion: input.subtaskCompletion,
       shortTermMemoryContext: input.shortTermMemoryContext,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+      ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+      ...(input.worldDecisionContext === undefined
+        ? {}
+        : { worldDecisionContext: input.worldDecisionContext }),
+      selectedSubtask: input.selectedSubtask,
+      prioritizationTrace: input.prioritizationTrace,
+      actionSequenceTraces: input.actionSequenceTraces,
+      socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+      globalSynthesisTrace: input.globalSynthesisTrace,
+      selectionEvidence: input.selectionEvidence,
+      subtaskCandidates: input.subtaskCandidates,
+      actionSynthesisResult,
+      candidateActions,
+      simulationResults,
+      selectedSubtasksByKey: input.synthesisSubtasksByKey,
+    });
+  }
+
+  const simulationResults = candidateActions.map((action) =>
+    simulateActionWithRepair({
+      action,
+      simulate: (candidate) =>
+        input.simulate({
+          action: candidate,
+          selectedSubtask: resolveSelectedSubtaskForAction({
+            action: candidate,
+            fallback: input.selectedSubtask,
+            selectedSubtasksByKey: input.synthesisSubtasksByKey,
+          }),
+        }),
+      ...(input.repair === undefined
+        ? {}
+        : {
+            repair: ({ rejectedAction, reason }) =>
+              input.repair?.({
+                rejectedAction,
+                reason,
+                selectedSubtask: resolveSelectedSubtaskForAction({
+                  action: rejectedAction,
+                  fallback: input.selectedSubtask,
+                  selectedSubtasksByKey: input.synthesisSubtasksByKey,
+                }),
+              }),
+          }),
+    }),
+  );
+  return finalizeAgentCycleResultWithAsyncReplanning({
+    simulationId: input.simulationId,
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan: input.plan,
+    signals: input.signals,
+    progress: input.progress,
+    replanningPolicy: input.replanningPolicy,
+    replanningDecider: input.replanningDecider,
+    subtaskCompletion: input.subtaskCompletion,
+    shortTermMemoryContext: input.shortTermMemoryContext,
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+    selectedSubtask: input.selectedSubtask,
+    prioritizationTrace: input.prioritizationTrace,
+    actionSequenceTraces: input.actionSequenceTraces,
+    socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+    globalSynthesisTrace: input.globalSynthesisTrace,
+    selectionEvidence: input.selectionEvidence,
+    subtaskCandidates: input.subtaskCandidates,
+    actionSynthesisResult,
+    candidateActions,
+    simulationResults,
+    selectedSubtasksByKey: input.synthesisSubtasksByKey,
+  });
+}
+
+async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
+  input: CycleCandidateInput &
+    PreparedCycleCandidateExecution & {
+      readonly proposedActions: readonly AtomicActionProposal[];
+      readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
+      readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
+      readonly globalSynthesisTrace?: GlobalSynthesisTrace;
+      readonly reactiveCorrector: ReactiveCorrector;
+      readonly replanningDecider?: ReplanningDecider;
+    },
+): Promise<AgentCycleResult> {
+  const proposedActions = input.proposedActions;
+  if (proposedActions.length === 0) {
+    throw new Error(`no micro-planner supports subtask ${input.selectedSubtask.subtaskId}`);
+  }
+  const actionSynthesisResult = synthesizeActionCandidates({
+    actions: proposedActions,
+    ...(input.actionSynthesis === undefined ? {} : { policy: input.actionSynthesis }),
+  });
+  const candidateActions = actionSynthesisResult.acceptedActions;
+  if (candidateActions.length === 0) {
+    const simulationResults = createActionSynthesisReplanResults(
+      actionSynthesisResult.rejectedActions,
+    );
+    return finalizeAgentCycleResultWithOptionalAsyncReplanning({
+      simulationId: input.simulationId,
+      agentId: input.agentId,
+      issuedAt: input.issuedAt,
+      plan: input.plan,
+      signals: input.signals,
+      progress: input.progress,
+      replanningPolicy: input.replanningPolicy,
+      ...(input.replanningDecider === undefined
+        ? {}
+        : { replanningDecider: input.replanningDecider }),
+      subtaskCompletion: input.subtaskCompletion,
+      shortTermMemoryContext: input.shortTermMemoryContext,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+      ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+      ...(input.worldDecisionContext === undefined
+        ? {}
+        : { worldDecisionContext: input.worldDecisionContext }),
       selectedSubtask: input.selectedSubtask,
       prioritizationTrace: input.prioritizationTrace,
       actionSequenceTraces: input.actionSequenceTraces,
@@ -659,14 +808,24 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
     result.trace === undefined ? [] : [result.trace],
   );
 
-  return finalizeAgentCycleResult({
+  return finalizeAgentCycleResultWithOptionalAsyncReplanning({
     simulationId: input.simulationId,
     agentId: input.agentId,
     issuedAt: input.issuedAt,
+    plan: input.plan,
+    signals: input.signals,
     progress: input.progress,
     replanningPolicy: input.replanningPolicy,
+    ...(input.replanningDecider === undefined
+      ? {}
+      : { replanningDecider: input.replanningDecider }),
     subtaskCompletion: input.subtaskCompletion,
     shortTermMemoryContext: input.shortTermMemoryContext,
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
     selectedSubtask: input.selectedSubtask,
     prioritizationTrace: input.prioritizationTrace,
     actionSequenceTraces: input.actionSequenceTraces,
@@ -682,10 +841,15 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
   });
 }
 
-function finalizeAgentCycleResult(input: {
+type FinalizeAgentCycleResultInput = {
   readonly simulationId: SimulationId;
   readonly agentId: AgentId;
   readonly issuedAt: number;
+  readonly plan?: BranchPlan;
+  readonly signals?: readonly ContextSignal[];
+  readonly intentionState?: AgentIntentionState;
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
   readonly progress: BranchPlanProgress | undefined;
   readonly replanningPolicy: AdaptiveReplanningPolicy | undefined;
   readonly subtaskCompletion: CycleSubtaskCompletionPolicy | undefined;
@@ -702,90 +866,161 @@ function finalizeAgentCycleResult(input: {
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
-}): AgentCycleResult {
-  const replanningDecision = decideAdaptiveReplanning({
+};
+
+function finalizeAgentCycleResult(input: FinalizeAgentCycleResultInput): AgentCycleResult {
+  const replanningDecisionResult = createDeterministicReplanningDecisionResult({
     selectedSubtask: input.selectedSubtask,
     simulationResults: input.simulationResults,
     shortTermMemoryContext: input.shortTermMemoryContext ?? [],
-    consecutiveFailureThreshold: input.replanningPolicy?.consecutiveFailureThreshold ?? 2,
-    ...(input.replanningPolicy?.failureTags === undefined
+    policy: normalizeReplanningPolicy(input.replanningPolicy),
+    ...(input.worldDecisionContext === undefined
       ? {}
-      : { failureTags: input.replanningPolicy.failureTags }),
-    ...(input.replanningPolicy?.majorContextShift === undefined
-      ? {}
-      : { majorContextShift: input.replanningPolicy.majorContextShift }),
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
-  const subtaskReplanningDecisions = decideSubtaskReplanningByProducer({
+  return buildAgentCycleResult({
+    input,
+    replanningDecisionResult,
+    includeReplanningTrace: false,
+  });
+}
+
+async function finalizeAgentCycleResultWithOptionalAsyncReplanning(
+  input: FinalizeAgentCycleResultInput & {
+    readonly plan: BranchPlan;
+    readonly signals: readonly ContextSignal[];
+    readonly replanningDecider?: ReplanningDecider;
+  },
+): Promise<AgentCycleResult> {
+  if (input.replanningDecider === undefined) {
+    return finalizeAgentCycleResult(input);
+  }
+  return finalizeAgentCycleResultWithAsyncReplanning({
+    ...input,
+    replanningDecider: input.replanningDecider,
+  });
+}
+
+async function finalizeAgentCycleResultWithAsyncReplanning(
+  input: FinalizeAgentCycleResultInput & {
+    readonly plan: BranchPlan;
+    readonly signals: readonly ContextSignal[];
+    readonly replanningDecider: ReplanningDecider;
+  },
+): Promise<AgentCycleResult> {
+  const replanningDecisionResult = await input.replanningDecider({
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan: input.plan,
+    signals: input.signals,
+    selectedSubtask: input.selectedSubtask,
     simulationResults: input.simulationResults,
-    fallback: input.selectedSubtask,
-    selectedSubtasksByKey: input.selectedSubtasksByKey,
-    shortTermMemoryContext: input.shortTermMemoryContext,
-    replanningPolicy: input.replanningPolicy,
+    shortTermMemoryContext: input.shortTermMemoryContext ?? [],
+    policy: normalizeReplanningPolicy(input.replanningPolicy),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+  });
+
+  return buildAgentCycleResult({
+    input,
+    replanningDecisionResult,
+    includeReplanningTrace: true,
+  });
+}
+
+function buildAgentCycleResult(input: {
+  readonly input: FinalizeAgentCycleResultInput;
+  readonly replanningDecisionResult: ReplanningDecisionResult;
+  readonly includeReplanningTrace: boolean;
+}): AgentCycleResult {
+  const replanningDecision = input.replanningDecisionResult.decision;
+  const subtaskReplanningDecisions = decideSubtaskReplanningByProducer({
+    simulationResults: input.input.simulationResults,
+    fallback: input.input.selectedSubtask,
+    selectedSubtasksByKey: input.input.selectedSubtasksByKey,
+    shortTermMemoryContext: input.input.shortTermMemoryContext,
+    replanningPolicy: input.input.replanningPolicy,
   });
   const subtaskCompletionDecisions = decideSubtaskCompletionByProducer({
-    simulationResults: input.simulationResults,
-    fallback: input.selectedSubtask,
-    selectedSubtasksByKey: input.selectedSubtasksByKey,
-    subtaskCompletion: input.subtaskCompletion,
+    simulationResults: input.input.simulationResults,
+    fallback: input.input.selectedSubtask,
+    selectedSubtasksByKey: input.input.selectedSubtasksByKey,
+    subtaskCompletion: input.input.subtaskCompletion,
   });
   const subtaskCompletionDecision =
     subtaskCompletionDecisions.find((completion) =>
-      sameSelectedSubtask(completion.selectedSubtask, input.selectedSubtask),
+      sameSelectedSubtask(completion.selectedSubtask, input.input.selectedSubtask),
     )?.decision ??
     decideSubtaskCompletion({
-      selectedSubtask: input.selectedSubtask,
-      simulationResults: input.simulationResults,
-      ...(input.subtaskCompletion === undefined
+      selectedSubtask: input.input.selectedSubtask,
+      simulationResults: input.input.simulationResults,
+      ...(input.input.subtaskCompletion === undefined
         ? {}
-        : { subtaskCompletion: input.subtaskCompletion }),
+        : { subtaskCompletion: input.input.subtaskCompletion }),
     });
   const progressUpdate =
-    input.progress === undefined
+    input.input.progress === undefined
       ? undefined
       : applyCycleProgressUpdate({
-          progress: input.progress,
-          selectedSubtask: input.selectedSubtask,
+          progress: input.input.progress,
+          selectedSubtask: input.input.selectedSubtask,
           decision: replanningDecision,
           selectedSubtaskCompletionDecision: subtaskCompletionDecision,
           subtaskCompletionDecisions,
-          simulationResults: input.simulationResults,
-          selectedSubtasksByKey: input.selectedSubtasksByKey,
-          at: input.issuedAt,
+          simulationResults: input.input.simulationResults,
+          selectedSubtasksByKey: input.input.selectedSubtasksByKey,
+          at: input.input.issuedAt,
         });
 
   return {
-    selectedSubtask: input.selectedSubtask,
-    ...(input.prioritizationTrace === undefined
+    selectedSubtask: input.input.selectedSubtask,
+    ...(input.input.prioritizationTrace === undefined
       ? {}
-      : { prioritizationTrace: input.prioritizationTrace }),
-    ...(input.actionSequenceTraces === undefined
+      : { prioritizationTrace: input.input.prioritizationTrace }),
+    ...(input.input.actionSequenceTraces === undefined
       ? {}
-      : { actionSequenceTraces: input.actionSequenceTraces }),
-    ...(input.socialDialogueGenerationTraces === undefined
+      : { actionSequenceTraces: input.input.actionSequenceTraces }),
+    ...(input.input.socialDialogueGenerationTraces === undefined
       ? {}
-      : { socialDialogueGenerationTraces: input.socialDialogueGenerationTraces }),
-    ...(input.globalSynthesisTrace === undefined
+      : { socialDialogueGenerationTraces: input.input.socialDialogueGenerationTraces }),
+    ...(input.input.globalSynthesisTrace === undefined
       ? {}
-      : { globalSynthesisTrace: input.globalSynthesisTrace }),
-    ...(input.actionRepairTraces === undefined
+      : { globalSynthesisTrace: input.input.globalSynthesisTrace }),
+    ...(input.input.actionRepairTraces === undefined
       ? {}
-      : { actionRepairTraces: input.actionRepairTraces }),
-    selectionEvidence: input.selectionEvidence,
-    subtaskCandidates: input.subtaskCandidates,
-    actionSynthesisResult: input.actionSynthesisResult,
-    candidateActions: input.candidateActions,
-    simulationResults: input.simulationResults,
-    commandDrafts: input.simulationResults.flatMap((result) =>
+      : { actionRepairTraces: input.input.actionRepairTraces }),
+    selectionEvidence: input.input.selectionEvidence,
+    subtaskCandidates: input.input.subtaskCandidates,
+    actionSynthesisResult: input.input.actionSynthesisResult,
+    candidateActions: input.input.candidateActions,
+    simulationResults: input.input.simulationResults,
+    commandDrafts: input.input.simulationResults.flatMap((result) =>
       result.status === 'needs-replan'
         ? []
-        : [createCommandDraft(input, actionFromSimulationResult(result))],
+        : [createCommandDraft(input.input, actionFromSimulationResult(result))],
     ),
     replanningDecision,
+    ...(input.includeReplanningTrace
+      ? { replanningTrace: input.replanningDecisionResult.trace }
+      : {}),
     subtaskReplanningDecisions,
     subtaskCompletionDecision,
     subtaskCompletionDecisions,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
-    needsReplan: input.simulationResults.some((result) => result.status === 'needs-replan'),
+    needsReplan: input.input.simulationResults.some((result) => result.status === 'needs-replan'),
+  };
+}
+
+function normalizeReplanningPolicy(
+  policy: AdaptiveReplanningPolicy | undefined,
+): AdaptiveReplanningPolicy {
+  return {
+    consecutiveFailureThreshold: policy?.consecutiveFailureThreshold ?? 2,
+    ...(policy?.failureTags === undefined ? {} : { failureTags: policy.failureTags }),
+    ...(policy?.majorContextShift === undefined ? {} : { majorContextShift: policy.majorContextShift }),
   };
 }
 

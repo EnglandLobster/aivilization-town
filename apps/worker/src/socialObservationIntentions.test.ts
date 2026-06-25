@@ -1,4 +1,9 @@
-import { createShortTermMemoryRecord, type ScheduledIntention } from '@aivilization/memory';
+import {
+  createShortTermMemoryRecord,
+  type LongTermAgentProfile,
+  type ScheduledIntention,
+  type ShortTermMemoryRecord,
+} from '@aivilization/memory';
 import { asAgentId, asCommandId, asEventId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -8,6 +13,11 @@ import {
 
 const agentId = asAgentId('agent-bystander');
 const hourMs = 60 * 60 * 1000;
+
+type CapturedReactionContext = {
+  readonly longTermProfile: LongTermAgentProfile | undefined;
+  readonly memoryContext: readonly ShortTermMemoryRecord[] | undefined;
+};
 
 describe('social observation intentions', () => {
   test('creates a scheduled follow-up intention from an observed conversation memory', async () => {
@@ -223,6 +233,69 @@ describe('social observation intentions', () => {
         }),
       }),
     ).resolves.toEqual([]);
+  });
+
+  test('passes profile and memory context into injected reaction evaluators', async () => {
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-conversation-party',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'Observed agent-a and agent-c discuss Valentine party at Town Square.',
+      occurredAt: 10 * hourMs,
+      importanceScore: 0.7,
+      source: { eventIds: [asEventId('event-conversation-1')] },
+      tags: ['ambient-observation', 'ConversationRecorded', 'agent-a', 'agent-c'],
+    });
+    const priorMemory = createShortTermMemoryRecord({
+      id: 'memory-prior-party',
+      agentId,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'agent-bystander heard agent-a needs help preparing food.',
+      occurredAt: 9 * hourMs,
+      importanceScore: 0.6,
+      source: { eventIds: [asEventId('event-prior-party')] },
+      tags: ['party', 'agent-a'],
+    });
+
+    const seen: CapturedReactionContext[] = [];
+    await createSocialObservationScheduledIntentions({
+      records: [memory],
+      longTermProfileByAgentId: {
+        [agentId]: {
+          agentId,
+          beliefs: [],
+          habits: [],
+          mood: [],
+          values: [
+            {
+              key: 'community-helper',
+              statement: 'Help neighbors coordinate social gatherings.',
+              confidence: 0.9,
+              updatedAt: 9 * hourMs,
+              provenanceRecordIds: [priorMemory.id],
+            },
+          ],
+          personality: [],
+          socialRecords: [],
+        },
+      },
+      memoryContextByAgentId: { [agentId]: [priorMemory] },
+      reactionEvaluator: (input) => {
+        seen.push({
+          longTermProfile: input.longTermProfile,
+          memoryContext: input.memoryContext,
+        });
+        return { kind: 'ignore', confidence: 0.9, rationale: 'captured context' };
+      },
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.longTermProfile?.values.map((entry) => entry.key)).toEqual([
+      'community-helper',
+    ]);
+    expect(seen[0]?.memoryContext).toEqual([priorMemory]);
   });
 
   test('uses an injected evaluator to customize follow-up scheduling metadata', async () => {

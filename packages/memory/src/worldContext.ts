@@ -36,3 +36,32 @@ export type MemorySynthesisWorldDecisionContext = {
   readonly agent: MemorySynthesisWorldDecisionAgentContext;
   readonly market: MemorySynthesisWorldDecisionMarketContext;
 };
+
+export type MemorySynthesisWorldDecisionContextTrace = {
+  readonly agentId: AgentId;
+  readonly hasPhysiology: boolean;
+  readonly hasBalance: boolean;
+  readonly hasEducationScore: boolean;
+  readonly hasResidentialTier: boolean;
+  readonly inventoryItemCount: number;
+  readonly marketSpotPriceCount: number;
+  readonly hasLatestPriceIndex: boolean;
+};
+
+export function createMemorySynthesisWorldDecisionContextTrace(
+  context: MemorySynthesisWorldDecisionContext,
+): MemorySynthesisWorldDecisionContextTrace {
+  return {
+    agentId: context.agent.agentId,
+    hasPhysiology:
+      Number.isFinite(context.agent.physiology.energy) &&
+      Number.isFinite(context.agent.physiology.satiety) &&
+      Number.isFinite(context.agent.physiology.health),
+    hasBalance: Number.isFinite(context.agent.balance),
+    hasEducationScore: Number.isFinite(context.agent.educationScore),
+    hasResidentialTier: Number.isFinite(context.agent.residentialTier),
+    inventoryItemCount: Object.keys(context.agent.inventory).length,
+    marketSpotPriceCount: context.market.spotPrices.length,
+    hasLatestPriceIndex: context.market.latestPriceIndex !== undefined,
+  };
+}

@@ -138,6 +138,7 @@ describe('runtime profile run gate', () => {
             deterministicFallbackCount: 0,
             deterministicCount: 0,
             missingProviderTraceCount: 0,
+            worldDecisionContextCount: 0,
           },
           {
             stageName: 'dailyPlanning',
@@ -146,6 +147,7 @@ describe('runtime profile run gate', () => {
             deterministicFallbackCount: 1,
             deterministicCount: 0,
             missingProviderTraceCount: 0,
+            worldDecisionContextCount: 0,
           },
         ],
       }),
@@ -161,6 +163,53 @@ describe('runtime profile run gate', () => {
       message: 'cognition LLM stage dailyPlanning llmAcceptedCount must be at least 1',
       evidence: {
         stageName: 'dailyPlanning',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires world decision context coverage for configured cognition stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'reflectionSynthesis',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 1,
+          },
+          {
+            stageName: 'socialModelSynthesis',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 0,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmWorldContextStages: [
+          'reflectionSynthesis',
+          'socialModelSynthesis',
+        ],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-world-context-count-too-low',
+      message:
+        'cognition LLM stage socialModelSynthesis worldDecisionContextCount must be at least 1',
+      evidence: {
+        stageName: 'socialModelSynthesis',
         actual: 0,
         minimum: 1,
       },

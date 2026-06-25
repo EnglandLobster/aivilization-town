@@ -437,6 +437,16 @@ describe('runtime profile run report repositories', () => {
         {
           status: 'accepted',
           source: 'llm',
+          worldDecisionContext: {
+            agentId: 'agent-1',
+            hasPhysiology: true,
+            hasBalance: true,
+            hasEducationScore: true,
+            hasResidentialTier: true,
+            inventoryItemCount: 2,
+            marketSpotPriceCount: 1,
+            hasLatestPriceIndex: true,
+          },
         },
         {
           status: 'deterministic',
@@ -447,6 +457,16 @@ describe('runtime profile run report repositories', () => {
         {
           status: 'fallback',
           source: 'deterministic-fallback',
+          worldDecisionContext: {
+            agentId: 'agent-1',
+            hasPhysiology: true,
+            hasBalance: true,
+            hasEducationScore: true,
+            hasResidentialTier: true,
+            inventoryItemCount: 2,
+            marketSpotPriceCount: 1,
+            hasLatestPriceIndex: true,
+          },
         },
       ],
     });
@@ -459,6 +479,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingProviderTraceCount: 1,
+        worldDecisionContextCount: 0,
       },
       {
         stageName: 'dailyPlanning',
@@ -467,6 +488,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 1,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
+        worldDecisionContextCount: 0,
       },
       {
         stageName: 'reactionEvaluation',
@@ -475,6 +497,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 1,
         missingProviderTraceCount: 1,
+        worldDecisionContextCount: 0,
       },
       {
         stageName: 'reflectionSynthesis',
@@ -483,6 +506,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 1,
         missingProviderTraceCount: 0,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'socialModelSynthesis',
@@ -491,6 +515,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 1,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
+        worldDecisionContextCount: 1,
       },
     ]);
   });
@@ -523,6 +548,7 @@ describe('runtime profile run report repositories', () => {
             deterministicFallbackCount: 0,
             deterministicCount: 0,
             missingProviderTraceCount: 0,
+            worldDecisionContextCount: 0,
           },
         ],
       }),
@@ -752,6 +778,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicFallbackCount: 0,
       deterministicCount: 0,
       missingProviderTraceCount: 0,
+      worldDecisionContextCount: 0,
     },
     {
       stageName: 'dailyPlanning',
@@ -760,6 +787,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicFallbackCount: 1,
       deterministicCount: 0,
       missingProviderTraceCount: 0,
+      worldDecisionContextCount: 0,
     },
     {
       stageName: 'reactionEvaluation',
@@ -768,6 +796,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicFallbackCount: 0,
       deterministicCount: 0,
       missingProviderTraceCount: 0,
+      worldDecisionContextCount: 0,
     },
     {
       stageName: 'reflectionSynthesis',
@@ -776,6 +805,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicFallbackCount: 0,
       deterministicCount: 0,
       missingProviderTraceCount: 0,
+      worldDecisionContextCount: 0,
     },
     {
       stageName: 'socialModelSynthesis',
@@ -784,6 +814,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicFallbackCount: 0,
       deterministicCount: 0,
       missingProviderTraceCount: 0,
+      worldDecisionContextCount: 0,
     },
   ];
 }

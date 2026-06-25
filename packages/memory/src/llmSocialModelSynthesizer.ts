@@ -17,6 +17,10 @@ import {
   type SocialModelSynthesizerInput,
 } from './socialModelSynthesis';
 import type { SocialInteractionReflectionRecord } from './socialReflection';
+import {
+  createMemorySynthesisWorldDecisionContextTrace,
+  type MemorySynthesisWorldDecisionContext,
+} from './worldContext';
 
 export type LlmSocialModelRecordProposal = {
   readonly targetAgentId: string;
@@ -97,6 +101,7 @@ export async function proposeSocialModelWithLlm(
       failure: gateway,
       failureReason: gateway.reason,
       message: gateway.message,
+      worldDecisionContext: input.worldDecisionContext,
     });
   }
 
@@ -112,6 +117,7 @@ export async function proposeSocialModelWithLlm(
       trace: mapAcceptedTrace({
         gateway,
         result: accepted,
+        worldDecisionContext: input.worldDecisionContext,
       }),
       gateway,
     };
@@ -122,6 +128,7 @@ export async function proposeSocialModelWithLlm(
       failure: gateway,
       failureReason: classifyValidationFailure(message),
       message: `social model synthesis proposal invalid: ${message}`,
+      worldDecisionContext: input.worldDecisionContext,
     });
   }
 }
@@ -470,6 +477,7 @@ function createFallbackResult(input: {
   readonly failure: LlmStructuredFailure | LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): LlmSocialModelFallbackResult {
   return {
     status: 'fallback',
@@ -480,6 +488,7 @@ function createFallbackResult(input: {
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
+      worldDecisionContext: input.worldDecisionContext,
     }),
     failure: input.failure,
   };
@@ -488,6 +497,7 @@ function createFallbackResult(input: {
 function mapAcceptedTrace(input: {
   readonly gateway: LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly result: Pick<SocialModelSynthesisResult, 'patches' | 'socialReflections'>;
+  readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): SocialModelSynthesisTrace {
   const lastAttempt = input.gateway.attempts.at(-1);
   return {
@@ -507,6 +517,7 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
 
@@ -514,6 +525,7 @@ function mapFallbackTrace(input: {
   readonly gateway: LlmStructuredFailure | LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): SocialModelSynthesisTrace {
   const lastAttempt = input.gateway.attempts.at(-1);
   return {
@@ -533,7 +545,16 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: MemorySynthesisWorldDecisionContext | undefined,
+): Pick<SocialModelSynthesisTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createMemorySynthesisWorldDecisionContextTrace(context) };
 }
 
 function toPatchTrace(patch: LongTermMemoryPatch) {

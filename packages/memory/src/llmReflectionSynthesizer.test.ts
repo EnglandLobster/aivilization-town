@@ -130,6 +130,16 @@ describe('LLM reflective insight synthesizer seam', () => {
           totalTokens: 75,
           estimatedCostMicros: 175,
         },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
+        },
       },
     });
 

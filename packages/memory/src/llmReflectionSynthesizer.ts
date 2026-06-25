@@ -17,6 +17,10 @@ import {
   type ReflectiveInsightSynthesizerInput,
   type ReflectiveInsightSynthesisResult,
 } from './reflection';
+import {
+  createMemorySynthesisWorldDecisionContextTrace,
+  type MemorySynthesisWorldDecisionContext,
+} from './worldContext';
 
 export type LlmReflectiveInsightProposal = ReflectiveInsightProposal & {
   readonly rationale: string;
@@ -112,7 +116,10 @@ export async function proposeReflectiveInsightsWithLlm(
       status: 'accepted',
       source: 'llm',
       insights,
-      trace: mapAcceptedTrace(gateway),
+      trace: mapAcceptedTrace({
+        gateway,
+        worldDecisionContext: input.worldDecisionContext,
+      }),
       gateway,
     };
   } catch (error) {
@@ -314,14 +321,17 @@ function createFallbackResult(input: {
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
+      worldDecisionContext: input.input.worldDecisionContext,
     }),
     failure: input.failure,
   };
 }
 
-function mapAcceptedTrace(
-  gateway: LlmStructuredSuccess<LlmReflectiveInsightSynthesisProposal>,
-): ReflectiveInsightSynthesisTrace {
+function mapAcceptedTrace(input: {
+  readonly gateway: LlmStructuredSuccess<LlmReflectiveInsightSynthesisProposal>;
+  readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
+}): ReflectiveInsightSynthesisTrace {
+  const gateway = input.gateway;
   const lastAttempt = gateway.attempts.at(-1);
   return {
     status: 'accepted',
@@ -332,6 +342,7 @@ function mapAcceptedTrace(
     choices: mapChoices(gateway.value.insights),
     attempts: mapAttempts(gateway),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
 
@@ -339,6 +350,7 @@ function mapFallbackTrace(input: {
   readonly gateway: LlmStructuredResult<LlmReflectiveInsightSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): ReflectiveInsightSynthesisTrace {
   const lastAttempt = input.gateway.attempts.at(-1);
   return {
@@ -354,7 +366,16 @@ function mapFallbackTrace(input: {
       : {}),
     attempts: mapAttempts(input.gateway),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: MemorySynthesisWorldDecisionContext | undefined,
+): Pick<ReflectiveInsightSynthesisTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createMemorySynthesisWorldDecisionContextTrace(context) };
 }
 
 function mapChoices(

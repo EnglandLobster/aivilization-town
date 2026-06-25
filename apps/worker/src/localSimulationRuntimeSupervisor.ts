@@ -704,6 +704,9 @@ function createOperationMemorySynthesisProviderTrace(input: {
       ? {}
       : { failureReason: input.trace.failureReason }),
     ...(input.trace.message === undefined ? {} : { message: input.trace.message }),
+    ...(input.trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.trace.worldDecisionContext }),
   };
 }
 

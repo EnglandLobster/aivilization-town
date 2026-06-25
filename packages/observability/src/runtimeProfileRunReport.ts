@@ -90,11 +90,13 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingProviderTraceCount: number;
+  readonly worldDecisionContextCount: number;
 };
 
 export type RuntimeProfileCognitionProviderTrace = {
   readonly status: 'deterministic' | 'accepted' | 'fallback';
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly worldDecisionContext?: unknown;
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -284,6 +286,7 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
+        worldDecisionContextCount: 0,
       },
     ]),
   );
@@ -575,6 +578,7 @@ type MutableCognitionLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingProviderTraceCount: number;
+  worldDecisionContextCount: number;
 };
 
 function createLlmStageDiagnostics(
@@ -732,6 +736,9 @@ function recordCognitionProviderTrace(
   if (trace.source === 'deterministic') {
     diagnostics.deterministicCount += 1;
   }
+  if (trace.worldDecisionContext !== undefined) {
+    diagnostics.worldDecisionContextCount += 1;
+  }
 }
 
 function validateCognitionLlmStageDiagnostics(
@@ -770,6 +777,10 @@ function validateCognitionLlmStageDiagnostics(
       stage.missingProviderTraceCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} missingProviderTraceCount`,
     );
+    assertNonNegativeInteger(
+      stage.worldDecisionContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount`,
+    );
     if (
       stage.llmAcceptedCount +
         stage.deterministicFallbackCount +
@@ -779,6 +790,11 @@ function validateCognitionLlmStageDiagnostics(
     ) {
       throw new Error(
         `cognitionLlmStageDiagnostics ${stage.stageName} source counts must not exceed traceCount`,
+      );
+    }
+    if (stage.worldDecisionContextCount > stage.traceCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
       );
     }
   }

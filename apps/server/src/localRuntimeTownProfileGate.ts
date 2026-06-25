@@ -17,6 +17,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -35,6 +36,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmAcceptedStages =
     input.requiredCognitionLlmAcceptedStages ??
     deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmWorldContextStages =
+    input.requiredCognitionLlmWorldContextStages ??
+    deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
 
   for (const partition of profile.manifest.partitions) {
     const agentCount = agentCountByPresetId.get(partition.scenarioPresetId);
@@ -72,6 +76,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmAcceptedStages.length === 0
       ? {}
       : { requiredCognitionLlmAcceptedStages }),
+    ...(requiredCognitionLlmWorldContextStages.length === 0
+      ? {}
+      : { requiredCognitionLlmWorldContextStages }),
   };
 }
 
@@ -118,6 +125,23 @@ export function deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(
   if (runtimeConfig.reactionPlanning !== undefined) {
     stages.push('reactionEvaluation');
   }
+  if (runtimeConfig.reflectionSynthesis !== undefined) {
+    stages.push('reflectionSynthesis');
+  }
+  if (runtimeConfig.socialModelSynthesis !== undefined) {
+    stages.push('socialModelSynthesis');
+  }
+  return stages;
+}
+
+export function deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileCognitionLlmStageName[] = [];
   if (runtimeConfig.reflectionSynthesis !== undefined) {
     stages.push('reflectionSynthesis');
   }

@@ -1,6 +1,9 @@
 import {
   compileDeterministicDailyPlan,
   dailyPlanToScheduledIntentions,
+  normalizeDailyPlanCompilerOutput,
+  type DailyPlanCompilationTrace,
+  type DailyPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -51,6 +54,7 @@ export type DailyRoutineRenewalResult = {
 
 export type DailyPlanRenewalResult = DailyRoutineRenewalResult & {
   readonly dailyPlanId: string;
+  readonly planningTrace?: DailyPlanCompilationTrace;
 };
 
 export const defaultDailyRoutineSchedule = [
@@ -214,6 +218,7 @@ export async function renewDailyPlanScheduledIntentions(input: {
   readonly shortTermMemoryRepository?: ShortTermMemoryRepository;
   readonly issuedAt: SimulationTimestamp;
   readonly memoryRetrievalLimit?: number;
+  readonly compileDailyPlan?: DailyPlanCompiler;
 }): Promise<readonly DailyPlanRenewalResult[]> {
   assertFiniteNonNegative(input.issuedAt, 'issuedAt');
   if (input.memoryRetrievalLimit !== undefined) {
@@ -221,6 +226,7 @@ export async function renewDailyPlanScheduledIntentions(input: {
   }
 
   const results: DailyPlanRenewalResult[] = [];
+  const compileDailyPlan = input.compileDailyPlan ?? compileDeterministicDailyPlan;
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
     if (agent === undefined) {
@@ -236,17 +242,20 @@ export async function renewDailyPlanScheduledIntentions(input: {
             limit: input.memoryRetrievalLimit ?? 12,
           }),
     ]);
-    const dailyPlan = compileDeterministicDailyPlan({
-      agentId: agent.agentId,
-      issuedAt: input.issuedAt,
-      agent: {
-        job: agent.job,
-        locationId: agent.locationId,
-        physiology: agent.physiology,
-      },
-      ...(longTermProfile === undefined ? {} : { longTermProfile }),
-      memoryContext,
-    });
+    const compilation = normalizeDailyPlanCompilerOutput(
+      await compileDailyPlan({
+        agentId: agent.agentId,
+        issuedAt: input.issuedAt,
+        agent: {
+          job: agent.job,
+          locationId: agent.locationId,
+          physiology: agent.physiology,
+        },
+        ...(longTermProfile === undefined ? {} : { longTermProfile }),
+        memoryContext,
+      }),
+    );
+    const dailyPlan = compilation.plan;
     const scheduledIntentions = dailyPlanToScheduledIntentions({
       plan: dailyPlan,
       createdAt: input.issuedAt,
@@ -259,6 +268,9 @@ export async function renewDailyPlanScheduledIntentions(input: {
       agentId: agent.agentId,
       dailyPlanId: dailyPlan.id,
       scheduledIntentionIds: scheduledIntentions.map((intention) => intention.id),
+      ...(compilation.planningTrace === undefined
+        ? {}
+        : { planningTrace: compilation.planningTrace }),
     });
   }
 

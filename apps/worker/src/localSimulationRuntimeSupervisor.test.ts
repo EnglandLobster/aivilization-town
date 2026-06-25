@@ -1233,5 +1233,10 @@ function createPlannerRuns() {
       variant: 'without-branch',
       metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
     },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-objective-decomposition',
+      metrics: [{ metricId: 'net-worth', value: 95_279, higherIsBetter: true }],
+    },
   ];
 }

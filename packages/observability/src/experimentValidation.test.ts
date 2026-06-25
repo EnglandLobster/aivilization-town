@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { createExperimentValidationReport, type ExperimentValidationMetric } from './index';
+import {
+  createExperimentValidationReport,
+  evaluateExperimentValidationReportGate,
+  type ExperimentValidationMetric,
+} from './index';
 
 function getMetric(
   metrics: readonly ExperimentValidationMetric[],
@@ -115,6 +119,12 @@ describe('experiment validation report', () => {
     expect(ablation.status).toBe('pass');
     expect(ablation.value).toBe(1);
     expect(ablation.evidence.comparisonCount).toBe(2);
+    expect(ablation.evidence.expectedVariantCount).toBe(3);
+    expect(ablation.evidence.observedVariantCount).toBe(3);
+    expect(ablation.evidence.missingVariantCount).toBe(0);
+    expect(ablation.evidence.expectedVariants).toBe(
+      'default,without-branch,without-objective-decomposition',
+    );
 
     const trajectories = getMetric(report.metrics, 'trajectory-coverage');
     expect(trajectories.status).toBe('pass');
@@ -155,6 +165,11 @@ describe('experiment validation report', () => {
           variant: 'without-branch',
           metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
         },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+        },
       ],
       expectedTrajectoryAgentIds: ['agent-a'],
       trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
@@ -186,6 +201,26 @@ describe('experiment validation report', () => {
         ],
       }),
     ).toThrow('plannerRuns must include a default variant for each task metric');
+
+    expect(() =>
+      createExperimentValidationReport({
+        ...validInput,
+        plannerRuns: [
+          {
+            taskId: 'task-1',
+            variant: 'default',
+            metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+          },
+          {
+            taskId: 'task-1',
+            variant: 'without-branch',
+            metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+          },
+        ],
+      }),
+    ).toThrow(
+      'plannerRuns missing expected variants without-objective-decomposition for task task-1 metric net-worth',
+    );
   });
 
   test('reports missing trajectory coverage without non-finite evidence', () => {
@@ -213,6 +248,11 @@ describe('experiment validation report', () => {
           taskId: 'task-1',
           variant: 'without-branch',
           metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
         },
       ],
       expectedTrajectoryAgentIds: ['agent-a'],
@@ -261,6 +301,13 @@ describe('experiment validation report', () => {
           replanningRatio: 0.6,
           singleBranchRatio: 1,
         }),
+        createPlannerRun({
+          variant: 'without-objective-decomposition',
+          commandEmittingRatio: 0.15,
+          rejectedRatio: 0.35,
+          replanningRatio: 0.6,
+          singleBranchRatio: 1,
+        }),
       ],
       expectedTrajectoryAgentIds: ['agent-a'],
       trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
@@ -294,6 +341,77 @@ describe('experiment validation report', () => {
       defaultSingleBranchPlanRatio: 0.25,
       ablatedSingleBranchPlanRatio: 1,
       singleBranchPlanRatioDefaultAdvantage: 0.75,
+    });
+  });
+
+  test('fails validation report gates when any metric status is not allowed', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-gate',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_004,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 110 },
+        { commodityId: 'Fish', observedAt: 2, closePrice: 99 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'task-1',
+          variant: 'default',
+          metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        marketStability: {
+          maximumLogPriceRange: 1,
+          maximumDrawdown: 0.05,
+          minimumLogReturnStandardDeviation: 0,
+        },
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
+      },
+    });
+
+    const gate = evaluateExperimentValidationReportGate(report, {
+      criteriaId: 'validation-report-gate',
+      defaultAllowedStatuses: ['pass', 'watch'],
+    });
+
+    expect(gate).toEqual({
+      status: 'fail',
+      criteriaId: 'validation-report-gate',
+      runId: 'validation-run-gate',
+      simulationId: 'sim-validation',
+      failureCount: 1,
+      failures: [
+        {
+          code: 'metric-status-not-allowed',
+          message: 'metric market-stability status fail is not allowed',
+          evidence: {
+            metricId: 'market-stability',
+            actual: 'fail',
+            allowed: 'pass,watch',
+          },
+        },
+      ],
     });
   });
 });

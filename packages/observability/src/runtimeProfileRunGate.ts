@@ -25,11 +25,13 @@ export type RuntimeProfileRunGateCriteria = {
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -127,6 +129,11 @@ export function evaluateRuntimeProfileRunReport(
     report,
     criteria.requiredAgentCycleLlmAcceptedStages ?? [],
   );
+  addRequiredAgentCycleLlmNoFallbackStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmNoFallbackStages ?? [],
+  );
   addRequiredAgentCycleLlmWorldContextStageFailures(
     failures,
     report,
@@ -151,6 +158,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmAcceptedStages ?? [],
+  );
+  addRequiredCognitionLlmNoFallbackStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmNoFallbackStages ?? [],
   );
   addRequiredCognitionLlmWorldContextStageFailures(
     failures,
@@ -295,6 +307,33 @@ function addRequiredAgentCycleLlmStageFailures(
   }
 }
 
+function addRequiredAgentCycleLlmNoFallbackStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.deterministicFallbackCount ?? 0;
+    if (actual <= 0) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-deterministic-fallback-present',
+      message: `agent-cycle LLM stage ${stageName} deterministicFallbackCount must be 0`,
+      evidence: {
+        stageName,
+        actual,
+        maximum: 0,
+      },
+    });
+  }
+}
+
 function addRequiredAgentCycleLlmWorldContextStageFailures(
   failures: RuntimeProfileRunGateFailure[],
   report: RuntimeProfileRunReport,
@@ -430,6 +469,32 @@ function addRequiredCognitionLlmStageFailures(
         stageName,
         actual,
         minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmNoFallbackStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.deterministicFallbackCount ?? 0;
+    if (actual <= 0) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-deterministic-fallback-present',
+      message: `cognition LLM stage ${stageName} deterministicFallbackCount must be 0`,
+      evidence: {
+        stageName,
+        actual,
+        maximum: 0,
       },
     });
   }

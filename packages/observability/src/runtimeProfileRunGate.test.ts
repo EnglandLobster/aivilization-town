@@ -168,6 +168,49 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('rejects deterministic fallback for configured agent-cycle LLM stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 2,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 1,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmNoFallbackStages: ['contextualPrioritization'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-deterministic-fallback-present',
+      message:
+        'agent-cycle LLM stage contextualPrioritization deterministicFallbackCount must be 0',
+      evidence: {
+        stageName: 'contextualPrioritization',
+        actual: 1,
+        maximum: 0,
+      },
+    });
+  });
+
   test('requires world decision context coverage for configured agent-cycle stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({
@@ -515,6 +558,43 @@ describe('runtime profile run gate', () => {
         stageName: 'dailyPlanning',
         actual: 0,
         minimum: 1,
+      },
+    });
+  });
+
+  test('rejects deterministic fallback for configured cognition LLM stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 2,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 1,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmNoFallbackStages: ['strategicPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-deterministic-fallback-present',
+      message: 'cognition LLM stage strategicPlanning deterministicFallbackCount must be 0',
+      evidence: {
+        stageName: 'strategicPlanning',
+        actual: 1,
+        maximum: 0,
       },
     });
   });

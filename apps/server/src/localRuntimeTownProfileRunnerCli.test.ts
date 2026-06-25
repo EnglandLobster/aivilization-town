@@ -81,6 +81,7 @@ describe('local runtime town profile runner CLI', () => {
           totalProjectionAgentCount: 25,
           totalEventCount: 3,
           totalAgentTraceCount: 1,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
           run: {
             traceId: 'trace-1',
             outcome: 'succeeded',
@@ -163,6 +164,7 @@ describe('local runtime town profile runner CLI', () => {
             totalProjectionAgentCount: 100,
             totalEventCount: 3,
             totalAgentTraceCount: 1,
+            agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
             run: {
               traceId: 'trace-1',
               outcome: 'succeeded',
@@ -279,6 +281,7 @@ describe('local runtime town profile runner CLI', () => {
           totalProjectionAgentCount: 25,
           totalEventCount: 1,
           totalAgentTraceCount: 0,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(0),
           run: {
             traceId: 'aivilization-smoke-25:profile-run:100',
             outcome: 'succeeded',
@@ -318,4 +321,21 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-runner-cli-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createCliAgentCycleDiagnostics(traceCount = 1) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
+  };
 }

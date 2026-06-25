@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
   localRuntimeTownProfileGateSuiteDefaultProfileIds,
@@ -10,13 +13,25 @@ import type {
 } from './localRuntimeTownProfileRunner';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 
+const tmpRoots: string[] = [];
+
+afterEach(() => {
+  while (tmpRoots.length > 0) {
+    const root = tmpRoots.pop();
+    if (root !== undefined) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 describe('local runtime town profile gate suite', () => {
   test('runs profile gates sequentially with deterministic profile roots and report wiring', async () => {
     const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const reportRootDir = createRootDir();
 
     const result = await runLocalRuntimeTownProfileGateSuite({
       rootDir: '/tmp/aivilization-suite',
-      reportRootDir: '/tmp/aivilization-reports',
+      reportRootDir,
       requestedAt: 100,
       reportGeneratedAt: 200,
       cycleCount: 2,
@@ -69,6 +84,7 @@ describe('local runtime town profile gate suite', () => {
           ...summary,
           daemonHealth: 'attention',
           totalAgentTraceCount: 0,
+          agentCycleDiagnostics: createAgentCycleDiagnostics(0),
           run: {
             ...summary.run,
             completedCycleCount: 0,
@@ -134,6 +150,11 @@ function createPassingSummary(
     };
   });
 
+  const totalAgentTraceCount = partitions.reduce(
+    (total, partition) => total + partition.agentTraceCount,
+    0,
+  );
+
   return {
     profileId: input.profileId,
     manifestId: profile.manifest.id,
@@ -146,10 +167,8 @@ function createPassingSummary(
       0,
     ),
     totalEventCount: partitions.reduce((total, partition) => total + partition.eventCount, 0),
-    totalAgentTraceCount: partitions.reduce(
-      (total, partition) => total + partition.agentTraceCount,
-      0,
-    ),
+    totalAgentTraceCount,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
       outcome: 'succeeded',
@@ -159,4 +178,27 @@ function createPassingSummary(
     },
     partitions,
   };
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
+  };
+}
+
+function createRootDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-gate-suite-'));
+  tmpRoots.push(root);
+  return root;
 }

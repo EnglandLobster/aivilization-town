@@ -1355,6 +1355,7 @@ function createProfileRunReport() {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 5,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(5),
     partitions: [
       {
         simulationId: 'aivilization-smoke-25',
@@ -1370,6 +1371,23 @@ function createProfileRunReport() {
       },
     ],
   });
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
+  };
 }
 
 async function listen(server: Server): Promise<{ readonly baseUrl: string }> {

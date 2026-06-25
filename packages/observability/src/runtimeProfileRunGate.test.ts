@@ -26,6 +26,7 @@ describe('runtime profile run gate', () => {
       daemonHealth: 'attention',
       completedCycleCount: 0,
       totalAgentTraceCount: 0,
+      agentCycleDiagnostics: createAgentCycleDiagnostics(0),
       partitions: [
         {
           ...createReport().partitions[0]!,
@@ -92,6 +93,7 @@ function createReport(): RuntimeProfileRunReport {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 5,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(5),
     partitions: [
       {
         simulationId: 'aivilization-smoke-25',
@@ -107,4 +109,21 @@ function createReport(): RuntimeProfileRunReport {
       },
     ],
   });
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
+  };
 }

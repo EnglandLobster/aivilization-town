@@ -194,6 +194,10 @@ function createProfileSummary(
     projectionAgentCount: profile.agentCount / profile.manifest.partitions.length,
     agentTraceCount: 1,
   }));
+  const totalAgentTraceCount = partitions.reduce(
+    (total, partition) => total + partition.agentTraceCount,
+    0,
+  );
 
   return {
     profileId,
@@ -207,10 +211,8 @@ function createProfileSummary(
       0,
     ),
     totalEventCount: partitions.reduce((total, partition) => total + partition.eventCount, 0),
-    totalAgentTraceCount: partitions.reduce(
-      (total, partition) => total + partition.agentTraceCount,
-      0,
-    ),
+    totalAgentTraceCount,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
       outcome: 'succeeded',
@@ -219,5 +221,22 @@ function createProfileSummary(
       stopReason: 'cycle-count-completed',
     },
     partitions,
+  };
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
   };
 }

@@ -148,6 +148,7 @@ export function createLocalRuntimeTownProfileRunReportFromSummary(input: {
     totalProjectionAgentCount: input.summary.totalProjectionAgentCount,
     totalEventCount: input.summary.totalEventCount,
     totalAgentTraceCount: input.summary.totalAgentTraceCount,
+    agentCycleDiagnostics: input.summary.agentCycleDiagnostics,
     partitions: input.summary.partitions.map(clonePartitionSummary),
   });
 }

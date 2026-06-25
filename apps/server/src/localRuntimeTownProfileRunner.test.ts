@@ -79,6 +79,10 @@ describe('local runtime town profile runner', () => {
     });
     expect(summary.totalEventCount).toBeGreaterThan(summary.partitionCount);
     expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(summary.agentCycleDiagnostics.traceCount).toBe(summary.totalAgentTraceCount);
+    expect(summary.agentCycleDiagnostics.acceptedSimulatorCount).toBeGreaterThan(0);
+    expect(summary.agentCycleDiagnostics.commandEmittingCycleCount).toBeGreaterThan(0);
+    expect(summary.agentCycleDiagnostics.simulatorEventTraceCount).toBeGreaterThan(0);
     expect(summary.partitions).toEqual([
       expect.objectContaining({
         simulationId: 'aivilization-smoke-25',
@@ -168,6 +172,7 @@ describe('local runtime town profile runner', () => {
       totalProjectionAgentCount: 25,
       totalEventCount: summary.totalEventCount,
       totalAgentTraceCount: summary.totalAgentTraceCount,
+      agentCycleDiagnostics: summary.agentCycleDiagnostics,
       partitions: summary.partitions,
     });
   });

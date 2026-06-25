@@ -140,6 +140,7 @@ function createProfileRunReportFromSummary(summary: LocalRuntimeTownProfileRunne
     totalProjectionAgentCount: summary.totalProjectionAgentCount,
     totalEventCount: summary.totalEventCount,
     totalAgentTraceCount: summary.totalAgentTraceCount,
+    agentCycleDiagnostics: summary.agentCycleDiagnostics,
     partitions: summary.partitions.map(clonePartitionSummary),
   });
 }

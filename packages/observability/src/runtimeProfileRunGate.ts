@@ -387,17 +387,20 @@ function addRequiredAgentCycleLlmWorldContextStageFailures(
     const stage = diagnosticsByStage.get(stageName);
     const actual = stage?.completeWorldDecisionContextCount ?? 0;
     const worldDecisionContextCount = stage?.worldDecisionContextCount ?? 0;
-    if (actual >= 1) {
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'agent-cycle-llm-stage-complete-world-context-count-too-low',
-      message: `agent-cycle LLM stage ${stageName} completeWorldDecisionContextCount must be at least 1`,
+      message: `agent-cycle LLM stage ${stageName} completeWorldDecisionContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
         worldDecisionContextCount,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }
@@ -417,17 +420,20 @@ function addRequiredAgentCycleLlmRulesContextStageFailures(
     const stage = diagnosticsByStage.get(stageName);
     const actual = stage?.completeRulesContextCount ?? 0;
     const rulesContextCount = stage?.rulesContextCount ?? 0;
-    if (actual >= 1) {
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'agent-cycle-llm-stage-complete-rules-context-count-too-low',
-      message: `agent-cycle LLM stage ${stageName} completeRulesContextCount must be at least 1`,
+      message: `agent-cycle LLM stage ${stageName} completeRulesContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
         rulesContextCount,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }
@@ -578,17 +584,20 @@ function addRequiredCognitionLlmWorldContextStageFailures(
     const stage = diagnosticsByStage.get(stageName);
     const actual = stage?.completeWorldDecisionContextCount ?? 0;
     const worldDecisionContextCount = stage?.worldDecisionContextCount ?? 0;
-    if (actual >= 1) {
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'cognition-llm-stage-complete-world-context-count-too-low',
-      message: `cognition LLM stage ${stageName} completeWorldDecisionContextCount must be at least 1`,
+      message: `cognition LLM stage ${stageName} completeWorldDecisionContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
         worldDecisionContextCount,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }
@@ -607,17 +616,20 @@ function addRequiredCognitionLlmRulesContextStageFailures(
     const stage = diagnosticsByStage.get(stageName);
     const actual = stage?.completeRulesContextCount ?? 0;
     const rulesContextCount = stage?.rulesContextCount ?? 0;
-    if (actual >= 1) {
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'cognition-llm-stage-complete-rules-context-count-too-low',
-      message: `cognition LLM stage ${stageName} completeRulesContextCount must be at least 1`,
+      message: `cognition LLM stage ${stageName} completeRulesContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
         rulesContextCount,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }

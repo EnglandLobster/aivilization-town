@@ -1,8 +1,13 @@
+import {
+  compileDeterministicDailyPlan,
+  dailyPlanToScheduledIntentions,
+} from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
   LongTermAgentProfile,
   LongTermProfileRepository,
   ScheduledIntention,
+  ShortTermMemoryRepository,
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
@@ -42,6 +47,10 @@ export type DailyRoutineScheduledIntentionsInput = {
 export type DailyRoutineRenewalResult = {
   readonly agentId: AgentId;
   readonly scheduledIntentionIds: readonly string[];
+};
+
+export type DailyPlanRenewalResult = DailyRoutineRenewalResult & {
+  readonly dailyPlanId: string;
 };
 
 export const defaultDailyRoutineSchedule = [
@@ -198,6 +207,64 @@ export async function renewDailyRoutineScheduledIntentions(input: {
   return results;
 }
 
+export async function renewDailyPlanScheduledIntentions(input: {
+  readonly projection: WorldProjection;
+  readonly intentionRepository: AgentIntentionRepository;
+  readonly longTermProfileRepository?: LongTermProfileRepository;
+  readonly shortTermMemoryRepository?: ShortTermMemoryRepository;
+  readonly issuedAt: SimulationTimestamp;
+  readonly memoryRetrievalLimit?: number;
+}): Promise<readonly DailyPlanRenewalResult[]> {
+  assertFiniteNonNegative(input.issuedAt, 'issuedAt');
+  if (input.memoryRetrievalLimit !== undefined) {
+    assertPositiveInteger(input.memoryRetrievalLimit, 'memoryRetrievalLimit');
+  }
+
+  const results: DailyPlanRenewalResult[] = [];
+  for (const agentId of Object.keys(input.projection.agents).sort()) {
+    const agent = input.projection.agents[agentId];
+    if (agent === undefined) {
+      continue;
+    }
+
+    const [longTermProfile, memoryContext] = await Promise.all([
+      input.longTermProfileRepository?.getOrCreate(agent.agentId),
+      input.shortTermMemoryRepository === undefined
+        ? Promise.resolve([])
+        : input.shortTermMemoryRepository.retrieve({
+            agentId: agent.agentId,
+            limit: input.memoryRetrievalLimit ?? 12,
+          }),
+    ]);
+    const dailyPlan = compileDeterministicDailyPlan({
+      agentId: agent.agentId,
+      issuedAt: input.issuedAt,
+      agent: {
+        job: agent.job,
+        locationId: agent.locationId,
+        physiology: agent.physiology,
+      },
+      ...(longTermProfile === undefined ? {} : { longTermProfile }),
+      memoryContext,
+    });
+    const scheduledIntentions = dailyPlanToScheduledIntentions({
+      plan: dailyPlan,
+      createdAt: input.issuedAt,
+    });
+    await input.intentionRepository.upsertScheduledIntentions(
+      agent.agentId,
+      scheduledIntentions,
+    );
+    results.push({
+      agentId: agent.agentId,
+      dailyPlanId: dailyPlan.id,
+      scheduledIntentionIds: scheduledIntentions.map((intention) => intention.id),
+    });
+  }
+
+  return results;
+}
+
 function createJobRoutineSlot(agent: WorldAgentState): DailyRoutineSlot | undefined {
   if (agent.job === null || agent.job.trim().length === 0) {
     return undefined;
@@ -333,5 +400,11 @@ function assertNonEmpty(value: string, name: string): void {
 function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
+  }
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
   }
 }

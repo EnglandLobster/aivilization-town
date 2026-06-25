@@ -1,6 +1,8 @@
 import {
+  createShortTermMemoryRecord,
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
+  InMemoryShortTermMemoryRepository,
   type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
@@ -9,6 +11,7 @@ import { describe, expect, test } from 'vitest';
 import {
   createDailyRoutineScheduledIntentions,
   createProfileAwareDailyRoutineSchedule,
+  renewDailyPlanScheduledIntentions,
   renewDailyRoutineScheduledIntentions,
 } from './index';
 
@@ -184,6 +187,78 @@ describe('daily routine scheduling', () => {
         expect.objectContaining({ id: 'daily-routine:agent-a:0:habit-evening-study' }),
         expect.objectContaining({ id: 'daily-routine:agent-a:0:night-rest' }),
       ],
+    });
+  });
+
+  test('materializes repository-backed daily plans into scheduled intentions', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const projection = createWorldProjection({
+      agents: [createAgent(agentId, { job: 'Stock Clerk' })],
+    });
+    await longTermProfileRepository.save(
+      createProfile(agentId, {
+        habits: [
+          {
+            key: 'study-routine',
+            statement: 'Repeated successful study sessions suggest a reliable study routine.',
+            confidence: 0.8,
+            updatedAt: 100,
+            provenanceRecordIds: [],
+          },
+        ],
+      }),
+    );
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-social-party',
+      agentId,
+      kind: 'social-interaction',
+      status: 'observed',
+      summary: 'Maria invited agent-a to coordinate the Valentine party at the town square.',
+      occurredAt: 7 * hourMs,
+      importanceScore: 0.9,
+      source: { eventIds: [] },
+      tags: ['social', 'party', 'agent-maria', 'town-square'],
+    });
+    await shortTermMemoryRepository.append(memory);
+
+    const results = await renewDailyPlanScheduledIntentions({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      issuedAt: 8 * hourMs,
+      memoryRetrievalLimit: 5,
+    });
+
+    expect(results).toEqual([
+      {
+        agentId,
+        dailyPlanId: 'daily-plan:agent-a:0',
+        scheduledIntentionIds: [
+          'daily-plan:agent-a:0:early-rest',
+          'daily-plan:agent-a:0:morning-study',
+          'daily-plan:agent-a:0:job-work-shift',
+          'daily-plan:agent-a:0:midday-meal',
+          'daily-plan:agent-a:0:afternoon-work',
+          'daily-plan:agent-a:0:memory-social-follow-up',
+          'daily-plan:agent-a:0:evening-social',
+          'daily-plan:agent-a:0:profile-evening-study',
+          'daily-plan:agent-a:0:night-rest',
+        ],
+      },
+    ]);
+    const state = await intentionRepository.getOrCreate(agentId);
+    expect(
+      state.scheduledIntentions.find(
+        (intention) => intention.id === 'daily-plan:agent-a:0:memory-social-follow-up',
+      ),
+    ).toMatchObject({
+      id: 'daily-plan:agent-a:0:memory-social-follow-up',
+      sourcePlanId: 'daily-plan:agent-a:0',
+      provenanceRecordIds: [memory.id],
+      affinityTags: ['daily-plan', 'social', 'memory', 'party', 'agent-maria', 'town-square'],
     });
   });
 });

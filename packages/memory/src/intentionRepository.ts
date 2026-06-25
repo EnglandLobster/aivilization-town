@@ -124,12 +124,16 @@ function cloneScheduledIntention(intention: ScheduledIntention): ScheduledIntent
     ...(intention.objectiveId === undefined ? {} : { objectiveId: intention.objectiveId }),
     ...(intention.branchId === undefined ? {} : { branchId: intention.branchId }),
     ...(intention.subtaskId === undefined ? {} : { subtaskId: intention.subtaskId }),
+    ...(intention.sourcePlanId === undefined ? {} : { sourcePlanId: intention.sourcePlanId }),
     description: intention.description,
     priority: intention.priority,
     startsAt: intention.startsAt,
     endsAt: intention.endsAt,
     status: intention.status,
     affinityTags: [...intention.affinityTags],
+    ...(intention.provenanceRecordIds === undefined
+      ? {}
+      : { provenanceRecordIds: [...intention.provenanceRecordIds] }),
     createdAt: intention.createdAt,
     updatedAt: intention.updatedAt,
   };

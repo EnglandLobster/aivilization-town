@@ -1,4 +1,5 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type { MemoryRecordId } from './records';
 
 export type LongHorizonObjectiveSource = 'human' | 'agent' | 'system';
 
@@ -30,12 +31,14 @@ export type ScheduledIntention = {
   readonly objectiveId?: string;
   readonly branchId?: string;
   readonly subtaskId?: string;
+  readonly sourcePlanId?: string;
   readonly description: string;
   readonly priority: number;
   readonly startsAt: SimulationTimestamp;
   readonly endsAt: SimulationTimestamp;
   readonly status: ScheduledIntentionStatus;
   readonly affinityTags: readonly string[];
+  readonly provenanceRecordIds?: readonly MemoryRecordId[];
   readonly createdAt: SimulationTimestamp;
   readonly updatedAt: SimulationTimestamp;
 };
@@ -192,6 +195,10 @@ function assertScheduledIntention(intention: ScheduledIntention): void {
   assertOptionalNonEmpty(intention.objectiveId, `scheduled intention ${intention.id} objectiveId`);
   assertOptionalNonEmpty(intention.branchId, `scheduled intention ${intention.id} branchId`);
   assertOptionalNonEmpty(intention.subtaskId, `scheduled intention ${intention.id} subtaskId`);
+  assertOptionalNonEmpty(
+    intention.sourcePlanId,
+    `scheduled intention ${intention.id} sourcePlanId`,
+  );
   assertFiniteNumber(intention.priority, `scheduled intention ${intention.id} priority`);
   assertFiniteNumber(intention.startsAt, `scheduled intention ${intention.id} startsAt`);
   assertFiniteNumber(intention.endsAt, `scheduled intention ${intention.id} endsAt`);
@@ -201,6 +208,9 @@ function assertScheduledIntention(intention: ScheduledIntention): void {
     throw new Error(`scheduled intention ${intention.id} endsAt must be greater than startsAt`);
   }
   assertAffinityTags(intention.affinityTags, `scheduled intention ${intention.id}`);
+  for (const recordId of intention.provenanceRecordIds ?? []) {
+    assertNonEmpty(recordId, `scheduled intention ${intention.id} provenance record id`);
+  }
 }
 
 function assertAffinityTags(tags: readonly string[], name: string): void {
@@ -281,12 +291,16 @@ function cloneScheduledIntention(intention: ScheduledIntention): ScheduledIntent
     ...(intention.objectiveId === undefined ? {} : { objectiveId: intention.objectiveId }),
     ...(intention.branchId === undefined ? {} : { branchId: intention.branchId }),
     ...(intention.subtaskId === undefined ? {} : { subtaskId: intention.subtaskId }),
+    ...(intention.sourcePlanId === undefined ? {} : { sourcePlanId: intention.sourcePlanId }),
     description: intention.description,
     priority: intention.priority,
     startsAt: intention.startsAt,
     endsAt: intention.endsAt,
     status: intention.status,
     affinityTags: [...intention.affinityTags],
+    ...(intention.provenanceRecordIds === undefined
+      ? {}
+      : { provenanceRecordIds: [...intention.provenanceRecordIds] }),
     createdAt: intention.createdAt,
     updatedAt: intention.updatedAt,
   };

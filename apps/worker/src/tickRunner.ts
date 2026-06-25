@@ -12,6 +12,7 @@ import type {
   GlobalActionSynthesizer,
   ReactiveCorrector,
   ReactionEvaluator,
+  SocialDialogueGenerator,
   StrategicPlanCompiler,
   SubtaskPrioritizer,
   WorldDecisionContext,
@@ -86,6 +87,7 @@ export type WorkerTickAgentInput = {
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly simulate: CycleActionSimulator;
@@ -263,6 +265,9 @@ export async function runWorkerSimulationTick(
       ...(agent.actionSequenceGenerator === undefined
         ? {}
         : { actionSequenceGenerator: agent.actionSequenceGenerator }),
+      ...(agent.socialDialogueGenerator === undefined
+        ? {}
+        : { socialDialogueGenerator: agent.socialDialogueGenerator }),
       ...(agent.globalSynthesizer === undefined
         ? {}
         : { globalSynthesizer: agent.globalSynthesizer }),

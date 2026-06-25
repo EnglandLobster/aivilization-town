@@ -4,6 +4,7 @@ import {
   createTraceableLlmGlobalSynthesizer,
   createTraceableLlmReactionEvaluator,
   createTraceableLlmReactiveCorrector,
+  createTraceableLlmSocialDialogueGenerator,
   createTraceableLlmStrategicPlanCompiler,
   createTraceableLlmSubtaskPrioritizer,
   type ActionSequenceGenerator,
@@ -11,6 +12,7 @@ import {
   type GlobalActionSynthesizer,
   type ReactionEvaluator,
   type ReactiveCorrector,
+  type SocialDialogueGenerator,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -94,6 +96,16 @@ export type LocalRuntimeTownProfileReactiveCorrectionConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileSocialDialogueGenerationConfig = {
+  readonly kind: 'traceable-llm-social-dialogue-generator';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileReflectionSynthesisConfig = {
   readonly kind: 'traceable-llm-reflective-insight-synthesizer';
   readonly profileId: string;
@@ -130,6 +142,10 @@ export type LocalRuntimeTownProfileGlobalSynthesizerConfig =
 
 export type LocalRuntimeTownProfileReactiveCorrectorConfig =
   | LocalRuntimeTownProfileReactiveCorrectionConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileSocialDialogueGeneratorConfig =
+  | LocalRuntimeTownProfileSocialDialogueGenerationConfig
   | undefined;
 
 export type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig =
@@ -270,6 +286,26 @@ export function createLocalRuntimeTownProfileReactiveCorrector(
     model: config.model,
     requestId: ({ agentId, issuedAt, rejectedAction }) =>
       `profile-llm-reactive-correction:${config.profileId}:${agentId}:${rejectedAction.id}:${issuedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileSocialDialogueGenerator(
+  config: LocalRuntimeTownProfileSocialDialogueGeneratorConfig,
+): SocialDialogueGenerator | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmSocialDialogueGenerator({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, issuedAt, action }) =>
+      `profile-llm-social-dialogue:${config.profileId}:${agentId}:${action.id}:${issuedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

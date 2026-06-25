@@ -7,6 +7,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type SocialDialogueGenerator,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { InMemoryAgentIntentionRepository, type LongHorizonObjective } from '@aivilization/memory';
@@ -297,11 +298,30 @@ describe('canonical worker runtime resolver', () => {
           },
         },
       });
+    const socialDialogueGenerator: SocialDialogueGenerator = async (input) => {
+      await Promise.resolve();
+      return {
+        payload: input.deterministicPayload,
+        trace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          selectedSubtask: {
+            branchId: input.selectedSubtask.branchId,
+            subtaskId: input.selectedSubtask.subtaskId,
+          },
+          actionId: input.action.id,
+          targetAgentId: input.deterministicPayload.targetAgentId,
+          turnCount: input.deterministicPayload.turns.length,
+          rationale: 'test social dialogue generator',
+        },
+      };
+    };
     const resolver = createCanonicalWorkerRuntimeResolver({
       simulationId,
       policies,
       subtaskPrioritizer,
       actionSequenceGenerator,
+      socialDialogueGenerator,
       globalSynthesizer,
       reactiveCorrector,
     });
@@ -316,6 +336,7 @@ describe('canonical worker runtime resolver', () => {
 
     expect(binding?.subtaskPrioritizer).toBe(subtaskPrioritizer);
     expect(binding?.actionSequenceGenerator).toBe(actionSequenceGenerator);
+    expect(binding?.socialDialogueGenerator).toBe(socialDialogueGenerator);
     expect(binding?.globalSynthesizer).toBe(globalSynthesizer);
     expect(binding?.reactiveCorrector).toBe(reactiveCorrector);
   });

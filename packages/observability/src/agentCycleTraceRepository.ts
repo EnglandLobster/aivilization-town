@@ -685,6 +685,15 @@ function cloneSimulatorTraceEvent(
     type: event.type,
     ...(event.sequence === undefined ? {} : { sequence: event.sequence }),
     ...(event.summary === undefined ? {} : { summary: event.summary }),
+    ...(event.counterfactualStep === undefined
+      ? {}
+      : { counterfactualStep: event.counterfactualStep }),
+    ...(event.projectionEventCountBefore === undefined
+      ? {}
+      : { projectionEventCountBefore: event.projectionEventCountBefore }),
+    ...(event.projectionEventCountAfter === undefined
+      ? {}
+      : { projectionEventCountAfter: event.projectionEventCountAfter }),
   };
 }
 

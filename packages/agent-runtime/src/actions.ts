@@ -20,6 +20,9 @@ export type ActionSimulationTraceEvent = {
   readonly type: string;
   readonly sequence?: number;
   readonly summary?: string;
+  readonly counterfactualStep?: number;
+  readonly projectionEventCountBefore?: number;
+  readonly projectionEventCountAfter?: number;
 };
 
 export type AtomicActionProposal<

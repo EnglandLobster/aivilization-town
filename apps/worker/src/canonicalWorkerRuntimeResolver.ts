@@ -328,8 +328,12 @@ export function createWorldCommandDryRunSimulator(
   config: WorldCommandDryRunSimulatorConfig,
 ): CycleActionSimulator {
   let rolloutProjection = config.projection;
+  let counterfactualStep = 0;
+  let projectionEventCount = 0;
 
   return ({ action }) => {
+    counterfactualStep += 1;
+    const projectionEventCountBefore = projectionEventCount;
     try {
       const events = dispatchWorldCommand({
         command: createCommandEnvelope({
@@ -354,16 +358,29 @@ export function createWorldCommandDryRunSimulator(
           status: 'rejected',
           action,
           reason: rejection.payload.reason,
-          traceEvents: events.map((event) => mapWorldEventTrace(event)),
+          traceEvents: events.map((event) =>
+            mapWorldEventTrace(event, {
+              counterfactualStep,
+              projectionEventCountBefore,
+              projectionEventCountAfter: projectionEventCountBefore,
+            }),
+          ),
         };
       }
 
       rolloutProjection = events.reduce(applyWorldEvent, rolloutProjection);
+      projectionEventCount += events.length;
 
       return {
         status: 'accepted',
         action,
-        traceEvents: events.map((event) => mapWorldEventTrace(event)),
+        traceEvents: events.map((event) =>
+          mapWorldEventTrace(event, {
+            counterfactualStep,
+            projectionEventCountBefore,
+            projectionEventCountAfter: projectionEventCount,
+          }),
+        ),
       };
     } catch (error) {
       return {
@@ -375,12 +392,20 @@ export function createWorldCommandDryRunSimulator(
   };
 }
 
-function mapWorldEventTrace(event: WorldEvent): ActionSimulationTraceEvent {
+function mapWorldEventTrace(
+  event: WorldEvent,
+  rollout: {
+    readonly counterfactualStep: number;
+    readonly projectionEventCountBefore: number;
+    readonly projectionEventCountAfter: number;
+  },
+): ActionSimulationTraceEvent {
   const summary = summarizeWorldEvent(event);
   return {
     type: event.type,
     sequence: event.sequence,
     ...(summary === undefined ? {} : { summary }),
+    ...rollout,
   };
 }
 

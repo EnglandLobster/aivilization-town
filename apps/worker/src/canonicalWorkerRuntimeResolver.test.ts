@@ -93,8 +93,22 @@ describe('canonical worker runtime resolver', () => {
       status: 'accepted',
       action: proposal,
       traceEvents: [
-        { type: 'EducationChanged', sequence: 1, summary: 'study' },
-        { type: 'ShortTermMemoryRecorded', sequence: 2, summary: 'Studied for 1800 seconds.' },
+        {
+          type: 'EducationChanged',
+          sequence: 1,
+          summary: 'study',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 2,
+        },
+        {
+          type: 'ShortTermMemoryRecorded',
+          sequence: 2,
+          summary: 'Studied for 1800 seconds.',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 2,
+        },
       ],
     });
   });
@@ -122,11 +136,21 @@ describe('canonical worker runtime resolver', () => {
       action,
       reason: 'missing AMM pool for Ghost',
       traceEvents: [
-        { type: 'ActionRejected', sequence: 10, summary: 'missing AMM pool for Ghost' },
+        {
+          type: 'ActionRejected',
+          sequence: 10,
+          summary: 'missing AMM pool for Ghost',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 0,
+        },
         {
           type: 'ShortTermMemoryRecorded',
           sequence: 11,
           summary: 'AgentTrade failed: missing AMM pool for Ghost',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 0,
         },
       ],
     });
@@ -158,8 +182,22 @@ describe('canonical worker runtime resolver', () => {
       status: 'accepted',
       action,
       traceEvents: [
-        { type: 'PhysiologyChanged', sequence: 10, summary: 'sleep' },
-        { type: 'ShortTermMemoryRecorded', sequence: 11, summary: 'Slept for 10 seconds.' },
+        {
+          type: 'PhysiologyChanged',
+          sequence: 10,
+          summary: 'sleep',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 2,
+        },
+        {
+          type: 'ShortTermMemoryRecorded',
+          sequence: 11,
+          summary: 'Slept for 10 seconds.',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 2,
+        },
       ],
     });
     expect(resolvedAgentCounts).toEqual([2]);
@@ -202,9 +240,30 @@ describe('canonical worker runtime resolver', () => {
       status: 'accepted',
       action: firstEat,
       traceEvents: [
-        { type: 'InventoryChanged', sequence: 10, summary: 'eat Apple -1' },
-        { type: 'PhysiologyChanged', sequence: 11, summary: 'eat' },
-        { type: 'ShortTermMemoryRecorded', sequence: 12, summary: 'Ate 1 Apple.' },
+        {
+          type: 'InventoryChanged',
+          sequence: 10,
+          summary: 'eat Apple -1',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 3,
+        },
+        {
+          type: 'PhysiologyChanged',
+          sequence: 11,
+          summary: 'eat',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 3,
+        },
+        {
+          type: 'ShortTermMemoryRecorded',
+          sequence: 12,
+          summary: 'Ate 1 Apple.',
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 3,
+        },
       ],
     });
     expect(simulate({ action: secondEat, selectedSubtask: selectedSubtask() })).toEqual({
@@ -216,11 +275,17 @@ describe('canonical worker runtime resolver', () => {
           type: 'ActionRejected',
           sequence: 10,
           summary: 'insufficient Apple: required 1, available 0',
+          counterfactualStep: 2,
+          projectionEventCountBefore: 3,
+          projectionEventCountAfter: 3,
         },
         {
           type: 'ShortTermMemoryRecorded',
           sequence: 11,
           summary: 'AgentEat failed: insufficient Apple: required 1, available 0',
+          counterfactualStep: 2,
+          projectionEventCountBefore: 3,
+          projectionEventCountAfter: 3,
         },
       ],
     });

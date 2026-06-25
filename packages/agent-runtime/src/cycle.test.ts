@@ -59,6 +59,141 @@ describe('agent planning cycle', () => {
     ]);
   });
 
+  test('passes full decision context into deterministic micro-planner proposals', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'restore satiety before market work',
+      branches: [
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [
+            {
+              id: 'eat-fish',
+              description: 'eat Fish from inventory before working',
+              basePriority: 8,
+            },
+          ],
+        },
+      ],
+    });
+    const memory = createShortTermMemoryRecord({
+      id: 'memory-fish-price',
+      agentId,
+      kind: 'observation',
+      status: 'succeeded',
+      summary: 'Fish price is favorable near the market.',
+      occurredAt: 90,
+      importanceScore: 0.7,
+      source: { eventIds: [] },
+      tags: ['market', 'fish'],
+    });
+    const proposalInputs: unknown[] = [];
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 120,
+      plan,
+      signals: [{ key: 'satiety', weight: 3 }],
+      intentionState: {
+        agentId,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 120,
+      },
+      shortTermMemoryContext: [memory],
+      longTermProfile: {
+        agentId,
+        beliefs: [
+          {
+            key: 'market-fish-price',
+            statement: 'Fish prices should influence recovery choices.',
+            confidence: 0.8,
+            provenanceRecordIds: [asMemoryRecordId('memory-fish-price')],
+            updatedAt: 100,
+          },
+        ],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          locationId: 'market',
+          physiology: { energy: 40, satiety: 12, health: 95 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Fish: 1 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Fish', spotPrice: 12 }],
+          latestPriceIndex: {
+            baselineAt: 1,
+            recordedAt: 120,
+            overall: 1.2,
+            ratios: { Fish: 1.2 },
+          },
+        },
+      },
+      microPlanners: [
+        {
+          domain: 'eat',
+          supports: ({ subtaskId }) => subtaskId === 'eat-fish',
+          propose: (input) => {
+            proposalInputs.push(input);
+            return [
+              {
+                id: 'eat-fish-from-context',
+                description: 'eat Fish from inventory',
+                commandType: 'AgentEat',
+                payload: { commodityName: 'Fish', quantity: 1 },
+              },
+            ];
+          },
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentEat']);
+    expect(proposalInputs).toHaveLength(1);
+    expect(proposalInputs[0]).toMatchObject({
+      agentId,
+      issuedAt: 120,
+      plan,
+      selectedSubtask: {
+        branchId: 'recovery',
+        subtaskId: 'eat-fish',
+        score: 8,
+      },
+      signals: [{ key: 'satiety', weight: 3 }],
+      intentionState: { agentId },
+      shortTermMemoryContext: [{ id: 'memory-fish-price' }],
+      longTermProfile: {
+        agentId,
+        beliefs: [{ key: 'market-fish-price' }],
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          physiology: { satiety: 12 },
+          inventory: { Fish: 1 },
+          balance: 50,
+        },
+        market: {
+          spotPrices: [{ commodity: 'Fish', spotPrice: 12 }],
+          latestPriceIndex: { ratios: { Fish: 1.2 } },
+        },
+      },
+    });
+  });
+
   test('allows an async contextual prioritizer to rank a lower deterministic subtask first', async () => {
     const plan = createBranchPlan({
       objective: 'balance survival and income',
@@ -414,8 +549,14 @@ describe('agent planning cycle', () => {
     expect(result.commandDrafts[0]?.payload).toMatchObject({
       topic: 'sharing fresh fish prices',
       turns: [
-        { speakerAgentId: 'agent-1', utterance: 'I saw Fish at 12 coins and wanted to compare notes.' },
-        { speakerAgentId: 'agent-2', utterance: 'That is useful; I saw the same stall before work.' },
+        {
+          speakerAgentId: 'agent-1',
+          utterance: 'I saw Fish at 12 coins and wanted to compare notes.',
+        },
+        {
+          speakerAgentId: 'agent-2',
+          utterance: 'That is useful; I saw the same stall before work.',
+        },
       ],
     });
     expect(result.socialDialogueGenerationTraces).toEqual([

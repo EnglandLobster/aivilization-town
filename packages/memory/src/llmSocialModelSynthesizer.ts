@@ -7,6 +7,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { asAgentId } from '@aivilization/sim-core';
+import { createMemorySynthesisCognitiveContextTrace } from './cognitiveContextTrace';
 import type { LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
 import {
@@ -97,6 +98,7 @@ export async function proposeSocialModelWithLlm(
 
   if (gateway.status === 'failed') {
     return createFallbackResult({
+      input,
       deterministicSocialModel,
       failure: gateway,
       failureReason: gateway.reason,
@@ -118,6 +120,8 @@ export async function proposeSocialModelWithLlm(
       trace: mapAcceptedTrace({
         gateway,
         result: accepted,
+        records: input.records,
+        longTermProfile: input.longTermProfile,
         observedStateSummary: input.observedStateSummary,
         worldDecisionContext: input.worldDecisionContext,
       }),
@@ -126,6 +130,7 @@ export async function proposeSocialModelWithLlm(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return createFallbackResult({
+      input,
       deterministicSocialModel,
       failure: gateway,
       failureReason: classifyValidationFailure(message),
@@ -479,6 +484,7 @@ function readSocialReflectionProposal(
 }
 
 function createFallbackResult(input: {
+  readonly input: LlmSocialModelSynthesizerInput;
   readonly deterministicSocialModel: SocialModelSynthesisResult;
   readonly failure: LlmStructuredFailure | LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly failureReason: string;
@@ -495,6 +501,8 @@ function createFallbackResult(input: {
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
+      records: input.input.records,
+      longTermProfile: input.input.longTermProfile,
       observedStateSummary: input.observedStateSummary,
       worldDecisionContext: input.worldDecisionContext,
     }),
@@ -505,6 +513,8 @@ function createFallbackResult(input: {
 function mapAcceptedTrace(input: {
   readonly gateway: LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly result: Pick<SocialModelSynthesisResult, 'patches' | 'socialReflections'>;
+  readonly records: LlmSocialModelSynthesizerInput['records'];
+  readonly longTermProfile: LlmSocialModelSynthesizerInput['longTermProfile'];
   readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): SocialModelSynthesisTrace {
@@ -526,6 +536,10 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createMemorySynthesisCognitiveContextTrace({
+      records: input.records,
+      longTermProfile: input.longTermProfile,
+    }),
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
@@ -537,6 +551,8 @@ function mapFallbackTrace(input: {
   readonly gateway: LlmStructuredFailure | LlmStructuredSuccess<LlmSocialModelSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly records: LlmSocialModelSynthesizerInput['records'];
+  readonly longTermProfile: LlmSocialModelSynthesizerInput['longTermProfile'];
   readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): SocialModelSynthesisTrace {
@@ -558,6 +574,10 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createMemorySynthesisCognitiveContextTrace({
+      records: input.records,
+      longTermProfile: input.longTermProfile,
+    }),
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),

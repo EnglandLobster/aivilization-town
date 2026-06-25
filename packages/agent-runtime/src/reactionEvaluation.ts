@@ -1,5 +1,9 @@
 import type { LongTermAgentProfile, ShortTermMemoryRecord } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 const DEFAULT_SOCIAL_OBSERVATION_REACTION_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -65,6 +69,8 @@ export type ReactionEvaluationTrace = {
   readonly message?: string;
   readonly attempts?: readonly ReactionEvaluationAttemptTrace[];
   readonly usage?: ReactionEvaluationUsage;
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
@@ -230,6 +236,15 @@ function cloneReactionTrace(trace: ReactionEvaluationTrace): ReactionEvaluationT
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...(trace.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: { recordCount: trace.shortTermMemoryContext.recordCount } }),
+    ...(trace.longTermProfileContext === undefined
+      ? {}
+      : { longTermProfileContext: { entryCount: trace.longTermProfileContext.entryCount } }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: { ...trace.worldDecisionContext } }),

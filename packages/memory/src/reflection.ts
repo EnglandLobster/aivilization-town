@@ -2,6 +2,10 @@ import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { LongTermAgentProfile, LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
 import type {
+  MemorySynthesisLongTermProfileContextTrace,
+  MemorySynthesisShortTermMemoryContextTrace,
+} from './cognitiveContextTrace';
+import type {
   MemorySynthesisWorldDecisionContext,
   MemorySynthesisWorldDecisionContextTrace,
 } from './worldContext';
@@ -72,6 +76,8 @@ export type ReflectiveInsightSynthesisTrace = {
   }[];
   readonly attempts?: readonly ReflectiveInsightSynthesisAttemptTrace[];
   readonly usage?: ReflectiveInsightSynthesisUsage;
+  readonly shortTermMemoryContext?: MemorySynthesisShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: MemorySynthesisLongTermProfileContextTrace;
   readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
 };

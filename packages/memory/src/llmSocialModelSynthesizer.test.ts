@@ -164,6 +164,8 @@ describe('LLM social model synthesizer seam', () => {
           totalTokens: 96,
           estimatedCostMicros: 288,
         },
+        shortTermMemoryContext: { recordCount: 3 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,

@@ -7,6 +7,7 @@ import type {
   LlmStructuredSuccess,
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   evaluateDeterministicSocialObservationReaction,
   normalizeReactionDecision,
@@ -17,10 +18,7 @@ import {
   type ReactionEvaluator,
   type ReactionEvaluatorInput,
 } from './reactionEvaluation';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
 
 export type LlmReactionDecisionProposal = ReactionDecision;
 
@@ -143,6 +141,8 @@ export function createTraceableLlmReactionEvaluator(input: {
       decision: result.decision,
       reactionTrace: mapLlmReactionTrace({
         result,
+        memoryContext: evaluatorInput.memoryContext,
+        longTermProfile: evaluatorInput.longTermProfile,
         observedStateSummary: evaluatorInput.observedStateSummary,
         worldDecisionContext: evaluatorInput.worldDecisionContext,
       }),
@@ -281,6 +281,8 @@ async function evaluateFallbackReaction(
 
 function mapLlmReactionTrace(input: {
   readonly result: LlmReactionResult;
+  readonly memoryContext: ReactionEvaluatorInput['memoryContext'];
+  readonly longTermProfile: ReactionEvaluatorInput['longTermProfile'];
   readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: WorldDecisionContext | undefined;
 }): ReactionEvaluationTrace {
@@ -304,6 +306,10 @@ function mapLlmReactionTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...createLlmCognitiveContextTrace({
+      shortTermMemoryContext: input.memoryContext,
+      longTermProfile: input.longTermProfile,
+    }),
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
@@ -314,7 +320,9 @@ function mapLlmReactionTrace(input: {
 function mapWorldDecisionContextTrace(
   context: WorldDecisionContext | undefined,
 ): Pick<ReactionEvaluationTrace, 'worldDecisionContext'> {
-  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmReactionResult): LlmStructuredResult<ReactionDecision> {

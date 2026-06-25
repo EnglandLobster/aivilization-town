@@ -64,7 +64,10 @@ import {
   materializeFullReplanForActiveObjective,
   type WorkerFullReplanMaterializationResult,
 } from './objectiveReplanning';
-import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type WorkerAgentCycleTraceSink = {
@@ -172,11 +175,16 @@ export async function runWorkerAgentCycle(
     planProgressRepository: input.planProgressRepository,
     planProgressId: input.planProgressId,
   });
+  const worldDecisionPolicies = resolveWorldCommandPolicies({
+    policies: input.policies,
+    projection: input.projection,
+  });
   const worldDecisionContext =
     input.worldDecisionContext ??
     createWorldDecisionContextFromProjection({
       projection: input.projection,
       agentId: input.agentId,
+      policies: worldDecisionPolicies,
     });
   const cycleInput = {
     simulationId: input.simulationId,

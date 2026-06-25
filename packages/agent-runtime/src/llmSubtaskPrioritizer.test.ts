@@ -144,6 +144,9 @@ describe('LLM contextual subtask prioritizer seam', () => {
     expect(requestContent).toContain('"residentialTier":5');
     expect(requestContent).toContain('"Fish":46');
     expect(requestContent).toContain('"spotPrice":304.5');
+    expect(requestContent).toContain('"rules"');
+    expect(requestContent).toContain('"Stock Clerk"');
+    expect(requestContent).toContain('"effectiveEducationThreshold":20');
     expect(requestContent).toContain('"subtaskId":"eat"');
     expect(requestContent).toContain('"subtaskId":"work"');
   });
@@ -335,6 +338,39 @@ function createWorldDecisionContext(): WorldDecisionContext {
         overall: 1.12,
         ratios: { Fish: 1.12 },
       },
+    },
+    rules: {
+      criticalThresholds: { energy: 20, health: 35 },
+      occupations: [
+        {
+          occupationName: 'Stock Clerk',
+          jobTier: 2,
+          baseWage: 260,
+          effectiveEducationThreshold: 20,
+          requiredResidentialTier: 2,
+          prerequisiteCommodity: 'Beef',
+          eligible: true,
+          rejectionReasons: [],
+          applicationQuota: {
+            residentialTier: 5,
+            limit: 5,
+            currentApplications: 1,
+            remaining: 4,
+          },
+        },
+      ],
+      production: [
+        {
+          commodity: 'Transistor',
+          minResidentialTier: 5,
+          inputs: { 'Copper Ingot': 1, 'Iron Ingot': 1 },
+          energyCost: 60,
+          satietyCost: 15,
+          timeCostSeconds: 3,
+          producible: true,
+          rejectionReasons: [],
+        },
+      ],
     },
   };
 }

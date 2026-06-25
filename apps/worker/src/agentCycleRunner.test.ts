@@ -303,8 +303,27 @@ describe('worker agent cycle runner', () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const simulatedSubtasks: string[] = [];
-    const prioritizer: SubtaskPrioritizer = async ({ candidates }) => {
+    const prioritizer: SubtaskPrioritizer = async ({ candidates, worldDecisionContext }) => {
       await Promise.resolve();
+      expect(worldDecisionContext?.rules?.criticalThresholds).toEqual({ energy: 1, health: 1 });
+      expect(worldDecisionContext?.rules?.occupations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            occupationName: 'Cleaner',
+            eligible: true,
+            effectiveEducationThreshold: 0,
+            requiredResidentialTier: 1,
+          }),
+        ]),
+      );
+      expect(worldDecisionContext?.rules?.production).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            commodity: 'Apple',
+            producible: true,
+          }),
+        ]),
+      );
       return {
         candidates: [
           {
@@ -887,6 +906,16 @@ describe('worker agent cycle runner', () => {
               .length,
             marketSpotPriceCount: input.worldDecisionContext?.market.spotPrices.length ?? 0,
             hasLatestPriceIndex: input.worldDecisionContext?.market.latestPriceIndex !== undefined,
+            occupationRuleCount: input.worldDecisionContext?.rules?.occupations.length ?? 0,
+            eligibleOccupationRuleCount:
+              input.worldDecisionContext?.rules?.occupations.filter(
+                (occupation) => occupation.eligible,
+              ).length ?? 0,
+            productionRuleCount: input.worldDecisionContext?.rules?.production.length ?? 0,
+            producibleCommodityRuleCount:
+              input.worldDecisionContext?.rules?.production.filter(
+                (production) => production.producible,
+              ).length ?? 0,
           },
         },
       };

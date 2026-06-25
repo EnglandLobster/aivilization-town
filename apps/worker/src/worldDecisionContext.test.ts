@@ -1,6 +1,6 @@
 import { createAmmPool } from '@aivilization/economy';
 import { asAgentId, asLocationId } from '@aivilization/sim-core';
-import { createWorldProjection } from '@aivilization/world';
+import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
@@ -82,5 +82,107 @@ describe('worker world decision context', () => {
         },
       },
     });
+  });
+
+  test('captures occupation and production rules from command policies', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      jobApplications: [
+        {
+          agentId: asAgentId('agent-b'),
+          occupationName: 'Cleaner',
+          submittedAt: 10,
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: { Apple: 15 },
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      jobApplication: {
+        populationEducationScores: [10, 31, 70, 150],
+        quotaByResidentialTier: [1, 2, 3, 4, 5],
+      },
+      production: {
+        efficiency: {
+          minEfficiency: 0.5,
+          educationScoreForMaxEfficiency: 500,
+        },
+      },
+    };
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies,
+    });
+
+    expect(context.rules?.criticalThresholds).toEqual({ energy: 20, health: 35 });
+    const cleanerRule = context.rules?.occupations.find(
+      (rule) => rule.occupationName === 'Cleaner',
+    );
+    expect(cleanerRule).toMatchObject({
+      occupationName: 'Cleaner',
+      jobTier: 1,
+      effectiveEducationThreshold: 10,
+      requiredResidentialTier: 1,
+      prerequisiteCommodity: null,
+      eligible: true,
+      applicationQuota: {
+        residentialTier: 1,
+        limit: 1,
+        currentApplications: 0,
+        remaining: 1,
+      },
+      rejectionReasons: [],
+    });
+    const stockClerkRule = context.rules?.occupations.find(
+      (rule) => rule.occupationName === 'Stock Clerk',
+    );
+    expect(stockClerkRule).toMatchObject({
+      occupationName: 'Stock Clerk',
+      jobTier: 2,
+      effectiveEducationThreshold: 20,
+      requiredResidentialTier: 2,
+      prerequisiteCommodity: 'Beef',
+      eligible: false,
+    });
+    expect(stockClerkRule?.rejectionReasons).toEqual(
+      expect.arrayContaining(['residential-tier-too-low', 'missing-prerequisite']),
+    );
+    const appleRule = context.rules?.production.find((rule) => rule.commodity === 'Apple');
+    expect(appleRule).toMatchObject({
+      commodity: 'Apple',
+      minResidentialTier: 1,
+      inputs: {},
+      satietyCost: 0,
+      producible: true,
+      rejectionReasons: [],
+    });
+    expect(appleRule?.energyCost).toBeCloseTo(3.7664783427);
+    expect(appleRule?.timeCostSeconds).toBeCloseTo(0.1883239171);
+    const transistorRule = context.rules?.production.find(
+      (rule) => rule.commodity === 'Transistor',
+    );
+    expect(transistorRule).toMatchObject({
+      commodity: 'Transistor',
+      minResidentialTier: 5,
+      producible: false,
+    });
+    expect(transistorRule?.rejectionReasons).toEqual(
+      expect.arrayContaining(['residential-tier-too-low']),
+    );
   });
 });

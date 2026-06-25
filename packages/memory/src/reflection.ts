@@ -57,6 +57,13 @@ export type ReflectiveInsightSynthesisTrace = {
   readonly model?: string;
   readonly failureReason?: string;
   readonly message?: string;
+  readonly choices?: readonly {
+    readonly kind: string;
+    readonly topicKey: string;
+    readonly confidence: number;
+    readonly evidenceRecordIds: readonly MemoryRecordId[];
+    readonly rationale?: string;
+  }[];
   readonly attempts?: readonly ReflectiveInsightSynthesisAttemptTrace[];
   readonly usage?: ReflectiveInsightSynthesisUsage;
 };

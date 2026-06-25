@@ -2,6 +2,7 @@ export * from './consolidation';
 export * from './fileRepositories';
 export * from './intentionRepository';
 export * from './intentions';
+export * from './llmReflectionSynthesizer';
 export * from './profile';
 export * from './profileRepository';
 export * from './records';

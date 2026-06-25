@@ -44,12 +44,18 @@ importers:
 
   apps/server:
     dependencies:
+      '@aivilization/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@aivilization/api':
         specifier: workspace:*
         version: link:../api
       '@aivilization/content':
         specifier: workspace:*
         version: link:../../packages/content
+      '@aivilization/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -137,6 +143,9 @@ importers:
 
   packages/memory:
     dependencies:
+      '@aivilization/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core

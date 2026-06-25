@@ -12,6 +12,10 @@ import type {
   AtomicActionProposal,
   RepairPolicy,
 } from './actions';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
@@ -105,6 +109,8 @@ export type ReactiveCorrectionTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

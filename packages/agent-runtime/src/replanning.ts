@@ -6,6 +6,10 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { ActionWithRepairResult, AtomicActionProposal } from './actions';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import { markSubtaskBlocked, markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import {
@@ -75,6 +79,8 @@ export type ReplanningDecisionTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

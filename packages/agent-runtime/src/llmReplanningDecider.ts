@@ -7,6 +7,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import type { MemoryRecordId } from '@aivilization/memory';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   createDeterministicReplanningDecisionResult,
   type ReplanningDecider,
@@ -393,6 +394,7 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }
@@ -423,6 +425,7 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.failure.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

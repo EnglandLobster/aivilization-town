@@ -1,5 +1,13 @@
 import type { WorldDecisionContextTrace } from './worldDecisionContextTrace';
 
+export type AgentCycleShortTermMemoryContextTrace = {
+  readonly recordCount: number;
+};
+
+export type AgentCycleLongTermProfileContextTrace = {
+  readonly entryCount: number;
+};
+
 export type SimulatorTraceResult =
   | { readonly status: 'accepted'; readonly reason?: string }
   | { readonly status: 'rejected'; readonly reason: string }
@@ -53,6 +61,8 @@ export type AgentCycleReplanningDecisionTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -132,6 +142,8 @@ export type AgentCycleContextualPrioritizationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -171,6 +183,8 @@ export type AgentCycleActionSequenceGenerationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -209,6 +223,8 @@ export type AgentCycleSocialDialogueGenerationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -246,6 +262,8 @@ export type AgentCycleGlobalSynthesisTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -308,6 +326,8 @@ export type AgentCycleActionRepairTrace = {
       readonly totalTokens: number;
       readonly estimatedCostMicros: number;
     };
+    readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
+    readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
     readonly worldDecisionContext?: WorldDecisionContextTrace;
     readonly simulatorResult?: {
       readonly status: 'accepted' | 'rejected';

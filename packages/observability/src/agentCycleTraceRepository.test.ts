@@ -39,6 +39,9 @@ function createWorldDecisionContextTrace(agentId: string) {
   };
 }
 
+const shortTermMemoryContext = { recordCount: 1 };
+const longTermProfileContext = { entryCount: 2 };
+
 function createTrace(input: {
   readonly traceId: string;
   readonly simulationId?: string;
@@ -96,6 +99,8 @@ function createTrace(input: {
               totalTokens: 15,
               estimatedCostMicros: 25,
             },
+            shortTermMemoryContext,
+            longTermProfileContext,
             worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
@@ -141,6 +146,8 @@ function createTrace(input: {
                 totalTokens: 28,
                 estimatedCostMicros: 44,
               },
+              shortTermMemoryContext,
+              longTermProfileContext,
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
             },
           ],
@@ -184,6 +191,8 @@ function createTrace(input: {
                 totalTokens: 27,
                 estimatedCostMicros: 45,
               },
+              shortTermMemoryContext,
+              longTermProfileContext,
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
             },
           ],
@@ -234,6 +243,8 @@ function createTrace(input: {
               totalTokens: 42,
               estimatedCostMicros: 66,
             },
+            shortTermMemoryContext,
+            longTermProfileContext,
             worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
@@ -274,6 +285,8 @@ function createTrace(input: {
                   },
                 },
                 simulatorResult: { status: 'accepted' },
+                shortTermMemoryContext,
+                longTermProfileContext,
                 worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
               },
               outcome: 'repaired',
@@ -317,6 +330,8 @@ function createTrace(input: {
               totalTokens: 23,
               estimatedCostMicros: 37,
             },
+            shortTermMemoryContext,
+            longTermProfileContext,
             worldDecisionContext: {
               ...createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
               inventoryItemCount: 1,
@@ -513,10 +528,20 @@ describe('agent cycle trace repositories', () => {
       }[]
     )[0]!.rationale = 'mutated';
     (
+      read!.contextualPrioritization!.shortTermMemoryContext as unknown as {
+        recordCount: number;
+      }
+    ).recordCount = 999;
+    (
       read!.actionSequenceGeneration![0]!.actions as unknown as {
         rationale: string;
       }[]
     )[0]!.rationale = 'mutated';
+    (
+      read!.actionSequenceGeneration![0]!.longTermProfileContext as unknown as {
+        entryCount: number;
+      }
+    ).entryCount = 999;
     (
       read!.actionSequenceGeneration![0]!.worldDecisionContext as unknown as {
         inventoryItemCount: number;
@@ -540,6 +565,11 @@ describe('agent cycle trace repositories', () => {
       }
     ).hasBalance = false;
     (
+      read!.globalSynthesis!.shortTermMemoryContext as unknown as {
+        recordCount: number;
+      }
+    ).recordCount = 999;
+    (
       read!.actionRepair![0]!.reactiveCorrection!.decision.evidenceRecordIds as unknown as string[]
     ).push('mutated');
     (
@@ -553,6 +583,11 @@ describe('agent cycle trace repositories', () => {
       }
     ).hasLatestPriceIndex = false;
     (
+      read!.actionRepair![0]!.reactiveCorrection!.longTermProfileContext as unknown as {
+        entryCount: number;
+      }
+    ).entryCount = 999;
+    (
       read!.replanningDecisionTrace!.decision as unknown as {
         evidenceRecordIds: string[];
       }
@@ -562,6 +597,11 @@ describe('agent cycle trace repositories', () => {
         marketSpotPriceCount: number;
       }
     ).marketSpotPriceCount = 999;
+    (
+      read!.replanningDecisionTrace!.shortTermMemoryContext as unknown as {
+        recordCount: number;
+      }
+    ).recordCount = 999;
     (
       read!.contextualPrioritization!.worldDecisionContext as unknown as {
         hasPhysiology: boolean;
@@ -615,6 +655,8 @@ describe('agent cycle trace repositories', () => {
         requestId: 'trace-replanning-decision:replanning-decision',
         providerId: 'scripted-replanning',
         model: 'replanning-model',
+        shortTermMemoryContext,
+        longTermProfileContext,
         decision: {
           kind: 'memory-guided-correction',
           trigger: 'simulator-rejection',

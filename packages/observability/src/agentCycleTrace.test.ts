@@ -11,6 +11,8 @@ const worldDecisionContext = {
   marketSpotPriceCount: 1,
   hasLatestPriceIndex: true,
 };
+const shortTermMemoryContext = { recordCount: 1 };
+const longTermProfileContext = { entryCount: 2 };
 
 describe('createAgentCycleTrace', () => {
   test('captures planner, simulator, command, and memory evidence in one record', () => {
@@ -35,6 +37,8 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Crafting aligns with production goals after checking inventory.',
           },
         ],
+        shortTermMemoryContext,
+        longTermProfileContext,
         worldDecisionContext,
       },
       actionSequenceGeneration: [
@@ -55,6 +59,8 @@ describe('createAgentCycleTrace', () => {
               rationale: 'Craft one Transistor after checking inventory and production goals.',
             },
           ],
+          shortTermMemoryContext,
+          longTermProfileContext,
           worldDecisionContext,
         },
       ],
@@ -73,6 +79,8 @@ describe('createAgentCycleTrace', () => {
           model: 'dialogue-model',
           turnCount: 2,
           rationale: 'Ask a neighbor about market supply using current price context.',
+          shortTermMemoryContext,
+          longTermProfileContext,
           worldDecisionContext,
         },
       ],
@@ -98,6 +106,8 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Crafting remains aligned but can follow recovery.',
           },
         ],
+        shortTermMemoryContext,
+        longTermProfileContext,
         worldDecisionContext,
       },
       actionRepair: [
@@ -134,6 +144,8 @@ describe('createAgentCycleTrace', () => {
               },
             },
             simulatorResult: { status: 'accepted' },
+            shortTermMemoryContext,
+            longTermProfileContext,
             worldDecisionContext,
           },
           outcome: 'repaired',
@@ -226,6 +238,23 @@ describe('createAgentCycleTrace', () => {
         failedActionIds: ['craft-1'],
         evidenceRecordIds: ['stm-context-1'],
       },
+      replanningDecisionTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'trace-1:replanning-decision',
+        providerId: 'scripted-replanning',
+        model: 'replanning-model',
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'missing Iron Ingot',
+          failedActionIds: ['craft-1'],
+          evidenceRecordIds: ['stm-context-1'],
+        },
+        shortTermMemoryContext,
+        longTermProfileContext,
+        worldDecisionContext,
+      },
       replanMaterialization: {
         status: 'replanned',
         objectiveId: 'objective-production',
@@ -265,6 +294,8 @@ describe('createAgentCycleTrace', () => {
       source: 'llm',
       requestId: 'trace-1:prioritize',
       choices: [{ subtaskId: 'craft-transistor' }],
+      shortTermMemoryContext,
+      longTermProfileContext,
       worldDecisionContext,
     });
     expect(trace.actionSequenceGeneration).toEqual([
@@ -285,6 +316,8 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Craft one Transistor after checking inventory and production goals.',
           },
         ],
+        shortTermMemoryContext,
+        longTermProfileContext,
         worldDecisionContext,
       },
     ]);
@@ -303,6 +336,8 @@ describe('createAgentCycleTrace', () => {
         model: 'dialogue-model',
         turnCount: 2,
         rationale: 'Ask a neighbor about market supply using current price context.',
+        shortTermMemoryContext,
+        longTermProfileContext,
         worldDecisionContext,
       },
     ]);
@@ -328,6 +363,8 @@ describe('createAgentCycleTrace', () => {
           rationale: 'Crafting remains aligned but can follow recovery.',
         },
       ],
+      shortTermMemoryContext,
+      longTermProfileContext,
       worldDecisionContext,
     });
     expect(trace.actionRepair).toEqual([
@@ -364,6 +401,8 @@ describe('createAgentCycleTrace', () => {
             },
           },
           simulatorResult: { status: 'accepted' },
+          shortTermMemoryContext,
+          longTermProfileContext,
           worldDecisionContext,
         },
         outcome: 'repaired',
@@ -396,6 +435,14 @@ describe('createAgentCycleTrace', () => {
       },
     ]);
     expect(trace.replanningDecision.kind).toBe('memory-guided-correction');
+    expect(trace.replanningDecisionTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'trace-1:replanning-decision',
+      shortTermMemoryContext,
+      longTermProfileContext,
+      worldDecisionContext,
+    });
     expect(trace.subtaskReplanningDecisions).toEqual([
       {
         branchId: 'production-resource-management',

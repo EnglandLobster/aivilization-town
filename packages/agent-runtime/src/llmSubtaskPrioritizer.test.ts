@@ -1,4 +1,5 @@
 import { createScriptedLlmProvider } from '@aivilization/llm';
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { createBranchPlan, scorePrioritizedSubtaskCandidates } from './planner';
@@ -55,6 +56,8 @@ describe('LLM contextual subtask prioritizer seam', () => {
       plan,
       signals: [],
       candidates,
+      shortTermMemoryContext: [createRecentRecoveryMemory()],
+      longTermProfile: createLongTermProfile(),
       worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'prioritizer-model',
@@ -110,6 +113,8 @@ describe('LLM contextual subtask prioritizer seam', () => {
           totalTokens: 60,
           estimatedCostMicros: 140,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,
@@ -131,6 +136,8 @@ describe('LLM contextual subtask prioritizer seam', () => {
     });
     const requestContent = request?.messages[1]?.content ?? '';
     expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"shortTermMemoryContext"');
+    expect(requestContent).toContain('"longTermProfile"');
     expect(requestContent).toContain('"satiety":30');
     expect(requestContent).toContain('"balance":191696904');
     expect(requestContent).toContain('"educationScore":31');
@@ -272,6 +279,40 @@ function createContextualPlan() {
       },
     ],
   });
+}
+
+function createRecentRecoveryMemory() {
+  return createShortTermMemoryRecord({
+    id: 'memory-eat-before-work',
+    agentId,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Eating Fish before wage work prevented low-satiety failure.',
+    occurredAt: 90,
+    importanceScore: 0.8,
+    source: { eventIds: [] },
+    tags: ['eat', 'work', 'Fish'],
+  });
+}
+
+function createLongTermProfile() {
+  return {
+    agentId,
+    beliefs: [],
+    habits: [
+      {
+        key: 'recover-before-work',
+        statement: 'Recover satiety before starting wage work.',
+        confidence: 0.82,
+        updatedAt: 90,
+        provenanceRecordIds: [asMemoryRecordId('reflection-recover-before-work')],
+      },
+    ],
+    mood: [],
+    values: [],
+    personality: [],
+    socialRecords: [],
+  };
 }
 
 function createWorldDecisionContext(): WorldDecisionContext {

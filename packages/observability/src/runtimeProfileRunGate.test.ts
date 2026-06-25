@@ -96,6 +96,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
             },
@@ -106,6 +108,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 1,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 0,
               completeWorldDecisionContextCount: 0,
             },
@@ -144,6 +148,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
             },
@@ -154,6 +160,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 0,
               completeWorldDecisionContextCount: 0,
             },
@@ -197,6 +205,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
             },
@@ -207,6 +217,8 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 0,
             },
@@ -231,6 +243,118 @@ describe('runtime profile run gate', () => {
         stageName: 'globalSynthesis',
         actual: 0,
         worldDecisionContextCount: 1,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires short-term memory context coverage for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+            },
+            {
+              stageName: 'globalSynthesis',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 0,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmMemoryContextStages: [
+          'contextualPrioritization',
+          'globalSynthesis',
+        ],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-memory-context-count-too-low',
+      message:
+        'agent-cycle LLM stage globalSynthesis shortTermMemoryContextCount must be at least 1',
+      evidence: {
+        stageName: 'globalSynthesis',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires long-term profile context coverage for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+            },
+            {
+              stageName: 'globalSynthesis',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 0,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmProfileContextStages: [
+          'contextualPrioritization',
+          'globalSynthesis',
+        ],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-profile-context-count-too-low',
+      message:
+        'agent-cycle LLM stage globalSynthesis longTermProfileContextCount must be at least 1',
+      evidence: {
+        stageName: 'globalSynthesis',
+        actual: 0,
         minimum: 1,
       },
     });

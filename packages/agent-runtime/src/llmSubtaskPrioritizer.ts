@@ -7,6 +7,7 @@ import type {
   LlmStructuredSuccess,
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   createWorldDecisionContextTrace,
   type WorldDecisionContext,
@@ -270,6 +271,7 @@ function mapAcceptedTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...createLlmCognitiveContextTrace(input),
     ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
@@ -298,6 +300,7 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

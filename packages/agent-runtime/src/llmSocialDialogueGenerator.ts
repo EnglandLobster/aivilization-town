@@ -7,6 +7,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { asAgentId } from '@aivilization/sim-core';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   applySocialDialogueProposal,
   toSocialDialogueTraceSubtask,
@@ -319,6 +320,7 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }
@@ -354,6 +356,7 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

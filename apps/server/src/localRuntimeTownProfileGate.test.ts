@@ -79,6 +79,30 @@ describe('local runtime town profile gate criteria', () => {
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
+      }).requiredAgentCycleLlmMemoryContextStages,
+    ).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+      'replanningDecision',
+    ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+      }).requiredAgentCycleLlmProfileContextStages,
+    ).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+      'replanningDecision',
+    ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
       }).requiredCognitionLlmAcceptedStages,
     ).toEqual([
       'strategicPlanning',

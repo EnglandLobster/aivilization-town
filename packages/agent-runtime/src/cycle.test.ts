@@ -1713,6 +1713,128 @@ describe('agent planning cycle', () => {
     ]);
   });
 
+  test('validates later actions after async reactive corrections update counterfactual state', async () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'recover satiety before working',
+      branches: [
+        {
+          id: 'income',
+          objective: 'complete a shift after recovery',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    let ateFirst = false;
+    const simulationOrder: string[] = [];
+    const reactiveInputs: string[] = [];
+    const eatBeforeWork = {
+      id: 'eat-before-follow-up',
+      description: 'eat before the follow-up work action',
+      commandType: 'AgentEat' as const,
+      payload: { commodityName: 'Bread', quantity: 1 },
+    };
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [],
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-before-eating',
+              description: 'try work while hungry',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+            },
+            {
+              id: 'work-after-eating',
+              description: 'work after the recovery action',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 600 },
+            },
+          ],
+        },
+      ],
+      reactiveCorrector: async (input) => {
+        await Promise.resolve();
+        reactiveInputs.push(input.rejectedAction.id);
+        if (input.rejectedAction.id !== 'work-before-eating') {
+          return {
+            action: undefined,
+            trace: {
+              status: 'accepted',
+              source: 'llm',
+              decision: {
+                kind: 'no-correction',
+                rationale: 'Only the first hungry work action has a cached repair pattern.',
+                evidenceRecordIds: [],
+              },
+            },
+          };
+        }
+
+        return {
+          action: eatBeforeWork,
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'reactive-correction-sequential-rollout',
+            decision: {
+              kind: 'propose-action',
+              rationale: 'Eat before validating the follow-up work action.',
+              evidenceRecordIds: [],
+              action: {
+                id: 'eat-before-follow-up',
+                description: 'eat before the follow-up work action',
+                commandType: 'AgentEat',
+              },
+            },
+          },
+        };
+      },
+      simulate: ({ action }) => {
+        simulationOrder.push(action.id);
+        if (action.id === 'eat-before-follow-up') {
+          ateFirst = true;
+          return { status: 'accepted', action };
+        }
+        if (action.id === 'work-before-eating') {
+          return { status: 'rejected', action, reason: 'satiety too low' };
+        }
+        if (action.id === 'work-after-eating' && !ateFirst) {
+          return { status: 'rejected', action, reason: 'satiety recovery not simulated yet' };
+        }
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(simulationOrder).toEqual([
+      'work-before-eating',
+      'eat-before-follow-up',
+      'work-after-eating',
+    ]);
+    expect(reactiveInputs).toEqual(['work-before-eating']);
+    expect(result.needsReplan).toBe(false);
+    expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentEat', 'AgentWork']);
+    expect(result.simulationResults.map((item) => item.status)).toEqual(['repaired', 'accepted']);
+    expect(result.actionRepairTraces).toMatchObject([
+      {
+        actionId: 'work-before-eating',
+        reactiveCorrection: {
+          requestId: 'reactive-correction-sequential-rollout',
+          simulatorResult: { status: 'accepted' },
+        },
+        outcome: 'repaired',
+      },
+    ]);
+  });
+
   test('keeps adaptive replanning authoritative when reactive correction fails validation', async () => {
     const agentId = asAgentId('agent-1');
     const plan = createBranchPlan({

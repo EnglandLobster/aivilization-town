@@ -98,6 +98,7 @@ export type ReplanningDeciderInput = {
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
   readonly policy: AdaptiveReplanningPolicy;
+  readonly observedStateSummary?: string;
   readonly intentionState?: AgentIntentionState;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly worldDecisionContext?: WorldDecisionContext;

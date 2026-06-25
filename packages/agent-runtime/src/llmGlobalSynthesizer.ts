@@ -180,6 +180,9 @@ function createGlobalSynthesisMessages(
         ...(input.actionSynthesisPolicy === undefined
           ? {}
           : { actionSynthesisPolicy: input.actionSynthesisPolicy }),
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
         ...(input.shortTermMemoryContext === undefined
           ? {}

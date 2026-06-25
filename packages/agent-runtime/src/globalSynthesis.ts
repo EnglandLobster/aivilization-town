@@ -69,6 +69,7 @@ export type GlobalSynthesizerInput = {
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly deterministicSynthesisResult: ActionSynthesisResult;
   readonly actionSynthesisPolicy?: ActionSynthesisPolicy;
+  readonly observedStateSummary?: string;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;

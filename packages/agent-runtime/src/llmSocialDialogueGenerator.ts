@@ -200,6 +200,9 @@ function createSocialDialogueMessages(
         action: input.action,
         deterministicPayload: input.deterministicPayload,
         allowedSpeakerAgentIds: [input.agentId, input.deterministicPayload.targetAgentId],
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.progress === undefined ? {} : { progress: input.progress }),
         ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
         ...(input.shortTermMemoryContext === undefined

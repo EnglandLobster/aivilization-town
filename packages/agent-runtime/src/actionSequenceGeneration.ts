@@ -78,6 +78,7 @@ export type ActionSequenceGeneratorInput = {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly signals: readonly ContextSignal[];
   readonly deterministicActions: readonly AtomicActionProposal[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];

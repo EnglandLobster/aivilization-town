@@ -193,6 +193,7 @@ export async function runWorkerAgentCycle(
     agentId: input.agentId,
     issuedAt: input.issuedAt,
     plan,
+    observedStateSummary: input.observedStateSummary,
     ...(progress === undefined ? {} : { progress }),
     signals: input.signals,
     intentionState,

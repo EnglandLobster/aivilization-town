@@ -65,6 +65,7 @@ export type SubtaskPrioritizerInput = {
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
   readonly candidates: readonly PrioritizedSubtaskCandidate[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];

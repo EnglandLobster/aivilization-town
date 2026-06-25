@@ -56,6 +56,8 @@ describe('LLM contextual subtask prioritizer seam', () => {
       plan,
       signals: [],
       candidates,
+      observedStateSummary:
+        'energy=48 satiety=30 health=92 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Apple:2',
       shortTermMemoryContext: [createRecentRecoveryMemory()],
       longTermProfile: createLongTermProfile(),
       worldDecisionContext: createWorldDecisionContext(),
@@ -135,6 +137,10 @@ describe('LLM contextual subtask prioritizer seam', () => {
       schemaName: 'aivilization_subtask_prioritization',
     });
     const requestContent = request?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"observedStateSummary"');
+    expect(requestContent).toContain(
+      '"energy=48 satiety=30 health=92 education=31 balance=191696904 residentialTier=5 job=Stock Clerk inventory=Fish:46,Apple:2"',
+    );
     expect(requestContent).toContain('"worldDecisionContext"');
     expect(requestContent).toContain('"shortTermMemoryContext"');
     expect(requestContent).toContain('"longTermProfile"');

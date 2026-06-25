@@ -79,6 +79,7 @@ export type DomainMicroPlannerContext = {
   readonly issuedAt: number;
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
@@ -162,6 +163,7 @@ export type AgentPlanningCycleInput = {
   readonly agentId: AgentId;
   readonly issuedAt: number;
   readonly plan: BranchPlan;
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly signals: readonly ContextSignal[];
   readonly intentionState?: AgentIntentionState;
@@ -206,6 +208,9 @@ export async function runAgentPlanningCycleWithPrioritization(
           plan: input.plan,
           signals: input.signals,
           candidates: prepared.subtaskCandidates,
+          ...(input.observedStateSummary === undefined
+            ? {}
+            : { observedStateSummary: input.observedStateSummary }),
           ...(input.progress === undefined ? {} : { progress: input.progress }),
           ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
           ...(input.shortTermMemoryContext === undefined
@@ -343,6 +348,9 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
           issuedAt: input.issuedAt,
           plan: input.plan,
           signals: input.signals,
+          ...(input.observedStateSummary === undefined
+            ? {}
+            : { observedStateSummary: input.observedStateSummary }),
           ...(input.progress === undefined ? {} : { progress: input.progress }),
           ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
           ...(input.shortTermMemoryContext === undefined
@@ -366,6 +374,9 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
           issuedAt: input.issuedAt,
           plan: input.plan,
           signals: input.signals,
+          ...(input.observedStateSummary === undefined
+            ? {}
+            : { observedStateSummary: input.observedStateSummary }),
           ...(input.progress === undefined ? {} : { progress: input.progress }),
           ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
           ...(input.shortTermMemoryContext === undefined
@@ -398,6 +409,9 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
       ...(input.actionSynthesis === undefined
         ? {}
         : { actionSynthesisPolicy: input.actionSynthesis }),
+      ...(input.observedStateSummary === undefined
+        ? {}
+        : { observedStateSummary: input.observedStateSummary }),
       ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
       ...(input.shortTermMemoryContext === undefined
         ? {}
@@ -617,6 +631,9 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
       plan: input.plan,
       signals: input.signals,
       progress: input.progress,
+      ...(input.observedStateSummary === undefined
+        ? {}
+        : { observedStateSummary: input.observedStateSummary }),
       replanningPolicy: input.replanningPolicy,
       replanningDecider: input.replanningDecider,
       subtaskCompletion: input.subtaskCompletion,
@@ -675,6 +692,9 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
     plan: input.plan,
     signals: input.signals,
     progress: input.progress,
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     replanningPolicy: input.replanningPolicy,
     replanningDecider: input.replanningDecider,
     subtaskCompletion: input.subtaskCompletion,
@@ -729,6 +749,9 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
       plan: input.plan,
       signals: input.signals,
       progress: input.progress,
+      ...(input.observedStateSummary === undefined
+        ? {}
+        : { observedStateSummary: input.observedStateSummary }),
       replanningPolicy: input.replanningPolicy,
       ...(input.replanningDecider === undefined
         ? {}
@@ -791,6 +814,9 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
           plan: input.plan,
           signals: input.signals,
           allowedCommandTypes: AGENT_ACTION_COMMAND_TYPES,
+          ...(input.observedStateSummary === undefined
+            ? {}
+            : { observedStateSummary: input.observedStateSummary }),
           ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
           ...(input.shortTermMemoryContext === undefined
             ? {}
@@ -817,6 +843,9 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
     plan: input.plan,
     signals: input.signals,
     progress: input.progress,
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     replanningPolicy: input.replanningPolicy,
     ...(input.replanningDecider === undefined
       ? {}
@@ -849,6 +878,7 @@ type FinalizeAgentCycleResultInput = {
   readonly issuedAt: number;
   readonly plan?: BranchPlan;
   readonly signals?: readonly ContextSignal[];
+  readonly observedStateSummary?: string;
   readonly intentionState?: AgentIntentionState;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly worldDecisionContext?: WorldDecisionContext;
@@ -919,6 +949,9 @@ async function finalizeAgentCycleResultWithAsyncReplanning(
     simulationResults: input.simulationResults,
     shortTermMemoryContext: input.shortTermMemoryContext ?? [],
     policy: normalizeReplanningPolicy(input.replanningPolicy),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.worldDecisionContext === undefined
@@ -1273,6 +1306,7 @@ async function collectSynthesisActionProposalsWithGeneration(input: {
   readonly issuedAt: number;
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
@@ -1312,6 +1346,9 @@ async function collectSynthesisActionProposalsWithGeneration(input: {
       selectedSubtask,
       signals: input.signals,
       deterministicActions,
+      ...(input.observedStateSummary === undefined
+        ? {}
+        : { observedStateSummary: input.observedStateSummary }),
       ...(input.progress === undefined ? {} : { progress: input.progress }),
       ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
       ...(input.shortTermMemoryContext === undefined
@@ -1343,6 +1380,9 @@ function createDomainMicroPlannerContext(
     issuedAt: input.issuedAt,
     plan: input.plan,
     signals: input.signals,
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.progress === undefined ? {} : { progress: input.progress }),
     ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
     ...(input.shortTermMemoryContext === undefined
@@ -1362,6 +1402,9 @@ function createDomainMicroPlannerInput(input: DomainMicroPlannerInput): DomainMi
     plan: input.plan,
     selectedSubtask: input.selectedSubtask,
     signals: input.signals,
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...(input.progress === undefined ? {} : { progress: input.progress }),
     ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
     ...(input.shortTermMemoryContext === undefined
@@ -1379,6 +1422,7 @@ async function applySocialDialogueGenerationToActions(input: {
   readonly issuedAt: number;
   readonly plan: BranchPlan;
   readonly signals: readonly ContextSignal[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
@@ -1423,6 +1467,9 @@ async function applySocialDialogueGenerationToActions(input: {
       action: socialAction,
       deterministicPayload,
       signals: input.signals,
+      ...(input.observedStateSummary === undefined
+        ? {}
+        : { observedStateSummary: input.observedStateSummary }),
       ...(input.progress === undefined ? {} : { progress: input.progress }),
       ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
       ...(input.shortTermMemoryContext === undefined

@@ -139,6 +139,51 @@ describe('canonical worker runtime resolver', () => {
     expect(resolvedAgentCounts).toEqual([2]);
   });
 
+  test('world dry-run simulator rolls accepted events into later counterfactual actions', () => {
+    const firstEat: AtomicActionProposal = {
+      id: 'eat-apple-1',
+      description: 'eat the only Apple',
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 1 },
+    };
+    const secondEat: AtomicActionProposal = {
+      id: 'eat-apple-2',
+      description: 'eat the Apple again',
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 1 },
+    };
+    const projection = createWorldProjection({
+      agents: [
+        {
+          ...createAgent(agentA),
+          inventory: { Apple: 1 },
+        },
+        createAgent(agentB),
+      ],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+    });
+    const simulate = createWorldCommandDryRunSimulator({
+      simulationId,
+      agentId: agentA,
+      projection,
+      policies,
+      issuedAt: 500,
+      nextSequence: 10,
+      commandIdPrefix: 'test-dry-run',
+    });
+
+    expect(simulate({ action: firstEat, selectedSubtask: selectedSubtask() })).toEqual({
+      status: 'accepted',
+      action: firstEat,
+    });
+    expect(simulate({ action: secondEat, selectedSubtask: selectedSubtask() })).toEqual({
+      status: 'rejected',
+      action: secondEat,
+      reason: 'insufficient Apple: required 1, available 0',
+    });
+    expect(projection.agents[agentA]?.inventory).toEqual({ Apple: 1 });
+  });
+
   test('returns undefined when no canonical or additional registration matches', async () => {
     const projection = createProjection();
     const resolver = createCanonicalWorkerRuntimeResolver({ simulationId, policies });

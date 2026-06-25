@@ -262,7 +262,9 @@ describe('local runtime town planner ablation suite', () => {
         { metricId: 'planner-plan-count', value: 1, higherIsBetter: true },
         { metricId: 'planner-mean-branch-count', value: 2, higherIsBetter: true },
         { metricId: 'planner-mean-subtask-count', value: 3, higherIsBetter: true },
+        { metricId: 'planner-mean-subtasks-per-branch', value: 1.5, higherIsBetter: true },
         { metricId: 'planner-single-branch-plan-ratio', value: 0, higherIsBetter: false },
+        { metricId: 'planner-multi-subtask-branch-ratio', value: 0.5, higherIsBetter: true },
         { metricId: 'planner-llm-source-count', value: 1, higherIsBetter: true },
       ]),
     );
@@ -271,7 +273,9 @@ describe('local runtime town planner ablation suite', () => {
         { metricId: 'planner-plan-count', value: 1, higherIsBetter: true },
         { metricId: 'planner-mean-branch-count', value: 1, higherIsBetter: true },
         { metricId: 'planner-mean-subtask-count', value: 1, higherIsBetter: true },
+        { metricId: 'planner-mean-subtasks-per-branch', value: 1, higherIsBetter: true },
         { metricId: 'planner-single-branch-plan-ratio', value: 1, higherIsBetter: false },
+        { metricId: 'planner-multi-subtask-branch-ratio', value: 0, higherIsBetter: true },
         { metricId: 'planner-deterministic-source-count', value: 1, higherIsBetter: true },
       ]),
     );

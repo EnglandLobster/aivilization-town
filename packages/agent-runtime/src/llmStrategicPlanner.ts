@@ -7,6 +7,7 @@ import type {
   LlmStructuredSuccess,
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   createBranchPlan,
   type BranchPlan,
@@ -20,10 +21,7 @@ import {
   type StrategicPlanCompiler,
   type StrategicPlanCompilerInput,
 } from './strategicPlanning';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
 
 export type LlmStrategicBranchPlanProposal = {
   readonly objective: string;
@@ -145,7 +143,7 @@ export function createTraceableLlmStrategicPlanCompiler(input: {
 
     return {
       plan: result.plan,
-      planningTrace: mapLlmStrategicPlanTrace(result, compilerInput.worldDecisionContext),
+      planningTrace: mapLlmStrategicPlanTrace(result, compilerInput),
     };
   };
 }
@@ -219,6 +217,15 @@ function createStrategicPlannerMessages(
           updatedAt: input.objective.updatedAt,
         },
         issuedAt: input.issuedAt,
+        shortTermMemoryContext: (input.shortTermMemoryContext ?? []).map((record) => ({
+          id: record.id,
+          kind: record.kind,
+          status: record.status,
+          summary: record.summary,
+          occurredAt: record.occurredAt,
+          importanceScore: record.importanceScore,
+          tags: record.tags,
+        })),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
         ...(input.worldDecisionContext === undefined
           ? {}
@@ -228,6 +235,7 @@ function createStrategicPlannerMessages(
           'Subtask ids must be unique across the full plan.',
           'Dependencies must refer only to earlier subtasks in the same branch.',
           'Use affinity tags so deterministic memory, intention, and profile scoring can evaluate subtasks.',
+          'When recent memory changes the strategy, reflect it through memoryAffinityTags on affected subtasks.',
         ],
       }),
     },
@@ -307,6 +315,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
   const fallbackOutput = await input.fallbackCompiler?.({
     objective: input.objective,
     issuedAt: input.issuedAt,
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.shortTermMemoryContext }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.worldDecisionContext === undefined
       ? {}
@@ -319,6 +330,9 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
   return compileStrategicObjectiveToBranchPlan({
     objective: input.objective,
     issuedAt: input.issuedAt,
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.shortTermMemoryContext }),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     ...(input.worldDecisionContext === undefined
       ? {}
@@ -328,7 +342,7 @@ async function compileFallbackPlan(input: LlmStrategicPlanCompilerInput): Promis
 
 function mapLlmStrategicPlanTrace(
   result: LlmStrategicPlanResult,
-  worldDecisionContext: WorldDecisionContext | undefined,
+  compilerInput: StrategicPlanCompilerInput,
 ): StrategicPlanCompilationTrace {
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
@@ -349,14 +363,24 @@ function mapLlmStrategicPlanTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
-    ...mapWorldDecisionContextTrace(worldDecisionContext),
+    ...createLlmCognitiveContextTrace({
+      ...(compilerInput.shortTermMemoryContext === undefined
+        ? {}
+        : { shortTermMemoryContext: compilerInput.shortTermMemoryContext }),
+      ...(compilerInput.longTermProfile === undefined
+        ? {}
+        : { longTermProfile: compilerInput.longTermProfile }),
+    }),
+    ...mapWorldDecisionContextTrace(compilerInput.worldDecisionContext),
   };
 }
 
 function mapWorldDecisionContextTrace(
   context: WorldDecisionContext | undefined,
 ): Pick<StrategicPlanCompilationTrace, 'worldDecisionContext'> {
-  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmStrategicPlanResult): LlmStructuredResult<BranchPlan> {

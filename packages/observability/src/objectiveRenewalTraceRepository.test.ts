@@ -47,6 +47,8 @@ describe('objective renewal trace repositories', () => {
           totalTokens: 18,
           estimatedCostMicros: 47,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 2 },
         worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
         attempts: [
           {

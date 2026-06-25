@@ -2,7 +2,12 @@ import type {
   LongHorizonObjective,
   LongTermAgentProfile,
   LongTermProfileEntry,
+  ShortTermMemoryRecord,
 } from '@aivilization/memory';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import {
   createBranchPlan,
   type BranchPlan,
@@ -14,6 +19,7 @@ import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDec
 export type StrategicPlanCompilerInput = {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;
   readonly worldDecisionContext?: WorldDecisionContext;
 };
@@ -44,6 +50,8 @@ export type StrategicPlanCompilationTrace = {
   readonly message?: string;
   readonly attempts?: readonly StrategicPlanCompilationAttemptTrace[];
   readonly usage?: StrategicPlanCompilationUsage;
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

@@ -768,6 +768,8 @@ function createAcceptedCognitionLlmStageDiagnostics(
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingProviderTraceCount: 0,
+    shortTermMemoryContextCount: 1,
+    longTermProfileContextCount: 1,
     worldDecisionContextCount: 1,
     completeWorldDecisionContextCount: 1,
     rulesContextCount: 1,

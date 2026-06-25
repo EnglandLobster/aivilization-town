@@ -9,6 +9,7 @@ import type {
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { asMemoryRecordId } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   compileDeterministicDailyPlan,
   createDailyPlan,
@@ -20,10 +21,7 @@ import {
   type DailyPlanItem,
   type DailyPlanItemSource,
 } from './dailyPlanning';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
 
 export type LlmDailyPlanProposal = DailyPlan;
 
@@ -140,7 +138,7 @@ export function createTraceableLlmDailyPlanCompiler(input: {
 
     return {
       plan: result.plan,
-      planningTrace: mapLlmDailyPlanTrace(result, compilerInput.worldDecisionContext),
+      planningTrace: mapLlmDailyPlanTrace(result, compilerInput),
     };
   };
 }
@@ -313,7 +311,7 @@ async function compileFallbackPlan(input: LlmDailyPlanCompilerInput): Promise<Da
 
 function mapLlmDailyPlanTrace(
   result: LlmDailyPlanResult,
-  worldDecisionContext: WorldDecisionContext | undefined,
+  compilerInput: DailyPlanCompilerInput,
 ): DailyPlanCompilationTrace {
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
@@ -334,14 +332,24 @@ function mapLlmDailyPlanTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
-    ...mapWorldDecisionContextTrace(worldDecisionContext),
+    ...createLlmCognitiveContextTrace({
+      ...(compilerInput.memoryContext === undefined
+        ? {}
+        : { shortTermMemoryContext: compilerInput.memoryContext }),
+      ...(compilerInput.longTermProfile === undefined
+        ? {}
+        : { longTermProfile: compilerInput.longTermProfile }),
+    }),
+    ...mapWorldDecisionContextTrace(compilerInput.worldDecisionContext),
   };
 }
 
 function mapWorldDecisionContextTrace(
   context: WorldDecisionContext | undefined,
 ): Pick<DailyPlanCompilationTrace, 'worldDecisionContext'> {
-  return context === undefined ? {} : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function getGatewayResult(result: LlmDailyPlanResult): LlmStructuredResult<DailyPlan> {

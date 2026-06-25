@@ -28,6 +28,8 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -76,6 +78,12 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmRulesContextStages =
     input.requiredCognitionLlmRulesContextStages ??
     deriveRequiredCognitionLlmRulesContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmMemoryContextStages =
+    input.requiredCognitionLlmMemoryContextStages ??
+    deriveRequiredCognitionLlmMemoryContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmProfileContextStages =
+    input.requiredCognitionLlmProfileContextStages ??
+    deriveRequiredCognitionLlmProfileContextStagesFromRuntimeConfig(input.runtimeConfig);
   const minimumSimulatorRolloutCoverageRatio =
     input.minimumSimulatorRolloutCoverageRatio ??
     profileDefaults.minimumSimulatorRolloutCoverageRatio;
@@ -146,6 +154,12 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmRulesContextStages.length === 0
       ? {}
       : { requiredCognitionLlmRulesContextStages }),
+    ...(requiredCognitionLlmMemoryContextStages.length === 0
+      ? {}
+      : { requiredCognitionLlmMemoryContextStages }),
+    ...(requiredCognitionLlmProfileContextStages.length === 0
+      ? {}
+      : { requiredCognitionLlmProfileContextStages }),
     ...(minimumSimulatorRolloutCoverageRatio === undefined
       ? {}
       : { minimumSimulatorRolloutCoverageRatio }),
@@ -303,6 +317,35 @@ export function deriveRequiredCognitionLlmRulesContextStagesFromRuntimeConfig(
   }
   if (runtimeConfig.socialModelSynthesis !== undefined) {
     stages.push('socialModelSynthesis');
+  }
+  return stages;
+}
+
+export function deriveRequiredCognitionLlmMemoryContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  return deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveRequiredCognitionLlmProfileContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  return deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(runtimeConfig);
+}
+
+function deriveRequiredStrategicAndDailyCognitionStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileCognitionLlmStageName[] = [];
+  if (runtimeConfig.strategicPlanning !== undefined) {
+    stages.push('strategicPlanning');
+  }
+  if (runtimeConfig.dailyPlanning !== undefined) {
+    stages.push('dailyPlanning');
   }
   return stages;
 }

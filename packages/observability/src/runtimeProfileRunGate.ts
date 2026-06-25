@@ -36,6 +36,8 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -185,6 +187,16 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmRulesContextStages ?? [],
+  );
+  addRequiredCognitionLlmMemoryContextStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmMemoryContextStages ?? [],
+  );
+  addRequiredCognitionLlmProfileContextStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmProfileContextStages ?? [],
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -636,6 +648,66 @@ function addRequiredCognitionLlmRulesContextStageFailures(
         stageName,
         actual,
         rulesContextCount,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmMemoryContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.shortTermMemoryContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-memory-context-count-too-low',
+      message: `cognition LLM stage ${stageName} shortTermMemoryContextCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmProfileContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.longTermProfileContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-profile-context-count-too-low',
+      message: `cognition LLM stage ${stageName} longTermProfileContextCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
         llmAcceptedCount,
         minimum,
       },

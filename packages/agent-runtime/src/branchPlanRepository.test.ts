@@ -168,9 +168,7 @@ describe('branch plan repositories', () => {
     await expect(restarted.query({ planId: 'plan-1', fromUpdatedAt: 250 })).resolves.toEqual([
       createPlanRecord({ planId: 'plan-1', basePriority: 9, updatedAt: 400 }),
     ]);
-    await expect(restarted.query({ limit: 0 })).rejects.toThrow(
-      'limit must be a positive integer',
-    );
+    await expect(restarted.query({ limit: 0 })).rejects.toThrow('limit must be a positive integer');
   });
 });
 
@@ -233,6 +231,25 @@ function createPlanningTrace(): StrategicPlanCompilationTrace {
       outputTokens: 2,
       totalTokens: 3,
       estimatedCostMicros: 4,
+    },
+    shortTermMemoryContext: { recordCount: 2 },
+    longTermProfileContext: { entryCount: 3 },
+    worldDecisionContext: {
+      agentId,
+      hasLocationId: true,
+      hasPhysiology: true,
+      hasJob: true,
+      hasBalance: true,
+      hasEducationScore: true,
+      hasResidentialTier: true,
+      hasInventory: true,
+      inventoryItemCount: 2,
+      marketSpotPriceCount: 1,
+      hasLatestPriceIndex: true,
+      occupationRuleCount: 0,
+      eligibleOccupationRuleCount: 0,
+      productionRuleCount: 0,
+      producibleCommodityRuleCount: 0,
     },
   };
 }

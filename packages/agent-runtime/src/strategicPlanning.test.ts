@@ -1,6 +1,9 @@
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { compileStrategicObjectiveToBranchPlan } from './index';
+import {
+  compileStrategicObjectiveToBranchPlan,
+  compileStrategicObjectiveWithoutObjectiveDecomposition,
+} from './index';
 
 const agentId = asAgentId('agent-1');
 
@@ -101,6 +104,62 @@ describe('strategic objective planning', () => {
         },
       ],
     });
+  });
+
+  test('compiles without-objective-decomposition ablations into direct domain action branches', () => {
+    const statement =
+      'Study, earn money, craft Chip, trade resources, and maintain health for long-term growth.';
+    const result = compileStrategicObjectiveWithoutObjectiveDecomposition({
+      objective: {
+        id: 'objective-without-od',
+        agentId,
+        statement,
+        priority: 3,
+        source: 'system',
+        affinityTags: ['study', 'work', 'production', 'trade', 'health'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(result.planningTrace).toEqual({
+      status: 'deterministic',
+      source: 'deterministic',
+      message: 'Planner ablation without objective decomposition',
+    });
+    expect(result.plan.objective).toBe(statement);
+    expect(result.plan.branches.map((branch) => branch.id)).toEqual([
+      'without-objective-decomposition-development',
+      'without-objective-decomposition-health',
+      'without-objective-decomposition-employment',
+      'without-objective-decomposition-production',
+      'without-objective-decomposition-market',
+    ]);
+    expect(result.plan.branches.every((branch) => branch.subtasks.length === 1)).toBe(true);
+    expect(
+      result.plan.branches.flatMap((branch) => branch.subtasks.map((subtask) => subtask.id)),
+    ).toEqual([
+      'study-direct-action',
+      'health-direct-action',
+      'work-direct-action',
+      'production-direct-action',
+      'trade-direct-action',
+    ]);
+    expect(result.plan.branches[0]?.subtasks[0]).toMatchObject({
+      description:
+        'Directly generate study actions without structured objective decomposition: Study toward the long-horizon objective.',
+      basePriority: 13,
+      signalKeys: ['health', 'production', 'study', 'trade', 'work'],
+      intentionAffinityTags: ['study'],
+      memoryAffinityTags: ['study'],
+      profileAffinityTags: ['study'],
+    });
+    expect(
+      result.plan.branches.flatMap((branch) =>
+        branch.subtasks.flatMap((subtask) => subtask.dependsOnSubtaskIds ?? []),
+      ),
+    ).toEqual([]);
   });
 
   test('compiles health recovery objectives into see-doctor branches', () => {

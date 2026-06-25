@@ -2,6 +2,7 @@ import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import { proposeSocialLongTermMemoryPatches } from './consolidation';
 import type { LongTermAgentProfile, LongTermMemoryPatch } from './profile';
 import type { ShortTermMemoryRecord } from './records';
+import type { MemorySynthesisWorldDecisionContext } from './worldContext';
 import {
   proposeSocialInteractionReflections,
   type SocialInteractionReflectionRecord,
@@ -56,6 +57,7 @@ export type SocialModelSynthesizerInput = {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly generatedAt: SimulationTimestamp;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 };
 
 export type SocialModelSynthesisResult = {

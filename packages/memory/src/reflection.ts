@@ -1,6 +1,7 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { LongTermAgentProfile, LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
+import type { MemorySynthesisWorldDecisionContext } from './worldContext';
 
 export type ReflectiveInsightKind = 'habit' | 'caution' | 'mood' | 'value' | 'personality';
 
@@ -31,6 +32,7 @@ export type ReflectiveInsightSynthesizerInput = {
   readonly minEvidenceCount: number;
   readonly generatedAt: SimulationTimestamp;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 };
 
 export type ReflectiveInsightSynthesisUsage = {

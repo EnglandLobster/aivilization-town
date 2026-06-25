@@ -84,6 +84,7 @@ describe('LLM reflective insight synthesizer seam', () => {
         personality: [],
         socialRecords: [],
       },
+      worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'reflection-model',
       requestId: 'reflection-agent-1-900',
@@ -146,6 +147,12 @@ describe('LLM reflective insight synthesizer seam', () => {
     expect(requestContent).toContain('"allowedInsightKinds"');
     expect(requestContent).toContain('"longTermProfile"');
     expect(requestContent).toContain('"frugality"');
+    expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"balance":191696904');
+    expect(requestContent).toContain('"educationScore":31');
+    expect(requestContent).toContain('"residentialTier":5');
+    expect(requestContent).toContain('"Fish":46');
+    expect(requestContent).toContain('"spotPrice":304.5');
   });
 
   test('falls back to deterministic reflection when the provider fails', async () => {
@@ -309,4 +316,28 @@ function createMemory(input: {
     source: { eventIds: [] },
     tags: input.tags ?? ['study', 'education'],
   });
+}
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 72, satiety: 41, health: 93 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'stock-clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 100,
+        recordedAt: 200,
+        overall: 1.25,
+        ratios: { Fish: 1.4 },
+      },
+    },
+  };
 }

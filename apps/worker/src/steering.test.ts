@@ -7,6 +7,7 @@ import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
@@ -147,6 +148,64 @@ describe('worker steering ingress', () => {
         },
       ],
     });
+  });
+
+  test('passes the updated long-term profile into strategic plan compilers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    let compilerProfile: LongTermAgentProfile | undefined;
+    const command = createCommandEnvelope({
+      id: 'cmd-objective-study',
+      simulationId: 'sim-1',
+      actorId: 'agent-1',
+      source: 'human',
+      type: 'SetLongHorizonObjective',
+      payload: {
+        objectiveId: 'objective-study',
+        statement: 'Study before high-tech production.',
+        priority: 2,
+        affinityTags: ['study', 'education'],
+      },
+      issuedAt: 100,
+    });
+
+    await handleWorkerSteeringCommand({
+      command,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      strategicPlanCompiler: (input) => {
+        compilerProfile = input.longTermProfile;
+        return createBranchPlan({
+          objective: input.objective.statement,
+          branches: [
+            {
+              id: 'compiler-observed-profile',
+              objective: 'Compiler observed profile context.',
+              subtasks: [
+                {
+                  id: 'study',
+                  description: 'Study with profile context.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        });
+      },
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(compilerProfile?.values).toEqual([
+      expect.objectContaining({
+        key: 'human-objective:objective-study',
+        provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
+      }),
+    ]);
   });
 
   test('compiles SetLongHorizonObjective into a durable branch plan when repository is provided', async () => {

@@ -647,6 +647,73 @@ describe('worker objective renewal', () => {
     });
     expect(traces).toEqual([result[0]?.decisionTrace]);
   });
+
+  test('passes loaded long-term profile context into autonomous strategic plan compilers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 150 })]);
+    let compilerProfile: LongTermAgentProfile | undefined;
+
+    await longTermProfileRepository.applyPatches(agentA, [
+      {
+        id: 'ltm-patch-agent-a-value-study-before-production-100',
+        agentId: agentA,
+        section: 'values',
+        key: 'human-objective:study-before-production',
+        statement: 'Human steering set long-horizon objective: Study before high-tech production.',
+        confidence: 0.95,
+        provenanceRecordIds: [asMemoryRecordId('cmd-study:strategic-objective')],
+        proposedAt: 100,
+      },
+    ]);
+
+    await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 200,
+      objectiveProposer: (input) => ({
+        id: 'objective-profile-aware-production',
+        agentId: input.agentId,
+        statement: 'Craft Chip for the electronics market.',
+        priority: 2,
+        source: 'agent',
+        affinityTags: ['production'],
+        createdAt: 200,
+        updatedAt: 200,
+      }),
+      strategicPlanCompiler: (input) => {
+        compilerProfile = input.longTermProfile;
+        return createBranchPlan({
+          objective: input.objective.statement,
+          branches: [
+            {
+              id: 'profile-aware-production',
+              objective: 'Use profile context while planning production.',
+              subtasks: [
+                {
+                  id: 'produce-target',
+                  description: 'Produce with profile context.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        });
+      },
+    });
+
+    expect(compilerProfile?.values).toEqual([
+      expect.objectContaining({
+        key: 'human-objective:study-before-production',
+        provenanceRecordIds: ['cmd-study:strategic-objective'],
+      }),
+    ]);
+  });
 });
 
 function createProjection(agents: readonly WorldAgentState[]) {

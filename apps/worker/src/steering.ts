@@ -93,6 +93,7 @@ export async function handleWorkerSteeringCommand(input: {
       const planRecord = await createAndSaveStrategicPlanRecord({
         objective,
         issuedAt: input.command.issuedAt,
+        ...(longTermProfile === undefined ? {} : { longTermProfile }),
         ...(input.planRepository === undefined ? {} : { planRepository: input.planRepository }),
         ...(input.strategicPlanCompiler === undefined
           ? {}
@@ -138,6 +139,7 @@ export async function handleWorkerSteeringCommand(input: {
 async function createAndSaveStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
+  readonly longTermProfile?: LongTermAgentProfile;
   readonly planRepository?: BranchPlanRepository;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
 }): Promise<BranchPlanRecord | undefined> {
@@ -147,7 +149,11 @@ async function createAndSaveStrategicPlanRecord(input: {
 
   const compile = input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
   const compiled = normalizeStrategicPlanCompilerOutput(
-    await compile({ objective: input.objective, issuedAt: input.issuedAt }),
+    await compile({
+      objective: input.objective,
+      issuedAt: input.issuedAt,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    }),
   );
   const planRecord = {
     planId: input.objective.id,

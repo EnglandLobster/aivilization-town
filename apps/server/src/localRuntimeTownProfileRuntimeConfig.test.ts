@@ -532,6 +532,92 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toEqual({});
   });
 
+  test('loads reflection synthesis config with profile overrides and env secrets', async () => {
+    const document = JSON.stringify({
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        model: 'global-reflection',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-reflection-provider',
+          endpoint: 'https://reflection.example.test/v1/chat/completions',
+        },
+      },
+      profiles: {
+        'default-100': {
+          reflectionSynthesis: {
+            kind: 'traceable-llm-reflective-insight-synthesizer',
+            model: 'profile-reflection',
+            provider: {
+              kind: 'openai-compatible',
+              providerId: 'profile-reflection-provider',
+              endpoint: 'https://reflection-profile.example.test/v1/chat/completions',
+              apiKey: { env: 'REFLECTION_KEY' },
+            },
+            maxAttempts: 2,
+            timeoutMs: 12_000,
+            pricing: {
+              inputTokenCostMicros: 3,
+              outputTokenCostMicros: 7,
+            },
+          },
+        },
+        'smoke-25': {
+          reflectionSynthesis: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        env: { REFLECTION_KEY: 'reflection-secret' },
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        profileId: 'default-100',
+        model: 'profile-reflection',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-reflection-provider',
+          endpoint: 'https://reflection-profile.example.test/v1/chat/completions',
+          apiKey: 'reflection-secret',
+        },
+        maxAttempts: 2,
+        timeoutMs: 12_000,
+        pricing: {
+          inputTokenCostMicros: 3,
+          outputTokenCostMicros: 7,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'headless-stress-1000',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toMatchObject({
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        profileId: 'headless-stress-1000',
+        model: 'global-reflection',
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
+  });
+
   test('rejects missing env secrets before provider construction', async () => {
     await expect(
       loadLocalRuntimeTownProfileLlmPlanningConfig({
@@ -682,6 +768,29 @@ describe('local runtime town profile runtime config', () => {
           ),
       }),
     ).rejects.toThrow('reactiveCorrection.provider.kind must be openai-compatible');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              reflectionSynthesis: {
+                kind: 'traceable-llm-global-synthesizer',
+                model: 'reflection-model',
+                provider: {
+                  kind: 'openai-compatible',
+                  providerId: 'reflection-provider',
+                  endpoint: 'https://reflection.example.test/v1/chat/completions',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow(
+      'reflectionSynthesis.kind must be traceable-llm-reflective-insight-synthesizer',
+    );
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({

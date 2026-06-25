@@ -56,6 +56,9 @@ importers:
       '@aivilization/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@aivilization/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability

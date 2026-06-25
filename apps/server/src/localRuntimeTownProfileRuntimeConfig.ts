@@ -13,6 +13,8 @@ import type {
   LocalRuntimeTownProfileReactiveCorrectorConfig,
   LocalRuntimeTownProfileReactionEvaluatorConfig,
   LocalRuntimeTownProfileReactionPlanningConfig,
+  LocalRuntimeTownProfileReflectionSynthesisConfig,
+  LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
   LocalRuntimeTownProfileSubtaskPrioritizationConfig,
   LocalRuntimeTownProfileSubtaskPrioritizerConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
@@ -47,6 +49,7 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGenerationConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesisConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectionConfig;
+  readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectionSynthesisConfig;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
 
@@ -171,6 +174,15 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const reflectionSynthesis = parseReflectionSynthesisNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'reflectionSynthesis',
+    }),
+    env,
+  });
 
   return {
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
@@ -180,6 +192,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(actionSequenceGeneration === undefined ? {} : { actionSequenceGeneration }),
     ...(globalSynthesis === undefined ? {} : { globalSynthesis }),
     ...(reactiveCorrection === undefined ? {} : { reactiveCorrection }),
+    ...(reflectionSynthesis === undefined ? {} : { reflectionSynthesis }),
     ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
   };
 }
@@ -464,6 +477,48 @@ function parseReactiveCorrectionNode(input: {
   };
 }
 
+function parseReflectionSynthesisNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'reflectionSynthesis');
+  const kind = readRequiredString(record.kind, 'reflectionSynthesis.kind');
+  if (kind !== 'traceable-llm-reflective-insight-synthesizer') {
+    throw new Error(
+      `reflectionSynthesis.kind must be traceable-llm-reflective-insight-synthesizer`,
+    );
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'reflectionSynthesis.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(
+    record.timeoutMs,
+    'reflectionSynthesis.timeoutMs',
+  );
+  const pricing = parseOptionalPricing(record.pricing, 'reflectionSynthesis');
+
+  return {
+    kind: 'traceable-llm-reflective-insight-synthesizer',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'reflectionSynthesis.model'),
+    provider: parseOpenAiCompatibleProviderConfig(
+      record.provider,
+      input.env,
+      'reflectionSynthesis',
+    ),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
 function parseReplanningPolicyNode(input: {
   readonly node: unknown;
 }): AdaptiveReplanningPolicy | undefined {
@@ -496,6 +551,7 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'actionSequenceGeneration'
   | 'globalSynthesis'
   | 'reactiveCorrection'
+  | 'reflectionSynthesis'
   | 'replanningPolicy';
 
 function parseOpenAiCompatibleProviderConfig(

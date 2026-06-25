@@ -7,7 +7,6 @@ import type {
   LlmStructuredSuccess,
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
-import type { MemoryRecordId } from './records';
 import { asMemoryRecordId } from './records';
 import {
   applyReflectiveInsightProposal,

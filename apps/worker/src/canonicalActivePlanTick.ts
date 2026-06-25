@@ -73,6 +73,10 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
+  readonly materializeFullReplan?: {
+    readonly strategicPlanCompiler?: StrategicPlanCompiler;
+    readonly resetProgress?: boolean;
+  };
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: WorkerTickMarketObservationsInput;
@@ -193,6 +197,9 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.marketObservations === undefined
       ? {}
       : { marketObservations: input.marketObservations }),
+    ...(input.materializeFullReplan === undefined
+      ? {}
+      : { materializeFullReplan: input.materializeFullReplan }),
     ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),
     ...(input.checkpointing === undefined ? {} : { checkpointing: input.checkpointing }),
     ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),

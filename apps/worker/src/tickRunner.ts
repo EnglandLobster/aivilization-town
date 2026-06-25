@@ -8,6 +8,7 @@ import type {
   CycleSubtaskCompletionPolicy,
   DomainMicroPlanner,
   ReactionEvaluator,
+  StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -156,6 +157,10 @@ type WorkerTickBaseInput = {
   readonly marketObservations?: WorkerTickMarketObservationsInput;
   readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
   readonly reactionEvaluationTraceSink?: WorkerReactionEvaluationTraceSink;
+  readonly materializeFullReplan?: {
+    readonly strategicPlanCompiler?: StrategicPlanCompiler;
+    readonly resetProgress?: boolean;
+  };
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -244,6 +249,9 @@ export async function runWorkerSimulationTick(
       ...(agent.subtaskCompletion === undefined
         ? {}
         : { subtaskCompletion: agent.subtaskCompletion }),
+      ...(input.materializeFullReplan === undefined
+        ? {}
+        : { materializeFullReplan: input.materializeFullReplan }),
       expectedVersion,
       ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),
     });

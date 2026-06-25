@@ -1151,6 +1151,63 @@ describe('local runtime town profile runner', () => {
       )?.worldDecisionContextCount,
     ).toBe(1);
   });
+
+  test('creates a default memory consolidation schedule for configured memory synthesis', async () => {
+    const rootDir = createRootDir();
+    const observedReflectionRequestIds: string[] = [];
+    const observedSocialModelRequestIds: string[] = [];
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 280,
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        profileId: 'smoke-25',
+        model: 'profile-reflection-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-reflection',
+          responses: createEmptyReflectionResponses(100, observedReflectionRequestIds),
+        },
+      },
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        profileId: 'smoke-25',
+        model: 'profile-social-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-social-model',
+          responses: createEmptySocialModelResponses(100, observedSocialModelRequestIds),
+        },
+      },
+    });
+
+    expect(observedReflectionRequestIds.length).toBeGreaterThan(0);
+    expect(observedSocialModelRequestIds.length).toBeGreaterThan(0);
+    expect(observedReflectionRequestIds[0]).toMatch(
+      /^profile-llm-reflection-synthesis:smoke-25:smoke-25-world-main-agent-\d{3}:280$/,
+    );
+    expect(observedSocialModelRequestIds[0]).toMatch(
+      /^profile-llm-social-model-synthesis:smoke-25:smoke-25-world-main-agent-\d{3}:280$/,
+    );
+
+    const reflectionDiagnostics = summary.cognitionLlmStageDiagnostics?.find(
+      (stage) => stage.stageName === 'reflectionSynthesis',
+    );
+    const socialModelDiagnostics = summary.cognitionLlmStageDiagnostics?.find(
+      (stage) => stage.stageName === 'socialModelSynthesis',
+    );
+    expect(reflectionDiagnostics?.llmAcceptedCount).toBeGreaterThan(0);
+    expect(reflectionDiagnostics?.worldDecisionContextCount).toBe(
+      reflectionDiagnostics?.llmAcceptedCount,
+    );
+    expect(socialModelDiagnostics?.llmAcceptedCount).toBeGreaterThan(0);
+    expect(socialModelDiagnostics?.worldDecisionContextCount).toBe(
+      socialModelDiagnostics?.llmAcceptedCount,
+    );
+  });
 });
 
 function createRootDir(): string {

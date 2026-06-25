@@ -425,15 +425,27 @@ function createProfileMemoryConsolidationSchedule(input: {
   readonly reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer | undefined;
   readonly socialModelSynthesizer: SocialModelSynthesizer | undefined;
 }): LocalSimulationLifecycleMemoryConsolidationSchedule | undefined {
+  const hasReflectiveInsightSynthesizer = input.reflectiveInsightSynthesizer !== undefined;
+  const hasSocialModelSynthesizer = input.socialModelSynthesizer !== undefined;
   if (input.schedule === undefined) {
-    return undefined;
+    if (!hasReflectiveInsightSynthesizer && !hasSocialModelSynthesizer) {
+      return undefined;
+    }
+    return {
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      ...(hasReflectiveInsightSynthesizer
+        ? { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }
+        : {}),
+      ...(hasSocialModelSynthesizer
+        ? { socialModelSynthesizer: input.socialModelSynthesizer }
+        : {}),
+    };
   }
   const shouldInjectReflectiveInsightSynthesizer =
-    input.schedule.reflectiveInsightSynthesizer === undefined &&
-    input.reflectiveInsightSynthesizer !== undefined;
+    input.schedule.reflectiveInsightSynthesizer === undefined && hasReflectiveInsightSynthesizer;
   const shouldInjectSocialModelSynthesizer =
-    input.schedule.socialModelSynthesizer === undefined &&
-    input.socialModelSynthesizer !== undefined;
+    input.schedule.socialModelSynthesizer === undefined && hasSocialModelSynthesizer;
   if (!shouldInjectReflectiveInsightSynthesizer && !shouldInjectSocialModelSynthesizer) {
     return input.schedule;
   }

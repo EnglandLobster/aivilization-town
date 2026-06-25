@@ -13,6 +13,7 @@ import {
 } from './localExperimentValidationSchedule';
 import {
   runWorkerMemoryConsolidationSchedule,
+  type WorkerMemoryConsolidationReflectionTrigger,
   type WorkerMemoryConsolidationScheduleResult,
 } from './memoryConsolidation';
 
@@ -95,6 +96,7 @@ export type LocalSimulationLifecycleMemoryConsolidationSchedule = {
   readonly agentIds?: readonly AgentId[];
   readonly retrievalLimit: number;
   readonly minPatternCount: number;
+  readonly reflectionTrigger?: WorkerMemoryConsolidationReflectionTrigger;
 };
 
 export type LocalSimulationLifecycleControllerInput = Omit<
@@ -530,6 +532,9 @@ async function runLifecycleMemoryConsolidation(input: {
         cursorStore: input.controllerInput.storage.memoryConsolidationCursorStore,
         retrievalLimit: input.schedule.retrievalLimit,
         minPatternCount: input.schedule.minPatternCount,
+        ...(input.schedule.reflectionTrigger === undefined
+          ? {}
+          : { reflectionTrigger: input.schedule.reflectionTrigger }),
         proposedAt: input.request.requestedAt,
       }),
     };

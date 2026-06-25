@@ -1,5 +1,6 @@
 export * from './localRuntimeTownOrchestration';
 export * from './localRuntimeTownPlannerAblationSuite';
+export * from './localRuntimeTownPlannerAblationStructureGate';
 export * from './localRuntimeTownProfileGate';
 export * from './localRuntimeTownProfileGateSuite';
 export * from './localRuntimeTownProfileDefaults';

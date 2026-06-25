@@ -16,6 +16,10 @@ import type {
   LocalWorldRuntimeAgentProvider,
   WorldCommandPolicySource,
 } from '@aivilization/worker';
+import {
+  evaluateLocalRuntimeTownPlannerAblationStructureGate,
+  type LocalRuntimeTownPlannerAblationStructureGateResult,
+} from './localRuntimeTownPlannerAblationStructureGate';
 import type { LocalRuntimeTownProfileStrategicCompilerConfig } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfilePlannerOutcomeMetrics } from './localRuntimeTownPlannerOutcomeMetrics';
 import { createLocalRuntimeTownProfilePlannerShapeMetrics } from './localRuntimeTownPlannerShapeMetrics';
@@ -73,10 +77,13 @@ export type LocalRuntimeTownPlannerAblationSuiteVariantResult = {
   readonly rootDir: string;
   readonly summary: LocalRuntimeTownProfileRunnerSummary;
   readonly report: RuntimeProfileRunReport;
+  readonly structureGate: LocalRuntimeTownPlannerAblationStructureGateResult;
 };
 
 export type LocalRuntimeTownPlannerAblationSuiteSummary = {
   readonly status: 'completed';
+  readonly structureStatus: 'pass' | 'fail';
+  readonly structureFailureCount: number;
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
   readonly taskId: string;
   readonly requestedAt: SimulationTimestamp;
@@ -150,6 +157,10 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
         metrics: await createMetrics(summary, variant),
       },
     });
+    const structureGate = evaluateLocalRuntimeTownPlannerAblationStructureGate({
+      variant: variant.variant,
+      metrics: report.plannerExperiment?.metrics ?? [],
+    });
 
     if (reportRepository !== undefined) {
       await reportRepository.record(report);
@@ -159,11 +170,15 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
       rootDir: variantRootDir,
       summary,
       report,
+      structureGate,
     });
   }
+  const structureFailureCount = sumBy(results, (result) => result.structureGate.failureCount);
 
   return {
     status: 'completed',
+    structureStatus: structureFailureCount === 0 ? 'pass' : 'fail',
+    structureFailureCount,
     profileId: input.profileId,
     taskId: input.taskId,
     requestedAt: input.requestedAt,
@@ -291,4 +306,8 @@ function assertNonNegativeFinite(value: number, label: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be a non-negative finite number`);
   }
+}
+
+function sumBy<TValue>(values: readonly TValue[], project: (value: TValue) => number): number {
+  return values.reduce((total, value) => total + project(value), 0);
 }

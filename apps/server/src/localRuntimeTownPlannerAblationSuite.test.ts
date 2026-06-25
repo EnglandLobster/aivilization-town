@@ -254,6 +254,14 @@ describe('local runtime town planner ablation suite', () => {
       },
     });
 
+    expect(result.structureStatus).toBe('pass');
+    expect(result.structureFailureCount).toBe(0);
+    expect(result.variants.map((variant) => variant.structureGate.status)).toEqual([
+      'pass',
+      'pass',
+      'pass',
+    ]);
+
     const defaultMetrics = result.variants[0]?.report.plannerExperiment?.metrics ?? [];
     const withoutBranchMetrics = result.variants[1]?.report.plannerExperiment?.metrics ?? [];
 
@@ -279,6 +287,47 @@ describe('local runtime town planner ablation suite', () => {
         { metricId: 'planner-deterministic-source-count', value: 1, higherIsBetter: true },
       ]),
     );
+  });
+
+  test('fails planner ablation structure gate when a variant violates the paper ablation shape', async () => {
+    const result = await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir: '/tmp/aivilization-planner-ablation',
+      profileId: 'smoke-25',
+      taskId: 'high-tech-production',
+      requestedAt: 450,
+      variants: [{ variant: 'default' }, { variant: 'without-objective-decomposition' }],
+      createMetrics: (_summary, variant) =>
+        variant.variant === 'default'
+          ? createStructureMetrics({
+              planCount: 1,
+              meanBranchCount: 2,
+              singleBranchPlanRatio: 0,
+              multiSubtaskBranchRatio: 0.5,
+            })
+          : createStructureMetrics({
+              planCount: 1,
+              meanBranchCount: 2,
+              singleBranchPlanRatio: 0,
+              multiSubtaskBranchRatio: 0.25,
+            }),
+      runProfile: (input) => Promise.resolve(createVariantSummary(input)),
+    });
+
+    expect(result.structureStatus).toBe('fail');
+    expect(result.structureFailureCount).toBe(1);
+    expect(result.variants[1]?.structureGate).toEqual({
+      variant: 'without-objective-decomposition',
+      status: 'fail',
+      failureCount: 1,
+      failures: [
+        {
+          code: 'without-objective-decomposition-retains-objective-decomposition',
+          message:
+            'without-objective-decomposition planner must remove branch-internal objective decomposition',
+          evidence: { actual: 0.25, expected: 0 },
+        },
+      ],
+    });
   });
 
   test('adds planner outcome metrics from durable agent cycle traces', async () => {
@@ -369,6 +418,7 @@ async function saveSuiteAgentCycleTraceArtifact(
 
 function createSuitePlanRecord(variant: string): BranchPlanRecord {
   const isWithoutBranch = variant === 'without-branch';
+  const isWithoutObjectiveDecomposition = variant === 'without-objective-decomposition';
   return {
     planId: `${variant}-plan`,
     agentId: asAgentId(`${variant}-agent`),
@@ -388,6 +438,21 @@ function createSuitePlanRecord(variant: string): BranchPlanRecord {
               ],
             },
           ]
+        : isWithoutObjectiveDecomposition
+          ? [
+              {
+                id: 'research',
+                objective: 'Research direct action.',
+                subtasks: [{ id: 'study-direct', description: 'Study directly.', basePriority: 1 }],
+              },
+              {
+                id: 'production',
+                objective: 'Production direct action.',
+                subtasks: [
+                  { id: 'produce-direct', description: 'Produce directly.', basePriority: 1 },
+                ],
+              },
+            ]
         : [
             {
               id: 'research',
@@ -411,6 +476,32 @@ function createSuitePlanRecord(variant: string): BranchPlanRecord {
     createdAt: 100,
     updatedAt: 100,
   };
+}
+
+function createStructureMetrics(input: {
+  readonly planCount: number;
+  readonly meanBranchCount: number;
+  readonly singleBranchPlanRatio: number;
+  readonly multiSubtaskBranchRatio: number;
+}) {
+  return [
+    { metricId: 'planner-plan-count', value: input.planCount, higherIsBetter: true },
+    {
+      metricId: 'planner-mean-branch-count',
+      value: input.meanBranchCount,
+      higherIsBetter: true,
+    },
+    {
+      metricId: 'planner-single-branch-plan-ratio',
+      value: input.singleBranchPlanRatio,
+      higherIsBetter: false,
+    },
+    {
+      metricId: 'planner-multi-subtask-branch-ratio',
+      value: input.multiSubtaskBranchRatio,
+      higherIsBetter: true,
+    },
+  ];
 }
 
 function createSuiteAgentCycleTrace(variant: string, simulationId: string): AgentCycleTrace {

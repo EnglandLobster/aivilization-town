@@ -9,6 +9,7 @@ import {
   type ReactiveCorrector,
   type SocialDialogueGenerator,
   type SubtaskPrioritizer,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
 import {
@@ -20,12 +21,15 @@ import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  type LongTermAgentProfile,
+  type ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import {
   FileProjectionSnapshotStore,
   InMemoryEventStore,
   InMemoryProjectionCheckpointStore,
   asAgentId,
+  asEventId,
   asLocationId,
   asSimulationId,
   createSimulationPartition,
@@ -50,6 +54,13 @@ const agentThree = asAgentId('agent-3');
 const school = asLocationId('school');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
 const tmpRoots: string[] = [];
+
+type CapturedAmbientReactionContext = {
+  readonly agentId: AgentId;
+  readonly longTermProfile: LongTermAgentProfile | undefined;
+  readonly memoryContext: readonly ShortTermMemoryRecord[] | undefined;
+  readonly worldDecisionContext: WorldDecisionContext | undefined;
+};
 
 afterEach(() => {
   while (tmpRoots.length > 0) {
@@ -1505,6 +1516,80 @@ describe('worker tick runner', () => {
     await expect(repositories.intentionRepository.getOrCreate(agentTwo)).resolves.toMatchObject({
       scheduledIntentions: [],
     });
+  });
+
+  test('hydrates ambient reaction evaluator with profile and memory context from repositories', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const captured: CapturedAmbientReactionContext[] = [];
+    const priorMemory = createShortTermMemoryRecord({
+      id: 'agent-2-prior-party-help',
+      agentId: agentTwo,
+      kind: 'observation',
+      status: 'observed',
+      summary: 'agent-2 previously noticed agent-1 preparing Valentine party food.',
+      occurredAt: 50,
+      importanceScore: 0.8,
+      source: { eventIds: [asEventId('prior-party-event')] },
+      tags: ['party', 'agent-1'],
+    });
+    await repositories.shortTermMemoryRepository.appendMany([priorMemory]);
+    await repositories.longTermProfileRepository.applyPatches(agentTwo, [
+      {
+        id: 'agent-2-community-value',
+        agentId: agentTwo,
+        section: 'values',
+        key: 'community-helper',
+        statement: 'Help neighbors coordinate social gatherings.',
+        confidence: 0.9,
+        provenanceRecordIds: [priorMemory.id],
+        proposedAt: 60,
+      },
+    ]);
+
+    await runWorkerSimulationTick({
+      tickId: 'tick-social-observation-reaction-context',
+      simulationId,
+      issuedAt: 100,
+      projection: createCoLocatedConversationProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      ambientObservationMemory: {
+        enabled: true,
+        reactionEvaluator: (input) => {
+          captured.push({
+            agentId: input.agentId,
+            longTermProfile: input.longTermProfile,
+            memoryContext: input.memoryContext,
+            worldDecisionContext: input.worldDecisionContext,
+          });
+          return { kind: 'ignore', confidence: 0.95, rationale: 'captured context' };
+        },
+      },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 discusses a party while agent-2 listens nearby',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(captured).toHaveLength(1);
+    const context = captured[0];
+    if (context === undefined) {
+      throw new Error('expected captured ambient reaction context');
+    }
+    expect(context.agentId).toBe(agentTwo);
+    expect(context.longTermProfile?.values.map((entry) => entry.key)).toEqual(['community-helper']);
+    expect(context.memoryContext?.map((memory) => memory.id)).toContain(priorMemory.id);
+    expect(context.worldDecisionContext?.agent.agentId).toBe(agentTwo);
   });
 
   test('records ambient reaction evaluations to a worker trace sink', async () => {

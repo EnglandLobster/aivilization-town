@@ -19,6 +19,7 @@ import type {
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
+  LongTermAgentProfile,
   LongTermProfileRepository,
   ShortTermMemoryRecord,
   ShortTermMemoryRepository,
@@ -66,6 +67,8 @@ import {
 } from './socialObservationIntentions';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+
+const DEFAULT_AMBIENT_REACTION_MEMORY_CONTEXT_LIMIT = 8;
 
 type WorkerTickAgentPlanInput =
   | {
@@ -384,6 +387,15 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
         projection: input.projection,
         records: result.records,
       }),
+      longTermProfileByAgentId: await createLongTermProfileByAgentId({
+        longTermProfileRepository: input.input.longTermProfileRepository,
+        records: result.records,
+      }),
+      memoryContextByAgentId: await createMemoryContextByAgentId({
+        shortTermMemoryRepository: input.input.shortTermMemoryRepository,
+        records: result.records,
+        limit: DEFAULT_AMBIENT_REACTION_MEMORY_CONTEXT_LIMIT,
+      }),
       ...(input.input.ambientObservationMemory.reactionEvaluator === undefined
         ? {}
         : { reactionEvaluator: input.input.ambientObservationMemory.reactionEvaluator }),
@@ -400,6 +412,8 @@ async function upsertSocialObservationIntentions(input: {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly createdAt: SimulationTimestamp;
   readonly worldDecisionContextByAgentId?: Readonly<Record<string, WorldDecisionContext>>;
+  readonly longTermProfileByAgentId?: Readonly<Record<string, LongTermAgentProfile>>;
+  readonly memoryContextByAgentId?: Readonly<Record<string, readonly ShortTermMemoryRecord[]>>;
   readonly reactionEvaluator?: ReactionEvaluator;
   readonly reactionEvaluationTraceSink?: WorkerReactionEvaluationTraceSink;
 }): Promise<void> {
@@ -409,6 +423,12 @@ async function upsertSocialObservationIntentions(input: {
     ...(input.worldDecisionContextByAgentId === undefined
       ? {}
       : { worldDecisionContextByAgentId: input.worldDecisionContextByAgentId }),
+    ...(input.longTermProfileByAgentId === undefined
+      ? {}
+      : { longTermProfileByAgentId: input.longTermProfileByAgentId }),
+    ...(input.memoryContextByAgentId === undefined
+      ? {}
+      : { memoryContextByAgentId: input.memoryContextByAgentId }),
     ...(input.reactionEvaluator === undefined
       ? {}
       : { reactionEvaluator: input.reactionEvaluator }),
@@ -458,6 +478,38 @@ function createWorldDecisionContextByAgentId(input: {
     });
   }
   return contexts;
+}
+
+async function createLongTermProfileByAgentId(input: {
+  readonly longTermProfileRepository: LongTermProfileRepository;
+  readonly records: readonly ShortTermMemoryRecord[];
+}): Promise<Readonly<Record<string, LongTermAgentProfile>>> {
+  const profiles: Record<string, LongTermAgentProfile> = {};
+  for (const agentId of collectReactionAgentIds(input.records)) {
+    profiles[agentId] = await input.longTermProfileRepository.getOrCreate(agentId);
+  }
+  return profiles;
+}
+
+async function createMemoryContextByAgentId(input: {
+  readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly limit: number;
+}): Promise<Readonly<Record<string, readonly ShortTermMemoryRecord[]>>> {
+  const context: Record<string, readonly ShortTermMemoryRecord[]> = {};
+  for (const agentId of collectReactionAgentIds(input.records)) {
+    context[agentId] = await input.shortTermMemoryRepository.retrieve({
+      agentId,
+      limit: input.limit,
+    });
+  }
+  return context;
+}
+
+function collectReactionAgentIds(records: readonly ShortTermMemoryRecord[]): readonly AgentId[] {
+  return [...new Set(records.map((record) => record.agentId))].sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 async function recordReactionEvaluationTracesIfConfigured(input: {

@@ -6,7 +6,11 @@ import {
   type ReactionEvaluator,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
-import type { ScheduledIntention, ShortTermMemoryRecord } from '@aivilization/memory';
+import type {
+  LongTermAgentProfile,
+  ScheduledIntention,
+  ShortTermMemoryRecord,
+} from '@aivilization/memory';
 
 const SOCIAL_OBSERVATION_EVENT_TAGS = new Set([
   'ConversationRecorded',
@@ -19,6 +23,8 @@ export type SocialObservationScheduledIntentionsInput = {
   readonly priority?: number;
   readonly createdAt?: number;
   readonly worldDecisionContextByAgentId?: Readonly<Record<string, WorldDecisionContext>>;
+  readonly longTermProfileByAgentId?: Readonly<Record<string, LongTermAgentProfile>>;
+  readonly memoryContextByAgentId?: Readonly<Record<string, readonly ShortTermMemoryRecord[]>>;
   readonly reactionEvaluator?: ReactionEvaluator;
 };
 
@@ -71,12 +77,16 @@ export async function createTraceableSocialObservationScheduledIntentions(
     input.reactionEvaluator ?? evaluateDeterministicSocialObservationReaction;
   for (const record of recordsBySocialEventKey.values()) {
     const worldDecisionContext = input.worldDecisionContextByAgentId?.[record.agentId];
+    const longTermProfile = input.longTermProfileByAgentId?.[record.agentId];
+    const memoryContext = input.memoryContextByAgentId?.[record.agentId];
     const evaluation = normalizeReactionEvaluatorOutput(
       await reactionEvaluator({
         agentId: record.agentId,
         issuedAt: input.createdAt ?? record.occurredAt,
         memory: record,
         ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
+        ...(longTermProfile === undefined ? {} : { longTermProfile }),
+        ...(memoryContext === undefined ? {} : { memoryContext }),
       }),
     );
     if (evaluation.decision.kind === 'ignore') {

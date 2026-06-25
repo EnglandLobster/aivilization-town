@@ -17,6 +17,7 @@ import {
   InMemoryEventStore,
   InMemoryProjectionCheckpointStore,
   asAgentId,
+  asLocationId,
   asSimulationId,
   createSimulationPartition,
 } from '@aivilization/sim-core';
@@ -35,6 +36,7 @@ import { createAivilizationWorldCommandPolicies, runWorkerSimulationTick } from 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
+const school = asLocationId('school');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
 const tmpRoots: string[] = [];
 
@@ -74,6 +76,42 @@ function createProjection() {
       },
       {
         agentId: agentTwo,
+        physiology: { energy: 60, satiety: 80, health: 100 },
+        educationScore: 20,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
+function createCoLocatedStudyProjection() {
+  return createWorldProjection({
+    locations: [
+      {
+        locationId: school,
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study', 'socialize'],
+        capacity: null,
+      },
+    ],
+    agents: [
+      {
+        agentId: agentOne,
+        locationId: school,
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: agentTwo,
+        locationId: school,
         physiology: { energy: 60, satiety: 80, health: 100 },
         educationScore: 20,
         balance: 100,
@@ -530,6 +568,63 @@ describe('worker tick runner', () => {
       'SimulationTimeAdvanced',
       'EducationChanged',
       'ShortTermMemoryRecorded',
+    ]);
+  });
+
+  test('writes ambient observation memories for co-located bystanders when configured', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-ambient-observation',
+      simulationId,
+      issuedAt: 100,
+      projection: createCoLocatedStudyProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      ambientObservationMemory: { enabled: true },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 studies while agent-2 is nearby',
+          plan: createStudyPlan(),
+          signals: [],
+          microPlanners: [
+            createStudyPlanner({
+              id: 'study-agent-1',
+              description: 'agent 1 studies',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.ambientObservationMemory).toMatchObject({
+      observedEventCount: 1,
+      recordCount: 1,
+    });
+    await expect(
+      repositories.shortTermMemoryRepository.retrieve({
+        agentId: agentTwo,
+        kinds: ['observation'],
+        requiredTags: ['ambient-observation', 'EducationChanged'],
+        limit: 10,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 'tick-ambient-observation:ambient:tick-ambient-observation-1-agent-1-command-1:event:0:agent-2',
+        summary: 'Observed agent-1 study at School.',
+        source: {
+          commandId: 'tick-ambient-observation-1-agent-1-command-1',
+          eventIds: ['tick-ambient-observation-1-agent-1-command-1:event:0'],
+        },
+      }),
     ]);
   });
 

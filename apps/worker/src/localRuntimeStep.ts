@@ -15,6 +15,7 @@ import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   runWorkerSimulationTick,
   type WorkerTickAgentInput,
+  type WorkerTickAmbientObservationMemoryInput,
   type WorkerTickMarketMetricsInput,
   type WorkerTickMarketObservationsInput,
   type WorkerTickResult,
@@ -61,6 +62,7 @@ export type LocalWorldRuntimeStepInput = {
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: LocalWorldRuntimeMarketObservationsInput;
+  readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
 };
 
 export type LocalWorldRuntimeStepResult =
@@ -134,6 +136,7 @@ export async function runLocalWorldRuntimeStep(
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
     ...createTickMarketObservationsInput(input),
+    ...createTickAmbientObservationMemoryInput(input),
   });
 
   return {
@@ -158,6 +161,14 @@ function createTickMarketObservationsInput(input: LocalWorldRuntimeStepInput):
         ? {}
         : { priceBinning: input.marketObservations.priceBinning }),
     },
+  };
+}
+
+function createTickAmbientObservationMemoryInput(input: LocalWorldRuntimeStepInput): {
+  readonly ambientObservationMemory: WorkerTickAmbientObservationMemoryInput;
+} {
+  return {
+    ambientObservationMemory: input.ambientObservationMemory ?? { enabled: true },
   };
 }
 

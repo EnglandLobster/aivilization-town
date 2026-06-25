@@ -5,7 +5,7 @@ import {
   type ReactiveLocalizedPlanner,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -285,6 +285,75 @@ describe('local world runtime step', () => {
       },
     ]);
   });
+
+  test('enables ambient observation memory by default and allows explicit disabling', async () => {
+    const enabledStorage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+
+    const enabled = await runLocalWorldRuntimeStep({
+      storage: enabledStorage,
+      tickId: 'tick-ambient-enabled',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createCoLocatedProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [createStudyTickAgent()],
+    });
+
+    if (enabled.status !== 'ticked') {
+      throw new Error('expected enabled runtime step to tick');
+    }
+    expect(enabled.tick.ambientObservationMemory).toMatchObject({
+      observedEventCount: 1,
+      recordCount: 1,
+    });
+    await expect(
+      enabledStorage.shortTermMemoryRepository.retrieve({
+        agentId: asAgentId('agent-2'),
+        kinds: ['observation'],
+        requiredTags: ['ambient-observation', 'EducationChanged'],
+        limit: 10,
+      }),
+    ).resolves.toHaveLength(1);
+
+    const disabledStorage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const disabled = await runLocalWorldRuntimeStep({
+      storage: disabledStorage,
+      tickId: 'tick-ambient-disabled',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createCoLocatedProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      ambientObservationMemory: { enabled: false },
+      agents: [createStudyTickAgent()],
+    });
+
+    if (disabled.status !== 'ticked') {
+      throw new Error('expected disabled runtime step to tick');
+    }
+    expect(disabled.tick.ambientObservationMemory).toBeUndefined();
+    await expect(
+      disabledStorage.shortTermMemoryRepository.retrieve({
+        agentId: asAgentId('agent-2'),
+        kinds: ['observation'],
+        requiredTags: ['ambient-observation', 'EducationChanged'],
+        limit: 10,
+      }),
+    ).resolves.toEqual([]);
+  });
 });
 
 function createInitialProjection() {
@@ -323,6 +392,42 @@ function createInitialMarketProjection() {
   });
 }
 
+function createCoLocatedProjection() {
+  return createWorldProjection({
+    locations: [
+      {
+        locationId: asLocationId('school'),
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study', 'socialize'],
+        capacity: null,
+      },
+    ],
+    agents: [
+      {
+        agentId: agentOne,
+        locationId: asLocationId('school'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: asAgentId('agent-2'),
+        locationId: asLocationId('school'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
 function createStudyPlan() {
   return createBranchPlan({
     objective: 'develop education',
@@ -347,6 +452,24 @@ function createTradePlan() {
       },
     ],
   });
+}
+
+function createStudyTickAgent() {
+  return {
+    agentId: agentOne,
+    observedStateSummary: 'agent-1 studies while agent-2 is nearby',
+    plan: createStudyPlan(),
+    signals: [],
+    microPlanners: [
+      studyMicroPlanner({
+        id: 'study-with-bystander',
+        description: 'study with bystander nearby',
+        commandType: 'AgentStudy',
+        payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+      }),
+    ],
+    simulate: ({ action }) => ({ status: 'accepted' as const, action }),
+  } satisfies Parameters<typeof runLocalWorldRuntimeStep>[0]['agents'][number];
 }
 
 function reactiveStudyPlanner(): ReactiveLocalizedPlanner {

@@ -125,6 +125,47 @@ describe('runtime profile run gate', () => {
       },
     });
   });
+
+  test('requires accepted LLM traces for configured cognition stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+          },
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 0,
+            deterministicFallbackCount: 1,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmAcceptedStages: ['strategicPlanning', 'dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-accepted-count-too-low',
+      message: 'cognition LLM stage dailyPlanning llmAcceptedCount must be at least 1',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
 });
 
 function createCriteria(): RuntimeProfileRunGateCriteria {

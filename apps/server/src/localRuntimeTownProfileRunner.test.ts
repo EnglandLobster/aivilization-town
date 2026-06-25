@@ -468,6 +468,10 @@ describe('local runtime town profile runner', () => {
     });
 
     expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'strategicPlanning')
+        ?.llmAcceptedCount,
+    ).toBeGreaterThan(0);
     expect(plan.plan).toMatchObject({
       objective: 'LLM study objective',
       branches: [
@@ -739,24 +743,32 @@ describe('local runtime town profile runner', () => {
       requestedAt: 8.5 * 60 * 60 * 1000,
       dailyPlanCompiler: ({ agentId, issuedAt }) => {
         compiledAgentIds.push(agentId);
-        return createDailyPlan({
-          id: `daily-plan:${agentId}:0`,
-          agentId,
-          dayStart: 0,
-          generatedAt: issuedAt,
-          summary: 'Injected profile-run daily party plan.',
-          items: [
-            {
-              id: 'party-prep',
-              description: 'Coordinate party invitations at town square.',
-              priority: 6,
-              startsAtOffsetMs: 8 * 60 * 60 * 1000,
-              endsAtOffsetMs: 10 * 60 * 60 * 1000,
-              affinityTags: ['social', 'party', 'town-square'],
-              source: 'memory-context',
-            },
-          ],
-        });
+        return {
+          plan: createDailyPlan({
+            id: `daily-plan:${agentId}:0`,
+            agentId,
+            dayStart: 0,
+            generatedAt: issuedAt,
+            summary: 'Injected profile-run daily party plan.',
+            items: [
+              {
+                id: 'party-prep',
+                description: 'Coordinate party invitations at town square.',
+                priority: 6,
+                startsAtOffsetMs: 8 * 60 * 60 * 1000,
+                endsAtOffsetMs: 10 * 60 * 60 * 1000,
+                affinityTags: ['social', 'party', 'town-square'],
+                source: 'memory-context',
+              },
+            ],
+          }),
+          planningTrace: {
+            status: 'accepted',
+            source: 'llm',
+            providerId: 'injected-daily-provider',
+            model: 'injected-daily-model',
+          },
+        };
       },
     });
 
@@ -796,6 +808,10 @@ describe('local runtime town profile runner', () => {
     });
 
     expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find((stage) => stage.stageName === 'dailyPlanning')
+        ?.llmAcceptedCount,
+    ).toBeGreaterThan(0);
     expect(compiledAgentIds).toContain(agentId);
     expect(dailyPlanTraces[0]).toMatchObject({
       simulationId: 'aivilization-smoke-25',
@@ -917,6 +933,11 @@ describe('local runtime town profile runner', () => {
     const intentionState = await intentionRepository.getOrCreate(bystanderId);
 
     expect(summary.run.completedCycleCount).toBe(1);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'reactionEvaluation',
+      )?.llmAcceptedCount,
+    ).toBeGreaterThan(0);
     expect(
       reactionRequestIds.some((requestId) =>
         requestId.startsWith('profile-llm-reaction:smoke-25:smoke-25-world-main-agent-015:'),

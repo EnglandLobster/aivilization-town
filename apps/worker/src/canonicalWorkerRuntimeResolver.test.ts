@@ -74,12 +74,16 @@ describe('canonical worker runtime resolver', () => {
       },
     });
     const proposal = agents[0]?.microPlanners[0]?.propose({
+      agentId: agentA,
+      issuedAt: 0,
+      plan: createPlanRecord({ agentId: agentA, domain: 'study' }).plan,
       selectedSubtask: {
         branchId: 'study-lane',
         subtaskId: 'planned-step',
         description: 'Attend planned activity.',
         score: 10,
       },
+      signals: [],
     })[0];
     if (agents[0] === undefined || proposal === undefined) {
       throw new Error('expected canonical tick agent proposal');

@@ -66,7 +66,23 @@ import type {
 export type DomainMicroPlanner = {
   readonly domain: string;
   supports(selectedSubtask: PrioritizedSubtask): boolean;
-  propose(input: { readonly selectedSubtask: PrioritizedSubtask }): readonly AtomicActionProposal[];
+  propose(input: DomainMicroPlannerInput): readonly AtomicActionProposal[];
+};
+
+export type DomainMicroPlannerContext = {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly plan: BranchPlan;
+  readonly signals: readonly ContextSignal[];
+  readonly progress?: BranchPlanProgress;
+  readonly intentionState?: AgentIntentionState;
+  readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
+};
+
+export type DomainMicroPlannerInput = DomainMicroPlannerContext & {
+  readonly selectedSubtask: PrioritizedSubtask;
 };
 
 export type CycleActionSimulator = (input: {
@@ -279,6 +295,7 @@ type PreparedCycleCandidateExecution = {
 function runAgentPlanningCycleFromCandidates(input: CycleCandidateInput): AgentCycleResult {
   const prepared = prepareCycleCandidateExecution(input);
   const proposedActions = collectSynthesisActionProposals({
+    ...createDomainMicroPlannerContext(input),
     candidates: prepared.synthesisSubtaskCandidates,
     microPlanners: input.microPlanners,
   });
@@ -303,6 +320,7 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
     input.actionSequenceGenerator === undefined
       ? {
           proposedActions: collectSynthesisActionProposals({
+            ...createDomainMicroPlannerContext(input),
             candidates: prepared.synthesisSubtaskCandidates,
             microPlanners: input.microPlanners,
           }),
@@ -675,9 +693,7 @@ function finalizeAgentCycleResult(input: {
   readonly selectedSubtask: PrioritizedSubtask;
   readonly prioritizationTrace: SubtaskPrioritizationTrace | undefined;
   readonly actionSequenceTraces: readonly ActionSequenceGenerationTrace[] | undefined;
-  readonly socialDialogueGenerationTraces:
-    | readonly SocialDialogueGenerationTrace[]
-    | undefined;
+  readonly socialDialogueGenerationTraces: readonly SocialDialogueGenerationTrace[] | undefined;
   readonly globalSynthesisTrace: GlobalSynthesisTrace | undefined;
   readonly actionRepairTraces?: readonly ActionRepairTrace[];
   readonly selectionEvidence: AgentCycleSelectionEvidence;
@@ -983,10 +999,12 @@ function selectSynthesisSubtaskCandidates(input: {
   return input.candidates.slice(0, maxSubtasks);
 }
 
-function collectSynthesisActionProposals(input: {
-  readonly candidates: readonly PrioritizedSubtaskCandidate[];
-  readonly microPlanners: readonly DomainMicroPlanner[];
-}): readonly AtomicActionProposal[] {
+function collectSynthesisActionProposals(
+  input: DomainMicroPlannerContext & {
+    readonly candidates: readonly PrioritizedSubtaskCandidate[];
+    readonly microPlanners: readonly DomainMicroPlanner[];
+  },
+): readonly AtomicActionProposal[] {
   const proposedActions: AtomicActionProposal[] = [];
 
   for (const candidate of input.candidates) {
@@ -996,7 +1014,12 @@ function collectSynthesisActionProposals(input: {
       continue;
     }
 
-    const actions = microPlanner.propose({ selectedSubtask });
+    const actions = microPlanner.propose(
+      createDomainMicroPlannerInput({
+        ...input,
+        selectedSubtask,
+      }),
+    );
     if (actions.length === 0) {
       throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
     }
@@ -1035,7 +1058,12 @@ async function collectSynthesisActionProposalsWithGeneration(input: {
       continue;
     }
 
-    const deterministicActions = microPlanner.propose({ selectedSubtask });
+    const deterministicActions = microPlanner.propose(
+      createDomainMicroPlannerInput({
+        ...input,
+        selectedSubtask,
+      }),
+    );
     if (deterministicActions.length === 0) {
       throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
     }
@@ -1068,6 +1096,45 @@ async function collectSynthesisActionProposalsWithGeneration(input: {
   }
 
   return { proposedActions, traces };
+}
+
+function createDomainMicroPlannerContext(
+  input: AgentPlanningCycleInput,
+): DomainMicroPlannerContext {
+  return {
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan: input.plan,
+    signals: input.signals,
+    ...(input.progress === undefined ? {} : { progress: input.progress }),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.shortTermMemoryContext }),
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+  };
+}
+
+function createDomainMicroPlannerInput(input: DomainMicroPlannerInput): DomainMicroPlannerInput {
+  return {
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan: input.plan,
+    selectedSubtask: input.selectedSubtask,
+    signals: input.signals,
+    ...(input.progress === undefined ? {} : { progress: input.progress }),
+    ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+    ...(input.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.shortTermMemoryContext }),
+    ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+  };
 }
 
 async function applySocialDialogueGenerationToActions(input: {

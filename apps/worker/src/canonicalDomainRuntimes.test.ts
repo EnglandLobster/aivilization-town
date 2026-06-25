@@ -1,7 +1,9 @@
 import {
   createBranchPlan,
+  type BranchPlan,
   type BranchPlanRecord,
   type DomainMicroPlanner,
+  type DomainMicroPlannerInput,
   type PrioritizedSubtask,
 } from '@aivilization/agent-runtime';
 import {
@@ -581,9 +583,13 @@ describe('canonical domain runtimes', () => {
 
     expect(resolveResidentialTargetTier({ context, selectedSubtask: selected })).toBe(5);
     expect(
-      requirePlanner(binding.microPlanners, 'residential').propose({
-        selectedSubtask: selected,
-      })[0],
+      requirePlanner(binding.microPlanners, 'residential').propose(
+        createMicroPlannerInput({
+          agentId: context.agentId,
+          plan: context.planRecord.plan,
+          selectedSubtask: selected,
+        }),
+      )[0],
     ).toMatchObject({
       id: 'canonical-residential-upgrade-residential-tier',
       commandType: 'AgentUpgradeResidentialTier',
@@ -656,7 +662,42 @@ function firstProposal(
   planners: readonly DomainMicroPlanner[],
   domain: (typeof domainOrder)[number],
 ) {
-  return requirePlanner(planners, domain).propose({ selectedSubtask: selectedSubtask(domain) })[0];
+  return requirePlanner(planners, domain).propose(
+    createMicroPlannerInput({ selectedSubtask: selectedSubtask(domain) }),
+  )[0];
+}
+
+function createMicroPlannerInput(input: {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly agentId?: AgentId;
+  readonly plan?: BranchPlan;
+}): DomainMicroPlannerInput {
+  return {
+    agentId: input.agentId ?? agentA,
+    issuedAt: 0,
+    plan: input.plan ?? createSingleSubtaskPlan(input.selectedSubtask),
+    selectedSubtask: input.selectedSubtask,
+    signals: [],
+  };
+}
+
+function createSingleSubtaskPlan(selectedSubtask: PrioritizedSubtask): BranchPlan {
+  return createBranchPlan({
+    objective: 'test planner proposal',
+    branches: [
+      {
+        id: selectedSubtask.branchId,
+        objective: selectedSubtask.description,
+        subtasks: [
+          {
+            id: selectedSubtask.subtaskId,
+            description: selectedSubtask.description,
+            basePriority: selectedSubtask.score,
+          },
+        ],
+      },
+    ],
+  });
 }
 
 type WorkerResolverTestContext = {

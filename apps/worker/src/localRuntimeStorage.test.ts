@@ -255,6 +255,24 @@ describe('local world runtime storage', () => {
       issuedAt: 175,
       recordedAt: 1000,
     });
+    await storage.socialReflectionObservationRepository.record([
+      {
+        observationId: 'sim-1:world-main:social-reflection-agent-1-agent-2-memory-social-1-185',
+        simulationId,
+        partitionKey: 'world-main',
+        reflectionId: 'social-reflection-agent-1-agent-2-memory-social-1-185',
+        agentId: agentOne,
+        targetAgentId: agentTwo,
+        statement: 'Interaction with agent-2 changed relation by 1 and attitude by 1.',
+        relationDelta: 1,
+        attitudeDelta: 1,
+        confidence: 0.8,
+        evidenceRecordIds: ['memory-social-1'],
+        generatedAt: 185,
+        tags: ['social', 'post-interaction-reflection'],
+        source: 'memory-consolidation',
+      },
+    ]);
     await handleWorkerSteeringCommand({
       command: createCommandEnvelope({
         id: 'cmd-objective-study',
@@ -357,6 +375,20 @@ describe('local world runtime storage', () => {
         source: 'deterministic',
       },
     });
+    await expect(
+      restarted.socialReflectionObservationRepository.query({
+        simulationId,
+        partitionKey: 'world-main',
+        agentId: agentOne,
+        targetAgentId: agentTwo,
+      }),
+    ).resolves.toMatchObject([
+      {
+        observationId: 'sim-1:world-main:social-reflection-agent-1-agent-2-memory-social-1-185',
+        reflectionId: 'social-reflection-agent-1-agent-2-memory-social-1-185',
+        generatedAt: 185,
+      },
+    ]);
     await expect(
       restarted.planRepository.require({
         planId: 'plan-1',

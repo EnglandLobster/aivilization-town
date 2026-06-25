@@ -12,7 +12,16 @@ import {
   type ShortTermMemoryRecord,
   type ShortTermMemoryRepository,
 } from '@aivilization/memory';
-import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type {
+  SocialReflectionObservation,
+  SocialReflectionObservationRepository,
+} from '@aivilization/observability';
+import type {
+  AgentId,
+  PartitionKey,
+  SimulationId,
+  SimulationTimestamp,
+} from '@aivilization/sim-core';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -113,6 +122,7 @@ export class FileMemoryConsolidationCursorStore implements MemoryConsolidationCu
 export type WorkerMemoryConsolidationScheduleInput = WorkerMemoryConsolidationBatchInput & {
   readonly cursorStore: MemoryConsolidationCursorStore;
   readonly reflectionTrigger?: WorkerMemoryConsolidationReflectionTrigger;
+  readonly socialReflectionObservationSink?: WorkerMemoryConsolidationSocialReflectionObservationSink;
 };
 
 export type WorkerMemoryConsolidationScheduleResult = {
@@ -121,6 +131,13 @@ export type WorkerMemoryConsolidationScheduleResult = {
   readonly skipped: readonly WorkerMemoryConsolidationSkippedResult[];
   readonly cursors: readonly MemoryConsolidationCursor[];
   readonly patchCount: number;
+  readonly socialReflectionObservationCount: number;
+};
+
+export type WorkerMemoryConsolidationSocialReflectionObservationSink = {
+  readonly repository: SocialReflectionObservationRepository;
+  readonly simulationId: SimulationId;
+  readonly partitionKey: PartitionKey;
 };
 
 export async function runWorkerMemoryConsolidation(
@@ -255,6 +272,13 @@ export async function runWorkerMemoryConsolidationSchedule(
       cursors.push(await input.cursorStore.saveCursor(nextCursor));
     }
   }
+  const socialReflectionObservations = createSocialReflectionObservations({
+    results,
+    sink: input.socialReflectionObservationSink,
+  });
+  if (input.socialReflectionObservationSink !== undefined) {
+    await input.socialReflectionObservationSink.repository.record(socialReflectionObservations);
+  }
 
   return {
     agentIds,
@@ -262,7 +286,36 @@ export async function runWorkerMemoryConsolidationSchedule(
     skipped,
     cursors,
     patchCount: results.reduce((count, result) => count + result.patches.length, 0),
+    socialReflectionObservationCount: socialReflectionObservations.length,
   };
+}
+
+function createSocialReflectionObservations(input: {
+  readonly results: readonly WorkerMemoryConsolidationResult[];
+  readonly sink: WorkerMemoryConsolidationSocialReflectionObservationSink | undefined;
+}): SocialReflectionObservation[] {
+  const sink = input.sink;
+  if (sink === undefined) {
+    return [];
+  }
+  return input.results.flatMap((result) =>
+    result.socialReflections.map((reflection) => ({
+      observationId: `${sink.simulationId}:${sink.partitionKey}:${reflection.id}`,
+      simulationId: sink.simulationId,
+      partitionKey: sink.partitionKey,
+      reflectionId: reflection.id,
+      agentId: reflection.agentId,
+      targetAgentId: reflection.targetAgentId,
+      statement: reflection.statement,
+      relationDelta: reflection.relationDelta,
+      attitudeDelta: reflection.attitudeDelta,
+      confidence: reflection.confidence,
+      evidenceRecordIds: [...reflection.evidenceRecordIds],
+      generatedAt: reflection.generatedAt,
+      tags: [...reflection.tags],
+      source: 'memory-consolidation',
+    })),
+  );
 }
 
 function evaluateReflectionTrigger(input: {

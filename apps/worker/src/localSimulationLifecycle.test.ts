@@ -18,6 +18,7 @@ import {
 } from './index';
 
 const agentOne = asAgentId('agent-1');
+const agentTwo = asAgentId('agent-2');
 
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: {},
@@ -494,6 +495,68 @@ describe('local simulation lifecycle controller', () => {
     });
   });
 
+  test('persists scheduled social reflection observations through lifecycle storage', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await storage.shortTermMemoryRepository.append(createSocialMemory(1));
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+      },
+    });
+
+    const result = await controller.start(createRequest(1040));
+
+    expect(result.status).toBe('completed');
+    expect(result.memoryConsolidation).toMatchObject({
+      agentIds: ['agent-1'],
+      patchCount: 1,
+      socialReflectionObservationCount: 1,
+    });
+    expect(result.state).toMatchObject({
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationAt: 1040,
+      lastMemoryConsolidationAgentCount: 1,
+      lastMemoryConsolidationPatchCount: 1,
+      lastMemoryConsolidationCursorCount: 1,
+      lastMemoryConsolidationSocialReflectionObservationCount: 1,
+    });
+    await expect(
+      storage.socialReflectionObservationRepository.query({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: agentOne,
+        targetAgentId: agentTwo,
+      }),
+    ).resolves.toMatchObject([
+      {
+        observationId: 'sim-1:world-main:social-reflection-agent-1-agent-2-social-memory-1-1040',
+        reflectionId: 'social-reflection-agent-1-agent-2-social-memory-1-1040',
+        generatedAt: 1040,
+        evidenceRecordIds: ['social-memory-1'],
+      },
+    ]);
+
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(restartedStorage.lifecycleStateStore.getState(createRequest(1045))).toMatchObject({
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationSocialReflectionObservationCount: 1,
+    });
+  });
+
   test('returns memory consolidation failure metadata without failing a completed lifecycle start', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();
@@ -707,6 +770,27 @@ function createStudyMemory(index: number) {
       kind: 'habit',
       patternKey: 'study-before-work',
       statement: 'Studies before starting work.',
+    },
+  });
+}
+
+function createSocialMemory(index: number) {
+  return createShortTermMemoryRecord({
+    id: `social-memory-${index}`,
+    agentId: agentOne,
+    kind: 'social-interaction',
+    status: 'succeeded',
+    summary: 'Shared food after work.',
+    occurredAt: index,
+    importanceScore: 0.8,
+    source: { eventIds: [] },
+    tags: ['conversation', 'community'],
+    consolidationHint: {
+      kind: 'social',
+      targetAgentId: agentTwo,
+      relationDelta: 1,
+      attitudeDelta: 1,
+      summary: 'Shared food after work.',
     },
   });
 }

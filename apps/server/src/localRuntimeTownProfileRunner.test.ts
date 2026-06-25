@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileBranchPlanRepository, createBranchPlan } from '@aivilization/agent-runtime';
+import { FileBranchPlanRepository, createBranchPlan, createDailyPlan } from '@aivilization/agent-runtime';
 import {
   FileAgentCycleTraceRepository,
   FileObjectiveRenewalTraceRepository,
@@ -490,6 +490,66 @@ describe('local runtime town profile runner', () => {
         source: 'deterministic',
         message: 'Injected strategic plan compiler',
       },
+    });
+  });
+
+  test('uses an injected daily plan compiler before autonomous objective renewal', async () => {
+    const rootDir = createRootDir();
+    const compiledAgentIds: string[] = [];
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 8.5 * 60 * 60 * 1000,
+      dailyPlanCompiler: ({ agentId, issuedAt }) => {
+        compiledAgentIds.push(agentId);
+        return createDailyPlan({
+          id: `daily-plan:${agentId}:0`,
+          agentId,
+          dayStart: 0,
+          generatedAt: issuedAt,
+          summary: 'Injected profile-run daily party plan.',
+          items: [
+            {
+              id: 'party-prep',
+              description: 'Coordinate party invitations at town square.',
+              priority: 6,
+              startsAtOffsetMs: 8 * 60 * 60 * 1000,
+              endsAtOffsetMs: 10 * 60 * 60 * 1000,
+              affinityTags: ['social', 'party', 'town-square'],
+              source: 'memory-context',
+            },
+          ],
+        });
+      },
+    });
+
+    const agentId = asAgentId('smoke-25-world-main-agent-001');
+    const objectiveTraceRepository = new FileObjectiveRenewalTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const objectiveTraces = await objectiveTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      limit: 1,
+    });
+
+    expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
+    expect(compiledAgentIds).toContain(agentId);
+    expect(objectiveTraces[0]).toMatchObject({
+      agentId,
+      objectiveId: `auto-objective-${agentId}-${8.5 * 60 * 60 * 1000}`,
+      selectedCandidateId: 'scheduled-routine-social',
+      scheduledIntentionIds: [`daily-plan:${agentId}:0:party-prep`],
     });
   });
 });

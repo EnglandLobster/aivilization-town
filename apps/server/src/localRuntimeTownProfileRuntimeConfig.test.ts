@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { loadLocalRuntimeTownProfileLlmPlanningConfig } from './localRuntimeTownProfileRuntimeConfig';
+import {
+  loadLocalRuntimeTownProfileLlmPlanningConfig,
+  loadLocalRuntimeTownProfileRuntimeConfig,
+} from './localRuntimeTownProfileRuntimeConfig';
 
 describe('local runtime town profile runtime config', () => {
   test('loads profile-specific OpenAI-compatible LLM planning config and resolves env secrets', async () => {
@@ -107,6 +110,126 @@ describe('local runtime town profile runtime config', () => {
         readTextFile: () => Promise.resolve(document),
       }),
     ).resolves.toBeUndefined();
+  });
+
+  test('loads combined runtime config with profile-specific daily planning config', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'default-100',
+      path: '/runtime/config.json',
+      env: {
+        DAILY_KEY: 'daily-secret',
+      },
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            llmPlanning: {
+              kind: 'traceable-llm-strategic-planner',
+              model: 'global-strategic-planner',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'global-strategic-provider',
+                endpoint: 'https://llm.example.test/v1/chat/completions',
+              },
+            },
+            profiles: {
+              'default-100': {
+                dailyPlanning: {
+                  kind: 'traceable-llm-daily-planner',
+                  model: 'default-daily-planner',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'default-daily-provider',
+                    endpoint: 'https://daily.example.test/v1/chat/completions',
+                    apiKey: { env: 'DAILY_KEY' },
+                  },
+                  maxAttempts: 3,
+                  timeoutMs: 20_000,
+                  pricing: {
+                    inputTokenCostMicros: 1,
+                    outputTokenCostMicros: 4,
+                  },
+                },
+              },
+            },
+          }),
+        ),
+    });
+
+    expect(config).toEqual({
+      strategicPlanning: {
+        kind: 'traceable-llm-strategic-planner',
+        profileId: 'default-100',
+        model: 'global-strategic-planner',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-strategic-provider',
+          endpoint: 'https://llm.example.test/v1/chat/completions',
+        },
+      },
+      dailyPlanning: {
+        kind: 'traceable-llm-daily-planner',
+        profileId: 'default-100',
+        model: 'default-daily-planner',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'default-daily-provider',
+          endpoint: 'https://daily.example.test/v1/chat/completions',
+          apiKey: 'daily-secret',
+        },
+        maxAttempts: 3,
+        timeoutMs: 20_000,
+        pricing: {
+          inputTokenCostMicros: 1,
+          outputTokenCostMicros: 4,
+        },
+      },
+    });
+  });
+
+  test('uses top-level daily planning config unless a profile disables it', async () => {
+    const document = JSON.stringify({
+      dailyPlanning: {
+        kind: 'traceable-llm-daily-planner',
+        model: 'global-daily-planner',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-daily-provider',
+          endpoint: 'https://daily.example.test/v1/chat/completions',
+        },
+      },
+      profiles: {
+        'smoke-25': {
+          dailyPlanning: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      dailyPlanning: {
+        kind: 'traceable-llm-daily-planner',
+        profileId: 'default-100',
+        model: 'global-daily-planner',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-daily-provider',
+          endpoint: 'https://daily.example.test/v1/chat/completions',
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
   });
 
   test('rejects missing env secrets before provider construction', async () => {

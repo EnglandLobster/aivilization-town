@@ -6,7 +6,7 @@ import {
   evaluateRuntimeProfileRunReport,
 } from '@aivilization/observability';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
-import { loadLocalRuntimeTownProfileLlmPlanningConfig } from './localRuntimeTownProfileRuntimeConfig';
+import { loadLocalRuntimeTownProfileRuntimeConfig } from './localRuntimeTownProfileRuntimeConfig';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
@@ -103,10 +103,10 @@ async function createRunnerInput(
     config.reportRootDir === undefined
       ? undefined
       : new FileRuntimeProfileRunReportRepository({ rootDir: config.reportRootDir });
-  const llmPlanning =
+  const runtimeConfig =
     config.llmPlanningConfigPath === undefined
       ? undefined
-      : await loadLocalRuntimeTownProfileLlmPlanningConfig({
+      : await loadLocalRuntimeTownProfileRuntimeConfig({
           profileId: config.profileId,
           path: config.llmPlanningConfigPath,
           env: process.env,
@@ -119,7 +119,12 @@ async function createRunnerInput(
     requestedAt: config.requestedAt,
     ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
     ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
-    ...(llmPlanning === undefined ? {} : { llmPlanning }),
+    ...(runtimeConfig?.strategicPlanning === undefined
+      ? {}
+      : { llmPlanning: runtimeConfig.strategicPlanning }),
+    ...(runtimeConfig?.dailyPlanning === undefined
+      ? {}
+      : { dailyPlanning: runtimeConfig.dailyPlanning }),
   };
 }
 

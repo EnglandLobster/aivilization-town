@@ -2,6 +2,7 @@ import type {
   BranchPlanProgressRepository,
   BranchPlanRepository,
   CycleRepairPolicy,
+  DailyPlanCompiler,
   StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type {
@@ -21,6 +22,7 @@ import type { WorkerAgentCycleTraceSink } from './agentCycleRunner';
 import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
 import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeResolver';
 import {
+  renewDailyPlanScheduledIntentions,
   renewDailyRoutineScheduledIntentions,
   type DailyRoutineSchedule,
   type DailyRoutineScheduleResolver,
@@ -62,6 +64,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly agentMemoryRetrievalCandidateLimit?: number;
   readonly dailyRoutineSchedule?: DailyRoutineSchedule | null;
   readonly dailyRoutineScheduleResolver?: DailyRoutineScheduleResolver;
+  readonly dailyPlanCompiler?: DailyPlanCompiler;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
@@ -91,7 +94,16 @@ export async function runCanonicalWorkerActivePlanTick(
   input: CanonicalWorkerActivePlanTickInput,
 ): Promise<WorkerTickResult> {
   const projection = resolveSchedulingProjection(input);
-  if (input.dailyRoutineSchedule !== null) {
+  if (input.dailyPlanCompiler !== undefined) {
+    await renewDailyPlanScheduledIntentions({
+      projection,
+      intentionRepository: input.intentionRepository,
+      longTermProfileRepository: input.longTermProfileRepository,
+      shortTermMemoryRepository: input.shortTermMemoryRepository,
+      issuedAt: input.issuedAt,
+      compileDailyPlan: input.dailyPlanCompiler,
+    });
+  } else if (input.dailyRoutineSchedule !== null) {
     await renewDailyRoutineScheduledIntentions({
       projection,
       intentionRepository: input.intentionRepository,

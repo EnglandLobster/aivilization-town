@@ -322,7 +322,7 @@ const DEFAULT_THRESHOLDS = {
     maximumDefaultSingleBranchPlanRatio: 1,
   },
   plannerEconomicSensitivity: {
-    minimumScenarioCount: 1,
+    minimumScenarioCount: 4,
     minimumSensitiveScenarioRatio: 1,
     minimumCompleteEconomicContextRatio: 1,
   },

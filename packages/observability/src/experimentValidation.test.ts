@@ -619,17 +619,17 @@ describe('experiment validation report', () => {
             { metricId: 'net-worth', value: 120, higherIsBetter: true },
             {
               metricId: 'planner-economic-sensitivity-scenario-count',
-              value: 2,
+              value: 4,
               higherIsBetter: true,
             },
             {
               metricId: 'planner-economic-sensitivity-selection-change-count',
-              value: 1,
+              value: 2,
               higherIsBetter: true,
             },
             {
               metricId: 'planner-economic-sensitivity-complete-economic-context-count',
-              value: 2,
+              value: 4,
               higherIsBetter: true,
             },
           ],
@@ -650,7 +650,7 @@ describe('experiment validation report', () => {
       thresholds: {
         heavyTailReturns: { minimumExcessKurtosis: -2 },
         plannerEconomicSensitivity: {
-          minimumScenarioCount: 2,
+          minimumScenarioCount: 4,
           minimumSensitiveScenarioRatio: 0.5,
           minimumCompleteEconomicContextRatio: 1,
         },
@@ -661,10 +661,10 @@ describe('experiment validation report', () => {
     expect(economicSensitivity.status).toBe('pass');
     expect(economicSensitivity.value).toBeCloseTo(0.5);
     expect(economicSensitivity.evidence).toMatchObject({
-      scenarioCount: 2,
-      sensitiveScenarioCount: 1,
-      insensitiveScenarioCount: 1,
-      completeEconomicContextScenarioCount: 2,
+      scenarioCount: 4,
+      sensitiveScenarioCount: 2,
+      insensitiveScenarioCount: 2,
+      completeEconomicContextScenarioCount: 4,
       sensitivityRatio: 0.5,
       completeEconomicContextRatio: 1,
     });
@@ -673,6 +673,74 @@ describe('experiment validation report', () => {
     expect(ablation.evidence).toMatchObject({
       taskMetricCount: 1,
       comparisonCount: 2,
+    });
+  });
+
+  test('requires the full default economic sensitivity matrix before passing validation', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-single-economic-sensitivity-scenario',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_004,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 102 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'default',
+          metrics: [
+            { metricId: 'net-worth', value: 120, higherIsBetter: true },
+            {
+              metricId: 'planner-economic-sensitivity-scenario-count',
+              value: 1,
+              higherIsBetter: true,
+            },
+            {
+              metricId: 'planner-economic-sensitivity-selection-change-count',
+              value: 1,
+              higherIsBetter: true,
+            },
+            {
+              metricId: 'planner-economic-sensitivity-complete-economic-context-count',
+              value: 1,
+              higherIsBetter: true,
+            },
+          ],
+        },
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 95, higherIsBetter: true }],
+        },
+        {
+          taskId: 'economic-contextual-prioritization',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 105, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+      },
+    });
+
+    const economicSensitivity = getMetric(report.metrics, 'planner-economic-sensitivity');
+    expect(economicSensitivity.status).toBe('watch');
+    expect(economicSensitivity.evidence).toMatchObject({
+      scenarioCount: 1,
+      sensitiveScenarioCount: 1,
+      insensitiveScenarioCount: 0,
+      completeEconomicContextScenarioCount: 1,
+      sensitivityRatio: 1,
+      completeEconomicContextRatio: 1,
     });
   });
 

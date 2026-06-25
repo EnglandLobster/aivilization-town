@@ -23,7 +23,7 @@
 
 ## Task 1: Agent-Runtime LLM Global Synthesis Compiler
 
-- [ ] **Step 1: Write failing compiler tests**
+- [x] **Step 1: Write failing compiler tests**
 
 Add `packages/agent-runtime/src/llmGlobalSynthesizer.test.ts` with tests that:
 
@@ -44,7 +44,7 @@ pnpm --filter @aivilization/agent-runtime test -- llmGlobalSynthesizer.test.ts
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 2: Implement global synthesis contract**
+- [x] **Step 2: Implement global synthesis contract**
 
 Create `packages/agent-runtime/src/globalSynthesis.ts` with:
 
@@ -65,7 +65,7 @@ Validation:
 - rationale is non-empty;
 - payload and command type are preserved from the original action.
 
-- [ ] **Step 3: Implement LLM compiler**
+- [x] **Step 3: Implement LLM compiler**
 
 Create `packages/agent-runtime/src/llmGlobalSynthesizer.ts` using schema
 `aivilization_global_synthesis`.
@@ -86,7 +86,7 @@ Output shape:
 
 Fallback to deterministic candidate ordering on failure.
 
-- [ ] **Step 4: Verify compiler tests pass**
+- [x] **Step 4: Verify compiler tests pass**
 
 Run:
 
@@ -98,7 +98,7 @@ Expected: PASS.
 
 ## Task 2: Async Cycle Global Synthesis
 
-- [ ] **Step 1: Write failing cycle tests**
+- [x] **Step 1: Write failing cycle tests**
 
 Modify `packages/agent-runtime/src/cycle.test.ts` with tests that:
 
@@ -115,7 +115,7 @@ pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmGlobalSynthes
 
 Expected: FAIL because cycle does not accept `globalSynthesizer`.
 
-- [ ] **Step 2: Implement cycle wiring**
+- [x] **Step 2: Implement cycle wiring**
 
 Modify `packages/agent-runtime/src/cycle.ts`:
 
@@ -126,7 +126,7 @@ Modify `packages/agent-runtime/src/cycle.ts`:
 - pass synthesized/ranked actions through existing `synthesizeActionCandidates`;
 - include `globalSynthesisTrace?: GlobalSynthesisTrace` on `AgentCycleResult`.
 
-- [ ] **Step 3: Verify cycle tests pass**
+- [x] **Step 3: Verify cycle tests pass**
 
 Run:
 
@@ -138,7 +138,7 @@ Expected: PASS.
 
 ## Task 3: Worker And Observability Wiring
 
-- [ ] **Step 1: Write failing worker and observability tests**
+- [x] **Step 1: Write failing worker and observability tests**
 
 Modify worker tests to prove:
 
@@ -159,7 +159,7 @@ pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentC
 
 Expected: FAIL before pass-through and trace schema exist.
 
-- [ ] **Step 2: Implement pass-through and trace mapping**
+- [x] **Step 2: Implement pass-through and trace mapping**
 
 Modify:
 
@@ -169,7 +169,7 @@ Modify:
 - `packages/observability/src/agentCycleTrace.ts`
 - `packages/observability/src/agentCycleTraceRepository.ts`
 
-- [ ] **Step 3: Verify worker and observability tests pass**
+- [x] **Step 3: Verify worker and observability tests pass**
 
 Run:
 
@@ -182,7 +182,7 @@ Expected: PASS.
 
 ## Task 4: Full Verification And Commit
 
-- [ ] **Step 1: Format touched files**
+- [x] **Step 1: Format touched files**
 
 Run:
 
@@ -190,7 +190,7 @@ Run:
 pnpm exec prettier --write docs/superpowers/specs/2026-06-25-llm-global-synthesis-design.md docs/superpowers/plans/2026-06-25-llm-global-synthesis-slice.md packages/agent-runtime/src/globalSynthesis.ts packages/agent-runtime/src/llmGlobalSynthesizer.ts packages/agent-runtime/src/llmGlobalSynthesizer.test.ts packages/agent-runtime/src/cycle.ts packages/agent-runtime/src/cycle.test.ts packages/agent-runtime/src/index.ts apps/worker/src/agentCycleRunner.ts apps/worker/src/agentCycleRunner.test.ts apps/worker/src/agentScheduling.ts apps/worker/src/tickRunner.ts apps/worker/src/tickRunner.test.ts packages/observability/src/agentCycleTrace.ts packages/observability/src/agentCycleTrace.test.ts packages/observability/src/agentCycleTraceRepository.ts packages/observability/src/agentCycleTraceRepository.test.ts
 ```
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run:
 
@@ -201,7 +201,7 @@ git diff --check
 
 Expected: both pass.
 
-- [ ] **Step 3: Commit implementation**
+- [x] **Step 3: Commit implementation**
 
 Commit title:
 
@@ -219,3 +219,20 @@ and exact verification commands that were actually run.
 - Placeholder scan: no TODO/TBD placeholders.
 - Scope check: intentionally excludes local repair, memory-guided correction, provider default wiring,
   social dialogue, and reflection.
+
+## Verification Log
+
+- RED: `pnpm --filter @aivilization/agent-runtime test -- llmGlobalSynthesizer.test.ts` failed
+  before `llmGlobalSynthesizer` existed.
+- RED: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmGlobalSynthesizer.test.ts`
+  failed before cycle consumed `globalSynthesizer`.
+- GREEN: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmGlobalSynthesizer.test.ts`
+  passed with 21 files and 113 tests.
+- GREEN: `pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentCycleTraceRepository.test.ts`
+  passed with 12 files and 39 tests.
+- GREEN: `pnpm --filter @aivilization/worker test -- agentCycleRunner.test.ts tickRunner.test.ts`
+  passed with 52 files and 296 tests.
+- FULL: initial `pnpm check` failed on `exactOptionalPropertyTypes` for an explicit
+  `actionSequenceTraces: undefined`; fixed by omitting the optional field when absent.
+- FULL: `pnpm check` passed with lint, typecheck, and 159 files / 821 tests.
+- FULL: `git diff --check` passed.

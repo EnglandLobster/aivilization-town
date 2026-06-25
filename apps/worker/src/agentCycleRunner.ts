@@ -17,6 +17,8 @@ import {
   type CycleActionSimulator,
   type CycleRepairPolicy,
   type DomainMicroPlanner,
+  type GlobalActionSynthesizer,
+  type GlobalSynthesisTrace,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
@@ -33,6 +35,7 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleGlobalSynthesisTrace,
   type AgentCycleSimulatorEventTrace,
   type AgentCycleSimulatorTraceEvent,
   type AgentCycleSubtaskReplanningDecisionTrace,
@@ -114,6 +117,7 @@ export async function runWorkerAgentCycle(
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
     readonly actionSequenceGenerator?: ActionSequenceGenerator;
+    readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
       readonly resetProgress?: boolean;
@@ -179,7 +183,9 @@ export async function runWorkerAgentCycle(
       : { subtaskCompletion: input.subtaskCompletion }),
   };
   const cycleResult =
-    input.subtaskPrioritizer === undefined && input.actionSequenceGenerator === undefined
+    input.subtaskPrioritizer === undefined &&
+    input.actionSequenceGenerator === undefined &&
+    input.globalSynthesizer === undefined
       ? runAgentPlanningCycle(cycleInput)
       : await runAgentPlanningCycleWithPrioritization({
           ...cycleInput,
@@ -189,6 +195,9 @@ export async function runWorkerAgentCycle(
           ...(input.actionSequenceGenerator === undefined
             ? {}
             : { actionSequenceGenerator: input.actionSequenceGenerator }),
+          ...(input.globalSynthesizer === undefined
+            ? {}
+            : { globalSynthesizer: input.globalSynthesizer }),
         });
 
   const dispatchResult =
@@ -263,6 +272,9 @@ export async function runWorkerAgentCycle(
             mapActionSequenceGenerationTrace(entry),
           ),
         }),
+    ...(cycleResult.globalSynthesisTrace === undefined
+      ? {}
+      : { globalSynthesis: mapGlobalSynthesisTrace(cycleResult.globalSynthesisTrace) }),
     subtaskCandidates: cycleResult.subtaskCandidates,
     actionSynthesis: mapActionSynthesisTrace(cycleResult.actionSynthesisResult),
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
@@ -504,6 +516,44 @@ function mapActionSequenceGenerationTrace(
             id: action.id,
             commandType: action.commandType,
             rationale: action.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function mapGlobalSynthesisTrace(trace: GlobalSynthesisTrace): AgentCycleGlobalSynthesisTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.choices === undefined
+      ? {}
+      : {
+          choices: trace.choices.map((choice) => ({
+            actionId: choice.actionId,
+            priorityScore: choice.priorityScore,
+            rationale: choice.rationale,
+            ...(choice.strategicAlignment === undefined
+              ? {}
+              : { strategicAlignment: choice.strategicAlignment }),
+            ...(choice.branchUrgency === undefined ? {} : { branchUrgency: choice.branchUrgency }),
           })),
         }),
     ...(trace.attempts === undefined

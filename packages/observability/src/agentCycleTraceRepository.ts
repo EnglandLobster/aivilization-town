@@ -4,6 +4,7 @@ import {
   createAgentCycleTrace,
   type AgentCycleActionSequenceGenerationTrace,
   type AgentCycleContextualPrioritizationTrace,
+  type AgentCycleGlobalSynthesisTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
@@ -138,6 +139,9 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
             cloneActionSequenceGeneration(entry),
           ),
         }),
+    ...(trace.globalSynthesis === undefined
+      ? {}
+      : { globalSynthesis: cloneGlobalSynthesis(trace.globalSynthesis) }),
     subtaskCandidates: trace.subtaskCandidates.map((candidate) => cloneSubtaskCandidate(candidate)),
     actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
@@ -318,6 +322,60 @@ function cloneActionSequenceGeneration(
             id: action.id,
             commandType: action.commandType,
             rationale: action.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+  };
+}
+
+function cloneGlobalSynthesis(
+  trace: AgentCycleGlobalSynthesisTrace,
+): AgentCycleGlobalSynthesisTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.choices === undefined
+      ? {}
+      : {
+          choices: trace.choices.map((choice) => ({
+            actionId: choice.actionId,
+            priorityScore: choice.priorityScore,
+            rationale: choice.rationale,
+            ...(choice.strategicAlignment === undefined
+              ? {}
+              : { strategicAlignment: choice.strategicAlignment }),
+            ...(choice.branchUrgency === undefined ? {} : { branchUrgency: choice.branchUrgency }),
           })),
         }),
     ...(trace.attempts === undefined

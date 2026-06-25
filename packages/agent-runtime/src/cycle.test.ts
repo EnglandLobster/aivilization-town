@@ -504,6 +504,249 @@ describe('agent planning cycle', () => {
     expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentWork', 'AgentStudy']);
   });
 
+  test('allows async global synthesis to orchestrate actions across selected branch subtasks', async () => {
+    const plan = createBranchPlan({
+      objective: 'keep production moving without sacrificing survival',
+      branches: [
+        {
+          id: 'production',
+          objective: 'make goods',
+          subtasks: [{ id: 'produce', description: 'produce Widget', basePriority: 9 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [{ id: 'eat', description: 'eat Fish before work', basePriority: 8 }],
+        },
+      ],
+    });
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 175,
+      plan,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 1,
+        candidateSubtasks: { maxSubtasks: 2 },
+      },
+      globalSynthesizer: async ({ candidateActions, deterministicSynthesisResult }) => {
+        await Promise.resolve();
+        expect(candidateActions.map((action) => action.id)).toEqual(['produce-widget', 'eat-fish']);
+        expect(deterministicSynthesisResult.acceptedActions.map((action) => action.id)).toEqual([
+          'produce-widget',
+        ]);
+        return {
+          actions: [
+            {
+              ...candidateActions[1]!,
+              priority: 20,
+              synthesisContext: {
+                ...candidateActions[1]!.synthesisContext,
+                strategicAlignment: 4,
+                branchUrgency: 9,
+              },
+            },
+            {
+              ...candidateActions[0]!,
+              priority: 10,
+              synthesisContext: {
+                ...candidateActions[0]!.synthesisContext,
+                strategicAlignment: 8,
+                branchUrgency: 3,
+              },
+            },
+          ],
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'global-synthesis-cycle',
+            choices: [
+              {
+                actionId: 'eat-fish',
+                priorityScore: 20,
+                strategicAlignment: 4,
+                branchUrgency: 9,
+                rationale: 'Low satiety makes eating globally urgent before production.',
+              },
+              {
+                actionId: 'produce-widget',
+                priorityScore: 10,
+                strategicAlignment: 8,
+                branchUrgency: 3,
+                rationale: 'Production remains aligned but can wait for recovery.',
+              },
+            ],
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'production',
+          supports: ({ subtaskId }) => subtaskId === 'produce',
+          propose: () => [
+            {
+              id: 'produce-widget',
+              description: 'produce Widget',
+              commandType: 'AgentProduce',
+              payload: { commodityName: 'Widget', quantity: 1, availableLaborSeconds: 60 },
+              priority: 15,
+            },
+          ],
+        },
+        {
+          domain: 'recovery',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-fish',
+              description: 'eat Fish',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Fish', quantity: 1 },
+              priority: 4,
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.candidateActions.map((action) => action.id)).toEqual(['eat-fish']);
+    expect(result.actionSynthesisResult.rejectedActions).toEqual([
+      {
+        action: {
+          id: 'produce-widget',
+          description: 'produce Widget',
+          commandType: 'AgentProduce',
+          payload: { commodityName: 'Widget', quantity: 1, availableLaborSeconds: 60 },
+          priority: 10,
+          synthesisContext: {
+            branchId: 'production',
+            subtaskId: 'produce',
+            subtaskScore: 9,
+            strategicAlignment: 8,
+            branchUrgency: 3,
+          },
+        },
+        reason: 'maxActions exhausted',
+      },
+    ]);
+    expect(result.globalSynthesisTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'global-synthesis-cycle',
+      choices: [{ actionId: 'eat-fish' }, { actionId: 'produce-widget' }],
+    });
+  });
+
+  test('keeps deterministic resource budgets authoritative after global synthesis ranking', async () => {
+    const plan = createBranchPlan({
+      objective: 'balance production and survival',
+      branches: [
+        {
+          id: 'production',
+          objective: 'make goods',
+          subtasks: [{ id: 'produce', description: 'produce Widget', basePriority: 9 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [{ id: 'eat', description: 'eat Fish', basePriority: 8 }],
+        },
+      ],
+    });
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 176,
+      plan,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 1,
+        budget: { energyBudget: 0 },
+        candidateSubtasks: { maxSubtasks: 2 },
+      },
+      globalSynthesizer: async ({ candidateActions }) => {
+        await Promise.resolve();
+        return {
+          actions: [
+            { ...candidateActions[0]!, priority: 30 },
+            { ...candidateActions[1]!, priority: 20 },
+          ],
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'global-synthesis-budget-cycle',
+            choices: [
+              {
+                actionId: 'produce-widget',
+                priorityScore: 30,
+                rationale: 'LLM ranks production first, but budget must remain authoritative.',
+              },
+              {
+                actionId: 'eat-fish',
+                priorityScore: 20,
+                rationale: 'Fallback safe action after over-budget production.',
+              },
+            ],
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'production',
+          supports: ({ subtaskId }) => subtaskId === 'produce',
+          propose: () => [
+            {
+              id: 'produce-widget',
+              description: 'produce Widget',
+              commandType: 'AgentProduce',
+              payload: { commodityName: 'Widget', quantity: 1, availableLaborSeconds: 60 },
+              priority: 15,
+              resourceEstimate: { energyCost: 10 },
+            },
+          ],
+        },
+        {
+          domain: 'recovery',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-fish',
+              description: 'eat Fish',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Fish', quantity: 1 },
+              priority: 4,
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.candidateActions.map((action) => action.id)).toEqual(['eat-fish']);
+    expect(result.actionSynthesisResult.rejectedActions).toEqual([
+      {
+        action: {
+          id: 'produce-widget',
+          description: 'produce Widget',
+          commandType: 'AgentProduce',
+          payload: { commodityName: 'Widget', quantity: 1, availableLaborSeconds: 60 },
+          priority: 30,
+          resourceEstimate: { energyCost: 10 },
+          synthesisContext: {
+            branchId: 'production',
+            subtaskId: 'produce',
+            subtaskScore: 9,
+          },
+        },
+        reason: 'energy budget exceeded',
+      },
+    ]);
+  });
+
   test('updates progress for every completed synthesized subtask', () => {
     const agentId = asAgentId('agent-1');
     const plan = createBranchPlan({

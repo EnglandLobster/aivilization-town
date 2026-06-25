@@ -9,6 +9,7 @@ import type {
   CycleRepairPolicy,
   CycleSubtaskCompletionPolicy,
   DomainMicroPlanner,
+  GlobalActionSynthesizer,
   ReactionEvaluator,
   StrategicPlanCompiler,
   SubtaskPrioritizer,
@@ -84,6 +85,7 @@ export type WorkerTickAgentInput = {
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
@@ -259,6 +261,9 @@ export async function runWorkerSimulationTick(
       ...(agent.actionSequenceGenerator === undefined
         ? {}
         : { actionSequenceGenerator: agent.actionSequenceGenerator }),
+      ...(agent.globalSynthesizer === undefined
+        ? {}
+        : { globalSynthesizer: agent.globalSynthesizer }),
       simulate: agent.simulate,
       ...(agent.repair === undefined ? {} : { repair: agent.repair }),
       ...(agent.subtaskCompletion === undefined

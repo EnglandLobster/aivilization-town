@@ -488,6 +488,8 @@ describe('local runtime town profile gate suite', () => {
                 longTermProfileContextCount: 1,
                 worldDecisionContextCount: 1,
                 completeWorldDecisionContextCount: 1,
+                rulesContextCount: 1,
+                completeRulesContextCount: 1,
               },
               {
                 stageName: 'globalSynthesis',
@@ -500,6 +502,8 @@ describe('local runtime town profile gate suite', () => {
                 longTermProfileContextCount: 1,
                 worldDecisionContextCount: 0,
                 completeWorldDecisionContextCount: 0,
+                rulesContextCount: 0,
+                completeRulesContextCount: 0,
               },
               {
                 stageName: 'replanningDecision',
@@ -512,6 +516,8 @@ describe('local runtime town profile gate suite', () => {
                 longTermProfileContextCount: 1,
                 worldDecisionContextCount: 0,
                 completeWorldDecisionContextCount: 0,
+                rulesContextCount: 0,
+                completeRulesContextCount: 0,
               },
             ],
           }),
@@ -745,6 +751,8 @@ function createAcceptedAgentCycleLlmStageDiagnostics(
     longTermProfileContextCount: 1,
     worldDecisionContextCount: 1,
     completeWorldDecisionContextCount: 1,
+    rulesContextCount: 1,
+    completeRulesContextCount: 1,
   }));
 }
 
@@ -760,6 +768,8 @@ function createAcceptedCognitionLlmStageDiagnostics(
     missingProviderTraceCount: 0,
     worldDecisionContextCount: 1,
     completeWorldDecisionContextCount: 1,
+    rulesContextCount: 1,
+    completeRulesContextCount: 1,
   }));
 }
 

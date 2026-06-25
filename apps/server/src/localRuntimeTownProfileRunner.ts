@@ -479,6 +479,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     if (input.dailyPlanCompiler !== undefined) {
       await renewDailyPlanScheduledIntentions({
         projection,
+        policies,
         intentionRepository: storage.intentionRepository,
         longTermProfileRepository: storage.longTermProfileRepository,
         shortTermMemoryRepository: storage.shortTermMemoryRepository,
@@ -493,6 +494,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     }
     await renewMissingActiveObjectives({
       projection,
+      policies,
       intentionRepository: storage.intentionRepository,
       longTermProfileRepository: storage.longTermProfileRepository,
       shortTermMemoryRepository: storage.shortTermMemoryRepository,

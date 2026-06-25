@@ -105,6 +105,7 @@ export async function runCanonicalWorkerActivePlanTick(
   if (input.dailyPlanCompiler !== undefined) {
     await renewDailyPlanScheduledIntentions({
       projection,
+      policies: input.policies,
       intentionRepository: input.intentionRepository,
       longTermProfileRepository: input.longTermProfileRepository,
       shortTermMemoryRepository: input.shortTermMemoryRepository,
@@ -131,6 +132,7 @@ export async function runCanonicalWorkerActivePlanTick(
   }
   await renewMissingActiveObjectives({
     projection,
+    policies: input.policies,
     intentionRepository: input.intentionRepository,
     longTermProfileRepository: input.longTermProfileRepository,
     shortTermMemoryRepository: input.shortTermMemoryRepository,

@@ -26,10 +26,12 @@ export type RuntimeProfileRunGateCriteria = {
   readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -130,6 +132,11 @@ export function evaluateRuntimeProfileRunReport(
     report,
     criteria.requiredAgentCycleLlmWorldContextStages ?? [],
   );
+  addRequiredAgentCycleLlmRulesContextStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmRulesContextStages ?? [],
+  );
   addRequiredAgentCycleLlmMemoryContextStageFailures(
     failures,
     report,
@@ -149,6 +156,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmWorldContextStages ?? [],
+  );
+  addRequiredCognitionLlmRulesContextStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmRulesContextStages ?? [],
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -313,6 +325,36 @@ function addRequiredAgentCycleLlmWorldContextStageFailures(
   }
 }
 
+function addRequiredAgentCycleLlmRulesContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.completeRulesContextCount ?? 0;
+    const rulesContextCount = stage?.rulesContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-complete-rules-context-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} completeRulesContextCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        rulesContextCount,
+        minimum: 1,
+      },
+    });
+  }
+}
+
 function addRequiredAgentCycleLlmMemoryContextStageFailures(
   failures: RuntimeProfileRunGateFailure[],
   report: RuntimeProfileRunReport,
@@ -416,6 +458,35 @@ function addRequiredCognitionLlmWorldContextStageFailures(
         stageName,
         actual,
         worldDecisionContextCount,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmRulesContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.completeRulesContextCount ?? 0;
+    const rulesContextCount = stage?.rulesContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-complete-rules-context-count-too-low',
+      message: `cognition LLM stage ${stageName} completeRulesContextCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        rulesContextCount,
         minimum: 1,
       },
     });

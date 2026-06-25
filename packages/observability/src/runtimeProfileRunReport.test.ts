@@ -418,6 +418,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'actionSequenceGeneration',
@@ -430,6 +432,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 2,
         worldDecisionContextCount: 2,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 2,
+        completeRulesContextCount: 2,
       },
       {
         stageName: 'socialDialogueGeneration',
@@ -442,6 +446,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'globalSynthesis',
@@ -454,6 +460,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'reactiveCorrection',
@@ -466,6 +474,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'replanningDecision',
@@ -478,6 +488,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
     ]);
   });
@@ -573,6 +585,8 @@ describe('runtime profile run report repositories', () => {
         missingProviderTraceCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'dailyPlanning',
@@ -583,6 +597,8 @@ describe('runtime profile run report repositories', () => {
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 0,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'reactionEvaluation',
@@ -593,6 +609,8 @@ describe('runtime profile run report repositories', () => {
         missingProviderTraceCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 1,
+        completeRulesContextCount: 1,
       },
       {
         stageName: 'reflectionSynthesis',
@@ -603,6 +621,8 @@ describe('runtime profile run report repositories', () => {
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 0,
+        completeRulesContextCount: 0,
       },
       {
         stageName: 'socialModelSynthesis',
@@ -613,6 +633,8 @@ describe('runtime profile run report repositories', () => {
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        rulesContextCount: 0,
+        completeRulesContextCount: 0,
       },
     ]);
   });
@@ -647,6 +669,8 @@ describe('runtime profile run report repositories', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 0,
             completeWorldDecisionContextCount: 0,
+            rulesContextCount: 0,
+            completeRulesContextCount: 0,
           },
         ],
       }),
@@ -875,6 +899,8 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     longTermProfileContextCount: 0,
     worldDecisionContextCount: 0,
     completeWorldDecisionContextCount: 0,
+    rulesContextCount: 0,
+    completeRulesContextCount: 0,
   }));
 }
 
@@ -888,6 +914,10 @@ function createWorldDecisionContextTrace() {
     inventoryItemCount: 2,
     marketSpotPriceCount: 1,
     hasLatestPriceIndex: true,
+    occupationRuleCount: 4,
+    eligibleOccupationRuleCount: 2,
+    productionRuleCount: 6,
+    producibleCommodityRuleCount: 3,
   };
 }
 
@@ -911,6 +941,8 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
       completeWorldDecisionContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
     },
     {
       stageName: 'dailyPlanning',
@@ -921,6 +953,8 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
       completeWorldDecisionContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
     },
     {
       stageName: 'reactionEvaluation',
@@ -931,6 +965,8 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
       completeWorldDecisionContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
     },
     {
       stageName: 'reflectionSynthesis',
@@ -941,6 +977,8 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
       completeWorldDecisionContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
     },
     {
       stageName: 'socialModelSynthesis',
@@ -951,6 +989,8 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
       completeWorldDecisionContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
     },
   ];
 }

@@ -14,7 +14,11 @@ import {
 } from '@aivilization/memory';
 import type { DailyPlanRenewalTrace } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
+import {
+  createWorldProjection,
+  type WorldAgentState,
+  type WorldCommandPolicies,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createDailyRoutineScheduledIntentions,
@@ -383,6 +387,7 @@ describe('daily routine scheduling', () => {
 
     const results = await renewDailyPlanScheduledIntentions({
       projection,
+      policies: createRulesPolicies(),
       intentionRepository,
       longTermProfileRepository,
       shortTermMemoryRepository,
@@ -427,6 +432,21 @@ describe('daily routine scheduling', () => {
       },
       memoryContext: [expect.objectContaining({ id: memory.id })],
     });
+    const rules = compilerInput?.worldDecisionContext?.rules;
+    if (rules === undefined) {
+      throw new Error('expected daily compiler world decision rules');
+    }
+    expect(rules.criticalThresholds).toEqual({ energy: 1, health: 1 });
+    expect(
+      rules.occupations.some(
+        (rule) => rule.occupationName.length > 0 && rule.applicationQuota?.residentialTier === 5,
+      ),
+    ).toBe(true);
+    expect(
+      rules.production.some(
+        (rule) => rule.commodity.length > 0 && Number.isFinite(rule.timeCostSeconds),
+      ),
+    ).toBe(true);
     expect(results).toEqual([
       {
         agentId,
@@ -553,5 +573,19 @@ function createProfile(
     personality: [],
     socialRecords: [],
     ...partial,
+  };
+}
+
+function createRulesPolicies(): WorldCommandPolicies {
+  return {
+    satietyRecoveryByCommodity: { Bread: 15 },
+    maxSatiety: 100,
+    wageCalculator: () => 10,
+    laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+    criticalThresholds: { energy: 1, health: 1 },
+    jobApplication: {
+      populationEducationScores: [0, 100],
+      quotaByResidentialTier: [1, 1, 1, 1, 1],
+    },
   };
 }

@@ -6,6 +6,8 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleSimulatorEventTrace,
+  type AgentCycleSimulatorTraceEvent,
   type AgentCycleTrace,
   type AgentCycleSelectionTraceEvidence,
   type AgentCycleSubtaskCandidateTrace,
@@ -28,7 +30,11 @@ export type AgentCycleTraceRepository = {
   readonly query: (query: AgentCycleTraceQuery) => Promise<AgentCycleTrace[]>;
 };
 
-type PersistedAgentCycleTrace = Omit<AgentCycleTrace, 'subtaskReplanningDecisions'> & {
+type PersistedAgentCycleTrace = Omit<
+  AgentCycleTrace,
+  'simulatorEvents' | 'subtaskReplanningDecisions'
+> & {
+  readonly simulatorEvents?: readonly AgentCycleSimulatorEventTrace[];
   readonly subtaskReplanningDecisions?: readonly AgentCycleSubtaskReplanningDecisionTrace[];
 };
 
@@ -124,6 +130,9 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
     actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
     simulatorResult: cloneSimulatorResult(trace.simulatorResult),
+    simulatorEvents: (trace.simulatorEvents ?? []).map((entry) =>
+      cloneSimulatorEventTrace(entry),
+    ),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
     replanningDecision: cloneReplanningDecision(trace.replanningDecision),
     subtaskReplanningDecisions: (trace.subtaskReplanningDecisions ?? []).map((decision) =>
@@ -244,6 +253,28 @@ function cloneSimulatorResult(result: SimulatorTraceResult): SimulatorTraceResul
     case 'repaired':
       return { status: 'repaired', reason: result.reason };
   }
+}
+
+function cloneSimulatorEventTrace(
+  entry: AgentCycleSimulatorEventTrace,
+): AgentCycleSimulatorEventTrace {
+  return {
+    actionId: entry.actionId,
+    attempt: entry.attempt,
+    status: entry.status,
+    ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+    events: entry.events.map((event) => cloneSimulatorTraceEvent(event)),
+  };
+}
+
+function cloneSimulatorTraceEvent(
+  event: AgentCycleSimulatorTraceEvent,
+): AgentCycleSimulatorTraceEvent {
+  return {
+    type: event.type,
+    ...(event.sequence === undefined ? {} : { sequence: event.sequence }),
+    ...(event.summary === undefined ? {} : { summary: event.summary }),
+  };
 }
 
 function cloneSelectionEvidence(

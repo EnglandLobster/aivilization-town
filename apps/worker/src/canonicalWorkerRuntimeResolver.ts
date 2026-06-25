@@ -1,5 +1,6 @@
 import type {
   ActionWithRepairResult,
+  ActionSimulationTraceEvent,
   AtomicActionProposal,
   CycleActionSimulator,
   CycleRepairPolicy,
@@ -18,6 +19,7 @@ import {
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
+  type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
 import {
@@ -317,6 +319,7 @@ export function createWorldCommandDryRunSimulator(
           status: 'rejected',
           action,
           reason: rejection.payload.reason,
+          traceEvents: events.map((event) => mapWorldEventTrace(event)),
         };
       }
 
@@ -325,6 +328,7 @@ export function createWorldCommandDryRunSimulator(
       return {
         status: 'accepted',
         action,
+        traceEvents: events.map((event) => mapWorldEventTrace(event)),
       };
     } catch (error) {
       return {
@@ -334,4 +338,44 @@ export function createWorldCommandDryRunSimulator(
       };
     }
   };
+}
+
+function mapWorldEventTrace(event: WorldEvent): ActionSimulationTraceEvent {
+  const summary = summarizeWorldEvent(event);
+  return {
+    type: event.type,
+    sequence: event.sequence,
+    ...(summary === undefined ? {} : { summary }),
+  };
+}
+
+function summarizeWorldEvent(event: WorldEvent): string | undefined {
+  switch (event.type) {
+    case 'ActionRejected':
+      return event.payload.reason;
+    case 'InventoryChanged':
+      return `${event.payload.reason} ${event.payload.itemName} ${formatSignedNumber(
+        event.payload.delta,
+      )}`;
+    case 'PhysiologyChanged':
+      return event.payload.reason;
+    case 'EducationChanged':
+      return event.payload.reason;
+    case 'ShortTermMemoryRecorded':
+      return event.payload.record.summary;
+    case 'TradeExecuted':
+      return `${event.payload.side} ${event.payload.commodityName} ${event.payload.commodityQuantity}`;
+    case 'CommodityProduced':
+      return Object.entries(event.payload.produced)
+        .map(([itemName, quantity]) => `${itemName} ${formatSignedNumber(quantity)}`)
+        .join(', ');
+    case 'WagePaid':
+      return `${event.payload.occupationName} ${formatSignedNumber(event.payload.amount)}`;
+    default:
+      return undefined;
+  }
+}
+
+function formatSignedNumber(value: number): string {
+  return value >= 0 ? `+${value}` : `${value}`;
 }

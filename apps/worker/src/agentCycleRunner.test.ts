@@ -123,7 +123,14 @@ describe('worker agent cycle runner', () => {
           payload: { durationSeconds: 60, educationRatePerSecond: 1 },
         }),
       ],
-      simulate: ({ action }) => ({ status: 'accepted', action }),
+      simulate: ({ action }) => ({
+        status: 'accepted',
+        action,
+        traceEvents: [
+          { type: 'EducationChanged', sequence: 1, summary: 'education increased' },
+          { type: 'ShortTermMemoryRecorded', sequence: 2, summary: 'Studied for one minute.' },
+        ],
+      }),
       traceSink,
       ...repositories,
     });
@@ -157,6 +164,17 @@ describe('worker agent cycle runner', () => {
       emittedCommandIds: ['cycle-1-command-1'],
       memoryWriteIds: ['cycle-1-command-1:memory:1'],
     });
+    expect(result.trace.simulatorEvents).toEqual([
+      {
+        actionId: 'study-1',
+        attempt: 'original',
+        status: 'accepted',
+        events: [
+          { type: 'EducationChanged', sequence: 1, summary: 'education increased' },
+          { type: 'ShortTermMemoryRecorded', sequence: 2, summary: 'Studied for one minute.' },
+        ],
+      },
+    ]);
     expect(traces).toEqual([result.trace]);
   });
 

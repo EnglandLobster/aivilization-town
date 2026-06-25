@@ -92,6 +92,17 @@ function createTrace(input: {
     },
     candidateActions: ['study for one minute'],
     simulatorResult: { status: 'accepted' },
+    simulatorEvents: [
+      {
+        actionId: `${input.traceId}:study-1`,
+        attempt: 'original',
+        status: 'accepted',
+        events: [
+          { type: 'EducationChanged', sequence: 10, summary: 'education increased' },
+          { type: 'ShortTermMemoryRecorded', sequence: 11, summary: 'Studied for one minute.' },
+        ],
+      },
+    ],
     selectionEvidence: {
       selectedSubtaskId: 'study',
       intentionInfluenceScore: 0,
@@ -185,6 +196,13 @@ describe('agent cycle trace repositories', () => {
         failedActionIds: string[];
       }
     ).failedActionIds.push('mutated');
+    (
+      read!.simulatorEvents[0]!.events as {
+        type: string;
+        sequence?: number;
+        summary?: string;
+      }[]
+    ).push({ type: 'mutated' });
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
   });
 
@@ -210,6 +228,7 @@ describe('agent cycle trace repositories', () => {
     const trace = createTrace({ traceId: 'legacy-trace', cycleStartedAt: 100 });
     const legacyTrace: Record<string, unknown> = { ...trace };
     delete legacyTrace.subtaskReplanningDecisions;
+    delete legacyTrace.simulatorEvents;
     writeFileSync(join(rootDir, 'agent-cycle-traces.jsonl'), `${JSON.stringify(legacyTrace)}\n`);
 
     const repository = new FileAgentCycleTraceRepository({ rootDir });
@@ -217,6 +236,7 @@ describe('agent cycle trace repositories', () => {
     await expect(repository.get('legacy-trace')).resolves.toEqual({
       ...trace,
       subtaskReplanningDecisions: [],
+      simulatorEvents: [],
     });
   });
 });

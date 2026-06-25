@@ -1,6 +1,8 @@
 import {
   runAgentPlanningCycle,
   type ActionSynthesisPolicy,
+  type ActionSimulationTraceEvent,
+  type ActionWithRepairResult,
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
   type AtomicActionProposal,
@@ -25,6 +27,8 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleSimulatorEventTrace,
+  type AgentCycleSimulatorTraceEvent,
   type AgentCycleSubtaskReplanningDecisionTrace,
   type AgentCycleTrace,
   type SimulatorTraceResult,
@@ -174,6 +178,7 @@ export async function runWorkerAgentCycle(
     actionSynthesis: mapActionSynthesisTrace(cycleResult.actionSynthesisResult),
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
     simulatorResult: summarizeSimulatorResult(cycleResult),
+    simulatorEvents: mapSimulatorEventTraces(cycleResult.simulationResults),
     selectionEvidence: cycleResult.selectionEvidence,
     replanningDecision: cycleResult.replanningDecision,
     subtaskReplanningDecisions: cycleResult.subtaskReplanningDecisions.map((entry) =>
@@ -198,6 +203,71 @@ export async function runWorkerAgentCycle(
       : { progressUpdate: cycleResult.progressUpdate }),
     trace,
   };
+}
+
+function mapSimulatorEventTraces(
+  simulationResults: readonly ActionWithRepairResult[],
+): readonly AgentCycleSimulatorEventTrace[] {
+  return simulationResults.flatMap((result): readonly AgentCycleSimulatorEventTrace[] => {
+    switch (result.status) {
+      case 'accepted':
+        return [
+          {
+            actionId: result.action.id,
+            attempt: 'original',
+            status: 'accepted',
+            events: mapSimulatorTraceEvents(result.traceEvents),
+          },
+        ];
+      case 'needs-replan':
+        return [
+          {
+            actionId: result.action.id,
+            attempt: 'original',
+            status: 'rejected',
+            reason: result.reason,
+            events: mapSimulatorTraceEvents(result.traceEvents),
+          },
+          ...(result.attemptedRepair === undefined
+            ? []
+            : [
+                {
+                  actionId: result.attemptedRepair.id,
+                  attempt: 'repair' as const,
+                  status: 'rejected' as const,
+                  reason: result.reason,
+                  events: mapSimulatorTraceEvents(result.attemptedRepairTraceEvents),
+                },
+              ]),
+        ];
+      case 'repaired':
+        return [
+          {
+            actionId: result.originalAction.id,
+            attempt: 'original',
+            status: 'rejected',
+            reason: result.reason,
+            events: mapSimulatorTraceEvents(result.originalTraceEvents),
+          },
+          {
+            actionId: result.repairedAction.id,
+            attempt: 'repair',
+            status: 'accepted',
+            events: mapSimulatorTraceEvents(result.repairedTraceEvents),
+          },
+        ];
+    }
+  });
+}
+
+function mapSimulatorTraceEvents(
+  events: readonly ActionSimulationTraceEvent[] | undefined,
+): readonly AgentCycleSimulatorTraceEvent[] {
+  return (events ?? []).map((event) => ({
+    type: event.type,
+    ...(event.sequence === undefined ? {} : { sequence: event.sequence }),
+    ...(event.summary === undefined ? {} : { summary: event.summary }),
+  }));
 }
 
 function mapActionSynthesisTrace(

@@ -392,6 +392,7 @@ function createSuiteAgentCycleTrace(variant: string, simulationId: string): Agen
     simulatorResult: isWithoutBranch
       ? { status: 'rejected', reason: 'blocked by ablation test fixture' }
       : { status: 'accepted' },
+    simulatorEvents: [],
     selectionEvidence: {
       selectedSubtaskId: 'study',
       intentionInfluenceScore: 0,

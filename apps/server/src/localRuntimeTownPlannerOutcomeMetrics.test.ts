@@ -198,6 +198,7 @@ function createTrace(input: {
       input.simulatorStatus === 'accepted'
         ? { status: 'accepted' }
         : { status: input.simulatorStatus, reason: `${input.simulatorStatus} by test fixture` },
+    simulatorEvents: [],
     selectionEvidence: {
       selectedSubtaskId: 'study',
       intentionInfluenceScore: 0,

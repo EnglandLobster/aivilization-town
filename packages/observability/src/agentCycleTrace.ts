@@ -1,3 +1,5 @@
+import type { WorldDecisionContextTrace } from './worldDecisionContextTrace';
+
 export type SimulatorTraceResult =
   | { readonly status: 'accepted'; readonly reason?: string }
   | { readonly status: 'rejected'; readonly reason: string }
@@ -99,6 +101,7 @@ export type AgentCycleContextualPrioritizationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type AgentCycleActionSequenceGenerationTrace = {
@@ -137,6 +140,7 @@ export type AgentCycleActionSequenceGenerationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type AgentCycleSocialDialogueGenerationTrace = {
@@ -174,6 +178,7 @@ export type AgentCycleSocialDialogueGenerationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type AgentCycleGlobalSynthesisTrace = {
@@ -210,6 +215,7 @@ export type AgentCycleGlobalSynthesisTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type AgentCycleActionRepairTrace = {
@@ -271,6 +277,7 @@ export type AgentCycleActionRepairTrace = {
       readonly totalTokens: number;
       readonly estimatedCostMicros: number;
     };
+    readonly worldDecisionContext?: WorldDecisionContextTrace;
     readonly simulatorResult?: {
       readonly status: 'accepted' | 'rejected';
       readonly reason?: string;

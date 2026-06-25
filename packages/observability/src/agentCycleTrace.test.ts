@@ -1,6 +1,17 @@
 import { describe, expect, test } from 'vitest';
 import { createAgentCycleTrace } from './index';
 
+const worldDecisionContext = {
+  agentId: 'agent-1',
+  hasPhysiology: true,
+  hasBalance: true,
+  hasEducationScore: true,
+  hasResidentialTier: true,
+  inventoryItemCount: 2,
+  marketSpotPriceCount: 1,
+  hasLatestPriceIndex: true,
+};
+
 describe('createAgentCycleTrace', () => {
   test('captures planner, simulator, command, and memory evidence in one record', () => {
     const trace = createAgentCycleTrace({
@@ -24,6 +35,7 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Crafting aligns with production goals after checking inventory.',
           },
         ],
+        worldDecisionContext,
       },
       actionSequenceGeneration: [
         {
@@ -43,6 +55,25 @@ describe('createAgentCycleTrace', () => {
               rationale: 'Craft one Transistor after checking inventory and production goals.',
             },
           ],
+          worldDecisionContext,
+        },
+      ],
+      socialDialogueGeneration: [
+        {
+          status: 'accepted',
+          source: 'llm',
+          selectedSubtask: {
+            branchId: 'social',
+            subtaskId: 'coordinate-market',
+          },
+          actionId: 'ask-neighbor-1',
+          targetAgentId: 'agent-2',
+          requestId: 'trace-1:social-dialogue',
+          providerId: 'scripted-social-dialogue',
+          model: 'dialogue-model',
+          turnCount: 2,
+          rationale: 'Ask a neighbor about market supply using current price context.',
+          worldDecisionContext,
         },
       ],
       globalSynthesis: {
@@ -67,6 +98,7 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Crafting remains aligned but can follow recovery.',
           },
         ],
+        worldDecisionContext,
       },
       actionRepair: [
         {
@@ -102,6 +134,7 @@ describe('createAgentCycleTrace', () => {
               },
             },
             simulatorResult: { status: 'accepted' },
+            worldDecisionContext,
           },
           outcome: 'repaired',
         },
@@ -232,6 +265,7 @@ describe('createAgentCycleTrace', () => {
       source: 'llm',
       requestId: 'trace-1:prioritize',
       choices: [{ subtaskId: 'craft-transistor' }],
+      worldDecisionContext,
     });
     expect(trace.actionSequenceGeneration).toEqual([
       {
@@ -251,6 +285,25 @@ describe('createAgentCycleTrace', () => {
             rationale: 'Craft one Transistor after checking inventory and production goals.',
           },
         ],
+        worldDecisionContext,
+      },
+    ]);
+    expect(trace.socialDialogueGeneration).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: {
+          branchId: 'social',
+          subtaskId: 'coordinate-market',
+        },
+        actionId: 'ask-neighbor-1',
+        targetAgentId: 'agent-2',
+        requestId: 'trace-1:social-dialogue',
+        providerId: 'scripted-social-dialogue',
+        model: 'dialogue-model',
+        turnCount: 2,
+        rationale: 'Ask a neighbor about market supply using current price context.',
+        worldDecisionContext,
       },
     ]);
     expect(trace.globalSynthesis).toEqual({
@@ -275,6 +328,7 @@ describe('createAgentCycleTrace', () => {
           rationale: 'Crafting remains aligned but can follow recovery.',
         },
       ],
+      worldDecisionContext,
     });
     expect(trace.actionRepair).toEqual([
       {
@@ -310,6 +364,7 @@ describe('createAgentCycleTrace', () => {
             },
           },
           simulatorResult: { status: 'accepted' },
+          worldDecisionContext,
         },
         outcome: 'repaired',
       },

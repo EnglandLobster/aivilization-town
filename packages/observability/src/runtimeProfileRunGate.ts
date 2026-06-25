@@ -24,6 +24,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requireStreamVersionMatchesEventCount: boolean;
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -119,6 +120,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredAgentCycleLlmAcceptedStages ?? [],
+  );
+  addRequiredAgentCycleLlmWorldContextStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmWorldContextStages ?? [],
   );
   addRequiredCognitionLlmStageFailures(
     failures,
@@ -228,6 +234,33 @@ function addRequiredAgentCycleLlmStageFailures(
     failures.push({
       code: 'agent-cycle-llm-stage-accepted-count-too-low',
       message: `agent-cycle LLM stage ${stageName} llmAcceptedCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredAgentCycleLlmWorldContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.worldDecisionContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-world-context-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} worldDecisionContextCount must be at least 1`,
       evidence: {
         stageName,
         actual,

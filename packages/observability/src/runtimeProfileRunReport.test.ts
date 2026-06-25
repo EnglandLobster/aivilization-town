@@ -288,17 +288,20 @@ describe('runtime profile run report repositories', () => {
         contextualPrioritization: {
           status: 'accepted',
           source: 'llm',
+          worldDecisionContext: createWorldDecisionContextTrace(),
         },
         actionSequenceGeneration: [
           {
             status: 'accepted',
             source: 'llm',
             selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
           {
             status: 'fallback',
             source: 'deterministic-fallback',
             selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
         ],
         socialDialogueGeneration: [
@@ -310,11 +313,13 @@ describe('runtime profile run report repositories', () => {
             targetAgentId: 'agent-2',
             turnCount: 2,
             rationale: 'LLM dialogue accepted.',
+            worldDecisionContext: createWorldDecisionContextTrace(),
           },
         ],
         globalSynthesis: {
           status: 'fallback',
           source: 'deterministic-fallback',
+          worldDecisionContext: createWorldDecisionContextTrace(),
         },
         actionRepair: [
           {
@@ -335,6 +340,7 @@ describe('runtime profile run report repositories', () => {
                   commandType: 'AgentTrade',
                 },
               },
+              worldDecisionContext: createWorldDecisionContextTrace(),
             },
             outcome: 'repaired',
           },
@@ -357,6 +363,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingCycleCount: 1,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'actionSequenceGeneration',
@@ -365,6 +372,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 1,
         deterministicCount: 0,
         missingCycleCount: 1,
+        worldDecisionContextCount: 2,
       },
       {
         stageName: 'socialDialogueGeneration',
@@ -373,6 +381,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingCycleCount: 1,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'globalSynthesis',
@@ -381,6 +390,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 1,
         deterministicCount: 0,
         missingCycleCount: 1,
+        worldDecisionContextCount: 1,
       },
       {
         stageName: 'reactiveCorrection',
@@ -389,6 +399,7 @@ describe('runtime profile run report repositories', () => {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingCycleCount: 1,
+        worldDecisionContextCount: 1,
       },
     ]);
   });
@@ -769,6 +780,7 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingCycleCount: traceCount,
+    worldDecisionContextCount: 0,
   }));
 }
 

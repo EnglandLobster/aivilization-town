@@ -16,6 +16,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumFullReplanMaterializationCount?: number;
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -33,6 +34,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmAcceptedStages =
     input.requiredAgentCycleLlmAcceptedStages ??
     deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmWorldContextStages =
+    input.requiredAgentCycleLlmWorldContextStages ??
+    deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredCognitionLlmAcceptedStages =
     input.requiredCognitionLlmAcceptedStages ??
     deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
@@ -73,6 +77,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmAcceptedStages.length === 0
       ? {}
       : { requiredAgentCycleLlmAcceptedStages }),
+    ...(requiredAgentCycleLlmWorldContextStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmWorldContextStages }),
     ...(requiredCognitionLlmAcceptedStages.length === 0
       ? {}
       : { requiredCognitionLlmAcceptedStages }),
@@ -106,6 +113,12 @@ export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
     stages.push('reactiveCorrection');
   }
   return stages;
+}
+
+export function deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(

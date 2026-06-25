@@ -96,6 +96,7 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 0,
               deterministicCount: 0,
               missingCycleCount: 0,
+              worldDecisionContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -104,6 +105,7 @@ describe('runtime profile run gate', () => {
               deterministicFallbackCount: 1,
               deterministicCount: 0,
               missingCycleCount: 0,
+              worldDecisionContextCount: 0,
             },
           ],
         },
@@ -118,6 +120,56 @@ describe('runtime profile run gate', () => {
     expect(result.failures).toContainEqual({
       code: 'agent-cycle-llm-stage-accepted-count-too-low',
       message: 'agent-cycle LLM stage globalSynthesis llmAcceptedCount must be at least 1',
+      evidence: {
+        stageName: 'globalSynthesis',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires world decision context coverage for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              worldDecisionContextCount: 1,
+            },
+            {
+              stageName: 'globalSynthesis',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              worldDecisionContextCount: 0,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmWorldContextStages: [
+          'contextualPrioritization',
+          'globalSynthesis',
+        ],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-world-context-count-too-low',
+      message:
+        'agent-cycle LLM stage globalSynthesis worldDecisionContextCount must be at least 1',
       evidence: {
         stageName: 'globalSynthesis',
         actual: 0,

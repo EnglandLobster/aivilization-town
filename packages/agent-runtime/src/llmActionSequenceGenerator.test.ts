@@ -90,6 +90,16 @@ describe('LLM action sequence generation seam', () => {
           totalTokens: 110,
           estimatedCostMicros: 310,
         },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
+        },
       },
     });
 

@@ -16,6 +16,10 @@ import {
   type ReactiveCorrector,
   type ReactiveCorrectorInput,
 } from './actionRepair';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmReactiveCorrectionProposal = {
   readonly decision: ReactiveCorrectionGeneratedDecision;
@@ -88,6 +92,7 @@ export async function proposeReactiveCorrectionWithLlm(
       source: 'llm',
       action: correction.action,
       trace: mapAcceptedTrace({
+        input,
         gateway,
         decision: correction.traceDecision,
       }),
@@ -343,6 +348,7 @@ function createFallbackResult(input: {
     source: 'deterministic-fallback',
     action: undefined,
     trace: mapFallbackTrace({
+      input: input.input,
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
@@ -352,6 +358,7 @@ function createFallbackResult(input: {
 }
 
 function mapAcceptedTrace(input: {
+  readonly input: LlmReactiveCorrectorInput;
   readonly gateway: LlmStructuredSuccess<LlmReactiveCorrectionProposal>;
   readonly decision: ReactiveCorrectionTrace['decision'];
 }): ReactiveCorrectionTrace {
@@ -372,10 +379,12 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }
 
 function mapFallbackTrace(input: {
+  readonly input: LlmReactiveCorrectorInput;
   readonly gateway: LlmStructuredFailure | LlmStructuredSuccess<LlmReactiveCorrectionProposal>;
   readonly failureReason: string;
   readonly message: string;
@@ -403,7 +412,16 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<ReactiveCorrectionTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

@@ -56,6 +56,7 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingCycleCount: number;
+  readonly worldDecisionContextCount: number;
 };
 
 export type RuntimeProfileAgentCycleDiagnostics = {
@@ -558,6 +559,7 @@ const COGNITION_LLM_STAGE_NAMES = [
 type AgentCycleLlmStageTrace = {
   readonly status: 'deterministic' | 'accepted' | 'fallback';
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly worldDecisionContext?: unknown;
 };
 
 type CognitionLlmStageTrace = RuntimeProfileCognitionProviderTrace;
@@ -569,6 +571,7 @@ type MutableLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingCycleCount: number;
+  worldDecisionContextCount: number;
 };
 
 type MutableCognitionLlmStageDiagnostics = {
@@ -594,6 +597,7 @@ function createLlmStageDiagnostics(
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingCycleCount: 0,
+        worldDecisionContextCount: 0,
       },
     ]),
   );
@@ -665,6 +669,9 @@ function recordStageTrace(input: {
     if (trace.source === 'deterministic') {
       diagnostics.deterministicCount += 1;
     }
+    if (trace.worldDecisionContext !== undefined) {
+      diagnostics.worldDecisionContextCount += 1;
+    }
   }
 }
 
@@ -702,9 +709,18 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
       stage.missingCycleCount,
       `agentCycleDiagnostics ${stage.stageName} missingCycleCount`,
     );
+    assertNonNegativeInteger(
+      stage.worldDecisionContextCount,
+      `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount`,
+    );
     if (stage.missingCycleCount > diagnostics.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} missingCycleCount must not exceed traceCount`,
+      );
+    }
+    if (stage.worldDecisionContextCount > stage.traceCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
       );
     }
     if (

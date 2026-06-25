@@ -26,6 +26,19 @@ function createRootDir(): string {
   return root;
 }
 
+function createWorldDecisionContextTrace(agentId: string) {
+  return {
+    agentId,
+    hasPhysiology: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    inventoryItemCount: 2,
+    marketSpotPriceCount: 1,
+    hasLatestPriceIndex: true,
+  };
+}
+
 function createTrace(input: {
   readonly traceId: string;
   readonly simulationId?: string;
@@ -34,6 +47,7 @@ function createTrace(input: {
   readonly replanMaterialization?: boolean;
   readonly contextualPrioritization?: boolean;
   readonly actionSequenceGeneration?: boolean;
+  readonly socialDialogueGeneration?: boolean;
   readonly globalSynthesis?: boolean;
   readonly actionRepair?: boolean;
 }): AgentCycleTrace {
@@ -81,6 +95,7 @@ function createTrace(input: {
               totalTokens: 15,
               estimatedCostMicros: 25,
             },
+            worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
       : {}),
@@ -125,6 +140,50 @@ function createTrace(input: {
                 totalTokens: 28,
                 estimatedCostMicros: 44,
               },
+              worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
+            },
+          ],
+        }
+      : {}),
+    ...(input.socialDialogueGeneration === true
+      ? {
+          socialDialogueGeneration: [
+            {
+              status: 'accepted',
+              source: 'llm',
+              selectedSubtask: {
+                branchId: 'social',
+                subtaskId: 'check-in',
+              },
+              actionId: `${input.traceId}:social-1`,
+              targetAgentId: 'agent-2',
+              requestId: `${input.traceId}:social-dialogue`,
+              providerId: 'scripted-social-dialogue',
+              model: 'dialogue-model',
+              turnCount: 2,
+              rationale: 'Use current market context to coordinate with a neighbor.',
+              attempts: [
+                {
+                  attemptIndex: 1,
+                  status: 'succeeded',
+                  providerId: 'scripted-social-dialogue',
+                  model: 'dialogue-model',
+                  message: 'LLM structured response validated',
+                  usage: {
+                    inputTokens: 18,
+                    outputTokens: 9,
+                    totalTokens: 27,
+                    estimatedCostMicros: 45,
+                  },
+                },
+              ],
+              usage: {
+                inputTokens: 18,
+                outputTokens: 9,
+                totalTokens: 27,
+                estimatedCostMicros: 45,
+              },
+              worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
             },
           ],
         }
@@ -174,6 +233,7 @@ function createTrace(input: {
               totalTokens: 42,
               estimatedCostMicros: 66,
             },
+            worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
       : {}),
@@ -213,6 +273,7 @@ function createTrace(input: {
                   },
                 },
                 simulatorResult: { status: 'accepted' },
+                worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
               },
               outcome: 'repaired',
             },
@@ -341,6 +402,7 @@ describe('agent cycle trace repositories', () => {
       replanMaterialization: true,
       contextualPrioritization: true,
       actionSequenceGeneration: true,
+      socialDialogueGeneration: true,
       globalSynthesis: true,
       actionRepair: true,
     });
@@ -409,10 +471,27 @@ describe('agent cycle trace repositories', () => {
       }[]
     )[0]!.rationale = 'mutated';
     (
+      read!.actionSequenceGeneration![0]!.worldDecisionContext as unknown as {
+        inventoryItemCount: number;
+      }
+    ).inventoryItemCount = 999;
+    (read!.socialDialogueGeneration![0] as unknown as { rationale: string }).rationale =
+      'mutated';
+    (
+      read!.socialDialogueGeneration![0]!.worldDecisionContext as unknown as {
+        marketSpotPriceCount: number;
+      }
+    ).marketSpotPriceCount = 999;
+    (
       read!.globalSynthesis!.choices as unknown as {
         rationale: string;
       }[]
     )[0]!.rationale = 'mutated';
+    (
+      read!.globalSynthesis!.worldDecisionContext as unknown as {
+        hasBalance: boolean;
+      }
+    ).hasBalance = false;
     (
       read!.actionRepair![0]!.reactiveCorrection!.decision.evidenceRecordIds as unknown as string[]
     ).push('mutated');
@@ -421,6 +500,16 @@ describe('agent cycle trace repositories', () => {
         rationale: string;
       }
     ).rationale = 'mutated';
+    (
+      read!.actionRepair![0]!.reactiveCorrection!.worldDecisionContext as unknown as {
+        hasLatestPriceIndex: boolean;
+      }
+    ).hasLatestPriceIndex = false;
+    (
+      read!.contextualPrioritization!.worldDecisionContext as unknown as {
+        hasPhysiology: boolean;
+      }
+    ).hasPhysiology = false;
     (
       read!.replanMaterialization as unknown as {
         failedActionIds: string[];
@@ -439,6 +528,9 @@ describe('agent cycle trace repositories', () => {
     );
     expect((await repository.get('trace-200'))?.actionSequenceGeneration).toEqual(
       newer.actionSequenceGeneration,
+    );
+    expect((await repository.get('trace-200'))?.socialDialogueGeneration).toEqual(
+      newer.socialDialogueGeneration,
     );
     expect((await repository.get('trace-200'))?.globalSynthesis).toEqual(newer.globalSynthesis);
     expect((await repository.get('trace-200'))?.actionRepair).toEqual(newer.actionRepair);

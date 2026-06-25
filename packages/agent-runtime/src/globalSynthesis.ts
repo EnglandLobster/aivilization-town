@@ -7,7 +7,7 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { AtomicActionProposal } from './actions';
 import type { ActionSynthesisPolicy, ActionSynthesisResult } from './actionSynthesis';
 import type { BranchPlan, ContextSignal } from './planner';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type GlobalSynthesisChoice = {
   readonly actionId: string;
@@ -47,6 +47,7 @@ export type GlobalSynthesisTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type GlobalSynthesisResult = {

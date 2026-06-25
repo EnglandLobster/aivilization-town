@@ -6,7 +6,7 @@ import type {
 import type { AgentId } from '@aivilization/sim-core';
 import type { BranchPlan, ContextSignal, PrioritizedSubtaskCandidate } from './planner';
 import type { BranchPlanProgress } from './planProgress';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type SubtaskPrioritizationChoice = {
   readonly branchId: string;
@@ -45,6 +45,7 @@ export type SubtaskPrioritizationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type SubtaskPrioritizationResult = {

@@ -14,6 +14,10 @@ import {
   type GlobalSynthesisTrace,
   type GlobalSynthesizerInput,
 } from './globalSynthesis';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmGlobalSynthesisProposal = {
   readonly rankedActions: readonly GlobalSynthesisChoice[];
@@ -84,7 +88,7 @@ export async function proposeGlobalSynthesisWithLlm(
       status: 'accepted',
       source: 'llm',
       actions,
-      trace: mapAcceptedTrace(gateway),
+      trace: mapAcceptedTrace(input, gateway),
       gateway,
     };
   } catch (error) {
@@ -251,6 +255,7 @@ function createFallbackResult(input: {
     source: 'deterministic-fallback',
     actions: input.input.candidateActions,
     trace: mapFallbackTrace({
+      input: input.input,
       gateway: input.failure,
       candidateActions: input.input.candidateActions,
       failureReason: input.failureReason,
@@ -261,6 +266,7 @@ function createFallbackResult(input: {
 }
 
 function mapAcceptedTrace(
+  input: LlmGlobalSynthesizerInput,
   gateway: LlmStructuredSuccess<LlmGlobalSynthesisProposal>,
 ): GlobalSynthesisTrace {
   const lastAttempt = gateway.attempts.at(-1);
@@ -280,10 +286,12 @@ function mapAcceptedTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
 
 function mapFallbackTrace(input: {
+  readonly input: LlmGlobalSynthesizerInput;
   readonly gateway: LlmStructuredFailure | LlmStructuredSuccess<LlmGlobalSynthesisProposal>;
   readonly candidateActions: readonly { readonly id: string; readonly priority?: number }[];
   readonly failureReason: string;
@@ -312,7 +320,16 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<GlobalSynthesisTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

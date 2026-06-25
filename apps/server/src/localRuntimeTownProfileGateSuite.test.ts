@@ -388,6 +388,76 @@ describe('local runtime town profile gate suite', () => {
     );
   });
 
+  test('requires agent-cycle LLM world context coverage for stages enabled by runtime config', async () => {
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'agent-cycle-llm-world-context-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'smoke-25': {
+            subtaskPrioritization: createLlmStageNode({
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'priority-model',
+              providerId: 'priority-provider',
+            }),
+            globalSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-global-synthesizer',
+              model: 'global-model',
+              providerId: 'global-provider',
+            }),
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) =>
+        Promise.resolve(
+          createPassingSummary(input, {
+            llmStageDiagnostics: [
+              {
+                stageName: 'contextualPrioritization',
+                traceCount: 1,
+                llmAcceptedCount: 1,
+                deterministicFallbackCount: 0,
+                deterministicCount: 0,
+                missingCycleCount: 0,
+                worldDecisionContextCount: 1,
+              },
+              {
+                stageName: 'globalSynthesis',
+                traceCount: 1,
+                llmAcceptedCount: 1,
+                deterministicFallbackCount: 0,
+                deterministicCount: 0,
+                missingCycleCount: 0,
+                worldDecisionContextCount: 0,
+              },
+            ],
+          }),
+        ),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.profiles[0]?.gate.failures).toContainEqual(
+      expect.objectContaining({
+        code: 'agent-cycle-llm-stage-world-context-count-too-low',
+        evidence: {
+          stageName: 'globalSynthesis',
+          actual: 0,
+          minimum: 1,
+        },
+      }),
+    );
+  });
+
   test('requires accepted cognition LLM traces for stages enabled by runtime config', async () => {
     const rootDir = createRootDir();
     const configPath = join(rootDir, 'cognition-llm-profile-runtime-config.json');
@@ -584,6 +654,7 @@ function createAcceptedAgentCycleLlmStageDiagnostics(
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingCycleCount: 0,
+    worldDecisionContextCount: 1,
   }));
 }
 

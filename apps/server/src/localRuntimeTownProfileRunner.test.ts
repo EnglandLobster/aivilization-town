@@ -94,6 +94,34 @@ describe('local runtime town profile runner', () => {
     ]);
   });
 
+  test('routes profile run memory context into later agent cycle traces by default', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 2,
+      requestedAt: 160,
+      cycleIntervalMs: 100,
+    });
+    const traceRepository = new FileAgentCycleTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const traces = await traceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+    });
+
+    expect(summary.run.completedCycleCount).toBe(2);
+    expect(traces.some((trace) => trace.memoryContextIds.length > 0)).toBe(true);
+  });
+
   test('summarizes multi-partition default profile runs', async () => {
     const rootDir = createRootDir();
 

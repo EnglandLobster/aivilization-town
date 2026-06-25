@@ -62,6 +62,7 @@ export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
   readonly observedStateSummary: string;
   readonly signals: Parameters<typeof runWorkerAgentCycle>[0]['signals'];
+  readonly memoryRetrievalLimit?: number;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly simulate: CycleActionSimulator;
@@ -211,6 +212,9 @@ export async function runWorkerSimulationTick(
       intentionRepository: input.intentionRepository,
       longTermProfileRepository: input.longTermProfileRepository,
       shortTermMemoryRepository: input.shortTermMemoryRepository,
+      ...(agent.memoryRetrievalLimit === undefined
+        ? {}
+        : { memoryRetrievalLimit: agent.memoryRetrievalLimit }),
       microPlanners: agent.microPlanners,
       ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
       simulate: agent.simulate,

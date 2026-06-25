@@ -28,6 +28,8 @@ import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownS
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
 import { createLocalRuntimeTownApi } from './localRuntimeTownServer';
 
+const DEFAULT_PROFILE_AGENT_MEMORY_RETRIEVAL_LIMIT = 8;
+
 export type LocalRuntimeTownProfileRunnerInput = {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
   readonly rootDir: string;
@@ -42,6 +44,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
+  readonly agentMemoryRetrievalLimit?: number;
 };
 
 export type LocalRuntimeTownProfileRunnerPartitionSummary = {
@@ -106,6 +109,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     createLocalRuntimeTownProfileAgentProvider({
       policies,
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
+      ...(input.agentMemoryRetrievalLimit === undefined
+        ? {}
+        : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
     });
   const runtime = await createLocalRuntimeTownApi({
     rootDir: input.rootDir,
@@ -240,9 +246,12 @@ export function createLocalRuntimeTownProfileAgentProvider(
   input: {
     readonly policies?: WorldCommandPolicySource;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
+    readonly memoryRetrievalLimit?: number;
   } = {},
 ): LocalWorldRuntimeAgentProvider {
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
+  const memoryRetrievalLimit =
+    input.memoryRetrievalLimit ?? DEFAULT_PROFILE_AGENT_MEMORY_RETRIEVAL_LIMIT;
 
   return async ({ storage, projection, issuedAt }) => {
     await completeFinishedActiveObjectives({
@@ -279,6 +288,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
       intentionRepository: storage.intentionRepository,
       planRepository: storage.planRepository,
       planProgressRepository: storage.planProgressRepository,
+      memoryRetrievalLimit,
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,
         policies,

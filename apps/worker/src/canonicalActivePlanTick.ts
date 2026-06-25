@@ -58,6 +58,7 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly objectiveProposer?: AutonomousObjectiveProposer;
   readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly objectiveMemoryRetrievalLimit?: number;
+  readonly agentMemoryRetrievalLimit?: number;
   readonly dailyRoutineSchedule?: DailyRoutineSchedule | null;
   readonly dailyRoutineScheduleResolver?: DailyRoutineScheduleResolver;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
@@ -131,6 +132,9 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.planProgressRepository === undefined
       ? {}
       : { planProgressRepository: input.planProgressRepository }),
+    ...(input.agentMemoryRetrievalLimit === undefined
+      ? {}
+      : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
     resolveRuntime: createCanonicalWorkerRuntimeResolver({
       simulationId: input.simulationId,
       policies: input.policies,

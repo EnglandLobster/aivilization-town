@@ -142,6 +142,7 @@ export async function runLocalWorldRuntimeStep(
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
     ...createTickMarketObservationsInput(input),
     ...createTickAmbientObservationMemoryInput(input),
+    ...createTickFullReplanMaterializationInput(input),
   });
 
   return {
@@ -152,9 +153,9 @@ export async function runLocalWorldRuntimeStep(
   };
 }
 
-function createTickMarketObservationsInput(input: LocalWorldRuntimeStepInput):
-  | { readonly marketObservations: WorkerTickMarketObservationsInput }
-  | Record<string, never> {
+function createTickMarketObservationsInput(
+  input: LocalWorldRuntimeStepInput,
+): { readonly marketObservations: WorkerTickMarketObservationsInput } | Record<string, never> {
   if (input.marketObservations?.enabled === false) {
     return {};
   }
@@ -174,6 +175,20 @@ function createTickAmbientObservationMemoryInput(input: LocalWorldRuntimeStepInp
 } {
   return {
     ambientObservationMemory: input.ambientObservationMemory ?? { enabled: true },
+  };
+}
+
+function createTickFullReplanMaterializationInput(input: LocalWorldRuntimeStepInput): {
+  readonly materializeFullReplan: {
+    readonly strategicPlanCompiler?: StrategicPlanCompiler;
+  };
+} {
+  return {
+    materializeFullReplan: {
+      ...(input.strategicPlanCompiler === undefined
+        ? {}
+        : { strategicPlanCompiler: input.strategicPlanCompiler }),
+    },
   };
 }
 

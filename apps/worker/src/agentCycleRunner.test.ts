@@ -248,6 +248,120 @@ describe('worker agent cycle runner', () => {
     expect(result.dispatchResult?.commands.map((command) => command.type)).toEqual(['AgentStudy']);
   });
 
+  test('collects and traces actions from multiple candidate subtasks', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActionIds: string[] = [];
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-multi-subtask-synthesis',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createBranchPlan({
+        objective: 'balance recovery and development',
+        branches: [
+          {
+            id: 'recovery',
+            objective: 'restore energy',
+            subtasks: [{ id: 'sleep', description: 'sleep briefly', basePriority: 6 }],
+          },
+          {
+            id: 'development',
+            objective: 'improve education',
+            subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+          },
+        ],
+      }),
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-multi-subtask-synthesis',
+      commandIdPrefix: 'cycle-multi-subtask-synthesis-command',
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study for one minute',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActionIds.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActionIds).toEqual([
+      'sleep-1:recovery/sleep',
+      'study-1:development/study',
+    ]);
+    expect(result.trace.actionSynthesis.acceptedActions).toEqual([
+      {
+        id: 'sleep-1',
+        description: 'sleep for one minute',
+        commandType: 'AgentSleep',
+        priority: 5,
+        synthesisContext: {
+          branchId: 'recovery',
+          subtaskId: 'sleep',
+          subtaskScore: 6,
+        },
+        resourceEstimate: { actionSeconds: 60 },
+      },
+      {
+        id: 'study-1',
+        description: 'study for one minute',
+        commandType: 'AgentStudy',
+        priority: 4,
+        synthesisContext: {
+          branchId: 'development',
+          subtaskId: 'study',
+          subtaskScore: 5,
+        },
+        resourceEstimate: { actionSeconds: 60 },
+      },
+    ]);
+    expect(result.dispatchResult?.commands.map((command) => command.type)).toEqual([
+      'AgentSleep',
+      'AgentStudy',
+    ]);
+  });
+
   test('records all-rejected action synthesis cycles without dispatching commands', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

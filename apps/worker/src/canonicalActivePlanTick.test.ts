@@ -1333,6 +1333,101 @@ describe('canonical active-plan worker tick', () => {
     });
   });
 
+  test('renews objectives from observation-driven social follow-up intentions', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const renewalTraces: unknown[] = [];
+    const issuedAt = 10 * hourMs;
+    await repositories.intentionRepository.upsertScheduledIntentions(agentA, [
+      {
+        id: 'social-observation:agent-a:memory-party-observation',
+        agentId: agentA,
+        description:
+          'Follow up on observed social event: Observed agent-b and agent-c discuss Valentine party at Town Square.',
+        priority: 5,
+        startsAt: issuedAt,
+        endsAt: issuedAt + 2 * hourMs,
+        status: 'planned',
+        affinityTags: [
+          'social',
+          'community',
+          'relationship',
+          'observation-follow-up',
+          'ConversationRecorded',
+          'town-square',
+          'agent-b',
+          'agent-c',
+          'Valentine party',
+        ],
+        provenanceRecordIds: [asMemoryRecordId('memory-party-observation')],
+        createdAt: issuedAt,
+        updatedAt: issuedAt,
+      },
+    ]);
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-from-social-observation',
+      simulationId,
+      issuedAt,
+      projection: createWorldProjection({
+        locations: [townSquare()],
+        agents: [
+          createAgent(agentA, {
+            locationId: asLocationId('town-square'),
+            physiology: { energy: 90, satiety: 90, health: 100 },
+            educationScore: 150,
+            balance: 200,
+          }),
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      dailyRoutineSchedule: null,
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          renewalTraces.push(trace);
+        },
+      },
+      ...repositories,
+    });
+
+    expect(renewalTraces).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'auto-objective-agent-a-36000000',
+        selectedCandidateId: 'scheduled-routine-social',
+        rationale:
+          'Active scheduled intention social-observation:agent-a:memory-party-observation is in window.',
+        score: 40,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+        scheduledIntentionIds: ['social-observation:agent-a:memory-party-observation'],
+        issuedAt,
+      },
+    ]);
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.activeObjective).toMatchObject({
+      id: 'auto-objective-agent-a-36000000',
+      statement:
+        'Follow the current social routine: Follow up on observed social event: Observed agent-b and agent-c discuss Valentine party at Town Square.',
+      affinityTags: [
+        'routine',
+        'social',
+        'community',
+        'relationship',
+        'observation-follow-up',
+        'ConversationRecorded',
+        'town-square',
+        'agent-b',
+        'agent-c',
+        'Valentine party',
+      ],
+    });
+  });
+
   test('seeds injected daily plan intentions before autonomous objective renewal', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

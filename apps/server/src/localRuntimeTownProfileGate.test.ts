@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './index';
+import type { LocalRuntimeTownProfileRuntimeConfig } from './localRuntimeTownProfileRuntimeConfig';
 
 describe('local runtime town profile gate criteria', () => {
   test('derives smoke profile gate criteria from the scenario profile', () => {
@@ -34,6 +35,33 @@ describe('local runtime town profile gate criteria', () => {
       criteriaId: 'aivilization-smoke-25:profile-run-gate',
       minimumFullReplanMaterializationCount: 1,
     });
+  });
+
+  test('derives required agent-cycle LLM accepted stages from runtime config', () => {
+    const runtimeConfig: LocalRuntimeTownProfileRuntimeConfig = {
+      strategicPlanning: createLlmConfig('traceable-llm-strategic-planner'),
+      dailyPlanning: createLlmConfig('traceable-llm-daily-planner'),
+      reactionPlanning: createLlmConfig('traceable-llm-reaction-evaluator'),
+      subtaskPrioritization: createLlmConfig('traceable-llm-subtask-prioritizer'),
+      actionSequenceGeneration: createLlmConfig('traceable-llm-action-sequence-generator'),
+      socialDialogue: createLlmConfig('traceable-llm-social-dialogue-generator'),
+      globalSynthesis: createLlmConfig('traceable-llm-global-synthesizer'),
+      reactiveCorrection: createLlmConfig('traceable-llm-reactive-corrector'),
+      reflectionSynthesis: createLlmConfig('traceable-llm-reflective-insight-synthesizer'),
+      socialModelSynthesis: createLlmConfig('traceable-llm-social-model-synthesizer'),
+    };
+
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+      }).requiredAgentCycleLlmAcceptedStages,
+    ).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+    ]);
   });
 
   test('derives multi-partition default and stress profile gate criteria', () => {
@@ -95,3 +123,16 @@ describe('local runtime town profile gate criteria', () => {
     });
   });
 });
+
+function createLlmConfig<const TKind extends string>(kind: TKind) {
+  return {
+    kind,
+    profileId: 'smoke-25',
+    model: `${kind}-model`,
+    provider: {
+      kind: 'openai-compatible' as const,
+      providerId: `${kind}-provider`,
+      endpoint: `https://${kind}.example.test/v1/chat/completions`,
+    },
+  };
+}

@@ -1,6 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type {
+  RuntimeProfileAgentCycleLlmStageDiagnostics,
+  RuntimeProfileAgentCycleLlmStageName,
+} from '@aivilization/observability';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
@@ -249,7 +253,17 @@ describe('local runtime town profile gate suite', () => {
       profileIds: ['default-100'],
       runProfile: (input) => {
         inputs.push(input);
-        return Promise.resolve(createPassingSummary(input));
+        return Promise.resolve(
+          createPassingSummary(input, {
+            llmStageDiagnostics: createAcceptedAgentCycleLlmStageDiagnostics([
+              'contextualPrioritization',
+              'actionSequenceGeneration',
+              'socialDialogueGeneration',
+              'globalSynthesis',
+              'reactiveCorrection',
+            ]),
+          }),
+        );
       },
     });
 
@@ -309,6 +323,62 @@ describe('local runtime town profile gate suite', () => {
     });
   });
 
+  test('requires accepted agent-cycle LLM traces for stages enabled by runtime config', async () => {
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'agent-cycle-llm-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'smoke-25': {
+            subtaskPrioritization: createLlmStageNode({
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'priority-model',
+              providerId: 'priority-provider',
+            }),
+            globalSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-global-synthesizer',
+              model: 'global-model',
+              providerId: 'global-provider',
+            }),
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => Promise.resolve(createPassingSummary(input)),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.profiles[0]?.gate.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'agent-cycle-llm-stage-accepted-count-too-low',
+          evidence: {
+            stageName: 'contextualPrioritization',
+            actual: 0,
+            minimum: 1,
+          },
+        }),
+        expect.objectContaining({
+          code: 'agent-cycle-llm-stage-accepted-count-too-low',
+          evidence: {
+            stageName: 'globalSynthesis',
+            actual: 0,
+            minimum: 1,
+          },
+        }),
+      ]),
+    );
+  });
+
   test('includes the recovery drill profile in default suite runs', async () => {
     const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
 
@@ -354,7 +424,10 @@ describe('local runtime town profile gate suite', () => {
 
 function createPassingSummary(
   input: LocalRuntimeTownProfileRunnerInput,
-  options: { readonly fullReplanMaterializationCount?: number } = {},
+  options: {
+    readonly fullReplanMaterializationCount?: number;
+    readonly llmStageDiagnostics?: ReturnType<typeof createAcceptedAgentCycleLlmStageDiagnostics>;
+  } = {},
 ): LocalRuntimeTownProfileRunnerSummary {
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
   const criteria = createLocalRuntimeTownProfileGateCriteria(input.profileId, {
@@ -401,6 +474,9 @@ function createPassingSummary(
     totalAgentTraceCount,
     agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount, {
       fullReplanMaterializationCount: options.fullReplanMaterializationCount ?? 0,
+      ...(options.llmStageDiagnostics === undefined
+        ? {}
+        : { llmStageDiagnostics: options.llmStageDiagnostics }),
     }),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
@@ -415,7 +491,10 @@ function createPassingSummary(
 
 function createAgentCycleDiagnostics(
   traceCount: number,
-  options: { readonly fullReplanMaterializationCount?: number } = {},
+  options: {
+    readonly fullReplanMaterializationCount?: number;
+    readonly llmStageDiagnostics?: ReturnType<typeof createAcceptedAgentCycleLlmStageDiagnostics>;
+  } = {},
 ) {
   const fullReplanMaterializationCount = options.fullReplanMaterializationCount ?? 0;
   return {
@@ -434,7 +513,23 @@ function createAgentCycleDiagnostics(
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
+    ...(options.llmStageDiagnostics === undefined
+      ? {}
+      : { llmStageDiagnostics: options.llmStageDiagnostics }),
   };
+}
+
+function createAcceptedAgentCycleLlmStageDiagnostics(
+  stageNames: readonly RuntimeProfileAgentCycleLlmStageName[],
+): readonly RuntimeProfileAgentCycleLlmStageDiagnostics[] {
+  return stageNames.map((stageName) => ({
+    stageName,
+    traceCount: 1,
+    llmAcceptedCount: 1,
+    deterministicFallbackCount: 0,
+    deterministicCount: 0,
+    missingCycleCount: 0,
+  }));
 }
 
 function createRootDir(): string {

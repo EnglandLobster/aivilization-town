@@ -121,6 +121,7 @@ export async function runLocalRuntimeTownProfileGateSuite(
       report,
       createLocalRuntimeTownProfileGateCriteria(profileId, {
         minimumCompletedCycleCount: cycleCount,
+        ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
         ...(input.minimumFullReplanMaterializationCount === undefined
           ? {}
           : {

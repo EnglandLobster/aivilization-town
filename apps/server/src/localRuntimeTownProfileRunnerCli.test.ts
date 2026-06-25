@@ -929,6 +929,100 @@ describe('local runtime town profile runner CLI', () => {
     expect(stderr).toContain('daemon-health-mismatch');
     expect(stderr).toContain('completed-cycle-count-too-low');
   });
+
+  test('requires accepted agent-cycle LLM traces when runtime config is supplied with require gate', async () => {
+    let output = '';
+    let stderr = '';
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'smoke-25': {
+            subtaskPrioritization: {
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'default-prioritizer',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-prioritizer-provider',
+                endpoint: 'https://priority.example.test/v1/chat/completions',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--runtime-config',
+        configPath,
+        '--require-gate',
+      ],
+      stderr: {
+        write: (chunk) => {
+          stderr += chunk;
+        },
+      },
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+      runProfile: (input) =>
+        Promise.resolve({
+          profileId: input.profileId,
+          manifestId: 'aivilization-smoke-25',
+          rootDir: input.rootDir,
+          requestedAt: input.requestedAt,
+          daemonHealth: 'healthy',
+          partitionCount: 1,
+          totalProjectionAgentCount: 25,
+          totalEventCount: 3,
+          totalAgentTraceCount: 1,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(1),
+          run: {
+            traceId: 'aivilization-smoke-25:profile-run:100',
+            outcome: 'succeeded',
+            requestedCycleCount: input.cycleCount,
+            completedCycleCount: input.cycleCount,
+            stopReason: 'cycle-count-completed',
+          },
+          partitions: [
+            {
+              simulationId: 'aivilization-smoke-25',
+              partitionKey: 'world-main',
+              scenarioPresetId: 'aivilization-smoke-25-world-main',
+              status: 'completed',
+              health: 'healthy',
+              lastAppliedSequence: 3,
+              streamVersion: 3,
+              eventCount: 3,
+              projectionAgentCount: 25,
+              agentTraceCount: 1,
+            },
+          ],
+        }),
+    });
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(output)).toMatchObject({
+      profileId: 'smoke-25',
+      daemonHealth: 'healthy',
+    });
+    expect(stderr).toContain('runtime profile run gate failed');
+    expect(stderr).toContain('agent-cycle-llm-stage-accepted-count-too-low');
+    expect(stderr).toContain('contextualPrioritization');
+  });
 });
 
 function createRootDir(): string {

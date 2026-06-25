@@ -1,6 +1,10 @@
-import type { RuntimeProfileRunGateCriteria } from '@aivilization/observability';
+import type {
+  RuntimeProfileAgentCycleLlmStageName,
+  RuntimeProfileRunGateCriteria,
+} from '@aivilization/observability';
 import type { PartitionKey } from '@aivilization/sim-core';
 import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
+import type { LocalRuntimeTownProfileRuntimeConfig } from './localRuntimeTownProfileRuntimeConfig';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
 
@@ -9,6 +13,8 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumTotalEventCount?: number;
   readonly minimumTotalAgentTraceCount?: number;
   readonly minimumFullReplanMaterializationCount?: number;
+  readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
+  readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -21,6 +27,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     profile.scenarioPresets.map((preset) => [preset.id, preset.agentSeeds.length]),
   );
   const expectedProjectionAgentCountByPartition: Record<string, number> = {};
+  const requiredAgentCycleLlmAcceptedStages =
+    input.requiredAgentCycleLlmAcceptedStages ??
+    deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
 
   for (const partition of profile.manifest.partitions) {
     const agentCount = agentCountByPresetId.get(partition.scenarioPresetId);
@@ -52,7 +61,36 @@ export function createLocalRuntimeTownProfileGateCriteria(
     requiredPartitionHealth: 'healthy',
     requireStreamVersionMatchesEventCount: true,
     expectedProjectionAgentCountByPartition,
+    ...(requiredAgentCycleLlmAcceptedStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmAcceptedStages }),
   };
+}
+
+export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileAgentCycleLlmStageName[] = [];
+  if (runtimeConfig.subtaskPrioritization !== undefined) {
+    stages.push('contextualPrioritization');
+  }
+  if (runtimeConfig.actionSequenceGeneration !== undefined) {
+    stages.push('actionSequenceGeneration');
+  }
+  if (runtimeConfig.socialDialogue !== undefined) {
+    stages.push('socialDialogueGeneration');
+  }
+  if (runtimeConfig.globalSynthesis !== undefined) {
+    stages.push('globalSynthesis');
+  }
+  if (runtimeConfig.reactiveCorrection !== undefined) {
+    stages.push('reactiveCorrection');
+  }
+  return stages;
 }
 
 export function listLocalRuntimeTownProfileGatePartitionKeys(

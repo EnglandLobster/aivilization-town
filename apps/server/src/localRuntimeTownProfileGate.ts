@@ -29,6 +29,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmEconomicContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
@@ -84,6 +85,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmWorldContextStages =
     input.requiredCognitionLlmWorldContextStages ??
     deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmEconomicContextStages =
+    input.requiredCognitionLlmEconomicContextStages ??
+    deriveRequiredCognitionLlmEconomicContextStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredCognitionLlmRulesContextStages =
     input.requiredCognitionLlmRulesContextStages ??
     deriveRequiredCognitionLlmRulesContextStagesFromRuntimeConfig(input.runtimeConfig);
@@ -169,6 +173,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmWorldContextStages.length === 0
       ? {}
       : { requiredCognitionLlmWorldContextStages }),
+    ...(requiredCognitionLlmEconomicContextStages.length === 0
+      ? {}
+      : { requiredCognitionLlmEconomicContextStages }),
     ...(requiredCognitionLlmRulesContextStages.length === 0
       ? {}
       : { requiredCognitionLlmRulesContextStages }),
@@ -352,6 +359,12 @@ export function deriveRequiredCognitionLlmRulesContextStagesFromRuntimeConfig(
     stages.push('socialModelSynthesis');
   }
   return stages;
+}
+
+export function deriveRequiredCognitionLlmEconomicContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  return deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredCognitionLlmMemoryContextStagesFromRuntimeConfig(

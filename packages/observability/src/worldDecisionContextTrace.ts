@@ -10,6 +10,9 @@ export type WorldDecisionContextTrace = {
   readonly inventoryItemCount: number;
   readonly marketSpotPriceCount: number;
   readonly hasLatestPriceIndex: boolean;
+  readonly hasEconomicState?: boolean;
+  readonly hasMarketPrices?: boolean;
+  readonly completeEconomicContext?: boolean;
 };
 
 export function cloneWorldDecisionContextTrace(

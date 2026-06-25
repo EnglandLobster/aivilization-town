@@ -37,6 +37,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmEconomicContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
@@ -195,6 +196,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmWorldContextStages ?? [],
+  );
+  addRequiredCognitionLlmEconomicContextStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmEconomicContextStages ?? [],
   );
   addRequiredCognitionLlmRulesContextStageFailures(
     failures,
@@ -730,6 +736,38 @@ function addRequiredCognitionLlmRulesContextStageFailures(
         stageName,
         actual,
         rulesContextCount,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmEconomicContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.completeEconomicContextCount ?? 0;
+    const economicContextCount = stage?.economicContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-complete-economic-context-count-too-low',
+      message: `cognition LLM stage ${stageName} completeEconomicContextCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        economicContextCount,
         llmAcceptedCount,
         minimum,
       },

@@ -1081,6 +1081,47 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires complete economic context for every accepted cognition LLM trace', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 2,
+            llmAcceptedCount: 2,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 2,
+            completeWorldDecisionContextCount: 2,
+            economicContextCount: 2,
+            completeEconomicContextCount: 1,
+            rulesContextCount: 2,
+            completeRulesContextCount: 2,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmEconomicContextStages: ['dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-complete-economic-context-count-too-low',
+      message: 'cognition LLM stage dailyPlanning completeEconomicContextCount must be at least 2',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 1,
+        economicContextCount: 2,
+        llmAcceptedCount: 2,
+        minimum: 2,
+      },
+    });
+  });
+
   test('requires rules context coverage for configured cognition stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({

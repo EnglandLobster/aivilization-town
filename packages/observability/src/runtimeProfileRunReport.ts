@@ -107,6 +107,8 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly observedStateSummaryCount?: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
+  readonly economicContextCount?: number;
+  readonly completeEconomicContextCount?: number;
   readonly rulesContextCount: number;
   readonly completeRulesContextCount: number;
 };
@@ -227,6 +229,8 @@ export function createRuntimeProfileRunReport(
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
+            economicContextCount: stage.economicContextCount ?? 0,
+            completeEconomicContextCount: stage.completeEconomicContextCount ?? 0,
             rulesContextCount: stage.rulesContextCount ?? 0,
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
           })),
@@ -325,6 +329,8 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         observedStateSummaryCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
+        economicContextCount: 0,
+        completeEconomicContextCount: 0,
         rulesContextCount: 0,
         completeRulesContextCount: 0,
       },
@@ -654,6 +660,8 @@ type MutableCognitionLlmStageDiagnostics = {
   observedStateSummaryCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
+  economicContextCount: number;
+  completeEconomicContextCount: number;
   rulesContextCount: number;
   completeRulesContextCount: number;
 };
@@ -1076,6 +1084,12 @@ function recordCognitionProviderTrace(
     if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
       diagnostics.completeWorldDecisionContextCount += 1;
     }
+    if (hasEconomicContextTrace(trace.worldDecisionContext)) {
+      diagnostics.economicContextCount += 1;
+      if (isCompleteEconomicContextTrace(trace.worldDecisionContext)) {
+        diagnostics.completeEconomicContextCount += 1;
+      }
+    }
     if (hasRulesContextTrace(trace.worldDecisionContext)) {
       diagnostics.rulesContextCount += 1;
       if (isCompleteRulesContextTrace(trace.worldDecisionContext)) {
@@ -1145,6 +1159,16 @@ function validateCognitionLlmStageDiagnostics(
       completeWorldDecisionContextCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} completeWorldDecisionContextCount`,
     );
+    const economicContextCount = stage.economicContextCount ?? 0;
+    assertNonNegativeInteger(
+      economicContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} economicContextCount`,
+    );
+    const completeEconomicContextCount = stage.completeEconomicContextCount ?? 0;
+    assertNonNegativeInteger(
+      completeEconomicContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} completeEconomicContextCount`,
+    );
     const rulesContextCount = stage.rulesContextCount ?? 0;
     assertNonNegativeInteger(
       rulesContextCount,
@@ -1189,6 +1213,16 @@ function validateCognitionLlmStageDiagnostics(
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {
       throw new Error(
         `cognitionLlmStageDiagnostics ${stage.stageName} completeWorldDecisionContextCount must not exceed worldDecisionContextCount`,
+      );
+    }
+    if (economicContextCount > stage.worldDecisionContextCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} economicContextCount must not exceed worldDecisionContextCount`,
+      );
+    }
+    if (completeEconomicContextCount > economicContextCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} completeEconomicContextCount must not exceed economicContextCount`,
       );
     }
     if (rulesContextCount > stage.traceCount) {

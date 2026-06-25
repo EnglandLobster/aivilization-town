@@ -4,6 +4,7 @@ import type {
   LongTermAgentProfile,
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
+import type { WorldDecisionContext } from './worldDecisionContext';
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
@@ -112,6 +113,7 @@ export function runAgentPlanningCycle(input: {
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
   readonly microPlanners: readonly DomainMicroPlanner[];
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly simulate: CycleActionSimulator;

@@ -3,6 +3,7 @@ import {
   type DailyPlanCompiler,
   type DailyPlanCompilerInput,
 } from '@aivilization/agent-runtime';
+import { createAmmPool } from '@aivilization/economy';
 import {
   asMemoryRecordId,
   createShortTermMemoryRecord,
@@ -275,7 +276,19 @@ describe('daily routine scheduling', () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const homeLocationId = asLocationId('home');
     const projection = createWorldProjection({
-      agents: [createAgent(agentId, { job: 'Stock Clerk', locationId: homeLocationId })],
+      agents: [
+        createAgent(agentId, {
+          job: 'Stock Clerk',
+          locationId: homeLocationId,
+          educationScore: 31,
+          balance: 191696904,
+          residentialTier: 5,
+          inventory: { Fish: 46, Transistor: 12 },
+        }),
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Fish', commodityReserve: 10, currencyReserve: 3045 }),
+      ],
       locations: [
         {
           locationId: homeLocationId,
@@ -394,6 +407,20 @@ describe('daily routine scheduling', () => {
         job: 'Stock Clerk',
         locationId: 'home',
         physiology: { energy: 90, satiety: 90, health: 100 },
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          locationId: 'home',
+          educationScore: 31,
+          balance: 191696904,
+          residentialTier: 5,
+          job: 'Stock Clerk',
+          inventory: { Fish: 46, Transistor: 12 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+        },
       },
       longTermProfile: {
         habits: [expect.objectContaining({ key: 'study-routine' })],

@@ -10,6 +10,7 @@ import type {
   DomainMicroPlanner,
   ReactionEvaluator,
   StrategicPlanCompiler,
+  WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -59,6 +60,7 @@ import {
   type SocialObservationReactionEvaluation,
 } from './socialObservationIntentions';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 type WorkerTickAgentPlanInput =
   | {
@@ -73,6 +75,7 @@ type WorkerTickAgentPlanInput =
 export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
   readonly observedStateSummary: string;
+  readonly worldDecisionContext?: WorldDecisionContext;
   readonly signals: Parameters<typeof runWorkerAgentCycle>[0]['signals'];
   readonly memoryRetrievalLimit?: number;
   readonly memoryRetrievalCandidateLimit?: number;
@@ -223,6 +226,9 @@ export async function runWorkerSimulationTick(
       agentId: agent.agentId,
       issuedAt: input.issuedAt,
       observedStateSummary: agent.observedStateSummary,
+      ...(agent.worldDecisionContext === undefined
+        ? {}
+        : { worldDecisionContext: agent.worldDecisionContext }),
       ...resolveCyclePlanInput({ agent, planRepository: input.planRepository }),
       ...resolveCycleProgressInput({
         agent,
@@ -349,6 +355,10 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
       intentionRepository: input.input.intentionRepository,
       records: result.records,
       createdAt: input.input.issuedAt,
+      worldDecisionContextByAgentId: createWorldDecisionContextByAgentId({
+        projection: input.projection,
+        records: result.records,
+      }),
       ...(input.input.ambientObservationMemory.reactionEvaluator === undefined
         ? {}
         : { reactionEvaluator: input.input.ambientObservationMemory.reactionEvaluator }),
@@ -364,12 +374,16 @@ async function upsertSocialObservationIntentions(input: {
   readonly intentionRepository: AgentIntentionRepository;
   readonly records: readonly ShortTermMemoryRecord[];
   readonly createdAt: SimulationTimestamp;
+  readonly worldDecisionContextByAgentId?: Readonly<Record<string, WorldDecisionContext>>;
   readonly reactionEvaluator?: ReactionEvaluator;
   readonly reactionEvaluationTraceSink?: WorkerReactionEvaluationTraceSink;
 }): Promise<void> {
   const result = await createTraceableSocialObservationScheduledIntentions({
     records: input.records,
     createdAt: input.createdAt,
+    ...(input.worldDecisionContextByAgentId === undefined
+      ? {}
+      : { worldDecisionContextByAgentId: input.worldDecisionContextByAgentId }),
     ...(input.reactionEvaluator === undefined
       ? {}
       : { reactionEvaluator: input.reactionEvaluator }),
@@ -399,6 +413,26 @@ async function upsertSocialObservationIntentions(input: {
     evaluations: result.evaluations,
     issuedAt: input.createdAt,
   });
+}
+
+function createWorldDecisionContextByAgentId(input: {
+  readonly projection: WorldProjection;
+  readonly records: readonly ShortTermMemoryRecord[];
+}): Readonly<Record<string, WorldDecisionContext>> {
+  const contexts: Record<string, WorldDecisionContext> = {};
+  for (const record of input.records) {
+    if (
+      contexts[record.agentId] !== undefined ||
+      input.projection.agents[record.agentId] === undefined
+    ) {
+      continue;
+    }
+    contexts[record.agentId] = createWorldDecisionContextFromProjection({
+      projection: input.projection,
+      agentId: record.agentId,
+    });
+  }
+  return contexts;
 }
 
 async function recordReactionEvaluationTracesIfConfigured(input: {

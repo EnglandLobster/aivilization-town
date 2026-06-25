@@ -165,6 +165,8 @@ describe('worker objective replanning materialization', () => {
       socialRecords: [],
     };
     let compilerProfileKeys: readonly string[] = [];
+    let compilerBalance: number | undefined;
+    let compilerSpotPrice: number | undefined;
 
     await intentionRepository.setObjective(agentId, objective);
 
@@ -175,6 +177,7 @@ describe('worker objective replanning materialization', () => {
       intentionRepository,
       planRepository,
       longTermProfile,
+      worldDecisionContext: createWorldDecisionContext(),
       replanningDecision: {
         kind: 'full-replan',
         trigger: 'major-context-shift',
@@ -185,6 +188,8 @@ describe('worker objective replanning materialization', () => {
       },
       strategicPlanCompiler: (input) => {
         compilerProfileKeys = input.longTermProfile?.values.map((entry) => entry.key) ?? [];
+        compilerBalance = input.worldDecisionContext?.agent.balance;
+        compilerSpotPrice = input.worldDecisionContext?.market.spotPrices[0]?.spotPrice;
         return createBranchPlan({
           objective: input.objective.statement,
           branches: [
@@ -205,6 +210,8 @@ describe('worker objective replanning materialization', () => {
     });
 
     expect(compilerProfileKeys).toEqual(['human-objective:study-before-production']);
+    expect(compilerBalance).toBe(191696904);
+    expect(compilerSpotPrice).toBe(304.5);
   });
 
   test('skips materialization when the active objective is missing', async () => {
@@ -232,3 +239,27 @@ describe('worker objective replanning materialization', () => {
     });
   });
 });
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 45, satiety: 30, health: 90 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'Stock Clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 0,
+        recordedAt: 100,
+        overall: 1.12,
+        ratios: { Fish: 1.12 },
+      },
+    },
+  };
+}

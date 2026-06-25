@@ -7,6 +7,7 @@ import {
   type BranchPlanProgressRepository,
   type ReplanningDecision,
   type StrategicPlanCompiler,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type { AgentIntentionRepository, LongTermAgentProfile } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
@@ -16,6 +17,7 @@ export type WorkerFullReplanMaterializationInput = {
   readonly planId: string;
   readonly issuedAt: number;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
   readonly intentionRepository: AgentIntentionRepository;
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
@@ -80,6 +82,9 @@ export async function materializeFullReplanForActiveObjective(
       objective,
       issuedAt: input.issuedAt,
       ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+      ...(input.worldDecisionContext === undefined
+        ? {}
+        : { worldDecisionContext: input.worldDecisionContext }),
     }),
   );
   const planRecord: BranchPlanRecord = {

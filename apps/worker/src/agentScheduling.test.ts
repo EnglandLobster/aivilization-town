@@ -7,6 +7,7 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
+import { createAmmPool } from '@aivilization/economy';
 import {
   asMemoryRecordId,
   InMemoryAgentIntentionRepository,
@@ -64,6 +65,9 @@ describe('worker agent scheduling', () => {
         createProjectedAgent({ agentId: agentB }),
         createProjectedAgent({ agentId: agentC }),
         createProjectedAgent({ agentId: agentD }),
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Fish', commodityReserve: 10, currencyReserve: 3045 }),
       ],
     });
 
@@ -142,6 +146,19 @@ describe('worker agent scheduling', () => {
     expect(agents[0]?.microPlanners).toBe(studyRuntime.microPlanners);
     expect(agents[0]?.simulate).toBe(studyRuntime.simulate);
     expect(agents[0]?.replanningPolicy).toEqual(studyRuntime.replanningPolicy);
+    expect(agents[0]?.worldDecisionContext).toMatchObject({
+      agent: {
+        agentId: agentA,
+        educationScore: 12,
+        balance: 300,
+        residentialTier: 2,
+        job: 'Student',
+        inventory: { Book: 1, Fish: 2 },
+      },
+      market: {
+        spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      },
+    });
     expect(agents[1]).toMatchObject({
       agentId: agentE,
       planId: 'objective-trade',

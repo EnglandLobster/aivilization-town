@@ -16,6 +16,7 @@ export * from './reactionEvaluation';
 export * from './reactiveSteering';
 export * from './replanning';
 export * from './strategicPlanning';
+export * from './worldDecisionContext';
 
 export type AgentRuntimeModuleStatus = {
   readonly packageName: '@aivilization/agent-runtime';

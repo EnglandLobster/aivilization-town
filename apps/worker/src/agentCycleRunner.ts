@@ -15,6 +15,7 @@ import {
   type CycleRepairPolicy,
   type DomainMicroPlanner,
   type StrategicPlanCompiler,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -84,6 +85,7 @@ export async function runWorkerAgentCycle(
     readonly agentId: AgentId;
     readonly issuedAt: number;
     readonly observedStateSummary: string;
+    readonly worldDecisionContext?: WorldDecisionContext;
     readonly progress?: BranchPlanProgress;
     readonly planProgressRepository?: BranchPlanProgressRepository;
     readonly planProgressId?: string;
@@ -152,6 +154,9 @@ export async function runWorkerAgentCycle(
     signals: input.signals,
     intentionState,
     longTermProfile,
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
     ...(input.memoryRetrievalLimit === undefined ? {} : { shortTermMemoryContext }),
     microPlanners: input.microPlanners,
     ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
@@ -198,6 +203,9 @@ export async function runWorkerAgentCycle(
           planId: input.planId,
           issuedAt: input.issuedAt,
           longTermProfile,
+          ...(input.worldDecisionContext === undefined
+            ? {}
+            : { worldDecisionContext: input.worldDecisionContext }),
           intentionRepository: input.intentionRepository,
           planRepository: input.planRepository,
           ...(input.planProgressRepository === undefined

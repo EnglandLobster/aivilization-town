@@ -9,11 +9,13 @@ import {
   type PlannerBranch,
   type PlannerSubtask,
 } from './planner';
+import type { WorldDecisionContext } from './worldDecisionContext';
 
 export type StrategicPlanCompilerInput = {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
 };
 
 export type StrategicPlanCompilationUsage = {

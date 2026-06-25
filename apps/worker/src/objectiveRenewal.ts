@@ -5,6 +5,7 @@ import {
   type BranchPlanRepository,
   type StrategicPlanCompilationTrace,
   type StrategicPlanCompiler,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import { selectActiveScheduledIntentions } from '@aivilization/memory';
 import type {
@@ -19,6 +20,7 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
 
@@ -154,6 +156,10 @@ export async function renewMissingActiveObjectives(input: {
       agentId: agent.agentId,
       limit: memoryRetrievalLimit,
     });
+    const worldDecisionContext = createWorldDecisionContextFromProjection({
+      projection: input.projection,
+      agentId: agent.agentId,
+    });
     const proposed = await proposer({
       agentId: agent.agentId,
       agent,
@@ -179,6 +185,7 @@ export async function renewMissingActiveObjectives(input: {
       objective,
       issuedAt: input.issuedAt,
       longTermProfile,
+      worldDecisionContext,
       compile,
     });
     await input.planRepository.save(strategicPlan.record);
@@ -202,6 +209,7 @@ async function createStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
   readonly longTermProfile: LongTermAgentProfile;
+  readonly worldDecisionContext: WorldDecisionContext;
   readonly compile: StrategicPlanCompiler;
 }): Promise<{
   readonly record: BranchPlanRecord;
@@ -212,6 +220,7 @@ async function createStrategicPlanRecord(input: {
       objective: input.objective,
       issuedAt: input.issuedAt,
       longTermProfile: input.longTermProfile,
+      worldDecisionContext: input.worldDecisionContext,
     }),
   );
   return {

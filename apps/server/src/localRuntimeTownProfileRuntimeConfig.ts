@@ -15,6 +15,8 @@ import type {
   LocalRuntimeTownProfileReactionPlanningConfig,
   LocalRuntimeTownProfileReflectionSynthesisConfig,
   LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
+  LocalRuntimeTownProfileSocialDialogueGenerationConfig,
+  LocalRuntimeTownProfileSocialDialogueGeneratorConfig,
   LocalRuntimeTownProfileSubtaskPrioritizationConfig,
   LocalRuntimeTownProfileSubtaskPrioritizerConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
@@ -47,6 +49,7 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
   readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizationConfig;
   readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGenerationConfig;
+  readonly socialDialogue?: LocalRuntimeTownProfileSocialDialogueGenerationConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesisConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectionConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectionSynthesisConfig;
@@ -165,6 +168,15 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const socialDialogue = parseSocialDialogueNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'socialDialogue',
+    }),
+    env,
+  });
   const reactiveCorrection = parseReactiveCorrectionNode({
     profileId: input.profileId,
     node: selectProfilePlanningNode({
@@ -190,6 +202,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
     ...(subtaskPrioritization === undefined ? {} : { subtaskPrioritization }),
     ...(actionSequenceGeneration === undefined ? {} : { actionSequenceGeneration }),
+    ...(socialDialogue === undefined ? {} : { socialDialogue }),
     ...(globalSynthesis === undefined ? {} : { globalSynthesis }),
     ...(reactiveCorrection === undefined ? {} : { reactiveCorrection }),
     ...(reflectionSynthesis === undefined ? {} : { reflectionSynthesis }),
@@ -444,6 +457,39 @@ function parseGlobalSynthesisNode(input: {
   };
 }
 
+function parseSocialDialogueNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileSocialDialogueGeneratorConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'socialDialogue');
+  const kind = readRequiredString(record.kind, 'socialDialogue.kind');
+  if (kind !== 'traceable-llm-social-dialogue-generator') {
+    throw new Error(`socialDialogue.kind must be traceable-llm-social-dialogue-generator`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'socialDialogue.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'socialDialogue.timeoutMs');
+  const pricing = parseOptionalPricing(record.pricing, 'socialDialogue');
+
+  return {
+    kind: 'traceable-llm-social-dialogue-generator',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'socialDialogue.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'socialDialogue'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
 function parseReactiveCorrectionNode(input: {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
   readonly node: unknown;
@@ -549,6 +595,7 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'reactionPlanning'
   | 'subtaskPrioritization'
   | 'actionSequenceGeneration'
+  | 'socialDialogue'
   | 'globalSynthesis'
   | 'reactiveCorrection'
   | 'reflectionSynthesis'

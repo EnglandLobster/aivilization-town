@@ -439,6 +439,15 @@ describe('local runtime town profile runner CLI', () => {
                 endpoint: 'https://action.example.test/v1/chat/completions',
               },
             },
+            socialDialogue: {
+              kind: 'traceable-llm-social-dialogue-generator',
+              model: 'default-social-dialogue',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-social-dialogue-provider',
+                endpoint: 'https://social-dialogue.example.test/v1/chat/completions',
+              },
+            },
             globalSynthesis: {
               kind: 'traceable-llm-global-synthesizer',
               model: 'default-global',
@@ -519,6 +528,11 @@ describe('local runtime town profile runner CLI', () => {
         kind: 'traceable-llm-action-sequence-generator',
         profileId: 'default-100',
         model: 'default-action-sequence',
+      },
+      socialDialogue: {
+        kind: 'traceable-llm-social-dialogue-generator',
+        profileId: 'default-100',
+        model: 'default-social-dialogue',
       },
       globalSynthesis: {
         kind: 'traceable-llm-global-synthesizer',

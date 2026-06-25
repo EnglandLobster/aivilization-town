@@ -21,6 +21,8 @@ import {
   type GlobalActionSynthesizer,
   type GlobalSynthesisTrace,
   type ReactiveCorrector,
+  type SocialDialogueGenerationTrace,
+  type SocialDialogueGenerator,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
@@ -119,8 +121,9 @@ export async function runWorkerAgentCycle(
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
-    readonly actionSequenceGenerator?: ActionSequenceGenerator;
-    readonly globalSynthesizer?: GlobalActionSynthesizer;
+  readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
@@ -189,6 +192,7 @@ export async function runWorkerAgentCycle(
   const cycleResult =
     input.subtaskPrioritizer === undefined &&
     input.actionSequenceGenerator === undefined &&
+    input.socialDialogueGenerator === undefined &&
     input.globalSynthesizer === undefined &&
     input.reactiveCorrector === undefined
       ? runAgentPlanningCycle(cycleInput)
@@ -200,6 +204,9 @@ export async function runWorkerAgentCycle(
           ...(input.actionSequenceGenerator === undefined
             ? {}
             : { actionSequenceGenerator: input.actionSequenceGenerator }),
+          ...(input.socialDialogueGenerator === undefined
+            ? {}
+            : { socialDialogueGenerator: input.socialDialogueGenerator }),
           ...(input.globalSynthesizer === undefined
             ? {}
             : { globalSynthesizer: input.globalSynthesizer }),
@@ -278,6 +285,13 @@ export async function runWorkerAgentCycle(
       : {
           actionSequenceGeneration: cycleResult.actionSequenceTraces.map((entry) =>
             mapActionSequenceGenerationTrace(entry),
+          ),
+        }),
+    ...(cycleResult.socialDialogueGenerationTraces === undefined
+      ? {}
+      : {
+          socialDialogueGeneration: cycleResult.socialDialogueGenerationTraces.map((entry) =>
+            mapSocialDialogueGenerationTrace(entry),
           ),
         }),
     ...(cycleResult.globalSynthesisTrace === undefined
@@ -531,6 +545,41 @@ function mapActionSequenceGenerationTrace(
             rationale: action.rationale,
           })),
         }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function mapSocialDialogueGenerationTrace(
+  trace: SocialDialogueGenerationTrace,
+): NonNullable<AgentCycleTrace['socialDialogueGeneration']>[number] {
+  return {
+    status: trace.status,
+    source: trace.source,
+    selectedSubtask: {
+      branchId: trace.selectedSubtask.branchId,
+      subtaskId: trace.selectedSubtask.subtaskId,
+    },
+    actionId: trace.actionId,
+    targetAgentId: trace.targetAgentId,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    turnCount: trace.turnCount,
+    rationale: trace.rationale,
     ...(trace.attempts === undefined
       ? {}
       : {

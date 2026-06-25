@@ -135,6 +135,9 @@ async function createRunnerInput(
     ...(runtimeConfig?.actionSequenceGeneration === undefined
       ? {}
       : { actionSequenceGeneration: runtimeConfig.actionSequenceGeneration }),
+    ...(runtimeConfig?.socialDialogue === undefined
+      ? {}
+      : { socialDialogue: runtimeConfig.socialDialogue }),
     ...(runtimeConfig?.globalSynthesis === undefined
       ? {}
       : { globalSynthesis: runtimeConfig.globalSynthesis }),

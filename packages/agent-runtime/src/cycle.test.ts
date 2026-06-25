@@ -272,6 +272,276 @@ describe('agent planning cycle', () => {
     ]);
   });
 
+  test('applies social dialogue generation before simulation and command drafting', async () => {
+    const plan = createBranchPlan({
+      objective: 'maintain a useful social relationship',
+      branches: [
+        {
+          id: 'social',
+          objective: 'coordinate with neighbor',
+          subtasks: [
+            {
+              id: 'check-in',
+              description: 'check in with a neighbor about market prices',
+              basePriority: 7,
+            },
+          ],
+        },
+      ],
+    });
+    const simulatedTopics: string[] = [];
+    const generatorInputs: unknown[] = [];
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 155,
+      plan,
+      signals: [{ key: 'social', weight: 2 }],
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'memory-neighbor-market-note',
+          agentId: asAgentId('agent-1'),
+          kind: 'social-interaction',
+          status: 'succeeded',
+          summary: 'Neighbor shared useful market notes yesterday.',
+          occurredAt: 100,
+          importanceScore: 0.7,
+          source: { eventIds: [] },
+          tags: ['social', 'market'],
+        }),
+      ],
+      longTermProfile: {
+        agentId: asAgentId('agent-1'),
+        beliefs: [
+          {
+            key: 'neighbors-share-market-info',
+            statement: 'Neighbors often share useful market information.',
+            confidence: 0.8,
+            updatedAt: 120,
+            provenanceRecordIds: [asMemoryRecordId('reflection-neighbor-market-info')],
+          },
+        ],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId: asAgentId('agent-1'),
+          locationId: 'market',
+          physiology: { energy: 40, satiety: 35, health: 90 },
+          educationScore: 20,
+          balance: 120,
+          residentialTier: 1,
+          job: 'Stock Clerk',
+          inventory: { Fish: 2 },
+        },
+        market: { spotPrices: [{ commodity: 'Fish', spotPrice: 12 }] },
+      },
+      socialDialogueGenerator: async (input) => {
+        await Promise.resolve();
+        generatorInputs.push(input);
+        expect(input.selectedSubtask).toMatchObject({
+          branchId: 'social',
+          subtaskId: 'check-in',
+        });
+        expect(input.shortTermMemoryContext?.[0]?.id).toBe('memory-neighbor-market-note');
+        expect(input.longTermProfile?.beliefs[0]?.key).toBe('neighbors-share-market-info');
+        expect(input.worldDecisionContext?.market.spotPrices[0]?.spotPrice).toBe(12);
+        return {
+          payload: {
+            ...input.deterministicPayload,
+            topic: 'sharing fresh fish prices',
+            turns: [
+              {
+                speakerAgentId: asAgentId('agent-1'),
+                utterance: 'I saw Fish at 12 coins and wanted to compare notes.',
+                intent: 'share-price',
+              },
+              {
+                speakerAgentId: asAgentId('agent-2'),
+                utterance: 'That is useful; I saw the same stall before work.',
+                intent: 'acknowledge-price',
+              },
+            ],
+          },
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'social', subtaskId: 'check-in' },
+            actionId: 'social-check-in',
+            targetAgentId: asAgentId('agent-2'),
+            requestId: 'social-dialogue-cycle',
+            turnCount: 2,
+            rationale: 'Use current price context and social memory.',
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'social',
+          supports: ({ subtaskId }) => subtaskId === 'check-in',
+          propose: () => [
+            {
+              id: 'social-check-in',
+              description: 'start a neighbor conversation',
+              commandType: 'AgentStartConversation',
+              payload: {
+                targetAgentId: asAgentId('agent-2'),
+                topic: 'deterministic fallback topic',
+                relationDelta: 0.05,
+                attitudeDelta: 0.02,
+                turns: [
+                  { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback hello.' },
+                  { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback reply.' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => {
+        simulatedTopics.push(String((action.payload as { topic?: string }).topic));
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(generatorInputs).toHaveLength(1);
+    expect(simulatedTopics).toEqual(['sharing fresh fish prices']);
+    expect(result.commandDrafts[0]?.payload).toMatchObject({
+      topic: 'sharing fresh fish prices',
+      turns: [
+        { speakerAgentId: 'agent-1', utterance: 'I saw Fish at 12 coins and wanted to compare notes.' },
+        { speakerAgentId: 'agent-2', utterance: 'That is useful; I saw the same stall before work.' },
+      ],
+    });
+    expect(result.socialDialogueGenerationTraces).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: { branchId: 'social', subtaskId: 'check-in' },
+        actionId: 'social-check-in',
+        targetAgentId: 'agent-2',
+        requestId: 'social-dialogue-cycle',
+        turnCount: 2,
+        rationale: 'Use current price context and social memory.',
+      },
+    ]);
+  });
+
+  test('runs social dialogue generation before global synthesis ranking', async () => {
+    const plan = createBranchPlan({
+      objective: 'coordinate social and recovery actions',
+      branches: [
+        {
+          id: 'social',
+          objective: 'coordinate with neighbor',
+          subtasks: [{ id: 'check-in', description: 'check in with neighbor', basePriority: 8 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [{ id: 'eat', description: 'eat Fish', basePriority: 7 }],
+        },
+      ],
+    });
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 156,
+      plan,
+      signals: [],
+      actionSynthesis: { maxActions: 1, candidateSubtasks: { maxSubtasks: 2 } },
+      socialDialogueGenerator: async (input) => {
+        await Promise.resolve();
+        return {
+          payload: {
+            ...input.deterministicPayload,
+            topic: 'LLM enriched social topic',
+            turns: [
+              { speakerAgentId: asAgentId('agent-1'), utterance: 'Generated opening.' },
+              { speakerAgentId: asAgentId('agent-2'), utterance: 'Generated reply.' },
+            ],
+          },
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'social', subtaskId: 'check-in' },
+            actionId: input.action.id,
+            targetAgentId: asAgentId('agent-2'),
+            turnCount: 2,
+            rationale: 'Generated before global synthesis.',
+          },
+        };
+      },
+      globalSynthesizer: async ({ candidateActions }) => {
+        await Promise.resolve();
+        expect(candidateActions[0]?.payload).toMatchObject({
+          topic: 'LLM enriched social topic',
+          turns: [{ utterance: 'Generated opening.' }, { utterance: 'Generated reply.' }],
+        });
+        return {
+          actions: candidateActions,
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'global-after-social-dialogue',
+            choices: candidateActions.map((action, index) => ({
+              actionId: action.id,
+              priorityScore: 10 - index,
+              rationale: 'Keep enriched social action visible to global synthesis.',
+            })),
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'social',
+          supports: ({ subtaskId }) => subtaskId === 'check-in',
+          propose: () => [
+            {
+              id: 'social-check-in',
+              description: 'start a neighbor conversation',
+              commandType: 'AgentStartConversation',
+              payload: {
+                targetAgentId: asAgentId('agent-2'),
+                topic: 'deterministic fallback topic',
+                relationDelta: 0.05,
+                attitudeDelta: 0.02,
+                turns: [
+                  { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback hello.' },
+                  { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback reply.' },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          domain: 'recovery',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-fish',
+              description: 'eat Fish',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Fish', quantity: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.candidateActions[0]?.payload).toMatchObject({
+      topic: 'LLM enriched social topic',
+    });
+    expect(result.globalSynthesisTrace?.requestId).toBe('global-after-social-dialogue');
+  });
+
   test('synthesizes candidate actions before simulation and command drafting', () => {
     const plan = createBranchPlan({
       objective: 'survive',

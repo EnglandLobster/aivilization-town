@@ -16,6 +16,7 @@ import {
   createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
+  createLocalRuntimeTownProfileSocialDialogueGenerator,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
   createLocalRuntimeTownProfileSubtaskPrioritizer,
 } from './localRuntimeTownProfileLlmPlanning';
@@ -441,6 +442,90 @@ describe('local runtime town profile LLM planning config', () => {
       model: 'profile-action-sequence-model',
     });
 
+    const socialDialogueGenerator = createLocalRuntimeTownProfileSocialDialogueGenerator({
+      kind: 'traceable-llm-social-dialogue-generator',
+      profileId: 'smoke-25',
+      model: 'profile-social-dialogue-model',
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-social-dialogue',
+        responses: [
+          {
+            providerId: 'scripted-profile-social-dialogue',
+            model: 'profile-social-dialogue-model',
+            content: JSON.stringify({
+              dialogue: {
+                topic: 'sharing Fish price notes',
+                rationale: 'Use a compact two-party market conversation.',
+                turns: [
+                  {
+                    speakerAgentId: 'agent-1',
+                    utterance: 'I found Fish near the market and wanted to compare prices.',
+                  },
+                  {
+                    speakerAgentId: 'agent-2',
+                    utterance: 'I can check another stall before dinner.',
+                  },
+                ],
+              },
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 14, outputTokens: 9 },
+          },
+        ],
+      },
+    });
+    expect(socialDialogueGenerator).not.toBeUndefined();
+    if (socialDialogueGenerator === undefined) {
+      throw new Error('expected LLM social dialogue generator');
+    }
+    const socialDialogue = await socialDialogueGenerator({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      selectedSubtask,
+      signals: [],
+      action: {
+        id: 'conversation-check-in',
+        description: 'Check in with a neighbor.',
+        commandType: 'AgentStartConversation',
+        payload: {
+          targetAgentId: asAgentId('agent-2'),
+          topic: 'fallback neighbor check-in',
+          relationDelta: 0.05,
+          attitudeDelta: 0.02,
+          turns: [
+            { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback hello.' },
+            { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback reply.' },
+          ],
+        },
+      },
+      deterministicPayload: {
+        targetAgentId: asAgentId('agent-2'),
+        topic: 'fallback neighbor check-in',
+        relationDelta: 0.05,
+        attitudeDelta: 0.02,
+        turns: [
+          { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback hello.' },
+          { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback reply.' },
+        ],
+      },
+    });
+    expect(socialDialogue.payload).toMatchObject({
+      topic: 'sharing Fish price notes',
+      turns: [
+        { speakerAgentId: 'agent-1', utterance: 'I found Fish near the market and wanted to compare prices.' },
+        { speakerAgentId: 'agent-2', utterance: 'I can check another stall before dinner.' },
+      ],
+    });
+    expect(socialDialogue.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-social-dialogue:smoke-25:agent-1:conversation-check-in:333',
+      providerId: 'scripted-profile-social-dialogue',
+      model: 'profile-social-dialogue-model',
+    });
+
     const globalSynthesizer = createLocalRuntimeTownProfileGlobalSynthesizer({
       kind: 'traceable-llm-global-synthesizer',
       profileId: 'smoke-25',
@@ -566,6 +651,7 @@ describe('local runtime town profile LLM planning config', () => {
     expect(createLocalRuntimeTownProfileReactionEvaluator(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileSubtaskPrioritizer(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileActionSequenceGenerator(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileSocialDialogueGenerator(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileGlobalSynthesizer(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileReactiveCorrector(undefined)).toBeUndefined();
   });

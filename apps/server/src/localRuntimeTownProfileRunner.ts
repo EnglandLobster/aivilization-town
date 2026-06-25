@@ -5,6 +5,7 @@ import type {
   GlobalActionSynthesizer,
   ReactionEvaluator,
   ReactiveCorrector,
+  SocialDialogueGenerator,
   StrategicPlanCompiler,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -39,6 +40,7 @@ import {
   createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
+  createLocalRuntimeTownProfileSocialDialogueGenerator,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
   createLocalRuntimeTownProfileSubtaskPrioritizer,
   type LocalRuntimeTownProfileActionSequenceGeneratorConfig,
@@ -48,6 +50,7 @@ import {
   type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
+  type LocalRuntimeTownProfileSocialDialogueGeneratorConfig,
   type LocalRuntimeTownProfileSubtaskPrioritizerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
@@ -71,6 +74,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly reactionEvaluator?: ReactionEvaluator;
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
@@ -80,6 +84,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionEvaluatorConfig;
   readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizerConfig;
   readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGeneratorConfig;
+  readonly socialDialogue?: LocalRuntimeTownProfileSocialDialogueGeneratorConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesizerConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectorConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig;
@@ -164,6 +169,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const actionSequenceGenerator =
     input.actionSequenceGenerator ??
     createLocalRuntimeTownProfileActionSequenceGenerator(input.actionSequenceGeneration);
+  const socialDialogueGenerator =
+    input.socialDialogueGenerator ??
+    createLocalRuntimeTownProfileSocialDialogueGenerator(input.socialDialogue);
   const globalSynthesizer =
     input.globalSynthesizer ??
     createLocalRuntimeTownProfileGlobalSynthesizer(input.globalSynthesis);
@@ -187,6 +195,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
       ...(subtaskPrioritizer === undefined ? {} : { subtaskPrioritizer }),
       ...(actionSequenceGenerator === undefined ? {} : { actionSequenceGenerator }),
+      ...(socialDialogueGenerator === undefined ? {} : { socialDialogueGenerator }),
       ...(globalSynthesizer === undefined ? {} : { globalSynthesizer }),
       ...(reactiveCorrector === undefined ? {} : { reactiveCorrector }),
       ...(input.agentMemoryRetrievalLimit === undefined
@@ -356,6 +365,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
     readonly actionSequenceGenerator?: ActionSequenceGenerator;
+    readonly socialDialogueGenerator?: SocialDialogueGenerator;
     readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
     readonly memoryRetrievalLimit?: number;
@@ -434,6 +444,9 @@ export function createLocalRuntimeTownProfileAgentProvider(
         ...(input.actionSequenceGenerator === undefined
           ? {}
           : { actionSequenceGenerator: input.actionSequenceGenerator }),
+        ...(input.socialDialogueGenerator === undefined
+          ? {}
+          : { socialDialogueGenerator: input.socialDialogueGenerator }),
         ...(input.globalSynthesizer === undefined
           ? {}
           : { globalSynthesizer: input.globalSynthesizer }),

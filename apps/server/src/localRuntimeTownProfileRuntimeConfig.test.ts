@@ -293,6 +293,7 @@ describe('local runtime town profile runtime config', () => {
       env: {
         PRIORITY_KEY: 'priority-secret',
         ACTION_KEY: 'action-secret',
+        SOCIAL_DIALOGUE_KEY: 'social-dialogue-secret',
         GLOBAL_KEY: 'global-secret',
         REACTIVE_KEY: 'reactive-secret',
       },
@@ -334,6 +335,16 @@ describe('local runtime town profile runtime config', () => {
                     providerId: 'profile-action-provider',
                     endpoint: 'https://action.example.test/v1/chat/completions',
                     apiKey: { env: 'ACTION_KEY' },
+                  },
+                },
+                socialDialogue: {
+                  kind: 'traceable-llm-social-dialogue-generator',
+                  model: 'profile-social-dialogue',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'profile-social-dialogue-provider',
+                    endpoint: 'https://social-dialogue.example.test/v1/chat/completions',
+                    apiKey: { env: 'SOCIAL_DIALOGUE_KEY' },
                   },
                 },
                 globalSynthesis: {
@@ -389,6 +400,17 @@ describe('local runtime town profile runtime config', () => {
           providerId: 'profile-action-provider',
           endpoint: 'https://action.example.test/v1/chat/completions',
           apiKey: 'action-secret',
+        },
+      },
+      socialDialogue: {
+        kind: 'traceable-llm-social-dialogue-generator',
+        profileId: 'default-100',
+        model: 'profile-social-dialogue',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-social-dialogue-provider',
+          endpoint: 'https://social-dialogue.example.test/v1/chat/completions',
+          apiKey: 'social-dialogue-secret',
         },
       },
       globalSynthesis: {
@@ -768,6 +790,27 @@ describe('local runtime town profile runtime config', () => {
           ),
       }),
     ).rejects.toThrow('reactiveCorrection.provider.kind must be openai-compatible');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              socialDialogue: {
+                kind: 'traceable-llm-global-synthesizer',
+                model: 'social-dialogue-model',
+                provider: {
+                  kind: 'openai-compatible',
+                  providerId: 'social-dialogue-provider',
+                  endpoint: 'https://social-dialogue.example.test/v1/chat/completions',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('socialDialogue.kind must be traceable-llm-social-dialogue-generator');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({

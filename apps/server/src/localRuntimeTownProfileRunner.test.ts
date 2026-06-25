@@ -6,6 +6,7 @@ import {
   FileBranchPlanRepository,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type SocialDialogueGenerator,
   type SubtaskPrioritizer,
   createBranchPlan,
   createDailyPlan,
@@ -358,9 +359,26 @@ describe('local runtime town profile runner', () => {
           },
         },
       });
+    const socialDialogueGenerator: SocialDialogueGenerator = (input) =>
+      Promise.resolve({
+        payload: input.deterministicPayload,
+        trace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          selectedSubtask: {
+            branchId: input.selectedSubtask.branchId,
+            subtaskId: input.selectedSubtask.subtaskId,
+          },
+          actionId: input.action.id,
+          targetAgentId: input.deterministicPayload.targetAgentId,
+          turnCount: input.deterministicPayload.turns.length,
+          rationale: 'test social dialogue generator',
+        },
+      });
     const provider = createLocalRuntimeTownProfileAgentProvider({
       subtaskPrioritizer,
       actionSequenceGenerator,
+      socialDialogueGenerator,
       globalSynthesizer,
       reactiveCorrector,
     });
@@ -376,6 +394,7 @@ describe('local runtime town profile runner', () => {
     const agent = agents[0];
     expect(agent?.subtaskPrioritizer).toBe(subtaskPrioritizer);
     expect(agent?.actionSequenceGenerator).toBe(actionSequenceGenerator);
+    expect(agent?.socialDialogueGenerator).toBe(socialDialogueGenerator);
     expect(agent?.globalSynthesizer).toBe(globalSynthesizer);
     expect(agent?.reactiveCorrector).toBe(reactiveCorrector);
   });

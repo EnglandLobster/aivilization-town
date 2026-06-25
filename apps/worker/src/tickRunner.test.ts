@@ -7,6 +7,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type SocialDialogueGenerator,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
@@ -917,6 +918,94 @@ describe('worker tick runner', () => {
             rationale: 'Use a longer study action because health and energy can support it.',
           },
         ],
+      },
+    ]);
+  });
+
+  test('passes tick agent social dialogue generator into command payloads and cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const socialDialogueGenerator: SocialDialogueGenerator = async (input) => {
+      await Promise.resolve();
+      expect(input.action.id).toBe('conversation-party');
+      expect(input.deterministicPayload.topic).toBe('Valentine party');
+      return {
+        payload: {
+          ...input.deterministicPayload,
+          topic: 'LLM coordinated Valentine party planning',
+          turns: [
+            {
+              speakerAgentId: agentOne,
+              utterance: 'I can bring snacks if you invite nearby classmates.',
+              intent: 'coordinate-party-task',
+            },
+            {
+              speakerAgentId: agentThree,
+              utterance: 'I will invite them and check whether the classroom is free.',
+              intent: 'accept-party-task',
+            },
+          ],
+        },
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          selectedSubtask: { branchId: 'social', subtaskId: 'socialize' },
+          actionId: 'conversation-party',
+          targetAgentId: agentThree,
+          requestId: 'social-dialogue-tick-agent-1',
+          turnCount: 2,
+          rationale: 'Generate a concrete two-party party planning exchange.',
+        },
+      };
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-social-dialogue',
+      simulationId,
+      issuedAt: 910,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      projection: createCoLocatedConversationProjection(),
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 socializing at school',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          socialDialogueGenerator,
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.dispatchResult?.commands[0]?.payload).toMatchObject({
+      topic: 'LLM coordinated Valentine party planning',
+      turns: [
+        {
+          speakerAgentId: 'agent-1',
+          utterance: 'I can bring snacks if you invite nearby classmates.',
+          intent: 'coordinate-party-task',
+        },
+        {
+          speakerAgentId: 'agent-3',
+          utterance: 'I will invite them and check whether the classroom is free.',
+          intent: 'accept-party-task',
+        },
+      ],
+    });
+    expect(result.traces[0]?.socialDialogueGeneration).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: { branchId: 'social', subtaskId: 'socialize' },
+        actionId: 'conversation-party',
+        targetAgentId: 'agent-3',
+        requestId: 'social-dialogue-tick-agent-1',
+        turnCount: 2,
+        rationale: 'Generate a concrete two-party party planning exchange.',
       },
     ]);
   });

@@ -9,6 +9,7 @@ import type {
   CycleSubtaskCompletionPolicy,
   GlobalActionSynthesizer,
   ReactiveCorrector,
+  SocialDialogueGenerator,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
@@ -58,6 +59,7 @@ export type CanonicalWorkerRuntimeResolverConfig = {
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
+  readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly issuedAt?: SimulationTimestamp;
@@ -130,6 +132,9 @@ export function createCanonicalWorkerRuntimeResolver(
       ...(config.actionSequenceGenerator === undefined
         ? {}
         : { actionSequenceGenerator: config.actionSequenceGenerator }),
+      ...(config.socialDialogueGenerator === undefined
+        ? {}
+        : { socialDialogueGenerator: config.socialDialogueGenerator }),
       ...(config.globalSynthesizer === undefined
         ? {}
         : { globalSynthesizer: config.globalSynthesizer }),

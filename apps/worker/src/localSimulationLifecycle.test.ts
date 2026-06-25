@@ -453,28 +453,32 @@ describe('local simulation lifecycle controller', () => {
       partitionKey: 'world-main',
     });
     await storage.shortTermMemoryRepository.append(createTradeMemory(1));
-    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = () => ({
-      insights: [
-        {
-          id: 'reflection-agent-1-value-market-patience-1060',
-          agentId: agentOne,
-          kind: 'value',
-          topicKey: 'market-patience',
-          statement: 'The agent values waiting for better market conditions.',
-          confidence: 0.8,
-          evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
-          generatedAt: 1060,
-          tags: ['trade', 'market', 'value'],
+    const synthesizerCalls: Parameters<ReflectiveInsightSynthesizer>[0][] = [];
+    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = (input) => {
+      synthesizerCalls.push(input);
+      return {
+        insights: [
+          {
+            id: 'reflection-agent-1-value-market-patience-1060',
+            agentId: agentOne,
+            kind: 'value',
+            topicKey: 'market-patience',
+            statement: 'The agent values waiting for better market conditions.',
+            confidence: 0.8,
+            evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+            generatedAt: 1060,
+            tags: ['trade', 'market', 'value'],
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reflection-agent-1-1060',
+          providerId: 'scripted-reflection',
+          model: 'reflection-model',
         },
-      ],
-      trace: {
-        status: 'accepted',
-        source: 'llm',
-        requestId: 'reflection-agent-1-1060',
-        providerId: 'scripted-reflection',
-        model: 'reflection-model',
-      },
-    });
+      };
+    };
     const controller = createController({
       storage,
       initialProjection,
@@ -502,6 +506,19 @@ describe('local simulation lifecycle controller', () => {
           },
         },
       ],
+    });
+    expect(synthesizerCalls[0]?.worldDecisionContext).toMatchObject({
+      agent: {
+        agentId: agentOne,
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        inventory: {},
+      },
+      market: {
+        spotPrices: [{ commodity: 'Fish', spotPrice: 10 }],
+      },
     });
     await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
       values: [

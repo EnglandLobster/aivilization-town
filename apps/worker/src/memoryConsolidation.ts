@@ -6,6 +6,7 @@ import {
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
   type LongTermProfileRepository,
+  type MemorySynthesisWorldDecisionContext,
   type ReflectiveInsightRecord,
   type ReflectiveInsightSynthesizer,
   type ReflectiveInsightSynthesisTrace,
@@ -40,6 +41,7 @@ export type WorkerMemoryConsolidationInput = {
   readonly orderBy?: ShortTermMemoryOrder;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
   readonly socialModelSynthesizer?: SocialModelSynthesizer;
+  readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 };
 
 export type WorkerMemoryConsolidationResult = {
@@ -55,9 +57,12 @@ export type WorkerMemoryConsolidationResult = {
 
 export type WorkerMemoryConsolidationBatchInput = Omit<
   WorkerMemoryConsolidationInput,
-  'agentId'
+  'agentId' | 'worldDecisionContext'
 > & {
   readonly agentIds: readonly AgentId[];
+  readonly worldDecisionContextProvider?: (
+    agentId: AgentId,
+  ) => MemorySynthesisWorldDecisionContext | undefined;
 };
 
 export type WorkerMemoryConsolidationBatchResult = {
@@ -169,6 +174,9 @@ export async function runWorkerMemoryConsolidation(
     ...(input.socialModelSynthesizer === undefined
       ? {}
       : { socialModelSynthesizer: input.socialModelSynthesizer }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
 }
 
@@ -180,6 +188,7 @@ async function applyWorkerMemoryConsolidation(input: {
   readonly proposedAt: SimulationTimestamp;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
   readonly socialModelSynthesizer?: SocialModelSynthesizer;
+  readonly worldDecisionContext?: MemorySynthesisWorldDecisionContext;
 }): Promise<WorkerMemoryConsolidationResult> {
   const currentProfile = await input.longTermProfileRepository.getOrCreate(input.agentId);
   const nonSocialPatches = proposeNonSocialLongTermMemoryPatches({
@@ -195,6 +204,9 @@ async function applyWorkerMemoryConsolidation(input: {
     records: input.records,
     generatedAt: input.proposedAt,
     longTermProfile: currentProfile,
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
   const reflectiveInsightSynthesizer =
     input.reflectiveInsightSynthesizer ?? createDeterministicReflectiveInsightSynthesizer();
@@ -204,6 +216,9 @@ async function applyWorkerMemoryConsolidation(input: {
     minEvidenceCount: input.minPatternCount,
     generatedAt: input.proposedAt,
     longTermProfile: currentProfile,
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
   });
   const reflectiveInsights = reflectionSynthesis.insights;
   const patches = [
@@ -234,6 +249,7 @@ export async function runWorkerMemoryConsolidationBatch(
   const agentIds = dedupeAgentIds(input.agentIds);
   const results: WorkerMemoryConsolidationResult[] = [];
   for (const agentId of agentIds) {
+    const worldDecisionContext = input.worldDecisionContextProvider?.(agentId);
     results.push(
       await runWorkerMemoryConsolidation({
         agentId,
@@ -248,6 +264,7 @@ export async function runWorkerMemoryConsolidationBatch(
         ...(input.socialModelSynthesizer === undefined
           ? {}
           : { socialModelSynthesizer: input.socialModelSynthesizer }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
       }),
     );
   }
@@ -291,6 +308,7 @@ export async function runWorkerMemoryConsolidationSchedule(
       continue;
     }
 
+    const worldDecisionContext = input.worldDecisionContextProvider?.(agentId);
     const result = await applyWorkerMemoryConsolidation({
       agentId,
       records: pendingRecords,
@@ -303,6 +321,7 @@ export async function runWorkerMemoryConsolidationSchedule(
       ...(input.socialModelSynthesizer === undefined
         ? {}
         : { socialModelSynthesizer: input.socialModelSynthesizer }),
+      ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
     });
     results.push(result);
 

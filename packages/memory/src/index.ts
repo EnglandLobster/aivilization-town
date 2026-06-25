@@ -12,6 +12,7 @@ export * from './repository';
 export * from './retrieval';
 export * from './socialReflection';
 export * from './socialModelSynthesis';
+export * from './worldContext';
 
 export type MemoryModuleStatus = {
   readonly packageName: '@aivilization/memory';

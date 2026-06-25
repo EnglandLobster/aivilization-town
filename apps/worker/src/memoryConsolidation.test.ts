@@ -4,6 +4,7 @@ import {
   asMemoryRecordId,
   createShortTermMemoryRecord,
   type ReflectiveInsightSynthesizer,
+  type MemorySynthesisWorldDecisionContext,
   type SocialModelSynthesizer,
 } from '@aivilization/memory';
 import { InMemorySocialReflectionObservationRepository } from '@aivilization/observability';
@@ -679,6 +680,47 @@ describe('worker memory consolidation', () => {
     ]);
   });
 
+  test('passes scheduled world decision context into memory synthesizers', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    const worldDecisionContext = createWorldDecisionContext();
+    const reflectiveCalls: Parameters<ReflectiveInsightSynthesizer>[0][] = [];
+    const socialCalls: Parameters<SocialModelSynthesizer>[0][] = [];
+    await shortTermMemoryRepository.append(createTradeMemory(1));
+
+    const result = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 2400,
+      worldDecisionContextProvider: (candidateAgentId) =>
+        candidateAgentId === agentId ? worldDecisionContext : undefined,
+      reflectiveInsightSynthesizer: (input) => {
+        reflectiveCalls.push(input);
+        return {
+          insights: [],
+          trace: { status: 'accepted', source: 'llm', requestId: 'reflection-context' },
+        };
+      },
+      socialModelSynthesizer: (input) => {
+        socialCalls.push(input);
+        return {
+          patches: [],
+          socialReflections: [],
+          trace: { status: 'accepted', source: 'llm', requestId: 'social-context' },
+        };
+      },
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(reflectiveCalls[0]?.worldDecisionContext).toEqual(worldDecisionContext);
+    expect(socialCalls[0]?.worldDecisionContext).toEqual(worldDecisionContext);
+  });
+
   test('passes an injected reflective insight synthesizer through scheduled consolidation', async () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
@@ -891,6 +933,30 @@ function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-memory-cursor-'));
   tempRoots.push(root);
   return root;
+}
+
+function createWorldDecisionContext(): MemorySynthesisWorldDecisionContext {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 72, satiety: 41, health: 93 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'stock-clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 100,
+        recordedAt: 200,
+        overall: 1.25,
+        ratios: { Fish: 1.4 },
+      },
+    },
+  };
 }
 
 function createLowImportanceStudyMemory(index: number) {

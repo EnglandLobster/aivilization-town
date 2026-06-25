@@ -18,6 +18,7 @@ import {
   type WorkerMemoryConsolidationReflectionTrigger,
   type WorkerMemoryConsolidationScheduleResult,
 } from './memoryConsolidation';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type LocalSimulationLifecycleRequest = {
   readonly simulationId: string;
@@ -304,6 +305,7 @@ export function createLocalSimulationLifecycleController(
         loop.status === 'completed' && input.memoryConsolidationSchedule !== undefined
           ? await runLifecycleMemoryConsolidation({
               controllerInput: input,
+              projection: loop.projection,
               request,
               schedule: input.memoryConsolidationSchedule,
             })
@@ -553,6 +555,7 @@ function createMemoryConsolidationStateFields(
 
 async function runLifecycleMemoryConsolidation(input: {
   readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly projection: WorldProjection;
   readonly request: LocalSimulationLifecycleRequest;
   readonly schedule: LocalSimulationLifecycleMemoryConsolidationSchedule;
 }): Promise<
@@ -584,6 +587,11 @@ async function runLifecycleMemoryConsolidation(input: {
           simulationId: input.controllerInput.storage.partition.simulationId,
           partitionKey: input.controllerInput.storage.partition.partitionKey,
         },
+        worldDecisionContextProvider: (agentId) =>
+          createMemoryConsolidationWorldDecisionContext({
+            projection: input.projection,
+            agentId,
+          }),
         proposedAt: input.request.requestedAt,
       }),
     };
@@ -592,6 +600,19 @@ async function runLifecycleMemoryConsolidation(input: {
       memoryConsolidationFailure: serializeValidationFailure(error),
     };
   }
+}
+
+function createMemoryConsolidationWorldDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+}) {
+  if (input.projection.agents[input.agentId] === undefined) {
+    return undefined;
+  }
+  return createWorldDecisionContextFromProjection({
+    projection: input.projection,
+    agentId: input.agentId,
+  });
 }
 
 function createDefaultMemoryConsolidationAgentIds(

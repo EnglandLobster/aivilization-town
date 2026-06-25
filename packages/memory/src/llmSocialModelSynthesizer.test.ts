@@ -95,6 +95,7 @@ describe('LLM social model synthesizer seam', () => {
           },
         ],
       },
+      worldDecisionContext: createWorldDecisionContext(),
       provider: scripted.provider,
       model: 'social-model',
       requestId: 'social-model-agent-1-500',
@@ -177,6 +178,12 @@ describe('LLM social model synthesizer seam', () => {
     expect(requestContent).not.toContain('"other-agent-social"');
     expect(requestContent).toContain('"longTermProfile"');
     expect(requestContent).toContain('"deterministicSocialModel"');
+    expect(requestContent).toContain('"worldDecisionContext"');
+    expect(requestContent).toContain('"balance":191696904');
+    expect(requestContent).toContain('"educationScore":31');
+    expect(requestContent).toContain('"residentialTier":5');
+    expect(requestContent).toContain('"Fish":46');
+    expect(requestContent).toContain('"spotPrice":304.5');
   });
 
   test('falls back to deterministic social model synthesis when the provider fails', async () => {
@@ -334,4 +341,28 @@ function createSocialMemory(input: {
       summary: input.summary,
     },
   });
+}
+
+function createWorldDecisionContext() {
+  return {
+    agent: {
+      agentId,
+      locationId: 'market',
+      physiology: { energy: 72, satiety: 41, health: 93 },
+      educationScore: 31,
+      balance: 191696904,
+      residentialTier: 5,
+      job: 'stock-clerk',
+      inventory: { Fish: 46, Transistor: 12 },
+    },
+    market: {
+      spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
+      latestPriceIndex: {
+        baselineAt: 100,
+        recordedAt: 200,
+        overall: 1.25,
+        ratios: { Fish: 1.4 },
+      },
+    },
+  };
 }

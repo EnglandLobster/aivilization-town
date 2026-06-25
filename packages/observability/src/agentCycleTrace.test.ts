@@ -45,6 +45,29 @@ describe('createAgentCycleTrace', () => {
           ],
         },
       ],
+      globalSynthesis: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'trace-1:global-synthesis',
+        providerId: 'scripted-global-synthesis',
+        model: 'global-synthesis-model',
+        choices: [
+          {
+            actionId: 'buy-fish-1',
+            priorityScore: 9,
+            strategicAlignment: 4,
+            branchUrgency: 8,
+            rationale: 'Restore satiety before production to avoid jeopardizing wellbeing.',
+          },
+          {
+            actionId: 'craft-1',
+            priorityScore: 6,
+            strategicAlignment: 7,
+            branchUrgency: 3,
+            rationale: 'Crafting remains aligned but can follow recovery.',
+          },
+        ],
+      },
       subtaskCandidates: [
         {
           branchId: 'production-resource-management',
@@ -192,6 +215,29 @@ describe('createAgentCycleTrace', () => {
         ],
       },
     ]);
+    expect(trace.globalSynthesis).toEqual({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'trace-1:global-synthesis',
+      providerId: 'scripted-global-synthesis',
+      model: 'global-synthesis-model',
+      choices: [
+        {
+          actionId: 'buy-fish-1',
+          priorityScore: 9,
+          strategicAlignment: 4,
+          branchUrgency: 8,
+          rationale: 'Restore satiety before production to avoid jeopardizing wellbeing.',
+        },
+        {
+          actionId: 'craft-1',
+          priorityScore: 6,
+          strategicAlignment: 7,
+          branchUrgency: 3,
+          rationale: 'Crafting remains aligned but can follow recovery.',
+        },
+      ],
+    });
     expect(trace.replanMaterialization).toEqual({
       status: 'replanned',
       objectiveId: 'objective-production',

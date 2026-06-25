@@ -34,6 +34,7 @@ function createTrace(input: {
   readonly replanMaterialization?: boolean;
   readonly contextualPrioritization?: boolean;
   readonly actionSequenceGeneration?: boolean;
+  readonly globalSynthesis?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -125,6 +126,54 @@ function createTrace(input: {
               },
             },
           ],
+        }
+      : {}),
+    ...(input.globalSynthesis === true
+      ? {
+          globalSynthesis: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: `${input.traceId}:global-synthesis`,
+            providerId: 'scripted-global-synthesis',
+            model: 'global-synthesis-model',
+            choices: [
+              {
+                actionId: `${input.traceId}:sleep-1`,
+                priorityScore: 9,
+                strategicAlignment: 4,
+                branchUrgency: 8,
+                rationale: 'Restore energy before the study action.',
+              },
+              {
+                actionId: `${input.traceId}:study-1`,
+                priorityScore: 6,
+                strategicAlignment: 7,
+                branchUrgency: 3,
+                rationale: 'Study remains aligned after recovery.',
+              },
+            ],
+            attempts: [
+              {
+                attemptIndex: 1,
+                status: 'succeeded',
+                providerId: 'scripted-global-synthesis',
+                model: 'global-synthesis-model',
+                message: 'LLM structured response validated',
+                usage: {
+                  inputTokens: 30,
+                  outputTokens: 12,
+                  totalTokens: 42,
+                  estimatedCostMicros: 66,
+                },
+              },
+            ],
+            usage: {
+              inputTokens: 30,
+              outputTokens: 12,
+              totalTokens: 42,
+              estimatedCostMicros: 66,
+            },
+          },
         }
       : {}),
     subtaskCandidates: [
@@ -249,6 +298,7 @@ describe('agent cycle trace repositories', () => {
       replanMaterialization: true,
       contextualPrioritization: true,
       actionSequenceGeneration: true,
+      globalSynthesis: true,
     });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
@@ -315,6 +365,11 @@ describe('agent cycle trace repositories', () => {
       }[]
     )[0]!.rationale = 'mutated';
     (
+      read!.globalSynthesis!.choices as unknown as {
+        rationale: string;
+      }[]
+    )[0]!.rationale = 'mutated';
+    (
       read!.replanMaterialization as unknown as {
         failedActionIds: string[];
       }
@@ -333,6 +388,7 @@ describe('agent cycle trace repositories', () => {
     expect((await repository.get('trace-200'))?.actionSequenceGeneration).toEqual(
       newer.actionSequenceGeneration,
     );
+    expect((await repository.get('trace-200'))?.globalSynthesis).toEqual(newer.globalSynthesis);
   });
 
   test('persists file-backed traces across repository instances', async () => {

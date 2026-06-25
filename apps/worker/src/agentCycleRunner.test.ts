@@ -6,6 +6,7 @@ import {
   type AtomicActionProposal,
   type ActionSequenceGenerator,
   type DomainMicroPlanner,
+  type GlobalActionSynthesizer,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
@@ -479,6 +480,161 @@ describe('worker agent cycle runner', () => {
         ],
       },
     ]);
+  });
+
+  test('passes global synthesizer into the planning cycle and trace', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActions: string[] = [];
+    const globalSynthesizer: GlobalActionSynthesizer = async ({
+      candidateActions,
+      deterministicSynthesisResult,
+      worldDecisionContext,
+    }) => {
+      await Promise.resolve();
+      expect(candidateActions.map((action) => action.id)).toEqual([
+        'study-intensive',
+        'recover-basics',
+      ]);
+      expect(deterministicSynthesisResult.acceptedActions.map((action) => action.id)).toEqual([
+        'study-intensive',
+      ]);
+      expect(worldDecisionContext?.agent.balance).toBe(100);
+      return {
+        actions: [
+          {
+            ...candidateActions[1]!,
+            priority: 20,
+            synthesisContext: {
+              ...candidateActions[1]!.synthesisContext,
+              strategicAlignment: 4,
+              branchUrgency: 9,
+            },
+          },
+          {
+            ...candidateActions[0]!,
+            priority: 10,
+            synthesisContext: {
+              ...candidateActions[0]!.synthesisContext,
+              strategicAlignment: 8,
+              branchUrgency: 3,
+            },
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'global-synthesis-cycle-worker',
+          choices: [
+            {
+              actionId: 'recover-basics',
+              priorityScore: 20,
+              strategicAlignment: 4,
+              branchUrgency: 9,
+              rationale: 'Recovery should interleave before longer study work.',
+            },
+            {
+              actionId: 'study-intensive',
+              priorityScore: 10,
+              strategicAlignment: 8,
+              branchUrgency: 3,
+              rationale: 'Study remains aligned after recovery.',
+            },
+          ],
+        },
+      };
+    };
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-global-synthesis',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10 balance=100',
+      plan: createBranchPlan({
+        objective: 'balance study and recovery',
+        branches: [
+          {
+            id: 'development',
+            objective: 'improve education',
+            subtasks: [{ id: 'study', description: 'study intensively', basePriority: 7 }],
+          },
+          {
+            id: 'recovery',
+            objective: 'maintain wellbeing',
+            subtasks: [{ id: 'recover', description: 'recover before study', basePriority: 6 }],
+          },
+        ],
+      }),
+      signals: [],
+      actionSynthesis: {
+        maxActions: 1,
+        candidateSubtasks: { maxSubtasks: 2 },
+      },
+      globalSynthesizer,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-global-synthesis',
+      commandIdPrefix: 'cycle-global-synthesis-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-intensive',
+          description: 'study intensively for one minute',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+          priority: 12,
+        }),
+        {
+          domain: 'recover',
+          supports: ({ subtaskId }) => subtaskId === 'recover',
+          propose: () => [
+            {
+              id: 'recover-basics',
+              description: 'review basics before intensive study',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+              priority: 4,
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActions.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActions).toEqual(['recover-basics:recovery/recover']);
+    expect(result.dispatchResult?.commands.map((command) => command.payload)).toEqual([
+      { durationSeconds: 30, educationRatePerSecond: 1 },
+    ]);
+    expect(result.trace.globalSynthesis).toEqual({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'global-synthesis-cycle-worker',
+      choices: [
+        {
+          actionId: 'recover-basics',
+          priorityScore: 20,
+          strategicAlignment: 4,
+          branchUrgency: 9,
+          rationale: 'Recovery should interleave before longer study work.',
+        },
+        {
+          actionId: 'study-intensive',
+          priorityScore: 10,
+          strategicAlignment: 8,
+          branchUrgency: 3,
+          rationale: 'Study remains aligned after recovery.',
+        },
+      ],
+    });
   });
 
   test('collects and traces actions from multiple candidate subtasks', async () => {

@@ -689,6 +689,7 @@ function createAgentCycleDiagnostics(
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
+    simulatorRolloutEventCount: traceCount,
     commandEmittingCycleCount: traceCount,
     fullReplanMaterializationCount,
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
@@ -697,6 +698,7 @@ function createAgentCycleDiagnostics(
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
+    simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,
     ...(options.llmStageDiagnostics === undefined
       ? {}
       : { llmStageDiagnostics: options.llmStageDiagnostics }),

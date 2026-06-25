@@ -23,6 +23,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredPartitionHealth: string;
   readonly requireStreamVersionMatchesEventCount: boolean;
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
+  readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -118,6 +119,7 @@ export function evaluateRuntimeProfileRunReport(
     actual: report.agentCycleDiagnostics.fullReplanMaterializationCount,
     minimum: criteria.minimumFullReplanMaterializationCount,
   });
+  addSimulatorRolloutCoverageFailure(failures, report, criteria);
   addRequiredAgentCycleLlmStageFailures(
     failures,
     report,
@@ -226,6 +228,32 @@ export function evaluateRuntimeProfileRunReport(
     failureCount: failures.length,
     failures,
   };
+}
+
+function addSimulatorRolloutCoverageFailure(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  criteria: RuntimeProfileRunGateCriteria,
+): void {
+  if (criteria.minimumSimulatorRolloutCoverageRatio === undefined) {
+    return;
+  }
+
+  const actual = report.agentCycleDiagnostics.simulatorRolloutCoverageRatio;
+  if (actual >= criteria.minimumSimulatorRolloutCoverageRatio) {
+    return;
+  }
+
+  failures.push({
+    code: 'simulator-rollout-coverage-ratio-too-low',
+    message: `simulatorRolloutCoverageRatio must be at least ${criteria.minimumSimulatorRolloutCoverageRatio}`,
+    evidence: {
+      actual,
+      minimum: criteria.minimumSimulatorRolloutCoverageRatio,
+      simulatorRolloutEventCount: report.agentCycleDiagnostics.simulatorRolloutEventCount,
+      simulatorEventCount: report.agentCycleDiagnostics.simulatorEventCount,
+    },
+  });
 }
 
 function addRequiredAgentCycleLlmStageFailures(

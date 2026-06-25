@@ -1494,6 +1494,7 @@ function createAgentCycleDiagnostics(traceCount: number) {
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
+    simulatorRolloutEventCount: traceCount,
     commandEmittingCycleCount: traceCount,
     fullReplanMaterializationCount: 0,
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
@@ -1501,6 +1502,7 @@ function createAgentCycleDiagnostics(traceCount: number) {
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
+    simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,
   };
 }
 

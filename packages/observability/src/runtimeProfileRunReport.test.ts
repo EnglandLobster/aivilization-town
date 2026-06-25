@@ -193,7 +193,16 @@ describe('runtime profile run report repositories', () => {
               actionId: 'study-1',
               attempt: 'original',
               status: 'accepted',
-              events: [{ type: 'EducationChanged', sequence: 10, summary: 'study' }],
+              events: [
+                {
+                  type: 'EducationChanged',
+                  sequence: 10,
+                  summary: 'study',
+                  counterfactualStep: 1,
+                  projectionEventCountBefore: 0,
+                  projectionEventCountAfter: 1,
+                },
+              ],
             },
           ],
         }),
@@ -224,7 +233,16 @@ describe('runtime profile run report repositories', () => {
               actionId: 'buy-apple-1',
               attempt: 'repair',
               status: 'accepted',
-              events: [{ type: 'TradeExecuted', sequence: 12, summary: 'buy Apple 1' }],
+              events: [
+                {
+                  type: 'TradeExecuted',
+                  sequence: 12,
+                  summary: 'buy Apple 1',
+                  counterfactualStep: 2,
+                  projectionEventCountBefore: 0,
+                  projectionEventCountAfter: 1,
+                },
+              ],
             },
           ],
         }),
@@ -249,6 +267,7 @@ describe('runtime profile run report repositories', () => {
       replanningDecisionCount: 2,
       simulatorEventTraceCount: 3,
       simulatorEventCount: 3,
+      simulatorRolloutEventCount: 2,
       commandEmittingCycleCount: 2,
       fullReplanMaterializationCount: 2,
       commandEmittingCycleRatio: 2 / 3,
@@ -256,6 +275,7 @@ describe('runtime profile run report repositories', () => {
       repairedSimulatorRatio: 1 / 3,
       rejectedSimulatorRatio: 1 / 3,
       replanningDecisionRatio: 2 / 3,
+      simulatorRolloutCoverageRatio: 2 / 3,
       llmStageDiagnostics: createEmptyLlmStageDiagnostics(3),
     });
     expect(createRuntimeProfileAgentCycleDiagnostics([])).toEqual({
@@ -266,6 +286,7 @@ describe('runtime profile run report repositories', () => {
       replanningDecisionCount: 0,
       simulatorEventTraceCount: 0,
       simulatorEventCount: 0,
+      simulatorRolloutEventCount: 0,
       commandEmittingCycleCount: 0,
       fullReplanMaterializationCount: 0,
       commandEmittingCycleRatio: 0,
@@ -273,6 +294,7 @@ describe('runtime profile run report repositories', () => {
       repairedSimulatorRatio: 0,
       rejectedSimulatorRatio: 0,
       replanningDecisionRatio: 0,
+      simulatorRolloutCoverageRatio: 0,
       llmStageDiagnostics: createEmptyLlmStageDiagnostics(0),
     });
   });
@@ -700,6 +722,7 @@ function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
     replanningDecisionCount: 3,
     simulatorEventTraceCount: 7,
     simulatorEventCount: 12,
+    simulatorRolloutEventCount: 12,
     commandEmittingCycleCount: 4,
     fullReplanMaterializationCount: 1,
     commandEmittingCycleRatio: 0.8,
@@ -707,6 +730,7 @@ function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
     repairedSimulatorRatio: 0.4,
     rejectedSimulatorRatio: 0.2,
     replanningDecisionRatio: 0.6,
+    simulatorRolloutCoverageRatio: 1,
   };
 }
 

@@ -82,6 +82,36 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires simulator rollout coverage when criteria asks for counterfactual evidence', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          simulatorEventCount: 5,
+          simulatorRolloutEventCount: 2,
+          simulatorRolloutCoverageRatio: 0.4,
+        },
+      }),
+      {
+        ...createCriteria(),
+        minimumSimulatorRolloutCoverageRatio: 1,
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'simulator-rollout-coverage-ratio-too-low',
+      message: 'simulatorRolloutCoverageRatio must be at least 1',
+      evidence: {
+        actual: 0.4,
+        minimum: 1,
+        simulatorRolloutEventCount: 2,
+        simulatorEventCount: 5,
+      },
+    });
+  });
+
   test('requires accepted LLM traces for configured agent-cycle stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({
@@ -571,6 +601,7 @@ function createAgentCycleDiagnostics(traceCount: number) {
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
+    simulatorRolloutEventCount: traceCount,
     commandEmittingCycleCount: traceCount,
     fullReplanMaterializationCount: 0,
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
@@ -578,5 +609,6 @@ function createAgentCycleDiagnostics(traceCount: number) {
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
+    simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,
   };
 }

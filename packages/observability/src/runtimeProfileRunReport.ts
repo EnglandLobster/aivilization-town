@@ -71,6 +71,7 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly replanningDecisionCount: number;
   readonly simulatorEventTraceCount: number;
   readonly simulatorEventCount: number;
+  readonly simulatorRolloutEventCount: number;
   readonly commandEmittingCycleCount: number;
   readonly fullReplanMaterializationCount: number;
   readonly commandEmittingCycleRatio: number;
@@ -78,6 +79,7 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly repairedSimulatorRatio: number;
   readonly rejectedSimulatorRatio: number;
   readonly replanningDecisionRatio: number;
+  readonly simulatorRolloutCoverageRatio: number;
   readonly llmStageDiagnostics?: readonly RuntimeProfileAgentCycleLlmStageDiagnostics[];
 };
 
@@ -228,6 +230,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
   let replanningDecisionCount = 0;
   let simulatorEventTraceCount = 0;
   let simulatorEventCount = 0;
+  let simulatorRolloutEventCount = 0;
   let commandEmittingCycleCount = 0;
   let fullReplanMaterializationCount = 0;
 
@@ -246,6 +249,10 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     }
     simulatorEventTraceCount += trace.simulatorEvents.length;
     simulatorEventCount += sumBy(trace.simulatorEvents, (entry) => entry.events.length);
+    simulatorRolloutEventCount += sumBy(
+      trace.simulatorEvents,
+      (entry) => entry.events.filter(hasCompleteCounterfactualRolloutTrace).length,
+    );
     if (trace.emittedCommandIds.length > 0) {
       commandEmittingCycleCount += 1;
     }
@@ -262,6 +269,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     replanningDecisionCount,
     simulatorEventTraceCount,
     simulatorEventCount,
+    simulatorRolloutEventCount,
     commandEmittingCycleCount,
     fullReplanMaterializationCount,
     commandEmittingCycleRatio: ratio(commandEmittingCycleCount, traceCount),
@@ -269,6 +277,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     repairedSimulatorRatio: ratio(repairedSimulatorCount, traceCount),
     rejectedSimulatorRatio: ratio(rejectedSimulatorCount, traceCount),
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
+    simulatorRolloutCoverageRatio: ratio(simulatorRolloutEventCount, simulatorEventCount),
     llmStageDiagnostics: createLlmStageDiagnostics(traces),
   };
 }
@@ -485,6 +494,8 @@ function cloneAgentCycleDiagnostics(
   validateAgentCycleDiagnostics(diagnostics);
   return {
     ...diagnostics,
+    simulatorRolloutEventCount: diagnostics.simulatorRolloutEventCount ?? 0,
+    simulatorRolloutCoverageRatio: diagnostics.simulatorRolloutCoverageRatio ?? 0,
     ...(diagnostics.llmStageDiagnostics === undefined
       ? {}
       : {
@@ -512,11 +523,15 @@ function validateAgentCycleDiagnostics(
     'replanningDecisionCount',
     'simulatorEventTraceCount',
     'simulatorEventCount',
+    'simulatorRolloutEventCount',
     'commandEmittingCycleCount',
     'fullReplanMaterializationCount',
   ] as const;
   for (const field of countFields) {
-    assertNonNegativeInteger(diagnostics[field], `agentCycleDiagnostics ${field}`);
+    assertNonNegativeInteger(
+      diagnostics[field] ?? 0,
+      `agentCycleDiagnostics ${field}`,
+    );
   }
   if (
     diagnostics.acceptedSimulatorCount +
@@ -537,15 +552,21 @@ function validateAgentCycleDiagnostics(
       'agentCycleDiagnostics fullReplanMaterializationCount must not exceed traceCount',
     );
   }
+  if ((diagnostics.simulatorRolloutEventCount ?? 0) > diagnostics.simulatorEventCount) {
+    throw new Error(
+      'agentCycleDiagnostics simulatorRolloutEventCount must not exceed simulatorEventCount',
+    );
+  }
   const ratioFields = [
     'commandEmittingCycleRatio',
     'fullReplanMaterializationRatio',
     'repairedSimulatorRatio',
     'rejectedSimulatorRatio',
     'replanningDecisionRatio',
+    'simulatorRolloutCoverageRatio',
   ] as const;
   for (const field of ratioFields) {
-    assertRatio(diagnostics[field], `agentCycleDiagnostics ${field}`);
+    assertRatio(diagnostics[field] ?? 0, `agentCycleDiagnostics ${field}`);
   }
   validateLlmStageDiagnostics(diagnostics);
 }
@@ -608,6 +629,16 @@ type RuntimeProfileWorldDecisionContextTraceLike = {
   readonly hasResidentialTier?: unknown;
   readonly marketSpotPriceCount?: unknown;
 };
+
+function hasCompleteCounterfactualRolloutTrace(
+  event: AgentCycleTrace['simulatorEvents'][number]['events'][number],
+): boolean {
+  return (
+    Number.isFinite(event.counterfactualStep) &&
+    Number.isFinite(event.projectionEventCountBefore) &&
+    Number.isFinite(event.projectionEventCountAfter)
+  );
+}
 
 function createLlmStageDiagnostics(
   traces: readonly AgentCycleTrace[],

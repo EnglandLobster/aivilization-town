@@ -40,6 +40,10 @@ import {
   recordWorkerMarketObservations,
   type RecordWorkerMarketObservationsResult,
 } from './marketObservationRecording';
+import {
+  createAmbientObservationMemoryRecords,
+  type WorkerAmbientObservationMemoryResult,
+} from './ambientObservationMemory';
 import { recordMarketPriceIndexToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
@@ -74,6 +78,7 @@ export type WorkerTickResult = {
   readonly projection: WorldProjection;
   readonly traces: readonly AgentCycleTrace[];
   readonly streamVersion: number;
+  readonly ambientObservationMemory?: WorkerAmbientObservationMemoryResult;
   readonly checkpoint?: ProjectionCheckpoint;
   readonly snapshot?: SnapshotReference;
   readonly marketObservationRecording?: RecordWorkerMarketObservationsResult;
@@ -104,6 +109,16 @@ export type WorkerTickMarketObservationsInput = {
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
 };
 
+export type WorkerTickAmbientObservationMemoryInput =
+  | {
+      readonly enabled?: true;
+      readonly importanceScore?: number;
+      readonly maxObserversPerEvent?: number;
+    }
+  | {
+      readonly enabled: false;
+    };
+
 type WorkerTickBaseInput = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
@@ -120,6 +135,7 @@ type WorkerTickBaseInput = {
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: WorkerTickMarketObservationsInput;
+  readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
   readonly expectedVersion?: number;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
@@ -243,6 +259,11 @@ export async function runWorkerSimulationTick(
             ? {}
             : { priceBinning: input.marketObservations.priceBinning }),
         });
+  const ambientObservationMemory = await recordAmbientObservationMemoryIfConfigured({
+    input,
+    events,
+    projection,
+  });
   const checkpointResult = saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
 
   return {
@@ -254,11 +275,42 @@ export async function runWorkerSimulationTick(
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,
     events,
+    ...(ambientObservationMemory === undefined ? {} : { ambientObservationMemory }),
     ...(marketObservationRecording === undefined ? {} : { marketObservationRecording }),
     ...(checkpointResult === undefined
       ? {}
       : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),
   };
+}
+
+async function recordAmbientObservationMemoryIfConfigured(input: {
+  readonly input: WorkerTickBaseInput;
+  readonly events: readonly WorldEvent[];
+  readonly projection: WorldProjection;
+}): Promise<WorkerAmbientObservationMemoryResult | undefined> {
+  if (
+    input.input.ambientObservationMemory === undefined ||
+    input.input.ambientObservationMemory.enabled === false
+  ) {
+    return undefined;
+  }
+
+  const result = createAmbientObservationMemoryRecords({
+    tickId: input.input.tickId,
+    events: input.events,
+    projection: input.projection,
+    occurredAt: input.input.issuedAt,
+    ...(input.input.ambientObservationMemory.importanceScore === undefined
+      ? {}
+      : { importanceScore: input.input.ambientObservationMemory.importanceScore }),
+    ...(input.input.ambientObservationMemory.maxObserversPerEvent === undefined
+      ? {}
+      : { maxObserversPerEvent: input.input.ambientObservationMemory.maxObserversPerEvent }),
+  });
+  if (result.records.length > 0) {
+    await input.input.shortTermMemoryRepository.appendMany(result.records);
+  }
+  return result;
 }
 
 function resolveCyclePlanInput(input: {

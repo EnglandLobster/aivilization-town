@@ -3,6 +3,7 @@ import type { CommodityConfig } from '@aivilization/content';
 
 export * from './commandDispatch';
 export * from './actionSynthesisPolicy';
+export * from './ambientObservationMemory';
 export * from './aivilizationWorldPolicies';
 export * from './agentScheduling';
 export * from './agentCycleRunner';

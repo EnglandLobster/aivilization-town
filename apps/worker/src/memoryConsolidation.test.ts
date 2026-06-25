@@ -4,6 +4,7 @@ import {
   asMemoryRecordId,
   createShortTermMemoryRecord,
   type ReflectiveInsightSynthesizer,
+  type SocialModelSynthesizer,
 } from '@aivilization/memory';
 import { InMemorySocialReflectionObservationRepository } from '@aivilization/observability';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
@@ -240,6 +241,124 @@ describe('worker memory consolidation', () => {
         confidence: 0.8,
         provenanceRecordIds: ['trade-memory-1'],
         updatedAt: 1500,
+      },
+    ]);
+  });
+
+  test('uses an injected social model synthesizer for social profile patches and reflections', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    await shortTermMemoryRepository.append(
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Shared food after work.',
+        importanceScore: 0.8,
+      }),
+    );
+    const synthesizerCalls: Parameters<SocialModelSynthesizer>[0][] = [];
+    const socialModelSynthesizer: SocialModelSynthesizer = (input) => {
+      synthesizerCalls.push(input);
+      return {
+        patches: [
+          {
+            id: 'ltm-patch-agent-1-social-agent-2-1700',
+            agentId,
+            section: 'socialRecords',
+            key: otherAgentId,
+            statement: 'agent-2 reliably shares food during recovery windows.',
+            confidence: 0.9,
+            provenanceRecordIds: [asMemoryRecordId('social-agent-2-1')],
+            proposedAt: 1700,
+            relationDelta: 2,
+            attitudeDelta: 1,
+          },
+        ],
+        socialReflections: [
+          {
+            id: 'social-reflection-agent-1-agent-2-llm-0-1700',
+            agentId,
+            targetAgentId: otherAgentId,
+            statement: 'agent-2 is becoming a trusted food-sharing partner.',
+            relationDelta: 2,
+            attitudeDelta: 1,
+            confidence: 0.9,
+            evidenceRecordIds: [asMemoryRecordId('social-agent-2-1')],
+            generatedAt: 1700,
+            tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'social-model-agent-1-1700',
+          providerId: 'scripted-social-model',
+          model: 'social-model',
+        },
+      };
+    };
+
+    const result = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 1700,
+      socialModelSynthesizer,
+    });
+
+    expect(synthesizerCalls).toHaveLength(1);
+    expect(synthesizerCalls[0]).toMatchObject({
+      agentId,
+      generatedAt: 1700,
+      longTermProfile: { agentId },
+    });
+    expect(synthesizerCalls[0]?.records.map((record) => record.id)).toEqual(['social-agent-2-1']);
+    expect(result.socialModelSynthesisTrace).toEqual({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'social-model-agent-1-1700',
+      providerId: 'scripted-social-model',
+      model: 'social-model',
+    });
+    expect(result.socialReflections).toEqual([
+      {
+        id: 'social-reflection-agent-1-agent-2-llm-0-1700',
+        agentId,
+        targetAgentId: otherAgentId,
+        statement: 'agent-2 is becoming a trusted food-sharing partner.',
+        relationDelta: 2,
+        attitudeDelta: 1,
+        confidence: 0.9,
+        evidenceRecordIds: ['social-agent-2-1'],
+        generatedAt: 1700,
+        tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
+      },
+    ]);
+    expect(result.patches).toEqual([
+      {
+        id: 'ltm-patch-agent-1-social-agent-2-1700',
+        agentId,
+        section: 'socialRecords',
+        key: otherAgentId,
+        statement: 'agent-2 reliably shares food during recovery windows.',
+        confidence: 0.9,
+        provenanceRecordIds: ['social-agent-2-1'],
+        proposedAt: 1700,
+        relationDelta: 2,
+        attitudeDelta: 1,
+      },
+    ]);
+    expect(result.profile.socialRecords).toEqual([
+      {
+        key: otherAgentId,
+        statement: 'agent-2 reliably shares food during recovery windows.',
+        confidence: 0.9,
+        provenanceRecordIds: ['social-agent-2-1'],
+        updatedAt: 1700,
+        relationDelta: 2,
+        attitudeDelta: 1,
       },
     ]);
   });

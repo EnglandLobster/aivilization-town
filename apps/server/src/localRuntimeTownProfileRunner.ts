@@ -9,7 +9,7 @@ import type {
   StrategicPlanCompiler,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
-import type { ReflectiveInsightSynthesizer } from '@aivilization/memory';
+import type { ReflectiveInsightSynthesizer, SocialModelSynthesizer } from '@aivilization/memory';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileRunReport,
@@ -41,6 +41,7 @@ import {
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileSocialDialogueGenerator,
+  createLocalRuntimeTownProfileSocialModelSynthesizer,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
   createLocalRuntimeTownProfileSubtaskPrioritizer,
   type LocalRuntimeTownProfileActionSequenceGeneratorConfig,
@@ -51,6 +52,7 @@ import {
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
   type LocalRuntimeTownProfileSocialDialogueGeneratorConfig,
+  type LocalRuntimeTownProfileSocialModelSynthesizerConfig,
   type LocalRuntimeTownProfileSubtaskPrioritizerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
@@ -78,6 +80,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
+  readonly socialModelSynthesizer?: SocialModelSynthesizer;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
@@ -88,6 +91,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesizerConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectorConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig;
+  readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesizerConfig;
   readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
@@ -181,9 +185,13 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const reflectiveInsightSynthesizer =
     input.reflectiveInsightSynthesizer ??
     createLocalRuntimeTownProfileReflectiveInsightSynthesizer(input.reflectionSynthesis);
+  const socialModelSynthesizer =
+    input.socialModelSynthesizer ??
+    createLocalRuntimeTownProfileSocialModelSynthesizer(input.socialModelSynthesis);
   const memoryConsolidationSchedule = createProfileMemoryConsolidationSchedule({
     schedule: input.memoryConsolidationSchedule,
     reflectiveInsightSynthesizer,
+    socialModelSynthesizer,
   });
   const replanningPolicy = input.replanningPolicy ?? profileDefaults.replanningPolicy;
   const agentProvider =
@@ -341,19 +349,28 @@ function createProfileRunOperationId(input: {
 function createProfileMemoryConsolidationSchedule(input: {
   readonly schedule: LocalSimulationLifecycleMemoryConsolidationSchedule | undefined;
   readonly reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer | undefined;
+  readonly socialModelSynthesizer: SocialModelSynthesizer | undefined;
 }): LocalSimulationLifecycleMemoryConsolidationSchedule | undefined {
   if (input.schedule === undefined) {
     return undefined;
   }
-  if (
-    input.schedule.reflectiveInsightSynthesizer !== undefined ||
-    input.reflectiveInsightSynthesizer === undefined
-  ) {
+  const shouldInjectReflectiveInsightSynthesizer =
+    input.schedule.reflectiveInsightSynthesizer === undefined &&
+    input.reflectiveInsightSynthesizer !== undefined;
+  const shouldInjectSocialModelSynthesizer =
+    input.schedule.socialModelSynthesizer === undefined &&
+    input.socialModelSynthesizer !== undefined;
+  if (!shouldInjectReflectiveInsightSynthesizer && !shouldInjectSocialModelSynthesizer) {
     return input.schedule;
   }
   return {
     ...input.schedule,
-    reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer,
+    ...(!shouldInjectReflectiveInsightSynthesizer
+      ? {}
+      : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
+    ...(!shouldInjectSocialModelSynthesizer
+      ? {}
+      : { socialModelSynthesizer: input.socialModelSynthesizer }),
   };
 }
 

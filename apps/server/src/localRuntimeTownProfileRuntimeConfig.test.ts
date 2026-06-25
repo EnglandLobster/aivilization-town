@@ -640,6 +640,92 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toEqual({});
   });
 
+  test('loads social model synthesis config with profile overrides and env secrets', async () => {
+    const document = JSON.stringify({
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        model: 'global-social-model',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-social-model-provider',
+          endpoint: 'https://social-model.example.test/v1/chat/completions',
+        },
+      },
+      profiles: {
+        'default-100': {
+          socialModelSynthesis: {
+            kind: 'traceable-llm-social-model-synthesizer',
+            model: 'profile-social-model',
+            provider: {
+              kind: 'openai-compatible',
+              providerId: 'profile-social-model-provider',
+              endpoint: 'https://social-model-profile.example.test/v1/chat/completions',
+              apiKey: { env: 'SOCIAL_MODEL_KEY' },
+            },
+            maxAttempts: 2,
+            timeoutMs: 12_000,
+            pricing: {
+              inputTokenCostMicros: 3,
+              outputTokenCostMicros: 7,
+            },
+          },
+        },
+        'smoke-25': {
+          socialModelSynthesis: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        env: { SOCIAL_MODEL_KEY: 'social-model-secret' },
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        profileId: 'default-100',
+        model: 'profile-social-model',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-social-model-provider',
+          endpoint: 'https://social-model-profile.example.test/v1/chat/completions',
+          apiKey: 'social-model-secret',
+        },
+        maxAttempts: 2,
+        timeoutMs: 12_000,
+        pricing: {
+          inputTokenCostMicros: 3,
+          outputTokenCostMicros: 7,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'headless-stress-1000',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toMatchObject({
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        profileId: 'headless-stress-1000',
+        model: 'global-social-model',
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
+  });
+
   test('rejects missing env secrets before provider construction', async () => {
     await expect(
       loadLocalRuntimeTownProfileLlmPlanningConfig({
@@ -834,6 +920,27 @@ describe('local runtime town profile runtime config', () => {
     ).rejects.toThrow(
       'reflectionSynthesis.kind must be traceable-llm-reflective-insight-synthesizer',
     );
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              socialModelSynthesis: {
+                kind: 'traceable-llm-reflective-insight-synthesizer',
+                model: 'social-model',
+                provider: {
+                  kind: 'openai-compatible',
+                  providerId: 'social-model-provider',
+                  endpoint: 'https://social-model.example.test/v1/chat/completions',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('socialModelSynthesis.kind must be traceable-llm-social-model-synthesizer');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({

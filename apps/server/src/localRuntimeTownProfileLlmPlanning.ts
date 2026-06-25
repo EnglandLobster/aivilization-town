@@ -23,7 +23,9 @@ import {
 } from '@aivilization/llm';
 import {
   createTraceableLlmReflectiveInsightSynthesizer,
+  createTraceableLlmSocialModelSynthesizer,
   type ReflectiveInsightSynthesizer,
+  type SocialModelSynthesizer,
 } from '@aivilization/memory';
 
 export type LocalRuntimeTownProfileLlmPlanningConfig = {
@@ -116,6 +118,16 @@ export type LocalRuntimeTownProfileReflectionSynthesisConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileSocialModelSynthesisConfig = {
+  readonly kind: 'traceable-llm-social-model-synthesizer';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileStrategicCompilerConfig =
   | LocalRuntimeTownProfileLlmPlanningConfig
   | undefined;
@@ -150,6 +162,10 @@ export type LocalRuntimeTownProfileSocialDialogueGeneratorConfig =
 
 export type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig =
   | LocalRuntimeTownProfileReflectionSynthesisConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileSocialModelSynthesizerConfig =
+  | LocalRuntimeTownProfileSocialModelSynthesisConfig
   | undefined;
 
 export function createLocalRuntimeTownProfileStrategicPlanCompiler(
@@ -326,6 +342,26 @@ export function createLocalRuntimeTownProfileReflectiveInsightSynthesizer(
     model: config.model,
     requestId: ({ agentId, generatedAt }) =>
       `profile-llm-reflection-synthesis:${config.profileId}:${agentId}:${generatedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileSocialModelSynthesizer(
+  config: LocalRuntimeTownProfileSocialModelSynthesizerConfig,
+): SocialModelSynthesizer | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmSocialModelSynthesizer({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, generatedAt }) =>
+      `profile-llm-social-model-synthesis:${config.profileId}:${agentId}:${generatedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

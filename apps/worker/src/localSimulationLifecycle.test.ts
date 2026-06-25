@@ -3,6 +3,7 @@ import {
   asMemoryRecordId,
   createShortTermMemoryRecord,
   type ReflectiveInsightSynthesizer,
+  type SocialModelSynthesizer,
 } from '@aivilization/memory';
 import { asAgentId, createEventEnvelope, type SimulationTimestamp } from '@aivilization/sim-core';
 import {
@@ -507,6 +508,90 @@ describe('local simulation lifecycle controller', () => {
         {
           key: 'market-patience',
           statement: 'The agent values waiting for better market conditions.',
+        },
+      ],
+    });
+  });
+
+  test('passes a social model synthesizer through the lifecycle memory schedule', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await storage.shortTermMemoryRepository.append(createSocialMemory(1));
+    const socialModelSynthesizer: SocialModelSynthesizer = () => ({
+      patches: [
+        {
+          id: 'ltm-patch-agent-1-social-agent-2-1070',
+          agentId: agentOne,
+          section: 'socialRecords',
+          key: agentTwo,
+          statement: 'agent-2 reliably shares food during recovery windows.',
+          confidence: 0.9,
+          provenanceRecordIds: [asMemoryRecordId('social-memory-1')],
+          proposedAt: 1070,
+          relationDelta: 2,
+          attitudeDelta: 1,
+        },
+      ],
+      socialReflections: [
+        {
+          id: 'social-reflection-agent-1-agent-2-llm-0-1070',
+          agentId: agentOne,
+          targetAgentId: agentTwo,
+          statement: 'agent-2 is becoming a trusted food-sharing partner.',
+          relationDelta: 2,
+          attitudeDelta: 1,
+          confidence: 0.9,
+          evidenceRecordIds: [asMemoryRecordId('social-memory-1')],
+          generatedAt: 1070,
+          tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
+        },
+      ],
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'social-model-agent-1-1070',
+        providerId: 'scripted-social-model',
+        model: 'social-model',
+      },
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+        socialModelSynthesizer,
+      },
+    });
+
+    const result = await controller.start(createRequest(1070));
+
+    expect(result.status).toBe('completed');
+    expect(result.memoryConsolidation).toMatchObject({
+      patchCount: 1,
+      results: [
+        {
+          socialModelSynthesisTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'social-model-agent-1-1070',
+            providerId: 'scripted-social-model',
+            model: 'social-model',
+          },
+        },
+      ],
+    });
+    await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      socialRecords: [
+        {
+          key: agentTwo,
+          statement: 'agent-2 reliably shares food during recovery windows.',
         },
       ],
     });

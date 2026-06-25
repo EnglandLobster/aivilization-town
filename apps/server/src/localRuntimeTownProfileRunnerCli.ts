@@ -147,6 +147,9 @@ async function createRunnerInput(
     ...(runtimeConfig?.reflectionSynthesis === undefined
       ? {}
       : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),
+    ...(runtimeConfig?.socialModelSynthesis === undefined
+      ? {}
+      : { socialModelSynthesis: runtimeConfig.socialModelSynthesis }),
     ...(runtimeConfig?.replanningPolicy === undefined
       ? {}
       : { replanningPolicy: runtimeConfig.replanningPolicy }),

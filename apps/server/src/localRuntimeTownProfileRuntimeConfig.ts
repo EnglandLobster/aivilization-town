@@ -17,6 +17,8 @@ import type {
   LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
   LocalRuntimeTownProfileSocialDialogueGenerationConfig,
   LocalRuntimeTownProfileSocialDialogueGeneratorConfig,
+  LocalRuntimeTownProfileSocialModelSynthesisConfig,
+  LocalRuntimeTownProfileSocialModelSynthesizerConfig,
   LocalRuntimeTownProfileSubtaskPrioritizationConfig,
   LocalRuntimeTownProfileSubtaskPrioritizerConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
@@ -53,6 +55,7 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesisConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectionConfig;
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectionSynthesisConfig;
+  readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesisConfig;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
 
@@ -195,6 +198,15 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const socialModelSynthesis = parseSocialModelSynthesisNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'socialModelSynthesis',
+    }),
+    env,
+  });
 
   return {
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
@@ -206,6 +218,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(globalSynthesis === undefined ? {} : { globalSynthesis }),
     ...(reactiveCorrection === undefined ? {} : { reactiveCorrection }),
     ...(reflectionSynthesis === undefined ? {} : { reflectionSynthesis }),
+    ...(socialModelSynthesis === undefined ? {} : { socialModelSynthesis }),
     ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
   };
 }
@@ -472,10 +485,7 @@ function parseSocialDialogueNode(input: {
     throw new Error(`socialDialogue.kind must be traceable-llm-social-dialogue-generator`);
   }
 
-  const maxAttempts = readOptionalPositiveInteger(
-    record.maxAttempts,
-    'socialDialogue.maxAttempts',
-  );
+  const maxAttempts = readOptionalPositiveInteger(record.maxAttempts, 'socialDialogue.maxAttempts');
   const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'socialDialogue.timeoutMs');
   const pricing = parseOptionalPricing(record.pricing, 'socialDialogue');
 
@@ -565,6 +575,46 @@ function parseReflectionSynthesisNode(input: {
   };
 }
 
+function parseSocialModelSynthesisNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileSocialModelSynthesizerConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'socialModelSynthesis');
+  const kind = readRequiredString(record.kind, 'socialModelSynthesis.kind');
+  if (kind !== 'traceable-llm-social-model-synthesizer') {
+    throw new Error(`socialModelSynthesis.kind must be traceable-llm-social-model-synthesizer`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'socialModelSynthesis.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(
+    record.timeoutMs,
+    'socialModelSynthesis.timeoutMs',
+  );
+  const pricing = parseOptionalPricing(record.pricing, 'socialModelSynthesis');
+
+  return {
+    kind: 'traceable-llm-social-model-synthesizer',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'socialModelSynthesis.model'),
+    provider: parseOpenAiCompatibleProviderConfig(
+      record.provider,
+      input.env,
+      'socialModelSynthesis',
+    ),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
 function parseReplanningPolicyNode(input: {
   readonly node: unknown;
 }): AdaptiveReplanningPolicy | undefined {
@@ -599,6 +649,7 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'globalSynthesis'
   | 'reactiveCorrection'
   | 'reflectionSynthesis'
+  | 'socialModelSynthesis'
   | 'replanningPolicy';
 
 function parseOpenAiCompatibleProviderConfig(

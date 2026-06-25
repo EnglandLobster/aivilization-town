@@ -720,6 +720,101 @@ describe('local runtime town profile runner CLI', () => {
     }
   });
 
+  test('loads social model synthesis config files and passes resolved config to the runner', async () => {
+    let output = '';
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            socialModelSynthesis: {
+              kind: 'traceable-llm-social-model-synthesizer',
+              model: 'default-social-model',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-social-model-provider',
+                endpoint: 'https://social-model.example.test/v1/chat/completions',
+                apiKey: { env: 'AIVILIZATION_TEST_SOCIAL_MODEL_LLM_KEY' },
+              },
+            },
+          },
+        },
+      }),
+    );
+    const previousKey = process.env.AIVILIZATION_TEST_SOCIAL_MODEL_LLM_KEY;
+    process.env.AIVILIZATION_TEST_SOCIAL_MODEL_LLM_KEY = 'social-model-secret-key';
+
+    try {
+      const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+        argv: [
+          '--profile',
+          'default-100',
+          '--root-dir',
+          '/tmp/town',
+          '--cycles',
+          '1',
+          '--requested-at',
+          '100',
+          '--runtime-config',
+          configPath,
+        ],
+        stdout: {
+          write: (chunk) => {
+            output += chunk;
+          },
+        },
+        runProfile: (input) => {
+          receivedInput = input;
+          return Promise.resolve({
+            profileId: input.profileId,
+            manifestId: 'aivilization-default-100',
+            rootDir: input.rootDir,
+            requestedAt: input.requestedAt,
+            daemonHealth: 'healthy',
+            partitionCount: 1,
+            totalProjectionAgentCount: 100,
+            totalEventCount: 3,
+            totalAgentTraceCount: 1,
+            agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+            run: {
+              traceId: 'trace-1',
+              outcome: 'succeeded',
+              requestedCycleCount: input.cycleCount,
+              completedCycleCount: input.cycleCount,
+              stopReason: 'cycle-count-completed',
+            },
+            partitions: [],
+          });
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(JSON.parse(output)).toMatchObject({
+        profileId: 'default-100',
+      });
+      expect(receivedInput?.socialModelSynthesis).toEqual({
+        kind: 'traceable-llm-social-model-synthesizer',
+        profileId: 'default-100',
+        model: 'default-social-model',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'default-social-model-provider',
+          endpoint: 'https://social-model.example.test/v1/chat/completions',
+          apiKey: 'social-model-secret-key',
+        },
+      });
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.AIVILIZATION_TEST_SOCIAL_MODEL_LLM_KEY;
+      } else {
+        process.env.AIVILIZATION_TEST_SOCIAL_MODEL_LLM_KEY = previousKey;
+      }
+    }
+  });
+
   test('records profile run reports when report root is supplied', async () => {
     let output = '';
     const rootDir = createRootDir();

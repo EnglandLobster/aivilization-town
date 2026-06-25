@@ -14,9 +14,25 @@ export function proposeLongTermMemoryPatches(input: {
   assertPositiveInteger(input.minPatternCount, 'minPatternCount');
   assertFiniteNumber(input.proposedAt, 'proposedAt');
 
-  const records = [...input.records]
-    .filter((record) => record.agentId === input.agentId)
-    .sort(compareRecordsByOccurrence);
+  return [
+    ...proposeNonSocialLongTermMemoryPatches(input),
+    ...proposeSocialLongTermMemoryPatches({
+      agentId: input.agentId,
+      records: input.records,
+      proposedAt: input.proposedAt,
+    }),
+  ].sort(comparePatches);
+}
+
+export function proposeNonSocialLongTermMemoryPatches(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly minPatternCount: number;
+  readonly proposedAt: SimulationTimestamp;
+}): LongTermMemoryPatch[] {
+  assertPositiveInteger(input.minPatternCount, 'minPatternCount');
+  assertFiniteNumber(input.proposedAt, 'proposedAt');
+  const records = filterAgentRecords(input);
 
   return [
     ...buildPatternPatches({
@@ -33,12 +49,29 @@ export function proposeLongTermMemoryPatches(input: {
       proposedAt: input.proposedAt,
       hintKind: 'caution',
     }),
-    ...buildSocialPatches({
-      agentId: input.agentId,
-      records,
-      proposedAt: input.proposedAt,
-    }),
   ].sort(comparePatches);
+}
+
+export function proposeSocialLongTermMemoryPatches(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly proposedAt: SimulationTimestamp;
+}): LongTermMemoryPatch[] {
+  assertFiniteNumber(input.proposedAt, 'proposedAt');
+  return buildSocialPatches({
+    agentId: input.agentId,
+    records: filterAgentRecords(input),
+    proposedAt: input.proposedAt,
+  }).sort(comparePatches);
+}
+
+function filterAgentRecords(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+}): ShortTermMemoryRecord[] {
+  return [...input.records]
+    .filter((record) => record.agentId === input.agentId)
+    .sort(compareRecordsByOccurrence);
 }
 
 function buildPatternPatches(input: {

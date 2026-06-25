@@ -65,6 +65,23 @@ describe('createAgentCycleTrace', () => {
       },
       candidateActions: ['craft Transistor 1', 'buy Fish 1'],
       simulatorResult: { status: 'repaired', reason: 'missing Iron Ingot, buy first' },
+      simulatorEvents: [
+        {
+          actionId: 'craft-1',
+          attempt: 'original',
+          status: 'rejected',
+          reason: 'missing Iron Ingot',
+          events: [
+            { type: 'ActionRejected', sequence: 10, summary: 'missing Iron Ingot' },
+          ],
+        },
+        {
+          actionId: 'buy-fish-1',
+          attempt: 'repair',
+          status: 'accepted',
+          events: [{ type: 'TradeExecuted', sequence: 11, summary: 'bought Fish' }],
+        },
+      ],
       selectionEvidence: {
         selectedSubtaskId: 'craft-transistor',
         intentionInfluenceScore: 0,
@@ -106,6 +123,21 @@ describe('createAgentCycleTrace', () => {
 
     expect(trace.selectedBranch).toBe('production-resource-management');
     expect(trace.simulatorResult.status).toBe('repaired');
+    expect(trace.simulatorEvents).toEqual([
+      {
+        actionId: 'craft-1',
+        attempt: 'original',
+        status: 'rejected',
+        reason: 'missing Iron Ingot',
+        events: [{ type: 'ActionRejected', sequence: 10, summary: 'missing Iron Ingot' }],
+      },
+      {
+        actionId: 'buy-fish-1',
+        attempt: 'repair',
+        status: 'accepted',
+        events: [{ type: 'TradeExecuted', sequence: 11, summary: 'bought Fish' }],
+      },
+    ]);
     expect(trace.replanningDecision.kind).toBe('memory-guided-correction');
     expect(trace.subtaskReplanningDecisions).toEqual([
       {
@@ -189,6 +221,15 @@ describe('createAgentCycleTrace', () => {
         status: 'rejected',
         reason: 'action synthesis rejected action: energy budget exceeded',
       },
+      simulatorEvents: [
+        {
+          actionId: 'study-expensive',
+          attempt: 'original',
+          status: 'rejected',
+          reason: 'action synthesis rejected action: energy budget exceeded',
+          events: [],
+        },
+      ],
       selectionEvidence: {
         selectedSubtaskId: 'study',
         intentionInfluenceScore: 0,

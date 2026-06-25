@@ -52,6 +52,52 @@ describe('action simulator repair', () => {
     });
   });
 
+  test('preserves simulator trace events across repaired attempts', () => {
+    const action = {
+      id: 'work-1',
+      description: 'work shift',
+      commandType: 'AgentWork' as const,
+      payload: { occupation: 'Cleaner' },
+    };
+    const repairedAction = {
+      id: 'eat-before-work',
+      description: 'eat before work',
+      commandType: 'AgentEat' as const,
+      payload: { commodity: 'Bread' },
+    };
+
+    expect(
+      simulateActionWithRepair({
+        action,
+        simulate: (candidate) =>
+          candidate.id === 'eat-before-work'
+            ? {
+                status: 'accepted',
+                action: candidate,
+                traceEvents: [
+                  { type: 'InventoryChanged', sequence: 11, summary: 'consumed Bread' },
+                ],
+              }
+            : {
+                status: 'rejected',
+                action: candidate,
+                reason: 'satiety too low',
+                traceEvents: [
+                  { type: 'ActionRejected', sequence: 10, summary: 'satiety too low' },
+                ],
+              },
+        repair: ({ reason }) => (reason === 'satiety too low' ? repairedAction : undefined),
+      }),
+    ).toEqual({
+      status: 'repaired',
+      originalAction: action,
+      repairedAction,
+      reason: 'satiety too low',
+      originalTraceEvents: [{ type: 'ActionRejected', sequence: 10, summary: 'satiety too low' }],
+      repairedTraceEvents: [{ type: 'InventoryChanged', sequence: 11, summary: 'consumed Bread' }],
+    });
+  });
+
   test('escalates to replanning when a repaired action is also rejected', () => {
     const action = {
       id: 'work-1',

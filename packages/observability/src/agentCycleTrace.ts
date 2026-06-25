@@ -88,6 +88,20 @@ export type AgentCycleActionSynthesisTrace = {
   readonly rejectedActions: readonly AgentCycleRejectedActionTrace[];
 };
 
+export type AgentCycleSimulatorTraceEvent = {
+  readonly type: string;
+  readonly sequence?: number;
+  readonly summary?: string;
+};
+
+export type AgentCycleSimulatorEventTrace = {
+  readonly actionId: string;
+  readonly attempt: 'original' | 'repair';
+  readonly status: 'accepted' | 'rejected';
+  readonly reason?: string;
+  readonly events: readonly AgentCycleSimulatorTraceEvent[];
+};
+
 export type AgentCycleTrace = {
   readonly traceId: string;
   readonly simulationId: string;
@@ -99,6 +113,7 @@ export type AgentCycleTrace = {
   readonly actionSynthesis: AgentCycleActionSynthesisTrace;
   readonly candidateActions: readonly string[];
   readonly simulatorResult: SimulatorTraceResult;
+  readonly simulatorEvents: readonly AgentCycleSimulatorEventTrace[];
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
   readonly replanningDecision: ReplanningTraceDecision;
   readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecisionTrace[];

@@ -414,6 +414,7 @@ function createTrace(input: {
     },
     candidateActions: ['study for one minute'],
     simulatorResult: { status: 'accepted' },
+    simulatorEvents: [],
     selectionEvidence: {
       selectedSubtaskId: 'study',
       intentionInfluenceScore: 0,

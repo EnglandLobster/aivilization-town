@@ -16,6 +16,12 @@ export type ActionSynthesisContext = {
   readonly branchUrgency?: number;
 };
 
+export type ActionSimulationTraceEvent = {
+  readonly type: string;
+  readonly sequence?: number;
+  readonly summary?: string;
+};
+
 export type AtomicActionProposal<
   TCommandType extends string = CoreCommandType,
   TPayload = unknown,
@@ -33,11 +39,13 @@ export type ActionSimulationResult =
   | {
       readonly status: 'accepted';
       readonly action: AtomicActionProposal;
+      readonly traceEvents?: readonly ActionSimulationTraceEvent[];
     }
   | {
       readonly status: 'rejected';
       readonly action: AtomicActionProposal;
       readonly reason: string;
+      readonly traceEvents?: readonly ActionSimulationTraceEvent[];
     };
 
 export type ActionSimulator = (action: AtomicActionProposal) => ActionSimulationResult;
@@ -51,18 +59,23 @@ export type ActionWithRepairResult =
   | {
       readonly status: 'accepted';
       readonly action: AtomicActionProposal;
+      readonly traceEvents?: readonly ActionSimulationTraceEvent[];
     }
   | {
       readonly status: 'repaired';
       readonly originalAction: AtomicActionProposal;
       readonly repairedAction: AtomicActionProposal;
       readonly reason: string;
+      readonly originalTraceEvents?: readonly ActionSimulationTraceEvent[];
+      readonly repairedTraceEvents?: readonly ActionSimulationTraceEvent[];
     }
   | {
       readonly status: 'needs-replan';
       readonly action: AtomicActionProposal;
       readonly reason: string;
       readonly attemptedRepair?: AtomicActionProposal;
+      readonly traceEvents?: readonly ActionSimulationTraceEvent[];
+      readonly attemptedRepairTraceEvents?: readonly ActionSimulationTraceEvent[];
     };
 
 export function simulateActionWithRepair(input: {
@@ -84,6 +97,7 @@ export function simulateActionWithRepair(input: {
       status: 'needs-replan',
       action: firstResult.action,
       reason: firstResult.reason,
+      ...(firstResult.traceEvents === undefined ? {} : { traceEvents: firstResult.traceEvents }),
     };
   }
 
@@ -94,6 +108,12 @@ export function simulateActionWithRepair(input: {
       originalAction: firstResult.action,
       repairedAction: repairedResult.action,
       reason: firstResult.reason,
+      ...(firstResult.traceEvents === undefined
+        ? {}
+        : { originalTraceEvents: firstResult.traceEvents }),
+      ...(repairedResult.traceEvents === undefined
+        ? {}
+        : { repairedTraceEvents: repairedResult.traceEvents }),
     };
   }
 
@@ -102,5 +122,9 @@ export function simulateActionWithRepair(input: {
     action: firstResult.action,
     attemptedRepair: repairedAction,
     reason: repairedResult.reason,
+    ...(firstResult.traceEvents === undefined ? {} : { traceEvents: firstResult.traceEvents }),
+    ...(repairedResult.traceEvents === undefined
+      ? {}
+      : { attemptedRepairTraceEvents: repairedResult.traceEvents }),
   };
 }

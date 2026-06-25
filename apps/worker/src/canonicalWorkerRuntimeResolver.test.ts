@@ -82,6 +82,10 @@ describe('canonical worker runtime resolver', () => {
     expect(agents[0].simulate({ action: proposal, selectedSubtask: selectedSubtask() })).toEqual({
       status: 'accepted',
       action: proposal,
+      traceEvents: [
+        { type: 'EducationChanged', sequence: 1, summary: 'study' },
+        { type: 'ShortTermMemoryRecorded', sequence: 2, summary: 'Studied for 1800 seconds.' },
+      ],
     });
   });
 
@@ -107,6 +111,14 @@ describe('canonical worker runtime resolver', () => {
       status: 'rejected',
       action,
       reason: 'missing AMM pool for Ghost',
+      traceEvents: [
+        { type: 'ActionRejected', sequence: 10, summary: 'missing AMM pool for Ghost' },
+        {
+          type: 'ShortTermMemoryRecorded',
+          sequence: 11,
+          summary: 'AgentTrade failed: missing AMM pool for Ghost',
+        },
+      ],
     });
   });
 
@@ -135,6 +147,10 @@ describe('canonical worker runtime resolver', () => {
     expect(simulate({ action, selectedSubtask: selectedSubtask() })).toEqual({
       status: 'accepted',
       action,
+      traceEvents: [
+        { type: 'PhysiologyChanged', sequence: 10, summary: 'sleep' },
+        { type: 'ShortTermMemoryRecorded', sequence: 11, summary: 'Slept for 10 seconds.' },
+      ],
     });
     expect(resolvedAgentCounts).toEqual([2]);
   });
@@ -175,11 +191,28 @@ describe('canonical worker runtime resolver', () => {
     expect(simulate({ action: firstEat, selectedSubtask: selectedSubtask() })).toEqual({
       status: 'accepted',
       action: firstEat,
+      traceEvents: [
+        { type: 'InventoryChanged', sequence: 10, summary: 'eat Apple -1' },
+        { type: 'PhysiologyChanged', sequence: 11, summary: 'eat' },
+        { type: 'ShortTermMemoryRecorded', sequence: 12, summary: 'Ate 1 Apple.' },
+      ],
     });
     expect(simulate({ action: secondEat, selectedSubtask: selectedSubtask() })).toEqual({
       status: 'rejected',
       action: secondEat,
       reason: 'insufficient Apple: required 1, available 0',
+      traceEvents: [
+        {
+          type: 'ActionRejected',
+          sequence: 10,
+          summary: 'insufficient Apple: required 1, available 0',
+        },
+        {
+          type: 'ShortTermMemoryRecorded',
+          sequence: 11,
+          summary: 'AgentEat failed: insufficient Apple: required 1, available 0',
+        },
+      ],
     });
     expect(projection.agents[agentA]?.inventory).toEqual({ Apple: 1 });
   });

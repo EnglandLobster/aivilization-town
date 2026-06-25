@@ -2,10 +2,12 @@ import {
   convertReflectiveInsightsToLongTermMemoryPatches,
   proposeLongTermMemoryPatches,
   proposeReflectiveInsights,
+  proposeSocialInteractionReflections,
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
   type LongTermProfileRepository,
   type ReflectiveInsightRecord,
+  type SocialInteractionReflectionRecord,
   type ShortTermMemoryOrder,
   type ShortTermMemoryRecord,
   type ShortTermMemoryRepository,
@@ -28,6 +30,7 @@ export type WorkerMemoryConsolidationInput = {
 export type WorkerMemoryConsolidationResult = {
   readonly agentId: AgentId;
   readonly records: readonly ShortTermMemoryRecord[];
+  readonly socialReflections: readonly SocialInteractionReflectionRecord[];
   readonly reflectiveInsights: readonly ReflectiveInsightRecord[];
   readonly patches: readonly LongTermMemoryPatch[];
   readonly profile: LongTermAgentProfile;
@@ -151,6 +154,11 @@ async function applyWorkerMemoryConsolidation(input: {
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
   });
+  const socialReflections = proposeSocialInteractionReflections({
+    agentId: input.agentId,
+    records: input.records,
+    generatedAt: input.proposedAt,
+  });
   const reflectiveInsights = proposeReflectiveInsights({
     agentId: input.agentId,
     records: input.records,
@@ -169,6 +177,7 @@ async function applyWorkerMemoryConsolidation(input: {
   return {
     agentId: input.agentId,
     records: input.records,
+    socialReflections,
     reflectiveInsights,
     patches,
     profile,
@@ -280,9 +289,7 @@ function evaluateReflectionTrigger(input: {
 }
 
 function sumImportance(records: readonly ShortTermMemoryRecord[]): number {
-  return Number(
-    records.reduce((total, record) => total + record.importanceScore, 0).toFixed(6),
-  );
+  return Number(records.reduce((total, record) => total + record.importanceScore, 0).toFixed(6));
 }
 
 function dedupeAgentIds(agentIds: readonly AgentId[]): readonly AgentId[] {

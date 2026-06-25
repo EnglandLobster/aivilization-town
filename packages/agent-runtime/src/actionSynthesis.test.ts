@@ -116,6 +116,15 @@ describe('action synthesis', () => {
       },
     ]);
   });
+
+  test('rejects non-positive candidate subtask limits', () => {
+    expect(() =>
+      synthesizeActionCandidates({
+        actions: [createAction('study', 1)],
+        policy: { candidateSubtasks: { maxSubtasks: 0 } },
+      }),
+    ).toThrow('action synthesis candidateSubtasks.maxSubtasks must be a positive integer');
+  });
 });
 
 function createAction(

@@ -7,7 +7,6 @@ import type {
 import type {
   ActionSimulationResult,
   AtomicActionProposal,
-  RepairPolicy,
   ActionWithRepairResult,
 } from './actions';
 import { simulateActionWithRepair } from './actions';
@@ -133,22 +132,23 @@ export function runAgentPlanningCycle(input: {
     throw new Error('branch plan produced no selectable subtasks');
   }
   const selectedSubtask = toPrioritizedSubtask(selectedCandidate);
+  const synthesisSubtaskCandidates = selectSynthesisSubtaskCandidates({
+    candidates: subtaskCandidates,
+    policy: input.actionSynthesis,
+  });
+  const synthesisSubtasksByKey = createSelectedSubtaskMap(synthesisSubtaskCandidates);
   const selectionEvidence = createSelectionEvidence({
     selectedSubtask,
     ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
     ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
     ...(profileInfluence === undefined ? {} : { profileInfluence }),
   });
-  const microPlanner = input.microPlanners.find((planner) => planner.supports(selectedSubtask));
-  if (microPlanner === undefined) {
-    throw new Error(`no micro-planner supports subtask ${selectedSubtask.subtaskId}`);
-  }
-
-  const proposedActions = microPlanner
-    .propose({ selectedSubtask })
-    .map((action) => attachSelectedSubtaskSynthesisContext(action, selectedCandidate));
+  const proposedActions = collectSynthesisActionProposals({
+    candidates: synthesisSubtaskCandidates,
+    microPlanners: input.microPlanners,
+  });
   if (proposedActions.length === 0) {
-    throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
+    throw new Error(`no micro-planner supports subtask ${selectedSubtask.subtaskId}`);
   }
   const actionSynthesisResult = synthesizeActionCandidates({
     actions: proposedActions,
@@ -176,12 +176,32 @@ export function runAgentPlanningCycle(input: {
     });
   }
 
-  const repair = adaptRepairPolicy(input.repair, selectedSubtask);
   const simulationResults = candidateActions.map((action) =>
     simulateActionWithRepair({
       action,
-      simulate: (candidate) => input.simulate({ action: candidate, selectedSubtask }),
-      ...(repair === undefined ? {} : { repair }),
+      simulate: (candidate) =>
+        input.simulate({
+          action: candidate,
+          selectedSubtask: resolveSelectedSubtaskForAction({
+            action: candidate,
+            fallback: selectedSubtask,
+            selectedSubtasksByKey: synthesisSubtasksByKey,
+          }),
+        }),
+      ...(input.repair === undefined
+        ? {}
+        : {
+            repair: ({ rejectedAction, reason }) =>
+              input.repair?.({
+                rejectedAction,
+                reason,
+                selectedSubtask: resolveSelectedSubtaskForAction({
+                  action: rejectedAction,
+                  fallback: selectedSubtask,
+                  selectedSubtasksByKey: synthesisSubtasksByKey,
+                }),
+              }),
+          }),
     }),
   );
   return finalizeAgentCycleResult({
@@ -279,6 +299,68 @@ function createActionSynthesisReplanResults(
   }));
 }
 
+function selectSynthesisSubtaskCandidates(input: {
+  readonly candidates: readonly PrioritizedSubtaskCandidate[];
+  readonly policy: ActionSynthesisPolicy | undefined;
+}): readonly PrioritizedSubtaskCandidate[] {
+  const maxSubtasks = input.policy?.candidateSubtasks?.maxSubtasks ?? 1;
+  if (!Number.isInteger(maxSubtasks) || maxSubtasks <= 0) {
+    throw new Error('action synthesis candidateSubtasks.maxSubtasks must be a positive integer');
+  }
+  return input.candidates.slice(0, maxSubtasks);
+}
+
+function collectSynthesisActionProposals(input: {
+  readonly candidates: readonly PrioritizedSubtaskCandidate[];
+  readonly microPlanners: readonly DomainMicroPlanner[];
+}): readonly AtomicActionProposal[] {
+  const proposedActions: AtomicActionProposal[] = [];
+
+  for (const candidate of input.candidates) {
+    const selectedSubtask = toPrioritizedSubtask(candidate);
+    const microPlanner = input.microPlanners.find((planner) => planner.supports(selectedSubtask));
+    if (microPlanner === undefined) {
+      continue;
+    }
+
+    const actions = microPlanner.propose({ selectedSubtask });
+    if (actions.length === 0) {
+      throw new Error(`micro-planner ${microPlanner.domain} produced no candidate actions`);
+    }
+    proposedActions.push(
+      ...actions.map((action) => attachSelectedSubtaskSynthesisContext(action, candidate)),
+    );
+  }
+
+  return proposedActions;
+}
+
+function createSelectedSubtaskMap(
+  candidates: readonly PrioritizedSubtaskCandidate[],
+): ReadonlyMap<string, PrioritizedSubtask> {
+  return new Map(
+    candidates.map((candidate) => [
+      createSubtaskContextKey(candidate.branchId, candidate.subtaskId),
+      toPrioritizedSubtask(candidate),
+    ]),
+  );
+}
+
+function resolveSelectedSubtaskForAction(input: {
+  readonly action: AtomicActionProposal;
+  readonly fallback: PrioritizedSubtask;
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+}): PrioritizedSubtask {
+  const branchId = input.action.synthesisContext?.branchId;
+  const subtaskId = input.action.synthesisContext?.subtaskId;
+  if (branchId === undefined || subtaskId === undefined) {
+    return input.fallback;
+  }
+  return (
+    input.selectedSubtasksByKey.get(createSubtaskContextKey(branchId, subtaskId)) ?? input.fallback
+  );
+}
+
 function attachSelectedSubtaskSynthesisContext(
   action: AtomicActionProposal,
   selectedCandidate: PrioritizedSubtaskCandidate,
@@ -296,6 +378,10 @@ function attachSelectedSubtaskSynthesisContext(
       ...(context?.branchUrgency === undefined ? {} : { branchUrgency: context.branchUrgency }),
     },
   };
+}
+
+function createSubtaskContextKey(branchId: string, subtaskId: string): string {
+  return `${branchId}\u0000${subtaskId}`;
 }
 
 function decideSubtaskCompletion(input: {
@@ -394,17 +480,6 @@ function buildProfileInfluenceBySubtask(
       ]),
     ),
   );
-}
-
-function adaptRepairPolicy(
-  repair: CycleRepairPolicy | undefined,
-  selectedSubtask: PrioritizedSubtask,
-): RepairPolicy | undefined {
-  if (repair === undefined) {
-    return undefined;
-  }
-
-  return ({ rejectedAction, reason }) => repair({ rejectedAction, reason, selectedSubtask });
 }
 
 function actionFromSimulationResult(result: ActionWithRepairResult): AtomicActionProposal {

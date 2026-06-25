@@ -20,6 +20,9 @@ export type ActionSynthesisPolicy = {
   readonly branchLimits?: {
     readonly maxAcceptedActionsPerBranch?: number;
   };
+  readonly candidateSubtasks?: {
+    readonly maxSubtasks?: number;
+  };
 };
 
 export type RejectedSynthesizedAction = {
@@ -154,6 +157,7 @@ function normalizePolicy(
 
   const scoring = normalizeScoringPolicy(policy?.scoring);
   const branchLimits = normalizeBranchLimits(policy?.branchLimits);
+  validateCandidateSubtaskPolicy(policy?.candidateSubtasks);
 
   return {
     ...(maxActions === undefined ? {} : { maxActions }),
@@ -161,6 +165,15 @@ function normalizePolicy(
     scoring,
     branchLimits,
   };
+}
+
+function validateCandidateSubtaskPolicy(
+  candidateSubtasks: ActionSynthesisPolicy['candidateSubtasks'] | undefined,
+): void {
+  const maxSubtasks = candidateSubtasks?.maxSubtasks;
+  if (maxSubtasks !== undefined && (!Number.isInteger(maxSubtasks) || maxSubtasks <= 0)) {
+    throw new Error('action synthesis candidateSubtasks.maxSubtasks must be a positive integer');
+  }
 }
 
 function normalizeScoringPolicy(

@@ -208,6 +208,88 @@ describe('agent planning cycle', () => {
     });
   });
 
+  test('collects actions from multiple prioritized subtasks before global synthesis', () => {
+    const plan = createBranchPlan({
+      objective: 'balance income and development',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work a shift', basePriority: 6 }],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+        },
+      ],
+    });
+    const simulatedActions: string[] = [];
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 100,
+      plan,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study after work',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActions.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(result.selectedSubtask).toMatchObject({ branchId: 'income', subtaskId: 'work' });
+    expect(simulatedActions).toEqual(['work-1:income/work', 'study-1:development/study']);
+    expect(result.actionSynthesisResult.acceptedActions.map((action) => action.id)).toEqual([
+      'work-1',
+      'study-1',
+    ]);
+    expect(
+      result.actionSynthesisResult.acceptedActions.map((action) => action.synthesisContext),
+    ).toEqual([
+      { branchId: 'income', subtaskId: 'work', subtaskScore: 6 },
+      { branchId: 'development', subtaskId: 'study', subtaskScore: 5 },
+    ]);
+    expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentWork', 'AgentStudy']);
+  });
+
   test('returns replan results when action synthesis rejects every proposal', () => {
     const plan = createBranchPlan({
       objective: 'study within available energy',

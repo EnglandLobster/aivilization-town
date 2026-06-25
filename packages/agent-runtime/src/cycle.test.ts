@@ -2075,6 +2075,10 @@ describe('agent planning cycle', () => {
               inventoryItemCount: 1,
               marketSpotPriceCount: 1,
               hasLatestPriceIndex: false,
+              occupationRuleCount: 0,
+              eligibleOccupationRuleCount: 0,
+              productionRuleCount: 0,
+              producibleCommodityRuleCount: 0,
             },
           },
         });

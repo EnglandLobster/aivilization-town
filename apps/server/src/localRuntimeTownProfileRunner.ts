@@ -258,7 +258,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
   });
   const cycleOperationTraces = (
-    await Promise.all(run.cycles.map((cycle) => runtime.supervisor.getOperationTrace(cycle.traceId)))
+    await Promise.all(
+      run.cycles.map((cycle) => runtime.supervisor.getOperationTrace(cycle.traceId)),
+    )
   ).flatMap((trace) => (trace === undefined ? [] : [trace]));
   const daemonStatus = await runtime.runtimeDaemonApi.getRuntimeDaemonStatus();
   const partitionResults = await Promise.all(
@@ -520,6 +522,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
       ...(input.memoryRetrievalCandidateLimit === undefined
         ? {}
         : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
+      policies,
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,
         policies,

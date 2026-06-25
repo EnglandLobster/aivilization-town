@@ -8,6 +8,7 @@ import {
   type DomainMicroPlanner,
   type ReactiveCorrector,
   type ReplanningDecider,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
 import {
@@ -17,7 +18,7 @@ import {
   type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
-import { createWorldProjection } from '@aivilization/world';
+import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import { buildWorkerTickAgentsFromActivePlans } from './index';
 
@@ -67,6 +68,18 @@ describe('worker agent scheduling', () => {
       replanningDecider,
     };
     const tradeRuntime = createRuntimeBinding('trade');
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: { Apple: 15 },
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      jobApplication: {
+        populationEducationScores: [0, 12, 30, 80],
+        quotaByResidentialTier: [1, 2, 3, 4, 5],
+      },
+    };
+    const resolverContexts: WorldDecisionContext[] = [];
     const projection = createWorldProjection({
       agents: [
         createProjectedAgent({
@@ -150,7 +163,11 @@ describe('worker agent scheduling', () => {
       projection,
       intentionRepository,
       planRepository,
-      resolveRuntime: ({ agentId }) => {
+      policies,
+      resolveRuntime: ({ agentId, worldDecisionContext }) => {
+        if (worldDecisionContext !== undefined) {
+          resolverContexts.push(worldDecisionContext);
+        }
         if (agentId === agentA) {
           return studyRuntime;
         }
@@ -189,7 +206,25 @@ describe('worker agent scheduling', () => {
       market: {
         spotPrices: [{ commodity: 'Fish', spotPrice: 304.5 }],
       },
+      rules: {
+        criticalThresholds: { energy: 20, health: 35 },
+      },
     });
+    expect(
+      agents[0]?.worldDecisionContext?.rules?.occupations.find(
+        (rule) => rule.occupationName === 'Cleaner',
+      ),
+    ).toMatchObject({
+      occupationName: 'Cleaner',
+      eligible: true,
+    });
+    expect(
+      agents[0]?.worldDecisionContext?.rules?.production.find((rule) => rule.commodity === 'Apple'),
+    ).toMatchObject({
+      commodity: 'Apple',
+      producible: true,
+    });
+    expect(resolverContexts[0]?.rules?.criticalThresholds).toEqual({ energy: 20, health: 35 });
     expect(agents[1]).toMatchObject({
       agentId: agentE,
       planId: 'objective-trade',

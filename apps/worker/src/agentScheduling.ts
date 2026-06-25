@@ -27,6 +27,10 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 import { resolveMemoryRetrievalCandidateLimit } from './memoryContextSelection';
 import type { WorkerTickAgentInput } from './tickRunner';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type WorkerAgentRuntimeBinding = {
@@ -62,10 +66,18 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly memoryRetrievalLimit?: number;
   readonly memoryRetrievalCandidateLimit?: number;
+  readonly policies?: WorldCommandPolicySource;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
   validateMemoryRetrievalBudget(input);
   const agents: WorkerTickAgentInput[] = [];
+  const worldDecisionPolicies =
+    input.policies === undefined
+      ? undefined
+      : resolveWorldCommandPolicies({
+          policies: input.policies,
+          projection: input.projection,
+        });
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
@@ -104,6 +116,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
     const worldDecisionContext = createWorldDecisionContextFromProjection({
       projection: input.projection,
       agentId: agent.agentId,
+      ...(worldDecisionPolicies === undefined ? {} : { policies: worldDecisionPolicies }),
     });
     const runtime = await input.resolveRuntime({
       agentId: agent.agentId,

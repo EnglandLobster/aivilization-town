@@ -163,6 +163,7 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.agentMemoryRetrievalCandidateLimit === undefined
       ? {}
       : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
+    policies: input.policies,
     resolveRuntime: createCanonicalWorkerRuntimeResolver({
       simulationId: input.simulationId,
       policies: input.policies,

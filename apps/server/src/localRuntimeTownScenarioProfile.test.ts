@@ -102,6 +102,35 @@ describe('local runtime town daemon scenario profiles', () => {
       'world-campus',
       'world-rural',
     ]);
+
+    const recovery = createLocalRuntimeTownDaemonScenarioProfile('recovery-drill-25');
+    expect(recovery).toMatchObject({
+      profileId: 'recovery-drill-25',
+      agentCount: 25,
+      headless: true,
+      manifest: {
+        id: 'aivilization-recovery-drill-25',
+        defaults: {
+          tickBatchSize: 1,
+          tickIntervalMs: 0,
+          commandConsumerIdPrefix: 'recovery-drill-worker',
+        },
+      },
+      runtimeRunQueue: {
+        maxJobsPerPoll: 1,
+      },
+      runtimeScheduler: {
+        cycleCount: 1,
+        maxPendingJobs: 1,
+      },
+      runtimeRecovery: {
+        maxDrainJobsPerRun: 1,
+      },
+    });
+    expect(recovery.manifest.partitions.map((partition) => partition.partitionKey)).toEqual([
+      'world-main',
+    ]);
+    expect(totalAgents(recovery.scenarioPresets)).toBe(25);
   });
 });
 

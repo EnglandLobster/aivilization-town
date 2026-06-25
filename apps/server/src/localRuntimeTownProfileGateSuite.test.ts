@@ -176,11 +176,45 @@ describe('local runtime town profile gate suite', () => {
     expect(result.profiles[0]?.gate.status).toBe('pass');
   });
 
+  test('includes the recovery drill profile in default suite runs', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir: '/tmp/aivilization-suite',
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(
+          createPassingSummary(input, {
+            fullReplanMaterializationCount: input.profileId === 'recovery-drill-25' ? 1 : 0,
+          }),
+        );
+      },
+    });
+
+    expect(inputs.map((input) => input.profileId)).toEqual([
+      'smoke-25',
+      'default-100',
+      'headless-stress-1000',
+      'recovery-drill-25',
+    ]);
+    expect(result.status).toBe('pass');
+    expect(result.profiles.map((profile) => profile.profileId)).toEqual([
+      'smoke-25',
+      'default-100',
+      'headless-stress-1000',
+      'recovery-drill-25',
+    ]);
+  });
+
   test('defaults to the canonical profile gate order', () => {
     expect(localRuntimeTownProfileGateSuiteDefaultProfileIds).toEqual([
       'smoke-25',
       'default-100',
       'headless-stress-1000',
+      'recovery-drill-25',
     ]);
   });
 });

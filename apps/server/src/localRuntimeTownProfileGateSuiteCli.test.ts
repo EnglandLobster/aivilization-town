@@ -47,6 +47,23 @@ describe('local runtime town profile gate suite CLI', () => {
     });
   });
 
+  test('parses recovery drill suite profile arguments', () => {
+    expect(
+      parseLocalRuntimeTownProfileGateSuiteCliArgs([
+        '--root-dir',
+        '/tmp/suite',
+        '--requested-at',
+        '100',
+        '--profiles',
+        'recovery-drill-25',
+      ]),
+    ).toMatchObject({
+      rootDir: '/tmp/suite',
+      requestedAt: 100,
+      profileIds: ['recovery-drill-25'],
+    });
+  });
+
   test('runs the injected suite and writes JSON to stdout', async () => {
     let output = '';
     let capturedInput: LocalRuntimeTownProfileGateSuiteInput | undefined;

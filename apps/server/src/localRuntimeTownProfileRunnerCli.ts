@@ -41,6 +41,7 @@ const profileIds = new Set<LocalRuntimeTownDaemonScenarioProfileId>([
   'smoke-25',
   'default-100',
   'headless-stress-1000',
+  'recovery-drill-25',
 ]);
 
 export function parseLocalRuntimeTownProfileRunnerCliArgs(

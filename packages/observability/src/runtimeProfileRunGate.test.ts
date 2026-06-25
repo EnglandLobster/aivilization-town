@@ -989,6 +989,60 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires output artifacts for configured cognition synthesis stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'reflectionSynthesis',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            outputArtifactCount: 0,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+          {
+            stageName: 'socialModelSynthesis',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            outputArtifactCount: 2,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        minimumCognitionLlmOutputArtifactCounts: {
+          reflectionSynthesis: 1,
+          socialModelSynthesis: 1,
+        },
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-output-artifact-count-too-low',
+      message: 'cognition LLM stage reflectionSynthesis outputArtifactCount must be at least 1',
+      evidence: {
+        stageName: 'reflectionSynthesis',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
+
   test('requires complete world decision context for configured cognition stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({

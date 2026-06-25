@@ -102,6 +102,7 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingProviderTraceCount: number;
+  readonly outputArtifactCount?: number;
   readonly shortTermMemoryContextCount?: number;
   readonly longTermProfileContextCount?: number;
   readonly observedStateSummaryCount?: number;
@@ -120,6 +121,9 @@ export type RuntimeProfileCognitionProviderTrace = {
   readonly longTermProfileContext?: unknown;
   readonly observedStateSummary?: string;
   readonly worldDecisionContext?: unknown;
+  readonly choices?: readonly unknown[];
+  readonly patches?: readonly unknown[];
+  readonly reflections?: readonly unknown[];
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -225,6 +229,7 @@ export function createRuntimeProfileRunReport(
       : {
           cognitionLlmStageDiagnostics: input.cognitionLlmStageDiagnostics.map((stage) => ({
             ...stage,
+            outputArtifactCount: stage.outputArtifactCount ?? 0,
             shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
@@ -324,6 +329,7 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
+        outputArtifactCount: 0,
         shortTermMemoryContextCount: 0,
         longTermProfileContextCount: 0,
         observedStateSummaryCount: 0,
@@ -655,6 +661,7 @@ type MutableCognitionLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingProviderTraceCount: number;
+  outputArtifactCount: number;
   shortTermMemoryContextCount: number;
   longTermProfileContextCount: number;
   observedStateSummaryCount: number;
@@ -1070,6 +1077,7 @@ function recordCognitionProviderTrace(
   if (trace.source === 'deterministic') {
     diagnostics.deterministicCount += 1;
   }
+  diagnostics.outputArtifactCount += countCognitionOutputArtifacts(trace);
   if (trace.shortTermMemoryContext !== undefined) {
     diagnostics.shortTermMemoryContextCount += 1;
   }
@@ -1097,6 +1105,18 @@ function recordCognitionProviderTrace(
       }
     }
   }
+}
+
+function countCognitionOutputArtifacts(trace: CognitionLlmStageTrace): number {
+  return (
+    countArrayArtifacts(trace.choices) +
+    countArrayArtifacts(trace.patches) +
+    countArrayArtifacts(trace.reflections)
+  );
+}
+
+function countArrayArtifacts(value: readonly unknown[] | undefined): number {
+  return Array.isArray(value) ? value.length : 0;
 }
 
 function validateCognitionLlmStageDiagnostics(
@@ -1134,6 +1154,11 @@ function validateCognitionLlmStageDiagnostics(
     assertNonNegativeInteger(
       stage.missingProviderTraceCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} missingProviderTraceCount`,
+    );
+    const outputArtifactCount = stage.outputArtifactCount ?? 0;
+    assertNonNegativeInteger(
+      outputArtifactCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} outputArtifactCount`,
     );
     const shortTermMemoryContextCount = stage.shortTermMemoryContextCount ?? 0;
     assertNonNegativeInteger(

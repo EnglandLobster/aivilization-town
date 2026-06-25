@@ -34,6 +34,9 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmObservedStateStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly minimumCognitionLlmOutputArtifactCounts?: Readonly<
+    Partial<Record<RuntimeProfileCognitionLlmStageName, number>>
+  >;
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -100,6 +103,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmObservedStateStages =
     input.requiredCognitionLlmObservedStateStages ??
     deriveRequiredCognitionLlmObservedStateStagesFromRuntimeConfig(input.runtimeConfig);
+  const minimumCognitionLlmOutputArtifactCounts =
+    input.minimumCognitionLlmOutputArtifactCounts ??
+    deriveMinimumCognitionLlmOutputArtifactCountsFromRuntimeConfig(input.runtimeConfig);
   const minimumSimulatorRolloutCoverageRatio =
     input.minimumSimulatorRolloutCoverageRatio ??
     profileDefaults.minimumSimulatorRolloutCoverageRatio;
@@ -188,6 +194,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmObservedStateStages.length === 0
       ? {}
       : { requiredCognitionLlmObservedStateStages }),
+    ...(Object.keys(minimumCognitionLlmOutputArtifactCounts).length === 0
+      ? {}
+      : { minimumCognitionLlmOutputArtifactCounts }),
     ...(minimumSimulatorRolloutCoverageRatio === undefined
       ? {}
       : { minimumSimulatorRolloutCoverageRatio }),
@@ -383,6 +392,23 @@ export function deriveRequiredCognitionLlmObservedStateStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
   return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveMinimumCognitionLlmOutputArtifactCountsFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): Readonly<Partial<Record<RuntimeProfileCognitionLlmStageName, number>>> {
+  if (runtimeConfig === undefined) {
+    return {};
+  }
+
+  const minimumCounts: Partial<Record<RuntimeProfileCognitionLlmStageName, number>> = {};
+  if (runtimeConfig.reflectionSynthesis !== undefined) {
+    minimumCounts.reflectionSynthesis = 1;
+  }
+  if (runtimeConfig.socialModelSynthesis !== undefined) {
+    minimumCounts.socialModelSynthesis = 1;
+  }
+  return minimumCounts;
 }
 
 export function listLocalRuntimeTownProfileGatePartitionKeys(

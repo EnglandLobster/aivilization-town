@@ -271,6 +271,14 @@ describe('local runtime town profile gate criteria', () => {
       'reflectionSynthesis',
       'socialModelSynthesis',
     ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+      }).minimumCognitionLlmOutputArtifactCounts,
+    ).toEqual({
+      reflectionSynthesis: 1,
+      socialModelSynthesis: 1,
+    });
   });
 
   test('derives multi-partition default and stress profile gate criteria', () => {

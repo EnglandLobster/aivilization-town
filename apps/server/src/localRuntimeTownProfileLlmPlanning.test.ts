@@ -13,6 +13,7 @@ import {
   createLocalRuntimeTownProfileActionSequenceGenerator,
   createLocalRuntimeTownProfileDailyPlanCompiler,
   createLocalRuntimeTownProfileGlobalSynthesizer,
+  createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
@@ -582,5 +583,94 @@ describe('local runtime town profile LLM planning config', () => {
         },
       }),
     ).toThrow('providerId must not be empty');
+  });
+
+  test('creates a traceable reflective insight synthesizer from scripted provider config', async () => {
+    const synthesizer = createLocalRuntimeTownProfileReflectiveInsightSynthesizer({
+      kind: 'traceable-llm-reflective-insight-synthesizer',
+      profileId: 'smoke-25',
+      model: 'profile-reflection-model',
+      maxAttempts: 2,
+      timeoutMs: 1_000,
+      pricing: {
+        inputTokenCostMicros: 2,
+        outputTokenCostMicros: 3,
+      },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-reflection',
+        responses: [
+          {
+            providerId: 'scripted-profile-reflection',
+            model: 'profile-reflection-model',
+            content: JSON.stringify({
+              insights: [
+                {
+                  kind: 'value',
+                  topicKey: 'market-patience',
+                  statement: 'The agent values waiting for better market conditions.',
+                  confidence: 0.84,
+                  evidenceRecordIds: ['memory-market-1'],
+                  tags: ['trade', 'market', 'value'],
+                  rationale: 'The memory shows the agent waited for a better price.',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: {
+              inputTokens: 12,
+              outputTokens: 9,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(synthesizer).not.toBeUndefined();
+    if (synthesizer === undefined) {
+      throw new Error('expected LLM reflective insight synthesizer');
+    }
+    const result = await synthesizer({
+      agentId: asAgentId('agent-1'),
+      generatedAt: 444,
+      minEvidenceCount: 1,
+      records: [
+        createShortTermMemoryRecord({
+          id: 'memory-market-1',
+          agentId: asAgentId('agent-1'),
+          kind: 'action',
+          status: 'succeeded',
+          summary: 'Waited for a better apple price before buying.',
+          occurredAt: 440,
+          importanceScore: 0.8,
+          source: { eventIds: [] },
+          tags: ['trade', 'market'],
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      insights: [
+        {
+          id: 'reflection-agent-1-value-market-patience-444',
+          kind: 'value',
+          topicKey: 'market-patience',
+          confidence: 0.84,
+        },
+      ],
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'profile-llm-reflection-synthesis:smoke-25:agent-1:444',
+        providerId: 'scripted-profile-reflection',
+        model: 'profile-reflection-model',
+        usage: {
+          inputTokens: 12,
+          outputTokens: 9,
+          totalTokens: 21,
+          estimatedCostMicros: 51,
+        },
+      },
+    });
   });
 });

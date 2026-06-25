@@ -19,6 +19,10 @@ import {
   type LlmGatewayPricing,
   type LlmStructuredProviderConfig,
 } from '@aivilization/llm';
+import {
+  createTraceableLlmReflectiveInsightSynthesizer,
+  type ReflectiveInsightSynthesizer,
+} from '@aivilization/memory';
 
 export type LocalRuntimeTownProfileLlmPlanningConfig = {
   readonly kind: 'traceable-llm-strategic-planner';
@@ -90,6 +94,16 @@ export type LocalRuntimeTownProfileReactiveCorrectionConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileReflectionSynthesisConfig = {
+  readonly kind: 'traceable-llm-reflective-insight-synthesizer';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileStrategicCompilerConfig =
   | LocalRuntimeTownProfileLlmPlanningConfig
   | undefined;
@@ -116,6 +130,10 @@ export type LocalRuntimeTownProfileGlobalSynthesizerConfig =
 
 export type LocalRuntimeTownProfileReactiveCorrectorConfig =
   | LocalRuntimeTownProfileReactiveCorrectionConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig =
+  | LocalRuntimeTownProfileReflectionSynthesisConfig
   | undefined;
 
 export function createLocalRuntimeTownProfileStrategicPlanCompiler(
@@ -252,6 +270,26 @@ export function createLocalRuntimeTownProfileReactiveCorrector(
     model: config.model,
     requestId: ({ agentId, issuedAt, rejectedAction }) =>
       `profile-llm-reactive-correction:${config.profileId}:${agentId}:${rejectedAction.id}:${issuedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileReflectiveInsightSynthesizer(
+  config: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
+): ReflectiveInsightSynthesizer | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmReflectiveInsightSynthesizer({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, generatedAt }) =>
+      `profile-llm-reflection-synthesis:${config.profileId}:${agentId}:${generatedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

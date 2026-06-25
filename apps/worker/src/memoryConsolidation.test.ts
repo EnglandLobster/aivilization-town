@@ -168,7 +168,7 @@ describe('worker memory consolidation', () => {
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
     await shortTermMemoryRepository.append(createTradeMemory(1));
     const synthesizerCalls: Parameters<ReflectiveInsightSynthesizer>[0][] = [];
-    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = async (input) => {
+    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = (input) => {
       synthesizerCalls.push(input);
       return {
         insights: [

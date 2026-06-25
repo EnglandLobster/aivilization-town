@@ -8,6 +8,7 @@ import type {
   StrategicPlanCompiler,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
+import type { ReflectiveInsightSynthesizer } from '@aivilization/memory';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileRunReport,
@@ -26,6 +27,7 @@ import {
   renewMissingActiveObjectives,
   type ObjectiveRenewalDecisionTrace,
   type LocalWorldRuntimeAgentProvider,
+  type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type WorldCommandPolicyResolver,
   type WorldCommandPolicySource,
 } from '@aivilization/worker';
@@ -34,6 +36,7 @@ import {
   createLocalRuntimeTownProfileDailyPlanCompiler,
   createLocalRuntimeTownProfileActionSequenceGenerator,
   createLocalRuntimeTownProfileGlobalSynthesizer,
+  createLocalRuntimeTownProfileReflectiveInsightSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
@@ -42,6 +45,7 @@ import {
   type LocalRuntimeTownProfileDailyCompilerConfig,
   type LocalRuntimeTownProfileGlobalSynthesizerConfig,
   type LocalRuntimeTownProfileReactiveCorrectorConfig,
+  type LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig,
   type LocalRuntimeTownProfileReactionEvaluatorConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
   type LocalRuntimeTownProfileSubtaskPrioritizerConfig,
@@ -69,6 +73,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
+  readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
@@ -77,6 +82,8 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly actionSequenceGeneration?: LocalRuntimeTownProfileActionSequenceGeneratorConfig;
   readonly globalSynthesis?: LocalRuntimeTownProfileGlobalSynthesizerConfig;
   readonly reactiveCorrection?: LocalRuntimeTownProfileReactiveCorrectorConfig;
+  readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig;
+  readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
@@ -163,6 +170,13 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   const reactiveCorrector =
     input.reactiveCorrector ??
     createLocalRuntimeTownProfileReactiveCorrector(input.reactiveCorrection);
+  const reflectiveInsightSynthesizer =
+    input.reflectiveInsightSynthesizer ??
+    createLocalRuntimeTownProfileReflectiveInsightSynthesizer(input.reflectionSynthesis);
+  const memoryConsolidationSchedule = createProfileMemoryConsolidationSchedule({
+    schedule: input.memoryConsolidationSchedule,
+    reflectiveInsightSynthesizer,
+  });
   const replanningPolicy = input.replanningPolicy ?? profileDefaults.replanningPolicy;
   const agentProvider =
     input.agentProvider ??
@@ -195,6 +209,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     runtimeRunQueue: profile.runtimeRunQueue,
     runtimeScheduler: profile.runtimeScheduler,
     runtimeRecovery: profile.runtimeRecovery,
+    ...(memoryConsolidationSchedule === undefined ? {} : { memoryConsolidationSchedule }),
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { runtimeProfileRunReports: input.profileRunReportRepository }),
@@ -312,6 +327,25 @@ function createProfileRunOperationId(input: {
 }): string {
   const base = `${input.manifestId}:profile-run:${input.requestedAt}`;
   return input.runIdSuffix === undefined ? base : `${base}:${input.runIdSuffix}`;
+}
+
+function createProfileMemoryConsolidationSchedule(input: {
+  readonly schedule: LocalSimulationLifecycleMemoryConsolidationSchedule | undefined;
+  readonly reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer | undefined;
+}): LocalSimulationLifecycleMemoryConsolidationSchedule | undefined {
+  if (input.schedule === undefined) {
+    return undefined;
+  }
+  if (
+    input.schedule.reflectiveInsightSynthesizer !== undefined ||
+    input.reflectiveInsightSynthesizer === undefined
+  ) {
+    return input.schedule;
+  }
+  return {
+    ...input.schedule,
+    reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer,
+  };
 }
 
 export function createLocalRuntimeTownProfileAgentProvider(

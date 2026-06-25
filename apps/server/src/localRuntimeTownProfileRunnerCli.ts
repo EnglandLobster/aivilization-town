@@ -141,6 +141,9 @@ async function createRunnerInput(
     ...(runtimeConfig?.reactiveCorrection === undefined
       ? {}
       : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
+    ...(runtimeConfig?.reflectionSynthesis === undefined
+      ? {}
+      : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),
     ...(runtimeConfig?.replanningPolicy === undefined
       ? {}
       : { replanningPolicy: runtimeConfig.replanningPolicy }),

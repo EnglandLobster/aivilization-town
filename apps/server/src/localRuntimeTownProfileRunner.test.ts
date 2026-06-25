@@ -940,6 +940,38 @@ describe('local runtime town profile runner', () => {
     });
     expect(intentionState.scheduledIntentions).toEqual([]);
   });
+
+  test('attaches configured reflection synthesis to a provided memory consolidation schedule', async () => {
+    const rootDir = createRootDir();
+    const observedRequestIds: string[] = [];
+
+    await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 260,
+      memoryConsolidationSchedule: {
+        agentIds: [asAgentId('smoke-25-world-main-agent-001')],
+        retrievalLimit: 10,
+        minPatternCount: 1,
+      },
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        profileId: 'smoke-25',
+        model: 'profile-reflection-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-reflection',
+          responses: createEmptyReflectionResponses(1, observedRequestIds),
+        },
+      },
+    });
+
+    expect(observedRequestIds).toHaveLength(1);
+    expect(observedRequestIds[0]).toBe(
+      'profile-llm-reflection-synthesis:smoke-25:smoke-25-world-main-agent-001:260',
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -984,6 +1016,18 @@ function createIgnoreReactionResponses(count: number, observedRequestIds: string
         confidence: 0.93,
         rationale: 'The bystander noticed the conversation but should not follow up.',
       }),
+      finishReason: 'stop' as const,
+    };
+  });
+}
+
+function createEmptyReflectionResponses(count: number, observedRequestIds: string[]) {
+  return Array.from({ length: count }, () => (request: LlmProviderCompletionRequest) => {
+    observedRequestIds.push(request.requestId);
+    return {
+      providerId: 'scripted-profile-reflection',
+      model: 'profile-reflection-model',
+      content: JSON.stringify({ insights: [] }),
       finishReason: 'stop' as const,
     };
   });

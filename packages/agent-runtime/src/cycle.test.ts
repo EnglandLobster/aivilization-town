@@ -1514,6 +1514,144 @@ describe('agent planning cycle', () => {
     expect(result.needsReplan).toBe(false);
   });
 
+  test('passes full decision context into local repair policy', () => {
+    const agentId = asAgentId('agent-1');
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });
+    const plan = createBranchPlan({
+      objective: 'survive while earning income',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const memory = createShortTermMemoryRecord({
+      id: 'stm-satiety-repair',
+      agentId,
+      kind: 'action',
+      status: 'failed',
+      summary: 'Work failed while hungry; eating before work repaired it.',
+      occurredAt: 90,
+      importanceScore: 0.9,
+      source: { eventIds: [] },
+      tags: ['work', 'satiety', 'repair'],
+    });
+    const repairInputs: unknown[] = [];
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      observedStateSummary:
+        'energy=40 satiety=12 health=95 education=10 balance=50 tier=1 job=Cleaner inventory=Bread:1',
+      progress,
+      signals: [{ key: 'satiety', weight: 3 }],
+      intentionState: {
+        agentId,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 100,
+      },
+      shortTermMemoryContext: [memory],
+      longTermProfile: {
+        agentId,
+        beliefs: [
+          {
+            key: 'eat-before-work',
+            statement: 'Eat before working when satiety is low.',
+            confidence: 0.8,
+            updatedAt: 95,
+            provenanceRecordIds: [asMemoryRecordId('stm-satiety-repair')],
+          },
+        ],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          locationId: 'market',
+          physiology: { energy: 40, satiety: 12, health: 95 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 1 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Bread', spotPrice: 5 }],
+          latestPriceIndex: {
+            baselineAt: 1,
+            recordedAt: 100,
+            overall: 1,
+            ratios: { Bread: 1 },
+          },
+        },
+      },
+      replanningPolicy: { consecutiveFailureThreshold: 2 },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+            },
+          ],
+        },
+      ],
+      repair: (input) => {
+        repairInputs.push(input);
+        return undefined;
+      },
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'satiety too low' }),
+    });
+
+    expect(result.replanningDecision).toEqual({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'satiety too low',
+      failedActionIds: ['work-1'],
+      evidenceRecordIds: ['stm-satiety-repair'],
+    });
+    expect(repairInputs).toHaveLength(1);
+    expect(repairInputs[0]).toMatchObject({
+      agentId,
+      issuedAt: 100,
+      plan,
+      progress,
+      signals: [{ key: 'satiety', weight: 3 }],
+      selectedSubtask: { branchId: 'income', subtaskId: 'work', score: 5 },
+      rejectedAction: { id: 'work-1', commandType: 'AgentWork' },
+      reason: 'satiety too low',
+      observedStateSummary:
+        'energy=40 satiety=12 health=95 education=10 balance=50 tier=1 job=Cleaner inventory=Bread:1',
+      intentionState: { agentId, updatedAt: 100 },
+      shortTermMemoryContext: [{ id: 'stm-satiety-repair' }],
+      longTermProfile: { beliefs: [{ key: 'eat-before-work' }] },
+      worldDecisionContext: {
+        agent: {
+          balance: 50,
+          inventory: { Bread: 1 },
+          physiology: { satiety: 12 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Bread', spotPrice: 5 }],
+          latestPriceIndex: { ratios: { Bread: 1 } },
+        },
+      },
+    });
+  });
+
   test('uses reactive correction after local repair fails simulator validation', async () => {
     const agentId = asAgentId('agent-1');
     const plan = createBranchPlan({

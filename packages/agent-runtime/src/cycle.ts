@@ -96,11 +96,15 @@ export type CycleActionSimulator = (input: {
   readonly selectedSubtask: PrioritizedSubtask;
 }) => ActionSimulationResult;
 
-export type CycleRepairPolicy = (input: {
+export type CycleRepairPolicyInput = DomainMicroPlannerContext & {
   readonly rejectedAction: AtomicActionProposal;
   readonly reason: string;
   readonly selectedSubtask: PrioritizedSubtask;
-}) => AtomicActionProposal | undefined;
+};
+
+export type CycleRepairPolicy = (
+  input: CycleRepairPolicyInput,
+) => AtomicActionProposal | undefined;
 
 export type CycleSubtaskCompletionPolicy = (input: {
   readonly selectedSubtask: PrioritizedSubtask;
@@ -566,16 +570,21 @@ function runAgentPlanningCycleFromProposedActions(
       ...(input.repair === undefined
         ? {}
         : {
-            repair: ({ rejectedAction, reason }) =>
-              input.repair?.({
-                rejectedAction,
-                reason,
-                selectedSubtask: resolveSelectedSubtaskForAction({
-                  action: rejectedAction,
-                  fallback: input.selectedSubtask,
-                  selectedSubtasksByKey: input.synthesisSubtasksByKey,
+            repair: ({ rejectedAction, reason }) => {
+              const selectedSubtask = resolveSelectedSubtaskForAction({
+                action: rejectedAction,
+                fallback: input.selectedSubtask,
+                selectedSubtasksByKey: input.synthesisSubtasksByKey,
+              });
+              return input.repair?.(
+                createCycleRepairPolicyInput({
+                  input,
+                  selectedSubtask,
+                  rejectedAction,
+                  reason,
                 }),
-              }),
+              );
+            },
           }),
     }),
   );
@@ -672,16 +681,21 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
       ...(input.repair === undefined
         ? {}
         : {
-            repair: ({ rejectedAction, reason }) =>
-              input.repair?.({
-                rejectedAction,
-                reason,
-                selectedSubtask: resolveSelectedSubtaskForAction({
-                  action: rejectedAction,
-                  fallback: input.selectedSubtask,
-                  selectedSubtasksByKey: input.synthesisSubtasksByKey,
+            repair: ({ rejectedAction, reason }) => {
+              const selectedSubtask = resolveSelectedSubtaskForAction({
+                action: rejectedAction,
+                fallback: input.selectedSubtask,
+                selectedSubtasksByKey: input.synthesisSubtasksByKey,
+              });
+              return input.repair?.(
+                createCycleRepairPolicyInput({
+                  input,
+                  selectedSubtask,
+                  rejectedAction,
+                  reason,
                 }),
-              }),
+              );
+            },
           }),
     }),
   );
@@ -801,11 +815,14 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
           ? {}
           : {
               localRepair: ({ rejectedAction, reason }) =>
-                input.repair?.({
-                  rejectedAction,
-                  reason,
-                  selectedSubtask,
-                }),
+                input.repair?.(
+                  createCycleRepairPolicyInput({
+                    input,
+                    selectedSubtask,
+                    rejectedAction,
+                    reason,
+                  }),
+                ),
             }),
         reactiveCorrector: input.reactiveCorrector,
         reactiveCorrectorInput: {
@@ -1414,6 +1431,20 @@ function createDomainMicroPlannerInput(input: DomainMicroPlannerInput): DomainMi
     ...(input.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.worldDecisionContext }),
+  };
+}
+
+function createCycleRepairPolicyInput(input: {
+  readonly input: AgentPlanningCycleInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly rejectedAction: AtomicActionProposal;
+  readonly reason: string;
+}): CycleRepairPolicyInput {
+  return {
+    ...createDomainMicroPlannerContext(input.input),
+    selectedSubtask: input.selectedSubtask,
+    rejectedAction: input.rejectedAction,
+    reason: input.reason,
   };
 }
 

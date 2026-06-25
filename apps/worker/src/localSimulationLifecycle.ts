@@ -1,7 +1,7 @@
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type { ExperimentValidationReportGateResult } from '@aivilization/observability';
 import type { ReflectiveInsightSynthesizer, SocialModelSynthesizer } from '@aivilization/memory';
-import type { WorldEvent, WorldProjection } from '@aivilization/world';
+import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LocalWorldRuntimeLoopInput, LocalWorldRuntimeLoopResult } from './localRuntimeLoop';
@@ -18,6 +18,7 @@ import {
   type WorkerMemoryConsolidationReflectionTrigger,
   type WorkerMemoryConsolidationScheduleResult,
 } from './memoryConsolidation';
+import { resolveWorldCommandPolicies } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type LocalSimulationLifecycleRequest = {
@@ -563,6 +564,10 @@ async function runLifecycleMemoryConsolidation(input: {
   | { readonly memoryConsolidationFailure: LocalSimulationLifecycleValidationFailure }
 > {
   try {
+    const worldDecisionPolicies = resolveWorldCommandPolicies({
+      policies: input.controllerInput.policies,
+      projection: input.projection,
+    });
     return {
       memoryConsolidation: await runWorkerMemoryConsolidationSchedule({
         agentIds:
@@ -591,6 +596,7 @@ async function runLifecycleMemoryConsolidation(input: {
           createMemoryConsolidationWorldDecisionContext({
             projection: input.projection,
             agentId,
+            policies: worldDecisionPolicies,
           }),
         proposedAt: input.request.requestedAt,
       }),
@@ -605,6 +611,7 @@ async function runLifecycleMemoryConsolidation(input: {
 function createMemoryConsolidationWorldDecisionContext(input: {
   readonly projection: WorldProjection;
   readonly agentId: AgentId;
+  readonly policies: WorldCommandPolicies;
 }) {
   if (input.projection.agents[input.agentId] === undefined) {
     return undefined;
@@ -612,6 +619,7 @@ function createMemoryConsolidationWorldDecisionContext(input: {
   return createWorldDecisionContextFromProjection({
     projection: input.projection,
     agentId: input.agentId,
+    policies: input.policies,
   });
 }
 

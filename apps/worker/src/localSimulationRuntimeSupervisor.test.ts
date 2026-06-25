@@ -1342,6 +1342,10 @@ function createWorldDecisionContextTrace(
     inventoryItemCount: 1,
     marketSpotPriceCount: 1,
     hasLatestPriceIndex: false,
+    occupationRuleCount: 1,
+    eligibleOccupationRuleCount: 1,
+    productionRuleCount: 1,
+    producibleCommodityRuleCount: 1,
   };
 }
 

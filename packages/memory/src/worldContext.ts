@@ -32,9 +32,49 @@ export type MemorySynthesisWorldDecisionMarketContext = {
   readonly latestPriceIndex?: MemorySynthesisWorldDecisionMarketPriceIndex;
 };
 
+export type MemorySynthesisWorldDecisionOccupationApplicationQuota = {
+  readonly residentialTier: number;
+  readonly limit: number;
+  readonly currentApplications: number;
+  readonly remaining: number;
+};
+
+export type MemorySynthesisWorldDecisionOccupationRule = {
+  readonly occupationName: string;
+  readonly jobTier: number;
+  readonly baseWage: number;
+  readonly effectiveEducationThreshold: number;
+  readonly requiredResidentialTier: number;
+  readonly prerequisiteCommodity: string | null;
+  readonly eligible: boolean;
+  readonly rejectionReasons: readonly string[];
+  readonly applicationQuota?: MemorySynthesisWorldDecisionOccupationApplicationQuota;
+};
+
+export type MemorySynthesisWorldDecisionProductionRule = {
+  readonly commodity: string;
+  readonly minResidentialTier: number | null;
+  readonly inputs: Readonly<Record<string, number>>;
+  readonly energyCost: number;
+  readonly satietyCost: number;
+  readonly timeCostSeconds: number;
+  readonly producible: boolean;
+  readonly rejectionReasons: readonly string[];
+};
+
+export type MemorySynthesisWorldDecisionRulesContext = {
+  readonly criticalThresholds?: {
+    readonly energy: number;
+    readonly health: number;
+  };
+  readonly occupations: readonly MemorySynthesisWorldDecisionOccupationRule[];
+  readonly production: readonly MemorySynthesisWorldDecisionProductionRule[];
+};
+
 export type MemorySynthesisWorldDecisionContext = {
   readonly agent: MemorySynthesisWorldDecisionAgentContext;
   readonly market: MemorySynthesisWorldDecisionMarketContext;
+  readonly rules?: MemorySynthesisWorldDecisionRulesContext;
 };
 
 export type MemorySynthesisWorldDecisionContextTrace = {
@@ -46,6 +86,10 @@ export type MemorySynthesisWorldDecisionContextTrace = {
   readonly inventoryItemCount: number;
   readonly marketSpotPriceCount: number;
   readonly hasLatestPriceIndex: boolean;
+  readonly occupationRuleCount: number;
+  readonly eligibleOccupationRuleCount: number;
+  readonly productionRuleCount: number;
+  readonly producibleCommodityRuleCount: number;
 };
 
 export function createMemorySynthesisWorldDecisionContextTrace(
@@ -63,5 +107,11 @@ export function createMemorySynthesisWorldDecisionContextTrace(
     inventoryItemCount: Object.keys(context.agent.inventory).length,
     marketSpotPriceCount: context.market.spotPrices.length,
     hasLatestPriceIndex: context.market.latestPriceIndex !== undefined,
+    occupationRuleCount: context.rules?.occupations.length ?? 0,
+    eligibleOccupationRuleCount:
+      context.rules?.occupations.filter((occupation) => occupation.eligible).length ?? 0,
+    productionRuleCount: context.rules?.production.length ?? 0,
+    producibleCommodityRuleCount:
+      context.rules?.production.filter((production) => production.producible).length ?? 0,
   };
 }

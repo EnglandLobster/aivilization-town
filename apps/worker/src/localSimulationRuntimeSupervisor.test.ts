@@ -1335,10 +1335,13 @@ function createWorldDecisionContextTrace(
 ): MemorySynthesisWorldDecisionContextTrace {
   return {
     agentId,
+    hasLocationId: true,
     hasPhysiology: true,
+    hasJob: true,
     hasBalance: true,
     hasEducationScore: true,
     hasResidentialTier: true,
+    hasInventory: true,
     inventoryItemCount: 1,
     marketSpotPriceCount: 1,
     hasLatestPriceIndex: false,

@@ -79,10 +79,13 @@ export type MemorySynthesisWorldDecisionContext = {
 
 export type MemorySynthesisWorldDecisionContextTrace = {
   readonly agentId: AgentId;
+  readonly hasLocationId: boolean;
   readonly hasPhysiology: boolean;
+  readonly hasJob: boolean;
   readonly hasBalance: boolean;
   readonly hasEducationScore: boolean;
   readonly hasResidentialTier: boolean;
+  readonly hasInventory: boolean;
   readonly inventoryItemCount: number;
   readonly marketSpotPriceCount: number;
   readonly hasLatestPriceIndex: boolean;
@@ -97,13 +100,16 @@ export function createMemorySynthesisWorldDecisionContextTrace(
 ): MemorySynthesisWorldDecisionContextTrace {
   return {
     agentId: context.agent.agentId,
+    hasLocationId: context.agent.locationId !== undefined,
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
       Number.isFinite(context.agent.physiology.satiety) &&
       Number.isFinite(context.agent.physiology.health),
+    hasJob: context.agent.job !== undefined,
     hasBalance: Number.isFinite(context.agent.balance),
     hasEducationScore: Number.isFinite(context.agent.educationScore),
     hasResidentialTier: Number.isFinite(context.agent.residentialTier),
+    hasInventory: context.agent.inventory !== undefined,
     inventoryItemCount: Object.keys(context.agent.inventory).length,
     marketSpotPriceCount: context.market.spotPrices.length,
     hasLatestPriceIndex: context.market.latestPriceIndex !== undefined,

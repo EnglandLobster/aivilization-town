@@ -68,6 +68,44 @@ describe('createAgentCycleTrace', () => {
           },
         ],
       },
+      actionRepair: [
+        {
+          actionId: 'craft-1',
+          rejectionReason: 'missing Iron Ingot',
+          selectedSubtask: {
+            branchId: 'production-resource-management',
+            subtaskId: 'craft-transistor',
+          },
+          localRepair: {
+            status: 'rejected',
+            attemptedAction: {
+              id: 'craft-smaller-batch',
+              description: 'craft smaller batch',
+              commandType: 'AgentProduce',
+            },
+            rejectionReason: 'still missing Iron Ingot',
+          },
+          reactiveCorrection: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'trace-1:reactive-correction',
+            providerId: 'scripted-reactive-corrector',
+            model: 'repair-model',
+            decision: {
+              kind: 'propose-action',
+              rationale: 'Buy Iron Ingot before retrying production.',
+              evidenceRecordIds: ['stm-context-1'],
+              action: {
+                id: 'buy-iron-ingot',
+                description: 'buy Iron Ingot',
+                commandType: 'AgentTrade',
+              },
+            },
+            simulatorResult: { status: 'accepted' },
+          },
+          outcome: 'repaired',
+        },
+      ],
       subtaskCandidates: [
         {
           branchId: 'production-resource-management',
@@ -238,6 +276,44 @@ describe('createAgentCycleTrace', () => {
         },
       ],
     });
+    expect(trace.actionRepair).toEqual([
+      {
+        actionId: 'craft-1',
+        rejectionReason: 'missing Iron Ingot',
+        selectedSubtask: {
+          branchId: 'production-resource-management',
+          subtaskId: 'craft-transistor',
+        },
+        localRepair: {
+          status: 'rejected',
+          attemptedAction: {
+            id: 'craft-smaller-batch',
+            description: 'craft smaller batch',
+            commandType: 'AgentProduce',
+          },
+          rejectionReason: 'still missing Iron Ingot',
+        },
+        reactiveCorrection: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'trace-1:reactive-correction',
+          providerId: 'scripted-reactive-corrector',
+          model: 'repair-model',
+          decision: {
+            kind: 'propose-action',
+            rationale: 'Buy Iron Ingot before retrying production.',
+            evidenceRecordIds: ['stm-context-1'],
+            action: {
+              id: 'buy-iron-ingot',
+              description: 'buy Iron Ingot',
+              commandType: 'AgentTrade',
+            },
+          },
+          simulatorResult: { status: 'accepted' },
+        },
+        outcome: 'repaired',
+      },
+    ]);
     expect(trace.replanMaterialization).toEqual({
       status: 'replanned',
       objectiveId: 'objective-production',

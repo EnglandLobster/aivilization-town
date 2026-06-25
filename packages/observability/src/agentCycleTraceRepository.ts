@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import {
   createAgentCycleTrace,
+  type AgentCycleActionRepairTrace,
   type AgentCycleActionSequenceGenerationTrace,
   type AgentCycleContextualPrioritizationTrace,
   type AgentCycleGlobalSynthesisTrace,
@@ -155,10 +156,118 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
     subtaskReplanningDecisions: (trace.subtaskReplanningDecisions ?? []).map((decision) =>
       cloneSubtaskReplanningDecision(decision),
     ),
+    ...(trace.actionRepair === undefined
+      ? {}
+      : { actionRepair: trace.actionRepair.map((entry) => cloneActionRepair(entry)) }),
     emittedCommandIds: [...trace.emittedCommandIds],
     memoryContextIds: [...trace.memoryContextIds],
     memoryWriteIds: [...trace.memoryWriteIds],
   });
+}
+
+function cloneActionRepair(trace: AgentCycleActionRepairTrace): AgentCycleActionRepairTrace {
+  return {
+    actionId: trace.actionId,
+    rejectionReason: trace.rejectionReason,
+    selectedSubtask: {
+      branchId: trace.selectedSubtask.branchId,
+      subtaskId: trace.selectedSubtask.subtaskId,
+    },
+    localRepair: {
+      status: trace.localRepair.status,
+      ...(trace.localRepair.attemptedAction === undefined
+        ? {}
+        : {
+            attemptedAction: {
+              id: trace.localRepair.attemptedAction.id,
+              description: trace.localRepair.attemptedAction.description,
+              commandType: trace.localRepair.attemptedAction.commandType,
+            },
+          }),
+      ...(trace.localRepair.rejectionReason === undefined
+        ? {}
+        : { rejectionReason: trace.localRepair.rejectionReason }),
+    },
+    ...(trace.reactiveCorrection === undefined
+      ? {}
+      : { reactiveCorrection: cloneReactiveCorrection(trace.reactiveCorrection) }),
+    outcome: trace.outcome,
+  };
+}
+
+function cloneReactiveCorrection(
+  trace: NonNullable<AgentCycleActionRepairTrace['reactiveCorrection']>,
+): NonNullable<AgentCycleActionRepairTrace['reactiveCorrection']> {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    decision:
+      trace.decision.kind === 'no-correction'
+        ? {
+            kind: 'no-correction',
+            rationale: trace.decision.rationale,
+            evidenceRecordIds: [...trace.decision.evidenceRecordIds],
+          }
+        : {
+            kind: 'propose-action',
+            rationale: trace.decision.rationale,
+            evidenceRecordIds: [...trace.decision.evidenceRecordIds],
+            action: {
+              id: trace.decision.action.id,
+              description: trace.decision.action.description,
+              commandType: trace.decision.action.commandType,
+            },
+          },
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+    ...(trace.simulatorResult === undefined
+      ? {}
+      : {
+          simulatorResult: {
+            status: trace.simulatorResult.status,
+            ...(trace.simulatorResult.reason === undefined
+              ? {}
+              : { reason: trace.simulatorResult.reason }),
+            ...(trace.simulatorResult.traceEvents === undefined
+              ? {}
+              : {
+                  traceEvents: trace.simulatorResult.traceEvents.map((event) =>
+                    cloneSimulatorTraceEvent(event),
+                  ),
+                }),
+          },
+        }),
+  };
 }
 
 function cloneActionSynthesis(

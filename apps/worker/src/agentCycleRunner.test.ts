@@ -7,6 +7,7 @@ import {
   type ActionSequenceGenerator,
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
+  type ReactiveCorrector,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
@@ -635,6 +636,160 @@ describe('worker agent cycle runner', () => {
         },
       ],
     });
+  });
+
+  test('passes reactive corrector into the planning cycle and trace', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedActions: string[] = [];
+    const localRepairAttempt = {
+      id: 'work-short-shift',
+      description: 'work a shorter shift',
+      commandType: 'AgentWork' as const,
+      payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+    };
+    const reactiveCorrector: ReactiveCorrector = async ({ shortTermMemoryContext }) => {
+      await Promise.resolve();
+      expect(shortTermMemoryContext?.map((record) => record.id)).toEqual([
+        'memory-work-failed-hungry',
+      ]);
+      return {
+        action: {
+          id: 'study-instead',
+          description: 'study briefly instead of working hungry',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+        },
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reactive-correction-cycle-worker',
+          decision: {
+            kind: 'propose-action',
+            rationale: 'STM shows work fails while hungry; use a safe short study action.',
+            evidenceRecordIds: ['memory-work-failed-hungry'],
+            action: {
+              id: 'study-instead',
+              description: 'study briefly instead of working hungry',
+              commandType: 'AgentStudy',
+            },
+          },
+        },
+      };
+    };
+
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'memory-work-failed-hungry',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Work failed because satiety was too low.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['work', 'satiety'],
+      }),
+    );
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-reactive-correction',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=20 health=100 education=10 balance=100',
+      plan: createBranchPlan({
+        objective: 'earn income without unsafe work',
+        branches: [
+          {
+            id: 'income',
+            objective: 'earn wage',
+            subtasks: [{ id: 'work', description: 'work shift', basePriority: 7 }],
+          },
+        ],
+      }),
+      signals: [],
+      memoryRetrievalLimit: 1,
+      reactiveCorrector,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-reactive-correction',
+      commandIdPrefix: 'cycle-reactive-correction-command',
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-hungry',
+              description: 'work while hungry',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+            },
+          ],
+        },
+      ],
+      repair: () => localRepairAttempt,
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActions.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        if (action.id === 'study-instead') {
+          return { status: 'accepted', action };
+        }
+        return {
+          status: 'rejected',
+          action,
+          reason: action.id === 'work-short-shift' ? 'satiety remains too low' : 'satiety too low',
+        };
+      },
+      ...repositories,
+    });
+
+    expect(simulatedActions).toEqual([
+      'work-hungry:income/work',
+      'work-short-shift:income/work',
+      'study-instead:income/work',
+    ]);
+    expect(result.dispatchResult?.commands.map((command) => command.payload)).toEqual([
+      { durationSeconds: 30, educationRatePerSecond: 1 },
+    ]);
+    expect(result.trace.actionRepair).toEqual([
+      {
+        actionId: 'work-hungry',
+        rejectionReason: 'satiety too low',
+        selectedSubtask: { branchId: 'income', subtaskId: 'work' },
+        localRepair: {
+          status: 'rejected',
+          attemptedAction: {
+            id: 'work-short-shift',
+            description: 'work a shorter shift',
+            commandType: 'AgentWork',
+          },
+          rejectionReason: 'satiety remains too low',
+        },
+        reactiveCorrection: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reactive-correction-cycle-worker',
+          decision: {
+            kind: 'propose-action',
+            rationale: 'STM shows work fails while hungry; use a safe short study action.',
+            evidenceRecordIds: ['memory-work-failed-hungry'],
+            action: {
+              id: 'study-instead',
+              description: 'study briefly instead of working hungry',
+              commandType: 'AgentStudy',
+            },
+          },
+          simulatorResult: { status: 'accepted' },
+        },
+        outcome: 'repaired',
+      },
+    ]);
   });
 
   test('collects and traces actions from multiple candidate subtasks', async () => {

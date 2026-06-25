@@ -6,6 +6,7 @@ import {
   type ActionSequenceGenerator,
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
+  type ReactiveCorrector,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
@@ -1078,6 +1079,106 @@ describe('worker tick runner', () => {
         },
       ],
     });
+  });
+
+  test('passes tick agent reactive corrector into cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const simulatedActions: string[] = [];
+    const reactiveCorrector: ReactiveCorrector = async () => {
+      await Promise.resolve();
+      return {
+        action: {
+          id: 'study-instead',
+          description: 'study briefly instead of working hungry',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+        },
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reactive-correction-tick-agent-1',
+          decision: {
+            kind: 'propose-action',
+            rationale: 'Use a safe short study action after work rejection.',
+            evidenceRecordIds: [],
+            action: {
+              id: 'study-instead',
+              description: 'study briefly instead of working hungry',
+              commandType: 'AgentStudy',
+            },
+          },
+        },
+      };
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-reactive-correction',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 satiety=20',
+          plan: createBranchPlan({
+            objective: 'earn income without unsafe work',
+            branches: [
+              {
+                id: 'income',
+                objective: 'earn wage',
+                subtasks: [{ id: 'work', description: 'work shift', basePriority: 7 }],
+              },
+            ],
+          }),
+          signals: [],
+          reactiveCorrector,
+          microPlanners: [
+            {
+              domain: 'work',
+              supports: ({ subtaskId }) => subtaskId === 'work',
+              propose: () => [
+                {
+                  id: 'work-hungry',
+                  description: 'work while hungry',
+                  commandType: 'AgentWork',
+                  payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action, selectedSubtask }) => {
+            simulatedActions.push(
+              `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+            );
+            if (action.id === 'study-instead') {
+              return { status: 'accepted', action };
+            }
+            return { status: 'rejected', action, reason: 'satiety too low' };
+          },
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(simulatedActions).toEqual(['work-hungry:income/work', 'study-instead:income/work']);
+    expect(result.traces[0]?.actionRepair).toMatchObject([
+      {
+        actionId: 'work-hungry',
+        localRepair: { status: 'skipped' },
+        reactiveCorrection: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reactive-correction-tick-agent-1',
+          simulatorResult: { status: 'accepted' },
+        },
+        outcome: 'repaired',
+      },
+    ]);
   });
 
   test('passes tick agent memory retrieval budget into cycle traces', async () => {

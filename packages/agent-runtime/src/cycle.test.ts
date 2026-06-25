@@ -1103,6 +1103,288 @@ describe('agent planning cycle', () => {
     expect(result.needsReplan).toBe(false);
   });
 
+  test('uses reactive correction after local repair fails simulator validation', async () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'survive while earning income',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const localRepairAttempt = {
+      id: 'work-short-shift',
+      description: 'work a shorter shift',
+      commandType: 'AgentWork' as const,
+      payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+    };
+    const reactiveAction = {
+      id: 'eat-before-work',
+      description: 'eat before retrying work',
+      commandType: 'AgentEat' as const,
+      payload: { commodityName: 'Bread', quantity: 1 },
+    };
+    const memory = createShortTermMemoryRecord({
+      id: 'stm-satiety-failure',
+      agentId,
+      kind: 'action',
+      status: 'failed',
+      summary: 'Failed to work because satiety was too low; eating first repaired it.',
+      occurredAt: 90,
+      importanceScore: 0.9,
+      source: { eventIds: [] },
+      tags: ['work', 'satiety', 'eat'],
+    });
+    const reactiveInputs: unknown[] = [];
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [],
+      shortTermMemoryContext: [memory],
+      longTermProfile: {
+        agentId,
+        beliefs: [
+          {
+            key: 'eat-before-work',
+            statement: 'Eat before working when satiety is low.',
+            confidence: 0.8,
+            updatedAt: 95,
+            provenanceRecordIds: [asMemoryRecordId('reflection-eat-before-work')],
+          },
+        ],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          locationId: 'market',
+          physiology: { energy: 40, satiety: 15, health: 95 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 1 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Bread', spotPrice: 5 }],
+          latestPriceIndex: {
+            baselineAt: 1,
+            recordedAt: 100,
+            overall: 1,
+            ratios: { Bread: 1 },
+          },
+        },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+            },
+          ],
+        },
+      ],
+      repair: () => localRepairAttempt,
+      reactiveCorrector: async (input) => {
+        await Promise.resolve();
+        reactiveInputs.push(input);
+        return {
+          action: reactiveAction,
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'reactive-correction-cycle',
+            decision: {
+              kind: 'propose-action',
+              rationale: 'STM shows eating before work repairs this failure.',
+              evidenceRecordIds: ['stm-satiety-failure'],
+              action: {
+                id: 'eat-before-work',
+                description: 'eat before retrying work',
+                commandType: 'AgentEat',
+              },
+            },
+          },
+        };
+      },
+      simulate: ({ action }) => {
+        if (action.id === 'eat-before-work') {
+          return { status: 'accepted', action };
+        }
+        return {
+          status: 'rejected',
+          action,
+          reason: action.id === 'work-short-shift' ? 'satiety remains too low' : 'satiety too low',
+        };
+      },
+    });
+
+    expect(reactiveInputs).toHaveLength(1);
+    expect(reactiveInputs[0]).toMatchObject({
+      selectedSubtask: { branchId: 'income', subtaskId: 'work' },
+      rejectedAction: { id: 'work-1', commandType: 'AgentWork' },
+      rejectionReason: 'satiety too low',
+      localRepairAttempt,
+      localRepairRejectionReason: 'satiety remains too low',
+      shortTermMemoryContext: [memory],
+      worldDecisionContext: { agent: { balance: 50, inventory: { Bread: 1 } } },
+    });
+    expect(result.needsReplan).toBe(false);
+    expect(result.commandDrafts).toEqual([
+      {
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        source: 'agent-runtime',
+        type: 'AgentEat',
+        payload: { commodityName: 'Bread', quantity: 1 },
+        issuedAt: 100,
+      },
+    ]);
+    expect(result.simulationResults[0]).toEqual({
+      status: 'repaired',
+      originalAction: {
+        id: 'work-1',
+        description: 'work as Cleaner',
+        commandType: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+        synthesisContext: { branchId: 'income', subtaskId: 'work', subtaskScore: 5 },
+      },
+      repairedAction: reactiveAction,
+      reason: 'satiety too low',
+    });
+    expect(result.actionRepairTraces).toEqual([
+      {
+        actionId: 'work-1',
+        rejectionReason: 'satiety too low',
+        selectedSubtask: { branchId: 'income', subtaskId: 'work' },
+        localRepair: {
+          status: 'rejected',
+          attemptedAction: {
+            id: 'work-short-shift',
+            description: 'work a shorter shift',
+            commandType: 'AgentWork',
+          },
+          rejectionReason: 'satiety remains too low',
+        },
+        reactiveCorrection: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reactive-correction-cycle',
+          decision: {
+            kind: 'propose-action',
+            rationale: 'STM shows eating before work repairs this failure.',
+            evidenceRecordIds: ['stm-satiety-failure'],
+            action: {
+              id: 'eat-before-work',
+              description: 'eat before retrying work',
+              commandType: 'AgentEat',
+            },
+          },
+          simulatorResult: { status: 'accepted' },
+        },
+        outcome: 'repaired',
+      },
+    ]);
+  });
+
+  test('keeps adaptive replanning authoritative when reactive correction fails validation', async () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'survive while earning income',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const reactiveAction = {
+      id: 'eat-before-work',
+      description: 'eat before retrying work',
+      commandType: 'AgentEat' as const,
+      payload: { commodityName: 'Bread', quantity: 1 },
+    };
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [],
+      replanningPolicy: { consecutiveFailureThreshold: 2 },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+            },
+          ],
+        },
+      ],
+      reactiveCorrector: () =>
+        Promise.resolve({
+          action: reactiveAction,
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            decision: {
+              kind: 'propose-action',
+              rationale: 'Try to eat before work.',
+              evidenceRecordIds: [],
+              action: {
+                id: 'eat-before-work',
+                description: 'eat before retrying work',
+                commandType: 'AgentEat',
+              },
+            },
+          },
+        }),
+      simulate: ({ action }) =>
+        action.id === 'eat-before-work'
+          ? { status: 'rejected', action, reason: 'Bread missing' }
+          : { status: 'rejected', action, reason: 'satiety too low' },
+    });
+
+    expect(result.needsReplan).toBe(true);
+    expect(result.commandDrafts).toEqual([]);
+    expect(result.replanningDecision).toEqual({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'Bread missing',
+      failedActionIds: ['work-1'],
+      evidenceRecordIds: [],
+    });
+    expect(result.actionRepairTraces).toMatchObject([
+      {
+        actionId: 'work-1',
+        localRepair: { status: 'skipped' },
+        reactiveCorrection: { simulatorResult: { status: 'rejected', reason: 'Bread missing' } },
+        outcome: 'needs-replan',
+      },
+    ]);
+  });
+
   test('uses STM evidence for cycle-level memory-guided correction', () => {
     const agentId = asAgentId('agent-1');
     const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });

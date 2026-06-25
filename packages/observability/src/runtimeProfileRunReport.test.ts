@@ -6,12 +6,17 @@ import {
   FileRuntimeProfileRunReportRepository,
   InMemoryRuntimeProfileRunReportRepository,
   createAgentCycleTrace,
+  createRuntimeProfileCognitionLlmStageDiagnostics,
   createRuntimeProfileAgentCycleDiagnostics,
   createPlannerExperimentRunsFromRuntimeProfileReports,
   createRuntimeProfileRunReport,
   type AgentCycleTrace,
+  type DailyPlanRenewalTrace,
+  type ObjectiveRenewalTrace,
   type PlannerExperimentMetric,
+  type ReactionEvaluationTrace,
   type RuntimeProfileAgentCycleDiagnostics,
+  type RuntimeProfileCognitionLlmStageDiagnostics,
   type RuntimeProfileRunReport,
 } from './index';
 
@@ -387,6 +392,112 @@ describe('runtime profile run report repositories', () => {
       },
     ]);
   });
+
+  test('summarizes cognition LLM stage diagnostics from durable profile traces', () => {
+    const diagnostics = createRuntimeProfileCognitionLlmStageDiagnostics({
+      objectiveRenewalTraces: [
+        createObjectiveRenewalTrace({
+          traceId: 'objective-accepted',
+          strategicPlan: {
+            status: 'accepted',
+            source: 'llm',
+            providerId: 'strategic-provider',
+            model: 'strategic-model',
+          },
+        }),
+        createObjectiveRenewalTrace({
+          traceId: 'objective-missing-provider-trace',
+        }),
+      ],
+      dailyPlanRenewalTraces: [
+        createDailyPlanRenewalTrace({
+          traceId: 'daily-fallback',
+          planningTrace: {
+            status: 'fallback',
+            source: 'deterministic-fallback',
+            providerId: 'daily-provider',
+            model: 'daily-model',
+          },
+        }),
+      ],
+      reactionEvaluationTraces: [
+        createReactionEvaluationTrace({
+          traceId: 'reaction-deterministic',
+          reactionTrace: {
+            status: 'deterministic',
+            source: 'deterministic',
+            message: 'static social rule',
+          },
+        }),
+        createReactionEvaluationTrace({
+          traceId: 'reaction-missing-provider-trace',
+        }),
+      ],
+    });
+
+    expect(diagnostics).toEqual([
+      {
+        stageName: 'strategicPlanning',
+        traceCount: 2,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingProviderTraceCount: 1,
+      },
+      {
+        stageName: 'dailyPlanning',
+        traceCount: 1,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 1,
+        deterministicCount: 0,
+        missingProviderTraceCount: 0,
+      },
+      {
+        stageName: 'reactionEvaluation',
+        traceCount: 2,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 0,
+        deterministicCount: 1,
+        missingProviderTraceCount: 1,
+      },
+    ]);
+  });
+
+  test('preserves cognition LLM stage diagnostics on runtime profile reports', () => {
+    const diagnostics = createCognitionDiagnostics();
+    const report = createReport({
+      runId: 'run-with-cognition-diagnostics',
+      cognitionLlmStageDiagnostics: diagnostics,
+    });
+
+    expect(report.cognitionLlmStageDiagnostics).toEqual(diagnostics);
+
+    const cloned = createRuntimeProfileRunReport(report);
+    expect(cloned.cognitionLlmStageDiagnostics).toEqual(diagnostics);
+    Reflect.set(cloned.cognitionLlmStageDiagnostics![0]!, 'llmAcceptedCount', 99);
+
+    expect(createRuntimeProfileRunReport(report).cognitionLlmStageDiagnostics).toEqual(diagnostics);
+  });
+
+  test('validates cognition LLM stage diagnostics', () => {
+    expect(() =>
+      createRuntimeProfileRunReport({
+        ...createReport({ runId: 'invalid-cognition-diagnostics' }),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 1,
+            llmAcceptedCount: -1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+          },
+        ],
+      }),
+    ).toThrow(
+      'cognitionLlmStageDiagnostics strategicPlanning llmAcceptedCount must be a non-negative integer',
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -399,6 +510,7 @@ function createReport(input: {
   readonly runId: string;
   readonly profileId?: string;
   readonly generatedAt?: number;
+  readonly cognitionLlmStageDiagnostics?: readonly RuntimeProfileCognitionLlmStageDiagnostics[];
   readonly plannerExperiment?: {
     readonly taskId: string;
     readonly variant: string;
@@ -422,6 +534,9 @@ function createReport(input: {
     totalEventCount: 10,
     totalAgentTraceCount: 5,
     agentCycleDiagnostics: createDiagnostics(),
+    ...(input.cognitionLlmStageDiagnostics === undefined
+      ? {}
+      : { cognitionLlmStageDiagnostics: input.cognitionLlmStageDiagnostics }),
     ...(input.plannerExperiment === undefined
       ? {}
       : { plannerExperiment: input.plannerExperiment }),
@@ -594,4 +709,93 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     deterministicCount: 0,
     missingCycleCount: traceCount,
   }));
+}
+
+function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {
+  return [
+    {
+      stageName: 'strategicPlanning',
+      traceCount: 1,
+      llmAcceptedCount: 1,
+      deterministicFallbackCount: 0,
+      deterministicCount: 0,
+      missingProviderTraceCount: 0,
+    },
+    {
+      stageName: 'dailyPlanning',
+      traceCount: 1,
+      llmAcceptedCount: 0,
+      deterministicFallbackCount: 1,
+      deterministicCount: 0,
+      missingProviderTraceCount: 0,
+    },
+    {
+      stageName: 'reactionEvaluation',
+      traceCount: 0,
+      llmAcceptedCount: 0,
+      deterministicFallbackCount: 0,
+      deterministicCount: 0,
+      missingProviderTraceCount: 0,
+    },
+  ];
+}
+
+function createObjectiveRenewalTrace(input: {
+  readonly traceId: string;
+  readonly strategicPlan?: ObjectiveRenewalTrace['strategicPlan'];
+}): ObjectiveRenewalTrace {
+  return {
+    traceId: input.traceId,
+    simulationId: 'aivilization-smoke-25',
+    partitionKey: 'world-main',
+    agentId: 'agent-1',
+    objectiveId: `${input.traceId}:objective`,
+    selectedCandidateId: 'education',
+    rationale: 'fixture objective',
+    score: 1,
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+    ...(input.strategicPlan === undefined ? {} : { strategicPlan: input.strategicPlan }),
+    issuedAt: 100,
+  };
+}
+
+function createDailyPlanRenewalTrace(input: {
+  readonly traceId: string;
+  readonly planningTrace?: DailyPlanRenewalTrace['planningTrace'];
+}): DailyPlanRenewalTrace {
+  return {
+    traceId: input.traceId,
+    simulationId: 'aivilization-smoke-25',
+    partitionKey: 'world-main',
+    agentId: 'agent-1',
+    dailyPlanId: `${input.traceId}:daily-plan`,
+    scheduledIntentionIds: [],
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+    ...(input.planningTrace === undefined ? {} : { planningTrace: input.planningTrace }),
+    issuedAt: 100,
+  };
+}
+
+function createReactionEvaluationTrace(input: {
+  readonly traceId: string;
+  readonly reactionTrace?: ReactionEvaluationTrace['reactionTrace'];
+}): ReactionEvaluationTrace {
+  return {
+    traceId: input.traceId,
+    simulationId: 'aivilization-smoke-25',
+    partitionKey: 'world-main',
+    agentId: 'agent-1',
+    memoryRecordId: `${input.traceId}:memory`,
+    decision: {
+      kind: 'ignore',
+      confidence: 0.7,
+      rationale: 'fixture reaction',
+    },
+    ...(input.reactionTrace === undefined ? {} : { reactionTrace: input.reactionTrace }),
+    issuedAt: 100,
+  };
 }

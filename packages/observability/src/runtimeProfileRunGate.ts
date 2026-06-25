@@ -1,5 +1,6 @@
 import type {
   RuntimeProfileAgentCycleLlmStageName,
+  RuntimeProfileCognitionLlmStageName,
   RuntimeProfileRunReport,
 } from './runtimeProfileRunReport';
 
@@ -23,6 +24,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requireStreamVersionMatchesEventCount: boolean;
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -116,6 +118,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredAgentCycleLlmAcceptedStages ?? [],
+  );
+  addRequiredCognitionLlmStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmAcceptedStages ?? [],
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -215,6 +222,32 @@ function addRequiredAgentCycleLlmStageFailures(
     failures.push({
       code: 'agent-cycle-llm-stage-accepted-count-too-low',
       message: `agent-cycle LLM stage ${stageName} llmAcceptedCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.llmAcceptedCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-accepted-count-too-low',
+      message: `cognition LLM stage ${stageName} llmAcceptedCount must be at least 1`,
       evidence: {
         stageName,
         actual,

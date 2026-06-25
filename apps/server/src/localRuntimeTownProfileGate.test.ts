@@ -62,6 +62,11 @@ describe('local runtime town profile gate criteria', () => {
       'globalSynthesis',
       'reactiveCorrection',
     ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+      }).requiredCognitionLlmAcceptedStages,
+    ).toEqual(['strategicPlanning', 'dailyPlanning', 'reactionEvaluation']);
   });
 
   test('derives multi-partition default and stress profile gate criteria', () => {

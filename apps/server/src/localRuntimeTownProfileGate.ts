@@ -1,5 +1,6 @@
 import type {
   RuntimeProfileAgentCycleLlmStageName,
+  RuntimeProfileCognitionLlmStageName,
   RuntimeProfileRunGateCriteria,
 } from '@aivilization/observability';
 import type { PartitionKey } from '@aivilization/sim-core';
@@ -15,6 +16,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumFullReplanMaterializationCount?: number;
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -30,6 +32,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmAcceptedStages =
     input.requiredAgentCycleLlmAcceptedStages ??
     deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmAcceptedStages =
+    input.requiredCognitionLlmAcceptedStages ??
+    deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
 
   for (const partition of profile.manifest.partitions) {
     const agentCount = agentCountByPresetId.get(partition.scenarioPresetId);
@@ -64,6 +69,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmAcceptedStages.length === 0
       ? {}
       : { requiredAgentCycleLlmAcceptedStages }),
+    ...(requiredCognitionLlmAcceptedStages.length === 0
+      ? {}
+      : { requiredCognitionLlmAcceptedStages }),
   };
 }
 
@@ -89,6 +97,26 @@ export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
   }
   if (runtimeConfig.reactiveCorrection !== undefined) {
     stages.push('reactiveCorrection');
+  }
+  return stages;
+}
+
+export function deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileCognitionLlmStageName[] = [];
+  if (runtimeConfig.strategicPlanning !== undefined) {
+    stages.push('strategicPlanning');
+  }
+  if (runtimeConfig.dailyPlanning !== undefined) {
+    stages.push('dailyPlanning');
+  }
+  if (runtimeConfig.reactionPlanning !== undefined) {
+    stages.push('reactionEvaluation');
   }
   return stages;
 }

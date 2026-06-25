@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import type {
   RuntimeProfileAgentCycleLlmStageDiagnostics,
   RuntimeProfileAgentCycleLlmStageName,
+  RuntimeProfileCognitionLlmStageDiagnostics,
+  RuntimeProfileCognitionLlmStageName,
 } from '@aivilization/observability';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
@@ -262,6 +264,11 @@ describe('local runtime town profile gate suite', () => {
               'globalSynthesis',
               'reactiveCorrection',
             ]),
+            cognitionLlmStageDiagnostics: createAcceptedCognitionLlmStageDiagnostics([
+              'strategicPlanning',
+              'dailyPlanning',
+              'reactionEvaluation',
+            ]),
           }),
         );
       },
@@ -379,6 +386,46 @@ describe('local runtime town profile gate suite', () => {
     );
   });
 
+  test('requires accepted cognition LLM traces for stages enabled by runtime config', async () => {
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'cognition-llm-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'smoke-25': {
+            llmPlanning: createLlmStageNode({
+              kind: 'traceable-llm-strategic-planner',
+              model: 'strategic-model',
+              providerId: 'strategic-provider',
+            }),
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => Promise.resolve(createPassingSummary(input)),
+    });
+
+    expect(result.status).toBe('fail');
+    expect(result.profiles[0]?.gate.failures).toContainEqual({
+      code: 'cognition-llm-stage-accepted-count-too-low',
+      message: 'cognition LLM stage strategicPlanning llmAcceptedCount must be at least 1',
+      evidence: {
+        stageName: 'strategicPlanning',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
+
   test('includes the recovery drill profile in default suite runs', async () => {
     const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
 
@@ -427,6 +474,9 @@ function createPassingSummary(
   options: {
     readonly fullReplanMaterializationCount?: number;
     readonly llmStageDiagnostics?: ReturnType<typeof createAcceptedAgentCycleLlmStageDiagnostics>;
+    readonly cognitionLlmStageDiagnostics?: ReturnType<
+      typeof createAcceptedCognitionLlmStageDiagnostics
+    >;
   } = {},
 ): LocalRuntimeTownProfileRunnerSummary {
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
@@ -478,6 +528,9 @@ function createPassingSummary(
         ? {}
         : { llmStageDiagnostics: options.llmStageDiagnostics }),
     }),
+    ...(options.cognitionLlmStageDiagnostics === undefined
+      ? {}
+      : { cognitionLlmStageDiagnostics: options.cognitionLlmStageDiagnostics }),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
       outcome: 'succeeded',
@@ -529,6 +582,19 @@ function createAcceptedAgentCycleLlmStageDiagnostics(
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingCycleCount: 0,
+  }));
+}
+
+function createAcceptedCognitionLlmStageDiagnostics(
+  stageNames: readonly RuntimeProfileCognitionLlmStageName[],
+): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {
+  return stageNames.map((stageName) => ({
+    stageName,
+    traceCount: 1,
+    llmAcceptedCount: 1,
+    deterministicFallbackCount: 0,
+    deterministicCount: 0,
+    missingProviderTraceCount: 0,
   }));
 }
 

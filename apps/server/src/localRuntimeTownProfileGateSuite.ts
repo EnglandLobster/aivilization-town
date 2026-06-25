@@ -174,6 +174,9 @@ export function createLocalRuntimeTownProfileRunReportFromSummary(input: {
     totalEventCount: input.summary.totalEventCount,
     totalAgentTraceCount: input.summary.totalAgentTraceCount,
     agentCycleDiagnostics: input.summary.agentCycleDiagnostics,
+    ...(input.summary.cognitionLlmStageDiagnostics === undefined
+      ? {}
+      : { cognitionLlmStageDiagnostics: input.summary.cognitionLlmStageDiagnostics }),
     partitions: input.summary.partitions.map(clonePartitionSummary),
   });
 }

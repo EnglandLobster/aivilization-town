@@ -2,7 +2,10 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import type { PartitionKey } from '@aivilization/sim-core';
 import type { AgentCycleTrace } from './agentCycleTrace';
+import type { DailyPlanRenewalTrace } from './dailyPlanRenewalTraceRepository';
 import type { PlannerExperimentMetric, PlannerExperimentRun } from './experimentValidation';
+import type { ObjectiveRenewalTrace } from './objectiveRenewalTraceRepository';
+import type { ReactionEvaluationTrace } from './reactionEvaluationTraceRepository';
 
 export type RuntimeProfileRunPartitionReport = {
   readonly simulationId: string;
@@ -34,6 +37,7 @@ export type RuntimeProfileRunReport = {
   readonly totalEventCount: number;
   readonly totalAgentTraceCount: number;
   readonly agentCycleDiagnostics: RuntimeProfileAgentCycleDiagnostics;
+  readonly cognitionLlmStageDiagnostics?: readonly RuntimeProfileCognitionLlmStageDiagnostics[];
   readonly partitions: readonly RuntimeProfileRunPartitionReport[];
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
 };
@@ -70,6 +74,20 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly rejectedSimulatorRatio: number;
   readonly replanningDecisionRatio: number;
   readonly llmStageDiagnostics?: readonly RuntimeProfileAgentCycleLlmStageDiagnostics[];
+};
+
+export type RuntimeProfileCognitionLlmStageName =
+  | 'strategicPlanning'
+  | 'dailyPlanning'
+  | 'reactionEvaluation';
+
+export type RuntimeProfileCognitionLlmStageDiagnostics = {
+  readonly stageName: RuntimeProfileCognitionLlmStageName;
+  readonly traceCount: number;
+  readonly llmAcceptedCount: number;
+  readonly deterministicFallbackCount: number;
+  readonly deterministicCount: number;
+  readonly missingProviderTraceCount: number;
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -170,6 +188,13 @@ export function createRuntimeProfileRunReport(
     totalEventCount: input.totalEventCount,
     totalAgentTraceCount: input.totalAgentTraceCount,
     agentCycleDiagnostics: cloneAgentCycleDiagnostics(input.agentCycleDiagnostics),
+    ...(input.cognitionLlmStageDiagnostics === undefined
+      ? {}
+      : {
+          cognitionLlmStageDiagnostics: input.cognitionLlmStageDiagnostics.map((stage) => ({
+            ...stage,
+          })),
+        }),
     partitions: input.partitions.map((partition) => ({ ...partition })),
     ...(input.plannerExperiment === undefined
       ? {}
@@ -230,6 +255,54 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
     llmStageDiagnostics: createLlmStageDiagnostics(traces),
   };
+}
+
+export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
+  readonly objectiveRenewalTraces?: readonly ObjectiveRenewalTrace[];
+  readonly dailyPlanRenewalTraces?: readonly DailyPlanRenewalTrace[];
+  readonly reactionEvaluationTraces?: readonly ReactionEvaluationTrace[];
+}): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {
+  const diagnostics = new Map<
+    RuntimeProfileCognitionLlmStageName,
+    MutableCognitionLlmStageDiagnostics
+  >(
+    COGNITION_LLM_STAGE_NAMES.map((stageName) => [
+      stageName,
+      {
+        stageName,
+        traceCount: 0,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingProviderTraceCount: 0,
+      },
+    ]),
+  );
+
+  const strategic = diagnostics.get('strategicPlanning');
+  const daily = diagnostics.get('dailyPlanning');
+  const reaction = diagnostics.get('reactionEvaluation');
+  if (strategic === undefined || daily === undefined || reaction === undefined) {
+    throw new Error('missing cognition LLM stage diagnostics');
+  }
+
+  for (const trace of input.objectiveRenewalTraces ?? []) {
+    recordCognitionProviderTrace(strategic, trace.strategicPlan);
+  }
+  for (const trace of input.dailyPlanRenewalTraces ?? []) {
+    recordCognitionProviderTrace(daily, trace.planningTrace);
+  }
+  for (const trace of input.reactionEvaluationTraces ?? []) {
+    recordCognitionProviderTrace(reaction, trace.reactionTrace);
+  }
+
+  return COGNITION_LLM_STAGE_NAMES.map((stageName) => {
+    const stage = diagnostics.get(stageName);
+    if (stage === undefined) {
+      throw new Error(`missing cognition LLM stage diagnostics for ${stageName}`);
+    }
+    return { ...stage };
+  });
 }
 
 export function createPlannerExperimentRunsFromRuntimeProfileReports(
@@ -324,6 +397,7 @@ function validateReport(report: RuntimeProfileRunReport): void {
   if (report.agentCycleDiagnostics.traceCount !== report.totalAgentTraceCount) {
     throw new Error('agentCycleDiagnostics traceCount must equal totalAgentTraceCount');
   }
+  validateCognitionLlmStageDiagnostics(report.cognitionLlmStageDiagnostics);
   if (report.plannerExperiment !== undefined) {
     validatePlannerExperiment(report.plannerExperiment);
   }
@@ -447,7 +521,18 @@ const AGENT_CYCLE_LLM_STAGE_NAMES = [
   'reactiveCorrection',
 ] as const satisfies readonly RuntimeProfileAgentCycleLlmStageName[];
 
+const COGNITION_LLM_STAGE_NAMES = [
+  'strategicPlanning',
+  'dailyPlanning',
+  'reactionEvaluation',
+] as const satisfies readonly RuntimeProfileCognitionLlmStageName[];
+
 type AgentCycleLlmStageTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+};
+
+type CognitionLlmStageTrace = {
   readonly status: 'deterministic' | 'accepted' | 'fallback';
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
 };
@@ -459,6 +544,15 @@ type MutableLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingCycleCount: number;
+};
+
+type MutableCognitionLlmStageDiagnostics = {
+  stageName: RuntimeProfileCognitionLlmStageName;
+  traceCount: number;
+  llmAcceptedCount: number;
+  deterministicFallbackCount: number;
+  deterministicCount: number;
+  missingProviderTraceCount: number;
 };
 
 function createLlmStageDiagnostics(
@@ -593,6 +687,76 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     ) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} source counts must not exceed stage traceCount`,
+      );
+    }
+  }
+}
+
+function recordCognitionProviderTrace(
+  diagnostics: MutableCognitionLlmStageDiagnostics,
+  trace: CognitionLlmStageTrace | undefined,
+): void {
+  diagnostics.traceCount += 1;
+  if (trace === undefined) {
+    diagnostics.missingProviderTraceCount += 1;
+    return;
+  }
+  if (trace.source === 'llm' && trace.status === 'accepted') {
+    diagnostics.llmAcceptedCount += 1;
+  }
+  if (trace.source === 'deterministic-fallback') {
+    diagnostics.deterministicFallbackCount += 1;
+  }
+  if (trace.source === 'deterministic') {
+    diagnostics.deterministicCount += 1;
+  }
+}
+
+function validateCognitionLlmStageDiagnostics(
+  diagnostics: readonly RuntimeProfileCognitionLlmStageDiagnostics[] | undefined,
+): void {
+  if (diagnostics === undefined) {
+    return;
+  }
+
+  const seen = new Set<RuntimeProfileCognitionLlmStageName>();
+  for (const stage of diagnostics) {
+    if (!COGNITION_LLM_STAGE_NAMES.includes(stage.stageName)) {
+      throw new Error('cognitionLlmStageDiagnostics stageName is unsupported');
+    }
+    if (seen.has(stage.stageName)) {
+      throw new Error('cognitionLlmStageDiagnostics stageName must be unique');
+    }
+    seen.add(stage.stageName);
+    assertNonNegativeInteger(
+      stage.traceCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} traceCount`,
+    );
+    assertNonNegativeInteger(
+      stage.llmAcceptedCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} llmAcceptedCount`,
+    );
+    assertNonNegativeInteger(
+      stage.deterministicFallbackCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} deterministicFallbackCount`,
+    );
+    assertNonNegativeInteger(
+      stage.deterministicCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} deterministicCount`,
+    );
+    assertNonNegativeInteger(
+      stage.missingProviderTraceCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} missingProviderTraceCount`,
+    );
+    if (
+      stage.llmAcceptedCount +
+        stage.deterministicFallbackCount +
+        stage.deterministicCount +
+        stage.missingProviderTraceCount >
+      stage.traceCount
+    ) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} source counts must not exceed traceCount`,
       );
     }
   }

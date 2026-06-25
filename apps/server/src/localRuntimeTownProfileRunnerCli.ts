@@ -203,6 +203,9 @@ function createProfileRunReportFromSummary(summary: LocalRuntimeTownProfileRunne
     totalEventCount: summary.totalEventCount,
     totalAgentTraceCount: summary.totalAgentTraceCount,
     agentCycleDiagnostics: summary.agentCycleDiagnostics,
+    ...(summary.cognitionLlmStageDiagnostics === undefined
+      ? {}
+      : { cognitionLlmStageDiagnostics: summary.cognitionLlmStageDiagnostics }),
     partitions: summary.partitions.map(clonePartitionSummary),
   });
 }

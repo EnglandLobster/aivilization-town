@@ -12,9 +12,11 @@ import type {
 import type { ReflectiveInsightSynthesizer, SocialModelSynthesizer } from '@aivilization/memory';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
+  createRuntimeProfileCognitionLlmStageDiagnostics,
   createRuntimeProfileRunReport,
   type ObjectiveRenewalTrace,
   type RuntimeProfileAgentCycleDiagnostics,
+  type RuntimeProfileCognitionLlmStageDiagnostics,
   type RuntimeProfilePlannerExperiment,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
@@ -124,6 +126,7 @@ export type LocalRuntimeTownProfileRunnerSummary = {
   readonly totalEventCount: number;
   readonly totalAgentTraceCount: number;
   readonly agentCycleDiagnostics: RuntimeProfileAgentCycleDiagnostics;
+  readonly cognitionLlmStageDiagnostics?: readonly RuntimeProfileCognitionLlmStageDiagnostics[];
   readonly run: {
     readonly traceId: string;
     readonly outcome: string;
@@ -258,6 +261,21 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       const traces = await backend.storage.agentCycleTraceRepository.query({
         simulationId: partition.simulationId,
       });
+      const [objectiveRenewalTraces, dailyPlanRenewalTraces, reactionEvaluationTraces] =
+        await Promise.all([
+          backend.storage.objectiveRenewalTraceRepository.query({
+            simulationId: partition.simulationId,
+            partitionKey: partition.partitionKey,
+          }),
+          backend.storage.dailyPlanRenewalTraceRepository.query({
+            simulationId: partition.simulationId,
+            partitionKey: partition.partitionKey,
+          }),
+          backend.storage.reactionEvaluationTraceRepository.query({
+            simulationId: partition.simulationId,
+            partitionKey: partition.partitionKey,
+          }),
+        ]);
       const status = run.status.partitions.find(
         (candidate) =>
           candidate.simulationId === partition.simulationId &&
@@ -278,13 +296,24 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         projectionAgentCount: Object.keys(projection.projection.agents).length,
         agentTraceCount: traces.length,
       };
-      return { summary, traces };
+      return {
+        summary,
+        traces,
+        objectiveRenewalTraces,
+        dailyPlanRenewalTraces,
+        reactionEvaluationTraces,
+      };
     }),
   );
   const partitions = partitionResults.map((result) => result.summary);
   const agentCycleDiagnostics = createRuntimeProfileAgentCycleDiagnostics(
     partitionResults.flatMap((result) => result.traces),
   );
+  const cognitionLlmStageDiagnostics = createRuntimeProfileCognitionLlmStageDiagnostics({
+    objectiveRenewalTraces: partitionResults.flatMap((result) => result.objectiveRenewalTraces),
+    dailyPlanRenewalTraces: partitionResults.flatMap((result) => result.dailyPlanRenewalTraces),
+    reactionEvaluationTraces: partitionResults.flatMap((result) => result.reactionEvaluationTraces),
+  });
 
   const summary: LocalRuntimeTownProfileRunnerSummary = {
     profileId: profile.profileId,
@@ -297,6 +326,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     totalEventCount: sumBy(partitions, (partition) => partition.eventCount),
     totalAgentTraceCount: sumBy(partitions, (partition) => partition.agentTraceCount),
     agentCycleDiagnostics,
+    cognitionLlmStageDiagnostics,
     run: {
       traceId: run.traceId,
       outcome: run.outcome,
@@ -326,6 +356,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         totalEventCount: summary.totalEventCount,
         totalAgentTraceCount: summary.totalAgentTraceCount,
         agentCycleDiagnostics: summary.agentCycleDiagnostics,
+        ...(summary.cognitionLlmStageDiagnostics === undefined
+          ? {}
+          : { cognitionLlmStageDiagnostics: summary.cognitionLlmStageDiagnostics }),
         partitions: summary.partitions,
         ...(input.plannerExperiment === undefined
           ? {}

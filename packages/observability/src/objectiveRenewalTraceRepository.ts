@@ -33,6 +33,7 @@ export type ObjectiveRenewalStrategicPlanTrace = {
   readonly usage?: ObjectiveRenewalStrategicPlanUsageTrace;
   readonly shortTermMemoryContext?: { readonly recordCount: number };
   readonly longTermProfileContext?: { readonly entryCount: number };
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -199,6 +200,9 @@ function cloneStrategicPlan(
             entryCount: trace.longTermProfileContext.entryCount,
           },
         }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

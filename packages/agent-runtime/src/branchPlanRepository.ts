@@ -217,6 +217,9 @@ function clonePlanningTrace(trace: StrategicPlanCompilationTrace): StrategicPlan
             entryCount: trace.longTermProfileContext.entryCount,
           },
         }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: { ...trace.worldDecisionContext } }),

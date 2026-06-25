@@ -141,7 +141,11 @@ export function createTraceableLlmReactionEvaluator(input: {
 
     return {
       decision: result.decision,
-      reactionTrace: mapLlmReactionTrace(result, evaluatorInput.worldDecisionContext),
+      reactionTrace: mapLlmReactionTrace({
+        result,
+        observedStateSummary: evaluatorInput.observedStateSummary,
+        worldDecisionContext: evaluatorInput.worldDecisionContext,
+      }),
     } satisfies ReactionEvaluationResult;
   };
 }
@@ -275,10 +279,12 @@ async function evaluateFallbackReaction(
   }).decision;
 }
 
-function mapLlmReactionTrace(
-  result: LlmReactionResult,
-  worldDecisionContext: WorldDecisionContext | undefined,
-): ReactionEvaluationTrace {
+function mapLlmReactionTrace(input: {
+  readonly result: LlmReactionResult;
+  readonly observedStateSummary: string | undefined;
+  readonly worldDecisionContext: WorldDecisionContext | undefined;
+}): ReactionEvaluationTrace {
+  const result = input.result;
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
   return {
@@ -298,7 +304,10 @@ function mapLlmReactionTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
-    ...mapWorldDecisionContextTrace(worldDecisionContext),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
 

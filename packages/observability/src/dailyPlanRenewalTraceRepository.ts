@@ -33,6 +33,7 @@ export type DailyPlanRenewalPlanningTrace = {
   readonly usage?: DailyPlanRenewalUsageTrace;
   readonly shortTermMemoryContext?: { readonly recordCount: number };
   readonly longTermProfileContext?: { readonly entryCount: number };
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -191,6 +192,9 @@ function clonePlanningTrace(trace: DailyPlanRenewalPlanningTrace): DailyPlanRene
             entryCount: trace.longTermProfileContext.entryCount,
           },
         }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

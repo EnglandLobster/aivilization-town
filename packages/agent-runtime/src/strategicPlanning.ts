@@ -53,6 +53,7 @@ export type StrategicPlanCompilationTrace = {
   readonly usage?: StrategicPlanCompilationUsage;
   readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
   readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

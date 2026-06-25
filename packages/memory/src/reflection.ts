@@ -72,6 +72,7 @@ export type ReflectiveInsightSynthesisTrace = {
   }[];
   readonly attempts?: readonly ReflectiveInsightSynthesisAttemptTrace[];
   readonly usage?: ReflectiveInsightSynthesisUsage;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
 };
 

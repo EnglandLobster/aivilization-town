@@ -39,6 +39,7 @@ export type SocialModelSynthesisTrace = {
   readonly reflections?: readonly SocialModelSynthesisReflectionTrace[];
   readonly attempts?: readonly SocialModelSynthesisAttemptTrace[];
   readonly usage?: SocialModelSynthesisUsage;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
 };
 

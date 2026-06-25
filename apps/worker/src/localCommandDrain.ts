@@ -240,6 +240,9 @@ function mapStrategicPlanTrace(trace: StrategicPlanCompilationTrace): SteeringSt
           attempts: trace.attempts.map((attempt) => ({ ...attempt, usage: { ...attempt.usage } })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: { ...trace.worldDecisionContext } }),

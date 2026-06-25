@@ -111,6 +111,7 @@ export type ReactiveCorrectionTrace = {
   };
   readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
   readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

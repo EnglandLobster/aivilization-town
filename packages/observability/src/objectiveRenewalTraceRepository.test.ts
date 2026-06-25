@@ -49,6 +49,7 @@ describe('objective renewal trace repositories', () => {
         },
         shortTermMemoryContext: { recordCount: 1 },
         longTermProfileContext: { entryCount: 2 },
+        observedStateSummary: 'energy=50 satiety=80 health=100 education=10 balance=100',
         worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
         attempts: [
           {

@@ -65,6 +65,7 @@ export type ReactionEvaluationTrace = {
   readonly message?: string;
   readonly attempts?: readonly ReactionEvaluationAttemptTrace[];
   readonly usage?: ReactionEvaluationUsage;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

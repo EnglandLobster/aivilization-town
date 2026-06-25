@@ -380,6 +380,9 @@ function mapLlmStrategicPlanTrace(
         ? {}
         : { longTermProfile: compilerInput.longTermProfile }),
     }),
+    ...(compilerInput.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: compilerInput.observedStateSummary }),
     ...mapWorldDecisionContextTrace(compilerInput.worldDecisionContext),
   };
 }

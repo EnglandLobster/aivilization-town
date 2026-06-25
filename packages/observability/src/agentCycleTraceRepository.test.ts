@@ -44,6 +44,7 @@ function createWorldDecisionContextTrace(agentId: string) {
 
 const shortTermMemoryContext = { recordCount: 1 };
 const longTermProfileContext = { entryCount: 2 };
+const observedStateSummary = 'energy=50 satiety=80 health=100 education=10 balance=100';
 
 function createTrace(input: {
   readonly traceId: string;
@@ -63,7 +64,7 @@ function createTrace(input: {
     simulationId: input.simulationId ?? 'sim-1',
     agentId: input.agentId ?? 'agent-1',
     cycleStartedAt: input.cycleStartedAt ?? 100,
-    observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+    observedStateSummary,
     selectedBranch: 'development',
     ...(input.contextualPrioritization === true
       ? {
@@ -104,6 +105,7 @@ function createTrace(input: {
             },
             shortTermMemoryContext,
             longTermProfileContext,
+            observedStateSummary,
             worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
@@ -151,6 +153,7 @@ function createTrace(input: {
               },
               shortTermMemoryContext,
               longTermProfileContext,
+              observedStateSummary,
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
             },
           ],
@@ -196,6 +199,7 @@ function createTrace(input: {
               },
               shortTermMemoryContext,
               longTermProfileContext,
+              observedStateSummary,
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
             },
           ],
@@ -248,6 +252,7 @@ function createTrace(input: {
             },
             shortTermMemoryContext,
             longTermProfileContext,
+            observedStateSummary,
             worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
           },
         }
@@ -290,6 +295,7 @@ function createTrace(input: {
                 simulatorResult: { status: 'accepted' },
                 shortTermMemoryContext,
                 longTermProfileContext,
+                observedStateSummary,
                 worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
               },
               outcome: 'repaired',
@@ -335,6 +341,7 @@ function createTrace(input: {
             },
             shortTermMemoryContext,
             longTermProfileContext,
+            observedStateSummary,
             worldDecisionContext: {
               ...createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
               inventoryItemCount: 1,
@@ -674,6 +681,7 @@ describe('agent cycle trace repositories', () => {
         model: 'replanning-model',
         shortTermMemoryContext,
         longTermProfileContext,
+        observedStateSummary,
         decision: {
           kind: 'memory-guided-correction',
           trigger: 'simulator-rejection',

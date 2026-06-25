@@ -31,6 +31,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmObservedStateStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
@@ -38,6 +39,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmObservedStateStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -163,6 +165,11 @@ export function evaluateRuntimeProfileRunReport(
     report,
     criteria.requiredAgentCycleLlmProfileContextStages ?? [],
   );
+  addRequiredAgentCycleLlmObservedStateStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmObservedStateStages ?? [],
+  );
   addRequiredCognitionLlmStageFailures(
     failures,
     report,
@@ -197,6 +204,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmProfileContextStages ?? [],
+  );
+  addRequiredCognitionLlmObservedStateStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmObservedStateStages ?? [],
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -513,6 +525,37 @@ function addRequiredAgentCycleLlmProfileContextStageFailures(
   }
 }
 
+function addRequiredAgentCycleLlmObservedStateStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.observedStateSummaryCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-observed-state-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} observedStateSummaryCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
 function addRequiredCognitionLlmStageFailures(
   failures: RuntimeProfileRunGateFailure[],
   report: RuntimeProfileRunReport,
@@ -705,6 +748,36 @@ function addRequiredCognitionLlmProfileContextStageFailures(
     failures.push({
       code: 'cognition-llm-stage-profile-context-count-too-low',
       message: `cognition LLM stage ${stageName} longTermProfileContextCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmObservedStateStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.observedStateSummaryCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-observed-state-count-too-low',
+      message: `cognition LLM stage ${stageName} observedStateSummaryCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,

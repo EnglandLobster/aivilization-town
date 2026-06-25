@@ -25,7 +25,7 @@
 
 ## Task 1: Agent-Runtime LLM Action Sequence Compiler
 
-- [ ] **Step 1: Write failing compiler tests**
+- [x] **Step 1: Write failing compiler tests**
 
 Add `packages/agent-runtime/src/llmActionSequenceGenerator.test.ts` with tests that:
 
@@ -46,7 +46,7 @@ pnpm --filter @aivilization/agent-runtime test -- llmActionSequenceGenerator.tes
 Expected: FAIL because `./llmActionSequenceGenerator` and `./actionSequenceGeneration` do not
 exist.
 
-- [ ] **Step 2: Implement action sequence contracts**
+- [x] **Step 2: Implement action sequence contracts**
 
 Create `packages/agent-runtime/src/actionSequenceGeneration.ts` with:
 
@@ -67,7 +67,7 @@ Validation rules:
 - payloads are JSON-serializable;
 - synthesis context from the model is ignored because cycle attribution owns it.
 
-- [ ] **Step 3: Implement LLM compiler**
+- [x] **Step 3: Implement LLM compiler**
 
 Create `packages/agent-runtime/src/llmActionSequenceGenerator.ts` using
 `runStructuredLlmRequest` and schema name `aivilization_action_sequence_generation`.
@@ -96,7 +96,7 @@ The model output shape:
 
 Fallback on provider failure or validation failure.
 
-- [ ] **Step 4: Verify compiler tests pass**
+- [x] **Step 4: Verify compiler tests pass**
 
 Run:
 
@@ -108,7 +108,7 @@ Expected: PASS.
 
 ## Task 2: Async Cycle Action Sequence Generation
 
-- [ ] **Step 1: Write failing cycle tests**
+- [x] **Step 1: Write failing cycle tests**
 
 Modify `packages/agent-runtime/src/cycle.test.ts` with tests that:
 
@@ -125,7 +125,7 @@ pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmActionSequenc
 
 Expected: FAIL because cycle input does not accept `actionSequenceGenerator`.
 
-- [ ] **Step 2: Implement cycle wiring**
+- [x] **Step 2: Implement cycle wiring**
 
 Modify `packages/agent-runtime/src/cycle.ts`:
 
@@ -135,7 +135,7 @@ Modify `packages/agent-runtime/src/cycle.ts`:
 - if configured, await generator for each selected subtask and collect generated actions;
 - add `actionSequenceTraces?: readonly ActionSequenceGenerationTrace[]` to `AgentCycleResult`.
 
-- [ ] **Step 3: Verify cycle tests pass**
+- [x] **Step 3: Verify cycle tests pass**
 
 Run:
 
@@ -147,7 +147,7 @@ Expected: PASS.
 
 ## Task 3: Worker And Observability Wiring
 
-- [ ] **Step 1: Write failing worker and observability tests**
+- [x] **Step 1: Write failing worker and observability tests**
 
 Modify worker tests to prove:
 
@@ -169,7 +169,7 @@ pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentC
 
 Expected: FAIL because worker and trace schemas do not yet pass or persist the new field.
 
-- [ ] **Step 2: Implement worker pass-through**
+- [x] **Step 2: Implement worker pass-through**
 
 Modify:
 
@@ -179,7 +179,7 @@ Modify:
 
 Pass `actionSequenceGenerator` through runtime binding, tick input, and worker cycle input.
 
-- [ ] **Step 3: Implement trace schema and repository cloning**
+- [x] **Step 3: Implement trace schema and repository cloning**
 
 Modify:
 
@@ -189,7 +189,7 @@ Modify:
 
 Add `actionSequenceGeneration` as an optional trace field.
 
-- [ ] **Step 4: Verify worker and observability tests pass**
+- [x] **Step 4: Verify worker and observability tests pass**
 
 Run:
 
@@ -202,7 +202,7 @@ Expected: PASS.
 
 ## Task 4: Full Verification And Commit
 
-- [ ] **Step 1: Format touched files**
+- [x] **Step 1: Format touched files**
 
 Run:
 
@@ -210,7 +210,7 @@ Run:
 pnpm exec prettier --write docs/superpowers/specs/2026-06-25-llm-action-sequence-generation-design.md docs/superpowers/plans/2026-06-25-llm-action-sequence-generation-slice.md packages/agent-runtime/src/actionSequenceGeneration.ts packages/agent-runtime/src/llmActionSequenceGenerator.ts packages/agent-runtime/src/llmActionSequenceGenerator.test.ts packages/agent-runtime/src/cycle.ts packages/agent-runtime/src/cycle.test.ts packages/agent-runtime/src/index.ts apps/worker/src/agentCycleRunner.ts apps/worker/src/agentCycleRunner.test.ts apps/worker/src/agentScheduling.ts apps/worker/src/tickRunner.ts apps/worker/src/tickRunner.test.ts packages/observability/src/agentCycleTrace.ts packages/observability/src/agentCycleTrace.test.ts packages/observability/src/agentCycleTraceRepository.ts packages/observability/src/agentCycleTraceRepository.test.ts
 ```
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run:
 
@@ -221,7 +221,7 @@ git diff --check
 
 Expected: both pass.
 
-- [ ] **Step 3: Commit implementation**
+- [x] **Step 3: Commit implementation**
 
 Stage only files from this slice, leaving unrelated untracked paper/report folders untouched.
 
@@ -241,3 +241,25 @@ trace behavior, and exact verification commands that were actually run.
 - Placeholder scan: no TODO/TBD placeholders.
 - Scope check: intentionally excludes provider default wiring, global synthesis, repair, dialogue, and
   reflection so each missing paper capability remains auditable.
+
+## Verification Log
+
+- RED compiler: `pnpm --filter @aivilization/agent-runtime test -- llmActionSequenceGenerator.test.ts`
+  failed because `./llmActionSequenceGenerator` did not exist.
+- GREEN compiler: `pnpm --filter @aivilization/agent-runtime test -- llmActionSequenceGenerator.test.ts`
+  passed after adding `actionSequenceGeneration` and `llmActionSequenceGenerator`.
+- RED cycle: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmActionSequenceGenerator.test.ts`
+  failed because async cycle still used the deterministic fallback action.
+- GREEN cycle: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts llmActionSequenceGenerator.test.ts`
+  passed after async action sequence generation wiring.
+- RED worker/observability:
+  `pnpm --filter @aivilization/worker test -- agentCycleRunner.test.ts tickRunner.test.ts` failed
+  because worker/tick still executed fallback actions; `pnpm --filter @aivilization/observability
+test -- agentCycleTrace.test.ts agentCycleTraceRepository.test.ts` failed because repository clone
+  dropped `actionSequenceGeneration`.
+- GREEN worker/observability:
+  `pnpm --filter @aivilization/worker test -- agentCycleRunner.test.ts tickRunner.test.ts` and
+  `pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts
+agentCycleTraceRepository.test.ts` passed after pass-through and trace cloning.
+- Full verification: `pnpm check` passed with 158 test files and 813 tests after lint, typecheck,
+  and Vitest.

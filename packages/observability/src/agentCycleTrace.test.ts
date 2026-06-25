@@ -25,6 +25,26 @@ describe('createAgentCycleTrace', () => {
           },
         ],
       },
+      actionSequenceGeneration: [
+        {
+          status: 'accepted',
+          source: 'llm',
+          selectedSubtask: {
+            branchId: 'production-resource-management',
+            subtaskId: 'craft-transistor',
+          },
+          requestId: 'trace-1:sequence:craft-transistor',
+          providerId: 'scripted-action-sequence',
+          model: 'sequence-model',
+          actions: [
+            {
+              id: 'craft-1',
+              commandType: 'AgentProduce',
+              rationale: 'Craft one Transistor after checking inventory and production goals.',
+            },
+          ],
+        },
+      ],
       subtaskCandidates: [
         {
           branchId: 'production-resource-management',
@@ -152,6 +172,26 @@ describe('createAgentCycleTrace', () => {
       requestId: 'trace-1:prioritize',
       choices: [{ subtaskId: 'craft-transistor' }],
     });
+    expect(trace.actionSequenceGeneration).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: {
+          branchId: 'production-resource-management',
+          subtaskId: 'craft-transistor',
+        },
+        requestId: 'trace-1:sequence:craft-transistor',
+        providerId: 'scripted-action-sequence',
+        model: 'sequence-model',
+        actions: [
+          {
+            id: 'craft-1',
+            commandType: 'AgentProduce',
+            rationale: 'Craft one Transistor after checking inventory and production goals.',
+          },
+        ],
+      },
+    ]);
     expect(trace.replanMaterialization).toEqual({
       status: 'replanned',
       objectiveId: 'objective-production',

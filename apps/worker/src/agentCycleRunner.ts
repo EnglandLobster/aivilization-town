@@ -4,6 +4,8 @@ import {
   type ActionSynthesisPolicy,
   type ActionSimulationTraceEvent,
   type ActionWithRepairResult,
+  type ActionSequenceGenerationTrace,
+  type ActionSequenceGenerator,
   type AgentCycleResult,
   type AdaptiveReplanningPolicy,
   type AtomicActionProposal,
@@ -52,6 +54,7 @@ import {
   type WorkerFullReplanMaterializationResult,
 } from './objectiveReplanning';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 export type WorkerAgentCycleTraceSink = {
   readonly record: (trace: AgentCycleTrace) => void | Promise<void>;
@@ -110,6 +113,7 @@ export async function runWorkerAgentCycle(
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
+    readonly actionSequenceGenerator?: ActionSequenceGenerator;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
       readonly resetProgress?: boolean;
@@ -148,6 +152,12 @@ export async function runWorkerAgentCycle(
     planProgressRepository: input.planProgressRepository,
     planProgressId: input.planProgressId,
   });
+  const worldDecisionContext =
+    input.worldDecisionContext ??
+    createWorldDecisionContextFromProjection({
+      projection: input.projection,
+      agentId: input.agentId,
+    });
   const cycleInput = {
     simulationId: input.simulationId,
     agentId: input.agentId,
@@ -157,9 +167,7 @@ export async function runWorkerAgentCycle(
     signals: input.signals,
     intentionState,
     longTermProfile,
-    ...(input.worldDecisionContext === undefined
-      ? {}
-      : { worldDecisionContext: input.worldDecisionContext }),
+    worldDecisionContext,
     ...(input.memoryRetrievalLimit === undefined ? {} : { shortTermMemoryContext }),
     microPlanners: input.microPlanners,
     ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
@@ -171,11 +179,16 @@ export async function runWorkerAgentCycle(
       : { subtaskCompletion: input.subtaskCompletion }),
   };
   const cycleResult =
-    input.subtaskPrioritizer === undefined
+    input.subtaskPrioritizer === undefined && input.actionSequenceGenerator === undefined
       ? runAgentPlanningCycle(cycleInput)
       : await runAgentPlanningCycleWithPrioritization({
           ...cycleInput,
-          subtaskPrioritizer: input.subtaskPrioritizer,
+          ...(input.subtaskPrioritizer === undefined
+            ? {}
+            : { subtaskPrioritizer: input.subtaskPrioritizer }),
+          ...(input.actionSequenceGenerator === undefined
+            ? {}
+            : { actionSequenceGenerator: input.actionSequenceGenerator }),
         });
 
   const dispatchResult =
@@ -213,9 +226,7 @@ export async function runWorkerAgentCycle(
           planId: input.planId,
           issuedAt: input.issuedAt,
           longTermProfile,
-          ...(input.worldDecisionContext === undefined
-            ? {}
-            : { worldDecisionContext: input.worldDecisionContext }),
+          worldDecisionContext,
           intentionRepository: input.intentionRepository,
           planRepository: input.planRepository,
           ...(input.planProgressRepository === undefined
@@ -243,6 +254,13 @@ export async function runWorkerAgentCycle(
       : {
           contextualPrioritization: mapContextualPrioritizationTrace(
             cycleResult.prioritizationTrace,
+          ),
+        }),
+    ...(cycleResult.actionSequenceTraces === undefined
+      ? {}
+      : {
+          actionSequenceGeneration: cycleResult.actionSequenceTraces.map((entry) =>
+            mapActionSequenceGenerationTrace(entry),
           ),
         }),
     subtaskCandidates: cycleResult.subtaskCandidates,
@@ -446,6 +464,46 @@ function mapContextualPrioritizationTrace(
             subtaskId: choice.subtaskId,
             priorityScore: choice.priorityScore,
             rationale: choice.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function mapActionSequenceGenerationTrace(
+  trace: ActionSequenceGenerationTrace,
+): NonNullable<AgentCycleTrace['actionSequenceGeneration']>[number] {
+  return {
+    status: trace.status,
+    source: trace.source,
+    selectedSubtask: {
+      branchId: trace.selectedSubtask.branchId,
+      subtaskId: trace.selectedSubtask.subtaskId,
+    },
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.actions === undefined
+      ? {}
+      : {
+          actions: trace.actions.map((action) => ({
+            id: action.id,
+            commandType: action.commandType,
+            rationale: action.rationale,
           })),
         }),
     ...(trace.attempts === undefined

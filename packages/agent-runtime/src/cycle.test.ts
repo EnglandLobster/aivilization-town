@@ -167,6 +167,111 @@ describe('agent planning cycle', () => {
     expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentEat']);
   });
 
+  test('allows an async action sequence generator to replace deterministic micro-planner actions', async () => {
+    const plan = createBranchPlan({
+      objective: 'restore satiety before work',
+      branches: [
+        {
+          id: 'recovery',
+          objective: 'restore satiety',
+          subtasks: [{ id: 'eat', description: 'eat the best available food', basePriority: 8 }],
+        },
+      ],
+    });
+    const simulatedActionContexts: string[] = [];
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 150,
+      plan,
+      signals: [],
+      actionSequenceGenerator: async ({ deterministicActions, selectedSubtask }) => {
+        await Promise.resolve();
+        expect(deterministicActions.map((action) => action.id)).toEqual(['eat-apple']);
+        expect(selectedSubtask).toMatchObject({ branchId: 'recovery', subtaskId: 'eat' });
+        return {
+          actions: [
+            {
+              id: 'llm-eat-fish',
+              description: 'eat Fish from inventory',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Fish', quantity: 1 },
+              priority: 14,
+            },
+          ],
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'recovery', subtaskId: 'eat' },
+            requestId: 'sequence-agent-1-150',
+            actions: [
+              {
+                id: 'llm-eat-fish',
+                commandType: 'AgentEat',
+                rationale: 'Fish is already held and restores satiety before work.',
+              },
+            ],
+          },
+        };
+      },
+      microPlanners: [
+        {
+          domain: 'eat',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-apple',
+              description: 'eat Apple fallback',
+              commandType: 'AgentEat',
+              payload: { commodityName: 'Apple', quantity: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedActionContexts.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+    });
+
+    expect(result.candidateActions).toEqual([
+      {
+        id: 'llm-eat-fish',
+        description: 'eat Fish from inventory',
+        commandType: 'AgentEat',
+        payload: { commodityName: 'Fish', quantity: 1 },
+        priority: 14,
+        synthesisContext: {
+          branchId: 'recovery',
+          subtaskId: 'eat',
+          subtaskScore: 8,
+        },
+      },
+    ]);
+    expect(simulatedActionContexts).toEqual(['llm-eat-fish:recovery/eat']);
+    expect(result.commandDrafts.map((draft) => draft.payload)).toEqual([
+      { commodityName: 'Fish', quantity: 1 },
+    ]);
+    expect(result.actionSequenceTraces).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        selectedSubtask: { branchId: 'recovery', subtaskId: 'eat' },
+        requestId: 'sequence-agent-1-150',
+        actions: [
+          {
+            id: 'llm-eat-fish',
+            commandType: 'AgentEat',
+            rationale: 'Fish is already held and restores satiety before work.',
+          },
+        ],
+      },
+    ]);
+  });
+
   test('synthesizes candidate actions before simulation and command drafting', () => {
     const plan = createBranchPlan({
       objective: 'survive',

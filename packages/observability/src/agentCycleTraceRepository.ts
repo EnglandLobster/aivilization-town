@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import {
   createAgentCycleTrace,
+  type AgentCycleActionSequenceGenerationTrace,
   type AgentCycleContextualPrioritizationTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
@@ -130,6 +131,13 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
       : {
           contextualPrioritization: cloneContextualPrioritization(trace.contextualPrioritization),
         }),
+    ...(trace.actionSequenceGeneration === undefined
+      ? {}
+      : {
+          actionSequenceGeneration: trace.actionSequenceGeneration.map((entry) =>
+            cloneActionSequenceGeneration(entry),
+          ),
+        }),
     subtaskCandidates: trace.subtaskCandidates.map((candidate) => cloneSubtaskCandidate(candidate)),
     actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
@@ -256,6 +264,60 @@ function cloneContextualPrioritization(
             subtaskId: choice.subtaskId,
             priorityScore: choice.priorityScore,
             rationale: choice.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+  };
+}
+
+function cloneActionSequenceGeneration(
+  trace: AgentCycleActionSequenceGenerationTrace,
+): AgentCycleActionSequenceGenerationTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    selectedSubtask: {
+      branchId: trace.selectedSubtask.branchId,
+      subtaskId: trace.selectedSubtask.subtaskId,
+    },
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.actions === undefined
+      ? {}
+      : {
+          actions: trace.actions.map((action) => ({
+            id: action.id,
+            commandType: action.commandType,
+            rationale: action.rationale,
           })),
         }),
     ...(trace.attempts === undefined

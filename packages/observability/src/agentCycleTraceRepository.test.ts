@@ -33,6 +33,7 @@ function createTrace(input: {
   readonly cycleStartedAt?: number;
   readonly replanMaterialization?: boolean;
   readonly contextualPrioritization?: boolean;
+  readonly actionSequenceGeneration?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -79,6 +80,51 @@ function createTrace(input: {
               estimatedCostMicros: 25,
             },
           },
+        }
+      : {}),
+    ...(input.actionSequenceGeneration === true
+      ? {
+          actionSequenceGeneration: [
+            {
+              status: 'accepted',
+              source: 'llm',
+              selectedSubtask: {
+                branchId: 'development',
+                subtaskId: 'study',
+              },
+              requestId: `${input.traceId}:sequence:study`,
+              providerId: 'scripted-action-sequence',
+              model: 'sequence-model',
+              actions: [
+                {
+                  id: `${input.traceId}:study-1`,
+                  commandType: 'AgentStudy',
+                  rationale: 'Study action matches the selected development subtask.',
+                },
+              ],
+              attempts: [
+                {
+                  attemptIndex: 1,
+                  status: 'succeeded',
+                  providerId: 'scripted-action-sequence',
+                  model: 'sequence-model',
+                  message: 'LLM structured response validated',
+                  usage: {
+                    inputTokens: 20,
+                    outputTokens: 8,
+                    totalTokens: 28,
+                    estimatedCostMicros: 44,
+                  },
+                },
+              ],
+              usage: {
+                inputTokens: 20,
+                outputTokens: 8,
+                totalTokens: 28,
+                estimatedCostMicros: 44,
+              },
+            },
+          ],
         }
       : {}),
     subtaskCandidates: [
@@ -202,6 +248,7 @@ describe('agent cycle trace repositories', () => {
       cycleStartedAt: 200,
       replanMaterialization: true,
       contextualPrioritization: true,
+      actionSequenceGeneration: true,
     });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
@@ -263,6 +310,11 @@ describe('agent cycle trace repositories', () => {
       }[]
     )[0]!.rationale = 'mutated';
     (
+      read!.actionSequenceGeneration![0]!.actions as unknown as {
+        rationale: string;
+      }[]
+    )[0]!.rationale = 'mutated';
+    (
       read!.replanMaterialization as unknown as {
         failedActionIds: string[];
       }
@@ -277,6 +329,9 @@ describe('agent cycle trace repositories', () => {
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
     expect((await repository.get('trace-200'))?.contextualPrioritization).toEqual(
       newer.contextualPrioritization,
+    );
+    expect((await repository.get('trace-200'))?.actionSequenceGeneration).toEqual(
+      newer.actionSequenceGeneration,
     );
   });
 

@@ -5,6 +5,7 @@ import {
   InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
+  type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
@@ -264,6 +265,125 @@ describe('worker agent cycle runner', () => {
       },
     ]);
     expect(result.dispatchResult?.commands.map((command) => command.type)).toEqual(['AgentStudy']);
+  });
+
+  test('passes contextual subtask prioritizer into the planning cycle and trace', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const simulatedSubtasks: string[] = [];
+    const prioritizer: SubtaskPrioritizer = async ({ candidates }) => {
+      await Promise.resolve();
+      return {
+        candidates: [
+          {
+            ...candidates[1]!,
+            score: 13,
+            scoreBreakdown: {
+              ...candidates[1]!.scoreBreakdown,
+              contextualReasoningScore: 11,
+            },
+          },
+          candidates[0]!,
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'prioritize-cycle-worker',
+          choices: [
+            {
+              branchId: 'recovery',
+              subtaskId: 'eat',
+              priorityScore: 13,
+              rationale: 'Low satiety makes food recovery more urgent than wage work.',
+            },
+            {
+              branchId: 'income',
+              subtaskId: 'work',
+              priorityScore: 6,
+              rationale: 'Work can resume after recovery.',
+            },
+          ],
+        },
+      };
+    };
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-contextual-prioritization',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=30 health=100 education=10',
+      plan: createBranchPlan({
+        objective: 'balance survival and income',
+        branches: [
+          {
+            id: 'income',
+            objective: 'earn currency',
+            subtasks: [{ id: 'work', description: 'work shift', basePriority: 6 }],
+          },
+          {
+            id: 'recovery',
+            objective: 'restore satiety',
+            subtasks: [{ id: 'eat', description: 'eat before work', basePriority: 2 }],
+          },
+        ],
+      }),
+      signals: [],
+      subtaskPrioritizer: prioritizer,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-contextual-prioritization',
+      commandIdPrefix: 'cycle-contextual-prioritization-command',
+      microPlanners: [
+        {
+          domain: 'eat',
+          supports: ({ subtaskId }) => subtaskId === 'eat',
+          propose: () => [
+            {
+              id: 'eat-action',
+              description: 'eat before work',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            },
+          ],
+        },
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-action',
+              description: 'work shift',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action, selectedSubtask }) => {
+        simulatedSubtasks.push(
+          `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+        );
+        return { status: 'accepted', action };
+      },
+      ...repositories,
+    });
+
+    expect(result.cycleResult.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'eat',
+      score: 13,
+    });
+    expect(simulatedSubtasks).toEqual(['eat-action:recovery/eat']);
+    expect(result.trace.contextualPrioritization).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'prioritize-cycle-worker',
+      choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
+    });
   });
 
   test('collects and traces actions from multiple candidate subtasks', async () => {

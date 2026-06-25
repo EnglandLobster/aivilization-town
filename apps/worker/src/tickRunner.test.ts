@@ -4,6 +4,7 @@ import {
   InMemoryBranchPlanProgressRepository,
   type AtomicActionProposal,
   type DomainMicroPlanner,
+  type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
 import {
@@ -684,6 +685,127 @@ describe('worker tick runner', () => {
       'EducationChanged',
       'ShortTermMemoryRecorded',
     ]);
+  });
+
+  test('passes tick agent contextual subtask prioritizer into cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const simulatedSubtasks: string[] = [];
+    const prioritizer: SubtaskPrioritizer = async ({ candidates }) => {
+      await Promise.resolve();
+      return {
+        candidates: [
+          {
+            ...candidates[1]!,
+            score: 13,
+            scoreBreakdown: {
+              ...candidates[1]!.scoreBreakdown,
+              contextualReasoningScore: 11,
+            },
+          },
+          candidates[0]!,
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'prioritize-tick-agent-1',
+          choices: [
+            {
+              branchId: 'recovery',
+              subtaskId: 'eat',
+              priorityScore: 13,
+              rationale: 'Low satiety makes food recovery more urgent than wage work.',
+            },
+            {
+              branchId: 'income',
+              subtaskId: 'work',
+              priorityScore: 6,
+              rationale: 'Work can resume after recovery.',
+            },
+          ],
+        },
+      };
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-contextual-prioritization',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 satiety=30',
+          plan: createBranchPlan({
+            objective: 'balance survival and income',
+            branches: [
+              {
+                id: 'income',
+                objective: 'earn currency',
+                subtasks: [{ id: 'work', description: 'work shift', basePriority: 6 }],
+              },
+              {
+                id: 'recovery',
+                objective: 'restore satiety',
+                subtasks: [{ id: 'eat', description: 'eat before work', basePriority: 2 }],
+              },
+            ],
+          }),
+          signals: [],
+          subtaskPrioritizer: prioritizer,
+          microPlanners: [
+            {
+              domain: 'eat',
+              supports: ({ subtaskId }) => subtaskId === 'eat',
+              propose: () => [
+                {
+                  id: 'eat-action',
+                  description: 'eat before work',
+                  commandType: 'AgentStudy',
+                  payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+                },
+              ],
+            },
+            {
+              domain: 'work',
+              supports: ({ subtaskId }) => subtaskId === 'work',
+              propose: () => [
+                {
+                  id: 'work-action',
+                  description: 'work shift',
+                  commandType: 'AgentStudy',
+                  payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action, selectedSubtask }) => {
+            simulatedSubtasks.push(
+              `${action.id}:${selectedSubtask.branchId}/${selectedSubtask.subtaskId}`,
+            );
+            return { status: 'accepted', action };
+          },
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(simulatedSubtasks).toEqual(['eat-action:recovery/eat']);
+    expect(result.agentResults[0]?.cycleResult.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'eat',
+      score: 13,
+    });
+    expect(result.traces[0]?.contextualPrioritization).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'prioritize-tick-agent-1',
+      choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
+    });
   });
 
   test('passes tick agent memory retrieval budget into cycle traces', async () => {

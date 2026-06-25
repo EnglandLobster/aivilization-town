@@ -32,6 +32,7 @@ function createTrace(input: {
   readonly agentId?: string;
   readonly cycleStartedAt?: number;
   readonly replanMaterialization?: boolean;
+  readonly contextualPrioritization?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -40,6 +41,46 @@ function createTrace(input: {
     cycleStartedAt: input.cycleStartedAt ?? 100,
     observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
     selectedBranch: 'development',
+    ...(input.contextualPrioritization === true
+      ? {
+          contextualPrioritization: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: `${input.traceId}:prioritize`,
+            providerId: 'scripted-prioritizer',
+            model: 'prioritizer-model',
+            choices: [
+              {
+                branchId: 'development',
+                subtaskId: 'study',
+                priorityScore: 9,
+                rationale: 'Study matches the long-term profile and current objective.',
+              },
+            ],
+            attempts: [
+              {
+                attemptIndex: 1,
+                status: 'succeeded',
+                providerId: 'scripted-prioritizer',
+                model: 'prioritizer-model',
+                message: 'LLM structured response validated',
+                usage: {
+                  inputTokens: 10,
+                  outputTokens: 5,
+                  totalTokens: 15,
+                  estimatedCostMicros: 25,
+                },
+              },
+            ],
+            usage: {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+              estimatedCostMicros: 25,
+            },
+          },
+        }
+      : {}),
     subtaskCandidates: [
       {
         branchId: 'development',
@@ -160,6 +201,7 @@ describe('agent cycle trace repositories', () => {
       traceId: 'trace-200',
       cycleStartedAt: 200,
       replanMaterialization: true,
+      contextualPrioritization: true,
     });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
@@ -216,6 +258,11 @@ describe('agent cycle trace repositories', () => {
       }
     ).failedActionIds.push('mutated');
     (
+      read!.contextualPrioritization!.choices as unknown as {
+        rationale: string;
+      }[]
+    )[0]!.rationale = 'mutated';
+    (
       read!.replanMaterialization as unknown as {
         failedActionIds: string[];
       }
@@ -228,6 +275,9 @@ describe('agent cycle trace repositories', () => {
       }[]
     ).push({ type: 'mutated' });
     await expect(repository.get('trace-200')).resolves.toEqual(newer);
+    expect((await repository.get('trace-200'))?.contextualPrioritization).toEqual(
+      newer.contextualPrioritization,
+    );
   });
 
   test('persists file-backed traces across repository instances', async () => {

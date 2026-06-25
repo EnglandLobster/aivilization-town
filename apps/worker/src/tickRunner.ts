@@ -10,6 +10,7 @@ import type {
   DomainMicroPlanner,
   ReactionEvaluator,
   StrategicPlanCompiler,
+  SubtaskPrioritizer,
   WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type {
@@ -84,6 +85,7 @@ export type WorkerTickAgentInput = {
   readonly simulate: CycleActionSimulator;
   readonly repair?: CycleRepairPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 } & WorkerTickAgentPlanInput;
 
@@ -257,6 +259,9 @@ export async function runWorkerSimulationTick(
       ...(agent.subtaskCompletion === undefined
         ? {}
         : { subtaskCompletion: agent.subtaskCompletion }),
+      ...(agent.subtaskPrioritizer === undefined
+        ? {}
+        : { subtaskPrioritizer: agent.subtaskPrioritizer }),
       ...(agent.replanningPolicy === undefined ? {} : { replanningPolicy: agent.replanningPolicy }),
       ...(input.materializeFullReplan === undefined
         ? {}

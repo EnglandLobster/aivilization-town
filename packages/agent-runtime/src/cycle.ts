@@ -35,6 +35,11 @@ import {
   type ReplanningDecision,
   type SubtaskCompletionDecision,
 } from './replanning';
+import {
+  createDeterministicSubtaskPrioritizationResult,
+  type SubtaskPrioritizationTrace,
+  type SubtaskPrioritizer,
+} from './subtaskPrioritization';
 
 export type DomainMicroPlanner = {
   readonly domain: string;
@@ -69,6 +74,7 @@ export type CommandDraft = {
 
 export type AgentCycleResult = {
   readonly selectedSubtask: PrioritizedSubtask;
+  readonly prioritizationTrace?: SubtaskPrioritizationTrace;
   readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
   readonly actionSynthesisResult: ActionSynthesisResult;
@@ -103,7 +109,7 @@ export type AgentCycleSelectionEvidence = {
   readonly profileEvidenceRecordIds: readonly string[];
 };
 
-export function runAgentPlanningCycle(input: {
+export type AgentPlanningCycleInput = {
   readonly simulationId: SimulationId;
   readonly agentId: AgentId;
   readonly issuedAt: number;
@@ -120,7 +126,60 @@ export function runAgentPlanningCycle(input: {
   readonly repair?: CycleRepairPolicy;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
-}): AgentCycleResult {
+};
+
+export type AgentPlanningCycleWithPrioritizationInput = AgentPlanningCycleInput & {
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
+};
+
+export function runAgentPlanningCycle(input: AgentPlanningCycleInput): AgentCycleResult {
+  const prepared = prepareCyclePrioritization(input);
+  return runAgentPlanningCycleFromCandidates({
+    ...input,
+    ...prepared,
+  });
+}
+
+export async function runAgentPlanningCycleWithPrioritization(
+  input: AgentPlanningCycleWithPrioritizationInput,
+): Promise<AgentCycleResult> {
+  const prepared = prepareCyclePrioritization(input);
+  const prioritization =
+    input.subtaskPrioritizer === undefined
+      ? createDeterministicSubtaskPrioritizationResult({ candidates: prepared.subtaskCandidates })
+      : await input.subtaskPrioritizer({
+          agentId: input.agentId,
+          issuedAt: input.issuedAt,
+          plan: input.plan,
+          signals: input.signals,
+          candidates: prepared.subtaskCandidates,
+          ...(input.progress === undefined ? {} : { progress: input.progress }),
+          ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+          ...(input.shortTermMemoryContext === undefined
+            ? {}
+            : { shortTermMemoryContext: input.shortTermMemoryContext }),
+          ...(input.longTermProfile === undefined
+            ? {}
+            : { longTermProfile: input.longTermProfile }),
+          ...(input.worldDecisionContext === undefined
+            ? {}
+            : { worldDecisionContext: input.worldDecisionContext }),
+        });
+
+  return runAgentPlanningCycleFromCandidates({
+    ...input,
+    ...prepared,
+    subtaskCandidates: prioritization.candidates,
+    prioritizationTrace: prioritization.trace,
+  });
+}
+
+function prepareCyclePrioritization(input: AgentPlanningCycleInput): {
+  readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+  readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
+  readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
+  readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+} {
   const intentionInfluence =
     input.intentionState === undefined
       ? undefined
@@ -141,6 +200,25 @@ export function runAgentPlanningCycle(input: {
     ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
     ...(profileInfluence === undefined ? {} : { profileInfluence }),
   });
+
+  return {
+    ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
+    ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
+    ...(profileInfluence === undefined ? {} : { profileInfluence }),
+    subtaskCandidates,
+  };
+}
+
+function runAgentPlanningCycleFromCandidates(
+  input: AgentPlanningCycleInput & {
+    readonly intentionInfluence?: Readonly<Record<string, IntentionInfluenceScore>>;
+    readonly memoryInfluence?: Readonly<Record<string, MemoryInfluenceScore>>;
+    readonly profileInfluence?: Readonly<Record<string, ProfileInfluenceScore>>;
+    readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
+    readonly prioritizationTrace?: SubtaskPrioritizationTrace;
+  },
+): AgentCycleResult {
+  const subtaskCandidates = input.subtaskCandidates;
   const selectedCandidate = subtaskCandidates[0];
   if (selectedCandidate === undefined) {
     throw new Error('branch plan produced no selectable subtasks');
@@ -153,9 +231,11 @@ export function runAgentPlanningCycle(input: {
   const synthesisSubtasksByKey = createSelectedSubtaskMap(synthesisSubtaskCandidates);
   const selectionEvidence = createSelectionEvidence({
     selectedSubtask,
-    ...(intentionInfluence === undefined ? {} : { intentionInfluence }),
-    ...(memoryInfluence === undefined ? {} : { memoryInfluence }),
-    ...(profileInfluence === undefined ? {} : { profileInfluence }),
+    ...(input.intentionInfluence === undefined
+      ? {}
+      : { intentionInfluence: input.intentionInfluence }),
+    ...(input.memoryInfluence === undefined ? {} : { memoryInfluence: input.memoryInfluence }),
+    ...(input.profileInfluence === undefined ? {} : { profileInfluence: input.profileInfluence }),
   });
   const proposedActions = collectSynthesisActionProposals({
     candidates: synthesisSubtaskCandidates,
@@ -182,6 +262,7 @@ export function runAgentPlanningCycle(input: {
       subtaskCompletion: input.subtaskCompletion,
       shortTermMemoryContext: input.shortTermMemoryContext,
       selectedSubtask,
+      prioritizationTrace: input.prioritizationTrace,
       selectionEvidence,
       subtaskCandidates,
       actionSynthesisResult,
@@ -228,6 +309,7 @@ export function runAgentPlanningCycle(input: {
     subtaskCompletion: input.subtaskCompletion,
     shortTermMemoryContext: input.shortTermMemoryContext,
     selectedSubtask,
+    prioritizationTrace: input.prioritizationTrace,
     selectionEvidence,
     subtaskCandidates,
     actionSynthesisResult,
@@ -246,6 +328,7 @@ function finalizeAgentCycleResult(input: {
   readonly subtaskCompletion: CycleSubtaskCompletionPolicy | undefined;
   readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[] | undefined;
   readonly selectedSubtask: PrioritizedSubtask;
+  readonly prioritizationTrace: SubtaskPrioritizationTrace | undefined;
   readonly selectionEvidence: AgentCycleSelectionEvidence;
   readonly subtaskCandidates: readonly PrioritizedSubtaskCandidate[];
   readonly actionSynthesisResult: ActionSynthesisResult;
@@ -305,6 +388,9 @@ function finalizeAgentCycleResult(input: {
 
   return {
     selectedSubtask: input.selectedSubtask,
+    ...(input.prioritizationTrace === undefined
+      ? {}
+      : { prioritizationTrace: input.prioritizationTrace }),
     selectionEvidence: input.selectionEvidence,
     subtaskCandidates: input.subtaskCandidates,
     actionSynthesisResult: input.actionSynthesisResult,

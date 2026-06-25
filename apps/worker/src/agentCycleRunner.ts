@@ -1,5 +1,6 @@
 import {
   runAgentPlanningCycle,
+  runAgentPlanningCycleWithPrioritization,
   type ActionSynthesisPolicy,
   type ActionSimulationTraceEvent,
   type ActionWithRepairResult,
@@ -15,6 +16,7 @@ import {
   type CycleRepairPolicy,
   type DomainMicroPlanner,
   type StrategicPlanCompiler,
+  type SubtaskPrioritizer,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import type {
@@ -107,6 +109,7 @@ export async function runWorkerAgentCycle(
     readonly repair?: CycleRepairPolicy;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+    readonly subtaskPrioritizer?: SubtaskPrioritizer;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
       readonly resetProgress?: boolean;
@@ -145,7 +148,7 @@ export async function runWorkerAgentCycle(
     planProgressRepository: input.planProgressRepository,
     planProgressId: input.planProgressId,
   });
-  const cycleResult = runAgentPlanningCycle({
+  const cycleInput = {
     simulationId: input.simulationId,
     agentId: input.agentId,
     issuedAt: input.issuedAt,
@@ -166,7 +169,14 @@ export async function runWorkerAgentCycle(
     ...(input.subtaskCompletion === undefined
       ? {}
       : { subtaskCompletion: input.subtaskCompletion }),
-  });
+  };
+  const cycleResult =
+    input.subtaskPrioritizer === undefined
+      ? runAgentPlanningCycle(cycleInput)
+      : await runAgentPlanningCycleWithPrioritization({
+          ...cycleInput,
+          subtaskPrioritizer: input.subtaskPrioritizer,
+        });
 
   const dispatchResult =
     cycleResult.commandDrafts.length === 0
@@ -228,6 +238,13 @@ export async function runWorkerAgentCycle(
     cycleStartedAt: input.issuedAt,
     observedStateSummary: input.observedStateSummary,
     selectedBranch: cycleResult.selectedSubtask.branchId,
+    ...(cycleResult.prioritizationTrace === undefined
+      ? {}
+      : {
+          contextualPrioritization: mapContextualPrioritizationTrace(
+            cycleResult.prioritizationTrace,
+          ),
+        }),
     subtaskCandidates: cycleResult.subtaskCandidates,
     actionSynthesis: mapActionSynthesisTrace(cycleResult.actionSynthesisResult),
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
@@ -408,6 +425,43 @@ function mapReplanMaterializationTrace(
           : { objectiveId: materialization.objectiveId }),
       };
   }
+}
+
+function mapContextualPrioritizationTrace(
+  trace: NonNullable<AgentCycleResult['prioritizationTrace']>,
+): NonNullable<AgentCycleTrace['contextualPrioritization']> {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.choices === undefined
+      ? {}
+      : {
+          choices: trace.choices.map((choice) => ({
+            branchId: choice.branchId,
+            subtaskId: choice.subtaskId,
+            priorityScore: choice.priorityScore,
+            rationale: choice.rationale,
+          })),
+        }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
 }
 
 function mapActionProposalTrace(action: AtomicActionProposal): AgentCycleActionProposalTrace {

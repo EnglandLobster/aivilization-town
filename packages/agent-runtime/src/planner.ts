@@ -43,6 +43,7 @@ export type PrioritizedSubtaskScoreBreakdown = {
   readonly intentionInfluenceScore: number;
   readonly memoryInfluenceScore: number;
   readonly profileInfluenceScore: number;
+  readonly contextualReasoningScore?: number;
 };
 
 export type PrioritizedSubtaskCandidate = PrioritizedSubtask & {
@@ -246,7 +247,8 @@ function scoreFromBreakdown(breakdown: PrioritizedSubtaskScoreBreakdown): number
     breakdown.signalInfluenceScore +
     breakdown.intentionInfluenceScore +
     breakdown.memoryInfluenceScore +
-    breakdown.profileInfluenceScore
+    breakdown.profileInfluenceScore +
+    (breakdown.contextualReasoningScore ?? 0)
   );
 }
 

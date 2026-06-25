@@ -1,5 +1,5 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { LongTermMemoryPatch } from './profile';
+import type { LongTermAgentProfile, LongTermMemoryPatch } from './profile';
 import type { MemoryRecordId, ShortTermMemoryRecord } from './records';
 
 export type ReflectiveInsightKind = 'habit' | 'caution' | 'mood' | 'value' | 'personality';
@@ -15,6 +15,60 @@ export type ReflectiveInsightRecord = {
   readonly generatedAt: SimulationTimestamp;
   readonly tags: readonly string[];
 };
+
+export type ReflectiveInsightProposal = {
+  readonly kind: string;
+  readonly topicKey: string;
+  readonly statement: string;
+  readonly confidence: number;
+  readonly evidenceRecordIds: readonly MemoryRecordId[];
+  readonly tags: readonly string[];
+};
+
+export type ReflectiveInsightSynthesizerInput = {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly minEvidenceCount: number;
+  readonly generatedAt: SimulationTimestamp;
+  readonly longTermProfile?: LongTermAgentProfile;
+};
+
+export type ReflectiveInsightSynthesisUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly estimatedCostMicros: number;
+};
+
+export type ReflectiveInsightSynthesisAttemptTrace = {
+  readonly attemptIndex: number;
+  readonly status: string;
+  readonly providerId: string;
+  readonly model: string;
+  readonly message: string;
+  readonly usage: ReflectiveInsightSynthesisUsage;
+};
+
+export type ReflectiveInsightSynthesisTrace = {
+  readonly status: 'accepted' | 'fallback' | 'deterministic';
+  readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly attempts?: readonly ReflectiveInsightSynthesisAttemptTrace[];
+  readonly usage?: ReflectiveInsightSynthesisUsage;
+};
+
+export type ReflectiveInsightSynthesisResult = {
+  readonly insights: readonly ReflectiveInsightRecord[];
+  readonly trace: ReflectiveInsightSynthesisTrace;
+};
+
+export type ReflectiveInsightSynthesizer = (
+  input: ReflectiveInsightSynthesizerInput,
+) => ReflectiveInsightSynthesisResult | Promise<ReflectiveInsightSynthesisResult>;
 
 export function proposeReflectiveInsights(input: {
   readonly agentId: AgentId;
@@ -56,6 +110,74 @@ export function proposeReflectiveInsights(input: {
       generatedAt: input.generatedAt,
     }),
   ].sort(compareInsights);
+}
+
+export function createDeterministicReflectiveInsightSynthesizer(): ReflectiveInsightSynthesizer {
+  return (input) => ({
+    insights: proposeReflectiveInsights(input),
+    trace: {
+      status: 'deterministic',
+      source: 'deterministic',
+    },
+  });
+}
+
+export function applyReflectiveInsightProposal(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly generatedAt: SimulationTimestamp;
+  readonly insights: readonly ReflectiveInsightProposal[];
+}): ReflectiveInsightRecord[] {
+  assertFiniteNumber(input.generatedAt, 'generatedAt');
+  const validEvidenceRecordIds = new Set(
+    input.records
+      .filter((record) => record.agentId === input.agentId)
+      .map((record) => record.id as string),
+  );
+  const insightsByKey = new Map<string, ReflectiveInsightRecord>();
+
+  for (const proposal of input.insights) {
+    const kind = assertReflectiveInsightKind(proposal.kind);
+    const topicKey = normalizeNonEmpty(proposal.topicKey, 'reflective insight topicKey');
+    const statement = normalizeNonEmpty(proposal.statement, 'reflective insight statement');
+    assertConfidence(proposal.confidence, 'reflective insight confidence');
+    if (proposal.evidenceRecordIds.length === 0) {
+      throw new Error('reflective insight evidenceRecordIds must not be empty');
+    }
+    const evidenceRecordIds = proposal.evidenceRecordIds.map((recordId) => {
+      if (!validEvidenceRecordIds.has(recordId)) {
+        throw new Error(`reflective insight evidence ${recordId} is not in synthesis records`);
+      }
+      return recordId;
+    });
+    const tags = stableUnique(
+      proposal.tags.map((tag) => normalizeNonEmpty(tag, 'reflective insight tag')),
+    );
+
+    const insight: ReflectiveInsightRecord = {
+      id: createReflectiveInsightId({
+        agentId: input.agentId,
+        kind,
+        topicKey,
+        generatedAt: input.generatedAt,
+      }),
+      agentId: input.agentId,
+      kind,
+      topicKey,
+      statement,
+      confidence: proposal.confidence,
+      evidenceRecordIds,
+      generatedAt: input.generatedAt,
+      tags,
+    };
+    const dedupeKey = `${kind}:${topicKey}`;
+    const existing = insightsByKey.get(dedupeKey);
+    if (existing === undefined || insight.confidence > existing.confidence) {
+      insightsByKey.set(dedupeKey, insight);
+    }
+  }
+
+  return [...insightsByKey.values()].sort(compareInsights);
 }
 
 export function convertReflectiveInsightsToLongTermMemoryPatches(input: {
@@ -250,7 +372,7 @@ function createInsight(input: {
   readonly tags: readonly string[];
 }): ReflectiveInsightRecord {
   return {
-    id: `reflection-${input.agentId}-${input.kind}-${input.topicKey}-${input.generatedAt}`,
+    id: createReflectiveInsightId(input),
     agentId: input.agentId,
     kind: input.kind,
     topicKey: input.topicKey,
@@ -260,6 +382,15 @@ function createInsight(input: {
     generatedAt: input.generatedAt,
     tags: [...input.tags],
   };
+}
+
+function createReflectiveInsightId(input: {
+  readonly agentId: AgentId;
+  readonly kind: ReflectiveInsightKind;
+  readonly topicKey: string;
+  readonly generatedAt: SimulationTimestamp;
+}): string {
+  return `reflection-${input.agentId}-${input.kind}-${input.topicKey}-${input.generatedAt}`;
 }
 
 function matchesStudyContext(record: ShortTermMemoryRecord): boolean {
@@ -330,6 +461,37 @@ function comparePatches(left: LongTermMemoryPatch, right: LongTermMemoryPatch): 
 
 function containsAny(value: string, needles: readonly string[]): boolean {
   return needles.some((needle) => value.includes(needle));
+}
+
+function assertReflectiveInsightKind(kind: string): ReflectiveInsightKind {
+  switch (kind) {
+    case 'habit':
+    case 'caution':
+    case 'mood':
+    case 'value':
+    case 'personality':
+      return kind;
+    default:
+      throw new Error(`reflective insight kind ${kind} is not supported`);
+  }
+}
+
+function normalizeNonEmpty(value: string, name: string): string {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw new Error(`${name} must not be empty`);
+  }
+  return normalized;
+}
+
+function stableUnique<TValue>(values: readonly TValue[]): readonly TValue[] {
+  return [...new Set(values)];
+}
+
+function assertConfidence(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${name} must be within [0, 1]`);
+  }
 }
 
 function assertPositiveInteger(value: number, name: string): void {

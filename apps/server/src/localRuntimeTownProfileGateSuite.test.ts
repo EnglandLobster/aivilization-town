@@ -176,6 +176,139 @@ describe('local runtime town profile gate suite', () => {
     expect(result.profiles[0]?.gate.status).toBe('pass');
   });
 
+  test('forwards every profile LLM cognition stage from runtime config into profile runners', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'full-llm-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            llmPlanning: createLlmStageNode({
+              kind: 'traceable-llm-strategic-planner',
+              model: 'strategic-model',
+              providerId: 'strategic-provider',
+            }),
+            dailyPlanning: createLlmStageNode({
+              kind: 'traceable-llm-daily-planner',
+              model: 'daily-model',
+              providerId: 'daily-provider',
+            }),
+            reactionPlanning: createLlmStageNode({
+              kind: 'traceable-llm-reaction-evaluator',
+              model: 'reaction-model',
+              providerId: 'reaction-provider',
+            }),
+            subtaskPrioritization: createLlmStageNode({
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'priority-model',
+              providerId: 'priority-provider',
+            }),
+            actionSequenceGeneration: createLlmStageNode({
+              kind: 'traceable-llm-action-sequence-generator',
+              model: 'action-model',
+              providerId: 'action-provider',
+            }),
+            socialDialogue: createLlmStageNode({
+              kind: 'traceable-llm-social-dialogue-generator',
+              model: 'dialogue-model',
+              providerId: 'dialogue-provider',
+            }),
+            globalSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-global-synthesizer',
+              model: 'global-model',
+              providerId: 'global-provider',
+            }),
+            reactiveCorrection: createLlmStageNode({
+              kind: 'traceable-llm-reactive-corrector',
+              model: 'reactive-model',
+              providerId: 'reactive-provider',
+            }),
+            reflectionSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-reflective-insight-synthesizer',
+              model: 'reflection-model',
+              providerId: 'reflection-provider',
+            }),
+            socialModelSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-social-model-synthesizer',
+              model: 'social-model',
+              providerId: 'social-model-provider',
+            }),
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['default-100'],
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createPassingSummary(input));
+      },
+    });
+
+    expect(result.status).toBe('pass');
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]).toMatchObject({
+      llmPlanning: {
+        kind: 'traceable-llm-strategic-planner',
+        model: 'strategic-model',
+        provider: { providerId: 'strategic-provider' },
+      },
+      dailyPlanning: {
+        kind: 'traceable-llm-daily-planner',
+        model: 'daily-model',
+        provider: { providerId: 'daily-provider' },
+      },
+      reactionPlanning: {
+        kind: 'traceable-llm-reaction-evaluator',
+        model: 'reaction-model',
+        provider: { providerId: 'reaction-provider' },
+      },
+      subtaskPrioritization: {
+        kind: 'traceable-llm-subtask-prioritizer',
+        model: 'priority-model',
+        provider: { providerId: 'priority-provider' },
+      },
+      actionSequenceGeneration: {
+        kind: 'traceable-llm-action-sequence-generator',
+        model: 'action-model',
+        provider: { providerId: 'action-provider' },
+      },
+      socialDialogue: {
+        kind: 'traceable-llm-social-dialogue-generator',
+        model: 'dialogue-model',
+        provider: { providerId: 'dialogue-provider' },
+      },
+      globalSynthesis: {
+        kind: 'traceable-llm-global-synthesizer',
+        model: 'global-model',
+        provider: { providerId: 'global-provider' },
+      },
+      reactiveCorrection: {
+        kind: 'traceable-llm-reactive-corrector',
+        model: 'reactive-model',
+        provider: { providerId: 'reactive-provider' },
+      },
+      reflectionSynthesis: {
+        kind: 'traceable-llm-reflective-insight-synthesizer',
+        model: 'reflection-model',
+        provider: { providerId: 'reflection-provider' },
+      },
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        model: 'social-model',
+        provider: { providerId: 'social-model-provider' },
+      },
+    });
+  });
+
   test('includes the recovery drill profile in default suite runs', async () => {
     const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
 
@@ -308,4 +441,20 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-gate-suite-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createLlmStageNode(input: {
+  readonly kind: string;
+  readonly model: string;
+  readonly providerId: string;
+}) {
+  return {
+    kind: input.kind,
+    model: input.model,
+    provider: {
+      kind: 'openai-compatible',
+      providerId: input.providerId,
+      endpoint: `https://${input.providerId}.example.test/v1/chat/completions`,
+    },
+  };
 }

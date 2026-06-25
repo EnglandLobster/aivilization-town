@@ -207,6 +207,27 @@ function createProfileRunnerInput(input: {
     ...(input.runtimeConfig?.reactionPlanning === undefined
       ? {}
       : { reactionPlanning: input.runtimeConfig.reactionPlanning }),
+    ...(input.runtimeConfig?.subtaskPrioritization === undefined
+      ? {}
+      : { subtaskPrioritization: input.runtimeConfig.subtaskPrioritization }),
+    ...(input.runtimeConfig?.actionSequenceGeneration === undefined
+      ? {}
+      : { actionSequenceGeneration: input.runtimeConfig.actionSequenceGeneration }),
+    ...(input.runtimeConfig?.socialDialogue === undefined
+      ? {}
+      : { socialDialogue: input.runtimeConfig.socialDialogue }),
+    ...(input.runtimeConfig?.globalSynthesis === undefined
+      ? {}
+      : { globalSynthesis: input.runtimeConfig.globalSynthesis }),
+    ...(input.runtimeConfig?.reactiveCorrection === undefined
+      ? {}
+      : { reactiveCorrection: input.runtimeConfig.reactiveCorrection }),
+    ...(input.runtimeConfig?.reflectionSynthesis === undefined
+      ? {}
+      : { reflectionSynthesis: input.runtimeConfig.reflectionSynthesis }),
+    ...(input.runtimeConfig?.socialModelSynthesis === undefined
+      ? {}
+      : { socialModelSynthesis: input.runtimeConfig.socialModelSynthesis }),
     ...(input.runtimeConfig?.replanningPolicy === undefined
       ? {}
       : { replanningPolicy: input.runtimeConfig.replanningPolicy }),

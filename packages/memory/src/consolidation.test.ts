@@ -1,6 +1,10 @@
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { createShortTermMemoryRecord, proposeLongTermMemoryPatches } from './index';
+import {
+  createShortTermMemoryRecord,
+  proposeLongTermMemoryPatches,
+  proposeNonSocialLongTermMemoryPatches,
+} from './index';
 
 describe('long-term memory consolidation', () => {
   test('promotes repeated successful patterns into habit patches', () => {
@@ -144,6 +148,65 @@ describe('long-term memory consolidation', () => {
         proposedAt: 30,
         relationDelta: 0.75,
         attitudeDelta: 0.25,
+      },
+    ]);
+  });
+
+  test('can propose non-social patches without leaking social records', () => {
+    const agentId = asAgentId('agent-1');
+    const targetAgentId = asAgentId('agent-2');
+    const records = [
+      createShortTermMemoryRecord({
+        id: 'habit-1',
+        agentId,
+        kind: 'action',
+        status: 'succeeded',
+        summary: 'Completed study session.',
+        occurredAt: 1,
+        importanceScore: 0.6,
+        source: { eventIds: [] },
+        consolidationHint: {
+          kind: 'habit',
+          patternKey: 'study-before-work',
+          statement: 'Studies before starting work.',
+        },
+      }),
+      createShortTermMemoryRecord({
+        id: 'social-1',
+        agentId,
+        kind: 'social-interaction',
+        status: 'succeeded',
+        summary: 'Shared food after work.',
+        occurredAt: 2,
+        importanceScore: 0.8,
+        source: { eventIds: [] },
+        consolidationHint: {
+          kind: 'social',
+          targetAgentId,
+          relationDelta: 0.25,
+          attitudeDelta: 0.5,
+          summary: 'Shared food after work.',
+        },
+      }),
+    ];
+
+    expect(
+      proposeNonSocialLongTermMemoryPatches({
+        agentId,
+        records,
+        minPatternCount: 1,
+        proposedAt: 40,
+      }),
+    ).toEqual([
+      {
+        id: 'ltm-patch-agent-1-habit-study-before-work-40',
+        agentId,
+        section: 'habits',
+        key: 'study-before-work',
+        statement: 'Studies before starting work.',
+        confidence: 0.6,
+        provenanceRecordIds: ['habit-1'],
+        proposedAt: 40,
       },
     ]);
   });

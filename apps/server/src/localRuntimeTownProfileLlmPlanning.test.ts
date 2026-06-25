@@ -17,6 +17,7 @@ import {
   createLocalRuntimeTownProfileReactionEvaluator,
   createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileSocialDialogueGenerator,
+  createLocalRuntimeTownProfileSocialModelSynthesizer,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
   createLocalRuntimeTownProfileSubtaskPrioritizer,
 } from './localRuntimeTownProfileLlmPlanning';
@@ -514,7 +515,10 @@ describe('local runtime town profile LLM planning config', () => {
     expect(socialDialogue.payload).toMatchObject({
       topic: 'sharing Fish price notes',
       turns: [
-        { speakerAgentId: 'agent-1', utterance: 'I found Fish near the market and wanted to compare prices.' },
+        {
+          speakerAgentId: 'agent-1',
+          utterance: 'I found Fish near the market and wanted to compare prices.',
+        },
         { speakerAgentId: 'agent-2', utterance: 'I can check another stall before dinner.' },
       ],
     });
@@ -654,6 +658,7 @@ describe('local runtime town profile LLM planning config', () => {
     expect(createLocalRuntimeTownProfileSocialDialogueGenerator(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileGlobalSynthesizer(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileReactiveCorrector(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileSocialModelSynthesizer(undefined)).toBeUndefined();
   });
 
   test('rejects invalid provider configuration before runtime use', () => {
@@ -755,6 +760,122 @@ describe('local runtime town profile LLM planning config', () => {
           outputTokens: 9,
           totalTokens: 21,
           estimatedCostMicros: 51,
+        },
+      },
+    });
+  });
+
+  test('creates a traceable social model synthesizer from scripted provider config', async () => {
+    const synthesizer = createLocalRuntimeTownProfileSocialModelSynthesizer({
+      kind: 'traceable-llm-social-model-synthesizer',
+      profileId: 'smoke-25',
+      model: 'profile-social-model',
+      maxAttempts: 2,
+      timeoutMs: 1_000,
+      pricing: {
+        inputTokenCostMicros: 2,
+        outputTokenCostMicros: 3,
+      },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-social-model',
+        responses: [
+          {
+            providerId: 'scripted-profile-social-model',
+            model: 'profile-social-model',
+            content: JSON.stringify({
+              socialRecords: [
+                {
+                  targetAgentId: 'agent-2',
+                  statement: 'agent-2 reliably shares food during recovery windows.',
+                  confidence: 0.9,
+                  evidenceRecordIds: ['memory-social-1'],
+                  relationDelta: 2,
+                  attitudeDelta: 1,
+                  rationale: 'The supplied social memory directly records food sharing.',
+                },
+              ],
+              socialReflections: [
+                {
+                  targetAgentId: 'agent-2',
+                  statement: 'agent-2 is becoming a trusted food-sharing partner.',
+                  confidence: 0.9,
+                  evidenceRecordIds: ['memory-social-1'],
+                  relationDelta: 2,
+                  attitudeDelta: 1,
+                  tags: ['food'],
+                  rationale: 'The interaction changed the local model of agent-2.',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: {
+              inputTokens: 14,
+              outputTokens: 10,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(synthesizer).not.toBeUndefined();
+    if (synthesizer === undefined) {
+      throw new Error('expected LLM social model synthesizer');
+    }
+    const result = await synthesizer({
+      agentId: asAgentId('agent-1'),
+      generatedAt: 555,
+      records: [
+        createShortTermMemoryRecord({
+          id: 'memory-social-1',
+          agentId: asAgentId('agent-1'),
+          kind: 'social-interaction',
+          status: 'succeeded',
+          summary: 'agent-2 shared food after work.',
+          occurredAt: 550,
+          importanceScore: 0.8,
+          source: { eventIds: [] },
+          tags: ['social', 'food', 'agent-2'],
+          consolidationHint: {
+            kind: 'social',
+            targetAgentId: asAgentId('agent-2'),
+            summary: 'agent-2 shared food after work.',
+            relationDelta: 1,
+            attitudeDelta: 1,
+          },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({
+      patches: [
+        {
+          id: 'ltm-patch-agent-1-social-agent-2-555',
+          key: 'agent-2',
+          confidence: 0.9,
+          relationDelta: 2,
+          attitudeDelta: 1,
+        },
+      ],
+      socialReflections: [
+        {
+          id: 'social-reflection-agent-1-agent-2-llm-0-555',
+          targetAgentId: 'agent-2',
+          confidence: 0.9,
+          tags: ['social', 'post-interaction-reflection', 'agent-2', 'food'],
+        },
+      ],
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'profile-llm-social-model-synthesis:smoke-25:agent-1:555',
+        providerId: 'scripted-profile-social-model',
+        model: 'profile-social-model',
+        usage: {
+          inputTokens: 14,
+          outputTokens: 10,
+          totalTokens: 24,
+          estimatedCostMicros: 58,
         },
       },
     });

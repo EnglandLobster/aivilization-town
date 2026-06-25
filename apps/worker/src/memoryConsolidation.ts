@@ -1,8 +1,8 @@
 import {
   convertReflectiveInsightsToLongTermMemoryPatches,
   createDeterministicReflectiveInsightSynthesizer,
-  proposeLongTermMemoryPatches,
-  proposeSocialInteractionReflections,
+  createDeterministicSocialModelSynthesizer,
+  proposeNonSocialLongTermMemoryPatches,
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
   type LongTermProfileRepository,
@@ -10,6 +10,8 @@ import {
   type ReflectiveInsightSynthesizer,
   type ReflectiveInsightSynthesisTrace,
   type SocialInteractionReflectionRecord,
+  type SocialModelSynthesizer,
+  type SocialModelSynthesisTrace,
   type ShortTermMemoryOrder,
   type ShortTermMemoryRecord,
   type ShortTermMemoryRepository,
@@ -37,12 +39,14 @@ export type WorkerMemoryConsolidationInput = {
   readonly occurredAfter?: SimulationTimestamp;
   readonly orderBy?: ShortTermMemoryOrder;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
+  readonly socialModelSynthesizer?: SocialModelSynthesizer;
 };
 
 export type WorkerMemoryConsolidationResult = {
   readonly agentId: AgentId;
   readonly records: readonly ShortTermMemoryRecord[];
   readonly socialReflections: readonly SocialInteractionReflectionRecord[];
+  readonly socialModelSynthesisTrace: SocialModelSynthesisTrace;
   readonly reflectiveInsights: readonly ReflectiveInsightRecord[];
   readonly reflectionSynthesisTrace: ReflectiveInsightSynthesisTrace;
   readonly patches: readonly LongTermMemoryPatch[];
@@ -162,6 +166,9 @@ export async function runWorkerMemoryConsolidation(
     ...(input.reflectiveInsightSynthesizer === undefined
       ? {}
       : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
+    ...(input.socialModelSynthesizer === undefined
+      ? {}
+      : { socialModelSynthesizer: input.socialModelSynthesizer }),
   });
 }
 
@@ -172,18 +179,22 @@ async function applyWorkerMemoryConsolidation(input: {
   readonly minPatternCount: number;
   readonly proposedAt: SimulationTimestamp;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
+  readonly socialModelSynthesizer?: SocialModelSynthesizer;
 }): Promise<WorkerMemoryConsolidationResult> {
   const currentProfile = await input.longTermProfileRepository.getOrCreate(input.agentId);
-  const hintPatches = proposeLongTermMemoryPatches({
+  const nonSocialPatches = proposeNonSocialLongTermMemoryPatches({
     agentId: input.agentId,
     records: input.records,
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
   });
-  const socialReflections = proposeSocialInteractionReflections({
+  const socialModelSynthesizer =
+    input.socialModelSynthesizer ?? createDeterministicSocialModelSynthesizer();
+  const socialModelSynthesis = await socialModelSynthesizer({
     agentId: input.agentId,
     records: input.records,
     generatedAt: input.proposedAt,
+    longTermProfile: currentProfile,
   });
   const reflectiveInsightSynthesizer =
     input.reflectiveInsightSynthesizer ?? createDeterministicReflectiveInsightSynthesizer();
@@ -196,7 +207,8 @@ async function applyWorkerMemoryConsolidation(input: {
   });
   const reflectiveInsights = reflectionSynthesis.insights;
   const patches = [
-    ...hintPatches,
+    ...nonSocialPatches,
+    ...socialModelSynthesis.patches,
     ...convertReflectiveInsightsToLongTermMemoryPatches({ insights: reflectiveInsights }),
   ];
   const profile =
@@ -207,7 +219,8 @@ async function applyWorkerMemoryConsolidation(input: {
   return {
     agentId: input.agentId,
     records: input.records,
-    socialReflections,
+    socialReflections: socialModelSynthesis.socialReflections,
+    socialModelSynthesisTrace: socialModelSynthesis.trace,
     reflectiveInsights,
     reflectionSynthesisTrace: reflectionSynthesis.trace,
     patches,
@@ -232,6 +245,9 @@ export async function runWorkerMemoryConsolidationBatch(
         ...(input.reflectiveInsightSynthesizer === undefined
           ? {}
           : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
+        ...(input.socialModelSynthesizer === undefined
+          ? {}
+          : { socialModelSynthesizer: input.socialModelSynthesizer }),
       }),
     );
   }
@@ -284,6 +300,9 @@ export async function runWorkerMemoryConsolidationSchedule(
       ...(input.reflectiveInsightSynthesizer === undefined
         ? {}
         : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
+      ...(input.socialModelSynthesizer === undefined
+        ? {}
+        : { socialModelSynthesizer: input.socialModelSynthesizer }),
     });
     results.push(result);
 

@@ -991,6 +991,38 @@ describe('local runtime town profile runner', () => {
       'profile-llm-reflection-synthesis:smoke-25:smoke-25-world-main-agent-001:260',
     );
   });
+
+  test('attaches configured social model synthesis to a provided memory consolidation schedule', async () => {
+    const rootDir = createRootDir();
+    const observedRequestIds: string[] = [];
+
+    await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 270,
+      memoryConsolidationSchedule: {
+        agentIds: [asAgentId('smoke-25-world-main-agent-001')],
+        retrievalLimit: 10,
+        minPatternCount: 1,
+      },
+      socialModelSynthesis: {
+        kind: 'traceable-llm-social-model-synthesizer',
+        profileId: 'smoke-25',
+        model: 'profile-social-model',
+        provider: {
+          kind: 'scripted',
+          providerId: 'scripted-profile-social-model',
+          responses: createEmptySocialModelResponses(1, observedRequestIds),
+        },
+      },
+    });
+
+    expect(observedRequestIds).toHaveLength(1);
+    expect(observedRequestIds[0]).toBe(
+      'profile-llm-social-model-synthesis:smoke-25:smoke-25-world-main-agent-001:270',
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -1047,6 +1079,18 @@ function createEmptyReflectionResponses(count: number, observedRequestIds: strin
       providerId: 'scripted-profile-reflection',
       model: 'profile-reflection-model',
       content: JSON.stringify({ insights: [] }),
+      finishReason: 'stop' as const,
+    };
+  });
+}
+
+function createEmptySocialModelResponses(count: number, observedRequestIds: string[]) {
+  return Array.from({ length: count }, () => (request: LlmProviderCompletionRequest) => {
+    observedRequestIds.push(request.requestId);
+    return {
+      providerId: 'scripted-profile-social-model',
+      model: 'profile-social-model',
+      content: JSON.stringify({ socialRecords: [], socialReflections: [] }),
       finishReason: 'stop' as const,
     };
   });

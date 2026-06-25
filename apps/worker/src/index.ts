@@ -41,6 +41,7 @@ export * from './localScenarioBootstrap';
 export * from './marketObservationRecording';
 export * from './marketMetrics';
 export * from './memoryConsolidation';
+export * from './memoryContextSelection';
 export * from './objectiveLifecycle';
 export * from './objectiveRenewal';
 export * from './projectionHydration';

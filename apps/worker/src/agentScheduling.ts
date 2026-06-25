@@ -17,6 +17,7 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import { resolveMemoryRetrievalCandidateLimit } from './memoryContextSelection';
 import type { WorkerTickAgentInput } from './tickRunner';
 
 export type WorkerAgentRuntimeBinding = {
@@ -43,11 +44,10 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly memoryRetrievalLimit?: number;
+  readonly memoryRetrievalCandidateLimit?: number;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
-  if (input.memoryRetrievalLimit !== undefined) {
-    assertPositiveInteger(input.memoryRetrievalLimit, 'memoryRetrievalLimit');
-  }
+  validateMemoryRetrievalBudget(input);
   const agents: WorkerTickAgentInput[] = [];
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
@@ -107,6 +107,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       ...(input.memoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.memoryRetrievalLimit }),
+      ...(input.memoryRetrievalCandidateLimit === undefined
+        ? {}
+        : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
       microPlanners: runtime.microPlanners,
       ...(runtime.actionSynthesis === undefined
         ? {}
@@ -147,8 +150,20 @@ function summarizeInventory(inventory: Readonly<Record<string, number>>): string
   return entries.map(([itemName, quantity]) => `${itemName}:${quantity}`).join(',');
 }
 
-function assertPositiveInteger(value: number, name: string): void {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`${name} must be a positive integer`);
+function validateMemoryRetrievalBudget(input: {
+  readonly memoryRetrievalLimit?: number;
+  readonly memoryRetrievalCandidateLimit?: number;
+}): void {
+  if (input.memoryRetrievalLimit === undefined) {
+    if (input.memoryRetrievalCandidateLimit !== undefined) {
+      throw new Error('memoryRetrievalLimit is required when memoryRetrievalCandidateLimit is set');
+    }
+    return;
   }
+  resolveMemoryRetrievalCandidateLimit({
+    memoryRetrievalLimit: input.memoryRetrievalLimit,
+    ...(input.memoryRetrievalCandidateLimit === undefined
+      ? {}
+      : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
+  });
 }

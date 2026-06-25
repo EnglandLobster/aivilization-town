@@ -732,6 +732,111 @@ describe('worker agent cycle runner', () => {
     expect(result.cycleResult.commandDrafts[0]?.type).toBe('AgentSleep');
   });
 
+  test('selects relevant memory context before planning when candidate window contains higher-importance noise', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    await repositories.shortTermMemoryRepository.appendMany([
+      createShortTermMemoryRecord({
+        id: 'market-shock',
+        agentId,
+        kind: 'observation',
+        status: 'observed',
+        summary: 'Observed a major Apple price shock at the market.',
+        occurredAt: 1000,
+        importanceScore: 1,
+        source: { eventIds: [] },
+        tags: ['market', 'trade'],
+      }),
+      createShortTermMemoryRecord({
+        id: 'recent-energy-failure',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Failed to work because energy was too low.',
+        occurredAt: 1000,
+        importanceScore: 0.8,
+        source: { eventIds: [] },
+        tags: ['work', 'energy'],
+      }),
+    ]);
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-relevant-memory-context',
+      simulationId,
+      agentId,
+      issuedAt: 1000,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createBranchPlan({
+        objective: 'avoid repeating recent failures',
+        branches: [
+          {
+            id: 'income',
+            objective: 'earn wage',
+            subtasks: [{ id: 'work', description: 'work shift', basePriority: 4 }],
+          },
+          {
+            id: 'recovery',
+            objective: 'restore energy',
+            subtasks: [
+              {
+                id: 'sleep',
+                description: 'rest before working',
+                basePriority: 1,
+                memoryAffinityTags: ['energy'],
+              },
+            ],
+          },
+        ],
+      }),
+      signals: [],
+      memoryRetrievalLimit: 1,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-relevant-memory-context',
+      commandIdPrefix: 'cycle-relevant-memory-context-command',
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+            },
+          ],
+        },
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...repositories,
+    });
+
+    expect(result.trace.memoryContextIds).toEqual(['recent-energy-failure']);
+    expect(result.cycleResult.selectedSubtask).toMatchObject({
+      branchId: 'recovery',
+      subtaskId: 'sleep',
+    });
+    expect(result.trace.selectionEvidence.memoryEvidenceRecordIds).toEqual([
+      'recent-energy-failure',
+    ]);
+  });
+
   test('records a rejected trace and skips event append when simulator requires replanning', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

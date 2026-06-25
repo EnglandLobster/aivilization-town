@@ -45,6 +45,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly agentMemoryRetrievalLimit?: number;
+  readonly agentMemoryRetrievalCandidateLimit?: number;
 };
 
 export type LocalRuntimeTownProfileRunnerPartitionSummary = {
@@ -112,6 +113,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
+      ...(input.agentMemoryRetrievalCandidateLimit === undefined
+        ? {}
+        : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
     });
   const runtime = await createLocalRuntimeTownApi({
     rootDir: input.rootDir,
@@ -247,6 +251,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     readonly policies?: WorldCommandPolicySource;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
     readonly memoryRetrievalLimit?: number;
+    readonly memoryRetrievalCandidateLimit?: number;
   } = {},
 ): LocalWorldRuntimeAgentProvider {
   const policies = input.policies ?? createLocalRuntimeTownProfileWorldPolicies();
@@ -289,6 +294,9 @@ export function createLocalRuntimeTownProfileAgentProvider(
       planRepository: storage.planRepository,
       planProgressRepository: storage.planProgressRepository,
       memoryRetrievalLimit,
+      ...(input.memoryRetrievalCandidateLimit === undefined
+        ? {}
+        : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,
         policies,

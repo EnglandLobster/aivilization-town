@@ -39,6 +39,10 @@ import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
 } from './commandDispatch';
+import {
+  resolveMemoryRetrievalCandidateLimit,
+  selectRelevantShortTermMemoryContext,
+} from './memoryContextSelection';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type WorkerAgentCycleTraceSink = {
@@ -88,6 +92,7 @@ export async function runWorkerAgentCycle(
     readonly longTermProfileRepository: LongTermProfileRepository;
     readonly shortTermMemoryRepository: ShortTermMemoryRepository;
     readonly memoryRetrievalLimit?: number;
+    readonly memoryRetrievalCandidateLimit?: number;
     readonly microPlanners: readonly DomainMicroPlanner[];
     readonly actionSynthesis?: ActionSynthesisPolicy;
     readonly simulate: CycleActionSimulator;
@@ -98,15 +103,9 @@ export async function runWorkerAgentCycle(
     readonly traceSink?: WorkerAgentCycleTraceSink;
   } & WorkerAgentCyclePlanInput,
 ): Promise<WorkerAgentCycleResult> {
-  const [intentionState, longTermProfile, shortTermMemoryContext, plan] = await Promise.all([
+  const [intentionState, longTermProfile, plan] = await Promise.all([
     input.intentionRepository.getOrCreate(input.agentId),
     input.longTermProfileRepository.getOrCreate(input.agentId),
-    input.memoryRetrievalLimit === undefined
-      ? Promise.resolve<ShortTermMemoryRecord[]>([])
-      : input.shortTermMemoryRepository.retrieve({
-          agentId: input.agentId,
-          limit: input.memoryRetrievalLimit,
-        }),
     resolveBranchPlan({
       agentId: input.agentId,
       plan: input.plan,
@@ -114,6 +113,19 @@ export async function runWorkerAgentCycle(
       planId: input.planId,
     }),
   ]);
+  const shortTermMemoryContext = await resolveShortTermMemoryContext({
+    agentId: input.agentId,
+    issuedAt: input.issuedAt,
+    plan,
+    signals: input.signals,
+    shortTermMemoryRepository: input.shortTermMemoryRepository,
+    ...(input.memoryRetrievalLimit === undefined
+      ? {}
+      : { memoryRetrievalLimit: input.memoryRetrievalLimit }),
+    ...(input.memoryRetrievalCandidateLimit === undefined
+      ? {}
+      : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
+  });
   const progress = await resolvePlanProgress({
     agentId: input.agentId,
     issuedAt: input.issuedAt,
@@ -203,6 +215,37 @@ export async function runWorkerAgentCycle(
       : { progressUpdate: cycleResult.progressUpdate }),
     trace,
   };
+}
+
+async function resolveShortTermMemoryContext(input: {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly plan: BranchPlan;
+  readonly signals: Parameters<typeof runAgentPlanningCycle>[0]['signals'];
+  readonly shortTermMemoryRepository: ShortTermMemoryRepository;
+  readonly memoryRetrievalLimit?: number;
+  readonly memoryRetrievalCandidateLimit?: number;
+}): Promise<readonly ShortTermMemoryRecord[]> {
+  if (input.memoryRetrievalLimit === undefined) {
+    return [];
+  }
+
+  const candidates = await input.shortTermMemoryRepository.retrieve({
+    agentId: input.agentId,
+    limit: resolveMemoryRetrievalCandidateLimit({
+      memoryRetrievalLimit: input.memoryRetrievalLimit,
+      ...(input.memoryRetrievalCandidateLimit === undefined
+        ? {}
+        : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
+    }),
+  });
+  return selectRelevantShortTermMemoryContext({
+    records: candidates,
+    plan: input.plan,
+    signals: input.signals,
+    issuedAt: input.issuedAt,
+    limit: input.memoryRetrievalLimit,
+  });
 }
 
 function mapSimulatorEventTraces(

@@ -411,6 +411,75 @@ describe('worker memory consolidation', () => {
     ]);
   });
 
+  test('gates scheduled reflection by accumulated pending memory importance', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    await shortTermMemoryRepository.appendMany([
+      createLowImportanceStudyMemory(1),
+      createLowImportanceStudyMemory(2),
+    ]);
+
+    const belowThreshold = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 1000,
+      reflectionTrigger: { minimumImportanceScore: 1 },
+    });
+
+    expect(belowThreshold.results).toEqual([]);
+    expect(belowThreshold.patchCount).toBe(0);
+    expect(belowThreshold.cursors).toEqual([]);
+    expect(belowThreshold.skipped).toEqual([
+      {
+        agentId,
+        reason: 'importance-threshold-not-met',
+        pendingRecordCount: 2,
+        pendingImportanceScore: 0.8,
+        minimumImportanceScore: 1,
+      },
+    ]);
+    await expect(cursorStore.getCursor(agentId)).resolves.toBeUndefined();
+    await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toMatchObject({
+      habits: [],
+    });
+
+    await shortTermMemoryRepository.append(createLowImportanceStudyMemory(3));
+
+    const atThreshold = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 2000,
+      reflectionTrigger: { minimumImportanceScore: 1 },
+    });
+
+    expect(atThreshold.skipped).toEqual([]);
+    expect(atThreshold.results[0]?.records.map((record) => record.id)).toEqual([
+      'low-importance-study-1',
+      'low-importance-study-2',
+      'low-importance-study-3',
+    ]);
+    expect(atThreshold.patchCount).toBe(1);
+    expect(atThreshold.cursors).toEqual([
+      {
+        agentId,
+        lastProcessedOccurredAt: 3,
+        updatedAt: 2000,
+      },
+    ]);
+    await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toMatchObject({
+      habits: [{ key: 'study-routine' }],
+    });
+  });
+
   test('persists consolidation cursors across store restarts', async () => {
     const rootDir = createTempRoot();
     const store = new FileMemoryConsolidationCursorStore({ rootDir });
@@ -438,4 +507,18 @@ function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-memory-cursor-'));
   tempRoots.push(root);
   return root;
+}
+
+function createLowImportanceStudyMemory(index: number) {
+  return createShortTermMemoryRecord({
+    id: `low-importance-study-${index}`,
+    agentId,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Completed a focused study session.',
+    occurredAt: index,
+    importanceScore: 0.4,
+    source: { eventIds: [] },
+    tags: ['study', 'education'],
+  });
 }

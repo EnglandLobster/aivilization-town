@@ -46,6 +46,18 @@ export type WorkerMemoryConsolidationBatchResult = {
   readonly patchCount: number;
 };
 
+export type WorkerMemoryConsolidationReflectionTrigger = {
+  readonly minimumImportanceScore: number;
+};
+
+export type WorkerMemoryConsolidationSkippedResult = {
+  readonly agentId: AgentId;
+  readonly reason: 'importance-threshold-not-met';
+  readonly pendingRecordCount: number;
+  readonly pendingImportanceScore: number;
+  readonly minimumImportanceScore: number;
+};
+
 export type MemoryConsolidationCursor = {
   readonly agentId: AgentId;
   readonly lastProcessedOccurredAt: SimulationTimestamp;
@@ -97,11 +109,13 @@ export class FileMemoryConsolidationCursorStore implements MemoryConsolidationCu
 
 export type WorkerMemoryConsolidationScheduleInput = WorkerMemoryConsolidationBatchInput & {
   readonly cursorStore: MemoryConsolidationCursorStore;
+  readonly reflectionTrigger?: WorkerMemoryConsolidationReflectionTrigger;
 };
 
 export type WorkerMemoryConsolidationScheduleResult = {
   readonly agentIds: readonly AgentId[];
   readonly results: readonly WorkerMemoryConsolidationResult[];
+  readonly skipped: readonly WorkerMemoryConsolidationSkippedResult[];
   readonly cursors: readonly MemoryConsolidationCursor[];
   readonly patchCount: number;
 };
@@ -115,15 +129,31 @@ export async function runWorkerMemoryConsolidation(
     ...(input.occurredAfter === undefined ? {} : { occurredAfter: input.occurredAfter }),
     ...(input.orderBy === undefined ? {} : { orderBy: input.orderBy }),
   });
-  const hintPatches = proposeLongTermMemoryPatches({
+  return applyWorkerMemoryConsolidation({
     agentId: input.agentId,
     records,
+    longTermProfileRepository: input.longTermProfileRepository,
+    minPatternCount: input.minPatternCount,
+    proposedAt: input.proposedAt,
+  });
+}
+
+async function applyWorkerMemoryConsolidation(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly longTermProfileRepository: LongTermProfileRepository;
+  readonly minPatternCount: number;
+  readonly proposedAt: SimulationTimestamp;
+}): Promise<WorkerMemoryConsolidationResult> {
+  const hintPatches = proposeLongTermMemoryPatches({
+    agentId: input.agentId,
+    records: input.records,
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
   });
   const reflectiveInsights = proposeReflectiveInsights({
     agentId: input.agentId,
-    records,
+    records: input.records,
     minEvidenceCount: input.minPatternCount,
     generatedAt: input.proposedAt,
   });
@@ -138,7 +168,7 @@ export async function runWorkerMemoryConsolidation(
 
   return {
     agentId: input.agentId,
-    records,
+    records: input.records,
     reflectiveInsights,
     patches,
     profile,
@@ -175,19 +205,39 @@ export async function runWorkerMemoryConsolidationSchedule(
 ): Promise<WorkerMemoryConsolidationScheduleResult> {
   const agentIds = dedupeAgentIds(input.agentIds);
   const results: WorkerMemoryConsolidationResult[] = [];
+  const skipped: WorkerMemoryConsolidationSkippedResult[] = [];
   const cursors: MemoryConsolidationCursor[] = [];
+  if (input.reflectionTrigger !== undefined) {
+    assertPositiveFinite(
+      input.reflectionTrigger.minimumImportanceScore,
+      'reflectionTrigger.minimumImportanceScore',
+    );
+  }
 
   for (const agentId of agentIds) {
     const cursor = await input.cursorStore.getCursor(agentId);
-    const result = await runWorkerMemoryConsolidation({
+    const pendingRecords = await input.shortTermMemoryRepository.retrieve({
       agentId,
-      shortTermMemoryRepository: input.shortTermMemoryRepository,
-      longTermProfileRepository: input.longTermProfileRepository,
-      retrievalLimit: input.retrievalLimit,
-      minPatternCount: input.minPatternCount,
-      proposedAt: input.proposedAt,
+      limit: input.retrievalLimit,
       orderBy: 'oldest-first',
       ...(cursor === undefined ? {} : { occurredAfter: cursor.lastProcessedOccurredAt }),
+    });
+    const skip = evaluateReflectionTrigger({
+      agentId,
+      records: pendingRecords,
+      reflectionTrigger: input.reflectionTrigger,
+    });
+    if (skip !== undefined) {
+      skipped.push(skip);
+      continue;
+    }
+
+    const result = await applyWorkerMemoryConsolidation({
+      agentId,
+      records: pendingRecords,
+      longTermProfileRepository: input.longTermProfileRepository,
+      minPatternCount: input.minPatternCount,
+      proposedAt: input.proposedAt,
     });
     results.push(result);
 
@@ -200,9 +250,39 @@ export async function runWorkerMemoryConsolidationSchedule(
   return {
     agentIds,
     results,
+    skipped,
     cursors,
     patchCount: results.reduce((count, result) => count + result.patches.length, 0),
   };
+}
+
+function evaluateReflectionTrigger(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly reflectionTrigger: WorkerMemoryConsolidationReflectionTrigger | undefined;
+}): WorkerMemoryConsolidationSkippedResult | undefined {
+  if (input.reflectionTrigger === undefined) {
+    return undefined;
+  }
+
+  const pendingImportanceScore = sumImportance(input.records);
+  if (pendingImportanceScore >= input.reflectionTrigger.minimumImportanceScore) {
+    return undefined;
+  }
+
+  return {
+    agentId: input.agentId,
+    reason: 'importance-threshold-not-met',
+    pendingRecordCount: input.records.length,
+    pendingImportanceScore,
+    minimumImportanceScore: input.reflectionTrigger.minimumImportanceScore,
+  };
+}
+
+function sumImportance(records: readonly ShortTermMemoryRecord[]): number {
+  return Number(
+    records.reduce((total, record) => total + record.importanceScore, 0).toFixed(6),
+  );
 }
 
 function dedupeAgentIds(agentIds: readonly AgentId[]): readonly AgentId[] {
@@ -266,5 +346,11 @@ function readJsonLines<TValue>(path: string): readonly TValue[] {
 function assertNonEmpty(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
+  }
+}
+
+function assertPositiveFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be positive`);
   }
 }

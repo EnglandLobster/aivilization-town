@@ -360,6 +360,57 @@ describe('local simulation lifecycle controller', () => {
     });
   });
 
+  test('surfaces skipped memory consolidation when reflection importance threshold is not met', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await storage.shortTermMemoryRepository.appendMany([createStudyMemory(1), createStudyMemory(2)]);
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 3,
+        reflectionTrigger: { minimumImportanceScore: 2 },
+      },
+    });
+
+    const result = await controller.start(createRequest(1025));
+
+    expect(result.status).toBe('completed');
+    expect(result.state).toMatchObject({
+      lastMemoryConsolidationStatus: 'succeeded',
+      lastMemoryConsolidationAt: 1025,
+      lastMemoryConsolidationAgentCount: 0,
+      lastMemoryConsolidationPatchCount: 0,
+      lastMemoryConsolidationCursorCount: 0,
+    });
+    expect(result.memoryConsolidation).toMatchObject({
+      agentIds: ['agent-1'],
+      results: [],
+      patchCount: 0,
+      cursors: [],
+      skipped: [
+        {
+          agentId: 'agent-1',
+          reason: 'importance-threshold-not-met',
+          pendingRecordCount: 2,
+          pendingImportanceScore: 1.2,
+          minimumImportanceScore: 2,
+        },
+      ],
+    });
+    await expect(storage.memoryConsolidationCursorStore.getCursor(agentOne)).resolves.toBeUndefined();
+    await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      habits: [],
+    });
+  });
+
   test('returns memory consolidation failure metadata without failing a completed lifecycle start', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();

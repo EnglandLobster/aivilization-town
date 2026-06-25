@@ -10,6 +10,7 @@ export * from './agentScheduling';
 export * from './agentCycleRunner';
 export * from './canonicalActivePlanTick';
 export * from './canonicalDomainRuntimes';
+export * from './canonicalLocalRepair';
 export * from './canonicalWorkerRuntimeResolver';
 export * from './commandStreamConsumer';
 export * from './domainRuntimeRegistry';

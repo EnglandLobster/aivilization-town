@@ -35,6 +35,7 @@ import {
   resolveResidentialTargetTier,
   type CanonicalDomainRuntimeConfig,
 } from './canonicalDomainRuntimes';
+import { createCanonicalLocalRepairPolicy } from './canonicalLocalRepair';
 import {
   createDomainRuntimeResolver,
   type WorkerDomainRuntimeFactoryInput,
@@ -90,13 +91,14 @@ export function createCanonicalWorkerRuntimeResolver(
       policies: config.policies,
       projection: context.projection,
     });
+    const repair = config.repair ?? createCanonicalLocalRepairPolicy({ policies });
     const registryResolver = createDomainRuntimeResolver({
       registrations: [
         ...createCanonicalDomainRuntimeRegistrations(config.domainConfig, policies),
         ...(config.additionalRegistrations ?? []),
       ],
       simulate: ({ action }) => ({ status: 'accepted', action }),
-      ...(config.repair === undefined ? {} : { repair: config.repair }),
+      repair,
     });
     const binding = await registryResolver(context);
     if (binding === undefined) {
@@ -124,7 +126,7 @@ export function createCanonicalWorkerRuntimeResolver(
           ? {}
           : { commandIdPrefix: config.commandIdPrefix }),
       }),
-      ...(config.repair === undefined ? {} : { repair: config.repair }),
+      repair,
       ...(config.replanningPolicy === undefined
         ? {}
         : { replanningPolicy: config.replanningPolicy }),

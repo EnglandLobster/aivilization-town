@@ -1756,6 +1756,7 @@ describe('canonical active-plan worker tick', () => {
       streamName: partition.eventStreamName,
       planProgressRepository,
       domainConfig: { production: { commodityName: 'Apple', quantity: 1 } },
+      repair: () => undefined,
       objectiveProposer: () => undefined,
       agentMemoryRetrievalLimit: 10,
       materializeFullReplan: {

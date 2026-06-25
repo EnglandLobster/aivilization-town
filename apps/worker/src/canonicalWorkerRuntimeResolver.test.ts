@@ -113,6 +113,78 @@ describe('canonical worker runtime resolver', () => {
     });
   });
 
+  test('attaches canonical local repair by default while preserving explicit repair override', async () => {
+    const projection = createProjection();
+    const defaultBinding = await createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies,
+    })({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+    });
+
+    expect(defaultBinding?.repair).toEqual(expect.any(Function));
+    expect(
+      defaultBinding?.repair?.({
+        agentId: agentA,
+        issuedAt: 100,
+        plan: createPlanRecord({ agentId: agentA, domain: 'study' }).plan,
+        signals: [],
+        selectedSubtask: selectedSubtask(),
+        rejectedAction: {
+          id: 'study-while-hungry',
+          description: 'study while hungry',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+          priority: 5,
+        },
+        reason: 'insufficient-satiety: satiety requires 25, available 10',
+        worldDecisionContext: {
+          agent: {
+            agentId: agentA,
+            locationId: 'school',
+            physiology: { energy: 40, satiety: 10, health: 95 },
+            educationScore: 10,
+            balance: 20,
+            residentialTier: 1,
+            job: null,
+            inventory: { Apple: 1 },
+          },
+          market: {
+            spotPrices: [{ commodity: 'Apple', spotPrice: 9 }],
+            latestPriceIndex: {
+              baselineAt: 1,
+              recordedAt: 100,
+              overall: 1,
+              ratios: { Apple: 1 },
+            },
+          },
+        },
+      }),
+    ).toMatchObject({
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 1 },
+    });
+
+    const repair: CycleRepairPolicy = () => undefined;
+    const overrideBinding = await createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies,
+      repair,
+    })({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+    });
+
+    expect(overrideBinding?.repair).toBe(repair);
+  });
+
   test('world dry-run simulator rejects actions with authoritative world reasons', () => {
     const projection = createProjection();
     const action: AtomicActionProposal = {

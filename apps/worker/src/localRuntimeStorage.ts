@@ -19,6 +19,7 @@ import {
 } from '@aivilization/sim-core';
 import {
   FileAgentCycleTraceRepository,
+  FileDailyPlanRenewalTraceRepository,
   FileExperimentValidationReportRepository,
   FileMarketObservationRepository,
   FileObjectiveRenewalTraceRepository,
@@ -73,6 +74,7 @@ export type LocalWorldRuntimeStorage = {
   readonly planRepository: FileBranchPlanRepository;
   readonly planProgressRepository: FileBranchPlanProgressRepository;
   readonly agentCycleTraceRepository: FileAgentCycleTraceRepository;
+  readonly dailyPlanRenewalTraceRepository: FileDailyPlanRenewalTraceRepository;
   readonly objectiveRenewalTraceRepository: FileObjectiveRenewalTraceRepository;
   readonly steeringTraceRepository: FileSteeringTraceRepository;
   readonly experimentValidationReportRepository: FileExperimentValidationReportRepository;
@@ -132,6 +134,9 @@ export function createLocalWorldRuntimeStorage(input: {
   const agentCycleTraceRepository = new FileAgentCycleTraceRepository({
     rootDir: paths.observabilityDir,
   });
+  const dailyPlanRenewalTraceRepository = new FileDailyPlanRenewalTraceRepository({
+    rootDir: paths.observabilityDir,
+  });
   const objectiveRenewalTraceRepository = new FileObjectiveRenewalTraceRepository({
     rootDir: paths.observabilityDir,
   });
@@ -173,6 +178,7 @@ export function createLocalWorldRuntimeStorage(input: {
     planRepository,
     planProgressRepository,
     agentCycleTraceRepository,
+    dailyPlanRenewalTraceRepository,
     objectiveRenewalTraceRepository,
     steeringTraceRepository,
     experimentValidationReportRepository,

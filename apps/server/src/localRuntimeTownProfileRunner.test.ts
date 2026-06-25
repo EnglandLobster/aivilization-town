@@ -1,9 +1,14 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileBranchPlanRepository, createBranchPlan, createDailyPlan } from '@aivilization/agent-runtime';
+import {
+  FileBranchPlanRepository,
+  createBranchPlan,
+  createDailyPlan,
+} from '@aivilization/agent-runtime';
 import {
   FileAgentCycleTraceRepository,
+  FileDailyPlanRenewalTraceRepository,
   FileObjectiveRenewalTraceRepository,
   InMemoryRuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
@@ -536,15 +541,40 @@ describe('local runtime town profile runner', () => {
         'observability',
       ),
     });
+    const dailyPlanTraceRepository = new FileDailyPlanRenewalTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
     const objectiveTraces = await objectiveTraceRepository.query({
       simulationId: 'aivilization-smoke-25',
       partitionKey: 'world-main',
       agentId,
       limit: 1,
     });
+    const dailyPlanTraces = await dailyPlanTraceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      dailyPlanId: `daily-plan:${agentId}:0`,
+      limit: 1,
+    });
 
     expect(summary.totalAgentTraceCount).toBeGreaterThan(0);
     expect(compiledAgentIds).toContain(agentId);
+    expect(dailyPlanTraces[0]).toMatchObject({
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+      agentId,
+      dailyPlanId: `daily-plan:${agentId}:0`,
+      scheduledIntentionIds: [`daily-plan:${agentId}:0:party-prep`],
+      issuedAt: 8.5 * 60 * 60 * 1000,
+    });
     expect(objectiveTraces[0]).toMatchObject({
       agentId,
       objectiveId: `auto-objective-${agentId}-${8.5 * 60 * 60 * 1000}`,

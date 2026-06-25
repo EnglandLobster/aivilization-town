@@ -8,10 +8,15 @@ import {
 import type {
   AgentIntentionRepository,
   LongTermAgentProfile,
+  LongTermProfileEntry,
   LongTermProfileRepository,
   ScheduledIntention,
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
+import type {
+  DailyPlanRenewalPlanningTrace,
+  DailyPlanRenewalTrace,
+} from '@aivilization/observability';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 
@@ -55,6 +60,15 @@ export type DailyRoutineRenewalResult = {
 export type DailyPlanRenewalResult = DailyRoutineRenewalResult & {
   readonly dailyPlanId: string;
   readonly planningTrace?: DailyPlanCompilationTrace;
+};
+
+export type DailyPlanRenewalTraceScope = {
+  readonly simulationId: string;
+  readonly partitionKey: string;
+};
+
+export type DailyPlanRenewalTraceSink = {
+  readonly record: (trace: DailyPlanRenewalTrace) => void | Promise<void>;
 };
 
 export const defaultDailyRoutineSchedule = [
@@ -198,10 +212,7 @@ export async function renewDailyRoutineScheduledIntentions(input: {
       createdAt: input.issuedAt,
       schedule,
     });
-    await input.intentionRepository.upsertScheduledIntentions(
-      agent.agentId,
-      scheduledIntentions,
-    );
+    await input.intentionRepository.upsertScheduledIntentions(agent.agentId, scheduledIntentions);
     results.push({
       agentId: agent.agentId,
       scheduledIntentionIds: scheduledIntentions.map((intention) => intention.id),
@@ -219,10 +230,27 @@ export async function renewDailyPlanScheduledIntentions(input: {
   readonly issuedAt: SimulationTimestamp;
   readonly memoryRetrievalLimit?: number;
   readonly compileDailyPlan?: DailyPlanCompiler;
+  readonly dailyPlanRenewalTraceScope?: DailyPlanRenewalTraceScope;
+  readonly dailyPlanRenewalTraceSink?: DailyPlanRenewalTraceSink;
 }): Promise<readonly DailyPlanRenewalResult[]> {
   assertFiniteNonNegative(input.issuedAt, 'issuedAt');
   if (input.memoryRetrievalLimit !== undefined) {
     assertPositiveInteger(input.memoryRetrievalLimit, 'memoryRetrievalLimit');
+  }
+  if (input.dailyPlanRenewalTraceSink !== undefined) {
+    if (input.dailyPlanRenewalTraceScope === undefined) {
+      throw new Error(
+        'dailyPlanRenewalTraceScope is required when dailyPlanRenewalTraceSink is provided',
+      );
+    }
+    assertNonEmpty(
+      input.dailyPlanRenewalTraceScope.simulationId,
+      'dailyPlanRenewalTraceScope.simulationId',
+    );
+    assertNonEmpty(
+      input.dailyPlanRenewalTraceScope.partitionKey,
+      'dailyPlanRenewalTraceScope.partitionKey',
+    );
   }
 
   const results: DailyPlanRenewalResult[] = [];
@@ -260,10 +288,26 @@ export async function renewDailyPlanScheduledIntentions(input: {
       plan: dailyPlan,
       createdAt: input.issuedAt,
     });
-    await input.intentionRepository.upsertScheduledIntentions(
-      agent.agentId,
-      scheduledIntentions,
-    );
+    await input.intentionRepository.upsertScheduledIntentions(agent.agentId, scheduledIntentions);
+    if (
+      input.dailyPlanRenewalTraceSink !== undefined &&
+      input.dailyPlanRenewalTraceScope !== undefined
+    ) {
+      await input.dailyPlanRenewalTraceSink.record(
+        createDailyPlanRenewalTrace({
+          scope: input.dailyPlanRenewalTraceScope,
+          agentId: agent.agentId,
+          dailyPlanId: dailyPlan.id,
+          scheduledIntentionIds: scheduledIntentions.map((intention) => intention.id),
+          memoryContextIds: memoryContext.map((memory) => memory.id),
+          ...(longTermProfile === undefined ? {} : { longTermProfile }),
+          ...(compilation.planningTrace === undefined
+            ? {}
+            : { planningTrace: compilation.planningTrace }),
+          issuedAt: input.issuedAt,
+        }),
+      );
+    }
     results.push({
       agentId: agent.agentId,
       dailyPlanId: dailyPlan.id,
@@ -275,6 +319,136 @@ export async function renewDailyPlanScheduledIntentions(input: {
   }
 
   return results;
+}
+
+function createDailyPlanRenewalTrace(input: {
+  readonly scope: DailyPlanRenewalTraceScope;
+  readonly agentId: AgentId;
+  readonly dailyPlanId: string;
+  readonly scheduledIntentionIds: readonly string[];
+  readonly memoryContextIds: readonly string[];
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly planningTrace?: DailyPlanCompilationTrace;
+  readonly issuedAt: SimulationTimestamp;
+}): DailyPlanRenewalTrace {
+  const profile = summarizeProfileTraceContext(input.longTermProfile);
+  return {
+    traceId: createDailyPlanRenewalTraceId({
+      scope: input.scope,
+      agentId: input.agentId,
+      dailyPlanId: input.dailyPlanId,
+      issuedAt: input.issuedAt,
+    }),
+    simulationId: input.scope.simulationId,
+    partitionKey: input.scope.partitionKey,
+    agentId: input.agentId,
+    dailyPlanId: input.dailyPlanId,
+    scheduledIntentionIds: [...input.scheduledIntentionIds],
+    shortTermMemoryContextIds: [...input.memoryContextIds],
+    profileEntryKeys: profile.profileEntryKeys,
+    profileEvidenceRecordIds: profile.profileEvidenceRecordIds,
+    ...(input.planningTrace === undefined
+      ? {}
+      : { planningTrace: cloneDailyPlanRenewalPlanningTrace(input.planningTrace) }),
+    issuedAt: input.issuedAt,
+  };
+}
+
+function createDailyPlanRenewalTraceId(input: {
+  readonly scope: DailyPlanRenewalTraceScope;
+  readonly agentId: AgentId;
+  readonly dailyPlanId: string;
+  readonly issuedAt: SimulationTimestamp;
+}): string {
+  return [
+    'daily-plan-renewal',
+    input.scope.simulationId,
+    input.scope.partitionKey,
+    input.agentId,
+    input.dailyPlanId,
+    String(input.issuedAt),
+  ].join(':');
+}
+
+function summarizeProfileTraceContext(profile: LongTermAgentProfile | undefined): {
+  readonly profileEntryKeys: readonly string[];
+  readonly profileEvidenceRecordIds: readonly string[];
+} {
+  if (profile === undefined) {
+    return { profileEntryKeys: [], profileEvidenceRecordIds: [] };
+  }
+  const profileEntryKeys: string[] = [];
+  const profileEvidenceRecordIds = new Set<string>();
+  for (const section of [
+    'beliefs',
+    'habits',
+    'mood',
+    'values',
+    'personality',
+    'socialRecords',
+  ] as const) {
+    for (const entry of profile[section]) {
+      profileEntryKeys.push(formatProfileEntryKey(section, entry));
+      for (const recordId of entry.provenanceRecordIds) {
+        profileEvidenceRecordIds.add(recordId);
+      }
+    }
+  }
+  return {
+    profileEntryKeys,
+    profileEvidenceRecordIds: [...profileEvidenceRecordIds],
+  };
+}
+
+function formatProfileEntryKey(
+  section: keyof Pick<
+    LongTermAgentProfile,
+    'beliefs' | 'habits' | 'mood' | 'values' | 'personality' | 'socialRecords'
+  >,
+  entry: LongTermProfileEntry,
+): string {
+  return `${section}:${entry.key}`;
+}
+
+function cloneDailyPlanRenewalPlanningTrace(
+  trace: DailyPlanCompilationTrace,
+): DailyPlanRenewalPlanningTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+  };
 }
 
 function createJobRoutineSlot(agent: WorldAgentState): DailyRoutineSlot | undefined {
@@ -377,10 +551,7 @@ function compareSlots(left: DailyRoutineSlot, right: DailyRoutineSlot): number {
   return left.slotId.localeCompare(right.slotId);
 }
 
-function compareScheduledIntentions(
-  left: ScheduledIntention,
-  right: ScheduledIntention,
-): number {
+function compareScheduledIntentions(left: ScheduledIntention, right: ScheduledIntention): number {
   if (left.startsAt !== right.startsAt) {
     return left.startsAt - right.startsAt;
   }

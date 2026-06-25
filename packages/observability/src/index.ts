@@ -1,5 +1,6 @@
 export * from './agentCycleTrace';
 export * from './agentCycleTraceRepository';
+export * from './dailyPlanRenewalTraceRepository';
 export * from './experimentValidation';
 export * from './experimentValidationReportRepository';
 export * from './marketObservationRepository';

@@ -11,6 +11,7 @@ import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 import type { AgentProfileApiService } from './agentProfileApi';
 import type { AgentCycleTraceApiService } from './agentCycleTraceApi';
+import type { DailyPlanRenewalTraceApiService } from './dailyPlanRenewalTraceApi';
 import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
 import type { SteeringTraceApiService } from './steeringTraceApi';
 
@@ -210,6 +211,12 @@ type TestObjectiveRenewalTrace = {
   readonly traceId: string;
   readonly agentId: string;
   readonly objectiveId: string;
+};
+
+type TestDailyPlanRenewalTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly dailyPlanId: string;
 };
 
 type TestSteeringTrace = {
@@ -696,6 +703,80 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           traceId: 'trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes daily plan renewal trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      dailyPlanRenewalTraces: createDailyPlanRenewalTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces',
+        query: {
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces/daily-plan-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'daily-plan-trace-1',
+        agentId: 'agent-1',
+        dailyPlanId: 'daily-plan:agent-1:0',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryDailyPlanRenewalTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getDailyPlanRenewalTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'daily-plan-trace-1',
         },
       },
     ]);
@@ -2091,6 +2172,31 @@ function createObjectiveRenewalTraceService(
   };
 }
 
+function createDailyPlanRenewalTraceService(
+  calls: unknown[],
+): DailyPlanRenewalTraceApiService<TestDailyPlanRenewalTrace> {
+  return {
+    getDailyPlanRenewalTrace: (request) => {
+      calls.push({ method: 'getDailyPlanRenewalTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        agentId: 'agent-1',
+        dailyPlanId: 'daily-plan:agent-1:0',
+      });
+    },
+    queryDailyPlanRenewalTraces: (request) => {
+      calls.push({ method: 'queryDailyPlanRenewalTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'daily-plan-trace-1',
+          agentId: request.agentId ?? 'agent-1',
+          dailyPlanId: request.dailyPlanId ?? 'daily-plan:agent-1:0',
+        },
+      ]);
+    },
+  };
+}
+
 function createSteeringTraceService(calls: unknown[]): SteeringTraceApiService<TestSteeringTrace> {
   return {
     getSteeringTrace: (request) => {
@@ -2127,10 +2233,7 @@ function createAgentCycleTraceService(
     queryAgentCycleTraces: (request) => {
       calls.push({ method: 'queryAgentCycleTraces', request });
       return Promise.resolve([
-        createTestAgentCycleTrace(
-          request.traceId ?? 'cycle-trace-1',
-          request.agentId ?? 'agent-1',
-        ),
+        createTestAgentCycleTrace(request.traceId ?? 'cycle-trace-1', request.agentId ?? 'agent-1'),
       ]);
     },
   };

@@ -4,6 +4,11 @@ import type {
   ObjectiveRenewalTraceQueryRequest,
 } from './objectiveRenewalTraceApi';
 import type {
+  DailyPlanRenewalTraceApiService,
+  DailyPlanRenewalTraceLookupRequest,
+  DailyPlanRenewalTraceQueryRequest,
+} from './dailyPlanRenewalTraceApi';
+import type {
   SteeringTraceApiService,
   SteeringTraceLookupRequest,
   SteeringTraceQueryRequest,
@@ -130,6 +135,7 @@ export type TownHttpApiServices<
   readonly agentProfiles?: AgentProfileApiService<unknown>;
   readonly agentCycleTraces?: AgentCycleTraceApiService<unknown>;
   readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
+  readonly dailyPlanRenewalTraces?: DailyPlanRenewalTraceApiService<unknown>;
   readonly steeringTraces?: SteeringTraceApiService<unknown>;
 };
 
@@ -268,6 +274,7 @@ async function routeTownHttpRequest<
       services.agentProfiles,
       services.agentCycleTraces,
       services.objectiveRenewalTraces,
+      services.dailyPlanRenewalTraces,
       services.steeringTraces,
       request,
       simulationRoute,
@@ -308,6 +315,7 @@ async function routeSimulationRequest<
   agentProfiles: AgentProfileApiService<unknown> | undefined,
   agentCycleTraces: AgentCycleTraceApiService<unknown> | undefined,
   objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
+  dailyPlanRenewalTraces: DailyPlanRenewalTraceApiService<unknown> | undefined,
   steeringTraces: SteeringTraceApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   route: SimulationRoute,
@@ -361,9 +369,7 @@ async function routeSimulationRequest<
     if (route.marketObservationKind === 'ohlc-bars') {
       return jsonResponse(
         200,
-        await simulation.queryMarketOhlcBars(
-          createMarketOhlcBarQueryRequest(route, request.query),
-        ),
+        await simulation.queryMarketOhlcBars(createMarketOhlcBarQueryRequest(route, request.query)),
       );
     }
     throw new TownHttpApiError(404, 'not_found', 'route not found');
@@ -419,6 +425,26 @@ async function routeSimulationRequest<
       200,
       await objectiveRenewalTraces.queryObjectiveRenewalTraces(
         createObjectiveRenewalTraceQueryRequest(route, request.query),
+      ),
+    );
+  }
+  if (route.action === 'daily-plan-renewal-traces') {
+    if (dailyPlanRenewalTraces === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.traceId !== undefined) {
+      return jsonResponse(
+        200,
+        await dailyPlanRenewalTraces.getDailyPlanRenewalTrace(
+          createDailyPlanRenewalTraceLookupRequest(route),
+        ),
+      );
+    }
+    return jsonResponse(
+      200,
+      await dailyPlanRenewalTraces.queryDailyPlanRenewalTraces(
+        createDailyPlanRenewalTraceQueryRequest(route, request.query),
       ),
     );
   }
@@ -866,6 +892,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
     segments.length === 6 &&
     segments[0] === 'simulations' &&
     segments[2] === 'partitions' &&
+    segments[4] === 'daily-plan-renewal-traces'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const traceId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || traceId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'daily-plan-renewal-traces',
+      traceId: decodePathPart(traceId),
+    };
+  }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
     segments[4] === 'steering-traces'
   ) {
     const simulationId = segments[1];
@@ -1061,9 +1106,7 @@ function createAgentProfileQueryRequest(
   };
 }
 
-function createAgentCycleTraceLookupRequest(
-  route: SimulationRoute,
-): AgentCycleTraceLookupRequest {
+function createAgentCycleTraceLookupRequest(route: SimulationRoute): AgentCycleTraceLookupRequest {
   if (route.traceId === undefined) {
     throw new TownHttpApiError(404, 'not_found', 'route not found');
   }
@@ -1115,6 +1158,38 @@ function createObjectiveRenewalTraceQueryRequest(
     ...optionalQueryString(query, 'traceId'),
     ...optionalQueryString(query, 'agentId'),
     ...optionalQueryString(query, 'objectiveId'),
+    ...optionalQueryNumber(query, 'fromIssuedAt'),
+    ...optionalQueryNumber(query, 'toIssuedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createDailyPlanRenewalTraceLookupRequest(
+  route: SimulationRoute,
+): DailyPlanRenewalTraceLookupRequest {
+  if (route.traceId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    traceId: route.traceId,
+  };
+}
+
+function createDailyPlanRenewalTraceQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): DailyPlanRenewalTraceQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'traceId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryString(query, 'dailyPlanId'),
     ...optionalQueryNumber(query, 'fromIssuedAt'),
     ...optionalQueryNumber(query, 'toIssuedAt'),
     ...optionalQueryInteger(query, 'limit', {

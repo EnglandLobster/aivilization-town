@@ -4,12 +4,14 @@ import {
   type DailyPlanCompilerInput,
 } from '@aivilization/agent-runtime';
 import {
+  asMemoryRecordId,
   createShortTermMemoryRecord,
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
   type LongTermAgentProfile,
 } from '@aivilization/memory';
+import type { DailyPlanRenewalTrace } from '@aivilization/observability';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
@@ -284,6 +286,7 @@ describe('daily routine scheduling', () => {
         },
       ],
     });
+    const profileMemoryId = asMemoryRecordId('profile-study-memory');
     await longTermProfileRepository.save(
       createProfile(agentId, {
         habits: [
@@ -292,7 +295,7 @@ describe('daily routine scheduling', () => {
             statement: 'Repeated successful study sessions suggest a reliable study routine.',
             confidence: 0.8,
             updatedAt: 100,
-            provenanceRecordIds: [],
+            provenanceRecordIds: [profileMemoryId],
           },
         ],
       }),
@@ -363,6 +366,7 @@ describe('daily routine scheduling', () => {
         },
       };
     };
+    const traces: DailyPlanRenewalTrace[] = [];
 
     const results = await renewDailyPlanScheduledIntentions({
       projection,
@@ -372,6 +376,15 @@ describe('daily routine scheduling', () => {
       issuedAt: 8 * hourMs,
       memoryRetrievalLimit: 5,
       compileDailyPlan,
+      dailyPlanRenewalTraceScope: {
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+      },
+      dailyPlanRenewalTraceSink: {
+        record: (trace) => {
+          traces.push(trace);
+        },
+      },
     });
 
     expect(compilerInput).toMatchObject({
@@ -420,6 +433,48 @@ describe('daily routine scheduling', () => {
             estimatedCostMicros: 84,
           },
         },
+      },
+    ]);
+    expect(traces).toEqual([
+      {
+        traceId: 'daily-plan-renewal:sim-1:world-main:agent-a:daily-plan:agent-a:0:28800000',
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId,
+        dailyPlanId: 'daily-plan:agent-a:0',
+        scheduledIntentionIds: ['daily-plan:agent-a:0:party-follow-up'],
+        shortTermMemoryContextIds: [memory.id],
+        profileEntryKeys: ['habits:study-routine'],
+        profileEvidenceRecordIds: [profileMemoryId],
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'daily-plan-agent-a-8',
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+          attempts: [
+            {
+              attemptIndex: 1,
+              status: 'succeeded',
+              providerId: 'scripted-daily-planner',
+              model: 'daily-planner-model',
+              message: 'LLM structured response validated',
+              usage: {
+                inputTokens: 12,
+                outputTokens: 20,
+                totalTokens: 32,
+                estimatedCostMicros: 84,
+              },
+            },
+          ],
+          usage: {
+            inputTokens: 12,
+            outputTokens: 20,
+            totalTokens: 32,
+            estimatedCostMicros: 84,
+          },
+        },
+        issuedAt: 8 * hourMs,
       },
     ]);
     const state = await intentionRepository.getOrCreate(agentId);

@@ -217,6 +217,52 @@ describe('local runtime town HTTP gateway', () => {
     });
     await runtime.host.registry
       .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.dailyPlanRenewalTraceRepository.record({
+        traceId: 'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:310',
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: 'agent-1',
+        dailyPlanId: 'daily-plan:agent-1:0',
+        scheduledIntentionIds: ['daily-plan:agent-1:0:party-prep'],
+        shortTermMemoryContextIds: ['memory-social-party'],
+        profileEntryKeys: ['habits:party-planning'],
+        profileEvidenceRecordIds: ['profile-party-1'],
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'daily-plan-agent-1-310',
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+        },
+        issuedAt: 310,
+      });
+    const dailyPlanRenewalTraces = requireDailyPlanRenewalTraceList(
+      await fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces?agentId=agent-1&dailyPlanId=${encodeURIComponent('daily-plan:agent-1:0')}&limit=1`,
+      ),
+    );
+    expect(dailyPlanRenewalTraces).toHaveLength(1);
+    expect(dailyPlanRenewalTraces[0]).toMatchObject({
+      traceId: 'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:310',
+      agentId: 'agent-1',
+      dailyPlanId: 'daily-plan:agent-1:0',
+      scheduledIntentionIds: ['daily-plan:agent-1:0:party-prep'],
+      planningTrace: {
+        source: 'llm',
+        providerId: 'scripted-daily-planner',
+      },
+    });
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces/${encodeURIComponent('daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:310')}`,
+      ),
+    ).resolves.toMatchObject({
+      traceId: 'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:310',
+      dailyPlanId: 'daily-plan:agent-1:0',
+      issuedAt: 310,
+    });
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
       .storage.steeringTraceRepository.record({
         traceId: 'sim-1:world-main:1:cmd-objective-study',
         simulationId: 'sim-1',
@@ -1507,6 +1553,31 @@ function requireObjectiveRenewalTraceList(value: unknown): readonly {
     readonly agentId: string;
     readonly objectiveId: string;
     readonly strategicPlan?: {
+      readonly source?: string;
+      readonly providerId?: string;
+    };
+  }[];
+}
+
+function requireDailyPlanRenewalTraceList(value: unknown): readonly {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly dailyPlanId: string;
+  readonly scheduledIntentionIds: readonly string[];
+  readonly planningTrace?: {
+    readonly source?: string;
+    readonly providerId?: string;
+  };
+}[] {
+  if (!Array.isArray(value)) {
+    throw new Error('expected daily plan renewal trace list response');
+  }
+  return value as readonly {
+    readonly traceId: string;
+    readonly agentId: string;
+    readonly dailyPlanId: string;
+    readonly scheduledIntentionIds: readonly string[];
+    readonly planningTrace?: {
       readonly source?: string;
       readonly providerId?: string;
     };

@@ -199,6 +199,23 @@ describe('local world runtime storage', () => {
       profileEvidenceRecordIds: ['profile-record-1'],
       issuedAt: 176,
     });
+    await storage.dailyPlanRenewalTraceRepository.record({
+      traceId: 'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:180',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      dailyPlanId: 'daily-plan:agent-1:0',
+      scheduledIntentionIds: ['daily-plan:agent-1:0:study'],
+      shortTermMemoryContextIds: ['memory-study-observed'],
+      profileEntryKeys: ['habits:study'],
+      profileEvidenceRecordIds: ['profile-record-1'],
+      planningTrace: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'storage restart test daily plan trace',
+      },
+      issuedAt: 180,
+    });
     await storage.steeringTraceRepository.record({
       traceId: 'sim-1:world-main:1:cmd-objective-study',
       simulationId,
@@ -267,6 +284,27 @@ describe('local world runtime storage', () => {
       profileEntryKeys: ['values:education'],
       profileEvidenceRecordIds: ['profile-record-1'],
       issuedAt: 176,
+    });
+    await expect(
+      restarted.dailyPlanRenewalTraceRepository.get(
+        'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:180',
+      ),
+    ).resolves.toEqual({
+      traceId: 'daily-plan-renewal:sim-1:world-main:agent-1:daily-plan:agent-1:0:180',
+      simulationId,
+      partitionKey: 'world-main',
+      agentId: agentOne,
+      dailyPlanId: 'daily-plan:agent-1:0',
+      scheduledIntentionIds: ['daily-plan:agent-1:0:study'],
+      shortTermMemoryContextIds: ['memory-study-observed'],
+      profileEntryKeys: ['habits:study'],
+      profileEvidenceRecordIds: ['profile-record-1'],
+      planningTrace: {
+        status: 'deterministic',
+        source: 'deterministic',
+        message: 'storage restart test daily plan trace',
+      },
+      issuedAt: 180,
     });
     await expect(
       restarted.steeringTraceRepository.get('sim-1:world-main:1:cmd-objective-study'),

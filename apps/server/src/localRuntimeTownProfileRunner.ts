@@ -286,6 +286,11 @@ export function createLocalRuntimeTownProfileAgentProvider(
         shortTermMemoryRepository: storage.shortTermMemoryRepository,
         issuedAt,
         compileDailyPlan: input.dailyPlanCompiler,
+        dailyPlanRenewalTraceScope: {
+          simulationId: storage.partition.simulationId,
+          partitionKey: storage.partition.partitionKey,
+        },
+        dailyPlanRenewalTraceSink: storage.dailyPlanRenewalTraceRepository,
       });
     }
     await renewMissingActiveObjectives({

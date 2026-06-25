@@ -12,6 +12,7 @@ import {
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
 import {
+  applyWorldEvent,
   dispatchWorldCommand,
   type AgentObserveLocationPayload,
   type AgentMoveToPayload,
@@ -289,6 +290,8 @@ function isAgentUpgradeResidentialTierAction(
 export function createWorldCommandDryRunSimulator(
   config: WorldCommandDryRunSimulatorConfig,
 ): CycleActionSimulator {
+  let rolloutProjection = config.projection;
+
   return ({ action }) => {
     try {
       const events = dispatchWorldCommand({
@@ -299,12 +302,12 @@ export function createWorldCommandDryRunSimulator(
           source: 'agent-runtime',
           type: action.commandType,
           payload: action.payload,
-          issuedAt: config.issuedAt ?? config.projection.clock.now,
+          issuedAt: config.issuedAt ?? rolloutProjection.clock.now,
         }),
-        projection: config.projection,
+        projection: rolloutProjection,
         policies: resolveWorldCommandPolicies({
           policies: config.policies,
-          projection: config.projection,
+          projection: rolloutProjection,
         }),
         nextSequence: config.nextSequence ?? DEFAULT_DRY_RUN_SEQUENCE,
       });
@@ -316,6 +319,8 @@ export function createWorldCommandDryRunSimulator(
           reason: rejection.payload.reason,
         };
       }
+
+      rolloutProjection = events.reduce(applyWorldEvent, rolloutProjection);
 
       return {
         status: 'accepted',

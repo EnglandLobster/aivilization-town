@@ -12,6 +12,7 @@ describe('local runtime town profile gate criteria', () => {
       minimumCompletedCycleCount: 1,
       minimumTotalEventCount: 2,
       minimumTotalAgentTraceCount: 1,
+      minimumFullReplanMaterializationCount: 0,
       requiredDaemonHealth: 'healthy',
       requiredOutcome: 'succeeded',
       requiredStopReason: 'cycle-count-completed',
@@ -21,6 +22,17 @@ describe('local runtime town profile gate criteria', () => {
       expectedProjectionAgentCountByPartition: {
         'world-main': 25,
       },
+    });
+  });
+
+  test('allows profile gates to require full replan materialization evidence', () => {
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        minimumFullReplanMaterializationCount: 1,
+      }),
+    ).toMatchObject({
+      criteriaId: 'aivilization-smoke-25:profile-run-gate',
+      minimumFullReplanMaterializationCount: 1,
     });
   });
 

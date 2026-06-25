@@ -7,6 +7,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumCompletedCycleCount?: number;
   readonly minimumTotalEventCount?: number;
   readonly minimumTotalAgentTraceCount?: number;
+  readonly minimumFullReplanMaterializationCount?: number;
 };
 
 export function createLocalRuntimeTownProfileGateCriteria(
@@ -38,6 +39,7 @@ export function createLocalRuntimeTownProfileGateCriteria(
     minimumCompletedCycleCount: input.minimumCompletedCycleCount ?? 1,
     minimumTotalEventCount: input.minimumTotalEventCount ?? profile.manifest.partitions.length + 1,
     minimumTotalAgentTraceCount: input.minimumTotalAgentTraceCount ?? 1,
+    minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount ?? 0,
     requiredDaemonHealth: 'healthy',
     requiredOutcome: 'succeeded',
     requiredStopReason: 'cycle-count-completed',

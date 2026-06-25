@@ -37,6 +37,7 @@ import { createAivilizationWorldCommandPolicies, runWorkerSimulationTick } from 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
+const agentThree = asAgentId('agent-3');
 const school = asLocationId('school');
 const partition = createSimulationPartition({ simulationId, partitionKey: 'world-main' });
 const tmpRoots: string[] = [];
@@ -115,6 +116,52 @@ function createCoLocatedStudyProjection() {
         locationId: school,
         physiology: { energy: 60, satiety: 80, health: 100 },
         educationScore: 20,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
+function createCoLocatedConversationProjection() {
+  return createWorldProjection({
+    locations: [
+      {
+        locationId: school,
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study', 'socialize'],
+        capacity: null,
+      },
+    ],
+    agents: [
+      {
+        agentId: agentOne,
+        locationId: school,
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: agentTwo,
+        locationId: school,
+        physiology: { energy: 60, satiety: 80, health: 100 },
+        educationScore: 20,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: agentThree,
+        locationId: school,
+        physiology: { energy: 70, satiety: 80, health: 100 },
+        educationScore: 30,
         balance: 100,
         residentialTier: 1,
         job: null,
@@ -278,11 +325,56 @@ function createStudyPlan() {
   });
 }
 
+function createSocialPlan() {
+  return createBranchPlan({
+    objective: 'build community relationships',
+    branches: [
+      {
+        id: 'social',
+        objective: 'coordinate a community party',
+        subtasks: [{ id: 'socialize', description: 'discuss Valentine party', basePriority: 5 }],
+      },
+    ],
+  });
+}
+
 function createStudyPlanner(action: AtomicActionProposal): DomainMicroPlanner {
   return {
     domain: 'study',
     supports: ({ subtaskId }) => subtaskId === 'study',
     propose: () => [action],
+  };
+}
+
+function createConversationPlanner(): DomainMicroPlanner {
+  return {
+    domain: 'social',
+    supports: ({ subtaskId }) => subtaskId === 'socialize',
+    propose: () => [
+      {
+        id: 'conversation-party',
+        description: 'Discuss Valentine party with agent-3.',
+        commandType: 'AgentStartConversation',
+        payload: {
+          targetAgentId: agentThree,
+          topic: 'Valentine party',
+          relationDelta: 1,
+          attitudeDelta: 1,
+          turns: [
+            {
+              speakerAgentId: agentOne,
+              utterance: 'Can you help coordinate the Valentine party?',
+              intent: 'invite-party-planning',
+            },
+            {
+              speakerAgentId: agentThree,
+              utterance: 'Yes, let us invite more neighbors.',
+              intent: 'accept-party-planning',
+            },
+          ],
+        },
+      },
+    ],
   };
 }
 
@@ -677,6 +769,85 @@ describe('worker tick runner', () => {
         },
       }),
     ]);
+  });
+
+  test('seeds social follow-up intentions from ambient conversation observations', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-social-observation-intention',
+      simulationId,
+      issuedAt: 100,
+      projection: createCoLocatedConversationProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      ambientObservationMemory: { enabled: true },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 discusses a party while agent-2 listens nearby',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => event.type)).toEqual(
+      expect.arrayContaining([
+        'SimulationTimeAdvanced',
+        'ConversationRecorded',
+        'SocialInteractionCompleted',
+      ]),
+    );
+    expect(result.ambientObservationMemory).toMatchObject({
+      observedEventCount: 3,
+      recordCount: 3,
+    });
+    const conversationMemories = await repositories.shortTermMemoryRepository.retrieve({
+      agentId: agentTwo,
+      kinds: ['observation'],
+      requiredTags: ['ambient-observation', 'ConversationRecorded'],
+      limit: 10,
+    });
+    expect(conversationMemories).toHaveLength(1);
+    const conversationMemory = conversationMemories[0];
+    if (conversationMemory === undefined) {
+      throw new Error('expected conversation memory');
+    }
+    await expect(repositories.intentionRepository.getOrCreate(agentTwo)).resolves.toMatchObject({
+      scheduledIntentions: [
+        {
+          id: `social-observation:agent-2:${conversationMemory.id}`,
+          agentId: agentTwo,
+          description:
+            'Follow up on observed social event: Observed agent-1 and agent-3 discuss Valentine party at School.',
+          priority: 4,
+          startsAt: 100,
+          endsAt: 2 * 60 * 60 * 1000 + 100,
+          status: 'planned',
+          affinityTags: [
+            'social',
+            'community',
+            'relationship',
+            'observation-follow-up',
+            'ConversationRecorded',
+            'school',
+            'agent-1',
+            'agent-3',
+            'Valentine party',
+          ],
+          provenanceRecordIds: [conversationMemory.id],
+          createdAt: 100,
+          updatedAt: 100,
+        },
+      ],
+    });
   });
 
   test('advances simulation time when no agents are scheduled', async () => {

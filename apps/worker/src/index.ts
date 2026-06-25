@@ -47,6 +47,7 @@ export * from './objectiveRenewal';
 export * from './projectionHydration';
 export * from './scenarioProfileSeeding';
 export * from './scenarioProjection';
+export * from './socialObservationIntentions';
 export * from './steering';
 export * from './tickRunner';
 export * from './wagePolicy';

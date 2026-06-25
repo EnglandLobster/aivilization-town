@@ -11,6 +11,7 @@ import type {
 import type {
   AgentIntentionRepository,
   LongTermProfileRepository,
+  ShortTermMemoryRecord,
   ShortTermMemoryRepository,
 } from '@aivilization/memory';
 import type { AgentCycleTrace, MarketObservationRepository } from '@aivilization/observability';
@@ -46,6 +47,7 @@ import {
 } from './ambientObservationMemory';
 import { recordMarketPriceIndexToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
+import { createSocialObservationScheduledIntentions } from './socialObservationIntentions';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 type WorkerTickAgentPlanInput =
@@ -248,8 +250,7 @@ export async function runWorkerSimulationTick(
       streamName: input.streamName,
       expectedVersion,
       appendIdempotencyKey:
-        input.marketMetrics.appendIdempotencyKey ??
-        `${input.tickId}:append:market-price-index`,
+        input.marketMetrics.appendIdempotencyKey ?? `${input.tickId}:append:market-price-index`,
     });
     projection = marketMetricsResult.projection;
     expectedVersion = marketMetricsResult.appendResult.streamVersion;
@@ -317,8 +318,38 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
   });
   if (result.records.length > 0) {
     await input.input.shortTermMemoryRepository.appendMany(result.records);
+    await upsertSocialObservationIntentions({
+      intentionRepository: input.input.intentionRepository,
+      records: result.records,
+      createdAt: input.input.issuedAt,
+    });
   }
   return result;
+}
+
+async function upsertSocialObservationIntentions(input: {
+  readonly intentionRepository: AgentIntentionRepository;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly createdAt: SimulationTimestamp;
+}): Promise<void> {
+  const intentions = createSocialObservationScheduledIntentions({
+    records: input.records,
+    createdAt: input.createdAt,
+  });
+  if (intentions.length === 0) {
+    return;
+  }
+
+  const intentionsByAgentId = new Map<AgentId, typeof intentions>();
+  for (const intention of intentions) {
+    const existing = intentionsByAgentId.get(intention.agentId) ?? [];
+    intentionsByAgentId.set(intention.agentId, [...existing, intention]);
+  }
+  await Promise.all(
+    [...intentionsByAgentId.entries()].map(([agentId, scheduledIntentions]) =>
+      input.intentionRepository.upsertScheduledIntentions(agentId, scheduledIntentions),
+    ),
+  );
 }
 
 function resolveCyclePlanInput(input: {

@@ -7,7 +7,7 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { AtomicActionProposal } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import type { BranchPlanProgress } from './planProgress';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type SocialDialogueTurnProposal = {
   readonly speakerAgentId: AgentId;
@@ -65,6 +65,7 @@ export type SocialDialogueGenerationTrace = {
   readonly rationale: string;
   readonly attempts?: readonly SocialDialogueGenerationTraceAttempt[];
   readonly usage?: SocialDialogueGenerationUsage;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type SocialDialogueGenerationResult = {

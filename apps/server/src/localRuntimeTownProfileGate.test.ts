@@ -65,6 +65,17 @@ describe('local runtime town profile gate criteria', () => {
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
+      }).requiredAgentCycleLlmWorldContextStages,
+    ).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+    ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
       }).requiredCognitionLlmAcceptedStages,
     ).toEqual([
       'strategicPlanning',

@@ -17,6 +17,10 @@ import {
   type SocialDialogueProposal,
   type SocialDialogueTurnProposal,
 } from './socialDialogueGeneration';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmSocialDialogueGenerationProposal = {
   readonly dialogue: SocialDialogueProposal;
@@ -315,6 +319,7 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }
 
@@ -349,7 +354,16 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<SocialDialogueGenerationTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

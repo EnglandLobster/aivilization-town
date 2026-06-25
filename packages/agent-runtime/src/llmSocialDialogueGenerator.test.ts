@@ -109,6 +109,16 @@ describe('LLM social dialogue generation seam', () => {
           totalTokens: 98,
           estimatedCostMicros: 280,
         },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
+        },
       },
     });
 

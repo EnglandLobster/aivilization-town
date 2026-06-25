@@ -8,6 +8,10 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
+import {
   applySubtaskPrioritizationChoices,
   type SubtaskPrioritizationChoice,
   type SubtaskPrioritizationResult,
@@ -86,7 +90,7 @@ export async function proposeSubtaskPrioritizationWithLlm(
       status: 'accepted',
       source: 'llm',
       candidates,
-      trace: mapAcceptedTrace(gateway),
+      trace: mapAcceptedTrace(input, gateway),
       gateway,
     };
   } catch (error) {
@@ -236,6 +240,7 @@ function createFallbackResult(input: {
     source: 'deterministic-fallback',
     candidates: input.input.candidates,
     trace: mapFallbackTrace({
+      input: input.input,
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
@@ -245,6 +250,7 @@ function createFallbackResult(input: {
 }
 
 function mapAcceptedTrace(
+  input: LlmSubtaskPrioritizerInput,
   gateway: LlmStructuredSuccess<LlmSubtaskPrioritizationProposal>,
 ): SubtaskPrioritizationTrace {
   const lastAttempt = gateway.attempts.at(-1);
@@ -264,10 +270,12 @@ function mapAcceptedTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
 
 function mapFallbackTrace(input: {
+  readonly input: LlmSubtaskPrioritizerInput;
   readonly gateway: LlmStructuredResult<LlmSubtaskPrioritizationProposal>;
   readonly failureReason: string;
   readonly message: string;
@@ -290,7 +298,16 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<SubtaskPrioritizationTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function readRecord(value: unknown, label: string): Readonly<Record<string, unknown>> {

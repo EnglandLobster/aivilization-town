@@ -145,6 +145,16 @@ describe('LLM global synthesis seam', () => {
           totalTokens: 135,
           estimatedCostMicros: 405,
         },
+        worldDecisionContext: {
+          agentId,
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 2,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: true,
+        },
       },
     });
 

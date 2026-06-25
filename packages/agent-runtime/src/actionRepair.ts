@@ -13,7 +13,7 @@ import type {
   RepairPolicy,
 } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type AgentActionCommandType = Exclude<
   CoreCommandType,
@@ -105,6 +105,7 @@ export type ReactiveCorrectionTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type ReactiveCorrectionResult = {

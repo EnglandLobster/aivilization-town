@@ -6,6 +6,7 @@ import {
   type AgentCycleActionSequenceGenerationTrace,
   type AgentCycleContextualPrioritizationTrace,
   type AgentCycleGlobalSynthesisTrace,
+  type AgentCycleSocialDialogueGenerationTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
@@ -20,6 +21,7 @@ import {
   type ReplanningTraceDecision,
   type SimulatorTraceResult,
 } from './agentCycleTrace';
+import { cloneWorldDecisionContextTrace } from './worldDecisionContextTrace';
 
 export type AgentCycleTraceQuery = {
   readonly simulationId: string;
@@ -140,6 +142,13 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
             cloneActionSequenceGeneration(entry),
           ),
         }),
+    ...(trace.socialDialogueGeneration === undefined
+      ? {}
+      : {
+          socialDialogueGeneration: trace.socialDialogueGeneration.map((entry) =>
+            cloneSocialDialogueGeneration(entry),
+          ),
+        }),
     ...(trace.globalSynthesis === undefined
       ? {}
       : { globalSynthesis: cloneGlobalSynthesis(trace.globalSynthesis) }),
@@ -250,6 +259,9 @@ function cloneReactiveCorrection(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
     ...(trace.simulatorResult === undefined
       ? {}
       : {
@@ -406,6 +418,9 @@ function cloneContextualPrioritization(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 
@@ -460,6 +475,61 @@ function cloneActionSequenceGeneration(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
+  };
+}
+
+function cloneSocialDialogueGeneration(
+  trace: AgentCycleSocialDialogueGenerationTrace,
+): AgentCycleSocialDialogueGenerationTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    selectedSubtask: {
+      branchId: trace.selectedSubtask.branchId,
+      subtaskId: trace.selectedSubtask.subtaskId,
+    },
+    actionId: trace.actionId,
+    targetAgentId: trace.targetAgentId,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    turnCount: trace.turnCount,
+    rationale: trace.rationale,
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: {
+              inputTokens: attempt.usage.inputTokens,
+              outputTokens: attempt.usage.outputTokens,
+              totalTokens: attempt.usage.totalTokens,
+              estimatedCostMicros: attempt.usage.estimatedCostMicros,
+            },
+          })),
+        }),
+    ...(trace.usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: trace.usage.inputTokens,
+            outputTokens: trace.usage.outputTokens,
+            totalTokens: trace.usage.totalTokens,
+            estimatedCostMicros: trace.usage.estimatedCostMicros,
+          },
+        }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 
@@ -514,6 +584,9 @@ function cloneGlobalSynthesis(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
   };
 }
 

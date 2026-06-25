@@ -7,7 +7,7 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { ActionResourceEstimate, AtomicActionProposal } from './actions';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import type { BranchPlanProgress } from './planProgress';
-import type { WorldDecisionContext } from './worldDecisionContext';
+import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 export type ActionSequenceGeneratedAction = {
   readonly id: string;
@@ -57,6 +57,7 @@ export type ActionSequenceGenerationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export type ActionSequenceGenerationResult = {

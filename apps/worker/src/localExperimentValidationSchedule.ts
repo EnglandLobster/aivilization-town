@@ -1,6 +1,11 @@
-import { createPlannerExperimentRunsFromRuntimeProfileReports } from '@aivilization/observability';
+import {
+  createPlannerExperimentRunsFromRuntimeProfileReports,
+  evaluateExperimentValidationReportGate,
+} from '@aivilization/observability';
 import type {
   ExperimentValidationReport,
+  ExperimentValidationReportGateCriteria,
+  ExperimentValidationReportGateResult,
   ExperimentValidationThresholds,
   PlannerExperimentRun,
   PriceCloseObservation,
@@ -51,10 +56,12 @@ export type LocalExperimentValidationScheduleInput = {
   readonly trajectories?: readonly { readonly agentId: string; readonly stepCount: number }[];
   readonly traceWindow?: WorkerExperimentValidationTraceWindow;
   readonly thresholds?: ExperimentValidationThresholds;
+  readonly reportGate?: ExperimentValidationReportGateCriteria;
 };
 
 export type LocalExperimentValidationScheduleResult = {
   readonly report: ExperimentValidationReport;
+  readonly reportGate?: ExperimentValidationReportGateResult;
   readonly streamName: string;
   readonly streamVersion: number;
   readonly fromSequence: number;
@@ -115,9 +122,14 @@ export async function runLocalExperimentValidationSchedule(
     ...(input.traceWindow === undefined ? {} : { traceWindow: input.traceWindow }),
     ...(input.thresholds === undefined ? {} : { thresholds: input.thresholds }),
   });
+  const reportGate =
+    input.reportGate === undefined
+      ? undefined
+      : evaluateExperimentValidationReportGate(report, input.reportGate);
 
   return {
     report,
+    ...(reportGate === undefined ? {} : { reportGate }),
     streamName,
     streamVersion,
     fromSequence: window.afterSequence,

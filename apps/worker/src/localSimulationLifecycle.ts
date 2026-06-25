@@ -1,8 +1,5 @@
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
-import {
-  evaluateExperimentValidationReportGate,
-  type ExperimentValidationReportGateResult,
-} from '@aivilization/observability';
+import type { ExperimentValidationReportGateResult } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -439,14 +436,10 @@ async function runLifecycleValidation(input: {
 > {
   try {
     const validationReport = await runLifecycleValidationSchedule(input);
-    const validationGate = evaluateExperimentValidationReportGate(validationReport.report, {
-      criteriaId: `${validationReport.report.run.runId}:lifecycle-validation-gate`,
-      defaultAllowedStatuses: ['pass', 'watch'],
-    });
-    if (validationGate.status === 'fail') {
+    if (validationReport.reportGate?.status === 'fail') {
       return {
         validationReport,
-        validationFailure: createValidationReportGateFailure(validationGate),
+        validationFailure: createValidationReportGateFailure(validationReport.reportGate),
       };
     }
 
@@ -602,21 +595,26 @@ async function runLifecycleValidationSchedule(input: {
     afterSequence: input.streamVersionBeforeStart,
     toSequence: input.lastAppliedSequence,
   };
+  const runId = createLifecycleValidationRunId({
+    loopId: input.controllerInput.loopId,
+    requestedAt: input.request.requestedAt,
+    lastAppliedSequence: input.lastAppliedSequence,
+    ...(input.schedule.runIdPrefix === undefined
+      ? {}
+      : { runIdPrefix: input.schedule.runIdPrefix }),
+  });
 
   return runLocalExperimentValidationSchedule({
     storage: input.controllerInput.storage,
     initialProjection: input.controllerInput.initialProjection,
-    runId: createLifecycleValidationRunId({
-      loopId: input.controllerInput.loopId,
-      requestedAt: input.request.requestedAt,
-      lastAppliedSequence: input.lastAppliedSequence,
-      ...(input.schedule.runIdPrefix === undefined
-        ? {}
-        : { runIdPrefix: input.schedule.runIdPrefix }),
-    }),
+    runId,
     generatedAt: input.request.requestedAt,
     source: input.schedule.source ?? 'local-lifecycle-validation',
     eventWindow,
+    reportGate: {
+      criteriaId: `${runId}:lifecycle-validation-gate`,
+      defaultAllowedStatuses: ['pass', 'watch'],
+    },
     ...(input.schedule.marketObservationSource === undefined
       ? {}
       : { marketObservationSource: input.schedule.marketObservationSource }),

@@ -362,6 +362,96 @@ describe('worker agent cycle runner', () => {
     ]);
   });
 
+  test('persists completed progress for multiple candidate subtasks', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    await planProgressRepository.getOrCreate({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 50,
+    });
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-multi-subtask-progress',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+      plan: createBranchPlan({
+        objective: 'balance recovery and development',
+        branches: [
+          {
+            id: 'recovery',
+            objective: 'restore energy',
+            subtasks: [{ id: 'sleep', description: 'sleep briefly', basePriority: 6 }],
+          },
+          {
+            id: 'development',
+            objective: 'improve education',
+            subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+          },
+        ],
+      }),
+      planProgressRepository,
+      planProgressId: 'plan-1',
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-multi-subtask-progress',
+      commandIdPrefix: 'cycle-multi-subtask-progress-command',
+      microPlanners: [
+        {
+          domain: 'sleep',
+          supports: ({ subtaskId }) => subtaskId === 'sleep',
+          propose: () => [
+            {
+              id: 'sleep-1',
+              description: 'sleep for one minute',
+              commandType: 'AgentSleep',
+              payload: { durationSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study for one minute',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      ...repositories,
+    });
+
+    expect(result.progressUpdate?.completedSubtaskIds).toEqual(['sleep', 'study']);
+    await expect(
+      planProgressRepository.getOrCreate({
+        planId: 'plan-1',
+        agentId,
+        createdAt: 999,
+      }),
+    ).resolves.toEqual(result.progressUpdate);
+  });
+
   test('records all-rejected action synthesis cycles without dispatching commands', async () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();

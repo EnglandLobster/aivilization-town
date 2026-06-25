@@ -5,6 +5,7 @@ import {
   type ReactiveLocalizedPlanner,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -206,6 +207,91 @@ describe('local world runtime step', () => {
       throw new Error('expected ticked result');
     }
     expect(result.projection.agents['agent-1']?.educationScore).toBe(100);
+  });
+
+  test('materializes full replans through local runtime steps', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const objective = createStudyObjective();
+    const replacementPlan = createRecoveryPlan();
+    await storage.intentionRepository.setObjective(agentOne, objective);
+    await storage.planRepository.save({
+      planId: objective.id,
+      agentId: agentOne,
+      plan: createStudyPlan(),
+      createdAt: 100,
+      updatedAt: 100,
+    });
+    await storage.planProgressRepository.getOrCreate({
+      planId: objective.id,
+      agentId: agentOne,
+      createdAt: 100,
+    });
+    await storage.shortTermMemoryRepository.appendMany([
+      createStudyFailureMemory('runtime-study-failure-1', 140),
+      createStudyFailureMemory('runtime-study-failure-2', 150),
+    ]);
+
+    const result = await runLocalWorldRuntimeStep({
+      storage,
+      tickId: 'tick-runtime-full-replan',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createInitialProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      strategicPlanCompiler: ({ objective: compilerObjective, issuedAt }) => {
+        expect(compilerObjective).toEqual(objective);
+        expect(issuedAt).toBe(200);
+        return replacementPlan;
+      },
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 energy=0 study failure',
+          planId: objective.id,
+          signals: [],
+          memoryRetrievalLimit: 10,
+          microPlanners: [
+            studyMicroPlanner({
+              id: 'runtime-study-failure',
+              description: 'study during runtime failure',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 30, educationRatePerSecond: 1 },
+            }),
+          ],
+          simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+        },
+      ],
+    });
+
+    if (result.status !== 'ticked') {
+      throw new Error('expected runtime step to tick');
+    }
+    expect(result.tick.agentResults[0]?.replanMaterialization).toMatchObject({
+      status: 'replanned',
+      planId: objective.id,
+      agentId: agentOne,
+      progressReset: true,
+      trigger: 'repeated-failure',
+    });
+    await expect(
+      storage.planRepository.require({ planId: objective.id, agentId: agentOne }),
+    ).resolves.toMatchObject({ plan: replacementPlan, createdAt: 100, updatedAt: 200 });
+    await expect(
+      storage.planProgressRepository.get({ planId: objective.id, agentId: agentOne }),
+    ).resolves.toEqual({
+      planId: objective.id,
+      agentId: agentOne,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
   });
 
   test('records market observations through local storage during a runtime step', async () => {
@@ -569,6 +655,46 @@ function createTradePlan() {
         subtasks: [{ id: 'buy-apple', description: 'buy Apple', basePriority: 5 }],
       },
     ],
+  });
+}
+
+function createRecoveryPlan() {
+  return createBranchPlan({
+    objective: 'recover before studying',
+    branches: [
+      {
+        id: 'recovery',
+        objective: 'restore enough energy to study',
+        subtasks: [{ id: 'sleep-first', description: 'sleep before studying', basePriority: 9 }],
+      },
+    ],
+  });
+}
+
+function createStudyObjective() {
+  return {
+    id: 'objective-study',
+    agentId: agentOne,
+    statement: 'Improve education without exhausting energy.',
+    priority: 8,
+    source: 'agent' as const,
+    affinityTags: ['study', 'energy'],
+    createdAt: 100,
+    updatedAt: 100,
+  };
+}
+
+function createStudyFailureMemory(id: string, occurredAt: number) {
+  return createShortTermMemoryRecord({
+    id,
+    agentId: agentOne,
+    kind: 'action',
+    status: 'failed',
+    summary: 'Failed to study because energy was too low.',
+    occurredAt,
+    importanceScore: 0.9,
+    source: { eventIds: [] },
+    tags: ['study', 'energy'],
   });
 }
 

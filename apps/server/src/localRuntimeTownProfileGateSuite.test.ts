@@ -778,6 +778,8 @@ function createAcceptedCognitionLlmStageDiagnostics(
     observedStateSummaryCount: 1,
     worldDecisionContextCount: 1,
     completeWorldDecisionContextCount: 1,
+    economicContextCount: 1,
+    completeEconomicContextCount: 1,
     rulesContextCount: 1,
     completeRulesContextCount: 1,
   }));

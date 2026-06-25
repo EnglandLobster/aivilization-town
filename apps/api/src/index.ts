@@ -1,6 +1,7 @@
 export * from './agentCycleTraceApi';
 export * from './agentProfileApi';
 export * from './commandStoreSubmission';
+export * from './dailyPlanRenewalTraceApi';
 export * from './httpApi';
 export * from './nodeHttpServer';
 export * from './objectiveRenewalTraceApi';

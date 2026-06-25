@@ -15,6 +15,7 @@ import {
   createShortTermMemoryRecord,
   type LongHorizonObjective,
 } from '@aivilization/memory';
+import type { DailyPlanRenewalTrace } from '@aivilization/observability';
 import {
   InMemoryEventStore,
   asAgentId,
@@ -1336,6 +1337,7 @@ describe('canonical active-plan worker tick', () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const renewalTraces: unknown[] = [];
+    const dailyPlanTraces: DailyPlanRenewalTrace[] = [];
     const issuedAt = 8.5 * hourMs;
     let compilerInput: DailyPlanCompilerInput | undefined;
 
@@ -1378,6 +1380,15 @@ describe('canonical active-plan worker tick', () => {
           ],
         });
       },
+      dailyPlanRenewalTraceScope: {
+        simulationId,
+        partitionKey: partition.partitionKey,
+      },
+      dailyPlanRenewalTraceSink: {
+        record: (trace) => {
+          dailyPlanTraces.push(trace);
+        },
+      },
       objectiveRenewalTraceSink: {
         record: (trace) => {
           renewalTraces.push(trace);
@@ -1398,13 +1409,27 @@ describe('canonical active-plan worker tick', () => {
         agentId: agentA,
         objectiveId: 'auto-objective-agent-a-30600000',
         selectedCandidateId: 'scheduled-routine-social',
-        rationale:
-          'Active scheduled intention daily-plan:agent-a:0:party-prep is in window.',
+        rationale: 'Active scheduled intention daily-plan:agent-a:0:party-prep is in window.',
         score: 40,
         shortTermMemoryContextIds: [],
         profileEntryKeys: [],
         profileEvidenceRecordIds: [],
         scheduledIntentionIds: ['daily-plan:agent-a:0:party-prep'],
+        issuedAt,
+      },
+    ]);
+    expect(dailyPlanTraces).toEqual([
+      {
+        traceId:
+          'daily-plan-renewal:sim-canonical-active-plan:world-main:agent-a:daily-plan:agent-a:0:30600000',
+        simulationId,
+        partitionKey: partition.partitionKey,
+        agentId: agentA,
+        dailyPlanId: 'daily-plan:agent-a:0',
+        scheduledIntentionIds: ['daily-plan:agent-a:0:party-prep'],
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
         issuedAt,
       },
     ]);
@@ -1462,7 +1487,8 @@ describe('canonical active-plan worker tick', () => {
         agentId: agentA,
         objectiveId: 'auto-objective-agent-a-34200000',
         selectedCandidateId: 'scheduled-routine-work',
-        rationale: 'Active scheduled intention daily-routine:agent-a:0:job-work-shift is in window.',
+        rationale:
+          'Active scheduled intention daily-routine:agent-a:0:job-work-shift is in window.',
         score: 32,
         shortTermMemoryContextIds: [],
         profileEntryKeys: [],

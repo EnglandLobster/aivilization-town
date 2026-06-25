@@ -1,6 +1,7 @@
 import {
   createAgentCycleTraceApiService,
   createAgentProfileApiService,
+  createDailyPlanRenewalTraceApiService,
   createObjectiveRenewalTraceApiService,
   createSteeringTraceApiService,
   createSimulationSyncSseRoute,
@@ -53,6 +54,7 @@ export type LocalRuntimeTownApi = {
   readonly runtimeProfileRunReportsApi?: ReturnType<typeof createRuntimeProfileRunReportApiService>;
   readonly agentProfilesApi: ReturnType<typeof createAgentProfileApiService>;
   readonly agentCycleTracesApi: ReturnType<typeof createAgentCycleTraceApiService>;
+  readonly dailyPlanRenewalTracesApi: ReturnType<typeof createDailyPlanRenewalTraceApiService>;
   readonly objectiveRenewalTracesApi: ReturnType<typeof createObjectiveRenewalTraceApiService>;
   readonly steeringTracesApi: ReturnType<typeof createSteeringTraceApiService>;
   readonly handler: TownHttpApiHandler;
@@ -105,6 +107,24 @@ export async function createLocalRuntimeTownApi(
           .storage.agentCycleTraceRepository.query(request),
     },
   });
+  const dailyPlanRenewalTracesApi = createDailyPlanRenewalTraceApiService({
+    traces: {
+      getTrace: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.dailyPlanRenewalTraceRepository.get(request.traceId),
+      queryTraces: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.dailyPlanRenewalTraceRepository.query(request),
+    },
+  });
   const objectiveRenewalTracesApi = createObjectiveRenewalTraceApiService({
     traces: {
       getTrace: async (request) =>
@@ -145,6 +165,7 @@ export async function createLocalRuntimeTownApi(
     simulation: host.registry.api,
     agentProfiles: agentProfilesApi,
     agentCycleTraces: agentCycleTracesApi,
+    dailyPlanRenewalTraces: dailyPlanRenewalTracesApi,
     objectiveRenewalTraces: objectiveRenewalTracesApi,
     steeringTraces: steeringTracesApi,
     runtimeSupervisor: runtimeSupervisorApi,
@@ -186,6 +207,7 @@ export async function createLocalRuntimeTownApi(
     ...(runtimeProfileRunReportsApi === undefined ? {} : { runtimeProfileRunReportsApi }),
     agentProfilesApi,
     agentCycleTracesApi,
+    dailyPlanRenewalTracesApi,
     objectiveRenewalTracesApi,
     steeringTracesApi,
     handler,

@@ -26,6 +26,8 @@ import {
   renewDailyRoutineScheduledIntentions,
   type DailyRoutineSchedule,
   type DailyRoutineScheduleResolver,
+  type DailyPlanRenewalTraceScope,
+  type DailyPlanRenewalTraceSink,
 } from './dailyRoutineSchedule';
 import type { WorkerDomainRuntimeRegistration } from './domainRuntimeRegistry';
 import { completeFinishedActiveObjectives } from './objectiveLifecycle';
@@ -65,6 +67,8 @@ export type CanonicalWorkerActivePlanTickBaseInput = {
   readonly dailyRoutineSchedule?: DailyRoutineSchedule | null;
   readonly dailyRoutineScheduleResolver?: DailyRoutineScheduleResolver;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
+  readonly dailyPlanRenewalTraceScope?: DailyPlanRenewalTraceScope;
+  readonly dailyPlanRenewalTraceSink?: DailyPlanRenewalTraceSink;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
@@ -102,6 +106,12 @@ export async function runCanonicalWorkerActivePlanTick(
       shortTermMemoryRepository: input.shortTermMemoryRepository,
       issuedAt: input.issuedAt,
       compileDailyPlan: input.dailyPlanCompiler,
+      ...(input.dailyPlanRenewalTraceScope === undefined
+        ? {}
+        : { dailyPlanRenewalTraceScope: input.dailyPlanRenewalTraceScope }),
+      ...(input.dailyPlanRenewalTraceSink === undefined
+        ? {}
+        : { dailyPlanRenewalTraceSink: input.dailyPlanRenewalTraceSink }),
     });
   } else if (input.dailyRoutineSchedule !== null) {
     await renewDailyRoutineScheduledIntentions({
@@ -109,9 +119,7 @@ export async function runCanonicalWorkerActivePlanTick(
       intentionRepository: input.intentionRepository,
       longTermProfileRepository: input.longTermProfileRepository,
       issuedAt: input.issuedAt,
-      ...(input.dailyRoutineSchedule === undefined
-        ? {}
-        : { schedule: input.dailyRoutineSchedule }),
+      ...(input.dailyRoutineSchedule === undefined ? {} : { schedule: input.dailyRoutineSchedule }),
       ...(input.dailyRoutineScheduleResolver === undefined
         ? {}
         : { resolveSchedule: input.dailyRoutineScheduleResolver }),

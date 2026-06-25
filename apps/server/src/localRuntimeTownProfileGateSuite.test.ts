@@ -459,6 +459,7 @@ describe('local runtime town profile gate suite', () => {
                 deterministicCount: 0,
                 missingCycleCount: 0,
                 worldDecisionContextCount: 1,
+                completeWorldDecisionContextCount: 1,
               },
               {
                 stageName: 'globalSynthesis',
@@ -468,6 +469,7 @@ describe('local runtime town profile gate suite', () => {
                 deterministicCount: 0,
                 missingCycleCount: 0,
                 worldDecisionContextCount: 0,
+                completeWorldDecisionContextCount: 0,
               },
               {
                 stageName: 'replanningDecision',
@@ -477,6 +479,7 @@ describe('local runtime town profile gate suite', () => {
                 deterministicCount: 0,
                 missingCycleCount: 0,
                 worldDecisionContextCount: 0,
+                completeWorldDecisionContextCount: 0,
               },
             ],
           }),
@@ -486,20 +489,22 @@ describe('local runtime town profile gate suite', () => {
     expect(result.status).toBe('fail');
     expect(result.profiles[0]?.gate.failures).toContainEqual(
       expect.objectContaining({
-        code: 'agent-cycle-llm-stage-world-context-count-too-low',
+        code: 'agent-cycle-llm-stage-complete-world-context-count-too-low',
         evidence: {
           stageName: 'globalSynthesis',
           actual: 0,
+          worldDecisionContextCount: 0,
           minimum: 1,
         },
       }),
     );
     expect(result.profiles[0]?.gate.failures).toContainEqual(
       expect.objectContaining({
-        code: 'agent-cycle-llm-stage-world-context-count-too-low',
+        code: 'agent-cycle-llm-stage-complete-world-context-count-too-low',
         evidence: {
           stageName: 'replanningDecision',
           actual: 0,
+          worldDecisionContextCount: 0,
           minimum: 1,
         },
       }),
@@ -703,6 +708,7 @@ function createAcceptedAgentCycleLlmStageDiagnostics(
     deterministicCount: 0,
     missingCycleCount: 0,
     worldDecisionContextCount: 1,
+    completeWorldDecisionContextCount: 1,
   }));
 }
 
@@ -717,6 +723,7 @@ function createAcceptedCognitionLlmStageDiagnostics(
     deterministicCount: 0,
     missingProviderTraceCount: 0,
     worldDecisionContextCount: 1,
+    completeWorldDecisionContextCount: 1,
   }));
 }
 

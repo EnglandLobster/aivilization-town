@@ -58,6 +58,7 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly deterministicCount: number;
   readonly missingCycleCount: number;
   readonly worldDecisionContextCount: number;
+  readonly completeWorldDecisionContextCount: number;
 };
 
 export type RuntimeProfileAgentCycleDiagnostics = {
@@ -93,6 +94,7 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly deterministicCount: number;
   readonly missingProviderTraceCount: number;
   readonly worldDecisionContextCount: number;
+  readonly completeWorldDecisionContextCount: number;
 };
 
 export type RuntimeProfileCognitionProviderTrace = {
@@ -204,6 +206,7 @@ export function createRuntimeProfileRunReport(
       : {
           cognitionLlmStageDiagnostics: input.cognitionLlmStageDiagnostics.map((stage) => ({
             ...stage,
+            completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
           })),
         }),
     partitions: input.partitions.map((partition) => ({ ...partition })),
@@ -289,6 +292,7 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         deterministicCount: 0,
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 0,
+        completeWorldDecisionContextCount: 0,
       },
     ]),
   );
@@ -484,6 +488,7 @@ function cloneAgentCycleDiagnostics(
       : {
           llmStageDiagnostics: diagnostics.llmStageDiagnostics.map((stage) => ({
             ...stage,
+            completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
           })),
         }),
   };
@@ -574,6 +579,7 @@ type MutableLlmStageDiagnostics = {
   deterministicCount: number;
   missingCycleCount: number;
   worldDecisionContextCount: number;
+  completeWorldDecisionContextCount: number;
 };
 
 type MutableCognitionLlmStageDiagnostics = {
@@ -584,6 +590,15 @@ type MutableCognitionLlmStageDiagnostics = {
   deterministicCount: number;
   missingProviderTraceCount: number;
   worldDecisionContextCount: number;
+  completeWorldDecisionContextCount: number;
+};
+
+type RuntimeProfileWorldDecisionContextTraceLike = {
+  readonly hasPhysiology?: unknown;
+  readonly hasBalance?: unknown;
+  readonly hasEducationScore?: unknown;
+  readonly hasResidentialTier?: unknown;
+  readonly marketSpotPriceCount?: unknown;
 };
 
 function createLlmStageDiagnostics(
@@ -600,6 +615,7 @@ function createLlmStageDiagnostics(
         deterministicCount: 0,
         missingCycleCount: 0,
         worldDecisionContextCount: 0,
+        completeWorldDecisionContextCount: 0,
       },
     ]),
   );
@@ -679,8 +695,28 @@ function recordStageTrace(input: {
     }
     if (trace.worldDecisionContext !== undefined) {
       diagnostics.worldDecisionContextCount += 1;
+      if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
+        diagnostics.completeWorldDecisionContextCount += 1;
+      }
     }
   }
+}
+
+function isCompleteWorldDecisionContextTrace(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  return (
+    trace.hasPhysiology === true &&
+    trace.hasBalance === true &&
+    trace.hasEducationScore === true &&
+    trace.hasResidentialTier === true &&
+    typeof trace.marketSpotPriceCount === 'number' &&
+    Number.isFinite(trace.marketSpotPriceCount) &&
+    trace.marketSpotPriceCount > 0
+  );
 }
 
 function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagnostics): void {
@@ -721,6 +757,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
       stage.worldDecisionContextCount,
       `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount`,
     );
+    const completeWorldDecisionContextCount = stage.completeWorldDecisionContextCount ?? 0;
+    assertNonNegativeInteger(
+      completeWorldDecisionContextCount,
+      `agentCycleDiagnostics ${stage.stageName} completeWorldDecisionContextCount`,
+    );
     if (stage.missingCycleCount > diagnostics.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} missingCycleCount must not exceed traceCount`,
@@ -729,6 +770,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     if (stage.worldDecisionContextCount > stage.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
+      );
+    }
+    if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} completeWorldDecisionContextCount must not exceed worldDecisionContextCount`,
       );
     }
     if (
@@ -762,6 +808,9 @@ function recordCognitionProviderTrace(
   }
   if (trace.worldDecisionContext !== undefined) {
     diagnostics.worldDecisionContextCount += 1;
+    if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
+      diagnostics.completeWorldDecisionContextCount += 1;
+    }
   }
 }
 
@@ -805,6 +854,11 @@ function validateCognitionLlmStageDiagnostics(
       stage.worldDecisionContextCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount`,
     );
+    const completeWorldDecisionContextCount = stage.completeWorldDecisionContextCount ?? 0;
+    assertNonNegativeInteger(
+      completeWorldDecisionContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} completeWorldDecisionContextCount`,
+    );
     if (
       stage.llmAcceptedCount +
         stage.deterministicFallbackCount +
@@ -819,6 +873,11 @@ function validateCognitionLlmStageDiagnostics(
     if (stage.worldDecisionContextCount > stage.traceCount) {
       throw new Error(
         `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
+      );
+    }
+    if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} completeWorldDecisionContextCount must not exceed worldDecisionContextCount`,
       );
     }
   }

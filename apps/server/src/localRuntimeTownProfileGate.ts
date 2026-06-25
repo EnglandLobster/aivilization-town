@@ -14,6 +14,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumTotalEventCount?: number;
   readonly minimumTotalAgentTraceCount?: number;
   readonly minimumFullReplanMaterializationCount?: number;
+  readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -51,6 +52,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmWorldContextStages =
     input.requiredCognitionLlmWorldContextStages ??
     deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const minimumSimulatorRolloutCoverageRatio =
+    input.minimumSimulatorRolloutCoverageRatio ??
+    profileDefaults.minimumSimulatorRolloutCoverageRatio;
 
   for (const partition of profile.manifest.partitions) {
     const agentCount = agentCountByPresetId.get(partition.scenarioPresetId);
@@ -100,6 +104,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmWorldContextStages.length === 0
       ? {}
       : { requiredCognitionLlmWorldContextStages }),
+    ...(minimumSimulatorRolloutCoverageRatio === undefined
+      ? {}
+      : { minimumSimulatorRolloutCoverageRatio }),
   };
 }
 

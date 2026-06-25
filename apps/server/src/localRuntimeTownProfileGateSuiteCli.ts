@@ -18,6 +18,7 @@ export type LocalRuntimeTownProfileGateSuiteCliConfig = Pick<
   | 'reportRootDir'
   | 'runtimeConfigPath'
   | 'minimumFullReplanMaterializationCount'
+  | 'minimumSimulatorRolloutCoverageRatio'
 >;
 
 export type LocalRuntimeTownProfileGateSuiteCliWriter = {
@@ -52,6 +53,10 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     args,
     '--minimum-full-replan-materializations',
   );
+  const minimumSimulatorRolloutCoverageRatio = readOptionalRatio(
+    args,
+    '--minimum-simulator-rollout-coverage-ratio',
+  );
 
   return {
     rootDir,
@@ -64,6 +69,9 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     ...(minimumFullReplanMaterializationCount === undefined
       ? {}
       : { minimumFullReplanMaterializationCount }),
+    ...(minimumSimulatorRolloutCoverageRatio === undefined
+      ? {}
+      : { minimumSimulatorRolloutCoverageRatio }),
   };
 }
 
@@ -191,6 +199,18 @@ function readOptionalNonNegativeFinite(
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`${flag} must be a non-negative finite number`);
+  }
+  return parsed;
+}
+
+function readOptionalRatio(args: ReadonlyMap<string, string>, flag: string): number | undefined {
+  const value = args.get(flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`${flag} must be between 0 and 1`);
   }
   return parsed;
 }

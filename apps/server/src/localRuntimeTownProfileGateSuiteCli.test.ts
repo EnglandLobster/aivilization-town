@@ -34,6 +34,8 @@ describe('local runtime town profile gate suite CLI', () => {
         '/runtime/profile-config.json',
         '--minimum-full-replan-materializations',
         '1',
+        '--minimum-simulator-rollout-coverage-ratio',
+        '0.75',
       ]),
     ).toEqual({
       rootDir: '/tmp/suite',
@@ -44,6 +46,7 @@ describe('local runtime town profile gate suite CLI', () => {
       reportRootDir: '/tmp/reports',
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
+      minimumSimulatorRolloutCoverageRatio: 0.75,
     });
   });
 
@@ -82,6 +85,8 @@ describe('local runtime town profile gate suite CLI', () => {
         '/runtime/profile-config.json',
         '--minimum-full-replan-materializations',
         '1',
+        '--minimum-simulator-rollout-coverage-ratio',
+        '0.75',
       ],
       stdout: {
         write: (chunk) => {
@@ -102,6 +107,7 @@ describe('local runtime town profile gate suite CLI', () => {
       profileIds: ['smoke-25'],
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
+      minimumSimulatorRolloutCoverageRatio: 0.75,
     });
     expect(JSON.parse(output)).toMatchObject({
       status: 'pass',

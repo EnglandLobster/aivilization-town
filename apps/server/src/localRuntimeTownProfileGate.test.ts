@@ -14,6 +14,7 @@ describe('local runtime town profile gate criteria', () => {
       minimumTotalEventCount: 2,
       minimumTotalAgentTraceCount: 1,
       minimumFullReplanMaterializationCount: 0,
+      minimumSimulatorRolloutCoverageRatio: 1,
       requiredDaemonHealth: 'healthy',
       requiredOutcome: 'succeeded',
       requiredStopReason: 'cycle-count-completed',
@@ -34,6 +35,17 @@ describe('local runtime town profile gate criteria', () => {
     ).toMatchObject({
       criteriaId: 'aivilization-smoke-25:profile-run-gate',
       minimumFullReplanMaterializationCount: 1,
+    });
+  });
+
+  test('allows profile gates to override simulator rollout coverage requirements', () => {
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        minimumSimulatorRolloutCoverageRatio: 0.5,
+      }),
+    ).toMatchObject({
+      criteriaId: 'aivilization-smoke-25:profile-run-gate',
+      minimumSimulatorRolloutCoverageRatio: 0.5,
     });
   });
 

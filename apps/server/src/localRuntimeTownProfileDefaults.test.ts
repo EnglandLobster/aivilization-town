@@ -15,6 +15,7 @@ describe('local runtime town profile defaults', () => {
       },
     });
     expect(defaults.minimumFullReplanMaterializationCount).toBe(1);
+    expect(defaults.minimumSimulatorRolloutCoverageRatio).toBe(1);
 
     const compiler = defaults.strategicPlanCompiler;
     if (compiler === undefined) {
@@ -52,7 +53,9 @@ describe('local runtime town profile defaults', () => {
   });
 
   test('returns empty defaults for ordinary backend profiles', () => {
-    expect(createLocalRuntimeTownProfileDefaults('smoke-25')).toEqual({});
+    expect(createLocalRuntimeTownProfileDefaults('smoke-25')).toEqual({
+      minimumSimulatorRolloutCoverageRatio: 1,
+    });
   });
 });
 

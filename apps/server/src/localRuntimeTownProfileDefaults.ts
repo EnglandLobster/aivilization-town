@@ -9,6 +9,7 @@ export type LocalRuntimeTownProfileDefaults = {
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly minimumFullReplanMaterializationCount?: number;
+  readonly minimumSimulatorRolloutCoverageRatio?: number;
 };
 
 const RECOVERY_DRILL_REPLANNING_POLICY: AdaptiveReplanningPolicy = {
@@ -23,13 +24,16 @@ export function createLocalRuntimeTownProfileDefaults(
   profileId: LocalRuntimeTownDaemonScenarioProfileId,
 ): LocalRuntimeTownProfileDefaults {
   if (profileId !== 'recovery-drill-25') {
-    return {};
+    return {
+      minimumSimulatorRolloutCoverageRatio: 1,
+    };
   }
 
   return {
     strategicPlanCompiler: createRecoveryDrillStrategicPlanCompiler(),
     replanningPolicy: RECOVERY_DRILL_REPLANNING_POLICY,
     minimumFullReplanMaterializationCount: 1,
+    minimumSimulatorRolloutCoverageRatio: 1,
   };
 }
 

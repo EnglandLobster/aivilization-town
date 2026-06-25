@@ -136,6 +136,32 @@ describe('local runtime town profile gate suite', () => {
     );
   });
 
+  test('forwards simulator rollout coverage overrides into each profile gate', async () => {
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir: '/tmp/aivilization-suite',
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 2,
+      minimumSimulatorRolloutCoverageRatio: 0.5,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => {
+        const summary = createPassingSummary(input);
+        return Promise.resolve({
+          ...summary,
+          agentCycleDiagnostics: {
+            ...summary.agentCycleDiagnostics,
+            simulatorEventCount: 4,
+            simulatorRolloutEventCount: 3,
+            simulatorRolloutCoverageRatio: 0.75,
+          },
+        });
+      },
+    });
+
+    expect(result.status).toBe('pass');
+    expect(result.profiles[0]?.gate.status).toBe('pass');
+  });
+
   test('loads runtime config per profile and forwards replanning policy into profile runners', async () => {
     const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
     const rootDir = createRootDir();

@@ -74,6 +74,8 @@ export type WorkerAgentCycleTraceSink = {
   readonly record: (trace: AgentCycleTrace) => void | Promise<void>;
 };
 
+const DEFAULT_AGENT_CYCLE_MEMORY_RETRIEVAL_LIMIT = 8;
+
 export type WorkerAgentCycleResult = {
   readonly cycleResult: AgentCycleResult;
   readonly dispatchResult?: DispatchCommandDraftsToEventStreamResult;
@@ -196,7 +198,7 @@ export async function runWorkerAgentCycle(
     intentionState,
     longTermProfile,
     worldDecisionContext,
-    ...(input.memoryRetrievalLimit === undefined ? {} : { shortTermMemoryContext }),
+    shortTermMemoryContext,
     microPlanners: input.microPlanners,
     ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
     simulate: input.simulate,
@@ -373,14 +375,13 @@ async function resolveShortTermMemoryContext(input: {
   readonly memoryRetrievalLimit?: number;
   readonly memoryRetrievalCandidateLimit?: number;
 }): Promise<readonly ShortTermMemoryRecord[]> {
-  if (input.memoryRetrievalLimit === undefined) {
-    return [];
-  }
+  const memoryRetrievalLimit =
+    input.memoryRetrievalLimit ?? DEFAULT_AGENT_CYCLE_MEMORY_RETRIEVAL_LIMIT;
 
   const candidates = await input.shortTermMemoryRepository.retrieve({
     agentId: input.agentId,
     limit: resolveMemoryRetrievalCandidateLimit({
-      memoryRetrievalLimit: input.memoryRetrievalLimit,
+      memoryRetrievalLimit,
       ...(input.memoryRetrievalCandidateLimit === undefined
         ? {}
         : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
@@ -391,7 +392,7 @@ async function resolveShortTermMemoryContext(input: {
     plan: input.plan,
     signals: input.signals,
     issuedAt: input.issuedAt,
-    limit: input.memoryRetrievalLimit,
+    limit: memoryRetrievalLimit,
   });
 }
 

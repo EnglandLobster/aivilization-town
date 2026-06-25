@@ -8,6 +8,7 @@ export * from './records';
 export * from './reflection';
 export * from './repository';
 export * from './retrieval';
+export * from './socialReflection';
 
 export type MemoryModuleStatus = {
   readonly packageName: '@aivilization/memory';

@@ -278,6 +278,70 @@ describe('worker memory consolidation', () => {
     ]);
   });
 
+  test('returns immediate social reflection artifacts for single social interactions', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    await shortTermMemoryRepository.append(
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Shared food after work.',
+        importanceScore: 0.8,
+      }),
+    );
+
+    const result = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 2000,
+    });
+
+    expect(result.socialReflections).toEqual([
+      {
+        id: 'social-reflection-agent-1-agent-2-social-agent-2-1-2000',
+        agentId,
+        targetAgentId: otherAgentId,
+        statement:
+          'Interaction with agent-2 changed relation by 1 and attitude by 1: Shared food after work.',
+        relationDelta: 1,
+        attitudeDelta: 1,
+        confidence: 0.8,
+        evidenceRecordIds: ['social-agent-2-1'],
+        generatedAt: 2000,
+        tags: ['social', 'post-interaction-reflection', 'agent-2', 'conversation', 'community'],
+      },
+    ]);
+    expect(result.reflectiveInsights).toEqual([]);
+    expect(result.patches).toEqual([
+      {
+        id: 'ltm-patch-agent-1-social-agent-2-2000',
+        agentId,
+        section: 'socialRecords',
+        key: 'agent-2',
+        statement: 'Shared food after work.',
+        confidence: 0.8,
+        provenanceRecordIds: ['social-agent-2-1'],
+        proposedAt: 2000,
+        relationDelta: 1,
+        attitudeDelta: 1,
+      },
+    ]);
+    expect(result.profile.socialRecords).toEqual([
+      {
+        key: 'agent-2',
+        statement: 'Shared food after work.',
+        confidence: 0.8,
+        provenanceRecordIds: ['social-agent-2-1'],
+        updatedAt: 2000,
+        relationDelta: 1,
+        attitudeDelta: 1,
+      },
+    ]);
+  });
+
   test('leaves the profile unchanged when not enough records match a consolidation pattern', async () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();

@@ -25,6 +25,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -123,6 +124,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmAcceptedStages ?? [],
+  );
+  addRequiredCognitionLlmWorldContextStageFailures(
+    failures,
+    report,
+    criteria.requiredCognitionLlmWorldContextStages ?? [],
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -248,6 +254,32 @@ function addRequiredCognitionLlmStageFailures(
     failures.push({
       code: 'cognition-llm-stage-accepted-count-too-low',
       message: `cognition LLM stage ${stageName} llmAcceptedCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredCognitionLlmWorldContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileCognitionLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.worldDecisionContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-world-context-count-too-low',
+      message: `cognition LLM stage ${stageName} worldDecisionContextCount must be at least 1`,
       evidence: {
         stageName,
         actual,

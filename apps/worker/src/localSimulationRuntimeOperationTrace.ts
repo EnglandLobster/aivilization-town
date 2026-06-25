@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { MemorySynthesisWorldDecisionContextTrace } from '@aivilization/memory';
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeSupervisorCommandOutcome,
@@ -35,6 +36,7 @@ export type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace = {
   readonly model?: string;
   readonly failureReason?: string;
   readonly message?: string;
+  readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
 };
 
 export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {

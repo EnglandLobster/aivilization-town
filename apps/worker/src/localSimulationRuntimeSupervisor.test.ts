@@ -1,5 +1,8 @@
 import { createAmmPool } from '@aivilization/economy';
-import { createShortTermMemoryRecord } from '@aivilization/memory';
+import {
+  createShortTermMemoryRecord,
+  type MemorySynthesisWorldDecisionContextTrace,
+} from '@aivilization/memory';
 import { asAgentId, asLocationId, createEventEnvelope, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies, type WorldEvent } from '@aivilization/world';
@@ -534,6 +537,7 @@ describe('local simulation runtime supervisor', () => {
               requestId: `reflection-${input.agentId}-${input.generatedAt}`,
               providerId: 'test-reflection-provider',
               model: 'test-reflection-model',
+              worldDecisionContext: createWorldDecisionContextTrace(input.agentId),
             },
           }),
         socialModelSynthesizer: (input) =>
@@ -546,6 +550,7 @@ describe('local simulation runtime supervisor', () => {
               requestId: `social-model-${input.agentId}-${input.generatedAt}`,
               providerId: 'test-social-model-provider',
               model: 'test-social-model',
+              worldDecisionContext: createWorldDecisionContextTrace(input.agentId),
             },
           }),
       },
@@ -576,6 +581,7 @@ describe('local simulation runtime supervisor', () => {
                 requestId: 'reflection-agent-1-610',
                 providerId: 'test-reflection-provider',
                 model: 'test-reflection-model',
+                worldDecisionContext: createWorldDecisionContextTrace(agentOne),
               },
             ],
             socialModelSynthesisTraces: [
@@ -586,6 +592,7 @@ describe('local simulation runtime supervisor', () => {
                 requestId: 'social-model-agent-1-610',
                 providerId: 'test-social-model-provider',
                 model: 'test-social-model',
+                worldDecisionContext: createWorldDecisionContextTrace(agentOne),
               },
             ],
           },
@@ -599,6 +606,7 @@ describe('local simulation runtime supervisor', () => {
                 status: 'accepted',
                 source: 'llm',
                 requestId: 'reflection-agent-2-610',
+                worldDecisionContext: createWorldDecisionContextTrace(agentTwo),
               },
             ],
             socialModelSynthesisTraces: [
@@ -607,6 +615,7 @@ describe('local simulation runtime supervisor', () => {
                 status: 'accepted',
                 source: 'llm',
                 requestId: 'social-model-agent-2-610',
+                worldDecisionContext: createWorldDecisionContextTrace(agentTwo),
               },
             ],
           },
@@ -1318,6 +1327,21 @@ function createFailingMemoryConsolidationSchedule(): LocalSimulationLifecycleMem
   return {
     retrievalLimit: 0,
     minPatternCount: 3,
+  };
+}
+
+function createWorldDecisionContextTrace(
+  agentId: AgentId,
+): MemorySynthesisWorldDecisionContextTrace {
+  return {
+    agentId,
+    hasPhysiology: true,
+    hasBalance: true,
+    hasEducationScore: true,
+    hasResidentialTier: true,
+    inventoryItemCount: 1,
+    marketSpotPriceCount: 1,
+    hasLatestPriceIndex: false,
   };
 }
 

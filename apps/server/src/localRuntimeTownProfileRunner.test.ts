@@ -1016,6 +1016,11 @@ describe('local runtime town profile runner', () => {
         (stage) => stage.stageName === 'reflectionSynthesis',
       )?.llmAcceptedCount,
     ).toBe(1);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'reflectionSynthesis',
+      )?.worldDecisionContextCount,
+    ).toBe(1);
   });
 
   test('attaches configured social model synthesis to a provided memory consolidation schedule', async () => {
@@ -1052,6 +1057,11 @@ describe('local runtime town profile runner', () => {
       summary.cognitionLlmStageDiagnostics?.find(
         (stage) => stage.stageName === 'socialModelSynthesis',
       )?.llmAcceptedCount,
+    ).toBe(1);
+    expect(
+      summary.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === 'socialModelSynthesis',
+      )?.worldDecisionContextCount,
     ).toBe(1);
   });
 });

@@ -31,6 +31,7 @@ function createTrace(input: {
   readonly simulationId?: string;
   readonly agentId?: string;
   readonly cycleStartedAt?: number;
+  readonly replanMaterialization?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -113,6 +114,20 @@ function createTrace(input: {
       profileEvidenceRecordIds: [],
     },
     replanningDecision: { kind: 'none' },
+    ...(input.replanMaterialization === true
+      ? {
+          replanMaterialization: {
+            status: 'replanned',
+            objectiveId: 'objective-study',
+            planId: 'objective-study',
+            progressReset: true,
+            trigger: 'repeated-failure',
+            failedActionIds: [`${input.traceId}:study-1`],
+            evidenceRecordIds: [`${input.traceId}:memory-energy`],
+            matchingFailureCount: 2,
+          },
+        }
+      : {}),
     subtaskReplanningDecisions: [
       {
         branchId: 'development',
@@ -141,7 +156,11 @@ describe('agent cycle trace repositories', () => {
   test('records and queries in-memory traces idempotently', async () => {
     const repository = new InMemoryAgentCycleTraceRepository();
     const older = createTrace({ traceId: 'trace-100', cycleStartedAt: 100 });
-    const newer = createTrace({ traceId: 'trace-200', cycleStartedAt: 200 });
+    const newer = createTrace({
+      traceId: 'trace-200',
+      cycleStartedAt: 200,
+      replanMaterialization: true,
+    });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
       agentId: 'agent-2',
@@ -179,20 +198,25 @@ describe('agent cycle trace repositories', () => {
       read!.subtaskCandidates[0]!.scoreBreakdown as { memoryInfluenceScore: number }
     ).memoryInfluenceScore = 999;
     (
-      read!.actionSynthesis.acceptedActions[0]!.resourceEstimate!
-        .inventoryCosts as Record<string, number>
+      read!.actionSynthesis.acceptedActions[0]!.resourceEstimate!.inventoryCosts as Record<
+        string,
+        number
+      >
     ).Book = 999;
-    (
-      read!.actionSynthesis.rejectedActions[0]!.action as { description: string }
-    ).description = 'mutated';
-    (
-      read!.actionSynthesis.acceptedActions[0]!.synthesisContext as { branchId: string }
-    ).branchId = 'mutated';
+    (read!.actionSynthesis.rejectedActions[0]!.action as { description: string }).description =
+      'mutated';
+    (read!.actionSynthesis.acceptedActions[0]!.synthesisContext as { branchId: string }).branchId =
+      'mutated';
     (
       read!.actionSynthesis.rejectedActions[0]!.action.synthesisContext as { branchUrgency: number }
     ).branchUrgency = 999;
     (
       read!.subtaskReplanningDecisions[1]!.decision as unknown as {
+        failedActionIds: string[];
+      }
+    ).failedActionIds.push('mutated');
+    (
+      read!.replanMaterialization as unknown as {
         failedActionIds: string[];
       }
     ).failedActionIds.push('mutated');
@@ -209,7 +233,11 @@ describe('agent cycle trace repositories', () => {
   test('persists file-backed traces across repository instances', async () => {
     const rootDir = createRootDir();
     const first = new FileAgentCycleTraceRepository({ rootDir });
-    const trace = createTrace({ traceId: 'trace-1', cycleStartedAt: 100 });
+    const trace = createTrace({
+      traceId: 'trace-1',
+      cycleStartedAt: 100,
+      replanMaterialization: true,
+    });
 
     await first.record(trace);
     await first.record({ ...trace, selectedBranch: 'duplicate-ignored' });

@@ -155,6 +155,24 @@ describe('runtime profile run report repositories', () => {
         },
       }),
     ).toThrow('agentCycleDiagnostics traceCount must be a non-negative integer');
+    expect(() =>
+      createRuntimeProfileRunReport({
+        ...createReport({ runId: 'invalid-full-replan-materialization-ratio' }),
+        agentCycleDiagnostics: {
+          ...createDiagnostics(),
+          fullReplanMaterializationRatio: 1.1,
+        },
+      }),
+    ).toThrow('agentCycleDiagnostics fullReplanMaterializationRatio must be between 0 and 1');
+    expect(() =>
+      createRuntimeProfileRunReport({
+        ...createReport({ runId: 'invalid-full-replan-materialization-count' }),
+        agentCycleDiagnostics: {
+          ...createDiagnostics(),
+          fullReplanMaterializationCount: 6,
+        },
+      }),
+    ).toThrow('agentCycleDiagnostics fullReplanMaterializationCount must not exceed traceCount');
   });
 
   test('summarizes agent cycle diagnostics from traces', () => {
@@ -179,6 +197,16 @@ describe('runtime profile run report repositories', () => {
           simulatorStatus: 'repaired',
           replanning: true,
           emittedCommandCount: 2,
+          replanMaterialization: {
+            status: 'replanned',
+            objectiveId: 'objective-eat',
+            planId: 'objective-eat',
+            progressReset: true,
+            trigger: 'repeated-failure',
+            failedActionIds: ['eat-1'],
+            evidenceRecordIds: ['stm-eat-failure'],
+            matchingFailureCount: 2,
+          },
           simulatorEvents: [
             {
               actionId: 'eat-1',
@@ -200,6 +228,11 @@ describe('runtime profile run report repositories', () => {
           simulatorStatus: 'rejected',
           replanning: true,
           emittedCommandCount: 0,
+          replanMaterialization: {
+            status: 'skipped',
+            planId: 'objective-study',
+            reason: 'missing-active-objective',
+          },
           simulatorEvents: [],
         }),
       ]),
@@ -212,7 +245,9 @@ describe('runtime profile run report repositories', () => {
       simulatorEventTraceCount: 3,
       simulatorEventCount: 3,
       commandEmittingCycleCount: 2,
+      fullReplanMaterializationCount: 2,
       commandEmittingCycleRatio: 2 / 3,
+      fullReplanMaterializationRatio: 2 / 3,
       repairedSimulatorRatio: 1 / 3,
       rejectedSimulatorRatio: 1 / 3,
       replanningDecisionRatio: 2 / 3,
@@ -226,7 +261,9 @@ describe('runtime profile run report repositories', () => {
       simulatorEventTraceCount: 0,
       simulatorEventCount: 0,
       commandEmittingCycleCount: 0,
+      fullReplanMaterializationCount: 0,
       commandEmittingCycleRatio: 0,
+      fullReplanMaterializationRatio: 0,
       repairedSimulatorRatio: 0,
       rejectedSimulatorRatio: 0,
       replanningDecisionRatio: 0,
@@ -297,7 +334,9 @@ function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
     simulatorEventTraceCount: 7,
     simulatorEventCount: 12,
     commandEmittingCycleCount: 4,
+    fullReplanMaterializationCount: 1,
     commandEmittingCycleRatio: 0.8,
+    fullReplanMaterializationRatio: 0.2,
     repairedSimulatorRatio: 0.4,
     rejectedSimulatorRatio: 0.2,
     replanningDecisionRatio: 0.6,
@@ -321,6 +360,7 @@ function createTrace(input: {
   readonly replanning: boolean;
   readonly emittedCommandCount: number;
   readonly simulatorEvents: AgentCycleTrace['simulatorEvents'];
+  readonly replanMaterialization?: AgentCycleTrace['replanMaterialization'];
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -378,6 +418,9 @@ function createTrace(input: {
           evidenceRecordIds: [],
         }
       : { kind: 'none' },
+    ...(input.replanMaterialization === undefined
+      ? {}
+      : { replanMaterialization: input.replanMaterialization }),
     subtaskReplanningDecisions: [
       {
         branchId: 'development',

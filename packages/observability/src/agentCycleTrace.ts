@@ -23,6 +23,24 @@ export type ReplanningTraceDecision =
       readonly matchingFailureCount: number;
     };
 
+export type AgentCycleReplanMaterializationTrace =
+  | {
+      readonly status: 'replanned';
+      readonly objectiveId: string;
+      readonly planId: string;
+      readonly progressReset: boolean;
+      readonly trigger: 'major-context-shift' | 'repeated-failure';
+      readonly failedActionIds: readonly string[];
+      readonly evidenceRecordIds: readonly string[];
+      readonly matchingFailureCount: number;
+    }
+  | {
+      readonly status: 'skipped';
+      readonly planId: string;
+      readonly reason: 'missing-active-objective' | 'plan-id-mismatch';
+      readonly objectiveId?: string;
+    };
+
 export type AgentCycleSelectionTraceEvidence = {
   readonly selectedSubtaskId: string;
   readonly intentionInfluenceScore: number;
@@ -116,6 +134,7 @@ export type AgentCycleTrace = {
   readonly simulatorEvents: readonly AgentCycleSimulatorEventTrace[];
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
   readonly replanningDecision: ReplanningTraceDecision;
+  readonly replanMaterialization?: AgentCycleReplanMaterializationTrace;
   readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecisionTrace[];
   readonly emittedCommandIds: readonly string[];
   readonly memoryContextIds: readonly string[];

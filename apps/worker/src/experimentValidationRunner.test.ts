@@ -322,6 +322,26 @@ describe('worker experiment validation runner', () => {
       projection: createProjection(),
       events: createTradeEvents([100, 110, 99, 120, 105, 126]),
       plannerRuns: createPlannerRuns(),
+      socialReflectionObservations: [
+        {
+          observationId: 'reflection-agent-a-agent-b',
+          agentId: 'agent-a',
+          targetAgentId: 'agent-b',
+          confidence: 0.8,
+          evidenceRecordIds: ['memory-agent-a-agent-b'],
+          generatedAt: 250,
+          tags: ['social', 'post-interaction-reflection'],
+        },
+        {
+          observationId: 'reflection-agent-b-agent-a',
+          agentId: 'agent-b',
+          targetAgentId: 'agent-a',
+          confidence: 0.6,
+          evidenceRecordIds: ['memory-agent-b-agent-a'],
+          generatedAt: 260,
+          tags: ['social', 'post-interaction-reflection'],
+        },
+      ],
       expectedTrajectoryAgentIds: ['agent-a', 'agent-b', 'agent-c'],
       agentCycleTraceRepository: traceRepository,
       thresholds: {
@@ -334,6 +354,12 @@ describe('worker experiment validation runner', () => {
         volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
         wealthStratification: { minimumGiniCoefficient: 0.2, minimumEducationWealthRatio: 2 },
         plannerAblation: { minimumDefaultWinRate: 1 },
+        socialReflectionCoverage: {
+          minimumObservationCount: 2,
+          minimumAgentCoverageRatio: 0.6,
+          minimumDirectedPairCount: 2,
+          minimumMeanConfidence: 0.7,
+        },
         trajectoryCoverage: { minimumCoverageRatio: 0.6, minimumMinimumStepCount: 1 },
       },
     });
@@ -344,11 +370,20 @@ describe('worker experiment validation runner', () => {
       'volatility-clustering',
       'wealth-stratification',
       'planner-ablation',
+      'social-reflection-coverage',
       'trajectory-coverage',
     ]);
 
     expect(getMetric(report.metrics, 'market-stability').status).toBe('pass');
     expect(getMetric(report.metrics, 'wealth-stratification').value).toBeCloseTo(0.3125);
+    expect(getMetric(report.metrics, 'social-reflection-coverage')).toMatchObject({
+      status: 'pass',
+      evidence: {
+        observationCount: 2,
+        coveredAgentCount: 2,
+        directedPairCount: 2,
+      },
+    });
     expect(getMetric(report.metrics, 'trajectory-coverage').value).toBeCloseTo(2 / 3);
     expect(getMetric(report.metrics, 'trajectory-coverage').evidence.maximumStepCount).toBe(2);
   });

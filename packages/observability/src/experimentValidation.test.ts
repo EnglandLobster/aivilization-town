@@ -56,6 +56,26 @@ describe('experiment validation report', () => {
           metrics: [{ metricId: 'net-worth', value: 95_279, higherIsBetter: true }],
         },
       ],
+      socialReflectionObservations: [
+        {
+          observationId: 'reflection-agent-a-agent-b',
+          agentId: 'agent-a',
+          targetAgentId: 'agent-b',
+          confidence: 0.8,
+          evidenceRecordIds: ['memory-agent-a-agent-b'],
+          generatedAt: 10,
+          tags: ['social', 'post-interaction-reflection'],
+        },
+        {
+          observationId: 'reflection-agent-b-agent-a',
+          agentId: 'agent-b',
+          targetAgentId: 'agent-a',
+          confidence: 0.6,
+          evidenceRecordIds: ['memory-agent-b-agent-a'],
+          generatedAt: 11,
+          tags: ['social', 'post-interaction-reflection'],
+        },
+      ],
       expectedTrajectoryAgentIds: ['agent-a', 'agent-b', 'agent-c'],
       trajectories: [
         {
@@ -83,6 +103,13 @@ describe('experiment validation report', () => {
         volatilityClustering: { minimumLagOneAbsoluteReturnAutocorrelation: -1 },
         wealthStratification: { minimumGiniCoefficient: 0.2, minimumEducationWealthRatio: 2 },
         plannerAblation: { minimumDefaultWinRate: 1 },
+        socialReflectionCoverage: {
+          minimumObservationCount: 2,
+          minimumAgentCoverageRatio: 0.6,
+          minimumDirectedPairCount: 2,
+          minimumMeanConfidence: 0.7,
+          requiredTag: 'post-interaction-reflection',
+        },
         trajectoryCoverage: { minimumCoverageRatio: 0.6, minimumMinimumStepCount: 1 },
       },
     });
@@ -99,6 +126,7 @@ describe('experiment validation report', () => {
       'volatility-clustering',
       'wealth-stratification',
       'planner-ablation',
+      'social-reflection-coverage',
       'trajectory-coverage',
     ]);
 
@@ -126,6 +154,21 @@ describe('experiment validation report', () => {
       'default,without-branch,without-objective-decomposition',
     );
 
+    const socialReflection = getMetric(report.metrics, 'social-reflection-coverage');
+    expect(socialReflection.status).toBe('pass');
+    expect(socialReflection.value).toBeCloseTo(2 / 3);
+    expect(socialReflection.evidence).toMatchObject({
+      observationCount: 2,
+      expectedAgentCount: 3,
+      coveredAgentCount: 2,
+      directedPairCount: 2,
+      evidenceBackedObservationCount: 2,
+      requiredTagObservationCount: 2,
+      latestGeneratedAt: 11,
+    });
+    expect(socialReflection.evidence.agentCoverageRatio).toBeCloseTo(2 / 3);
+    expect(socialReflection.evidence.meanConfidence).toBeCloseTo(0.7);
+
     const trajectories = getMetric(report.metrics, 'trajectory-coverage');
     expect(trajectories.status).toBe('pass');
     expect(trajectories.value).toBeCloseTo(2 / 3);
@@ -133,7 +176,7 @@ describe('experiment validation report', () => {
     expect(trajectories.evidence.minimumStepCount).toBe(1);
     expect(trajectories.evidence.commandBackedTrajectoryCount).toBe(1);
 
-    expect(report.findings).toHaveLength(6);
+    expect(report.findings).toHaveLength(7);
     expect(report.findings.map((finding) => finding.topic)).toEqual(
       report.metrics.map((metric) => metric.id),
     );
@@ -221,6 +264,85 @@ describe('experiment validation report', () => {
     ).toThrow(
       'plannerRuns missing expected variants without-objective-decomposition for task task-1 metric net-worth',
     );
+
+    expect(() =>
+      createExperimentValidationReport({
+        ...validInput,
+        socialReflectionObservations: [
+          {
+            observationId: 'reflection-self-target',
+            agentId: 'agent-a',
+            targetAgentId: 'agent-a',
+            confidence: 0.8,
+            evidenceRecordIds: ['memory-self-target'],
+            generatedAt: 10,
+            tags: ['post-interaction-reflection'],
+          },
+        ],
+      }),
+    ).toThrow('socialReflectionObservations targetAgentId must differ from agentId');
+  });
+
+  test('reports missing social reflection coverage as watch without non-finite evidence', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-social-reflection-missing',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_002,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'task-1',
+          variant: 'default',
+          metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a', 'agent-b'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        socialReflectionCoverage: {
+          minimumObservationCount: 1,
+          minimumAgentCoverageRatio: 0.5,
+          minimumDirectedPairCount: 1,
+          minimumMeanConfidence: 0.5,
+        },
+      },
+    });
+
+    const socialReflection = getMetric(report.metrics, 'social-reflection-coverage');
+
+    expect(socialReflection.status).toBe('watch');
+    expect(socialReflection.value).toBe(0);
+    expect(socialReflection.evidence).toMatchObject({
+      observationCount: 0,
+      expectedAgentCount: 2,
+      coveredAgentCount: 0,
+      agentCoverageRatio: 0,
+      directedPairCount: 0,
+      meanConfidence: 0,
+      evidenceBackedObservationCount: 0,
+      requiredTagObservationCount: 0,
+      latestGeneratedAt: 0,
+    });
   });
 
   test('reports missing trajectory coverage without non-finite evidence', () => {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -130,6 +130,52 @@ describe('local runtime town profile gate suite', () => {
     );
   });
 
+  test('loads runtime config per profile and forwards replanning policy into profile runners', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'smoke-25': {
+            replanningPolicy: {
+              consecutiveFailureThreshold: 2,
+              majorContextShift: {
+                key: 'profile-recovery-drill',
+                reason: 'profile recovery drill requires a replacement plan',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      minimumFullReplanMaterializationCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createPassingSummary(input, { fullReplanMaterializationCount: 1 }));
+      },
+    });
+
+    expect(result.status).toBe('pass');
+    expect(inputs[0]?.replanningPolicy).toEqual({
+      consecutiveFailureThreshold: 2,
+      majorContextShift: {
+        key: 'profile-recovery-drill',
+        reason: 'profile recovery drill requires a replacement plan',
+      },
+    });
+    expect(result.profiles[0]?.gate.status).toBe('pass');
+  });
+
   test('defaults to the canonical profile gate order', () => {
     expect(localRuntimeTownProfileGateSuiteDefaultProfileIds).toEqual([
       'smoke-25',
@@ -141,6 +187,7 @@ describe('local runtime town profile gate suite', () => {
 
 function createPassingSummary(
   input: LocalRuntimeTownProfileRunnerInput,
+  options: { readonly fullReplanMaterializationCount?: number } = {},
 ): LocalRuntimeTownProfileRunnerSummary {
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
   const criteria = createLocalRuntimeTownProfileGateCriteria(input.profileId, {
@@ -185,7 +232,9 @@ function createPassingSummary(
     ),
     totalEventCount: partitions.reduce((total, partition) => total + partition.eventCount, 0),
     totalAgentTraceCount,
-    agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount),
+    agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount, {
+      fullReplanMaterializationCount: options.fullReplanMaterializationCount ?? 0,
+    }),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
       outcome: 'succeeded',
@@ -197,7 +246,11 @@ function createPassingSummary(
   };
 }
 
-function createAgentCycleDiagnostics(traceCount: number) {
+function createAgentCycleDiagnostics(
+  traceCount: number,
+  options: { readonly fullReplanMaterializationCount?: number } = {},
+) {
+  const fullReplanMaterializationCount = options.fullReplanMaterializationCount ?? 0;
   return {
     traceCount,
     acceptedSimulatorCount: traceCount,
@@ -207,9 +260,10 @@ function createAgentCycleDiagnostics(traceCount: number) {
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
     commandEmittingCycleCount: traceCount,
-    fullReplanMaterializationCount: 0,
+    fullReplanMaterializationCount,
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
-    fullReplanMaterializationRatio: 0,
+    fullReplanMaterializationRatio:
+      traceCount === 0 ? 0 : fullReplanMaterializationCount / traceCount,
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,

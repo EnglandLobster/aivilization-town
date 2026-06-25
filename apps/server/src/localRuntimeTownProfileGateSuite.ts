@@ -10,6 +10,10 @@ import {
 import type { SimulationTimestamp } from '@aivilization/sim-core';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
+  loadLocalRuntimeTownProfileRuntimeConfig,
+  type LocalRuntimeTownProfileRuntimeConfig,
+} from './localRuntimeTownProfileRuntimeConfig';
+import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
   type LocalRuntimeTownProfileRunnerPartitionSummary,
@@ -31,6 +35,7 @@ export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly cycleCount?: number;
   readonly cycleIntervalMs?: number;
   readonly minimumFullReplanMaterializationCount?: number;
+  readonly runtimeConfigPath?: string;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly runProfile?: (
     input: LocalRuntimeTownProfileRunnerInput,
@@ -62,6 +67,9 @@ export async function runLocalRuntimeTownProfileGateSuite(
   if (input.reportRootDir !== undefined) {
     assertNonEmpty(input.reportRootDir, 'reportRootDir');
   }
+  if (input.runtimeConfigPath !== undefined) {
+    assertNonEmpty(input.runtimeConfigPath, 'runtimeConfigPath');
+  }
   if (input.cycleIntervalMs !== undefined) {
     assertNonNegativeFinite(input.cycleIntervalMs, 'cycleIntervalMs');
   }
@@ -84,11 +92,20 @@ export async function runLocalRuntimeTownProfileGateSuite(
   const profiles: LocalRuntimeTownProfileGateSuiteProfileResult[] = [];
 
   for (const profileId of profileIds) {
+    const runtimeConfig =
+      input.runtimeConfigPath === undefined
+        ? undefined
+        : await loadLocalRuntimeTownProfileRuntimeConfig({
+            profileId,
+            path: input.runtimeConfigPath,
+            env: process.env,
+          });
     const summary = await runProfile(
       createProfileRunnerInput({
         profileId,
         suiteInput: input,
         cycleCount,
+        ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
         ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
       }),
     );
@@ -163,6 +180,7 @@ function createProfileRunnerInput(input: {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
   readonly suiteInput: LocalRuntimeTownProfileGateSuiteInput;
   readonly cycleCount: number;
+  readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
 }): LocalRuntimeTownProfileRunnerInput {
   return {
@@ -179,6 +197,18 @@ function createProfileRunnerInput(input: {
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { profileRunReportRepository: input.profileRunReportRepository }),
+    ...(input.runtimeConfig?.strategicPlanning === undefined
+      ? {}
+      : { llmPlanning: input.runtimeConfig.strategicPlanning }),
+    ...(input.runtimeConfig?.dailyPlanning === undefined
+      ? {}
+      : { dailyPlanning: input.runtimeConfig.dailyPlanning }),
+    ...(input.runtimeConfig?.reactionPlanning === undefined
+      ? {}
+      : { reactionPlanning: input.runtimeConfig.reactionPlanning }),
+    ...(input.runtimeConfig?.replanningPolicy === undefined
+      ? {}
+      : { replanningPolicy: input.runtimeConfig.replanningPolicy }),
   };
 }
 

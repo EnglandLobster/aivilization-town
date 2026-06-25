@@ -36,7 +36,7 @@ describe('local runtime town profile runner CLI', () => {
         '50',
         '--report-root-dir',
         '/tmp/reports',
-        '--llm-planning-config',
+        '--runtime-config',
         '/runtime/profile-config.json',
         '--require-gate',
       ]),
@@ -47,7 +47,7 @@ describe('local runtime town profile runner CLI', () => {
       requestedAt: 100,
       cycleIntervalMs: 50,
       reportRootDir: '/tmp/reports',
-      llmPlanningConfigPath: '/runtime/profile-config.json',
+      runtimeConfigPath: '/runtime/profile-config.json',
       requireGate: true,
     });
   });
@@ -389,6 +389,84 @@ describe('local runtime town profile runner CLI', () => {
         process.env.AIVILIZATION_TEST_REACTION_LLM_KEY = previousKey;
       }
     }
+  });
+
+  test('loads replanning policy config files and passes resolved policy to the runner', async () => {
+    let output = '';
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            replanningPolicy: {
+              consecutiveFailureThreshold: 2,
+              majorContextShift: {
+                key: 'profile-recovery-drill',
+                reason: 'profile recovery drill requires a replacement plan',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'default-100',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--runtime-config',
+        configPath,
+      ],
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+      runProfile: (input) => {
+        receivedInput = input;
+        return Promise.resolve({
+          profileId: input.profileId,
+          manifestId: 'aivilization-default-100',
+          rootDir: input.rootDir,
+          requestedAt: input.requestedAt,
+          daemonHealth: 'healthy',
+          partitionCount: 1,
+          totalProjectionAgentCount: 100,
+          totalEventCount: 3,
+          totalAgentTraceCount: 1,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+          run: {
+            traceId: 'trace-1',
+            outcome: 'succeeded',
+            requestedCycleCount: input.cycleCount,
+            completedCycleCount: input.cycleCount,
+            stopReason: 'cycle-count-completed',
+          },
+          partitions: [],
+        });
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output)).toMatchObject({
+      profileId: 'default-100',
+    });
+    expect(receivedInput?.replanningPolicy).toEqual({
+      consecutiveFailureThreshold: 2,
+      majorContextShift: {
+        key: 'profile-recovery-drill',
+        reason: 'profile recovery drill requires a replacement plan',
+      },
+    });
   });
 
   test('records profile run reports when report root is supplied', async () => {

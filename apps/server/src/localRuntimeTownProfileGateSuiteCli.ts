@@ -10,7 +10,14 @@ import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTown
 
 export type LocalRuntimeTownProfileGateSuiteCliConfig = Pick<
   LocalRuntimeTownProfileGateSuiteInput,
-  'rootDir' | 'requestedAt' | 'cycleCount' | 'cycleIntervalMs' | 'profileIds' | 'reportRootDir'
+  | 'rootDir'
+  | 'requestedAt'
+  | 'cycleCount'
+  | 'cycleIntervalMs'
+  | 'profileIds'
+  | 'reportRootDir'
+  | 'runtimeConfigPath'
+  | 'minimumFullReplanMaterializationCount'
 >;
 
 export type LocalRuntimeTownProfileGateSuiteCliWriter = {
@@ -40,6 +47,11 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const profileIds = readOptionalProfileIds(args, '--profiles');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
+  const runtimeConfigPath = readOptionalString(args, '--runtime-config');
+  const minimumFullReplanMaterializationCount = readOptionalNonNegativeInteger(
+    args,
+    '--minimum-full-replan-materializations',
+  );
 
   return {
     rootDir,
@@ -48,6 +60,10 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(profileIds === undefined ? {} : { profileIds }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
+    ...(runtimeConfigPath === undefined ? {} : { runtimeConfigPath }),
+    ...(minimumFullReplanMaterializationCount === undefined
+      ? {}
+      : { minimumFullReplanMaterializationCount }),
   };
 }
 
@@ -145,6 +161,21 @@ function readOptionalPositiveInteger(
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
     throw new Error(`${flag} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function readOptionalNonNegativeInteger(
+  args: ReadonlyMap<string, string>,
+  flag: string,
+): number | undefined {
+  const value = args.get(flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${flag} must be a non-negative integer`);
   }
   return parsed;
 }

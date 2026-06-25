@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { AdaptiveReplanningPolicy } from '@aivilization/agent-runtime';
 import type { LlmGatewayPricing, OpenAiCompatibleResponseFormatMode } from '@aivilization/llm';
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
@@ -34,6 +35,7 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
 
 export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
@@ -114,11 +116,19 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const replanningPolicy = parseReplanningPolicyNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'replanningPolicy',
+    }),
+  });
 
   return {
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
+    ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
   };
 }
 
@@ -254,10 +264,35 @@ function parseReactionPlanningNode(input: {
   };
 }
 
+function parseReplanningPolicyNode(input: {
+  readonly node: unknown;
+}): AdaptiveReplanningPolicy | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'replanningPolicy');
+  const failureTags = readOptionalStringArray(record.failureTags, 'replanningPolicy.failureTags');
+  const majorContextShift = parseOptionalMajorContextShift(
+    record.majorContextShift,
+    'replanningPolicy.majorContextShift',
+  );
+
+  return {
+    consecutiveFailureThreshold: readRequiredPositiveInteger(
+      record.consecutiveFailureThreshold,
+      'replanningPolicy.consecutiveFailureThreshold',
+    ),
+    ...(failureTags === undefined ? {} : { failureTags }),
+    ...(majorContextShift === undefined ? {} : { majorContextShift }),
+  };
+}
+
 type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'llmPlanning'
   | 'dailyPlanning'
-  | 'reactionPlanning';
+  | 'reactionPlanning'
+  | 'replanningPolicy';
 
 function parseOpenAiCompatibleProviderConfig(
   value: unknown,
@@ -391,6 +426,13 @@ function readOptionalPositiveInteger(value: unknown, name: string): number | und
   return value;
 }
 
+function readRequiredPositiveInteger(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
+
 function readRequiredNonNegativeFinite(value: unknown, name: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
@@ -420,6 +462,30 @@ function requireRecord(value: unknown, name: string): Readonly<Record<string, un
     throw new Error(`${name} must be an object`);
   }
   return value as Readonly<Record<string, unknown>>;
+}
+
+function readOptionalStringArray(value: unknown, name: string): readonly string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${name} must be an array of strings`);
+  }
+  return value.map((entry, index) => readRequiredString(entry, `${name}[${index}]`));
+}
+
+function parseOptionalMajorContextShift(
+  value: unknown,
+  name: string,
+): AdaptiveReplanningPolicy['majorContextShift'] {
+  if (value === undefined) {
+    return undefined;
+  }
+  const record = requireRecord(value, name);
+  return {
+    key: readRequiredString(record.key, `${name}.key`),
+    reason: readRequiredString(record.reason, `${name}.reason`),
+  };
 }
 
 function hasOwn(record: Readonly<Record<string, unknown>>, key: string): boolean {

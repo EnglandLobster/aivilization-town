@@ -6,6 +6,7 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleReplanMaterializationTrace,
   type AgentCycleSimulatorEventTrace,
   type AgentCycleSimulatorTraceEvent,
   type AgentCycleTrace,
@@ -104,8 +105,7 @@ function queryTraces(
     .filter((trace) => query.agentId === undefined || trace.agentId === query.agentId)
     .filter(
       (trace) =>
-        query.fromCycleStartedAt === undefined ||
-        trace.cycleStartedAt >= query.fromCycleStartedAt,
+        query.fromCycleStartedAt === undefined || trace.cycleStartedAt >= query.fromCycleStartedAt,
     )
     .filter(
       (trace) =>
@@ -124,17 +124,16 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
     cycleStartedAt: trace.cycleStartedAt,
     observedStateSummary: trace.observedStateSummary,
     selectedBranch: trace.selectedBranch,
-    subtaskCandidates: trace.subtaskCandidates.map((candidate) =>
-      cloneSubtaskCandidate(candidate),
-    ),
+    subtaskCandidates: trace.subtaskCandidates.map((candidate) => cloneSubtaskCandidate(candidate)),
     actionSynthesis: cloneActionSynthesis(trace.actionSynthesis),
     candidateActions: [...trace.candidateActions],
     simulatorResult: cloneSimulatorResult(trace.simulatorResult),
-    simulatorEvents: (trace.simulatorEvents ?? []).map((entry) =>
-      cloneSimulatorEventTrace(entry),
-    ),
+    simulatorEvents: (trace.simulatorEvents ?? []).map((entry) => cloneSimulatorEventTrace(entry)),
     selectionEvidence: cloneSelectionEvidence(trace.selectionEvidence),
     replanningDecision: cloneReplanningDecision(trace.replanningDecision),
+    ...(trace.replanMaterialization === undefined
+      ? {}
+      : { replanMaterialization: cloneReplanMaterialization(trace.replanMaterialization) }),
     subtaskReplanningDecisions: (trace.subtaskReplanningDecisions ?? []).map((decision) =>
       cloneSubtaskReplanningDecision(decision),
     ),
@@ -156,9 +155,7 @@ function cloneActionSynthesis(
   };
 }
 
-function cloneActionProposal(
-  action: AgentCycleActionProposalTrace,
-): AgentCycleActionProposalTrace {
+function cloneActionProposal(action: AgentCycleActionProposalTrace): AgentCycleActionProposalTrace {
   return {
     id: action.id,
     description: action.description,
@@ -229,6 +226,33 @@ function cloneSubtaskCandidate(
       profileInfluenceScore: candidate.scoreBreakdown.profileInfluenceScore,
     },
   };
+}
+
+function cloneReplanMaterialization(
+  materialization: AgentCycleReplanMaterializationTrace,
+): AgentCycleReplanMaterializationTrace {
+  switch (materialization.status) {
+    case 'replanned':
+      return {
+        status: 'replanned',
+        objectiveId: materialization.objectiveId,
+        planId: materialization.planId,
+        progressReset: materialization.progressReset,
+        trigger: materialization.trigger,
+        failedActionIds: [...materialization.failedActionIds],
+        evidenceRecordIds: [...materialization.evidenceRecordIds],
+        matchingFailureCount: materialization.matchingFailureCount,
+      };
+    case 'skipped':
+      return {
+        status: 'skipped',
+        planId: materialization.planId,
+        reason: materialization.reason,
+        ...(materialization.objectiveId === undefined
+          ? {}
+          : { objectiveId: materialization.objectiveId }),
+      };
+  }
 }
 
 function cloneSubtaskReplanningDecision(
@@ -330,10 +354,7 @@ function assertValidQuery(query: AgentCycleTraceQuery): void {
   if (query.limit !== undefined && (!Number.isFinite(query.limit) || query.limit <= 0)) {
     throw new Error('limit must be positive');
   }
-  if (
-    query.fromCycleStartedAt !== undefined &&
-    !Number.isFinite(query.fromCycleStartedAt)
-  ) {
+  if (query.fromCycleStartedAt !== undefined && !Number.isFinite(query.fromCycleStartedAt)) {
     throw new Error('fromCycleStartedAt must be finite');
   }
   if (query.toCycleStartedAt !== undefined && !Number.isFinite(query.toCycleStartedAt)) {

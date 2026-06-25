@@ -226,6 +226,9 @@ export async function runWorkerAgentCycle(
     simulatorEvents: mapSimulatorEventTraces(cycleResult.simulationResults),
     selectionEvidence: cycleResult.selectionEvidence,
     replanningDecision: cycleResult.replanningDecision,
+    ...(replanMaterialization === undefined
+      ? {}
+      : { replanMaterialization: mapReplanMaterializationTrace(replanMaterialization) }),
     subtaskReplanningDecisions: cycleResult.subtaskReplanningDecisions.map((entry) =>
       mapSubtaskReplanningDecisionTrace(entry),
     ),
@@ -369,6 +372,33 @@ function mapSubtaskReplanningDecisionTrace(
     subtaskId: entry.selectedSubtask.subtaskId,
     decision: entry.decision,
   };
+}
+
+function mapReplanMaterializationTrace(
+  materialization: WorkerFullReplanMaterializationResult,
+): NonNullable<AgentCycleTrace['replanMaterialization']> {
+  switch (materialization.status) {
+    case 'replanned':
+      return {
+        status: 'replanned',
+        objectiveId: materialization.objectiveId,
+        planId: materialization.planId,
+        progressReset: materialization.progressReset,
+        trigger: materialization.trigger,
+        failedActionIds: materialization.failedActionIds,
+        evidenceRecordIds: materialization.evidenceRecordIds,
+        matchingFailureCount: materialization.matchingFailureCount,
+      };
+    case 'skipped':
+      return {
+        status: 'skipped',
+        planId: materialization.planId,
+        reason: materialization.reason,
+        ...(materialization.objectiveId === undefined
+          ? {}
+          : { objectiveId: materialization.objectiveId }),
+      };
+  }
 }
 
 function mapActionProposalTrace(action: AtomicActionProposal): AgentCycleActionProposalTrace {

@@ -1197,6 +1197,13 @@ describe('worker agent cycle runner', () => {
       progressReset: true,
       trigger: 'repeated-failure',
     });
+    expect(result.trace.replanMaterialization).toMatchObject({
+      status: 'replanned',
+      objectiveId: objective.id,
+      planId: objective.id,
+      progressReset: true,
+      trigger: 'repeated-failure',
+    });
     await expect(planRepository.require({ planId: objective.id, agentId })).resolves.toMatchObject({
       planId: objective.id,
       agentId,

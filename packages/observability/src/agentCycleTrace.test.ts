@@ -71,9 +71,7 @@ describe('createAgentCycleTrace', () => {
           attempt: 'original',
           status: 'rejected',
           reason: 'missing Iron Ingot',
-          events: [
-            { type: 'ActionRejected', sequence: 10, summary: 'missing Iron Ingot' },
-          ],
+          events: [{ type: 'ActionRejected', sequence: 10, summary: 'missing Iron Ingot' }],
         },
         {
           actionId: 'buy-fish-1',
@@ -97,6 +95,16 @@ describe('createAgentCycleTrace', () => {
         reason: 'missing Iron Ingot',
         failedActionIds: ['craft-1'],
         evidenceRecordIds: ['stm-context-1'],
+      },
+      replanMaterialization: {
+        status: 'replanned',
+        objectiveId: 'objective-production',
+        planId: 'objective-production',
+        progressReset: true,
+        trigger: 'repeated-failure',
+        failedActionIds: ['craft-1'],
+        evidenceRecordIds: ['stm-context-1'],
+        matchingFailureCount: 2,
       },
       subtaskReplanningDecisions: [
         {
@@ -122,6 +130,16 @@ describe('createAgentCycleTrace', () => {
     });
 
     expect(trace.selectedBranch).toBe('production-resource-management');
+    expect(trace.replanMaterialization).toEqual({
+      status: 'replanned',
+      objectiveId: 'objective-production',
+      planId: 'objective-production',
+      progressReset: true,
+      trigger: 'repeated-failure',
+      failedActionIds: ['craft-1'],
+      evidenceRecordIds: ['stm-context-1'],
+      matchingFailureCount: 2,
+    });
     expect(trace.simulatorResult.status).toBe('repaired');
     expect(trace.simulatorEvents).toEqual([
       {

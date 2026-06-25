@@ -47,7 +47,9 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly simulatorEventTraceCount: number;
   readonly simulatorEventCount: number;
   readonly commandEmittingCycleCount: number;
+  readonly fullReplanMaterializationCount: number;
   readonly commandEmittingCycleRatio: number;
+  readonly fullReplanMaterializationRatio: number;
   readonly repairedSimulatorRatio: number;
   readonly rejectedSimulatorRatio: number;
   readonly replanningDecisionRatio: number;
@@ -169,6 +171,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
   let simulatorEventTraceCount = 0;
   let simulatorEventCount = 0;
   let commandEmittingCycleCount = 0;
+  let fullReplanMaterializationCount = 0;
 
   for (const trace of traces) {
     if (trace.simulatorResult.status === 'accepted') {
@@ -188,6 +191,9 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     if (trace.emittedCommandIds.length > 0) {
       commandEmittingCycleCount += 1;
     }
+    if (trace.replanMaterialization !== undefined) {
+      fullReplanMaterializationCount += 1;
+    }
   }
 
   return {
@@ -199,7 +205,9 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     simulatorEventTraceCount,
     simulatorEventCount,
     commandEmittingCycleCount,
+    fullReplanMaterializationCount,
     commandEmittingCycleRatio: ratio(commandEmittingCycleCount, traceCount),
+    fullReplanMaterializationRatio: ratio(fullReplanMaterializationCount, traceCount),
     repairedSimulatorRatio: ratio(repairedSimulatorCount, traceCount),
     rejectedSimulatorRatio: ratio(rejectedSimulatorCount, traceCount),
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
@@ -367,6 +375,7 @@ function validateAgentCycleDiagnostics(
     'simulatorEventTraceCount',
     'simulatorEventCount',
     'commandEmittingCycleCount',
+    'fullReplanMaterializationCount',
   ];
   for (const field of countFields) {
     assertNonNegativeInteger(diagnostics[field], `agentCycleDiagnostics ${field}`);
@@ -385,8 +394,14 @@ function validateAgentCycleDiagnostics(
   if (diagnostics.commandEmittingCycleCount > diagnostics.traceCount) {
     throw new Error('agentCycleDiagnostics commandEmittingCycleCount must not exceed traceCount');
   }
+  if (diagnostics.fullReplanMaterializationCount > diagnostics.traceCount) {
+    throw new Error(
+      'agentCycleDiagnostics fullReplanMaterializationCount must not exceed traceCount',
+    );
+  }
   const ratioFields: readonly (keyof RuntimeProfileAgentCycleDiagnostics)[] = [
     'commandEmittingCycleRatio',
+    'fullReplanMaterializationRatio',
     'repairedSimulatorRatio',
     'rejectedSimulatorRatio',
     'replanningDecisionRatio',
@@ -494,9 +509,6 @@ function ratio(numerator: number, denominator: number): number {
   return denominator === 0 ? 0 : numerator / denominator;
 }
 
-function sumBy<TValue>(
-  values: readonly TValue[],
-  readValue: (value: TValue) => number,
-): number {
+function sumBy<TValue>(values: readonly TValue[], readValue: (value: TValue) => number): number {
   return values.reduce((total, value) => total + readValue(value), 0);
 }

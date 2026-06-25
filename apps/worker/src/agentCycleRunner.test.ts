@@ -8,6 +8,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
@@ -790,6 +791,107 @@ describe('worker agent cycle runner', () => {
         outcome: 'repaired',
       },
     ]);
+  });
+
+  test('passes replanning decider into the planning cycle and trace', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const deciderCalls: string[] = [];
+    const evidenceRecordId = asMemoryRecordId('memory-study-failed-energy');
+    const replanningDecider: ReplanningDecider = async (input) => {
+      await Promise.resolve();
+      deciderCalls.push(
+        `${input.agentId}:${input.selectedSubtask.branchId}/${input.selectedSubtask.subtaskId}`,
+      );
+      expect(input.shortTermMemoryContext?.map((record) => record.id)).toEqual([
+        'memory-study-failed-energy',
+      ]);
+      expect(input.simulationResults.map((result) => result.status)).toEqual(['needs-replan']);
+      return {
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'LLM replanning decider prefers recovery before more study attempts.',
+          failedActionIds: ['study-energy-drained'],
+          evidenceRecordIds: [evidenceRecordId],
+        },
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'replanning-decision-cycle-worker',
+          decision: {
+            kind: 'memory-guided-correction',
+            trigger: 'simulator-rejection',
+            reason: 'LLM replanning decider prefers recovery before more study attempts.',
+            failedActionIds: ['study-energy-drained'],
+            evidenceRecordIds: [evidenceRecordId],
+          },
+        },
+      };
+    };
+
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: evidenceRecordId,
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Study failed because energy was too low.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study', 'energy'],
+      }),
+    );
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-llm-replanning-decision',
+      simulationId,
+      agentId,
+      issuedAt: 100,
+      observedStateSummary: 'energy=0 satiety=80 health=100 education=10',
+      plan: createStudyPlan(),
+      signals: [],
+      memoryRetrievalLimit: 1,
+      replanningDecider,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-llm-replanning-decision',
+      commandIdPrefix: 'cycle-llm-replanning-decision-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-energy-drained',
+          description: 'study while exhausted',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+        }),
+      ],
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+      ...repositories,
+    });
+
+    expect(deciderCalls).toEqual(['agent-1:development/study']);
+    expect(result.dispatchResult).toBeUndefined();
+    expect(result.cycleResult.replanningDecision).toMatchObject({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      failedActionIds: ['study-energy-drained'],
+      evidenceRecordIds: ['memory-study-failed-energy'],
+    });
+    expect(result.trace).toMatchObject({
+      traceId: 'cycle-llm-replanning-decision',
+      replanningDecision: {
+        kind: 'memory-guided-correction',
+        trigger: 'simulator-rejection',
+        failedActionIds: ['study-energy-drained'],
+        evidenceRecordIds: ['memory-study-failed-energy'],
+      },
+      memoryContextIds: ['memory-study-failed-energy'],
+      emittedCommandIds: [],
+    });
   });
 
   test('collects and traces actions from multiple candidate subtasks', async () => {

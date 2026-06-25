@@ -7,6 +7,7 @@ import {
   type AtomicActionProposal,
   type DomainMicroPlanner,
   type ReactiveCorrector,
+  type ReplanningDecider,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
 import {
@@ -50,7 +51,21 @@ describe('worker agent scheduling', () => {
           },
         },
       });
-    const studyRuntime = { ...createRuntimeBinding('study'), replanningPolicy, reactiveCorrector };
+    const replanningDecider: ReplanningDecider = (input) => ({
+      decision: { kind: 'none' },
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: `test-replanning:${input.agentId}:${input.selectedSubtask.subtaskId}:${input.issuedAt}`,
+        decision: { kind: 'none' },
+      },
+    });
+    const studyRuntime = {
+      ...createRuntimeBinding('study'),
+      replanningPolicy,
+      reactiveCorrector,
+      replanningDecider,
+    };
     const tradeRuntime = createRuntimeBinding('trade');
     const projection = createWorldProjection({
       agents: [
@@ -161,6 +176,7 @@ describe('worker agent scheduling', () => {
     expect(agents[0]?.simulate).toBe(studyRuntime.simulate);
     expect(agents[0]?.replanningPolicy).toEqual(studyRuntime.replanningPolicy);
     expect(agents[0]?.reactiveCorrector).toBe(reactiveCorrector);
+    expect(agents[0]?.replanningDecider).toBe(replanningDecider);
     expect(agents[0]?.worldDecisionContext).toMatchObject({
       agent: {
         agentId: agentA,

@@ -494,6 +494,97 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toEqual({});
   });
 
+  test('loads replanning decision config with profile overrides and env secrets', async () => {
+    const document = JSON.stringify({
+      replanningDecision: {
+        kind: 'traceable-llm-replanning-decider',
+        model: 'global-replanning',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-replanning-provider',
+          endpoint: 'https://replanning.example.test/v1/chat/completions',
+        },
+      },
+      profiles: {
+        'default-100': {
+          replanningDecision: {
+            kind: 'traceable-llm-replanning-decider',
+            model: 'profile-replanning',
+            provider: {
+              kind: 'openai-compatible',
+              providerId: 'profile-replanning-provider',
+              endpoint: 'https://replanning-profile.example.test/v1/chat/completions',
+              apiKey: { env: 'REPLANNING_KEY' },
+            },
+            maxAttempts: 2,
+            timeoutMs: 9_000,
+            pricing: {
+              inputTokenCostMicros: 3,
+              outputTokenCostMicros: 6,
+            },
+          },
+        },
+        'smoke-25': {
+          replanningDecision: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        env: { REPLANNING_KEY: 'replanning-secret' },
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      replanningDecision: {
+        kind: 'traceable-llm-replanning-decider',
+        profileId: 'default-100',
+        model: 'profile-replanning',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-replanning-provider',
+          endpoint: 'https://replanning-profile.example.test/v1/chat/completions',
+          apiKey: 'replanning-secret',
+        },
+        maxAttempts: 2,
+        timeoutMs: 9_000,
+        pricing: {
+          inputTokenCostMicros: 3,
+          outputTokenCostMicros: 6,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'headless-stress-1000',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({
+      replanningDecision: {
+        kind: 'traceable-llm-replanning-decider',
+        profileId: 'headless-stress-1000',
+        model: 'global-replanning',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-replanning-provider',
+          endpoint: 'https://replanning.example.test/v1/chat/completions',
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
+  });
+
   test('loads adaptive replanning policy with profile overrides and profile disabling', async () => {
     const document = JSON.stringify({
       replanningPolicy: {

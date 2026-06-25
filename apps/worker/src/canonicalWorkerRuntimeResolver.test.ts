@@ -7,6 +7,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SocialDialogueGenerator,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -302,6 +303,15 @@ describe('canonical worker runtime resolver', () => {
           },
         },
       });
+    const replanningDecider: ReplanningDecider = (input) => ({
+      decision: { kind: 'none' },
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: `test-replanning:${input.agentId}:${input.selectedSubtask.subtaskId}:${input.issuedAt}`,
+        decision: { kind: 'none' },
+      },
+    });
     const socialDialogueGenerator: SocialDialogueGenerator = async (input) => {
       await Promise.resolve();
       return {
@@ -328,6 +338,7 @@ describe('canonical worker runtime resolver', () => {
       socialDialogueGenerator,
       globalSynthesizer,
       reactiveCorrector,
+      replanningDecider,
     });
 
     const binding = await resolver({
@@ -343,6 +354,7 @@ describe('canonical worker runtime resolver', () => {
     expect(binding?.socialDialogueGenerator).toBe(socialDialogueGenerator);
     expect(binding?.globalSynthesizer).toBe(globalSynthesizer);
     expect(binding?.reactiveCorrector).toBe(reactiveCorrector);
+    expect(binding?.replanningDecider).toBe(replanningDecider);
   });
 
   test('appends matching additional domain registrations after canonical registrations', async () => {

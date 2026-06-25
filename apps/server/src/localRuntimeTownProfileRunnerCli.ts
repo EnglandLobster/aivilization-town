@@ -158,6 +158,9 @@ async function createRunnerContext(
       ...(runtimeConfig?.reactiveCorrection === undefined
         ? {}
         : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
+      ...(runtimeConfig?.replanningDecision === undefined
+        ? {}
+        : { replanningDecision: runtimeConfig.replanningDecision }),
       ...(runtimeConfig?.reflectionSynthesis === undefined
         ? {}
         : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),

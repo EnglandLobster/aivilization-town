@@ -4,6 +4,7 @@ import {
   createTraceableLlmGlobalSynthesizer,
   createTraceableLlmReactionEvaluator,
   createTraceableLlmReactiveCorrector,
+  createTraceableLlmReplanningDecider,
   createTraceableLlmSocialDialogueGenerator,
   createTraceableLlmStrategicPlanCompiler,
   createTraceableLlmSubtaskPrioritizer,
@@ -12,6 +13,7 @@ import {
   type GlobalActionSynthesizer,
   type ReactionEvaluator,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SocialDialogueGenerator,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
@@ -98,6 +100,16 @@ export type LocalRuntimeTownProfileReactiveCorrectionConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileReplanningDecisionConfig = {
+  readonly kind: 'traceable-llm-replanning-decider';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileSocialDialogueGenerationConfig = {
   readonly kind: 'traceable-llm-social-dialogue-generator';
   readonly profileId: string;
@@ -154,6 +166,10 @@ export type LocalRuntimeTownProfileGlobalSynthesizerConfig =
 
 export type LocalRuntimeTownProfileReactiveCorrectorConfig =
   | LocalRuntimeTownProfileReactiveCorrectionConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileReplanningDeciderConfig =
+  | LocalRuntimeTownProfileReplanningDecisionConfig
   | undefined;
 
 export type LocalRuntimeTownProfileSocialDialogueGeneratorConfig =
@@ -302,6 +318,26 @@ export function createLocalRuntimeTownProfileReactiveCorrector(
     model: config.model,
     requestId: ({ agentId, issuedAt, rejectedAction }) =>
       `profile-llm-reactive-correction:${config.profileId}:${agentId}:${rejectedAction.id}:${issuedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileReplanningDecider(
+  config: LocalRuntimeTownProfileReplanningDeciderConfig,
+): ReplanningDecider | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmReplanningDecider({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, issuedAt, selectedSubtask }) =>
+      `profile-llm-replanning:${config.profileId}:${agentId}:${selectedSubtask.subtaskId}:${issuedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

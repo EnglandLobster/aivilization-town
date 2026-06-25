@@ -226,6 +226,9 @@ function createProfileRunnerInput(input: {
     ...(input.runtimeConfig?.reactiveCorrection === undefined
       ? {}
       : { reactiveCorrection: input.runtimeConfig.reactiveCorrection }),
+    ...(input.runtimeConfig?.replanningDecision === undefined
+      ? {}
+      : { replanningDecision: input.runtimeConfig.replanningDecision }),
     ...(input.runtimeConfig?.reflectionSynthesis === undefined
       ? {}
       : { reflectionSynthesis: input.runtimeConfig.reflectionSynthesis }),

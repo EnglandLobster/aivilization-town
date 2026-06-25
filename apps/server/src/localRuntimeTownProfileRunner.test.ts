@@ -6,6 +6,7 @@ import {
   FileBranchPlanRepository,
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SocialDialogueGenerator,
   type SubtaskPrioritizer,
   createBranchPlan,
@@ -359,6 +360,15 @@ describe('local runtime town profile runner', () => {
           },
         },
       });
+    const replanningDecider: ReplanningDecider = (input) => ({
+      decision: { kind: 'none' },
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: `test-replanning:${input.agentId}:${input.selectedSubtask.subtaskId}:${input.issuedAt}`,
+        decision: { kind: 'none' },
+      },
+    });
     const socialDialogueGenerator: SocialDialogueGenerator = (input) =>
       Promise.resolve({
         payload: input.deterministicPayload,
@@ -381,6 +391,7 @@ describe('local runtime town profile runner', () => {
       socialDialogueGenerator,
       globalSynthesizer,
       reactiveCorrector,
+      replanningDecider,
     });
 
     const agents = await provider({
@@ -397,6 +408,7 @@ describe('local runtime town profile runner', () => {
     expect(agent?.socialDialogueGenerator).toBe(socialDialogueGenerator);
     expect(agent?.globalSynthesizer).toBe(globalSynthesizer);
     expect(agent?.reactiveCorrector).toBe(reactiveCorrector);
+    expect(agent?.replanningDecider).toBe(replanningDecider);
   });
 
   test('uses profile LLM planning config for autonomous objective plans', async () => {

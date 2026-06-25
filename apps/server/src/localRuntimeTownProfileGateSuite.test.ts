@@ -231,6 +231,11 @@ describe('local runtime town profile gate suite', () => {
               model: 'reactive-model',
               providerId: 'reactive-provider',
             }),
+            replanningDecision: createLlmStageNode({
+              kind: 'traceable-llm-replanning-decider',
+              model: 'replanning-model',
+              providerId: 'replanning-provider',
+            }),
             reflectionSynthesis: createLlmStageNode({
               kind: 'traceable-llm-reflective-insight-synthesizer',
               model: 'reflection-model',
@@ -318,6 +323,11 @@ describe('local runtime town profile gate suite', () => {
         kind: 'traceable-llm-reactive-corrector',
         model: 'reactive-model',
         provider: { providerId: 'reactive-provider' },
+      },
+      replanningDecision: {
+        kind: 'traceable-llm-replanning-decider',
+        model: 'replanning-model',
+        provider: { providerId: 'replanning-provider' },
       },
       reflectionSynthesis: {
         kind: 'traceable-llm-reflective-insight-synthesizer',

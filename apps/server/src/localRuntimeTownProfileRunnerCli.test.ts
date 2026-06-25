@@ -466,6 +466,15 @@ describe('local runtime town profile runner CLI', () => {
                 endpoint: 'https://reactive.example.test/v1/chat/completions',
               },
             },
+            replanningDecision: {
+              kind: 'traceable-llm-replanning-decider',
+              model: 'default-replanning',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-replanning-provider',
+                endpoint: 'https://replanning.example.test/v1/chat/completions',
+              },
+            },
           },
         },
       }),
@@ -543,6 +552,11 @@ describe('local runtime town profile runner CLI', () => {
         kind: 'traceable-llm-reactive-corrector',
         profileId: 'default-100',
         model: 'default-reactive',
+      },
+      replanningDecision: {
+        kind: 'traceable-llm-replanning-decider',
+        profileId: 'default-100',
+        model: 'default-replanning',
       },
     });
   });

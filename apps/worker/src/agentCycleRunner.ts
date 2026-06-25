@@ -21,6 +21,7 @@ import {
   type GlobalActionSynthesizer,
   type GlobalSynthesisTrace,
   type ReactiveCorrector,
+  type ReplanningDecider,
   type SocialDialogueGenerationTrace,
   type SocialDialogueGenerator,
   type StrategicPlanCompiler,
@@ -119,11 +120,12 @@ export async function runWorkerAgentCycle(
     readonly simulate: CycleActionSimulator;
     readonly repair?: CycleRepairPolicy;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
+    readonly replanningDecider?: ReplanningDecider;
     readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
-  readonly actionSequenceGenerator?: ActionSequenceGenerator;
-  readonly socialDialogueGenerator?: SocialDialogueGenerator;
-  readonly globalSynthesizer?: GlobalActionSynthesizer;
+    readonly actionSequenceGenerator?: ActionSequenceGenerator;
+    readonly socialDialogueGenerator?: SocialDialogueGenerator;
+    readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
@@ -185,6 +187,9 @@ export async function runWorkerAgentCycle(
     simulate: input.simulate,
     ...(input.repair === undefined ? {} : { repair: input.repair }),
     ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
+    ...(input.replanningDecider === undefined
+      ? {}
+      : { replanningDecider: input.replanningDecider }),
     ...(input.subtaskCompletion === undefined
       ? {}
       : { subtaskCompletion: input.subtaskCompletion }),
@@ -194,7 +199,8 @@ export async function runWorkerAgentCycle(
     input.actionSequenceGenerator === undefined &&
     input.socialDialogueGenerator === undefined &&
     input.globalSynthesizer === undefined &&
-    input.reactiveCorrector === undefined
+    input.reactiveCorrector === undefined &&
+    input.replanningDecider === undefined
       ? runAgentPlanningCycle(cycleInput)
       : await runAgentPlanningCycleWithPrioritization({
           ...cycleInput,
@@ -213,6 +219,9 @@ export async function runWorkerAgentCycle(
           ...(input.reactiveCorrector === undefined
             ? {}
             : { reactiveCorrector: input.reactiveCorrector }),
+          ...(input.replanningDecider === undefined
+            ? {}
+            : { replanningDecider: input.replanningDecider }),
         });
 
   const dispatchResult =

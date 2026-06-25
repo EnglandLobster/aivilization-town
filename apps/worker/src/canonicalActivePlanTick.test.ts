@@ -1,9 +1,11 @@
 import {
   createBranchPlan,
   createBranchPlanProgress,
+  createDailyPlan,
   InMemoryBranchPlanProgressRepository,
   InMemoryBranchPlanRepository,
   markSubtaskCompleted,
+  type DailyPlanCompilerInput,
 } from '@aivilization/agent-runtime';
 import {
   asMemoryRecordId,
@@ -1327,6 +1329,99 @@ describe('canonical active-plan worker tick', () => {
       id: 'auto-objective-agent-a-30600000',
       statement: 'Follow the current study routine: Attend the morning study routine at school.',
       affinityTags: ['routine', 'study', 'education', 'school'],
+    });
+  });
+
+  test('seeds injected daily plan intentions before autonomous objective renewal', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const renewalTraces: unknown[] = [];
+    const issuedAt = 8.5 * hourMs;
+    let compilerInput: DailyPlanCompilerInput | undefined;
+
+    await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-renew-from-daily-plan',
+      simulationId,
+      issuedAt,
+      projection: createWorldProjection({
+        agents: [
+          createAgent(agentA, {
+            physiology: { energy: 90, satiety: 90, health: 100 },
+            educationScore: 150,
+            balance: 200,
+          }),
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      dailyRoutineSchedule: null,
+      dailyPlanCompiler: (input) => {
+        compilerInput = input;
+        return createDailyPlan({
+          id: 'daily-plan:agent-a:0',
+          agentId: agentA,
+          dayStart: 0,
+          generatedAt: issuedAt,
+          summary: 'Injected daily party plan.',
+          items: [
+            {
+              id: 'party-prep',
+              description: 'Coordinate party invitations at town square.',
+              priority: 5,
+              startsAtOffsetMs: 8 * hourMs,
+              endsAtOffsetMs: 10 * hourMs,
+              affinityTags: ['social', 'party', 'town-square'],
+              source: 'memory-context',
+            },
+          ],
+        });
+      },
+      objectiveRenewalTraceSink: {
+        record: (trace) => {
+          renewalTraces.push(trace);
+        },
+      },
+      ...repositories,
+    });
+
+    expect(compilerInput).toMatchObject({
+      agentId: agentA,
+      issuedAt,
+      agent: {
+        physiology: { energy: 90, satiety: 90, health: 100 },
+      },
+    });
+    expect(renewalTraces).toEqual([
+      {
+        agentId: agentA,
+        objectiveId: 'auto-objective-agent-a-30600000',
+        selectedCandidateId: 'scheduled-routine-social',
+        rationale:
+          'Active scheduled intention daily-plan:agent-a:0:party-prep is in window.',
+        score: 40,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+        scheduledIntentionIds: ['daily-plan:agent-a:0:party-prep'],
+        issuedAt,
+      },
+    ]);
+
+    const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(intentionState.scheduledIntentions).toEqual([
+      expect.objectContaining({
+        id: 'daily-plan:agent-a:0:party-prep',
+        sourcePlanId: 'daily-plan:agent-a:0',
+        description: 'Coordinate party invitations at town square.',
+        affinityTags: ['daily-plan', 'social', 'party', 'town-square'],
+      }),
+    ]);
+    expect(intentionState.activeObjective).toMatchObject({
+      id: 'auto-objective-agent-a-30600000',
+      statement: 'Follow the current social routine: Coordinate party invitations at town square.',
+      affinityTags: ['routine', 'daily-plan', 'social', 'party', 'town-square'],
     });
   });
 

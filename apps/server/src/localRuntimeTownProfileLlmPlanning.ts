@@ -1,5 +1,7 @@
 import {
+  createTraceableLlmDailyPlanCompiler,
   createTraceableLlmStrategicPlanCompiler,
+  type DailyPlanCompiler,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import {
@@ -18,8 +20,22 @@ export type LocalRuntimeTownProfileLlmPlanningConfig = {
   readonly pricing?: LlmGatewayPricing;
 };
 
+export type LocalRuntimeTownProfileDailyPlanningConfig = {
+  readonly kind: 'traceable-llm-daily-planner';
+  readonly profileId: string;
+  readonly model: string;
+  readonly provider: LlmStructuredProviderConfig;
+  readonly maxAttempts?: number;
+  readonly timeoutMs?: number;
+  readonly pricing?: LlmGatewayPricing;
+};
+
 export type LocalRuntimeTownProfileStrategicCompilerConfig =
   | LocalRuntimeTownProfileLlmPlanningConfig
+  | undefined;
+
+export type LocalRuntimeTownProfileDailyCompilerConfig =
+  | LocalRuntimeTownProfileDailyPlanningConfig
   | undefined;
 
 export function createLocalRuntimeTownProfileStrategicPlanCompiler(
@@ -36,6 +52,26 @@ export function createLocalRuntimeTownProfileStrategicPlanCompiler(
     model: config.model,
     requestId: ({ objective, issuedAt }) =>
       `profile-llm-plan:${config.profileId}:${objective.agentId}:${objective.id}:${issuedAt}`,
+    ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
+    ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
+    ...(config.pricing === undefined ? {} : { pricing: config.pricing }),
+  });
+}
+
+export function createLocalRuntimeTownProfileDailyPlanCompiler(
+  config: LocalRuntimeTownProfileDailyCompilerConfig,
+): DailyPlanCompiler | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  assertNonEmpty(config.profileId, 'profileId');
+  const provider = createLlmStructuredProviderFromConfig(config.provider);
+  return createTraceableLlmDailyPlanCompiler({
+    provider,
+    model: config.model,
+    requestId: ({ agentId, issuedAt }) =>
+      `profile-llm-daily-plan:${config.profileId}:${agentId}:${issuedAt}`,
     ...(config.maxAttempts === undefined ? {} : { maxAttempts: config.maxAttempts }),
     ...(config.timeoutMs === undefined ? {} : { timeoutMs: config.timeoutMs }),
     ...(config.pricing === undefined ? {} : { pricing: config.pricing }),

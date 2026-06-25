@@ -1,7 +1,13 @@
-import { normalizeStrategicPlanCompilerOutput } from '@aivilization/agent-runtime';
+import {
+  normalizeDailyPlanCompilerOutput,
+  normalizeStrategicPlanCompilerOutput,
+} from '@aivilization/agent-runtime';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { createLocalRuntimeTownProfileStrategicPlanCompiler } from './localRuntimeTownProfileLlmPlanning';
+import {
+  createLocalRuntimeTownProfileDailyPlanCompiler,
+  createLocalRuntimeTownProfileStrategicPlanCompiler,
+} from './localRuntimeTownProfileLlmPlanning';
 
 describe('local runtime town profile LLM planning config', () => {
   test('creates a traceable strategic compiler from scripted provider config', async () => {
@@ -101,8 +107,103 @@ describe('local runtime town profile LLM planning config', () => {
     });
   });
 
+  test('creates a traceable daily compiler from scripted provider config', async () => {
+    const compiler = createLocalRuntimeTownProfileDailyPlanCompiler({
+      kind: 'traceable-llm-daily-planner',
+      profileId: 'smoke-25',
+      model: 'profile-daily-model',
+      maxAttempts: 2,
+      timeoutMs: 1_000,
+      pricing: {
+        inputTokenCostMicros: 2,
+        outputTokenCostMicros: 3,
+      },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-daily-planner',
+        responses: [
+          {
+            providerId: 'scripted-profile-daily-planner',
+            model: 'profile-daily-model',
+            content: JSON.stringify({
+              id: 'daily-plan:agent-1:0',
+              agentId: 'agent-1',
+              dayStart: 0,
+              generatedAt: 333,
+              summary: 'Coordinate the day around a party memory.',
+              items: [
+                {
+                  id: 'party-follow-up',
+                  description: 'Coordinate party invitations at town square.',
+                  priority: 5,
+                  startsAtOffsetMs: 8 * 60 * 60 * 1000,
+                  endsAtOffsetMs: 10 * 60 * 60 * 1000,
+                  affinityTags: ['social', 'party', 'town-square'],
+                  source: 'memory-context',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: {
+              inputTokens: 9,
+              outputTokens: 13,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(compiler).not.toBeUndefined();
+    if (compiler === undefined) {
+      throw new Error('expected LLM daily compiler');
+    }
+    const compiled = normalizeDailyPlanCompilerOutput(
+      await compiler({
+        agentId: asAgentId('agent-1'),
+        issuedAt: 333,
+      }),
+    );
+
+    expect(compiled.plan.items).toEqual([
+      expect.objectContaining({
+        id: 'party-follow-up',
+        description: 'Coordinate party invitations at town square.',
+        priority: 5,
+      }),
+    ]);
+    expect(compiled.planningTrace).toEqual({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-daily-plan:smoke-25:agent-1:333',
+      providerId: 'scripted-profile-daily-planner',
+      model: 'profile-daily-model',
+      attempts: [
+        {
+          attemptIndex: 1,
+          status: 'succeeded',
+          providerId: 'scripted-profile-daily-planner',
+          model: 'profile-daily-model',
+          message: 'LLM structured response validated',
+          usage: {
+            inputTokens: 9,
+            outputTokens: 13,
+            totalTokens: 22,
+            estimatedCostMicros: 57,
+          },
+        },
+      ],
+      usage: {
+        inputTokens: 9,
+        outputTokens: 13,
+        totalTokens: 22,
+        estimatedCostMicros: 57,
+      },
+    });
+  });
+
   test('keeps deterministic planning as the default when config is absent', () => {
     expect(createLocalRuntimeTownProfileStrategicPlanCompiler(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileDailyPlanCompiler(undefined)).toBeUndefined();
   });
 
   test('rejects invalid provider configuration before runtime use', () => {

@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import type { LlmGatewayPricing, OpenAiCompatibleResponseFormatMode } from '@aivilization/llm';
 import type {
+  LocalRuntimeTownProfileDailyCompilerConfig,
+  LocalRuntimeTownProfileDailyPlanningConfig,
   LocalRuntimeTownProfileLlmPlanningConfig,
   LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
@@ -23,6 +25,14 @@ export type LocalRuntimeTownProfileLlmPlanningConfigLoadInput = {
   readonly readTextFile?: LocalRuntimeTownProfileRuntimeConfigReadTextFile;
 };
 
+export type LocalRuntimeTownProfileRuntimeConfigLoadInput =
+  LocalRuntimeTownProfileLlmPlanningConfigLoadInput;
+
+export type LocalRuntimeTownProfileRuntimeConfig = {
+  readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
+  readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
+};
+
 export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
   input: LocalRuntimeTownProfileLlmPlanningConfigLoadInput,
 ): Promise<LocalRuntimeTownProfileStrategicCompilerConfig> {
@@ -32,6 +42,21 @@ export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
   const document = parseJsonObject(text, input.path);
 
   return parseLocalRuntimeTownProfileLlmPlanningConfigDocument({
+    profileId: input.profileId,
+    document,
+    env: input.env ?? {},
+  });
+}
+
+export async function loadLocalRuntimeTownProfileRuntimeConfig(
+  input: LocalRuntimeTownProfileRuntimeConfigLoadInput,
+): Promise<LocalRuntimeTownProfileRuntimeConfig> {
+  assertNonEmpty(input.path, 'path');
+  const readTextFile = input.readTextFile ?? readTextFileFromDisk;
+  const text = await readTextFile(input.path);
+  const document = parseJsonObject(text, input.path);
+
+  return parseLocalRuntimeTownProfileRuntimeConfigDocument({
     profileId: input.profileId,
     document,
     env: input.env ?? {},
@@ -50,6 +75,38 @@ export function parseLocalRuntimeTownProfileLlmPlanningConfigDocument(input: {
     node: selectedNode,
     env: input.env ?? {},
   });
+}
+
+export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly document: unknown;
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileRuntimeConfig {
+  const document = requireRecord(input.document, 'runtime profile config document');
+  const env = input.env ?? {};
+  const strategicPlanning = parseLlmPlanningNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'llmPlanning',
+    }),
+    env,
+  });
+  const dailyPlanning = parseDailyPlanningNode({
+    profileId: input.profileId,
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'dailyPlanning',
+    }),
+    env,
+  });
+
+  return {
+    ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
+    ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
+  };
 }
 
 async function readTextFileFromDisk(path: string): Promise<string> {
@@ -71,16 +128,24 @@ function selectProfileLlmPlanningNode(
   document: Readonly<Record<string, unknown>>,
   profileId: LocalRuntimeTownDaemonScenarioProfileId,
 ): unknown {
-  const profiles = readOptionalRecord(document.profiles, 'profiles');
-  const profileNode = profiles?.[profileId];
+  return selectProfilePlanningNode({ document, profileId, nodeName: 'llmPlanning' });
+}
+
+function selectProfilePlanningNode(input: {
+  readonly document: Readonly<Record<string, unknown>>;
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly nodeName: 'llmPlanning' | 'dailyPlanning';
+}): unknown {
+  const profiles = readOptionalRecord(input.document.profiles, 'profiles');
+  const profileNode = profiles?.[input.profileId];
   if (profileNode !== undefined) {
-    const profile = requireRecord(profileNode, `profiles.${profileId}`);
-    if (hasOwn(profile, 'llmPlanning')) {
-      return profile.llmPlanning;
+    const profile = requireRecord(profileNode, `profiles.${input.profileId}`);
+    if (hasOwn(profile, input.nodeName)) {
+      return profile[input.nodeName];
     }
   }
 
-  return document.llmPlanning;
+  return input.document[input.nodeName];
 }
 
 function parseLlmPlanningNode(input: {
@@ -100,13 +165,46 @@ function parseLlmPlanningNode(input: {
 
   const maxAttempts = readOptionalPositiveInteger(record.maxAttempts, 'llmPlanning.maxAttempts');
   const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'llmPlanning.timeoutMs');
-  const pricing = parseOptionalPricing(record.pricing);
+  const pricing = parseOptionalPricing(record.pricing, 'llmPlanning');
 
   return {
     kind: 'traceable-llm-strategic-planner',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'llmPlanning.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'llmPlanning'),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(pricing === undefined ? {} : { pricing }),
+  };
+}
+
+function parseDailyPlanningNode(input: {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly node: unknown;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): LocalRuntimeTownProfileDailyCompilerConfig {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'dailyPlanning');
+  const kind = readRequiredString(record.kind, 'dailyPlanning.kind');
+  if (kind !== 'traceable-llm-daily-planner') {
+    throw new Error(`dailyPlanning.kind must be traceable-llm-daily-planner`);
+  }
+
+  const maxAttempts = readOptionalPositiveInteger(
+    record.maxAttempts,
+    'dailyPlanning.maxAttempts',
+  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'dailyPlanning.timeoutMs');
+  const pricing = parseOptionalPricing(record.pricing, 'dailyPlanning');
+
+  return {
+    kind: 'traceable-llm-daily-planner',
+    profileId: input.profileId,
+    model: readRequiredString(record.model, 'dailyPlanning.model'),
+    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'dailyPlanning'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -116,24 +214,25 @@ function parseLlmPlanningNode(input: {
 function parseOpenAiCompatibleProviderConfig(
   value: unknown,
   env: Readonly<Record<string, string | undefined>>,
+  nodeName: 'llmPlanning' | 'dailyPlanning',
 ): LocalRuntimeTownProfileLlmPlanningConfig['provider'] {
-  const record = requireRecord(value, 'llmPlanning.provider');
-  const kind = readRequiredString(record.kind, 'llmPlanning.provider.kind');
+  const record = requireRecord(value, `${nodeName}.provider`);
+  const kind = readRequiredString(record.kind, `${nodeName}.provider.kind`);
   if (kind !== 'openai-compatible') {
-    throw new Error(`llmPlanning.provider.kind must be openai-compatible`);
+    throw new Error(`${nodeName}.provider.kind must be openai-compatible`);
   }
 
-  const apiKey = readOptionalSecretString(record.apiKey, 'llmPlanning.provider.apiKey', env);
-  const defaultHeaders = parseOptionalDefaultHeaders(record.defaultHeaders, env);
+  const apiKey = readOptionalSecretString(record.apiKey, `${nodeName}.provider.apiKey`, env);
+  const defaultHeaders = parseOptionalDefaultHeaders(record.defaultHeaders, env, nodeName);
   const responseFormat = readOptionalResponseFormat(
     record.responseFormat,
-    'llmPlanning.provider.responseFormat',
+    `${nodeName}.provider.responseFormat`,
   );
 
   return {
     kind: 'openai-compatible',
-    providerId: readRequiredString(record.providerId, 'llmPlanning.provider.providerId'),
-    endpoint: readRequiredString(record.endpoint, 'llmPlanning.provider.endpoint'),
+    providerId: readRequiredString(record.providerId, `${nodeName}.provider.providerId`),
+    endpoint: readRequiredString(record.endpoint, `${nodeName}.provider.endpoint`),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(defaultHeaders === undefined ? {} : { defaultHeaders }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
@@ -143,26 +242,30 @@ function parseOpenAiCompatibleProviderConfig(
 function parseOptionalDefaultHeaders(
   value: unknown,
   env: Readonly<Record<string, string | undefined>>,
+  nodeName: 'llmPlanning' | 'dailyPlanning',
 ): Readonly<Record<string, string>> | undefined {
-  const record = readOptionalRecord(value, 'llmPlanning.provider.defaultHeaders');
+  const record = readOptionalRecord(value, `${nodeName}.provider.defaultHeaders`);
   if (record === undefined) {
     return undefined;
   }
 
   const headers: Record<string, string> = {};
   for (const [name, headerValue] of Object.entries(record)) {
-    assertNonEmpty(name, 'llmPlanning.provider.defaultHeaders header name');
+    assertNonEmpty(name, `${nodeName}.provider.defaultHeaders header name`);
     headers[name] = resolveSecretValue(
       headerValue,
-      `llmPlanning.provider.defaultHeaders.${name}`,
+      `${nodeName}.provider.defaultHeaders.${name}`,
       env,
     );
   }
   return headers;
 }
 
-function parseOptionalPricing(value: unknown): LlmGatewayPricing | undefined {
-  const record = readOptionalRecord(value, 'llmPlanning.pricing');
+function parseOptionalPricing(
+  value: unknown,
+  nodeName: 'llmPlanning' | 'dailyPlanning',
+): LlmGatewayPricing | undefined {
+  const record = readOptionalRecord(value, `${nodeName}.pricing`);
   if (record === undefined) {
     return undefined;
   }
@@ -170,11 +273,11 @@ function parseOptionalPricing(value: unknown): LlmGatewayPricing | undefined {
   return {
     inputTokenCostMicros: readRequiredNonNegativeFinite(
       record.inputTokenCostMicros,
-      'llmPlanning.pricing.inputTokenCostMicros',
+      `${nodeName}.pricing.inputTokenCostMicros`,
     ),
     outputTokenCostMicros: readRequiredNonNegativeFinite(
       record.outputTokenCostMicros,
-      'llmPlanning.pricing.outputTokenCostMicros',
+      `${nodeName}.pricing.outputTokenCostMicros`,
     ),
   };
 }

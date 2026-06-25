@@ -1,4 +1,4 @@
-import type { StrategicPlanCompiler } from '@aivilization/agent-runtime';
+import type { DailyPlanCompiler, StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileRunReport,
@@ -13,6 +13,7 @@ import {
   completeFinishedActiveObjectives,
   createAivilizationWorldCommandPolicies,
   createCanonicalWorkerRuntimeResolver,
+  renewDailyPlanScheduledIntentions,
   renewMissingActiveObjectives,
   type ObjectiveRenewalDecisionTrace,
   type LocalWorldRuntimeAgentProvider,
@@ -21,7 +22,9 @@ import {
 } from '@aivilization/worker';
 import type { LocalRuntimeTownDaemonHealth } from './localRuntimeTownOrchestration';
 import {
+  createLocalRuntimeTownProfileDailyPlanCompiler,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
+  type LocalRuntimeTownProfileDailyCompilerConfig,
   type LocalRuntimeTownProfileStrategicCompilerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
@@ -40,7 +43,9 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly policies?: WorldCommandPolicySource;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
+  readonly dailyPlanCompiler?: DailyPlanCompiler;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
+  readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
@@ -105,11 +110,17 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ? (input.strategicPlanCompiler ??
         createLocalRuntimeTownProfileStrategicPlanCompiler(input.llmPlanning))
       : undefined;
+  const dailyPlanCompiler =
+    input.agentProvider === undefined
+      ? (input.dailyPlanCompiler ??
+        createLocalRuntimeTownProfileDailyPlanCompiler(input.dailyPlanning))
+      : undefined;
   const agentProvider =
     input.agentProvider ??
     createLocalRuntimeTownProfileAgentProvider({
       policies,
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
+      ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
@@ -250,6 +261,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
   input: {
     readonly policies?: WorldCommandPolicySource;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
+    readonly dailyPlanCompiler?: DailyPlanCompiler;
     readonly memoryRetrievalLimit?: number;
     readonly memoryRetrievalCandidateLimit?: number;
   } = {},
@@ -266,6 +278,16 @@ export function createLocalRuntimeTownProfileAgentProvider(
       planProgressRepository: storage.planProgressRepository,
       completedAt: issuedAt,
     });
+    if (input.dailyPlanCompiler !== undefined) {
+      await renewDailyPlanScheduledIntentions({
+        projection,
+        intentionRepository: storage.intentionRepository,
+        longTermProfileRepository: storage.longTermProfileRepository,
+        shortTermMemoryRepository: storage.shortTermMemoryRepository,
+        issuedAt,
+        compileDailyPlan: input.dailyPlanCompiler,
+      });
+    }
     await renewMissingActiveObjectives({
       projection,
       intentionRepository: storage.intentionRepository,

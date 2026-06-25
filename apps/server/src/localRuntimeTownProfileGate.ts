@@ -17,11 +17,13 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmRulesContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -39,6 +41,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmAcceptedStages =
     input.requiredAgentCycleLlmAcceptedStages ??
     deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmNoFallbackStages =
+    input.requiredAgentCycleLlmNoFallbackStages ??
+    deriveRequiredAgentCycleLlmNoFallbackStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredAgentCycleLlmWorldContextStages =
     input.requiredAgentCycleLlmWorldContextStages ??
     deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
@@ -54,6 +59,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredCognitionLlmAcceptedStages =
     input.requiredCognitionLlmAcceptedStages ??
     deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredCognitionLlmNoFallbackStages =
+    input.requiredCognitionLlmNoFallbackStages ??
+    deriveRequiredCognitionLlmNoFallbackStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredCognitionLlmWorldContextStages =
     input.requiredCognitionLlmWorldContextStages ??
     deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
@@ -97,6 +105,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmAcceptedStages.length === 0
       ? {}
       : { requiredAgentCycleLlmAcceptedStages }),
+    ...(requiredAgentCycleLlmNoFallbackStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmNoFallbackStages }),
     ...(requiredAgentCycleLlmWorldContextStages.length === 0
       ? {}
       : { requiredAgentCycleLlmWorldContextStages }),
@@ -112,6 +123,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredCognitionLlmAcceptedStages.length === 0
       ? {}
       : { requiredCognitionLlmAcceptedStages }),
+    ...(requiredCognitionLlmNoFallbackStages.length === 0
+      ? {}
+      : { requiredCognitionLlmNoFallbackStages }),
     ...(requiredCognitionLlmWorldContextStages.length === 0
       ? {}
       : { requiredCognitionLlmWorldContextStages }),
@@ -151,6 +165,12 @@ export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
     stages.push('replanningDecision');
   }
   return stages;
+}
+
+export function deriveRequiredAgentCycleLlmNoFallbackStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(
@@ -201,6 +221,12 @@ export function deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(
     stages.push('socialModelSynthesis');
   }
   return stages;
+}
+
+export function deriveRequiredCognitionLlmNoFallbackStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileCognitionLlmStageName[] {
+  return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
 }
 
 export function deriveRequiredCognitionLlmWorldContextStagesFromRuntimeConfig(

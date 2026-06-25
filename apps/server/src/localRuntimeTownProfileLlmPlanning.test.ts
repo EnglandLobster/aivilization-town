@@ -1,15 +1,22 @@
 import {
+  createBranchPlan,
   normalizeDailyPlanCompilerOutput,
   normalizeReactionEvaluatorOutput,
   normalizeStrategicPlanCompilerOutput,
+  scorePrioritizedSubtaskCandidates,
+  synthesizeActionCandidates,
 } from '@aivilization/agent-runtime';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId, asEventId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
+  createLocalRuntimeTownProfileActionSequenceGenerator,
   createLocalRuntimeTownProfileDailyPlanCompiler,
+  createLocalRuntimeTownProfileGlobalSynthesizer,
   createLocalRuntimeTownProfileReactionEvaluator,
+  createLocalRuntimeTownProfileReactiveCorrector,
   createLocalRuntimeTownProfileStrategicPlanCompiler,
+  createLocalRuntimeTownProfileSubtaskPrioritizer,
 } from './localRuntimeTownProfileLlmPlanning';
 
 describe('local runtime town profile LLM planning config', () => {
@@ -296,10 +303,270 @@ describe('local runtime town profile LLM planning config', () => {
     });
   });
 
+  test('creates traceable agent-cycle LLM stages from scripted provider config', async () => {
+    const plan = createBranchPlan({
+      objective: 'Balance recovery and income.',
+      branches: [
+        {
+          id: 'income',
+          objective: 'Earn currency.',
+          subtasks: [{ id: 'work', description: 'Work a cleaner shift.', basePriority: 4 }],
+        },
+        {
+          id: 'recovery',
+          objective: 'Restore satiety.',
+          subtasks: [{ id: 'eat', description: 'Eat available Fish.', basePriority: 2 }],
+        },
+      ],
+    });
+    const candidates = scorePrioritizedSubtaskCandidates({ plan, signals: [] });
+
+    const prioritizer = createLocalRuntimeTownProfileSubtaskPrioritizer({
+      kind: 'traceable-llm-subtask-prioritizer',
+      profileId: 'smoke-25',
+      model: 'profile-prioritizer-model',
+      pricing: { inputTokenCostMicros: 2, outputTokenCostMicros: 3 },
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-prioritizer',
+        responses: [
+          {
+            providerId: 'scripted-profile-prioritizer',
+            model: 'profile-prioritizer-model',
+            content: JSON.stringify({
+              rankedSubtasks: [
+                {
+                  branchId: 'recovery',
+                  subtaskId: 'eat',
+                  priorityScore: 12,
+                  rationale: 'Eat first because satiety is low.',
+                },
+                {
+                  branchId: 'income',
+                  subtaskId: 'work',
+                  priorityScore: 6,
+                  rationale: 'Work after recovery.',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 10, outputTokens: 5 },
+          },
+        ],
+      },
+    });
+    expect(prioritizer).not.toBeUndefined();
+    if (prioritizer === undefined) {
+      throw new Error('expected LLM subtask prioritizer');
+    }
+    const prioritized = await prioritizer({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      signals: [],
+      candidates,
+    });
+    expect(prioritized.candidates[0]?.subtaskId).toBe('eat');
+    expect(prioritized.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-subtask-priority:smoke-25:agent-1:333',
+      providerId: 'scripted-profile-prioritizer',
+      model: 'profile-prioritizer-model',
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        estimatedCostMicros: 35,
+      },
+    });
+
+    const selectedSubtask = prioritized.candidates[0];
+    if (selectedSubtask === undefined) {
+      throw new Error('expected selected subtask');
+    }
+    const deterministicEatAction = {
+      id: 'eat-fish',
+      description: 'Eat Fish.',
+      commandType: 'AgentEat' as const,
+      payload: { commodityName: 'Fish', quantity: 1 },
+    };
+    const actionSequenceGenerator = createLocalRuntimeTownProfileActionSequenceGenerator({
+      kind: 'traceable-llm-action-sequence-generator',
+      profileId: 'smoke-25',
+      model: 'profile-action-sequence-model',
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-action-sequence',
+        responses: [
+          {
+            providerId: 'scripted-profile-action-sequence',
+            model: 'profile-action-sequence-model',
+            content: JSON.stringify({
+              actions: [
+                {
+                  id: 'llm-eat-fish',
+                  description: 'Eat Fish before working.',
+                  commandType: 'AgentEat',
+                  payload: { commodityName: 'Fish', quantity: 1 },
+                  rationale: 'Use inventory to repair satiety.',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 11, outputTokens: 6 },
+          },
+        ],
+      },
+    });
+    expect(actionSequenceGenerator).not.toBeUndefined();
+    if (actionSequenceGenerator === undefined) {
+      throw new Error('expected LLM action sequence generator');
+    }
+    const generatedSequence = await actionSequenceGenerator({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      selectedSubtask,
+      signals: [],
+      deterministicActions: [deterministicEatAction],
+    });
+    expect(generatedSequence.actions[0]?.id).toBe('llm-eat-fish');
+    expect(generatedSequence.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-action-sequence:smoke-25:agent-1:recovery:eat:333',
+      providerId: 'scripted-profile-action-sequence',
+      model: 'profile-action-sequence-model',
+    });
+
+    const globalSynthesizer = createLocalRuntimeTownProfileGlobalSynthesizer({
+      kind: 'traceable-llm-global-synthesizer',
+      profileId: 'smoke-25',
+      model: 'profile-global-model',
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-global',
+        responses: [
+          {
+            providerId: 'scripted-profile-global',
+            model: 'profile-global-model',
+            content: JSON.stringify({
+              rankedActions: [
+                {
+                  actionId: 'work-shift',
+                  priorityScore: 9,
+                  rationale: 'Work after eating is globally coherent.',
+                },
+                {
+                  actionId: 'llm-eat-fish',
+                  priorityScore: 8,
+                  rationale: 'Eating remains important but can be synthesized second here.',
+                },
+              ],
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 12, outputTokens: 7 },
+          },
+        ],
+      },
+    });
+    expect(globalSynthesizer).not.toBeUndefined();
+    if (globalSynthesizer === undefined) {
+      throw new Error('expected LLM global synthesizer');
+    }
+    const candidateActions = [
+      generatedSequence.actions[0] ?? deterministicEatAction,
+      {
+        id: 'work-shift',
+        description: 'Work as Cleaner.',
+        commandType: 'AgentWork' as const,
+        payload: { occupationName: 'Cleaner', laborSeconds: 300 },
+      },
+    ];
+    const globalResult = await globalSynthesizer({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      signals: [],
+      candidateActions,
+      deterministicSynthesisResult: synthesizeActionCandidates({ actions: candidateActions }),
+    });
+    expect(globalResult.actions.map((action) => action.id)).toEqual(['work-shift', 'llm-eat-fish']);
+    expect(globalResult.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-global-synthesis:smoke-25:agent-1:333',
+      providerId: 'scripted-profile-global',
+      model: 'profile-global-model',
+    });
+
+    const reactiveCorrector = createLocalRuntimeTownProfileReactiveCorrector({
+      kind: 'traceable-llm-reactive-corrector',
+      profileId: 'smoke-25',
+      model: 'profile-reactive-model',
+      provider: {
+        kind: 'scripted',
+        providerId: 'scripted-profile-reactive',
+        responses: [
+          {
+            providerId: 'scripted-profile-reactive',
+            model: 'profile-reactive-model',
+            content: JSON.stringify({
+              decision: {
+                kind: 'propose-action',
+                rationale: 'Eat Fish after work rejection due to hunger.',
+                evidenceRecordIds: ['memory-hungry-work'],
+                action: {
+                  id: 'reactive-eat-fish',
+                  description: 'Eat Fish before retrying.',
+                  commandType: 'AgentEat',
+                  payload: { commodityName: 'Fish', quantity: 1 },
+                },
+              },
+            }),
+            finishReason: 'stop',
+            usage: { inputTokens: 13, outputTokens: 8 },
+          },
+        ],
+      },
+    });
+    expect(reactiveCorrector).not.toBeUndefined();
+    if (reactiveCorrector === undefined) {
+      throw new Error('expected LLM reactive corrector');
+    }
+    const correction = await reactiveCorrector({
+      agentId: asAgentId('agent-1'),
+      issuedAt: 333,
+      plan,
+      selectedSubtask,
+      signals: [],
+      rejectedAction: candidateActions[1]!,
+      rejectionReason: 'satiety too low',
+      allowedCommandTypes: ['AgentEat', 'AgentWork'],
+    });
+    expect(correction.action?.id).toBe('reactive-eat-fish');
+    expect(correction.trace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'profile-llm-reactive-correction:smoke-25:agent-1:work-shift:333',
+      providerId: 'scripted-profile-reactive',
+      model: 'profile-reactive-model',
+      decision: {
+        kind: 'propose-action',
+        evidenceRecordIds: ['memory-hungry-work'],
+      },
+    });
+  });
+
   test('keeps deterministic planning as the default when config is absent', () => {
     expect(createLocalRuntimeTownProfileStrategicPlanCompiler(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileDailyPlanCompiler(undefined)).toBeUndefined();
     expect(createLocalRuntimeTownProfileReactionEvaluator(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileSubtaskPrioritizer(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileActionSequenceGenerator(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileGlobalSynthesizer(undefined)).toBeUndefined();
+    expect(createLocalRuntimeTownProfileReactiveCorrector(undefined)).toBeUndefined();
   });
 
   test('rejects invalid provider configuration before runtime use', () => {

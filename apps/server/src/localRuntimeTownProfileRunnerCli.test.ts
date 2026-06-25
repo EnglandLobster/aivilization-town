@@ -411,6 +411,128 @@ describe('local runtime town profile runner CLI', () => {
     }
   });
 
+  test('loads agent-cycle LLM stage config files and passes resolved configs to the runner', async () => {
+    let output = '';
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            subtaskPrioritization: {
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'default-prioritizer',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-prioritizer-provider',
+                endpoint: 'https://priority.example.test/v1/chat/completions',
+              },
+            },
+            actionSequenceGeneration: {
+              kind: 'traceable-llm-action-sequence-generator',
+              model: 'default-action-sequence',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-action-provider',
+                endpoint: 'https://action.example.test/v1/chat/completions',
+              },
+            },
+            globalSynthesis: {
+              kind: 'traceable-llm-global-synthesizer',
+              model: 'default-global',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-global-provider',
+                endpoint: 'https://global.example.test/v1/chat/completions',
+              },
+            },
+            reactiveCorrection: {
+              kind: 'traceable-llm-reactive-corrector',
+              model: 'default-reactive',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'default-reactive-provider',
+                endpoint: 'https://reactive.example.test/v1/chat/completions',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'default-100',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--runtime-config',
+        configPath,
+      ],
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+      runProfile: (input) => {
+        receivedInput = input;
+        return Promise.resolve({
+          profileId: input.profileId,
+          manifestId: 'aivilization-default-100',
+          rootDir: input.rootDir,
+          requestedAt: input.requestedAt,
+          daemonHealth: 'healthy',
+          partitionCount: 1,
+          totalProjectionAgentCount: 100,
+          totalEventCount: 3,
+          totalAgentTraceCount: 1,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+          run: {
+            traceId: 'trace-1',
+            outcome: 'succeeded',
+            requestedCycleCount: input.cycleCount,
+            completedCycleCount: input.cycleCount,
+            stopReason: 'cycle-count-completed',
+          },
+          partitions: [],
+        });
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output)).toMatchObject({
+      profileId: 'default-100',
+    });
+    expect(receivedInput).toMatchObject({
+      subtaskPrioritization: {
+        kind: 'traceable-llm-subtask-prioritizer',
+        profileId: 'default-100',
+        model: 'default-prioritizer',
+      },
+      actionSequenceGeneration: {
+        kind: 'traceable-llm-action-sequence-generator',
+        profileId: 'default-100',
+        model: 'default-action-sequence',
+      },
+      globalSynthesis: {
+        kind: 'traceable-llm-global-synthesizer',
+        profileId: 'default-100',
+        model: 'default-global',
+      },
+      reactiveCorrection: {
+        kind: 'traceable-llm-reactive-corrector',
+        profileId: 'default-100',
+        model: 'default-reactive',
+      },
+    });
+  });
+
   test('loads replanning policy config files and passes resolved policy to the runner', async () => {
     let output = '';
     let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;

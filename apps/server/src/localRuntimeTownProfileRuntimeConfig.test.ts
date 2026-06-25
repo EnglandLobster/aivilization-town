@@ -286,6 +286,192 @@ describe('local runtime town profile runtime config', () => {
     ).resolves.toEqual({});
   });
 
+  test('loads profile-specific agent-cycle LLM stage config and resolves env secrets', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'default-100',
+      path: '/runtime/config.json',
+      env: {
+        PRIORITY_KEY: 'priority-secret',
+        ACTION_KEY: 'action-secret',
+        GLOBAL_KEY: 'global-secret',
+        REACTIVE_KEY: 'reactive-secret',
+      },
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            subtaskPrioritization: {
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'global-prioritizer',
+              provider: {
+                kind: 'openai-compatible',
+                providerId: 'global-prioritizer-provider',
+                endpoint: 'https://priority.example.test/v1/chat/completions',
+              },
+            },
+            profiles: {
+              'default-100': {
+                subtaskPrioritization: {
+                  kind: 'traceable-llm-subtask-prioritizer',
+                  model: 'profile-prioritizer',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'profile-prioritizer-provider',
+                    endpoint: 'https://priority-profile.example.test/v1/chat/completions',
+                    apiKey: { env: 'PRIORITY_KEY' },
+                  },
+                  maxAttempts: 2,
+                  timeoutMs: 15_000,
+                  pricing: {
+                    inputTokenCostMicros: 1,
+                    outputTokenCostMicros: 4,
+                  },
+                },
+                actionSequenceGeneration: {
+                  kind: 'traceable-llm-action-sequence-generator',
+                  model: 'profile-action-sequence',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'profile-action-provider',
+                    endpoint: 'https://action.example.test/v1/chat/completions',
+                    apiKey: { env: 'ACTION_KEY' },
+                  },
+                },
+                globalSynthesis: {
+                  kind: 'traceable-llm-global-synthesizer',
+                  model: 'profile-global-synthesizer',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'profile-global-provider',
+                    endpoint: 'https://global.example.test/v1/chat/completions',
+                    apiKey: { env: 'GLOBAL_KEY' },
+                  },
+                },
+                reactiveCorrection: {
+                  kind: 'traceable-llm-reactive-corrector',
+                  model: 'profile-reactive-corrector',
+                  provider: {
+                    kind: 'openai-compatible',
+                    providerId: 'profile-reactive-provider',
+                    endpoint: 'https://reactive.example.test/v1/chat/completions',
+                    apiKey: { env: 'REACTIVE_KEY' },
+                  },
+                },
+              },
+            },
+          }),
+        ),
+    });
+
+    expect(config).toMatchObject({
+      subtaskPrioritization: {
+        kind: 'traceable-llm-subtask-prioritizer',
+        profileId: 'default-100',
+        model: 'profile-prioritizer',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-prioritizer-provider',
+          endpoint: 'https://priority-profile.example.test/v1/chat/completions',
+          apiKey: 'priority-secret',
+        },
+        maxAttempts: 2,
+        timeoutMs: 15_000,
+        pricing: {
+          inputTokenCostMicros: 1,
+          outputTokenCostMicros: 4,
+        },
+      },
+      actionSequenceGeneration: {
+        kind: 'traceable-llm-action-sequence-generator',
+        profileId: 'default-100',
+        model: 'profile-action-sequence',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-action-provider',
+          endpoint: 'https://action.example.test/v1/chat/completions',
+          apiKey: 'action-secret',
+        },
+      },
+      globalSynthesis: {
+        kind: 'traceable-llm-global-synthesizer',
+        profileId: 'default-100',
+        model: 'profile-global-synthesizer',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-global-provider',
+          endpoint: 'https://global.example.test/v1/chat/completions',
+          apiKey: 'global-secret',
+        },
+      },
+      reactiveCorrection: {
+        kind: 'traceable-llm-reactive-corrector',
+        profileId: 'default-100',
+        model: 'profile-reactive-corrector',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'profile-reactive-provider',
+          endpoint: 'https://reactive.example.test/v1/chat/completions',
+          apiKey: 'reactive-secret',
+        },
+      },
+    });
+  });
+
+  test('uses top-level agent-cycle LLM stage config unless a profile disables it', async () => {
+    const document = JSON.stringify({
+      globalSynthesis: {
+        kind: 'traceable-llm-global-synthesizer',
+        model: 'global-synthesizer',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-synthesis-provider',
+          endpoint: 'https://global.example.test/v1/chat/completions',
+        },
+      },
+      reactiveCorrection: {
+        kind: 'traceable-llm-reactive-corrector',
+        model: 'global-reactive-corrector',
+        provider: {
+          kind: 'openai-compatible',
+          providerId: 'global-reactive-provider',
+          endpoint: 'https://reactive.example.test/v1/chat/completions',
+        },
+      },
+      profiles: {
+        'smoke-25': {
+          globalSynthesis: null,
+          reactiveCorrection: null,
+        },
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toMatchObject({
+      globalSynthesis: {
+        kind: 'traceable-llm-global-synthesizer',
+        profileId: 'default-100',
+        model: 'global-synthesizer',
+      },
+      reactiveCorrection: {
+        kind: 'traceable-llm-reactive-corrector',
+        profileId: 'default-100',
+        model: 'global-reactive-corrector',
+      },
+    });
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'smoke-25',
+        path: '/runtime/config.json',
+        readTextFile: () => Promise.resolve(document),
+      }),
+    ).resolves.toEqual({});
+  });
+
   test('loads adaptive replanning policy with profile overrides and profile disabling', async () => {
     const document = JSON.stringify({
       replanningPolicy: {
@@ -455,6 +641,47 @@ describe('local runtime town profile runtime config', () => {
           ),
       }),
     ).rejects.toThrow('reactionPlanning.provider.kind must be openai-compatible');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              globalSynthesis: {
+                kind: 'traceable-llm-reaction-evaluator',
+                model: 'global-model',
+                provider: {
+                  kind: 'openai-compatible',
+                  providerId: 'global-provider',
+                  endpoint: 'https://global.example.test/v1/chat/completions',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('globalSynthesis.kind must be traceable-llm-global-synthesizer');
+
+    await expect(
+      loadLocalRuntimeTownProfileRuntimeConfig({
+        profileId: 'default-100',
+        path: '/runtime/config.json',
+        readTextFile: () =>
+          Promise.resolve(
+            JSON.stringify({
+              reactiveCorrection: {
+                kind: 'traceable-llm-reactive-corrector',
+                model: 'reactive-model',
+                provider: {
+                  kind: 'scripted',
+                  providerId: 'scripted-reactive-provider',
+                },
+              },
+            }),
+          ),
+      }),
+    ).rejects.toThrow('reactiveCorrection.provider.kind must be openai-compatible');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({

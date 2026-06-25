@@ -129,6 +129,18 @@ async function createRunnerInput(
     ...(runtimeConfig?.reactionPlanning === undefined
       ? {}
       : { reactionPlanning: runtimeConfig.reactionPlanning }),
+    ...(runtimeConfig?.subtaskPrioritization === undefined
+      ? {}
+      : { subtaskPrioritization: runtimeConfig.subtaskPrioritization }),
+    ...(runtimeConfig?.actionSequenceGeneration === undefined
+      ? {}
+      : { actionSequenceGeneration: runtimeConfig.actionSequenceGeneration }),
+    ...(runtimeConfig?.globalSynthesis === undefined
+      ? {}
+      : { globalSynthesis: runtimeConfig.globalSynthesis }),
+    ...(runtimeConfig?.reactiveCorrection === undefined
+      ? {}
+      : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
     ...(runtimeConfig?.replanningPolicy === undefined
       ? {}
       : { replanningPolicy: runtimeConfig.replanningPolicy }),

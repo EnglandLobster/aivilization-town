@@ -25,7 +25,7 @@ import type {
 import { scorePrioritizedSubtaskCandidates } from './planner';
 import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
 import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
-import { markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
+import { markSubtaskBlocked, markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 import {
   applyReplanningDecisionToProgress,
@@ -283,6 +283,8 @@ function finalizeAgentCycleResult(input: {
           decision: replanningDecision,
           selectedSubtaskCompletionDecision: subtaskCompletionDecision,
           subtaskCompletionDecisions,
+          simulationResults: input.simulationResults,
+          selectedSubtasksByKey: input.selectedSubtasksByKey,
           at: input.issuedAt,
         });
 
@@ -330,9 +332,27 @@ function applyCycleProgressUpdate(input: {
   readonly decision: ReplanningDecision;
   readonly selectedSubtaskCompletionDecision: SubtaskCompletionDecision;
   readonly subtaskCompletionDecisions: readonly AgentCycleSubtaskCompletionDecision[];
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
   readonly at: number;
 }): BranchPlanProgress | undefined {
   if (input.decision.kind !== 'none') {
+    if (input.decision.kind === 'full-replan') {
+      const failedProducerSubtasks = resolveFailedProducerSubtasks({
+        simulationResults: input.simulationResults,
+        fallback: input.selectedSubtask,
+        selectedSubtasksByKey: input.selectedSubtasksByKey,
+      });
+      if (failedProducerSubtasks.length > 0) {
+        return blockFailedProducerSubtasks({
+          progress: input.progress,
+          failedProducerSubtasks,
+          decision: input.decision,
+          at: input.at,
+        });
+      }
+    }
+
     return applyReplanningDecisionToProgress({
       progress: input.progress,
       selectedSubtask: input.selectedSubtask,
@@ -356,6 +376,48 @@ function applyCycleProgressUpdate(input: {
   }
 
   return hasCompletedSubtask ? updatedProgress : undefined;
+}
+
+function resolveFailedProducerSubtasks(input: {
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly fallback: PrioritizedSubtask;
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+}): readonly PrioritizedSubtask[] {
+  const failedProducerSubtasks = new Map<string, PrioritizedSubtask>();
+
+  for (const result of input.simulationResults) {
+    if (result.status !== 'needs-replan') {
+      continue;
+    }
+    const selectedSubtask = resolveSelectedSubtaskForAction({
+      action: actionFromSimulationResultForAttribution(result),
+      fallback: input.fallback,
+      selectedSubtasksByKey: input.selectedSubtasksByKey,
+    });
+    failedProducerSubtasks.set(
+      createSubtaskContextKey(selectedSubtask.branchId, selectedSubtask.subtaskId),
+      selectedSubtask,
+    );
+  }
+
+  return [...failedProducerSubtasks.values()];
+}
+
+function blockFailedProducerSubtasks(input: {
+  readonly progress: BranchPlanProgress;
+  readonly failedProducerSubtasks: readonly PrioritizedSubtask[];
+  readonly decision: Extract<ReplanningDecision, { readonly kind: 'full-replan' }>;
+  readonly at: number;
+}): BranchPlanProgress {
+  let updatedProgress = input.progress;
+  for (const selectedSubtask of input.failedProducerSubtasks) {
+    updatedProgress = markSubtaskBlocked(updatedProgress, {
+      subtaskId: selectedSubtask.subtaskId,
+      reason: `${input.decision.trigger}: ${input.decision.reason}`,
+      blockedAt: input.at,
+    });
+  }
+  return updatedProgress;
 }
 
 function groupSimulationResultsByProducer(input: {

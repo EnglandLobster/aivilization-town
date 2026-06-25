@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import {
   compileStrategicObjectiveWithoutObjectiveDecomposition,
   createBranchPlan,
+  type SubtaskPrioritizer,
   type SubtaskPrioritizationSensitivityProbeResult,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
@@ -22,7 +23,11 @@ import {
   type LocalRuntimeTownPlannerAblationStructureGateResult,
 } from './localRuntimeTownPlannerAblationStructureGate';
 import { createPlannerEconomicSensitivityMetricsFromProbeResults } from './localRuntimeTownPlannerEconomicSensitivityMetrics';
-import type { LocalRuntimeTownProfileStrategicCompilerConfig } from './localRuntimeTownProfileLlmPlanning';
+import { createLocalRuntimeTownPlannerEconomicSensitivityProbeResults } from './localRuntimeTownPlannerEconomicSensitivityProbe';
+import type {
+  LocalRuntimeTownProfileStrategicCompilerConfig,
+  LocalRuntimeTownProfileSubtaskPrioritizerConfig,
+} from './localRuntimeTownProfileLlmPlanning';
 import { createLocalRuntimeTownProfilePlannerOutcomeMetrics } from './localRuntimeTownPlannerOutcomeMetrics';
 import { createLocalRuntimeTownProfilePlannerShapeMetrics } from './localRuntimeTownPlannerShapeMetrics';
 import {
@@ -52,6 +57,8 @@ export type LocalRuntimeTownPlannerAblationVariant = {
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
+  readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizerConfig;
 };
 
 export type LocalRuntimeTownPlannerAblationSuiteInput = {
@@ -65,6 +72,8 @@ export type LocalRuntimeTownPlannerAblationSuiteInput = {
   readonly cycleIntervalMs?: number;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly variants?: readonly LocalRuntimeTownPlannerAblationVariant[];
+  readonly subtaskPrioritizer?: SubtaskPrioritizer;
+  readonly subtaskPrioritization?: LocalRuntimeTownProfileSubtaskPrioritizerConfig;
   readonly createMetrics?: (
     summary: LocalRuntimeTownProfileRunnerSummary,
     variant: LocalRuntimeTownPlannerAblationVariant,
@@ -126,12 +135,21 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
     input.createMetrics ??
     ((summary: LocalRuntimeTownProfileRunnerSummary, variant: LocalRuntimeTownPlannerAblationVariant) =>
       createDefaultPlannerExperimentMetrics(summary, variant, {
-        createEconomicSensitivityProbeResults: input.createEconomicSensitivityProbeResults,
+        createEconomicSensitivityProbeResults:
+          input.createEconomicSensitivityProbeResults ??
+          ((_probeSummary, probeVariant) =>
+            createLocalRuntimeTownPlannerEconomicSensitivityProbeResults({
+              profileId: input.profileId,
+              variant: probeVariant.variant,
+              issuedAt: input.requestedAt,
+              ...resolveVariantSubtaskPrioritization(input, probeVariant),
+            })),
       }));
   const results: LocalRuntimeTownPlannerAblationSuiteVariantResult[] = [];
 
   for (const variant of variants) {
     const variantRootDir = join(input.rootDir, encodeURIComponent(variant.variant));
+    const variantSubtaskPrioritization = resolveVariantSubtaskPrioritization(input, variant);
     const summary = await runProfile({
       profileId: input.profileId,
       rootDir: variantRootDir,
@@ -145,6 +163,7 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
         ? {}
         : { strategicPlanCompiler: variant.strategicPlanCompiler }),
       ...(variant.llmPlanning === undefined ? {} : { llmPlanning: variant.llmPlanning }),
+      ...variantSubtaskPrioritization,
     });
     const report = createRuntimeProfileRunReport({
       runId: summary.run.traceId,
@@ -197,6 +216,22 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
     requestedAt: input.requestedAt,
     variantCount: results.length,
     variants: results,
+  };
+}
+
+function resolveVariantSubtaskPrioritization(
+  input: Pick<
+    LocalRuntimeTownPlannerAblationSuiteInput,
+    'subtaskPrioritizer' | 'subtaskPrioritization'
+  >,
+  variant: LocalRuntimeTownPlannerAblationVariant,
+): Pick<LocalRuntimeTownProfileRunnerInput, 'subtaskPrioritizer' | 'subtaskPrioritization'> {
+  const subtaskPrioritizer = variant.subtaskPrioritizer ?? input.subtaskPrioritizer;
+  const subtaskPrioritization = variant.subtaskPrioritization ?? input.subtaskPrioritization;
+
+  return {
+    ...(subtaskPrioritizer === undefined ? {} : { subtaskPrioritizer }),
+    ...(subtaskPrioritization === undefined ? {} : { subtaskPrioritization }),
   };
 }
 

@@ -11,6 +11,9 @@ export function createPlannerShapeMetricsFromBranchPlans(
   const totalSubtaskCount = sumBy(records, (record) =>
     sumBy(record.plan.branches, (branch) => branch.subtasks.length),
   );
+  const multiSubtaskBranchCount = sumBy(records, (record) =>
+    record.plan.branches.filter((branch) => branch.subtasks.length > 1).length,
+  );
   const singleBranchPlanCount = records.filter((record) => record.plan.branches.length === 1).length;
 
   return [
@@ -30,9 +33,19 @@ export function createPlannerShapeMetricsFromBranchPlans(
       higherIsBetter: true,
     },
     {
+      metricId: 'planner-mean-subtasks-per-branch',
+      value: average(totalSubtaskCount, totalBranchCount),
+      higherIsBetter: true,
+    },
+    {
       metricId: 'planner-single-branch-plan-ratio',
       value: average(singleBranchPlanCount, planCount),
       higherIsBetter: false,
+    },
+    {
+      metricId: 'planner-multi-subtask-branch-ratio',
+      value: average(multiSubtaskBranchCount, totalBranchCount),
+      higherIsBetter: true,
     },
     {
       metricId: 'planner-llm-source-count',

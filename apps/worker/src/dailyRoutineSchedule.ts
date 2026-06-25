@@ -19,6 +19,10 @@ import type {
 } from '@aivilization/observability';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -225,6 +229,7 @@ export async function renewDailyRoutineScheduledIntentions(input: {
 
 export async function renewDailyPlanScheduledIntentions(input: {
   readonly projection: WorldProjection;
+  readonly policies?: WorldCommandPolicySource;
   readonly intentionRepository: AgentIntentionRepository;
   readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly shortTermMemoryRepository?: ShortTermMemoryRepository;
@@ -256,6 +261,13 @@ export async function renewDailyPlanScheduledIntentions(input: {
 
   const results: DailyPlanRenewalResult[] = [];
   const compileDailyPlan = input.compileDailyPlan ?? compileDeterministicDailyPlan;
+  const policies =
+    input.policies === undefined
+      ? undefined
+      : resolveWorldCommandPolicies({
+          policies: input.policies,
+          projection: input.projection,
+        });
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
     if (agent === undefined) {
@@ -278,6 +290,7 @@ export async function renewDailyPlanScheduledIntentions(input: {
         worldDecisionContext: createWorldDecisionContextFromProjection({
           projection: input.projection,
           agentId: agent.agentId,
+          ...(policies === undefined ? {} : { policies }),
         }),
         agent: {
           job: agent.job,

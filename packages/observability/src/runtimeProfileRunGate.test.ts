@@ -130,6 +130,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -142,6 +144,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 0,
               completeWorldDecisionContextCount: 0,
+              rulesContextCount: 0,
+              completeRulesContextCount: 0,
             },
           ],
         },
@@ -182,6 +186,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -194,6 +200,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 0,
               completeWorldDecisionContextCount: 0,
+              rulesContextCount: 0,
+              completeRulesContextCount: 0,
             },
           ],
         },
@@ -239,6 +247,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -251,6 +261,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 0,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
           ],
         },
@@ -278,6 +290,66 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires rules context coverage for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
+            },
+            {
+              stageName: 'globalSynthesis',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              shortTermMemoryContextCount: 1,
+              longTermProfileContextCount: 1,
+              worldDecisionContextCount: 1,
+              completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 0,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmRulesContextStages: [
+          'contextualPrioritization',
+          'globalSynthesis',
+        ],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-complete-rules-context-count-too-low',
+      message: 'agent-cycle LLM stage globalSynthesis completeRulesContextCount must be at least 1',
+      evidence: {
+        stageName: 'globalSynthesis',
+        actual: 0,
+        rulesContextCount: 1,
+        minimum: 1,
+      },
+    });
+  });
+
   test('requires short-term memory context coverage for configured agent-cycle stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({
@@ -296,6 +368,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -308,6 +382,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
           ],
         },
@@ -352,6 +428,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 1,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
             {
               stageName: 'globalSynthesis',
@@ -364,6 +442,8 @@ describe('runtime profile run gate', () => {
               longTermProfileContextCount: 0,
               worldDecisionContextCount: 1,
               completeWorldDecisionContextCount: 1,
+              rulesContextCount: 1,
+              completeRulesContextCount: 1,
             },
           ],
         },
@@ -404,6 +484,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 0,
             completeWorldDecisionContextCount: 0,
+            rulesContextCount: 0,
+            completeRulesContextCount: 0,
           },
           {
             stageName: 'dailyPlanning',
@@ -414,6 +496,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 0,
             completeWorldDecisionContextCount: 0,
+            rulesContextCount: 0,
+            completeRulesContextCount: 0,
           },
         ],
       }),
@@ -449,6 +533,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 1,
             completeWorldDecisionContextCount: 1,
+            rulesContextCount: 0,
+            completeRulesContextCount: 0,
           },
           {
             stageName: 'socialModelSynthesis',
@@ -459,6 +545,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 0,
             completeWorldDecisionContextCount: 0,
+            rulesContextCount: 0,
+            completeRulesContextCount: 0,
           },
         ],
       }),
@@ -499,6 +587,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 1,
             completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
           },
           {
             stageName: 'socialModelSynthesis',
@@ -509,6 +599,8 @@ describe('runtime profile run gate', () => {
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 1,
             completeWorldDecisionContextCount: 0,
+            rulesContextCount: 1,
+            completeRulesContextCount: 0,
           },
         ],
       }),
@@ -530,6 +622,56 @@ describe('runtime profile run gate', () => {
         stageName: 'socialModelSynthesis',
         actual: 0,
         worldDecisionContextCount: 1,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires rules context coverage for configured cognition stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 0,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmRulesContextStages: ['strategicPlanning', 'dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-complete-rules-context-count-too-low',
+      message: 'cognition LLM stage dailyPlanning completeRulesContextCount must be at least 1',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 0,
+        rulesContextCount: 1,
         minimum: 1,
       },
     });

@@ -1590,6 +1590,21 @@ describe('worker tick runner', () => {
     expect(context.longTermProfile?.values.map((entry) => entry.key)).toEqual(['community-helper']);
     expect(context.memoryContext?.map((memory) => memory.id)).toContain(priorMemory.id);
     expect(context.worldDecisionContext?.agent.agentId).toBe(agentTwo);
+    const rules = context.worldDecisionContext?.rules;
+    if (rules === undefined) {
+      throw new Error('expected ambient reaction world decision rules');
+    }
+    expect(rules.criticalThresholds).toEqual(policies.criticalThresholds);
+    expect(
+      rules.occupations.some(
+        (rule) => rule.occupationName.length > 0 && rule.applicationQuota?.residentialTier === 1,
+      ),
+    ).toBe(true);
+    expect(
+      rules.production.some(
+        (rule) => rule.commodity.length > 0 && Number.isFinite(rule.timeCostSeconds),
+      ),
+    ).toBe(true);
   });
 
   test('records ambient reaction evaluations to a worker trace sink', async () => {

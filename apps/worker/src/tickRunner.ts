@@ -44,7 +44,7 @@ import {
   type SimulationTimestamp,
   type SnapshotReference,
 } from '@aivilization/sim-core';
-import type { WorldEvent, WorldProjection } from '@aivilization/world';
+import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
 import {
   runWorkerAgentCycle,
   type WorkerAgentCycleResult,
@@ -66,7 +66,10 @@ import {
   createTraceableSocialObservationScheduledIntentions,
   type SocialObservationReactionEvaluation,
 } from './socialObservationIntentions';
-import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 const DEFAULT_AMBIENT_REACTION_MEMORY_CONTEXT_LIMIT = 8;
@@ -391,6 +394,10 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
       worldDecisionContextByAgentId: createWorldDecisionContextByAgentId({
         projection: input.projection,
         records: result.records,
+        policies: resolveWorldCommandPolicies({
+          policies: input.input.policies,
+          projection: input.projection,
+        }),
       }),
       longTermProfileByAgentId: await createLongTermProfileByAgentId({
         longTermProfileRepository: input.input.longTermProfileRepository,
@@ -468,6 +475,7 @@ async function upsertSocialObservationIntentions(input: {
 function createWorldDecisionContextByAgentId(input: {
   readonly projection: WorldProjection;
   readonly records: readonly ShortTermMemoryRecord[];
+  readonly policies?: WorldCommandPolicies;
 }): Readonly<Record<string, WorldDecisionContext>> {
   const contexts: Record<string, WorldDecisionContext> = {};
   for (const record of input.records) {
@@ -480,6 +488,7 @@ function createWorldDecisionContextByAgentId(input: {
     contexts[record.agentId] = createWorldDecisionContextFromProjection({
       projection: input.projection,
       agentId: record.agentId,
+      ...(input.policies === undefined ? {} : { policies: input.policies }),
     });
   }
   return contexts;

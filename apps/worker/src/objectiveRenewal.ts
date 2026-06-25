@@ -20,6 +20,10 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
@@ -123,6 +127,7 @@ export function createDefaultAutonomousObjectiveProposal(
 
 export async function renewMissingActiveObjectives(input: {
   readonly projection: WorldProjection;
+  readonly policies?: WorldCommandPolicySource;
   readonly intentionRepository: AgentIntentionRepository;
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
@@ -139,6 +144,13 @@ export async function renewMissingActiveObjectives(input: {
   const memoryRetrievalLimit =
     input.memoryRetrievalLimit ?? DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT;
   assertPositiveInteger(memoryRetrievalLimit, 'memoryRetrievalLimit');
+  const policies =
+    input.policies === undefined
+      ? undefined
+      : resolveWorldCommandPolicies({
+          policies: input.policies,
+          projection: input.projection,
+        });
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
@@ -159,6 +171,7 @@ export async function renewMissingActiveObjectives(input: {
     const worldDecisionContext = createWorldDecisionContextFromProjection({
       projection: input.projection,
       agentId: agent.agentId,
+      ...(policies === undefined ? {} : { policies }),
     });
     const proposed = await proposer({
       agentId: agent.agentId,

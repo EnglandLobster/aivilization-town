@@ -1,4 +1,8 @@
-import { createBranchPlan, InMemoryBranchPlanRepository } from '@aivilization/agent-runtime';
+import {
+  createBranchPlan,
+  InMemoryBranchPlanRepository,
+  type StrategicPlanCompilerInput,
+} from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
   InMemoryLongTermProfileRepository,
@@ -10,7 +14,11 @@ import {
   type ScheduledIntention,
 } from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
+import {
+  createWorldProjection,
+  type WorldAgentState,
+  type WorldCommandPolicies,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createDefaultAutonomousObjective,
@@ -714,6 +722,70 @@ describe('worker objective renewal', () => {
       }),
     ]);
   });
+
+  test('passes world command rules into autonomous strategic plan compilers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 150 })]);
+    let compilerInput: StrategicPlanCompilerInput | undefined;
+
+    await renewMissingActiveObjectives({
+      projection,
+      policies: createRulesPolicies(),
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 300,
+      objectiveProposer: (input) => ({
+        id: 'objective-rules-aware-production',
+        agentId: input.agentId,
+        statement: 'Craft Chip for the electronics market.',
+        priority: 2,
+        source: 'agent',
+        affinityTags: ['production'],
+        createdAt: 300,
+        updatedAt: 300,
+      }),
+      strategicPlanCompiler: (input) => {
+        compilerInput = input;
+        return createBranchPlan({
+          objective: input.objective.statement,
+          branches: [
+            {
+              id: 'rules-aware-production',
+              objective: 'Use world rules while planning production.',
+              subtasks: [
+                {
+                  id: 'produce-target',
+                  description: 'Produce with rules context.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        });
+      },
+    });
+
+    const rules = compilerInput?.worldDecisionContext?.rules;
+    if (rules === undefined) {
+      throw new Error('expected strategic compiler world decision rules');
+    }
+    expect(rules.criticalThresholds).toEqual({ energy: 1, health: 1 });
+    expect(
+      rules.occupations.some(
+        (rule) => rule.occupationName.length > 0 && rule.applicationQuota?.residentialTier === 1,
+      ),
+    ).toBe(true);
+    expect(
+      rules.production.some(
+        (rule) => rule.commodity.length > 0 && Number.isFinite(rule.timeCostSeconds),
+      ),
+    ).toBe(true);
+  });
 });
 
 function createProjection(agents: readonly WorldAgentState[]) {
@@ -770,6 +842,20 @@ function createProfile(
     personality: [],
     socialRecords: [],
     ...partial,
+  };
+}
+
+function createRulesPolicies(): WorldCommandPolicies {
+  return {
+    satietyRecoveryByCommodity: { Bread: 15 },
+    maxSatiety: 100,
+    wageCalculator: () => 10,
+    laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+    criticalThresholds: { energy: 1, health: 1 },
+    jobApplication: {
+      populationEducationScores: [0, 100],
+      quotaByResidentialTier: [1, 1, 1, 1, 1],
+    },
   };
 }
 

@@ -1054,6 +1054,7 @@ function createCliAgentCycleDiagnostics(traceCount = 1) {
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
+    simulatorRolloutEventCount: traceCount,
     commandEmittingCycleCount: traceCount,
     fullReplanMaterializationCount: 0,
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
@@ -1061,5 +1062,6 @@ function createCliAgentCycleDiagnostics(traceCount = 1) {
     repairedSimulatorRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
+    simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,
   };
 }

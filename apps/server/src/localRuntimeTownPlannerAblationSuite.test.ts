@@ -6,6 +6,8 @@ import {
   createBranchPlan,
   normalizeStrategicPlanCompilerOutput,
   type BranchPlanRecord,
+  type SubtaskPrioritizer,
+  type SubtaskPrioritizerInput,
   type SubtaskPrioritizationSensitivityProbeResult,
 } from '@aivilization/agent-runtime';
 import {
@@ -422,6 +424,59 @@ describe('local runtime town planner ablation suite', () => {
       ]),
     );
   });
+
+  test('runs default planner economic sensitivity probe from configured subtask prioritizer', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const prioritizerInputs: SubtaskPrioritizerInput[] = [];
+    const subtaskPrioritizer = createPriceSensitiveProbePrioritizer(prioritizerInputs);
+
+    const result = await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir: '/tmp/aivilization-planner-economic-sensitivity-probe',
+      profileId: 'smoke-25',
+      taskId: 'economic-contextual-prioritization',
+      requestedAt: 575,
+      subtaskPrioritizer,
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createVariantSummary(input));
+      },
+    });
+
+    const defaultMetrics = result.variants[0]?.report.plannerExperiment?.metrics ?? [];
+    const withoutBranchMetrics = result.variants[1]?.report.plannerExperiment?.metrics ?? [];
+
+    expect(inputs).toHaveLength(3);
+    expect(inputs.every((input) => input.subtaskPrioritizer === subtaskPrioritizer)).toBe(true);
+    expect(prioritizerInputs).toHaveLength(2);
+    expect(prioritizerInputs.map(readProbePrioritizerEconomics)).toEqual([
+      { balance: 80, fishSpotPrice: 8 },
+      { balance: 30, fishSpotPrice: 70 },
+    ]);
+    expect(defaultMetrics).toEqual(
+      expect.arrayContaining([
+        {
+          metricId: 'planner-economic-sensitivity-scenario-count',
+          value: 1,
+          higherIsBetter: true,
+        },
+        {
+          metricId: 'planner-economic-sensitivity-selection-change-count',
+          value: 1,
+          higherIsBetter: true,
+        },
+        {
+          metricId: 'planner-economic-sensitivity-complete-economic-context-count',
+          value: 1,
+          higherIsBetter: true,
+        },
+      ]),
+    );
+    expect(withoutBranchMetrics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metricId: 'planner-economic-sensitivity-scenario-count' }),
+      ]),
+    );
+  });
 });
 
 function createRootDir(): string {
@@ -558,6 +613,67 @@ function createStructureMetrics(input: {
       higherIsBetter: true,
     },
   ];
+}
+
+function createPriceSensitiveProbePrioritizer(
+  calls: SubtaskPrioritizerInput[],
+): SubtaskPrioritizer {
+  return (input) => {
+    calls.push(input);
+    const { balance, fishSpotPrice } = readProbePrioritizerEconomics(input);
+    const canBuyFoodWithoutDepletingCash = fishSpotPrice <= balance * 0.5;
+    const rankedCandidateKeys = canBuyFoodWithoutDepletingCash
+      ? [
+          { branchId: 'recovery', subtaskId: 'buy-food' },
+          { branchId: 'income', subtaskId: 'work' },
+        ]
+      : [
+          { branchId: 'income', subtaskId: 'work' },
+          { branchId: 'recovery', subtaskId: 'buy-food' },
+        ];
+
+    return {
+      candidates: rankedCandidateKeys.map((key) =>
+        requireCandidate(input.candidates, key.branchId, key.subtaskId),
+      ),
+      trace: { status: 'accepted', source: 'llm' },
+    };
+  };
+}
+
+function readProbePrioritizerEconomics(input: SubtaskPrioritizerInput): {
+  readonly balance: number;
+  readonly fishSpotPrice: number;
+} {
+  const worldDecisionContext = input.worldDecisionContext;
+  if (worldDecisionContext === undefined) {
+    throw new Error('probe prioritizer input missing worldDecisionContext');
+  }
+  const fishSpotPrice = worldDecisionContext.market.spotPrices.find(
+    (price) => price.commodity === 'Fish',
+  )?.spotPrice;
+  if (fishSpotPrice === undefined) {
+    throw new Error('probe prioritizer input missing Fish spot price');
+  }
+
+  return {
+    balance: worldDecisionContext.agent.balance,
+    fishSpotPrice,
+  };
+}
+
+function requireCandidate(
+  candidates: SubtaskPrioritizerInput['candidates'],
+  branchId: string,
+  subtaskId: string,
+): SubtaskPrioritizerInput['candidates'][number] {
+  const candidate = candidates.find(
+    (value) => value.branchId === branchId && value.subtaskId === subtaskId,
+  );
+  if (candidate === undefined) {
+    throw new Error(`missing probe candidate ${branchId}/${subtaskId}`);
+  }
+  return candidate;
 }
 
 function createSensitivityProbeResult(input: {

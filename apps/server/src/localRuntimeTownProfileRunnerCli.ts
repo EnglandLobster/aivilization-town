@@ -6,7 +6,10 @@ import {
   evaluateRuntimeProfileRunReport,
 } from '@aivilization/observability';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
-import { loadLocalRuntimeTownProfileRuntimeConfig } from './localRuntimeTownProfileRuntimeConfig';
+import {
+  loadLocalRuntimeTownProfileRuntimeConfig,
+  type LocalRuntimeTownProfileRuntimeConfig,
+} from './localRuntimeTownProfileRuntimeConfig';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileRunnerInput,
@@ -78,12 +81,17 @@ export async function runLocalRuntimeTownProfileRunnerCli(
 
   try {
     const config = parseLocalRuntimeTownProfileRunnerCliArgs(input.argv ?? process.argv.slice(2));
-    const summary = await runProfile(await createRunnerInput(config));
+    const runContext = await createRunnerContext(config);
+    const summary = await runProfile(runContext.runnerInput);
     stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     if (config.requireGate === true) {
       const gate = evaluateRuntimeProfileRunReport(
         createProfileRunReportFromSummary(summary),
-        createLocalRuntimeTownProfileGateCriteria(summary.profileId),
+        createLocalRuntimeTownProfileGateCriteria(summary.profileId, {
+          ...(runContext.runtimeConfig === undefined
+            ? {}
+            : { runtimeConfig: runContext.runtimeConfig }),
+        }),
       );
       if (gate.status === 'fail') {
         stderr.write(formatGateFailure(gate.failures));
@@ -97,9 +105,14 @@ export async function runLocalRuntimeTownProfileRunnerCli(
   }
 }
 
-async function createRunnerInput(
+type LocalRuntimeTownProfileRunnerCliRunContext = {
+  readonly runnerInput: LocalRuntimeTownProfileRunnerInput;
+  readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
+};
+
+async function createRunnerContext(
   config: LocalRuntimeTownProfileRunnerCliConfig,
-): Promise<LocalRuntimeTownProfileRunnerInput> {
+): Promise<LocalRuntimeTownProfileRunnerCliRunContext> {
   const profileRunReportRepository =
     config.reportRootDir === undefined
       ? undefined
@@ -114,45 +127,48 @@ async function createRunnerInput(
         });
 
   return {
-    profileId: config.profileId,
-    rootDir: config.rootDir,
-    cycleCount: config.cycleCount,
-    requestedAt: config.requestedAt,
-    ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
-    ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
-    ...(runtimeConfig?.strategicPlanning === undefined
-      ? {}
-      : { llmPlanning: runtimeConfig.strategicPlanning }),
-    ...(runtimeConfig?.dailyPlanning === undefined
-      ? {}
-      : { dailyPlanning: runtimeConfig.dailyPlanning }),
-    ...(runtimeConfig?.reactionPlanning === undefined
-      ? {}
-      : { reactionPlanning: runtimeConfig.reactionPlanning }),
-    ...(runtimeConfig?.subtaskPrioritization === undefined
-      ? {}
-      : { subtaskPrioritization: runtimeConfig.subtaskPrioritization }),
-    ...(runtimeConfig?.actionSequenceGeneration === undefined
-      ? {}
-      : { actionSequenceGeneration: runtimeConfig.actionSequenceGeneration }),
-    ...(runtimeConfig?.socialDialogue === undefined
-      ? {}
-      : { socialDialogue: runtimeConfig.socialDialogue }),
-    ...(runtimeConfig?.globalSynthesis === undefined
-      ? {}
-      : { globalSynthesis: runtimeConfig.globalSynthesis }),
-    ...(runtimeConfig?.reactiveCorrection === undefined
-      ? {}
-      : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
-    ...(runtimeConfig?.reflectionSynthesis === undefined
-      ? {}
-      : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),
-    ...(runtimeConfig?.socialModelSynthesis === undefined
-      ? {}
-      : { socialModelSynthesis: runtimeConfig.socialModelSynthesis }),
-    ...(runtimeConfig?.replanningPolicy === undefined
-      ? {}
-      : { replanningPolicy: runtimeConfig.replanningPolicy }),
+    runnerInput: {
+      profileId: config.profileId,
+      rootDir: config.rootDir,
+      cycleCount: config.cycleCount,
+      requestedAt: config.requestedAt,
+      ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
+      ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
+      ...(runtimeConfig?.strategicPlanning === undefined
+        ? {}
+        : { llmPlanning: runtimeConfig.strategicPlanning }),
+      ...(runtimeConfig?.dailyPlanning === undefined
+        ? {}
+        : { dailyPlanning: runtimeConfig.dailyPlanning }),
+      ...(runtimeConfig?.reactionPlanning === undefined
+        ? {}
+        : { reactionPlanning: runtimeConfig.reactionPlanning }),
+      ...(runtimeConfig?.subtaskPrioritization === undefined
+        ? {}
+        : { subtaskPrioritization: runtimeConfig.subtaskPrioritization }),
+      ...(runtimeConfig?.actionSequenceGeneration === undefined
+        ? {}
+        : { actionSequenceGeneration: runtimeConfig.actionSequenceGeneration }),
+      ...(runtimeConfig?.socialDialogue === undefined
+        ? {}
+        : { socialDialogue: runtimeConfig.socialDialogue }),
+      ...(runtimeConfig?.globalSynthesis === undefined
+        ? {}
+        : { globalSynthesis: runtimeConfig.globalSynthesis }),
+      ...(runtimeConfig?.reactiveCorrection === undefined
+        ? {}
+        : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
+      ...(runtimeConfig?.reflectionSynthesis === undefined
+        ? {}
+        : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),
+      ...(runtimeConfig?.socialModelSynthesis === undefined
+        ? {}
+        : { socialModelSynthesis: runtimeConfig.socialModelSynthesis }),
+      ...(runtimeConfig?.replanningPolicy === undefined
+        ? {}
+        : { replanningPolicy: runtimeConfig.replanningPolicy }),
+    },
+    ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
   };
 }
 

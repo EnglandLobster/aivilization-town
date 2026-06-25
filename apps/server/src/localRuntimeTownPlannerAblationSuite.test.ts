@@ -447,26 +447,28 @@ describe('local runtime town planner ablation suite', () => {
 
     expect(inputs).toHaveLength(3);
     expect(inputs.every((input) => input.subtaskPrioritizer === subtaskPrioritizer)).toBe(true);
-    expect(prioritizerInputs).toHaveLength(2);
-    expect(prioritizerInputs.map(readProbePrioritizerEconomics)).toEqual([
-      { balance: 80, fishSpotPrice: 8 },
-      { balance: 30, fishSpotPrice: 70 },
-    ]);
+    expect(prioritizerInputs).toHaveLength(8);
+    expect(prioritizerInputs.map(readProbePrioritizerEconomics)).toEqual(
+      expect.arrayContaining([
+        { balance: 80, fishSpotPrice: 8 },
+        { balance: 30, fishSpotPrice: 70 },
+      ]),
+    );
     expect(defaultMetrics).toEqual(
       expect.arrayContaining([
         {
           metricId: 'planner-economic-sensitivity-scenario-count',
-          value: 1,
+          value: 4,
           higherIsBetter: true,
         },
         {
           metricId: 'planner-economic-sensitivity-selection-change-count',
-          value: 1,
+          value: 4,
           higherIsBetter: true,
         },
         {
           metricId: 'planner-economic-sensitivity-complete-economic-context-count',
-          value: 1,
+          value: 4,
           higherIsBetter: true,
         },
       ]),
@@ -620,25 +622,47 @@ function createPriceSensitiveProbePrioritizer(
 ): SubtaskPrioritizer {
   return (input) => {
     calls.push(input);
-    const { balance, fishSpotPrice } = readProbePrioritizerEconomics(input);
-    const canBuyFoodWithoutDepletingCash = fishSpotPrice <= balance * 0.5;
-    const rankedCandidateKeys = canBuyFoodWithoutDepletingCash
-      ? [
-          { branchId: 'recovery', subtaskId: 'buy-food' },
-          { branchId: 'income', subtaskId: 'work' },
-        ]
-      : [
-          { branchId: 'income', subtaskId: 'work' },
-          { branchId: 'recovery', subtaskId: 'buy-food' },
-        ];
-
     return {
-      candidates: rankedCandidateKeys.map((key) =>
-        requireCandidate(input.candidates, key.branchId, key.subtaskId),
-      ),
+      candidates: rankProbeCandidates(input, chooseProbeSubtaskId(input)),
       trace: { status: 'accepted', source: 'llm' },
     };
   };
+}
+
+function chooseProbeSubtaskId(input: SubtaskPrioritizerInput): string {
+  const subtaskIds = new Set(input.candidates.map((candidate) => candidate.subtaskId));
+  const worldDecisionContext = input.worldDecisionContext;
+  if (worldDecisionContext === undefined) {
+    throw new Error('probe prioritizer input missing worldDecisionContext');
+  }
+  if (subtaskIds.has('consume-inventory-food')) {
+    return (worldDecisionContext.agent.inventory.Fish ?? 0) > 0
+      ? 'consume-inventory-food'
+      : 'buy-food';
+  }
+  if (subtaskIds.has('apply-occupation')) {
+    return worldDecisionContext.rules?.occupations.some((occupation) => occupation.eligible) === true
+      ? 'apply-occupation'
+      : 'study';
+  }
+  if (subtaskIds.has('craft-chip')) {
+    return worldDecisionContext.rules?.production.some(
+      (production) => production.commodity === 'Chip' && production.producible,
+    ) === true
+      ? 'craft-chip'
+      : 'gather-inputs';
+  }
+
+  const { balance, fishSpotPrice } = readProbePrioritizerEconomics(input);
+  return fishSpotPrice <= balance * 0.5 ? 'buy-food' : 'work';
+}
+
+function rankProbeCandidates(
+  input: SubtaskPrioritizerInput,
+  preferredSubtaskId: string,
+): SubtaskPrioritizerInput['candidates'] {
+  const preferred = requireCandidate(input.candidates, preferredSubtaskId);
+  return [preferred, ...input.candidates.filter((candidate) => candidate !== preferred)];
 }
 
 function readProbePrioritizerEconomics(input: SubtaskPrioritizerInput): {
@@ -664,14 +688,11 @@ function readProbePrioritizerEconomics(input: SubtaskPrioritizerInput): {
 
 function requireCandidate(
   candidates: SubtaskPrioritizerInput['candidates'],
-  branchId: string,
   subtaskId: string,
 ): SubtaskPrioritizerInput['candidates'][number] {
-  const candidate = candidates.find(
-    (value) => value.branchId === branchId && value.subtaskId === subtaskId,
-  );
+  const candidate = candidates.find((value) => value.subtaskId === subtaskId);
   if (candidate === undefined) {
-    throw new Error(`missing probe candidate ${branchId}/${subtaskId}`);
+    throw new Error(`missing probe candidate ${subtaskId}`);
   }
   return candidate;
 }

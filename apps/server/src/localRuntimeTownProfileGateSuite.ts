@@ -36,6 +36,7 @@ export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly cycleCount?: number;
   readonly cycleIntervalMs?: number;
   readonly minimumFullReplanMaterializationCount?: number;
+  readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly runtimeConfigPath?: string;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly runProfile?: (
@@ -126,6 +127,12 @@ export async function runLocalRuntimeTownProfileGateSuite(
           ? {}
           : {
               minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount,
+            }),
+        ...(input.minimumSimulatorRolloutCoverageRatio === undefined
+          ? {}
+          : {
+              minimumSimulatorRolloutCoverageRatio:
+                input.minimumSimulatorRolloutCoverageRatio,
             }),
       }),
     );

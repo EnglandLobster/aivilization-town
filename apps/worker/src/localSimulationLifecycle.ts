@@ -1,5 +1,6 @@
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type { ExperimentValidationReportGateResult } from '@aivilization/observability';
+import type { ReflectiveInsightSynthesizer } from '@aivilization/memory';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -99,6 +100,7 @@ export type LocalSimulationLifecycleMemoryConsolidationSchedule = {
   readonly retrievalLimit: number;
   readonly minPatternCount: number;
   readonly reflectionTrigger?: WorkerMemoryConsolidationReflectionTrigger;
+  readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
 };
 
 export type LocalSimulationLifecycleControllerInput = Omit<
@@ -570,6 +572,9 @@ async function runLifecycleMemoryConsolidation(input: {
         ...(input.schedule.reflectionTrigger === undefined
           ? {}
           : { reflectionTrigger: input.schedule.reflectionTrigger }),
+        ...(input.schedule.reflectiveInsightSynthesizer === undefined
+          ? {}
+          : { reflectiveInsightSynthesizer: input.schedule.reflectiveInsightSynthesizer }),
         socialReflectionObservationSink: {
           repository: input.controllerInput.storage.socialReflectionObservationRepository,
           simulationId: input.controllerInput.storage.partition.simulationId,

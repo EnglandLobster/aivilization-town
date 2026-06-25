@@ -1,5 +1,9 @@
 import { createAmmPool } from '@aivilization/economy';
-import { createShortTermMemoryRecord } from '@aivilization/memory';
+import {
+  asMemoryRecordId,
+  createShortTermMemoryRecord,
+  type ReflectiveInsightSynthesizer,
+} from '@aivilization/memory';
 import { asAgentId, createEventEnvelope, type SimulationTimestamp } from '@aivilization/sim-core';
 import {
   createWorldProjection,
@@ -439,6 +443,75 @@ describe('local simulation lifecycle controller', () => {
     });
   });
 
+  test('passes a reflective insight synthesizer through the lifecycle memory schedule', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await storage.shortTermMemoryRepository.append(createTradeMemory(1));
+    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = () => ({
+      insights: [
+        {
+          id: 'reflection-agent-1-value-market-patience-1060',
+          agentId: agentOne,
+          kind: 'value',
+          topicKey: 'market-patience',
+          statement: 'The agent values waiting for better market conditions.',
+          confidence: 0.8,
+          evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+          generatedAt: 1060,
+          tags: ['trade', 'market', 'value'],
+        },
+      ],
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'reflection-agent-1-1060',
+        providerId: 'scripted-reflection',
+        model: 'reflection-model',
+      },
+    });
+    const controller = createController({
+      storage,
+      initialProjection,
+      tickBatchSize: 1,
+      memoryConsolidationSchedule: {
+        retrievalLimit: 10,
+        minPatternCount: 1,
+        reflectiveInsightSynthesizer,
+      },
+    });
+
+    const result = await controller.start(createRequest(1060));
+
+    expect(result.status).toBe('completed');
+    expect(result.memoryConsolidation).toMatchObject({
+      patchCount: 1,
+      results: [
+        {
+          reflectionSynthesisTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'reflection-agent-1-1060',
+            providerId: 'scripted-reflection',
+            model: 'reflection-model',
+          },
+        },
+      ],
+    });
+    await expect(storage.longTermProfileRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      values: [
+        {
+          key: 'market-patience',
+          statement: 'The agent values waiting for better market conditions.',
+        },
+      ],
+    });
+  });
+
   test('surfaces skipped memory consolidation when reflection importance threshold is not met', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();
@@ -771,6 +844,20 @@ function createStudyMemory(index: number) {
       patternKey: 'study-before-work',
       statement: 'Studies before starting work.',
     },
+  });
+}
+
+function createTradeMemory(index: number) {
+  return createShortTermMemoryRecord({
+    id: `trade-memory-${index}`,
+    agentId: agentOne,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Waited for a better apple price before buying.',
+    occurredAt: index,
+    importanceScore: 0.8,
+    source: { eventIds: [] },
+    tags: ['trade', 'market'],
   });
 }
 

@@ -1,7 +1,9 @@
 import {
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
+  asMemoryRecordId,
   createShortTermMemoryRecord,
+  type ReflectiveInsightSynthesizer,
 } from '@aivilization/memory';
 import { InMemorySocialReflectionObservationRepository } from '@aivilization/observability';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
@@ -159,6 +161,87 @@ describe('worker memory consolidation', () => {
       },
     ]);
     await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toEqual(result.profile);
+  });
+
+  test('uses an injected reflective insight synthesizer and exposes its trace', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    await shortTermMemoryRepository.append(createTradeMemory(1));
+    const synthesizerCalls: Parameters<ReflectiveInsightSynthesizer>[0][] = [];
+    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = async (input) => {
+      synthesizerCalls.push(input);
+      return {
+        insights: [
+          {
+            id: 'reflection-agent-1-value-market-patience-1500',
+            agentId,
+            kind: 'value',
+            topicKey: 'market-patience',
+            statement: 'The agent values waiting for better market conditions.',
+            confidence: 0.8,
+            evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+            generatedAt: 1500,
+            tags: ['trade', 'market', 'value'],
+          },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          requestId: 'reflection-agent-1-1500',
+          providerId: 'scripted-reflection',
+          model: 'reflection-model',
+        },
+      };
+    };
+
+    const result = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 1500,
+      reflectiveInsightSynthesizer,
+    });
+
+    expect(synthesizerCalls).toHaveLength(1);
+    expect(synthesizerCalls[0]).toMatchObject({
+      agentId,
+      minEvidenceCount: 1,
+      generatedAt: 1500,
+      longTermProfile: { agentId },
+    });
+    expect(result.reflectionSynthesisTrace).toEqual({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'reflection-agent-1-1500',
+      providerId: 'scripted-reflection',
+      model: 'reflection-model',
+    });
+    expect(result.reflectiveInsights.map((insight) => insight.topicKey)).toEqual([
+      'market-patience',
+    ]);
+    expect(result.patches).toEqual([
+      {
+        id: 'ltm-patch-agent-1-reflection-value-market-patience-1500',
+        agentId,
+        section: 'values',
+        key: 'market-patience',
+        statement: 'The agent values waiting for better market conditions.',
+        confidence: 0.8,
+        provenanceRecordIds: ['trade-memory-1'],
+        proposedAt: 1500,
+      },
+    ]);
+    expect(result.profile.values).toEqual([
+      {
+        key: 'market-patience',
+        statement: 'The agent values waiting for better market conditions.',
+        confidence: 0.8,
+        provenanceRecordIds: ['trade-memory-1'],
+        updatedAt: 1500,
+      },
+    ]);
   });
 
   test('promotes repeated short-term memory patterns into long-term profile entries', async () => {
@@ -477,6 +560,62 @@ describe('worker memory consolidation', () => {
     ]);
   });
 
+  test('passes an injected reflective insight synthesizer through scheduled consolidation', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    await shortTermMemoryRepository.append(createTradeMemory(1));
+    const reflectiveInsightSynthesizer: ReflectiveInsightSynthesizer = () => ({
+      insights: [
+        {
+          id: 'reflection-agent-1-value-market-patience-2500',
+          agentId,
+          kind: 'value',
+          topicKey: 'market-patience',
+          statement: 'The agent values waiting for better market conditions.',
+          confidence: 0.8,
+          evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+          generatedAt: 2500,
+          tags: ['trade', 'market', 'value'],
+        },
+      ],
+      trace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'reflection-agent-1-2500',
+        providerId: 'scripted-reflection',
+        model: 'reflection-model',
+      },
+    });
+
+    const result = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 2500,
+      reflectiveInsightSynthesizer,
+    });
+
+    expect(result.patchCount).toBe(1);
+    expect(result.results[0]?.reflectionSynthesisTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'reflection-agent-1-2500',
+    });
+    expect(result.results[0]?.profile.values).toEqual([
+      {
+        key: 'market-patience',
+        statement: 'The agent values waiting for better market conditions.',
+        confidence: 0.8,
+        provenanceRecordIds: ['trade-memory-1'],
+        updatedAt: 2500,
+      },
+    ]);
+  });
+
   test('gates scheduled reflection by accumulated pending memory importance', async () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
@@ -646,5 +785,19 @@ function createLowImportanceStudyMemory(index: number) {
     importanceScore: 0.4,
     source: { eventIds: [] },
     tags: ['study', 'education'],
+  });
+}
+
+function createTradeMemory(index: number) {
+  return createShortTermMemoryRecord({
+    id: `trade-memory-${index}`,
+    agentId,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Waited for a better apple price before buying.',
+    occurredAt: index,
+    importanceScore: 0.8,
+    source: { eventIds: [] },
+    tags: ['trade', 'market'],
   });
 }

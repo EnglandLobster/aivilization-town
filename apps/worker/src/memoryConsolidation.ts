@@ -1,12 +1,14 @@
 import {
   convertReflectiveInsightsToLongTermMemoryPatches,
+  createDeterministicReflectiveInsightSynthesizer,
   proposeLongTermMemoryPatches,
-  proposeReflectiveInsights,
   proposeSocialInteractionReflections,
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
   type LongTermProfileRepository,
   type ReflectiveInsightRecord,
+  type ReflectiveInsightSynthesizer,
+  type ReflectiveInsightSynthesisTrace,
   type SocialInteractionReflectionRecord,
   type ShortTermMemoryOrder,
   type ShortTermMemoryRecord,
@@ -34,6 +36,7 @@ export type WorkerMemoryConsolidationInput = {
   readonly proposedAt: SimulationTimestamp;
   readonly occurredAfter?: SimulationTimestamp;
   readonly orderBy?: ShortTermMemoryOrder;
+  readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
 };
 
 export type WorkerMemoryConsolidationResult = {
@@ -41,6 +44,7 @@ export type WorkerMemoryConsolidationResult = {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly socialReflections: readonly SocialInteractionReflectionRecord[];
   readonly reflectiveInsights: readonly ReflectiveInsightRecord[];
+  readonly reflectionSynthesisTrace: ReflectiveInsightSynthesisTrace;
   readonly patches: readonly LongTermMemoryPatch[];
   readonly profile: LongTermAgentProfile;
 };
@@ -155,6 +159,9 @@ export async function runWorkerMemoryConsolidation(
     longTermProfileRepository: input.longTermProfileRepository,
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
+    ...(input.reflectiveInsightSynthesizer === undefined
+      ? {}
+      : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
   });
 }
 
@@ -164,7 +171,9 @@ async function applyWorkerMemoryConsolidation(input: {
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly minPatternCount: number;
   readonly proposedAt: SimulationTimestamp;
+  readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
 }): Promise<WorkerMemoryConsolidationResult> {
+  const currentProfile = await input.longTermProfileRepository.getOrCreate(input.agentId);
   const hintPatches = proposeLongTermMemoryPatches({
     agentId: input.agentId,
     records: input.records,
@@ -176,19 +185,23 @@ async function applyWorkerMemoryConsolidation(input: {
     records: input.records,
     generatedAt: input.proposedAt,
   });
-  const reflectiveInsights = proposeReflectiveInsights({
+  const reflectiveInsightSynthesizer =
+    input.reflectiveInsightSynthesizer ?? createDeterministicReflectiveInsightSynthesizer();
+  const reflectionSynthesis = await reflectiveInsightSynthesizer({
     agentId: input.agentId,
     records: input.records,
     minEvidenceCount: input.minPatternCount,
     generatedAt: input.proposedAt,
+    longTermProfile: currentProfile,
   });
+  const reflectiveInsights = reflectionSynthesis.insights;
   const patches = [
     ...hintPatches,
     ...convertReflectiveInsightsToLongTermMemoryPatches({ insights: reflectiveInsights }),
   ];
   const profile =
     patches.length === 0
-      ? await input.longTermProfileRepository.getOrCreate(input.agentId)
+      ? currentProfile
       : await input.longTermProfileRepository.applyPatches(input.agentId, patches);
 
   return {
@@ -196,6 +209,7 @@ async function applyWorkerMemoryConsolidation(input: {
     records: input.records,
     socialReflections,
     reflectiveInsights,
+    reflectionSynthesisTrace: reflectionSynthesis.trace,
     patches,
     profile,
   };
@@ -215,6 +229,9 @@ export async function runWorkerMemoryConsolidationBatch(
         retrievalLimit: input.retrievalLimit,
         minPatternCount: input.minPatternCount,
         proposedAt: input.proposedAt,
+        ...(input.reflectiveInsightSynthesizer === undefined
+          ? {}
+          : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
       }),
     );
   }
@@ -264,6 +281,9 @@ export async function runWorkerMemoryConsolidationSchedule(
       longTermProfileRepository: input.longTermProfileRepository,
       minPatternCount: input.minPatternCount,
       proposedAt: input.proposedAt,
+      ...(input.reflectiveInsightSynthesizer === undefined
+        ? {}
+        : { reflectiveInsightSynthesizer: input.reflectiveInsightSynthesizer }),
     });
     results.push(result);
 

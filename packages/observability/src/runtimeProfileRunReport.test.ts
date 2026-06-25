@@ -301,7 +301,7 @@ describe('runtime profile run report repositories', () => {
             status: 'fallback',
             source: 'deterministic-fallback',
             selectedSubtask: { branchId: 'development', subtaskId: 'study' },
-            worldDecisionContext: createWorldDecisionContextTrace(),
+            worldDecisionContext: createIncompleteWorldDecisionContextTrace(),
           },
         ],
         socialDialogueGeneration: [
@@ -379,6 +379,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'actionSequenceGeneration',
@@ -388,6 +389,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 2,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'socialDialogueGeneration',
@@ -397,6 +399,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'globalSynthesis',
@@ -406,6 +409,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'reactiveCorrection',
@@ -415,6 +419,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'replanningDecision',
@@ -424,6 +429,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingCycleCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
     ]);
   });
@@ -453,7 +459,7 @@ describe('runtime profile run report repositories', () => {
             source: 'deterministic-fallback',
             providerId: 'daily-provider',
             model: 'daily-model',
-            worldDecisionContext: createWorldDecisionContextTrace(),
+            worldDecisionContext: createIncompleteWorldDecisionContextTrace(),
           },
         }),
       ],
@@ -518,6 +524,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingProviderTraceCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'dailyPlanning',
@@ -527,6 +534,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 0,
       },
       {
         stageName: 'reactionEvaluation',
@@ -536,6 +544,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 1,
         missingProviderTraceCount: 1,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'reflectionSynthesis',
@@ -545,6 +554,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 1,
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
       {
         stageName: 'socialModelSynthesis',
@@ -554,6 +564,7 @@ describe('runtime profile run report repositories', () => {
         deterministicCount: 0,
         missingProviderTraceCount: 0,
         worldDecisionContextCount: 1,
+        completeWorldDecisionContextCount: 1,
       },
     ]);
   });
@@ -587,6 +598,7 @@ describe('runtime profile run report repositories', () => {
             deterministicCount: 0,
             missingProviderTraceCount: 0,
             worldDecisionContextCount: 0,
+            completeWorldDecisionContextCount: 0,
           },
         ],
       }),
@@ -810,6 +822,7 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     deterministicCount: 0,
     missingCycleCount: traceCount,
     worldDecisionContextCount: 0,
+    completeWorldDecisionContextCount: 0,
   }));
 }
 
@@ -826,6 +839,15 @@ function createWorldDecisionContextTrace() {
   };
 }
 
+function createIncompleteWorldDecisionContextTrace() {
+  return {
+    ...createWorldDecisionContextTrace(),
+    agentId: 'agent-incomplete-context',
+    marketSpotPriceCount: 0,
+    hasLatestPriceIndex: false,
+  };
+}
+
 function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageDiagnostics[] {
   return [
     {
@@ -836,6 +858,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicCount: 0,
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
+      completeWorldDecisionContextCount: 0,
     },
     {
       stageName: 'dailyPlanning',
@@ -845,6 +868,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicCount: 0,
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
+      completeWorldDecisionContextCount: 0,
     },
     {
       stageName: 'reactionEvaluation',
@@ -854,6 +878,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicCount: 0,
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
+      completeWorldDecisionContextCount: 0,
     },
     {
       stageName: 'reflectionSynthesis',
@@ -863,6 +888,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicCount: 0,
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
+      completeWorldDecisionContextCount: 0,
     },
     {
       stageName: 'socialModelSynthesis',
@@ -872,6 +898,7 @@ function createCognitionDiagnostics(): readonly RuntimeProfileCognitionLlmStageD
       deterministicCount: 0,
       missingProviderTraceCount: 0,
       worldDecisionContextCount: 0,
+      completeWorldDecisionContextCount: 0,
     },
   ];
 }

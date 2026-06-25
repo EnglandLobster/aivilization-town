@@ -257,6 +257,73 @@ describe('local experiment validation schedule', () => {
     expect(plannerAblation.evidence.observedVariantCount).toBe(3);
   });
 
+  test('generates social reflection diagnostics from durable observation rows', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110]);
+    await storage.socialReflectionObservationRepository.record([
+      createSocialReflectionObservation({
+        observationId: 'reflection-agent-1-agent-2',
+        reflectionId: 'reflection-1',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        confidence: 0.8,
+        generatedAt: 100,
+      }),
+      createSocialReflectionObservation({
+        observationId: 'reflection-agent-2-agent-1',
+        reflectionId: 'reflection-2',
+        agentId: 'agent-2',
+        targetAgentId: 'agent-1',
+        confidence: 0.7,
+        generatedAt: 110,
+      }),
+    ]);
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-social-reflection-source',
+      generatedAt: 920,
+      plannerRuns: createPlannerRuns(),
+      socialReflectionObservationSource: {
+        fromGeneratedAt: 100,
+        toGeneratedAt: 110,
+        limit: 5,
+      },
+      expectedTrajectoryAgentIds: ['agent-1', 'agent-2'],
+      trajectories: [
+        { agentId: 'agent-1', stepCount: 1 },
+        { agentId: 'agent-2', stepCount: 1 },
+      ],
+      thresholds: {
+        socialReflectionCoverage: {
+          minimumObservationCount: 2,
+          minimumAgentCoverageRatio: 1,
+          minimumDirectedPairCount: 2,
+          minimumMeanConfidence: 0.7,
+        },
+      },
+    });
+
+    const socialReflection = getMetric(result.report.metrics, 'social-reflection-coverage');
+    expect(socialReflection).toMatchObject({
+      status: 'pass',
+      evidence: {
+        observationCount: 2,
+        expectedAgentCount: 2,
+        coveredAgentCount: 2,
+        directedPairCount: 2,
+        requiredTagObservationCount: 2,
+      },
+    });
+    expect(socialReflection.evidence.agentCoverageRatio).toBe(1);
+    expect(socialReflection.evidence.meanConfidence).toBeCloseTo(0.75);
+  });
+
   test('rejects durable planner sources that do not cover the paper ablation variants', async () => {
     const storage = createLocalWorldRuntimeStorage({
       rootDir: createRootDir(),
@@ -426,6 +493,32 @@ function createOhlcBar(input: { readonly intervalStartedAt: number; readonly clo
     tradeCount: 1,
     commodityVolume: 1,
     currencyVolume: input.closePrice,
+  };
+}
+
+function createSocialReflectionObservation(input: {
+  readonly observationId: string;
+  readonly reflectionId: string;
+  readonly agentId: string;
+  readonly targetAgentId: string;
+  readonly confidence: number;
+  readonly generatedAt: number;
+}) {
+  return {
+    observationId: input.observationId,
+    simulationId,
+    partitionKey: 'world-main',
+    reflectionId: input.reflectionId,
+    agentId: input.agentId,
+    targetAgentId: input.targetAgentId,
+    statement: `${input.agentId} reflected on an interaction with ${input.targetAgentId}`,
+    relationDelta: 0.1,
+    attitudeDelta: 0.1,
+    confidence: input.confidence,
+    evidenceRecordIds: [`memory-${input.reflectionId}`],
+    generatedAt: input.generatedAt,
+    tags: ['social', 'post-interaction-reflection'],
+    source: 'memory-consolidation' as const,
   };
 }
 

@@ -4,6 +4,7 @@ export type ExperimentValidationMetricId =
   | 'volatility-clustering'
   | 'wealth-stratification'
   | 'planner-ablation'
+  | 'social-reflection-coverage'
   | 'trajectory-coverage';
 
 export type ExperimentValidationStatus = 'pass' | 'watch' | 'fail';
@@ -55,6 +56,16 @@ export type AgentTrajectoryObservation = {
   readonly lastCommandId?: string;
 };
 
+export type SocialReflectionValidationObservation = {
+  readonly observationId: string;
+  readonly agentId: string;
+  readonly targetAgentId: string;
+  readonly confidence: number;
+  readonly evidenceRecordIds: readonly string[];
+  readonly generatedAt: number;
+  readonly tags: readonly string[];
+};
+
 export type MarketStabilityThresholds = {
   readonly maximumLogPriceRange?: number;
   readonly maximumDrawdown?: number;
@@ -83,6 +94,14 @@ export type PlannerAblationThresholds = {
   readonly maximumDefaultSingleBranchPlanRatio?: number;
 };
 
+export type SocialReflectionCoverageThresholds = {
+  readonly minimumObservationCount?: number;
+  readonly minimumAgentCoverageRatio?: number;
+  readonly minimumDirectedPairCount?: number;
+  readonly minimumMeanConfidence?: number;
+  readonly requiredTag?: string;
+};
+
 export type TrajectoryCoverageThresholds = {
   readonly minimumCoverageRatio?: number;
   readonly minimumMinimumStepCount?: number;
@@ -94,6 +113,7 @@ export type ExperimentValidationThresholds = {
   readonly volatilityClustering?: VolatilityClusteringThresholds;
   readonly wealthStratification?: WealthStratificationThresholds;
   readonly plannerAblation?: PlannerAblationThresholds;
+  readonly socialReflectionCoverage?: SocialReflectionCoverageThresholds;
   readonly trajectoryCoverage?: TrajectoryCoverageThresholds;
 };
 
@@ -102,6 +122,7 @@ export type ExperimentValidationReportInput = {
   readonly priceSeries: readonly PriceCloseObservation[];
   readonly wealthSnapshot: readonly WealthSnapshotObservation[];
   readonly plannerRuns: readonly PlannerExperimentRun[];
+  readonly socialReflectionObservations?: readonly SocialReflectionValidationObservation[];
   readonly expectedTrajectoryAgentIds: readonly string[];
   readonly trajectories: readonly AgentTrajectoryObservation[];
   readonly thresholds?: ExperimentValidationThresholds;
@@ -176,6 +197,18 @@ type PlannerNamedMetricSummary = {
   readonly defaultAdvantage: number;
 };
 
+type SocialReflectionDiagnostics = {
+  readonly observationCount: number;
+  readonly expectedAgentCount: number;
+  readonly coveredAgentCount: number;
+  readonly agentCoverageRatio: number;
+  readonly directedPairCount: number;
+  readonly meanConfidence: number;
+  readonly evidenceBackedObservationCount: number;
+  readonly requiredTagObservationCount: number;
+  readonly latestGeneratedAt: number;
+};
+
 const DEFAULT_PLANNER_ABLATION_VARIANTS = [
   'default',
   'without-branch',
@@ -227,6 +260,13 @@ const DEFAULT_THRESHOLDS = {
     maximumDefaultReplanningCycleRatio: 1,
     maximumDefaultSingleBranchPlanRatio: 1,
   },
+  socialReflectionCoverage: {
+    minimumObservationCount: 1,
+    minimumAgentCoverageRatio: 0.5,
+    minimumDirectedPairCount: 1,
+    minimumMeanConfidence: 0.5,
+    requiredTag: 'post-interaction-reflection',
+  },
   trajectoryCoverage: {
     minimumCoverageRatio: 1,
     minimumMinimumStepCount: 1,
@@ -252,6 +292,11 @@ export function createExperimentValidationReport(
     input.expectedTrajectoryAgentIds,
     input.trajectories,
   );
+  const socialReflectionDiagnostics = calculateSocialReflectionDiagnostics({
+    expectedAgentIds: input.expectedTrajectoryAgentIds,
+    observations: input.socialReflectionObservations ?? [],
+    requiredTag: thresholds.socialReflectionCoverage.requiredTag,
+  });
 
   const metrics: ExperimentValidationMetric[] = [
     createMarketStabilityMetric(priceDiagnostics, thresholds.marketStability),
@@ -259,6 +304,10 @@ export function createExperimentValidationReport(
     createVolatilityClusteringMetric(priceDiagnostics, thresholds.volatilityClustering),
     createWealthStratificationMetric(wealthDiagnostics, thresholds.wealthStratification),
     createPlannerAblationMetric(plannerDiagnostics, thresholds.plannerAblation),
+    createSocialReflectionCoverageMetric(
+      socialReflectionDiagnostics,
+      thresholds.socialReflectionCoverage,
+    ),
     createTrajectoryCoverageMetric(trajectoryDiagnostics, thresholds.trajectoryCoverage),
   ];
 
@@ -352,6 +401,10 @@ function mergeThresholds(thresholds: ExperimentValidationThresholds | undefined)
     plannerAblation: {
       ...DEFAULT_THRESHOLDS.plannerAblation,
       ...thresholds?.plannerAblation,
+    },
+    socialReflectionCoverage: {
+      ...DEFAULT_THRESHOLDS.socialReflectionCoverage,
+      ...thresholds?.socialReflectionCoverage,
     },
     trajectoryCoverage: {
       ...DEFAULT_THRESHOLDS.trajectoryCoverage,
@@ -587,6 +640,46 @@ function calculatePlannerDiagnostics(
   };
 }
 
+function calculateSocialReflectionDiagnostics(input: {
+  readonly expectedAgentIds: readonly string[];
+  readonly observations: readonly SocialReflectionValidationObservation[];
+  readonly requiredTag: string;
+}): SocialReflectionDiagnostics {
+  assertNonEmptyString(input.requiredTag, 'socialReflectionCoverage requiredTag');
+  const expected = createExpectedAgentIdSet(input.expectedAgentIds);
+  const coveredAgentIds = new Set<string>();
+  const directedPairs = new Set<string>();
+  let confidenceTotal = 0;
+  let evidenceBackedObservationCount = 0;
+  let requiredTagObservationCount = 0;
+  let latestGeneratedAt = 0;
+
+  for (const observation of input.observations) {
+    validateSocialReflectionObservation(observation);
+    if (expected.has(observation.agentId)) {
+      coveredAgentIds.add(observation.agentId);
+    }
+    directedPairs.add(`${observation.agentId}->${observation.targetAgentId}`);
+    confidenceTotal += observation.confidence;
+    evidenceBackedObservationCount += observation.evidenceRecordIds.length > 0 ? 1 : 0;
+    requiredTagObservationCount += observation.tags.includes(input.requiredTag) ? 1 : 0;
+    latestGeneratedAt = Math.max(latestGeneratedAt, observation.generatedAt);
+  }
+
+  return {
+    observationCount: input.observations.length,
+    expectedAgentCount: expected.size,
+    coveredAgentCount: coveredAgentIds.size,
+    agentCoverageRatio: coveredAgentIds.size / expected.size,
+    directedPairCount: directedPairs.size,
+    meanConfidence:
+      input.observations.length === 0 ? 0 : confidenceTotal / input.observations.length,
+    evidenceBackedObservationCount,
+    requiredTagObservationCount,
+    latestGeneratedAt,
+  };
+}
+
 function calculateTrajectoryDiagnostics(
   expectedAgentIds: readonly string[],
   trajectories: readonly AgentTrajectoryObservation[],
@@ -606,11 +699,7 @@ function calculateTrajectoryDiagnostics(
     throw new Error('trajectories requires at least one trajectory observation');
   }
 
-  const expected = new Set<string>();
-  for (const agentId of expectedAgentIds) {
-    assertNonEmptyString(agentId, 'expectedTrajectoryAgentIds agentId');
-    expected.add(agentId);
-  }
+  const expected = createExpectedAgentIdSet(expectedAgentIds);
 
   const trajectoryByAgent = new Map<string, AgentTrajectoryObservation>();
   for (const trajectory of trajectories) {
@@ -804,6 +893,41 @@ function createPlannerAblationMetric(
   };
 }
 
+function createSocialReflectionCoverageMetric(
+  diagnostics: SocialReflectionDiagnostics,
+  thresholds: Required<SocialReflectionCoverageThresholds>,
+): ExperimentValidationMetric {
+  validateSocialReflectionThresholds(thresholds);
+  const status =
+    diagnostics.observationCount >= thresholds.minimumObservationCount &&
+    diagnostics.agentCoverageRatio >= thresholds.minimumAgentCoverageRatio &&
+    diagnostics.directedPairCount >= thresholds.minimumDirectedPairCount &&
+    diagnostics.meanConfidence >= thresholds.minimumMeanConfidence &&
+    diagnostics.evidenceBackedObservationCount >= thresholds.minimumObservationCount &&
+    diagnostics.requiredTagObservationCount >= thresholds.minimumObservationCount
+      ? 'pass'
+      : 'watch';
+
+  return {
+    id: 'social-reflection-coverage',
+    label: 'Social reflection coverage',
+    status,
+    value: diagnostics.agentCoverageRatio,
+    unit: 'covered expected-agent ratio',
+    evidence: {
+      observationCount: diagnostics.observationCount,
+      expectedAgentCount: diagnostics.expectedAgentCount,
+      coveredAgentCount: diagnostics.coveredAgentCount,
+      agentCoverageRatio: diagnostics.agentCoverageRatio,
+      directedPairCount: diagnostics.directedPairCount,
+      meanConfidence: diagnostics.meanConfidence,
+      evidenceBackedObservationCount: diagnostics.evidenceBackedObservationCount,
+      requiredTagObservationCount: diagnostics.requiredTagObservationCount,
+      latestGeneratedAt: diagnostics.latestGeneratedAt,
+    },
+  };
+}
+
 function createTrajectoryCoverageMetric(
   diagnostics: ReturnType<typeof calculateTrajectoryDiagnostics>,
   thresholds: Required<TrajectoryCoverageThresholds>,
@@ -830,6 +954,59 @@ function createTrajectoryCoverageMetric(
       commandBackedTrajectoryCount: diagnostics.commandBackedTrajectoryCount,
     },
   };
+}
+
+function createExpectedAgentIdSet(expectedAgentIds: readonly string[]): ReadonlySet<string> {
+  const expected = new Set<string>();
+  for (const agentId of expectedAgentIds) {
+    assertNonEmptyString(agentId, 'expectedTrajectoryAgentIds agentId');
+    expected.add(agentId);
+  }
+  return expected;
+}
+
+function validateSocialReflectionObservation(
+  observation: SocialReflectionValidationObservation,
+): void {
+  assertNonEmptyString(observation.observationId, 'socialReflectionObservations observationId');
+  assertNonEmptyString(observation.agentId, 'socialReflectionObservations agentId');
+  assertNonEmptyString(observation.targetAgentId, 'socialReflectionObservations targetAgentId');
+  if (observation.agentId === observation.targetAgentId) {
+    throw new Error('socialReflectionObservations targetAgentId must differ from agentId');
+  }
+  assertUnitInterval(observation.confidence, 'socialReflectionObservations confidence');
+  assertFinite(observation.generatedAt, 'socialReflectionObservations generatedAt');
+  if (observation.evidenceRecordIds.length === 0) {
+    throw new Error('socialReflectionObservations evidenceRecordIds must not be empty');
+  }
+  for (const evidenceRecordId of observation.evidenceRecordIds) {
+    assertNonEmptyString(evidenceRecordId, 'socialReflectionObservations evidenceRecordId');
+  }
+  for (const tag of observation.tags) {
+    assertNonEmptyString(tag, 'socialReflectionObservations tag');
+  }
+}
+
+function validateSocialReflectionThresholds(
+  thresholds: Required<SocialReflectionCoverageThresholds>,
+): void {
+  assertNonNegativeInteger(
+    thresholds.minimumObservationCount,
+    'socialReflectionCoverage minimumObservationCount',
+  );
+  assertUnitInterval(
+    thresholds.minimumAgentCoverageRatio,
+    'socialReflectionCoverage minimumAgentCoverageRatio',
+  );
+  assertNonNegativeInteger(
+    thresholds.minimumDirectedPairCount,
+    'socialReflectionCoverage minimumDirectedPairCount',
+  );
+  assertUnitInterval(
+    thresholds.minimumMeanConfidence,
+    'socialReflectionCoverage minimumMeanConfidence',
+  );
+  assertNonEmptyString(thresholds.requiredTag, 'socialReflectionCoverage requiredTag');
 }
 
 function hasCommandSpan(trajectory: AgentTrajectoryObservation): boolean {
@@ -1191,5 +1368,11 @@ function assertPositiveFinite(value: number, fieldName: string): void {
 function assertNonNegativeInteger(value: number, fieldName: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${fieldName} must be a non-negative integer`);
+  }
+}
+
+function assertUnitInterval(value: number, fieldName: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${fieldName} must be within [0, 1]`);
   }
 }

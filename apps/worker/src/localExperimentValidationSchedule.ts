@@ -11,6 +11,7 @@ import type {
   PriceCloseObservation,
   RuntimeProfileRunReportQuery,
   RuntimeProfileRunReportRepository,
+  SocialReflectionValidationObservation,
 } from '@aivilization/observability';
 import type { WorldProjection } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
@@ -41,6 +42,15 @@ export type LocalExperimentValidationPlannerRunSource = RuntimeProfileRunReportQ
   readonly repository: RuntimeProfileRunReportRepository;
 };
 
+export type LocalExperimentValidationSocialReflectionObservationSource = {
+  readonly observationId?: string;
+  readonly agentId?: string;
+  readonly targetAgentId?: string;
+  readonly fromGeneratedAt?: number;
+  readonly toGeneratedAt?: number;
+  readonly limit?: number;
+};
+
 export type LocalExperimentValidationScheduleInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly initialProjection: WorldProjection;
@@ -51,6 +61,7 @@ export type LocalExperimentValidationScheduleInput = {
   readonly marketObservationSource?: LocalExperimentValidationMarketObservationSource;
   readonly plannerRuns?: readonly PlannerExperimentRun[];
   readonly plannerRunSource?: LocalExperimentValidationPlannerRunSource;
+  readonly socialReflectionObservationSource?: LocalExperimentValidationSocialReflectionObservationSource;
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
   readonly trajectories?: readonly { readonly agentId: string; readonly stepCount: number }[];
@@ -101,6 +112,10 @@ export async function runLocalExperimentValidationSchedule(
       ? undefined
       : await createValidationPriceSeriesFromMarketObservationSource(input);
   const plannerRuns = await resolveValidationPlannerRuns(input);
+  const socialReflectionObservations =
+    input.socialReflectionObservationSource === undefined
+      ? undefined
+      : await createValidationSocialReflectionObservationsFromSource(input);
   const report = await recordWorkerExperimentValidationReport({
     repository: input.storage.experimentValidationReportRepository,
     run: {
@@ -113,6 +128,7 @@ export async function runLocalExperimentValidationSchedule(
     events,
     ...(priceSeries === undefined ? {} : { priceSeries }),
     plannerRuns,
+    ...(socialReflectionObservations === undefined ? {} : { socialReflectionObservations }),
     agentCycleTraceRepository: input.storage.agentCycleTraceRepository,
     ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
     ...(input.expectedTrajectoryAgentIds === undefined
@@ -203,6 +219,36 @@ async function createValidationPriceSeriesFromMarketObservationSource(
     ...(source.limit === undefined ? {} : { limit: source.limit }),
   });
   return createPriceCloseObservationsFromTradePriceObservations(observations);
+}
+
+async function createValidationSocialReflectionObservationsFromSource(
+  input: LocalExperimentValidationScheduleInput,
+): Promise<SocialReflectionValidationObservation[]> {
+  const source = input.socialReflectionObservationSource;
+  if (source === undefined) {
+    return [];
+  }
+
+  const observations = await input.storage.socialReflectionObservationRepository.query({
+    simulationId: input.storage.partition.simulationId,
+    partitionKey: input.storage.partition.partitionKey,
+    ...(source.observationId === undefined ? {} : { observationId: source.observationId }),
+    ...(source.agentId === undefined ? {} : { agentId: source.agentId }),
+    ...(source.targetAgentId === undefined ? {} : { targetAgentId: source.targetAgentId }),
+    ...(source.fromGeneratedAt === undefined ? {} : { fromGeneratedAt: source.fromGeneratedAt }),
+    ...(source.toGeneratedAt === undefined ? {} : { toGeneratedAt: source.toGeneratedAt }),
+    ...(source.limit === undefined ? {} : { limit: source.limit }),
+  });
+
+  return observations.map((observation) => ({
+    observationId: observation.observationId,
+    agentId: observation.agentId,
+    targetAgentId: observation.targetAgentId,
+    confidence: observation.confidence,
+    evidenceRecordIds: [...observation.evidenceRecordIds],
+    generatedAt: observation.generatedAt,
+    tags: [...observation.tags],
+  }));
 }
 
 function resolveEventWindow(

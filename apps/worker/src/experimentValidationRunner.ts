@@ -10,6 +10,7 @@ import {
   type ExperimentValidationThresholds,
   type PlannerExperimentRun,
   type PriceCloseObservation,
+  type SocialReflectionValidationObservation,
   type WealthSnapshotObservation,
 } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
@@ -30,6 +31,7 @@ export type WorkerExperimentValidationReportInput = {
   readonly events: readonly WorldEvent[];
   readonly priceSeries?: readonly PriceCloseObservation[];
   readonly plannerRuns: readonly PlannerExperimentRun[];
+  readonly socialReflectionObservations?: readonly SocialReflectionValidationObservation[];
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
   readonly trajectories?: readonly AgentTrajectoryObservation[];
@@ -97,6 +99,9 @@ export async function createWorkerExperimentValidationReport(
       }),
     wealthSnapshot: createWealthSnapshotFromWorldProjection(input.projection),
     plannerRuns: input.plannerRuns,
+    ...(input.socialReflectionObservations === undefined
+      ? {}
+      : { socialReflectionObservations: input.socialReflectionObservations }),
     expectedTrajectoryAgentIds,
     trajectories,
     ...(input.thresholds === undefined ? {} : { thresholds: input.thresholds }),

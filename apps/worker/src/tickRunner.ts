@@ -7,6 +7,7 @@ import type {
   CycleRepairPolicy,
   CycleSubtaskCompletionPolicy,
   DomainMicroPlanner,
+  ReactionEvaluator,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -118,6 +119,7 @@ export type WorkerTickAmbientObservationMemoryInput =
       readonly enabled?: true;
       readonly importanceScore?: number;
       readonly maxObserversPerEvent?: number;
+      readonly reactionEvaluator?: ReactionEvaluator;
     }
   | {
       readonly enabled: false;
@@ -322,6 +324,9 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
       intentionRepository: input.input.intentionRepository,
       records: result.records,
       createdAt: input.input.issuedAt,
+      ...(input.input.ambientObservationMemory.reactionEvaluator === undefined
+        ? {}
+        : { reactionEvaluator: input.input.ambientObservationMemory.reactionEvaluator }),
     });
   }
   return result;
@@ -331,10 +336,14 @@ async function upsertSocialObservationIntentions(input: {
   readonly intentionRepository: AgentIntentionRepository;
   readonly records: readonly ShortTermMemoryRecord[];
   readonly createdAt: SimulationTimestamp;
+  readonly reactionEvaluator?: ReactionEvaluator;
 }): Promise<void> {
-  const intentions = createSocialObservationScheduledIntentions({
+  const intentions = await createSocialObservationScheduledIntentions({
     records: input.records,
     createdAt: input.createdAt,
+    ...(input.reactionEvaluator === undefined
+      ? {}
+      : { reactionEvaluator: input.reactionEvaluator }),
   });
   if (intentions.length === 0) {
     return;

@@ -450,17 +450,21 @@ function addRequiredAgentCycleLlmMemoryContextStageFailures(
   );
 
   for (const stageName of new Set(requiredStages)) {
-    const actual = diagnosticsByStage.get(stageName)?.shortTermMemoryContextCount ?? 0;
-    if (actual >= 1) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.shortTermMemoryContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'agent-cycle-llm-stage-memory-context-count-too-low',
-      message: `agent-cycle LLM stage ${stageName} shortTermMemoryContextCount must be at least 1`,
+      message: `agent-cycle LLM stage ${stageName} shortTermMemoryContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }
@@ -477,17 +481,21 @@ function addRequiredAgentCycleLlmProfileContextStageFailures(
   );
 
   for (const stageName of new Set(requiredStages)) {
-    const actual = diagnosticsByStage.get(stageName)?.longTermProfileContextCount ?? 0;
-    if (actual >= 1) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.longTermProfileContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
       continue;
     }
     failures.push({
       code: 'agent-cycle-llm-stage-profile-context-count-too-low',
-      message: `agent-cycle LLM stage ${stageName} longTermProfileContextCount must be at least 1`,
+      message: `agent-cycle LLM stage ${stageName} longTermProfileContextCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,
-        minimum: 1,
+        llmAcceptedCount,
+        minimum,
       },
     });
   }

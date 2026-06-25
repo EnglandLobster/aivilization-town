@@ -252,6 +252,7 @@ function createSummary(rootDir: string): LocalRuntimeTownProfileRunnerSummary {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 2,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(2),
     run: {
       traceId: 'aivilization-smoke-25:profile-run:100',
       outcome: 'succeeded',
@@ -285,5 +286,22 @@ function createSummary(rootDir: string): LocalRuntimeTownProfileRunnerSummary {
         agentTraceCount: 1,
       },
     ],
+  };
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
   };
 }

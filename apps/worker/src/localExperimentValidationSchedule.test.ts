@@ -353,6 +353,7 @@ function createProfileRunReport(input: {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 5,
+    agentCycleDiagnostics: createAgentCycleDiagnostics(5),
     plannerExperiment: {
       taskId: 'high-tech-production',
       variant: input.variant,
@@ -373,6 +374,23 @@ function createProfileRunReport(input: {
       },
     ],
   });
+}
+
+function createAgentCycleDiagnostics(traceCount: number) {
+  return {
+    traceCount,
+    acceptedSimulatorCount: traceCount,
+    repairedSimulatorCount: 0,
+    rejectedSimulatorCount: 0,
+    replanningDecisionCount: 0,
+    simulatorEventTraceCount: traceCount,
+    simulatorEventCount: traceCount,
+    commandEmittingCycleCount: traceCount,
+    commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
+    repairedSimulatorRatio: 0,
+    rejectedSimulatorRatio: 0,
+    replanningDecisionRatio: 0,
+  };
 }
 
 function createTrace(input: {

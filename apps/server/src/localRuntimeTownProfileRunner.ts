@@ -1,7 +1,9 @@
 import type { StrategicPlanCompiler } from '@aivilization/agent-runtime';
 import {
+  createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileRunReport,
   type ObjectiveRenewalTrace,
+  type RuntimeProfileAgentCycleDiagnostics,
   type RuntimeProfilePlannerExperiment,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
@@ -65,6 +67,7 @@ export type LocalRuntimeTownProfileRunnerSummary = {
   readonly totalProjectionAgentCount: number;
   readonly totalEventCount: number;
   readonly totalAgentTraceCount: number;
+  readonly agentCycleDiagnostics: RuntimeProfileAgentCycleDiagnostics;
   readonly run: {
     readonly traceId: string;
     readonly outcome: string;
@@ -132,7 +135,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
   });
   const daemonStatus = await runtime.runtimeDaemonApi.getRuntimeDaemonStatus();
-  const partitions = await Promise.all(
+  const partitionResults = await Promise.all(
     runtime.host.partitions.map(async (partition) => {
       const backend = runtime.host.registry.getBackend({
         simulationId: partition.simulationId,
@@ -151,7 +154,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
           candidate.partitionKey === partition.partitionKey,
       );
 
-      return {
+      const summary: LocalRuntimeTownProfileRunnerPartitionSummary = {
         simulationId: partition.simulationId,
         partitionKey: partition.partitionKey,
         scenarioPresetId: partition.scenarioPresetId,
@@ -165,7 +168,12 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         projectionAgentCount: Object.keys(projection.projection.agents).length,
         agentTraceCount: traces.length,
       };
+      return { summary, traces };
     }),
+  );
+  const partitions = partitionResults.map((result) => result.summary);
+  const agentCycleDiagnostics = createRuntimeProfileAgentCycleDiagnostics(
+    partitionResults.flatMap((result) => result.traces),
   );
 
   const summary: LocalRuntimeTownProfileRunnerSummary = {
@@ -178,6 +186,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     totalProjectionAgentCount: sumBy(partitions, (partition) => partition.projectionAgentCount),
     totalEventCount: sumBy(partitions, (partition) => partition.eventCount),
     totalAgentTraceCount: sumBy(partitions, (partition) => partition.agentTraceCount),
+    agentCycleDiagnostics,
     run: {
       traceId: run.traceId,
       outcome: run.outcome,
@@ -206,6 +215,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         totalProjectionAgentCount: summary.totalProjectionAgentCount,
         totalEventCount: summary.totalEventCount,
         totalAgentTraceCount: summary.totalAgentTraceCount,
+        agentCycleDiagnostics: summary.agentCycleDiagnostics,
         partitions: summary.partitions,
         ...(input.plannerExperiment === undefined
           ? {}

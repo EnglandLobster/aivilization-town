@@ -134,6 +134,7 @@ export async function runLocalRuntimeTownPlannerAblationSuite(
       totalProjectionAgentCount: summary.totalProjectionAgentCount,
       totalEventCount: summary.totalEventCount,
       totalAgentTraceCount: summary.totalAgentTraceCount,
+      agentCycleDiagnostics: summary.agentCycleDiagnostics,
       partitions: summary.partitions.map((partition) => ({ ...partition })),
       plannerExperiment: {
         taskId: input.taskId,

@@ -5,9 +5,13 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   FileRuntimeProfileRunReportRepository,
   InMemoryRuntimeProfileRunReportRepository,
+  createAgentCycleTrace,
+  createRuntimeProfileAgentCycleDiagnostics,
   createPlannerExperimentRunsFromRuntimeProfileReports,
   createRuntimeProfileRunReport,
+  type AgentCycleTrace,
   type PlannerExperimentMetric,
+  type RuntimeProfileAgentCycleDiagnostics,
   type RuntimeProfileRunReport,
 } from './index';
 
@@ -54,6 +58,7 @@ describe('runtime profile run report repositories', () => {
     }
     Reflect.set(read, 'totalEventCount', 999);
     Reflect.set(read.partitions[0]!, 'eventCount', 999);
+    Reflect.set(read.agentCycleDiagnostics, 'traceCount', 999);
 
     await expect(repository.get('run-200')).resolves.toEqual(newer);
   });
@@ -130,6 +135,103 @@ describe('runtime profile run report repositories', () => {
       },
     ]);
   });
+
+  test('validates profile agent cycle diagnostics', () => {
+    expect(() =>
+      createRuntimeProfileRunReport({
+        ...createReport({ runId: 'invalid-diagnostics-ratio' }),
+        agentCycleDiagnostics: {
+          ...createDiagnostics(),
+          repairedSimulatorRatio: 1.1,
+        },
+      }),
+    ).toThrow('agentCycleDiagnostics repairedSimulatorRatio must be between 0 and 1');
+    expect(() =>
+      createRuntimeProfileRunReport({
+        ...createReport({ runId: 'invalid-diagnostics-count' }),
+        agentCycleDiagnostics: {
+          ...createDiagnostics(),
+          traceCount: -1,
+        },
+      }),
+    ).toThrow('agentCycleDiagnostics traceCount must be a non-negative integer');
+  });
+
+  test('summarizes agent cycle diagnostics from traces', () => {
+    expect(
+      createRuntimeProfileAgentCycleDiagnostics([
+        createTrace({
+          traceId: 'accepted-with-command',
+          simulatorStatus: 'accepted',
+          replanning: false,
+          emittedCommandCount: 1,
+          simulatorEvents: [
+            {
+              actionId: 'study-1',
+              attempt: 'original',
+              status: 'accepted',
+              events: [{ type: 'EducationChanged', sequence: 10, summary: 'study' }],
+            },
+          ],
+        }),
+        createTrace({
+          traceId: 'repaired-with-events',
+          simulatorStatus: 'repaired',
+          replanning: true,
+          emittedCommandCount: 2,
+          simulatorEvents: [
+            {
+              actionId: 'eat-1',
+              attempt: 'original',
+              status: 'rejected',
+              reason: 'insufficient Apple',
+              events: [{ type: 'ActionRejected', sequence: 11, summary: 'insufficient Apple' }],
+            },
+            {
+              actionId: 'buy-apple-1',
+              attempt: 'repair',
+              status: 'accepted',
+              events: [{ type: 'TradeExecuted', sequence: 12, summary: 'buy Apple 1' }],
+            },
+          ],
+        }),
+        createTrace({
+          traceId: 'rejected-no-command',
+          simulatorStatus: 'rejected',
+          replanning: true,
+          emittedCommandCount: 0,
+          simulatorEvents: [],
+        }),
+      ]),
+    ).toEqual({
+      traceCount: 3,
+      acceptedSimulatorCount: 1,
+      repairedSimulatorCount: 1,
+      rejectedSimulatorCount: 1,
+      replanningDecisionCount: 2,
+      simulatorEventTraceCount: 3,
+      simulatorEventCount: 3,
+      commandEmittingCycleCount: 2,
+      commandEmittingCycleRatio: 2 / 3,
+      repairedSimulatorRatio: 1 / 3,
+      rejectedSimulatorRatio: 1 / 3,
+      replanningDecisionRatio: 2 / 3,
+    });
+    expect(createRuntimeProfileAgentCycleDiagnostics([])).toEqual({
+      traceCount: 0,
+      acceptedSimulatorCount: 0,
+      repairedSimulatorCount: 0,
+      rejectedSimulatorCount: 0,
+      replanningDecisionCount: 0,
+      simulatorEventTraceCount: 0,
+      simulatorEventCount: 0,
+      commandEmittingCycleCount: 0,
+      commandEmittingCycleRatio: 0,
+      repairedSimulatorRatio: 0,
+      rejectedSimulatorRatio: 0,
+      replanningDecisionRatio: 0,
+    });
+  });
 });
 
 function createRootDir(): string {
@@ -164,6 +266,7 @@ function createReport(input: {
     totalProjectionAgentCount: 25,
     totalEventCount: 10,
     totalAgentTraceCount: 5,
+    agentCycleDiagnostics: createDiagnostics(),
     ...(input.plannerExperiment === undefined
       ? {}
       : { plannerExperiment: input.plannerExperiment }),
@@ -184,6 +287,23 @@ function createReport(input: {
   });
 }
 
+function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
+  return {
+    traceCount: 5,
+    acceptedSimulatorCount: 2,
+    repairedSimulatorCount: 2,
+    rejectedSimulatorCount: 1,
+    replanningDecisionCount: 3,
+    simulatorEventTraceCount: 7,
+    simulatorEventCount: 12,
+    commandEmittingCycleCount: 4,
+    commandEmittingCycleRatio: 0.8,
+    repairedSimulatorRatio: 0.4,
+    rejectedSimulatorRatio: 0.2,
+    replanningDecisionRatio: 0.6,
+  };
+}
+
 function createPlannerExperiment(input: {
   readonly variant: string;
   readonly metrics: readonly PlannerExperimentMetric[];
@@ -193,4 +313,91 @@ function createPlannerExperiment(input: {
     variant: input.variant,
     metrics: input.metrics,
   };
+}
+
+function createTrace(input: {
+  readonly traceId: string;
+  readonly simulatorStatus: 'accepted' | 'repaired' | 'rejected';
+  readonly replanning: boolean;
+  readonly emittedCommandCount: number;
+  readonly simulatorEvents: AgentCycleTrace['simulatorEvents'];
+}): AgentCycleTrace {
+  return createAgentCycleTrace({
+    traceId: input.traceId,
+    simulationId: 'sim-1',
+    agentId: `${input.traceId}:agent`,
+    cycleStartedAt: 100,
+    observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+    selectedBranch: 'development',
+    subtaskCandidates: [
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        description: 'study',
+        score: 5,
+        scoreBreakdown: {
+          basePriorityScore: 5,
+          signalInfluenceScore: 0,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 0,
+          profileInfluenceScore: 0,
+        },
+      },
+    ],
+    actionSynthesis: {
+      acceptedActions: [
+        {
+          id: `${input.traceId}:action`,
+          description: 'Study',
+          commandType: 'AgentStudy',
+        },
+      ],
+      rejectedActions: [],
+    },
+    candidateActions: ['Study'],
+    simulatorResult:
+      input.simulatorStatus === 'accepted'
+        ? { status: 'accepted' }
+        : { status: input.simulatorStatus, reason: `${input.simulatorStatus} fixture` },
+    simulatorEvents: input.simulatorEvents,
+    selectionEvidence: {
+      selectedSubtaskId: 'study',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 0,
+      profileInfluenceScore: 0,
+      memoryEvidenceRecordIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    },
+    replanningDecision: input.replanning
+      ? {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'fixture repair',
+          failedActionIds: [`${input.traceId}:action`],
+          evidenceRecordIds: [],
+        }
+      : { kind: 'none' },
+    subtaskReplanningDecisions: [
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        decision: input.replanning
+          ? {
+              kind: 'memory-guided-correction',
+              trigger: 'simulator-rejection',
+              reason: 'fixture repair',
+              failedActionIds: [`${input.traceId}:action`],
+              evidenceRecordIds: [],
+            }
+          : { kind: 'none' },
+      },
+    ],
+    emittedCommandIds: Array.from(
+      { length: input.emittedCommandCount },
+      (_, index) => `${input.traceId}:command-${index + 1}`,
+    ),
+    memoryContextIds: [],
+    memoryWriteIds: [],
+  });
 }

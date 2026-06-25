@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PartitionKey } from '@aivilization/sim-core';
+import type { AgentCycleTrace } from './agentCycleTrace';
 import type { PlannerExperimentMetric, PlannerExperimentRun } from './experimentValidation';
 
 export type RuntimeProfileRunPartitionReport = {
@@ -32,8 +33,24 @@ export type RuntimeProfileRunReport = {
   readonly totalProjectionAgentCount: number;
   readonly totalEventCount: number;
   readonly totalAgentTraceCount: number;
+  readonly agentCycleDiagnostics: RuntimeProfileAgentCycleDiagnostics;
   readonly partitions: readonly RuntimeProfileRunPartitionReport[];
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
+};
+
+export type RuntimeProfileAgentCycleDiagnostics = {
+  readonly traceCount: number;
+  readonly acceptedSimulatorCount: number;
+  readonly repairedSimulatorCount: number;
+  readonly rejectedSimulatorCount: number;
+  readonly replanningDecisionCount: number;
+  readonly simulatorEventTraceCount: number;
+  readonly simulatorEventCount: number;
+  readonly commandEmittingCycleCount: number;
+  readonly commandEmittingCycleRatio: number;
+  readonly repairedSimulatorRatio: number;
+  readonly rejectedSimulatorRatio: number;
+  readonly replanningDecisionRatio: number;
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -133,10 +150,59 @@ export function createRuntimeProfileRunReport(
     totalProjectionAgentCount: input.totalProjectionAgentCount,
     totalEventCount: input.totalEventCount,
     totalAgentTraceCount: input.totalAgentTraceCount,
+    agentCycleDiagnostics: cloneAgentCycleDiagnostics(input.agentCycleDiagnostics),
     partitions: input.partitions.map((partition) => ({ ...partition })),
     ...(input.plannerExperiment === undefined
       ? {}
       : { plannerExperiment: clonePlannerExperiment(input.plannerExperiment) }),
+  };
+}
+
+export function createRuntimeProfileAgentCycleDiagnostics(
+  traces: readonly AgentCycleTrace[],
+): RuntimeProfileAgentCycleDiagnostics {
+  const traceCount = traces.length;
+  let acceptedSimulatorCount = 0;
+  let repairedSimulatorCount = 0;
+  let rejectedSimulatorCount = 0;
+  let replanningDecisionCount = 0;
+  let simulatorEventTraceCount = 0;
+  let simulatorEventCount = 0;
+  let commandEmittingCycleCount = 0;
+
+  for (const trace of traces) {
+    if (trace.simulatorResult.status === 'accepted') {
+      acceptedSimulatorCount += 1;
+    }
+    if (trace.simulatorResult.status === 'repaired') {
+      repairedSimulatorCount += 1;
+    }
+    if (trace.simulatorResult.status === 'rejected') {
+      rejectedSimulatorCount += 1;
+    }
+    if (trace.replanningDecision.kind !== 'none') {
+      replanningDecisionCount += 1;
+    }
+    simulatorEventTraceCount += trace.simulatorEvents.length;
+    simulatorEventCount += sumBy(trace.simulatorEvents, (entry) => entry.events.length);
+    if (trace.emittedCommandIds.length > 0) {
+      commandEmittingCycleCount += 1;
+    }
+  }
+
+  return {
+    traceCount,
+    acceptedSimulatorCount,
+    repairedSimulatorCount,
+    rejectedSimulatorCount,
+    replanningDecisionCount,
+    simulatorEventTraceCount,
+    simulatorEventCount,
+    commandEmittingCycleCount,
+    commandEmittingCycleRatio: ratio(commandEmittingCycleCount, traceCount),
+    repairedSimulatorRatio: ratio(repairedSimulatorCount, traceCount),
+    rejectedSimulatorRatio: ratio(rejectedSimulatorCount, traceCount),
+    replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
   };
 }
 
@@ -228,6 +294,10 @@ function validateReport(report: RuntimeProfileRunReport): void {
   if (report.totalAgentTraceCount !== totalAgentTraceCount) {
     throw new Error('totalAgentTraceCount must equal partition agent trace total');
   }
+  validateAgentCycleDiagnostics(report.agentCycleDiagnostics);
+  if (report.agentCycleDiagnostics.traceCount !== report.totalAgentTraceCount) {
+    throw new Error('agentCycleDiagnostics traceCount must equal totalAgentTraceCount');
+  }
   if (report.plannerExperiment !== undefined) {
     validatePlannerExperiment(report.plannerExperiment);
   }
@@ -273,6 +343,57 @@ function clonePlannerExperiment(
     variant: experiment.variant,
     metrics: experiment.metrics.map(clonePlannerExperimentMetric),
   };
+}
+
+function cloneAgentCycleDiagnostics(
+  diagnostics: RuntimeProfileAgentCycleDiagnostics,
+): RuntimeProfileAgentCycleDiagnostics {
+  validateAgentCycleDiagnostics(diagnostics);
+  return { ...diagnostics };
+}
+
+function validateAgentCycleDiagnostics(
+  diagnostics: RuntimeProfileAgentCycleDiagnostics | undefined,
+): asserts diagnostics is RuntimeProfileAgentCycleDiagnostics {
+  if (diagnostics === undefined) {
+    throw new Error('agentCycleDiagnostics is required');
+  }
+  const countFields: readonly (keyof RuntimeProfileAgentCycleDiagnostics)[] = [
+    'traceCount',
+    'acceptedSimulatorCount',
+    'repairedSimulatorCount',
+    'rejectedSimulatorCount',
+    'replanningDecisionCount',
+    'simulatorEventTraceCount',
+    'simulatorEventCount',
+    'commandEmittingCycleCount',
+  ];
+  for (const field of countFields) {
+    assertNonNegativeInteger(diagnostics[field], `agentCycleDiagnostics ${field}`);
+  }
+  if (
+    diagnostics.acceptedSimulatorCount +
+      diagnostics.repairedSimulatorCount +
+      diagnostics.rejectedSimulatorCount !==
+    diagnostics.traceCount
+  ) {
+    throw new Error('agentCycleDiagnostics simulator status counts must equal traceCount');
+  }
+  if (diagnostics.replanningDecisionCount > diagnostics.traceCount) {
+    throw new Error('agentCycleDiagnostics replanningDecisionCount must not exceed traceCount');
+  }
+  if (diagnostics.commandEmittingCycleCount > diagnostics.traceCount) {
+    throw new Error('agentCycleDiagnostics commandEmittingCycleCount must not exceed traceCount');
+  }
+  const ratioFields: readonly (keyof RuntimeProfileAgentCycleDiagnostics)[] = [
+    'commandEmittingCycleRatio',
+    'repairedSimulatorRatio',
+    'rejectedSimulatorRatio',
+    'replanningDecisionRatio',
+  ];
+  for (const field of ratioFields) {
+    assertRatio(diagnostics[field], `agentCycleDiagnostics ${field}`);
+  }
 }
 
 function clonePlannerExperimentMetric(metric: PlannerExperimentMetric): PlannerExperimentMetric {
@@ -361,4 +482,21 @@ function assertNonNegativeInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${name} must be a non-negative integer`);
   }
+}
+
+function assertRatio(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${name} must be between 0 and 1`);
+  }
+}
+
+function ratio(numerator: number, denominator: number): number {
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
+function sumBy<TValue>(
+  values: readonly TValue[],
+  readValue: (value: TValue) => number,
+): number {
+  return values.reduce((total, value) => total + readValue(value), 0);
 }

@@ -15,4 +15,5 @@ export * from './runtimeSupervisorApi';
 export * from './serverSentEvents';
 export * from './simulationApi';
 export * from './simulationSyncSse';
+export * from './socialReflectionObservationApi';
 export * from './steeringTraceApi';

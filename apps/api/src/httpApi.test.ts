@@ -14,6 +14,7 @@ import type { AgentCycleTraceApiService } from './agentCycleTraceApi';
 import type { DailyPlanRenewalTraceApiService } from './dailyPlanRenewalTraceApi';
 import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
 import type { SteeringTraceApiService } from './steeringTraceApi';
+import type { SocialReflectionObservationApiService } from './socialReflectionObservationApi';
 
 type TestProjection = {
   readonly agents: number;
@@ -240,6 +241,13 @@ type TestAgentCycleTrace = {
       readonly summary?: string;
     }[];
   }[];
+};
+
+type TestSocialReflectionObservation = {
+  readonly observationId: string;
+  readonly agentId: string;
+  readonly targetAgentId: string;
+  readonly generatedAt: number;
 };
 
 describe('town HTTP API router', () => {
@@ -968,6 +976,93 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           traceId: 'cycle-trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes social reflection observation requests to the optional observation service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      socialReflectionObservations: createSocialReflectionObservationService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations',
+        query: {
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          fromGeneratedAt: '100',
+          toGeneratedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          generatedAt: 100,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations/observation-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        observationId: 'observation-1',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        generatedAt: 100,
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'querySocialReflectionObservations',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSocialReflectionObservation',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          observationId: 'observation-1',
         },
       },
     ]);
@@ -2234,6 +2329,33 @@ function createAgentCycleTraceService(
       calls.push({ method: 'queryAgentCycleTraces', request });
       return Promise.resolve([
         createTestAgentCycleTrace(request.traceId ?? 'cycle-trace-1', request.agentId ?? 'agent-1'),
+      ]);
+    },
+  };
+}
+
+function createSocialReflectionObservationService(
+  calls: unknown[],
+): SocialReflectionObservationApiService<TestSocialReflectionObservation> {
+  return {
+    getSocialReflectionObservation: (request) => {
+      calls.push({ method: 'getSocialReflectionObservation', request });
+      return Promise.resolve({
+        observationId: request.observationId,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        generatedAt: 100,
+      });
+    },
+    querySocialReflectionObservations: (request) => {
+      calls.push({ method: 'querySocialReflectionObservations', request });
+      return Promise.resolve([
+        {
+          observationId: request.observationId ?? 'observation-1',
+          agentId: request.agentId ?? 'agent-1',
+          targetAgentId: request.targetAgentId ?? 'agent-2',
+          generatedAt: request.fromGeneratedAt ?? 100,
+        },
       ]);
     },
   };

@@ -59,6 +59,7 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly missingCycleCount: number;
   readonly shortTermMemoryContextCount: number;
   readonly longTermProfileContextCount: number;
+  readonly observedStateSummaryCount?: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
   readonly rulesContextCount: number;
@@ -101,6 +102,7 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly missingProviderTraceCount: number;
   readonly shortTermMemoryContextCount?: number;
   readonly longTermProfileContextCount?: number;
+  readonly observedStateSummaryCount?: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
   readonly rulesContextCount: number;
@@ -112,6 +114,7 @@ export type RuntimeProfileCognitionProviderTrace = {
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
   readonly shortTermMemoryContext?: unknown;
   readonly longTermProfileContext?: unknown;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: unknown;
 };
 
@@ -220,6 +223,7 @@ export function createRuntimeProfileRunReport(
             ...stage,
             shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
+            observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
             rulesContextCount: stage.rulesContextCount ?? 0,
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
@@ -316,6 +320,7 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         missingProviderTraceCount: 0,
         shortTermMemoryContextCount: 0,
         longTermProfileContextCount: 0,
+        observedStateSummaryCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
         rulesContextCount: 0,
@@ -519,6 +524,7 @@ function cloneAgentCycleDiagnostics(
             ...stage,
             shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
+            observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
             rulesContextCount: stage.rulesContextCount ?? 0,
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
@@ -608,6 +614,7 @@ type AgentCycleLlmStageTrace = {
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
   readonly shortTermMemoryContext?: unknown;
   readonly longTermProfileContext?: unknown;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: unknown;
 };
 
@@ -622,6 +629,7 @@ type MutableLlmStageDiagnostics = {
   missingCycleCount: number;
   shortTermMemoryContextCount: number;
   longTermProfileContextCount: number;
+  observedStateSummaryCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
   rulesContextCount: number;
@@ -637,6 +645,7 @@ type MutableCognitionLlmStageDiagnostics = {
   missingProviderTraceCount: number;
   shortTermMemoryContextCount: number;
   longTermProfileContextCount: number;
+  observedStateSummaryCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
   rulesContextCount: number;
@@ -681,6 +690,7 @@ function createLlmStageDiagnostics(
         missingCycleCount: 0,
         shortTermMemoryContextCount: 0,
         longTermProfileContextCount: 0,
+        observedStateSummaryCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
         rulesContextCount: 0,
@@ -768,6 +778,9 @@ function recordStageTrace(input: {
     if (trace.longTermProfileContext !== undefined) {
       diagnostics.longTermProfileContextCount += 1;
     }
+    if (hasObservedStateSummary(trace.observedStateSummary)) {
+      diagnostics.observedStateSummaryCount += 1;
+    }
     if (trace.worldDecisionContext !== undefined) {
       diagnostics.worldDecisionContextCount += 1;
       if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
@@ -835,6 +848,10 @@ function isFinitePositiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function hasObservedStateSummary(value: string | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagnostics): void {
   if (diagnostics.llmStageDiagnostics === undefined) {
     return;
@@ -879,6 +896,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
       longTermProfileContextCount,
       `agentCycleDiagnostics ${stage.stageName} longTermProfileContextCount`,
     );
+    const observedStateSummaryCount = stage.observedStateSummaryCount ?? 0;
+    assertNonNegativeInteger(
+      observedStateSummaryCount,
+      `agentCycleDiagnostics ${stage.stageName} observedStateSummaryCount`,
+    );
     assertNonNegativeInteger(
       stage.worldDecisionContextCount,
       `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount`,
@@ -916,6 +938,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     if (longTermProfileContextCount > stage.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} longTermProfileContextCount must not exceed traceCount`,
+      );
+    }
+    if (observedStateSummaryCount > stage.traceCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} observedStateSummaryCount must not exceed traceCount`,
       );
     }
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {
@@ -967,6 +994,9 @@ function recordCognitionProviderTrace(
   }
   if (trace.longTermProfileContext !== undefined) {
     diagnostics.longTermProfileContextCount += 1;
+  }
+  if (hasObservedStateSummary(trace.observedStateSummary)) {
+    diagnostics.observedStateSummaryCount += 1;
   }
   if (trace.worldDecisionContext !== undefined) {
     diagnostics.worldDecisionContextCount += 1;
@@ -1028,6 +1058,11 @@ function validateCognitionLlmStageDiagnostics(
       longTermProfileContextCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} longTermProfileContextCount`,
     );
+    const observedStateSummaryCount = stage.observedStateSummaryCount ?? 0;
+    assertNonNegativeInteger(
+      observedStateSummaryCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} observedStateSummaryCount`,
+    );
     assertNonNegativeInteger(
       stage.worldDecisionContextCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount`,
@@ -1071,6 +1106,11 @@ function validateCognitionLlmStageDiagnostics(
     if (longTermProfileContextCount > stage.traceCount) {
       throw new Error(
         `cognitionLlmStageDiagnostics ${stage.stageName} longTermProfileContextCount must not exceed traceCount`,
+      );
+    }
+    if (observedStateSummaryCount > stage.traceCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} observedStateSummaryCount must not exceed traceCount`,
       );
     }
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {

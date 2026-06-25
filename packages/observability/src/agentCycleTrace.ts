@@ -63,6 +63,7 @@ export type AgentCycleReplanningDecisionTrace = {
   };
   readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
   readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -144,6 +145,7 @@ export type AgentCycleContextualPrioritizationTrace = {
   };
   readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
   readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -185,6 +187,7 @@ export type AgentCycleActionSequenceGenerationTrace = {
   };
   readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
   readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -225,6 +228,7 @@ export type AgentCycleSocialDialogueGenerationTrace = {
   };
   readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
   readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -264,6 +268,7 @@ export type AgentCycleGlobalSynthesisTrace = {
   };
   readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
   readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -328,6 +333,7 @@ export type AgentCycleActionRepairTrace = {
     };
     readonly shortTermMemoryContext?: AgentCycleShortTermMemoryContextTrace;
     readonly longTermProfileContext?: AgentCycleLongTermProfileContextTrace;
+    readonly observedStateSummary?: string;
     readonly worldDecisionContext?: WorldDecisionContextTrace;
     readonly simulatorResult?: {
       readonly status: 'accepted' | 'rejected';

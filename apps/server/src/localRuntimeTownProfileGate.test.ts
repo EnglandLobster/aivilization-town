@@ -151,6 +151,18 @@ describe('local runtime town profile gate criteria', () => {
     expect(
       createLocalRuntimeTownProfileGateCriteria('smoke-25', {
         runtimeConfig,
+      }).requiredAgentCycleLlmObservedStateStages,
+    ).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+      'replanningDecision',
+    ]);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
       }).requiredCognitionLlmAcceptedStages,
     ).toEqual([
       'strategicPlanning',
@@ -213,6 +225,17 @@ describe('local runtime town profile gate criteria', () => {
         runtimeConfig,
       }).requiredCognitionLlmProfileContextStages,
     ).toEqual(['strategicPlanning', 'dailyPlanning']);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+      }).requiredCognitionLlmObservedStateStages,
+    ).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
   });
 
   test('derives multi-partition default and stress profile gate criteria', () => {

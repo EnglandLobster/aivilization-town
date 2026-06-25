@@ -49,6 +49,7 @@ type PersistedAgentCycleTrace = Omit<
 type LlmCognitiveContextTrace = {
   readonly shortTermMemoryContext?: { readonly recordCount: number };
   readonly longTermProfileContext?: { readonly entryCount: number };
+  readonly observedStateSummary?: string;
 };
 
 export class InMemoryAgentCycleTraceRepository implements AgentCycleTraceRepository {
@@ -221,6 +222,9 @@ function cloneLlmCognitiveContext(trace: LlmCognitiveContextTrace): LlmCognitive
     ...(trace.longTermProfileContext === undefined
       ? {}
       : { longTermProfileContext: { entryCount: trace.longTermProfileContext.entryCount } }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
   };
 }
 

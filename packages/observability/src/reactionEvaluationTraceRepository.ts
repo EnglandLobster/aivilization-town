@@ -31,6 +31,7 @@ export type ReactionEvaluationProviderTrace = {
   readonly message?: string;
   readonly attempts?: readonly ReactionEvaluationAttemptTrace[];
   readonly usage?: ReactionEvaluationUsageTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -226,6 +227,9 @@ function cloneProviderTrace(
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneProviderAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneProviderUsage(trace.usage) }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

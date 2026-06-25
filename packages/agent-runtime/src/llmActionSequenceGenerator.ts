@@ -341,6 +341,9 @@ function mapAcceptedTrace(
     })),
     usage: { ...gateway.usage },
     ...createLlmCognitiveContextTrace(input),
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
@@ -376,6 +379,9 @@ function mapFallbackTrace(input: {
     })),
     usage: { ...input.gateway.usage },
     ...createLlmCognitiveContextTrace(input.input),
+    ...(input.input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.input.observedStateSummary }),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

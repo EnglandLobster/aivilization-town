@@ -234,6 +234,7 @@ function createPlanningTrace(): StrategicPlanCompilationTrace {
     },
     shortTermMemoryContext: { recordCount: 2 },
     longTermProfileContext: { entryCount: 3 },
+    observedStateSummary: 'energy=50 satiety=80 health=100 education=10 balance=100',
     worldDecisionContext: {
       agentId,
       hasLocationId: true,

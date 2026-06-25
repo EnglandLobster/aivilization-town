@@ -118,6 +118,7 @@ export async function proposeReflectiveInsightsWithLlm(
       insights,
       trace: mapAcceptedTrace({
         gateway,
+        observedStateSummary: input.observedStateSummary,
         worldDecisionContext: input.worldDecisionContext,
       }),
       gateway,
@@ -324,6 +325,7 @@ function createFallbackResult(input: {
       gateway: input.failure,
       failureReason: input.failureReason,
       message: input.message,
+      observedStateSummary: input.input.observedStateSummary,
       worldDecisionContext: input.input.worldDecisionContext,
     }),
     failure: input.failure,
@@ -332,6 +334,7 @@ function createFallbackResult(input: {
 
 function mapAcceptedTrace(input: {
   readonly gateway: LlmStructuredSuccess<LlmReflectiveInsightSynthesisProposal>;
+  readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): ReflectiveInsightSynthesisTrace {
   const gateway = input.gateway;
@@ -345,6 +348,9 @@ function mapAcceptedTrace(input: {
     choices: mapChoices(gateway.value.insights),
     attempts: mapAttempts(gateway),
     usage: { ...gateway.usage },
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
@@ -353,6 +359,7 @@ function mapFallbackTrace(input: {
   readonly gateway: LlmStructuredResult<LlmReflectiveInsightSynthesisProposal>;
   readonly failureReason: string;
   readonly message: string;
+  readonly observedStateSummary: string | undefined;
   readonly worldDecisionContext: MemorySynthesisWorldDecisionContext | undefined;
 }): ReflectiveInsightSynthesisTrace {
   const lastAttempt = input.gateway.attempts.at(-1);
@@ -369,6 +376,9 @@ function mapFallbackTrace(input: {
       : {}),
     attempts: mapAttempts(input.gateway),
     usage: { ...input.gateway.usage },
+    ...(input.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.observedStateSummary }),
     ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }

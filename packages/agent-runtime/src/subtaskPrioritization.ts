@@ -51,6 +51,7 @@ export type SubtaskPrioritizationTrace = {
   };
   readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
   readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

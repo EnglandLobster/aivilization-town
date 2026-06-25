@@ -31,6 +31,7 @@ export type SteeringStrategicPlanTrace = {
   readonly message?: string;
   readonly attempts?: readonly SteeringStrategicPlanAttemptTrace[];
   readonly usage?: SteeringStrategicPlanUsageTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -202,6 +203,9 @@ function cloneStrategicPlan(trace: SteeringStrategicPlanTrace): SteeringStrategi
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneStrategicPlanAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneStrategicPlanUsage(trace.usage) }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

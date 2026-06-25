@@ -92,6 +92,7 @@ export type DailyPlanCompilationTrace = {
   readonly usage?: DailyPlanCompilationUsage;
   readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
   readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

@@ -59,6 +59,7 @@ describe('reaction evaluation trace repositories', () => {
           totalTokens: 12,
           estimatedCostMicros: 31,
         },
+        observedStateSummary: 'energy=50 satiety=80 health=100 education=10 balance=100',
         worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
       },
     });

@@ -637,10 +637,13 @@ type MutableCognitionLlmStageDiagnostics = {
 };
 
 type RuntimeProfileWorldDecisionContextTraceLike = {
+  readonly hasLocationId?: unknown;
   readonly hasPhysiology?: unknown;
+  readonly hasJob?: unknown;
   readonly hasBalance?: unknown;
   readonly hasEducationScore?: unknown;
   readonly hasResidentialTier?: unknown;
+  readonly hasInventory?: unknown;
   readonly marketSpotPriceCount?: unknown;
   readonly occupationRuleCount?: unknown;
   readonly productionRuleCount?: unknown;
@@ -780,10 +783,13 @@ function isCompleteWorldDecisionContextTrace(value: unknown): boolean {
 
   const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
   return (
+    trace.hasLocationId === true &&
     trace.hasPhysiology === true &&
+    trace.hasJob === true &&
     trace.hasBalance === true &&
     trace.hasEducationScore === true &&
     trace.hasResidentialTier === true &&
+    trace.hasInventory === true &&
     typeof trace.marketSpotPriceCount === 'number' &&
     Number.isFinite(trace.marketSpotPriceCount) &&
     trace.marketSpotPriceCount > 0

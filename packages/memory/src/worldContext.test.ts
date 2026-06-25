@@ -58,6 +58,9 @@ describe('memory synthesis world decision context', () => {
 
     expect(createMemorySynthesisWorldDecisionContextTrace(context)).toMatchObject({
       agentId: asAgentId('agent-1'),
+      hasLocationId: true,
+      hasJob: true,
+      hasInventory: true,
       occupationRuleCount: 1,
       eligibleOccupationRuleCount: 1,
       productionRuleCount: 1,

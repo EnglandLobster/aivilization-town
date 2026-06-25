@@ -22,6 +22,13 @@ import {
 
 const tmpRoots: string[] = [];
 
+type AgentCycleWorldDecisionContextTrace = NonNullable<
+  NonNullable<AgentCycleTrace['contextualPrioritization']>['worldDecisionContext']
+>;
+type ObjectiveWorldDecisionContextTrace = NonNullable<
+  NonNullable<ObjectiveRenewalTrace['strategicPlan']>['worldDecisionContext']
+>;
+
 afterEach(() => {
   while (tmpRoots.length > 0) {
     const root = tmpRoots.pop();
@@ -494,6 +501,30 @@ describe('runtime profile run report repositories', () => {
     ]);
   });
 
+  test('does not count agent-cycle world context as complete without inventory, job, and location coverage', () => {
+    const diagnostics = createRuntimeProfileAgentCycleDiagnostics([
+      createTrace({
+        traceId: 'agent-cycle-legacy-world-context',
+        simulatorStatus: 'accepted',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        contextualPrioritization: {
+          status: 'accepted',
+          source: 'llm',
+          worldDecisionContext:
+            createLegacyWorldDecisionContextTraceWithoutAgentStateCoverage() as unknown as AgentCycleWorldDecisionContextTrace,
+        },
+      }),
+    ]);
+
+    expect(diagnostics.llmStageDiagnostics?.[0]).toMatchObject({
+      stageName: 'contextualPrioritization',
+      worldDecisionContextCount: 1,
+      completeWorldDecisionContextCount: 0,
+    });
+  });
+
   test('summarizes cognition LLM stage diagnostics from durable profile traces', () => {
     const diagnostics = createRuntimeProfileCognitionLlmStageDiagnostics({
       objectiveRenewalTraces: [
@@ -543,10 +574,13 @@ describe('runtime profile run report repositories', () => {
           source: 'llm',
           worldDecisionContext: {
             agentId: 'agent-1',
+            hasLocationId: true,
             hasPhysiology: true,
+            hasJob: true,
             hasBalance: true,
             hasEducationScore: true,
             hasResidentialTier: true,
+            hasInventory: true,
             inventoryItemCount: 2,
             marketSpotPriceCount: 1,
             hasLatestPriceIndex: true,
@@ -563,10 +597,13 @@ describe('runtime profile run report repositories', () => {
           source: 'deterministic-fallback',
           worldDecisionContext: {
             agentId: 'agent-1',
+            hasLocationId: true,
             hasPhysiology: true,
+            hasJob: true,
             hasBalance: true,
             hasEducationScore: true,
             hasResidentialTier: true,
+            hasInventory: true,
             inventoryItemCount: 2,
             marketSpotPriceCount: 1,
             hasLatestPriceIndex: true,
@@ -637,6 +674,28 @@ describe('runtime profile run report repositories', () => {
         completeRulesContextCount: 0,
       },
     ]);
+  });
+
+  test('does not count cognition world context as complete without inventory, job, and location coverage', () => {
+    const diagnostics = createRuntimeProfileCognitionLlmStageDiagnostics({
+      objectiveRenewalTraces: [
+        createObjectiveRenewalTrace({
+          traceId: 'cognition-legacy-world-context',
+          strategicPlan: {
+            status: 'accepted',
+            source: 'llm',
+            worldDecisionContext:
+              createLegacyWorldDecisionContextTraceWithoutAgentStateCoverage() as unknown as ObjectiveWorldDecisionContextTrace,
+          },
+        }),
+      ],
+    });
+
+    expect(diagnostics[0]).toMatchObject({
+      stageName: 'strategicPlanning',
+      worldDecisionContextCount: 1,
+      completeWorldDecisionContextCount: 0,
+    });
   });
 
   test('preserves cognition LLM stage diagnostics on runtime profile reports', () => {
@@ -907,10 +966,13 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
 function createWorldDecisionContextTrace() {
   return {
     agentId: 'agent-1',
+    hasLocationId: true,
     hasPhysiology: true,
+    hasJob: true,
     hasBalance: true,
     hasEducationScore: true,
     hasResidentialTier: true,
+    hasInventory: true,
     inventoryItemCount: 2,
     marketSpotPriceCount: 1,
     hasLatestPriceIndex: true,
@@ -919,6 +981,14 @@ function createWorldDecisionContextTrace() {
     productionRuleCount: 6,
     producibleCommodityRuleCount: 3,
   };
+}
+
+function createLegacyWorldDecisionContextTraceWithoutAgentStateCoverage() {
+  const { hasLocationId, hasJob, hasInventory, ...trace } = createWorldDecisionContextTrace();
+  void hasLocationId;
+  void hasJob;
+  void hasInventory;
+  return trace;
 }
 
 function createIncompleteWorldDecisionContextTrace() {

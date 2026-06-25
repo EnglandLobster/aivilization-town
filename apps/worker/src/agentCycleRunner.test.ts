@@ -898,10 +898,13 @@ describe('worker agent cycle runner', () => {
           },
           worldDecisionContext: {
             agentId: input.agentId,
+            hasLocationId: input.worldDecisionContext?.agent.locationId !== undefined,
             hasPhysiology: input.worldDecisionContext !== undefined,
+            hasJob: input.worldDecisionContext?.agent.job !== undefined,
             hasBalance: Number.isFinite(input.worldDecisionContext?.agent.balance),
             hasEducationScore: Number.isFinite(input.worldDecisionContext?.agent.educationScore),
             hasResidentialTier: Number.isFinite(input.worldDecisionContext?.agent.residentialTier),
+            hasInventory: input.worldDecisionContext?.agent.inventory !== undefined,
             inventoryItemCount: Object.keys(input.worldDecisionContext?.agent.inventory ?? {})
               .length,
             marketSpotPriceCount: input.worldDecisionContext?.market.spotPrices.length ?? 0,

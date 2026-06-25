@@ -956,6 +956,25 @@ describe('worker agent cycle runner', () => {
         createdAt: 999,
       }),
     ).resolves.toEqual(result.progressUpdate);
+    expect(result.trace.subtaskReplanningDecisions).toEqual([
+      {
+        branchId: 'recovery',
+        subtaskId: 'sleep',
+        decision: { kind: 'none' },
+      },
+      {
+        branchId: 'development',
+        subtaskId: 'study',
+        decision: {
+          kind: 'full-replan',
+          trigger: 'repeated-failure',
+          reason: 'energy too low',
+          failedActionIds: ['study-1'],
+          evidenceRecordIds: ['study-energy-failure'],
+          matchingFailureCount: 1,
+        },
+      },
+    ]);
   });
 
   test('loads and saves progress updates through a repository', async () => {

@@ -75,10 +75,16 @@ export type AgentCycleResult = {
   readonly simulationResults: readonly ActionWithRepairResult[];
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
+  readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecision[];
   readonly subtaskCompletionDecision: SubtaskCompletionDecision;
   readonly subtaskCompletionDecisions: readonly AgentCycleSubtaskCompletionDecision[];
   readonly progressUpdate?: BranchPlanProgress;
   readonly needsReplan: boolean;
+};
+
+export type AgentCycleSubtaskReplanningDecision = {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly decision: ReplanningDecision;
 };
 
 export type AgentCycleSubtaskCompletionDecision = {
@@ -257,6 +263,13 @@ function finalizeAgentCycleResult(input: {
       ? {}
       : { majorContextShift: input.replanningPolicy.majorContextShift }),
   });
+  const subtaskReplanningDecisions = decideSubtaskReplanningByProducer({
+    simulationResults: input.simulationResults,
+    fallback: input.selectedSubtask,
+    selectedSubtasksByKey: input.selectedSubtasksByKey,
+    shortTermMemoryContext: input.shortTermMemoryContext,
+    replanningPolicy: input.replanningPolicy,
+  });
   const subtaskCompletionDecisions = decideSubtaskCompletionByProducer({
     simulationResults: input.simulationResults,
     fallback: input.selectedSubtask,
@@ -301,11 +314,36 @@ function finalizeAgentCycleResult(input: {
         : [createCommandDraft(input, actionFromSimulationResult(result))],
     ),
     replanningDecision,
+    subtaskReplanningDecisions,
     subtaskCompletionDecision,
     subtaskCompletionDecisions,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
     needsReplan: input.simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function decideSubtaskReplanningByProducer(input: {
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly fallback: PrioritizedSubtask;
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[] | undefined;
+  readonly replanningPolicy: AdaptiveReplanningPolicy | undefined;
+}): readonly AgentCycleSubtaskReplanningDecision[] {
+  return groupSimulationResultsByProducer(input).map((group) => ({
+    selectedSubtask: group.selectedSubtask,
+    decision: decideAdaptiveReplanning({
+      selectedSubtask: group.selectedSubtask,
+      simulationResults: group.simulationResults,
+      shortTermMemoryContext: input.shortTermMemoryContext ?? [],
+      consecutiveFailureThreshold: input.replanningPolicy?.consecutiveFailureThreshold ?? 2,
+      ...(input.replanningPolicy?.failureTags === undefined
+        ? {}
+        : { failureTags: input.replanningPolicy.failureTags }),
+      ...(input.replanningPolicy?.majorContextShift === undefined
+        ? {}
+        : { majorContextShift: input.replanningPolicy.majorContextShift }),
+    }),
+  }));
 }
 
 function decideSubtaskCompletionByProducer(input: {

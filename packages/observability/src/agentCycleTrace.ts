@@ -47,6 +47,12 @@ export type AgentCycleSubtaskCandidateTrace = {
   };
 };
 
+export type AgentCycleSubtaskReplanningDecisionTrace = {
+  readonly branchId: string;
+  readonly subtaskId: string;
+  readonly decision: ReplanningTraceDecision;
+};
+
 export type AgentCycleActionResourceEstimateTrace = {
   readonly actionSeconds?: number;
   readonly energyCost?: number;
@@ -95,6 +101,7 @@ export type AgentCycleTrace = {
   readonly simulatorResult: SimulatorTraceResult;
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
   readonly replanningDecision: ReplanningTraceDecision;
+  readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecisionTrace[];
   readonly emittedCommandIds: readonly string[];
   readonly memoryContextIds: readonly string[];
   readonly memoryWriteIds: readonly string[];

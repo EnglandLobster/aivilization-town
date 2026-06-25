@@ -81,6 +81,24 @@ describe('createAgentCycleTrace', () => {
         failedActionIds: ['craft-1'],
         evidenceRecordIds: ['stm-context-1'],
       },
+      subtaskReplanningDecisions: [
+        {
+          branchId: 'production-resource-management',
+          subtaskId: 'craft-transistor',
+          decision: {
+            kind: 'memory-guided-correction',
+            trigger: 'simulator-rejection',
+            reason: 'missing Iron Ingot',
+            failedActionIds: ['craft-1'],
+            evidenceRecordIds: ['stm-context-1'],
+          },
+        },
+        {
+          branchId: 'recovery',
+          subtaskId: 'restore-satiety',
+          decision: { kind: 'none' },
+        },
+      ],
       emittedCommandIds: ['cmd-1', 'cmd-2'],
       memoryContextIds: ['stm-context-1'],
       memoryWriteIds: ['stm-1'],
@@ -89,6 +107,24 @@ describe('createAgentCycleTrace', () => {
     expect(trace.selectedBranch).toBe('production-resource-management');
     expect(trace.simulatorResult.status).toBe('repaired');
     expect(trace.replanningDecision.kind).toBe('memory-guided-correction');
+    expect(trace.subtaskReplanningDecisions).toEqual([
+      {
+        branchId: 'production-resource-management',
+        subtaskId: 'craft-transistor',
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'missing Iron Ingot',
+          failedActionIds: ['craft-1'],
+          evidenceRecordIds: ['stm-context-1'],
+        },
+      },
+      {
+        branchId: 'recovery',
+        subtaskId: 'restore-satiety',
+        decision: { kind: 'none' },
+      },
+    ]);
     expect(trace.selectionEvidence.profileEvidenceRecordIds).toEqual(['reflection-rest-1']);
     expect(trace.subtaskCandidates[0]?.scoreBreakdown.memoryInfluenceScore).toBe(1.25);
     expect(trace.actionSynthesis.rejectedActions[0]?.reason).toBe('maxActions exhausted');
@@ -169,6 +205,19 @@ describe('createAgentCycleTrace', () => {
         failedActionIds: ['study-expensive'],
         evidenceRecordIds: [],
       },
+      subtaskReplanningDecisions: [
+        {
+          branchId: 'development',
+          subtaskId: 'study',
+          decision: {
+            kind: 'memory-guided-correction',
+            trigger: 'simulator-rejection',
+            reason: 'action synthesis rejected action: energy budget exceeded',
+            failedActionIds: ['study-expensive'],
+            evidenceRecordIds: [],
+          },
+        },
+      ],
       emittedCommandIds: [],
       memoryContextIds: [],
       memoryWriteIds: [],

@@ -216,6 +216,21 @@ function createTrace(input: {
           evidenceRecordIds: [],
         }
       : { kind: 'none' },
+    subtaskReplanningDecisions: [
+      {
+        branchId: input.selectedBranch,
+        subtaskId: 'study',
+        decision: input.replanning
+          ? {
+              kind: 'memory-guided-correction',
+              trigger: 'simulator-rejection',
+              reason: 'repair from outcome fixture',
+              failedActionIds: [`${input.traceId}:failed-action`],
+              evidenceRecordIds: [],
+            }
+          : { kind: 'none' },
+      },
+    ],
     emittedCommandIds: Array.from(
       { length: input.emittedCommandCount },
       (_, index) => `${input.traceId}:command-${index + 1}`,

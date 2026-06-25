@@ -35,7 +35,7 @@ cycle, worker orchestration, observability trace repositories.
 
 ## Task 1: LLM Reactive Corrector Compiler
 
-- [ ] **Step 1: Write failing compiler tests**
+- [x] **Step 1: Write failing compiler tests**
 
 Create `packages/agent-runtime/src/llmReactiveCorrector.test.ts` with tests that:
 
@@ -54,7 +54,7 @@ pnpm --filter @aivilization/agent-runtime test -- llmReactiveCorrector.test.ts
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 2: Implement action repair contract**
+- [x] **Step 2: Implement action repair contract**
 
 Create `packages/agent-runtime/src/actionRepair.ts` with:
 
@@ -75,7 +75,7 @@ Validation rules:
 - priority and resource estimate numbers are finite;
 - evidence record ids are copied, not shared.
 
-- [ ] **Step 3: Implement LLM compiler**
+- [x] **Step 3: Implement LLM compiler**
 
 Create `packages/agent-runtime/src/llmReactiveCorrector.ts` with schema
 `aivilization_reactive_correction`.
@@ -106,7 +106,7 @@ Fallback behavior:
 - trace status is `fallback`;
 - choices record `no-correction` rationale.
 
-- [ ] **Step 4: Verify compiler tests pass**
+- [x] **Step 4: Verify compiler tests pass**
 
 Run:
 
@@ -118,7 +118,7 @@ Expected: PASS.
 
 ## Task 2: Tiered Repair Orchestrator
 
-- [ ] **Step 1: Write failing orchestrator tests**
+- [x] **Step 1: Write failing orchestrator tests**
 
 Create `packages/agent-runtime/src/actionRepair.test.ts` with tests that:
 
@@ -135,7 +135,7 @@ pnpm --filter @aivilization/agent-runtime test -- actionRepair.test.ts llmReacti
 
 Expected: FAIL before `simulateActionWithTieredRepair` exists.
 
-- [ ] **Step 2: Implement `simulateActionWithTieredRepair`**
+- [x] **Step 2: Implement `simulateActionWithTieredRepair`**
 
 Add to `actionRepair.ts`:
 
@@ -146,7 +146,7 @@ Add to `actionRepair.ts`:
 - simulate the reactive action when one is returned;
 - return `needs-replan` when both stages fail or decline.
 
-- [ ] **Step 3: Verify orchestrator tests pass**
+- [x] **Step 3: Verify orchestrator tests pass**
 
 Run:
 
@@ -158,7 +158,7 @@ Expected: PASS.
 
 ## Task 3: Async Cycle Wiring
 
-- [ ] **Step 1: Write failing cycle tests**
+- [x] **Step 1: Write failing cycle tests**
 
 Modify `packages/agent-runtime/src/cycle.test.ts` with tests that:
 
@@ -177,7 +177,7 @@ pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts actionRepair.tes
 
 Expected: FAIL before cycle accepts `reactiveCorrector`.
 
-- [ ] **Step 2: Implement cycle wiring**
+- [x] **Step 2: Implement cycle wiring**
 
 Modify `packages/agent-runtime/src/cycle.ts`:
 
@@ -187,7 +187,7 @@ Modify `packages/agent-runtime/src/cycle.ts`:
 - preserve existing sync `runAgentPlanningCycle` behavior;
 - add `actionRepairTraces?: readonly ActionRepairTrace[]` to `AgentCycleResult`.
 
-- [ ] **Step 3: Verify cycle tests pass**
+- [x] **Step 3: Verify cycle tests pass**
 
 Run:
 
@@ -199,7 +199,7 @@ Expected: PASS.
 
 ## Task 4: Worker And Observability Wiring
 
-- [ ] **Step 1: Write failing worker and observability tests**
+- [x] **Step 1: Write failing worker and observability tests**
 
 Modify tests to prove:
 
@@ -217,7 +217,7 @@ pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentC
 
 Expected: FAIL before pass-through and trace schema exist.
 
-- [ ] **Step 2: Implement pass-through and trace mapping**
+- [x] **Step 2: Implement pass-through and trace mapping**
 
 Modify:
 
@@ -227,7 +227,7 @@ Modify:
 - `packages/observability/src/agentCycleTrace.ts`
 - `packages/observability/src/agentCycleTraceRepository.ts`
 
-- [ ] **Step 3: Verify worker and observability tests pass**
+- [x] **Step 3: Verify worker and observability tests pass**
 
 Run:
 
@@ -238,9 +238,32 @@ pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentC
 
 Expected: PASS.
 
+## Verification Log
+
+- RED: `pnpm --filter @aivilization/agent-runtime test -- llmReactiveCorrector.test.ts`
+  failed before `llmReactiveCorrector.ts` existed.
+- GREEN: `pnpm --filter @aivilization/agent-runtime test -- llmReactiveCorrector.test.ts`
+  passed after the structured compiler and validation layer were added.
+- GREEN: `pnpm --filter @aivilization/agent-runtime test -- actionRepair.test.ts llmReactiveCorrector.test.ts`
+  passed after the tiered repair orchestrator was implemented. The orchestrator test file was added
+  after the shared contract existed, so this was not a pure missing-module RED.
+- RED: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts actionRepair.test.ts llmReactiveCorrector.test.ts`
+  failed before cycle async routing passed `reactiveCorrector` and local repair evidence.
+- GREEN: `pnpm --filter @aivilization/agent-runtime test -- cycle.test.ts actionRepair.test.ts llmReactiveCorrector.test.ts`
+  passed after async cycle wiring and `actionRepairTraces` were added.
+- RED: worker focused tests failed before `reactiveCorrector` pass-through from scheduling/tick into
+  `runWorkerAgentCycle`.
+- GREEN: `pnpm --filter @aivilization/worker test -- agentCycleRunner.test.ts tickRunner.test.ts agentScheduling.test.ts`
+  passed with 52 test files and 298 tests.
+- GREEN: `pnpm --filter @aivilization/observability test -- agentCycleTrace.test.ts agentCycleTraceRepository.test.ts`
+  passed with 12 test files and 39 tests.
+- GREEN: `pnpm check` passed lint, typecheck, and the full Vitest suite with 161 test files and
+  832 tests.
+- GREEN: `git diff --check` passed.
+
 ## Task 5: Full Verification And Commit
 
-- [ ] **Step 1: Format touched files**
+- [x] **Step 1: Format touched files**
 
 Run:
 
@@ -248,7 +271,7 @@ Run:
 pnpm exec prettier --write docs/superpowers/specs/2026-06-25-tiered-action-repair-design.md docs/superpowers/plans/2026-06-25-tiered-action-repair-slice.md packages/agent-runtime/src/actionRepair.ts packages/agent-runtime/src/actionRepair.test.ts packages/agent-runtime/src/llmReactiveCorrector.ts packages/agent-runtime/src/llmReactiveCorrector.test.ts packages/agent-runtime/src/cycle.ts packages/agent-runtime/src/cycle.test.ts packages/agent-runtime/src/index.ts apps/worker/src/agentCycleRunner.ts apps/worker/src/agentCycleRunner.test.ts apps/worker/src/agentScheduling.ts apps/worker/src/agentScheduling.test.ts apps/worker/src/tickRunner.ts apps/worker/src/tickRunner.test.ts packages/observability/src/agentCycleTrace.ts packages/observability/src/agentCycleTrace.test.ts packages/observability/src/agentCycleTraceRepository.ts packages/observability/src/agentCycleTraceRepository.test.ts
 ```
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run:
 

@@ -175,6 +175,74 @@ export type AgentCycleGlobalSynthesisTrace = {
   };
 };
 
+export type AgentCycleActionRepairTrace = {
+  readonly actionId: string;
+  readonly rejectionReason: string;
+  readonly selectedSubtask: {
+    readonly branchId: string;
+    readonly subtaskId: string;
+  };
+  readonly localRepair: {
+    readonly status: 'skipped' | 'accepted' | 'rejected';
+    readonly attemptedAction?: {
+      readonly id: string;
+      readonly description: string;
+      readonly commandType: string;
+    };
+    readonly rejectionReason?: string;
+  };
+  readonly reactiveCorrection?: {
+    readonly status: 'accepted' | 'fallback';
+    readonly source: 'llm' | 'deterministic-fallback';
+    readonly requestId?: string;
+    readonly providerId?: string;
+    readonly model?: string;
+    readonly failureReason?: string;
+    readonly message?: string;
+    readonly decision:
+      | {
+          readonly kind: 'propose-action';
+          readonly rationale: string;
+          readonly evidenceRecordIds: readonly string[];
+          readonly action: {
+            readonly id: string;
+            readonly description: string;
+            readonly commandType: string;
+          };
+        }
+      | {
+          readonly kind: 'no-correction';
+          readonly rationale: string;
+          readonly evidenceRecordIds: readonly string[];
+        };
+    readonly attempts?: readonly {
+      readonly attemptIndex: number;
+      readonly status: string;
+      readonly providerId: string;
+      readonly model: string;
+      readonly message: string;
+      readonly usage: {
+        readonly inputTokens: number;
+        readonly outputTokens: number;
+        readonly totalTokens: number;
+        readonly estimatedCostMicros: number;
+      };
+    }[];
+    readonly usage?: {
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly totalTokens: number;
+      readonly estimatedCostMicros: number;
+    };
+    readonly simulatorResult?: {
+      readonly status: 'accepted' | 'rejected';
+      readonly reason?: string;
+      readonly traceEvents?: readonly AgentCycleSimulatorTraceEvent[];
+    };
+  };
+  readonly outcome: 'repaired' | 'needs-replan';
+};
+
 export type AgentCycleSubtaskReplanningDecisionTrace = {
   readonly branchId: string;
   readonly subtaskId: string;
@@ -240,6 +308,7 @@ export type AgentCycleTrace = {
   readonly contextualPrioritization?: AgentCycleContextualPrioritizationTrace;
   readonly actionSequenceGeneration?: readonly AgentCycleActionSequenceGenerationTrace[];
   readonly globalSynthesis?: AgentCycleGlobalSynthesisTrace;
+  readonly actionRepair?: readonly AgentCycleActionRepairTrace[];
   readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];
   readonly actionSynthesis: AgentCycleActionSynthesisTrace;
   readonly candidateActions: readonly string[];

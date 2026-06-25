@@ -6,6 +6,7 @@ import {
   markSubtaskCompleted,
   type AtomicActionProposal,
   type DomainMicroPlanner,
+  type ReactiveCorrector,
 } from '@aivilization/agent-runtime';
 import { createAmmPool } from '@aivilization/economy';
 import {
@@ -36,7 +37,20 @@ describe('worker agent scheduling', () => {
         reason: 'profile recovery drill requires a fresh plan',
       },
     } as const;
-    const studyRuntime = { ...createRuntimeBinding('study'), replanningPolicy };
+    const reactiveCorrector: ReactiveCorrector = () =>
+      Promise.resolve({
+        action: undefined,
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          decision: {
+            kind: 'no-correction',
+            rationale: 'test corrector',
+            evidenceRecordIds: [],
+          },
+        },
+      });
+    const studyRuntime = { ...createRuntimeBinding('study'), replanningPolicy, reactiveCorrector };
     const tradeRuntime = createRuntimeBinding('trade');
     const projection = createWorldProjection({
       agents: [
@@ -146,6 +160,7 @@ describe('worker agent scheduling', () => {
     expect(agents[0]?.microPlanners).toBe(studyRuntime.microPlanners);
     expect(agents[0]?.simulate).toBe(studyRuntime.simulate);
     expect(agents[0]?.replanningPolicy).toEqual(studyRuntime.replanningPolicy);
+    expect(agents[0]?.reactiveCorrector).toBe(reactiveCorrector);
     expect(agents[0]?.worldDecisionContext).toMatchObject({
       agent: {
         agentId: agentA,

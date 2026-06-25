@@ -4,6 +4,7 @@ import {
   type ActionSynthesisPolicy,
   type ActionSimulationTraceEvent,
   type ActionWithRepairResult,
+  type ActionRepairTrace,
   type ActionSequenceGenerationTrace,
   type ActionSequenceGenerator,
   type AgentCycleResult,
@@ -19,6 +20,7 @@ import {
   type DomainMicroPlanner,
   type GlobalActionSynthesizer,
   type GlobalSynthesisTrace,
+  type ReactiveCorrector,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
@@ -35,6 +37,7 @@ import {
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
   type AgentCycleActionSynthesisTrace,
+  type AgentCycleActionRepairTrace,
   type AgentCycleGlobalSynthesisTrace,
   type AgentCycleSimulatorEventTrace,
   type AgentCycleSimulatorTraceEvent,
@@ -118,6 +121,7 @@ export async function runWorkerAgentCycle(
     readonly subtaskPrioritizer?: SubtaskPrioritizer;
     readonly actionSequenceGenerator?: ActionSequenceGenerator;
     readonly globalSynthesizer?: GlobalActionSynthesizer;
+    readonly reactiveCorrector?: ReactiveCorrector;
     readonly materializeFullReplan?: {
       readonly strategicPlanCompiler?: StrategicPlanCompiler;
       readonly resetProgress?: boolean;
@@ -185,7 +189,8 @@ export async function runWorkerAgentCycle(
   const cycleResult =
     input.subtaskPrioritizer === undefined &&
     input.actionSequenceGenerator === undefined &&
-    input.globalSynthesizer === undefined
+    input.globalSynthesizer === undefined &&
+    input.reactiveCorrector === undefined
       ? runAgentPlanningCycle(cycleInput)
       : await runAgentPlanningCycleWithPrioritization({
           ...cycleInput,
@@ -198,6 +203,9 @@ export async function runWorkerAgentCycle(
           ...(input.globalSynthesizer === undefined
             ? {}
             : { globalSynthesizer: input.globalSynthesizer }),
+          ...(input.reactiveCorrector === undefined
+            ? {}
+            : { reactiveCorrector: input.reactiveCorrector }),
         });
 
   const dispatchResult =
@@ -275,6 +283,11 @@ export async function runWorkerAgentCycle(
     ...(cycleResult.globalSynthesisTrace === undefined
       ? {}
       : { globalSynthesis: mapGlobalSynthesisTrace(cycleResult.globalSynthesisTrace) }),
+    ...(cycleResult.actionRepairTraces === undefined
+      ? {}
+      : {
+          actionRepair: cycleResult.actionRepairTraces.map((entry) => mapActionRepairTrace(entry)),
+        }),
     subtaskCandidates: cycleResult.subtaskCandidates,
     actionSynthesis: mapActionSynthesisTrace(cycleResult.actionSynthesisResult),
     candidateActions: cycleResult.candidateActions.map((action) => action.description),
@@ -569,6 +582,92 @@ function mapGlobalSynthesisTrace(trace: GlobalSynthesisTrace): AgentCycleGlobalS
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+  };
+}
+
+function mapActionRepairTrace(trace: ActionRepairTrace): AgentCycleActionRepairTrace {
+  return {
+    actionId: trace.actionId,
+    rejectionReason: trace.rejectionReason,
+    selectedSubtask: { ...trace.selectedSubtask },
+    localRepair: {
+      status: trace.localRepair.status,
+      ...(trace.localRepair.attemptedAction === undefined
+        ? {}
+        : { attemptedAction: { ...trace.localRepair.attemptedAction } }),
+      ...(trace.localRepair.rejectionReason === undefined
+        ? {}
+        : { rejectionReason: trace.localRepair.rejectionReason }),
+    },
+    ...(trace.reactiveCorrection === undefined
+      ? {}
+      : {
+          reactiveCorrection: {
+            status: trace.reactiveCorrection.status,
+            source: trace.reactiveCorrection.source,
+            ...(trace.reactiveCorrection.requestId === undefined
+              ? {}
+              : { requestId: trace.reactiveCorrection.requestId }),
+            ...(trace.reactiveCorrection.providerId === undefined
+              ? {}
+              : { providerId: trace.reactiveCorrection.providerId }),
+            ...(trace.reactiveCorrection.model === undefined
+              ? {}
+              : { model: trace.reactiveCorrection.model }),
+            ...(trace.reactiveCorrection.failureReason === undefined
+              ? {}
+              : { failureReason: trace.reactiveCorrection.failureReason }),
+            ...(trace.reactiveCorrection.message === undefined
+              ? {}
+              : { message: trace.reactiveCorrection.message }),
+            decision:
+              trace.reactiveCorrection.decision.kind === 'no-correction'
+                ? {
+                    kind: 'no-correction',
+                    rationale: trace.reactiveCorrection.decision.rationale,
+                    evidenceRecordIds: [...trace.reactiveCorrection.decision.evidenceRecordIds],
+                  }
+                : {
+                    kind: 'propose-action',
+                    rationale: trace.reactiveCorrection.decision.rationale,
+                    evidenceRecordIds: [...trace.reactiveCorrection.decision.evidenceRecordIds],
+                    action: { ...trace.reactiveCorrection.decision.action },
+                  },
+            ...(trace.reactiveCorrection.attempts === undefined
+              ? {}
+              : {
+                  attempts: trace.reactiveCorrection.attempts.map((attempt) => ({
+                    attemptIndex: attempt.attemptIndex,
+                    status: attempt.status,
+                    providerId: attempt.providerId,
+                    model: attempt.model,
+                    message: attempt.message,
+                    usage: { ...attempt.usage },
+                  })),
+                }),
+            ...(trace.reactiveCorrection.usage === undefined
+              ? {}
+              : { usage: { ...trace.reactiveCorrection.usage } }),
+            ...(trace.reactiveCorrection.simulatorResult === undefined
+              ? {}
+              : {
+                  simulatorResult: {
+                    status: trace.reactiveCorrection.simulatorResult.status,
+                    ...(trace.reactiveCorrection.simulatorResult.reason === undefined
+                      ? {}
+                      : { reason: trace.reactiveCorrection.simulatorResult.reason }),
+                    ...(trace.reactiveCorrection.simulatorResult.traceEvents === undefined
+                      ? {}
+                      : {
+                          traceEvents: trace.reactiveCorrection.simulatorResult.traceEvents.map(
+                            (event) => ({ ...event }),
+                          ),
+                        }),
+                  },
+                }),
+          },
+        }),
+    outcome: trace.outcome,
   };
 }
 

@@ -35,6 +35,7 @@ function createTrace(input: {
   readonly contextualPrioritization?: boolean;
   readonly actionSequenceGeneration?: boolean;
   readonly globalSynthesis?: boolean;
+  readonly actionRepair?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -176,6 +177,48 @@ function createTrace(input: {
           },
         }
       : {}),
+    ...(input.actionRepair === true
+      ? {
+          actionRepair: [
+            {
+              actionId: `${input.traceId}:study-1`,
+              rejectionReason: 'energy too low',
+              selectedSubtask: {
+                branchId: 'development',
+                subtaskId: 'study',
+              },
+              localRepair: {
+                status: 'rejected',
+                attemptedAction: {
+                  id: `${input.traceId}:study-shorter`,
+                  description: 'study for less time',
+                  commandType: 'AgentStudy',
+                },
+                rejectionReason: 'energy still too low',
+              },
+              reactiveCorrection: {
+                status: 'accepted',
+                source: 'llm',
+                requestId: `${input.traceId}:reactive-correction`,
+                providerId: 'scripted-reactive-corrector',
+                model: 'repair-model',
+                decision: {
+                  kind: 'propose-action',
+                  rationale: 'Sleep before studying based on recent failures.',
+                  evidenceRecordIds: [`${input.traceId}:memory-energy`],
+                  action: {
+                    id: `${input.traceId}:sleep-1`,
+                    description: 'sleep before studying',
+                    commandType: 'AgentSleep',
+                  },
+                },
+                simulatorResult: { status: 'accepted' },
+              },
+              outcome: 'repaired',
+            },
+          ],
+        }
+      : {}),
     subtaskCandidates: [
       {
         branchId: 'development',
@@ -299,6 +342,7 @@ describe('agent cycle trace repositories', () => {
       contextualPrioritization: true,
       actionSequenceGeneration: true,
       globalSynthesis: true,
+      actionRepair: true,
     });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
@@ -370,6 +414,14 @@ describe('agent cycle trace repositories', () => {
       }[]
     )[0]!.rationale = 'mutated';
     (
+      read!.actionRepair![0]!.reactiveCorrection!.decision.evidenceRecordIds as unknown as string[]
+    ).push('mutated');
+    (
+      read!.actionRepair![0]!.reactiveCorrection!.decision as unknown as {
+        rationale: string;
+      }
+    ).rationale = 'mutated';
+    (
       read!.replanMaterialization as unknown as {
         failedActionIds: string[];
       }
@@ -389,6 +441,7 @@ describe('agent cycle trace repositories', () => {
       newer.actionSequenceGeneration,
     );
     expect((await repository.get('trace-200'))?.globalSynthesis).toEqual(newer.globalSynthesis);
+    expect((await repository.get('trace-200'))?.actionRepair).toEqual(newer.actionRepair);
   });
 
   test('persists file-backed traces across repository instances', async () => {

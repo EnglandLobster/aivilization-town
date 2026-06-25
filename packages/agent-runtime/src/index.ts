@@ -1,4 +1,5 @@
 export * from './actions';
+export * from './actionRepair';
 export * from './actionSequenceGeneration';
 export * from './actionSynthesis';
 export * from './branchPlanRepository';
@@ -10,6 +11,7 @@ export * from './llmDailyPlanner';
 export * from './llmActionSequenceGenerator';
 export * from './llmGlobalSynthesizer';
 export * from './llmReactionEvaluator';
+export * from './llmReactiveCorrector';
 export * from './llmSubtaskPrioritizer';
 export * from './llmStrategicPlanner';
 export * from './memoryInfluence';

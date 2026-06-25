@@ -1709,6 +1709,90 @@ describe('canonical active-plan worker tick', () => {
     ]);
   });
 
+  test('materializes a replacement plan from canonical active-plan full replanning', async () => {
+    const repositories = createRepositories();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const objective = createProductionObjective(agentA);
+    const replacementPlan = createBranchPlan({
+      objective: objective.statement,
+      branches: [
+        {
+          id: 'recovery',
+          objective: 'recover before producing',
+          subtasks: [{ id: 'sleep-first', description: 'sleep before producing', basePriority: 9 }],
+        },
+      ],
+    });
+    await repositories.intentionRepository.setObjective(agentA, objective);
+    await repositories.planRepository.save(createProductionPlanRecord(agentA));
+    await planProgressRepository.getOrCreate({
+      planId: objective.id,
+      agentId: agentA,
+      createdAt: 50,
+    });
+    await repositories.shortTermMemoryRepository.appendMany([
+      createProductionFailureMemory({
+        id: 'canonical-production-energy-failure-1',
+        agentId: agentA,
+        occurredAt: 80,
+      }),
+      createProductionFailureMemory({
+        id: 'canonical-production-energy-failure-2',
+        agentId: agentA,
+        occurredAt: 90,
+      }),
+    ]);
+
+    const result = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-canonical-materialize-replan',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection({
+        agents: [createAgent(agentA, { physiology: { energy: 0, satiety: 50, health: 100 } })],
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      domainConfig: { production: { commodityName: 'Apple', quantity: 1 } },
+      objectiveProposer: () => undefined,
+      agentMemoryRetrievalLimit: 10,
+      materializeFullReplan: {
+        strategicPlanCompiler: ({ objective: compilerObjective, issuedAt }) => {
+          expect(compilerObjective).toEqual(objective);
+          expect(issuedAt).toBe(100);
+          return replacementPlan;
+        },
+      },
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.replanMaterialization).toMatchObject({
+      status: 'replanned',
+      planId: objective.id,
+      agentId: agentA,
+      progressReset: true,
+      trigger: 'repeated-failure',
+    });
+    await expect(
+      repositories.planRepository.require({ planId: objective.id, agentId: agentA }),
+    ).resolves.toMatchObject({
+      plan: replacementPlan,
+      createdAt: 100,
+      updatedAt: 100,
+    });
+    await expect(
+      planProgressRepository.get({ planId: objective.id, agentId: agentA }),
+    ).resolves.toEqual({
+      planId: objective.id,
+      agentId: agentA,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+  });
+
   test('skips completed active durable plans and advances time only', async () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
@@ -1915,6 +1999,24 @@ function createObjective(agentId: AgentId): LongHorizonObjective {
     createdAt: 100,
     updatedAt: 100,
   };
+}
+
+function createProductionFailureMemory(input: {
+  readonly id: string;
+  readonly agentId: AgentId;
+  readonly occurredAt: number;
+}) {
+  return createShortTermMemoryRecord({
+    id: input.id,
+    agentId: input.agentId,
+    kind: 'action',
+    status: 'failed',
+    summary: 'Failed to produce staple food because energy was too low.',
+    occurredAt: input.occurredAt,
+    importanceScore: 0.9,
+    source: { eventIds: [] },
+    tags: ['production', 'produce', 'energy'],
+  });
 }
 
 function createSocialObjective(agentId: AgentId): LongHorizonObjective {

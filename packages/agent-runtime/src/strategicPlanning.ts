@@ -1,5 +1,10 @@
 import type { LongHorizonObjective } from '@aivilization/memory';
-import { createBranchPlan, type BranchPlan, type PlannerBranch } from './planner';
+import {
+  createBranchPlan,
+  type BranchPlan,
+  type PlannerBranch,
+  type PlannerSubtask,
+} from './planner';
 
 export type StrategicPlanCompilerInput = {
   readonly objective: LongHorizonObjective;
@@ -96,6 +101,24 @@ export function compileStrategicObjectiveToBranchPlan(
   });
 }
 
+export function compileStrategicObjectiveWithoutObjectiveDecomposition(
+  input: StrategicPlanCompilerInput,
+): StrategicPlanCompilationResult {
+  const plan = compileStrategicObjectiveToBranchPlan(input);
+
+  return {
+    plan: createBranchPlan({
+      objective: plan.objective,
+      branches: plan.branches.map(createDirectActionBranchWithoutObjectiveDecomposition),
+    }),
+    planningTrace: {
+      status: 'deterministic',
+      source: 'deterministic',
+      message: 'Planner ablation without objective decomposition',
+    },
+  };
+}
+
 type StrategicDomainName =
   | 'study'
   | 'residential'
@@ -123,6 +146,93 @@ type PlanningTextContext = {
   readonly tokens: ReadonlySet<string>;
   readonly tags: ReadonlySet<string>;
 };
+
+function createDirectActionBranchWithoutObjectiveDecomposition(
+  branch: PlannerBranch,
+): PlannerBranch {
+  const domain = resolveBranchDomainToken(branch);
+  const subtask = createDirectActionSubtaskWithoutObjectiveDecomposition({ branch, domain });
+
+  return {
+    id: `without-objective-decomposition-${branch.id}`,
+    objective: `Generate direct ${domain} actions without structured objective decomposition.`,
+    subtasks: [subtask],
+  };
+}
+
+function createDirectActionSubtaskWithoutObjectiveDecomposition(input: {
+  readonly branch: PlannerBranch;
+  readonly domain: string;
+}): PlannerSubtask {
+  return {
+    id: `${input.domain}-direct-action`,
+    description: `Directly generate ${input.domain} actions without structured objective decomposition: ${summarizeDirectActionSource(input.branch)}`,
+    basePriority: Math.max(...input.branch.subtasks.map((subtask) => subtask.basePriority)),
+    ...optionalSubtaskTags(
+      'signalKeys',
+      sortedUnique(input.branch.subtasks.flatMap((subtask) => subtask.signalKeys ?? [])),
+    ),
+    ...optionalSubtaskTags(
+      'intentionAffinityTags',
+      stableUnique(input.branch.subtasks.flatMap((subtask) => subtask.intentionAffinityTags ?? [])),
+    ),
+    ...optionalSubtaskTags(
+      'memoryAffinityTags',
+      stableUnique(input.branch.subtasks.flatMap((subtask) => subtask.memoryAffinityTags ?? [])),
+    ),
+    ...optionalSubtaskTags(
+      'profileAffinityTags',
+      stableUnique(input.branch.subtasks.flatMap((subtask) => subtask.profileAffinityTags ?? [])),
+    ),
+  };
+}
+
+function optionalSubtaskTags<
+  TKey extends keyof Pick<
+    PlannerSubtask,
+    'signalKeys' | 'intentionAffinityTags' | 'memoryAffinityTags' | 'profileAffinityTags'
+  >,
+>(key: TKey, values: readonly string[]): Pick<PlannerSubtask, TKey> | Record<string, never> {
+  return values.length === 0 ? {} : ({ [key]: values } as Pick<PlannerSubtask, TKey>);
+}
+
+function summarizeDirectActionSource(branch: PlannerBranch): string {
+  if (branch.subtasks.length === 1) {
+    return branch.subtasks[0]?.description ?? branch.objective;
+  }
+  return branch.objective;
+}
+
+function resolveBranchDomainToken(branch: PlannerBranch): string {
+  const matchingRule = STRATEGIC_DOMAIN_RULES.find((rule) => rule.branchId === branch.id);
+  if (matchingRule !== undefined) {
+    return matchingRule.domain;
+  }
+
+  const tokens = new Set<string>();
+  addDomainCandidateTokens(branch.id, tokens);
+  addDomainCandidateTokens(branch.objective, tokens);
+  for (const subtask of branch.subtasks) {
+    addDomainCandidateTokens(subtask.id, tokens);
+    addDomainCandidateTokens(subtask.description, tokens);
+    for (const tag of [
+      ...(subtask.signalKeys ?? []),
+      ...(subtask.intentionAffinityTags ?? []),
+      ...(subtask.memoryAffinityTags ?? []),
+      ...(subtask.profileAffinityTags ?? []),
+    ]) {
+      addDomainCandidateTokens(tag, tokens);
+    }
+  }
+
+  return STRATEGIC_DOMAIN_RULES.find((rule) => tokens.has(rule.domain))?.domain ?? 'objective';
+}
+
+function addDomainCandidateTokens(text: string, tokens: Set<string>): void {
+  for (const token of tokenizeText(text)) {
+    tokens.add(token);
+  }
+}
 
 const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
   {

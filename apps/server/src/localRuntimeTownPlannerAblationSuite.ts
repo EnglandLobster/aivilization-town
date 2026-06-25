@@ -1,5 +1,9 @@
 import { join } from 'node:path';
-import { createBranchPlan, type StrategicPlanCompiler } from '@aivilization/agent-runtime';
+import {
+  compileStrategicObjectiveWithoutObjectiveDecomposition,
+  createBranchPlan,
+  type StrategicPlanCompiler,
+} from '@aivilization/agent-runtime';
 import {
   FileRuntimeProfileRunReportRepository,
   createRuntimeProfileRunReport,
@@ -28,6 +32,10 @@ export const localRuntimeTownPlannerAblationSuiteDefaultVariants: readonly Local
     {
       variant: 'without-branch',
       strategicPlanCompiler: createLocalRuntimeTownWithoutBranchStrategicPlanCompiler(),
+    },
+    {
+      variant: 'without-objective-decomposition',
+      strategicPlanCompiler: compileStrategicObjectiveWithoutObjectiveDecomposition,
     },
   ];
 

@@ -59,17 +59,23 @@ describe('local runtime town planner ablation suite', () => {
       status: 'completed',
       profileId: 'smoke-25',
       taskId: 'high-tech-production',
-      variantCount: 2,
+      variantCount: 3,
       requestedAt: 100,
     });
     expect(result.variants.map((variant) => variant.variant)).toEqual([
       'default',
       'without-branch',
+      'without-objective-decomposition',
     ]);
-    expect(inputs.map((input) => input.runIdSuffix)).toEqual(['default', 'without-branch']);
+    expect(inputs.map((input) => input.runIdSuffix)).toEqual([
+      'default',
+      'without-branch',
+      'without-objective-decomposition',
+    ]);
     expect(inputs.map((input) => input.rootDir)).toEqual([
       '/tmp/aivilization-planner-ablation/default',
       '/tmp/aivilization-planner-ablation/without-branch',
+      '/tmp/aivilization-planner-ablation/without-objective-decomposition',
     ]);
     expect(
       result.variants.map((variant) => variant.report.plannerExperiment?.metrics.slice(0, 3)),
@@ -84,11 +90,14 @@ describe('local runtime town planner ablation suite', () => {
         { metricId: 'total-agent-trace-count', value: 1, higherIsBetter: true },
         { metricId: 'total-event-count', value: 3, higherIsBetter: true },
       ],
+      [
+        { metricId: 'completed-cycle-count', value: 2, higherIsBetter: true },
+        { metricId: 'total-agent-trace-count', value: 2, higherIsBetter: true },
+        { metricId: 'total-event-count', value: 6, higherIsBetter: true },
+      ],
     ]);
     expect(result.variants[0]?.report.plannerExperiment?.metrics).toEqual(
-      expect.arrayContaining([
-        { metricId: 'planner-plan-count', value: 0, higherIsBetter: true },
-      ]),
+      expect.arrayContaining([{ metricId: 'planner-plan-count', value: 0, higherIsBetter: true }]),
     );
 
     const plannerRuns = createPlannerExperimentRunsFromRuntimeProfileReports(
@@ -98,6 +107,7 @@ describe('local runtime town planner ablation suite', () => {
     expect(plannerRuns.map((run) => ({ taskId: run.taskId, variant: run.variant }))).toEqual([
       { taskId: 'high-tech-production', variant: 'default' },
       { taskId: 'high-tech-production', variant: 'without-branch' },
+      { taskId: 'high-tech-production', variant: 'without-objective-decomposition' },
     ]);
   });
 
@@ -115,7 +125,7 @@ describe('local runtime town planner ablation suite', () => {
       },
     });
 
-    expect(inputs).toHaveLength(2);
+    expect(inputs).toHaveLength(3);
     expect(inputs[0]?.runIdSuffix).toBe('default');
     expect(inputs[0]?.strategicPlanCompiler).toBeUndefined();
     expect(inputs[1]?.runIdSuffix).toBe('without-branch');
@@ -167,6 +177,66 @@ describe('local runtime town planner ablation suite', () => {
       source: 'deterministic',
       message: 'Planner ablation without branch decomposition',
     });
+  });
+
+  test('wires default without-objective-decomposition variant to a real strategic compiler', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+
+    await runLocalRuntimeTownPlannerAblationSuite({
+      rootDir: '/tmp/aivilization-planner-ablation',
+      profileId: 'smoke-25',
+      taskId: 'high-tech-production',
+      requestedAt: 325,
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createVariantSummary(input));
+      },
+    });
+
+    expect(inputs).toHaveLength(3);
+    expect(inputs[2]?.runIdSuffix).toBe('without-objective-decomposition');
+    expect(inputs[2]?.strategicPlanCompiler).not.toBeUndefined();
+
+    const compiler = inputs[2]?.strategicPlanCompiler;
+    if (compiler === undefined) {
+      throw new Error('expected without-objective-decomposition compiler');
+    }
+    const compiled = normalizeStrategicPlanCompilerOutput(
+      await compiler({
+        objective: {
+          id: 'objective-study-production',
+          agentId: asAgentId('agent-1'),
+          statement: 'Study, apply for work, craft Chip, and trade for resources.',
+          priority: 4,
+          source: 'agent',
+          affinityTags: ['study', 'work', 'production', 'trade'],
+          createdAt: 325,
+          updatedAt: 325,
+        },
+        issuedAt: 333,
+      }),
+    );
+
+    expect(compiled.planningTrace).toEqual({
+      status: 'deterministic',
+      source: 'deterministic',
+      message: 'Planner ablation without objective decomposition',
+    });
+    expect(compiled.plan.branches.map((branch) => branch.id)).toEqual([
+      'without-objective-decomposition-development',
+      'without-objective-decomposition-employment',
+      'without-objective-decomposition-production',
+      'without-objective-decomposition-market',
+    ]);
+    expect(compiled.plan.branches.every((branch) => branch.subtasks.length === 1)).toBe(true);
+    expect(
+      compiled.plan.branches.flatMap((branch) => branch.subtasks.map((subtask) => subtask.id)),
+    ).toEqual([
+      'study-direct-action',
+      'work-direct-action',
+      'production-direct-action',
+      'trade-direct-action',
+    ]);
   });
 
   test('adds planner shape metrics from durable branch plan artifacts', async () => {

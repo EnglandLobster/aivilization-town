@@ -62,7 +62,7 @@ reflective insights before existing LTM patch conversion.
 - Modify: `packages/memory/src/index.ts`
 - Modify: this plan file
 
-- [ ] **Step 1: Write failing pure memory tests**
+- [x] **Step 1: Write failing pure memory tests**
 
 Add tests to `packages/memory/src/reflection.test.ts` proving:
 
@@ -97,7 +97,7 @@ pnpm --filter @aivilization/memory test -- reflection.test.ts
 
 Expected: FAIL because the synthesizer contract and proposal validator do not exist.
 
-- [ ] **Step 2: Implement the minimal memory contract**
+- [x] **Step 2: Implement the minimal memory contract**
 
 In `packages/memory/src/reflection.ts`:
 
@@ -110,7 +110,7 @@ In `packages/memory/src/reflection.ts`:
   and returns sorted `ReflectiveInsightRecord[]`;
 - export the new symbols through `packages/memory/src/index.ts`.
 
-- [ ] **Step 3: Verify memory contract tests pass**
+- [x] **Step 3: Verify memory contract tests pass**
 
 Run:
 
@@ -120,6 +120,16 @@ pnpm --filter @aivilization/memory typecheck
 ```
 
 Expected: PASS.
+
+### Verification Log
+
+- RED: `pnpm --filter @aivilization/memory test -- reflection.test.ts` failed with four expected
+  failures because `createDeterministicReflectiveInsightSynthesizer` and
+  `applyReflectiveInsightProposal` were not exported functions.
+- GREEN: `pnpm --filter @aivilization/memory test -- reflection.test.ts` passed with 11 files and
+  44 tests after adding the memory-domain synthesis contract and proposal validator.
+- GREEN: `pnpm --filter @aivilization/memory typecheck` passed after making the deterministic
+  synthesizer test await the async-capable contract.
 
 ## Task 2: Traceable LLM Reflection Synthesizer
 

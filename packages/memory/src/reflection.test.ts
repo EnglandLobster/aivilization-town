@@ -1,8 +1,10 @@
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
+  applyReflectiveInsightProposal,
   convertReflectiveInsightsToLongTermMemoryPatches,
   asMemoryRecordId,
+  createDeterministicReflectiveInsightSynthesizer,
   createShortTermMemoryRecord,
   proposeReflectiveInsights,
   type ReflectiveInsightRecord,
@@ -475,6 +477,140 @@ describe('reflective memory insights', () => {
         proposedAt: 500,
       },
     ]);
+  });
+});
+
+describe('reflective insight synthesis contract', () => {
+  test('wraps deterministic reflection with a synthesis trace', async () => {
+    const records = [
+      createMemory({ id: 'study-contract-1', status: 'succeeded', summary: 'Studied math.' }),
+      createMemory({ id: 'study-contract-2', status: 'succeeded', summary: 'Studied history.' }),
+    ];
+
+    const result = await createDeterministicReflectiveInsightSynthesizer()({
+      agentId,
+      records,
+      minEvidenceCount: 2,
+      generatedAt: 800,
+    });
+
+    expect(result.trace).toEqual({ status: 'deterministic', source: 'deterministic' });
+    expect(result.insights).toEqual([
+      {
+        id: 'reflection-agent-1-habit-study-routine-800',
+        agentId,
+        kind: 'habit',
+        topicKey: 'study-routine',
+        statement: 'Repeated successful study sessions suggest a reliable study routine.',
+        confidence: 0.7,
+        evidenceRecordIds: [
+          asMemoryRecordId('study-contract-1'),
+          asMemoryRecordId('study-contract-2'),
+        ],
+        generatedAt: 800,
+        tags: ['study', 'education', 'routine'],
+      },
+    ]);
+  });
+
+  test('validates LLM insight proposals and derives stable record ids', () => {
+    const records = [
+      createMemory({
+        id: 'trade-memory-1',
+        status: 'succeeded',
+        summary: 'Waited for a better apple price before buying.',
+        tags: ['trade', 'market'],
+        importanceScore: 0.8,
+      }),
+    ];
+
+    expect(
+      applyReflectiveInsightProposal({
+        agentId,
+        records,
+        generatedAt: 900,
+        insights: [
+          {
+            kind: 'value',
+            topicKey: 'market-patience',
+            statement: 'The agent values waiting for better market conditions.',
+            confidence: 0.8,
+            evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+            tags: ['trade', 'market', 'value'],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: 'reflection-agent-1-value-market-patience-900',
+        agentId,
+        kind: 'value',
+        topicKey: 'market-patience',
+        statement: 'The agent values waiting for better market conditions.',
+        confidence: 0.8,
+        evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+        generatedAt: 900,
+        tags: ['trade', 'market', 'value'],
+      },
+    ]);
+  });
+
+  test('rejects LLM insight proposals that cite memory outside the synthesis window', () => {
+    const records = [
+      createMemory({
+        id: 'trade-memory-1',
+        status: 'succeeded',
+        summary: 'Waited for a better apple price before buying.',
+        tags: ['trade', 'market'],
+      }),
+    ];
+
+    expect(() =>
+      applyReflectiveInsightProposal({
+        agentId,
+        records,
+        generatedAt: 900,
+        insights: [
+          {
+            kind: 'value',
+            topicKey: 'market-patience',
+            statement: 'The agent values waiting for better market conditions.',
+            confidence: 0.8,
+            evidenceRecordIds: [asMemoryRecordId('outside-memory')],
+            tags: ['trade', 'market', 'value'],
+          },
+        ],
+      }),
+    ).toThrow('reflective insight evidence outside-memory is not in synthesis records');
+  });
+
+  test('rejects LLM insight proposals with invalid scalar fields', () => {
+    const records = [
+      createMemory({
+        id: 'trade-memory-1',
+        status: 'succeeded',
+        summary: 'Waited for a better apple price before buying.',
+        tags: ['trade', 'market'],
+      }),
+    ];
+
+    expect(() =>
+      applyReflectiveInsightProposal({
+        agentId,
+        records,
+        generatedAt: 900,
+        insights: [
+          {
+            kind: 'value',
+            topicKey: ' ',
+            statement: 'The agent values waiting for better market conditions.',
+            confidence: 1.2,
+            evidenceRecordIds: [asMemoryRecordId('trade-memory-1')],
+            tags: ['trade', ''],
+          },
+        ],
+      }),
+    ).toThrow('reflective insight topicKey must not be empty');
   });
 });
 

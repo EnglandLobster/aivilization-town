@@ -773,6 +773,8 @@ function createAcceptedCognitionLlmStageDiagnostics(
     deterministicFallbackCount: 0,
     deterministicCount: 0,
     missingProviderTraceCount: 0,
+    outputArtifactCount:
+      stageName === 'reflectionSynthesis' || stageName === 'socialModelSynthesis' ? 1 : 0,
     shortTermMemoryContextCount: 1,
     longTermProfileContextCount: 1,
     observedStateSummaryCount: 1,

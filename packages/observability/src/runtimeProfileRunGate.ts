@@ -42,6 +42,9 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredCognitionLlmMemoryContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmProfileContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmObservedStateStages?: readonly RuntimeProfileCognitionLlmStageName[];
+  readonly minimumCognitionLlmOutputArtifactCounts?: Readonly<
+    Partial<Record<RuntimeProfileCognitionLlmStageName, number>>
+  >;
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -221,6 +224,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredCognitionLlmObservedStateStages ?? [],
+  );
+  addMinimumCognitionLlmOutputArtifactCountFailures(
+    failures,
+    report,
+    criteria.minimumCognitionLlmOutputArtifactCounts ?? {},
   );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
@@ -859,6 +867,36 @@ function addRequiredCognitionLlmObservedStateStageFailures(
         stageName,
         actual,
         llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addMinimumCognitionLlmOutputArtifactCountFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  minimumCounts: Readonly<Partial<Record<RuntimeProfileCognitionLlmStageName, number>>>,
+): void {
+  const diagnosticsByStage = new Map(
+    report.cognitionLlmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ?? [],
+  );
+
+  for (const stageName of Object.keys(minimumCounts) as RuntimeProfileCognitionLlmStageName[]) {
+    const minimum = minimumCounts[stageName] ?? 0;
+    if (minimum <= 0) {
+      continue;
+    }
+    const actual = diagnosticsByStage.get(stageName)?.outputArtifactCount ?? 0;
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'cognition-llm-stage-output-artifact-count-too-low',
+      message: `cognition LLM stage ${stageName} outputArtifactCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
         minimum,
       },
     });

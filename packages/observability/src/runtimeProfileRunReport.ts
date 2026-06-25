@@ -38,6 +38,22 @@ export type RuntimeProfileRunReport = {
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
 };
 
+export type RuntimeProfileAgentCycleLlmStageName =
+  | 'contextualPrioritization'
+  | 'actionSequenceGeneration'
+  | 'socialDialogueGeneration'
+  | 'globalSynthesis'
+  | 'reactiveCorrection';
+
+export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
+  readonly stageName: RuntimeProfileAgentCycleLlmStageName;
+  readonly traceCount: number;
+  readonly llmAcceptedCount: number;
+  readonly deterministicFallbackCount: number;
+  readonly deterministicCount: number;
+  readonly missingCycleCount: number;
+};
+
 export type RuntimeProfileAgentCycleDiagnostics = {
   readonly traceCount: number;
   readonly acceptedSimulatorCount: number;
@@ -53,6 +69,7 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly repairedSimulatorRatio: number;
   readonly rejectedSimulatorRatio: number;
   readonly replanningDecisionRatio: number;
+  readonly llmStageDiagnostics?: readonly RuntimeProfileAgentCycleLlmStageDiagnostics[];
 };
 
 export type RuntimeProfilePlannerExperiment = {
@@ -211,6 +228,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     repairedSimulatorRatio: ratio(repairedSimulatorCount, traceCount),
     rejectedSimulatorRatio: ratio(rejectedSimulatorCount, traceCount),
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
+    llmStageDiagnostics: createLlmStageDiagnostics(traces),
   };
 }
 
@@ -357,7 +375,16 @@ function cloneAgentCycleDiagnostics(
   diagnostics: RuntimeProfileAgentCycleDiagnostics,
 ): RuntimeProfileAgentCycleDiagnostics {
   validateAgentCycleDiagnostics(diagnostics);
-  return { ...diagnostics };
+  return {
+    ...diagnostics,
+    ...(diagnostics.llmStageDiagnostics === undefined
+      ? {}
+      : {
+          llmStageDiagnostics: diagnostics.llmStageDiagnostics.map((stage) => ({
+            ...stage,
+          })),
+        }),
+  };
 }
 
 function validateAgentCycleDiagnostics(
@@ -366,7 +393,7 @@ function validateAgentCycleDiagnostics(
   if (diagnostics === undefined) {
     throw new Error('agentCycleDiagnostics is required');
   }
-  const countFields: readonly (keyof RuntimeProfileAgentCycleDiagnostics)[] = [
+  const countFields = [
     'traceCount',
     'acceptedSimulatorCount',
     'repairedSimulatorCount',
@@ -376,7 +403,7 @@ function validateAgentCycleDiagnostics(
     'simulatorEventCount',
     'commandEmittingCycleCount',
     'fullReplanMaterializationCount',
-  ];
+  ] as const;
   for (const field of countFields) {
     assertNonNegativeInteger(diagnostics[field], `agentCycleDiagnostics ${field}`);
   }
@@ -399,15 +426,175 @@ function validateAgentCycleDiagnostics(
       'agentCycleDiagnostics fullReplanMaterializationCount must not exceed traceCount',
     );
   }
-  const ratioFields: readonly (keyof RuntimeProfileAgentCycleDiagnostics)[] = [
+  const ratioFields = [
     'commandEmittingCycleRatio',
     'fullReplanMaterializationRatio',
     'repairedSimulatorRatio',
     'rejectedSimulatorRatio',
     'replanningDecisionRatio',
-  ];
+  ] as const;
   for (const field of ratioFields) {
     assertRatio(diagnostics[field], `agentCycleDiagnostics ${field}`);
+  }
+  validateLlmStageDiagnostics(diagnostics);
+}
+
+const AGENT_CYCLE_LLM_STAGE_NAMES = [
+  'contextualPrioritization',
+  'actionSequenceGeneration',
+  'socialDialogueGeneration',
+  'globalSynthesis',
+  'reactiveCorrection',
+] as const satisfies readonly RuntimeProfileAgentCycleLlmStageName[];
+
+type AgentCycleLlmStageTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+};
+
+type MutableLlmStageDiagnostics = {
+  stageName: RuntimeProfileAgentCycleLlmStageName;
+  traceCount: number;
+  llmAcceptedCount: number;
+  deterministicFallbackCount: number;
+  deterministicCount: number;
+  missingCycleCount: number;
+};
+
+function createLlmStageDiagnostics(
+  traces: readonly AgentCycleTrace[],
+): readonly RuntimeProfileAgentCycleLlmStageDiagnostics[] {
+  const diagnostics = new Map<RuntimeProfileAgentCycleLlmStageName, MutableLlmStageDiagnostics>(
+    AGENT_CYCLE_LLM_STAGE_NAMES.map((stageName) => [
+      stageName,
+      {
+        stageName,
+        traceCount: 0,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingCycleCount: 0,
+      },
+    ]),
+  );
+
+  for (const trace of traces) {
+    recordStageTrace({
+      diagnostics,
+      stageName: 'contextualPrioritization',
+      stageTraces:
+        trace.contextualPrioritization === undefined ? [] : [trace.contextualPrioritization],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'actionSequenceGeneration',
+      stageTraces: trace.actionSequenceGeneration ?? [],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'socialDialogueGeneration',
+      stageTraces: trace.socialDialogueGeneration ?? [],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'globalSynthesis',
+      stageTraces: trace.globalSynthesis === undefined ? [] : [trace.globalSynthesis],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'reactiveCorrection',
+      stageTraces:
+        trace.actionRepair?.flatMap((repair) =>
+          repair.reactiveCorrection === undefined ? [] : [repair.reactiveCorrection],
+        ) ?? [],
+    });
+  }
+
+  return AGENT_CYCLE_LLM_STAGE_NAMES.map((stageName) => {
+    const stage = diagnostics.get(stageName);
+    if (stage === undefined) {
+      throw new Error(`missing LLM stage diagnostics for ${stageName}`);
+    }
+    return { ...stage };
+  });
+}
+
+function recordStageTrace(input: {
+  readonly diagnostics: Map<RuntimeProfileAgentCycleLlmStageName, MutableLlmStageDiagnostics>;
+  readonly stageName: RuntimeProfileAgentCycleLlmStageName;
+  readonly stageTraces: readonly AgentCycleLlmStageTrace[];
+}): void {
+  const diagnostics = input.diagnostics.get(input.stageName);
+  if (diagnostics === undefined) {
+    throw new Error(`unsupported LLM stage ${input.stageName}`);
+  }
+
+  if (input.stageTraces.length === 0) {
+    diagnostics.missingCycleCount += 1;
+    return;
+  }
+
+  for (const trace of input.stageTraces) {
+    diagnostics.traceCount += 1;
+    if (trace.source === 'llm' && trace.status === 'accepted') {
+      diagnostics.llmAcceptedCount += 1;
+    }
+    if (trace.source === 'deterministic-fallback') {
+      diagnostics.deterministicFallbackCount += 1;
+    }
+    if (trace.source === 'deterministic') {
+      diagnostics.deterministicCount += 1;
+    }
+  }
+}
+
+function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagnostics): void {
+  if (diagnostics.llmStageDiagnostics === undefined) {
+    return;
+  }
+
+  const seen = new Set<RuntimeProfileAgentCycleLlmStageName>();
+  for (const stage of diagnostics.llmStageDiagnostics) {
+    if (!AGENT_CYCLE_LLM_STAGE_NAMES.includes(stage.stageName)) {
+      throw new Error(`agentCycleDiagnostics llmStageDiagnostics stageName is unsupported`);
+    }
+    if (seen.has(stage.stageName)) {
+      throw new Error(`agentCycleDiagnostics llmStageDiagnostics stageName must be unique`);
+    }
+    seen.add(stage.stageName);
+    assertNonNegativeInteger(
+      stage.traceCount,
+      `agentCycleDiagnostics ${stage.stageName} traceCount`,
+    );
+    assertNonNegativeInteger(
+      stage.llmAcceptedCount,
+      `agentCycleDiagnostics ${stage.stageName} llmAcceptedCount`,
+    );
+    assertNonNegativeInteger(
+      stage.deterministicFallbackCount,
+      `agentCycleDiagnostics ${stage.stageName} deterministicFallbackCount`,
+    );
+    assertNonNegativeInteger(
+      stage.deterministicCount,
+      `agentCycleDiagnostics ${stage.stageName} deterministicCount`,
+    );
+    assertNonNegativeInteger(
+      stage.missingCycleCount,
+      `agentCycleDiagnostics ${stage.stageName} missingCycleCount`,
+    );
+    if (stage.missingCycleCount > diagnostics.traceCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} missingCycleCount must not exceed traceCount`,
+      );
+    }
+    if (
+      stage.llmAcceptedCount + stage.deterministicFallbackCount + stage.deterministicCount >
+      stage.traceCount
+    ) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} source counts must not exceed stage traceCount`,
+      );
+    }
   }
 }
 

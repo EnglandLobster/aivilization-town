@@ -251,6 +251,7 @@ describe('runtime profile run report repositories', () => {
       repairedSimulatorRatio: 1 / 3,
       rejectedSimulatorRatio: 1 / 3,
       replanningDecisionRatio: 2 / 3,
+      llmStageDiagnostics: createEmptyLlmStageDiagnostics(3),
     });
     expect(createRuntimeProfileAgentCycleDiagnostics([])).toEqual({
       traceCount: 0,
@@ -267,7 +268,124 @@ describe('runtime profile run report repositories', () => {
       repairedSimulatorRatio: 0,
       rejectedSimulatorRatio: 0,
       replanningDecisionRatio: 0,
+      llmStageDiagnostics: createEmptyLlmStageDiagnostics(0),
     });
+  });
+
+  test('summarizes agent-cycle LLM stage diagnostics from durable traces', () => {
+    const diagnostics = createRuntimeProfileAgentCycleDiagnostics([
+      createTrace({
+        traceId: 'llm-cycle',
+        simulatorStatus: 'repaired',
+        replanning: true,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        contextualPrioritization: {
+          status: 'accepted',
+          source: 'llm',
+        },
+        actionSequenceGeneration: [
+          {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+          },
+          {
+            status: 'fallback',
+            source: 'deterministic-fallback',
+            selectedSubtask: { branchId: 'development', subtaskId: 'study' },
+          },
+        ],
+        socialDialogueGeneration: [
+          {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'social', subtaskId: 'talk' },
+            actionId: 'conversation-1',
+            targetAgentId: 'agent-2',
+            turnCount: 2,
+            rationale: 'LLM dialogue accepted.',
+          },
+        ],
+        globalSynthesis: {
+          status: 'fallback',
+          source: 'deterministic-fallback',
+        },
+        actionRepair: [
+          {
+            actionId: 'eat-1',
+            rejectionReason: 'insufficient Apple',
+            selectedSubtask: { branchId: 'recovery', subtaskId: 'eat' },
+            localRepair: { status: 'skipped' },
+            reactiveCorrection: {
+              status: 'accepted',
+              source: 'llm',
+              decision: {
+                kind: 'propose-action',
+                rationale: 'Buy food before eating.',
+                evidenceRecordIds: ['memory-food-shortage'],
+                action: {
+                  id: 'buy-apple-1',
+                  description: 'buy Apple',
+                  commandType: 'AgentTrade',
+                },
+              },
+            },
+            outcome: 'repaired',
+          },
+        ],
+      }),
+      createTrace({
+        traceId: 'missing-llm-stage-cycle',
+        simulatorStatus: 'accepted',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+      }),
+    ]);
+
+    expect(diagnostics.llmStageDiagnostics).toEqual([
+      {
+        stageName: 'contextualPrioritization',
+        traceCount: 1,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+      },
+      {
+        stageName: 'actionSequenceGeneration',
+        traceCount: 2,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 1,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+      },
+      {
+        stageName: 'socialDialogueGeneration',
+        traceCount: 1,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+      },
+      {
+        stageName: 'globalSynthesis',
+        traceCount: 1,
+        llmAcceptedCount: 0,
+        deterministicFallbackCount: 1,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+      },
+      {
+        stageName: 'reactiveCorrection',
+        traceCount: 1,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 0,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+      },
+    ]);
   });
 });
 
@@ -361,6 +479,11 @@ function createTrace(input: {
   readonly emittedCommandCount: number;
   readonly simulatorEvents: AgentCycleTrace['simulatorEvents'];
   readonly replanMaterialization?: AgentCycleTrace['replanMaterialization'];
+  readonly contextualPrioritization?: AgentCycleTrace['contextualPrioritization'];
+  readonly actionSequenceGeneration?: AgentCycleTrace['actionSequenceGeneration'];
+  readonly socialDialogueGeneration?: AgentCycleTrace['socialDialogueGeneration'];
+  readonly globalSynthesis?: AgentCycleTrace['globalSynthesis'];
+  readonly actionRepair?: AgentCycleTrace['actionRepair'];
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -369,6 +492,17 @@ function createTrace(input: {
     cycleStartedAt: 100,
     observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
     selectedBranch: 'development',
+    ...(input.contextualPrioritization === undefined
+      ? {}
+      : { contextualPrioritization: input.contextualPrioritization }),
+    ...(input.actionSequenceGeneration === undefined
+      ? {}
+      : { actionSequenceGeneration: input.actionSequenceGeneration }),
+    ...(input.socialDialogueGeneration === undefined
+      ? {}
+      : { socialDialogueGeneration: input.socialDialogueGeneration }),
+    ...(input.globalSynthesis === undefined ? {} : { globalSynthesis: input.globalSynthesis }),
+    ...(input.actionRepair === undefined ? {} : { actionRepair: input.actionRepair }),
     subtaskCandidates: [
       {
         branchId: 'development',
@@ -443,4 +577,21 @@ function createTrace(input: {
     memoryContextIds: [],
     memoryWriteIds: [],
   });
+}
+
+function createEmptyLlmStageDiagnostics(traceCount: number) {
+  return [
+    'contextualPrioritization',
+    'actionSequenceGeneration',
+    'socialDialogueGeneration',
+    'globalSynthesis',
+    'reactiveCorrection',
+  ].map((stageName) => ({
+    stageName,
+    traceCount: 0,
+    llmAcceptedCount: 0,
+    deterministicFallbackCount: 0,
+    deterministicCount: 0,
+    missingCycleCount: traceCount,
+  }));
 }

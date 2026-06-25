@@ -50,6 +50,7 @@ function createTrace(input: {
   readonly socialDialogueGeneration?: boolean;
   readonly globalSynthesis?: boolean;
   readonly actionRepair?: boolean;
+  readonly replanningDecisionTrace?: boolean;
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -278,6 +279,51 @@ function createTrace(input: {
               outcome: 'repaired',
             },
           ],
+      }
+      : {}),
+    ...(input.replanningDecisionTrace === true
+      ? {
+          replanningDecisionTrace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: `${input.traceId}:replanning-decision`,
+            providerId: 'scripted-replanning',
+            model: 'replanning-model',
+            decision: {
+              kind: 'memory-guided-correction',
+              trigger: 'simulator-rejection',
+              reason: 'Use memory evidence before full replan.',
+              failedActionIds: [`${input.traceId}:work-hungry`],
+              evidenceRecordIds: [`${input.traceId}:memory-work-hungry`],
+            },
+            attempts: [
+              {
+                attemptIndex: 1,
+                status: 'succeeded',
+                providerId: 'scripted-replanning',
+                model: 'replanning-model',
+                message: 'LLM structured response validated',
+                usage: {
+                  inputTokens: 16,
+                  outputTokens: 7,
+                  totalTokens: 23,
+                  estimatedCostMicros: 37,
+                },
+              },
+            ],
+            usage: {
+              inputTokens: 16,
+              outputTokens: 7,
+              totalTokens: 23,
+              estimatedCostMicros: 37,
+            },
+            worldDecisionContext: {
+              ...createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
+              inventoryItemCount: 1,
+              marketSpotPriceCount: 1,
+              hasLatestPriceIndex: false,
+            },
+          },
         }
       : {}),
     subtaskCandidates: [
@@ -405,6 +451,7 @@ describe('agent cycle trace repositories', () => {
       socialDialogueGeneration: true,
       globalSynthesis: true,
       actionRepair: true,
+      replanningDecisionTrace: true,
     });
     const otherAgent = createTrace({
       traceId: 'trace-150-agent-2',
@@ -506,6 +553,16 @@ describe('agent cycle trace repositories', () => {
       }
     ).hasLatestPriceIndex = false;
     (
+      read!.replanningDecisionTrace!.decision as unknown as {
+        evidenceRecordIds: string[];
+      }
+    ).evidenceRecordIds.push('mutated');
+    (
+      read!.replanningDecisionTrace!.worldDecisionContext as unknown as {
+        marketSpotPriceCount: number;
+      }
+    ).marketSpotPriceCount = 999;
+    (
       read!.contextualPrioritization!.worldDecisionContext as unknown as {
         hasPhysiology: boolean;
       }
@@ -534,6 +591,49 @@ describe('agent cycle trace repositories', () => {
     );
     expect((await repository.get('trace-200'))?.globalSynthesis).toEqual(newer.globalSynthesis);
     expect((await repository.get('trace-200'))?.actionRepair).toEqual(newer.actionRepair);
+    expect((await repository.get('trace-200'))?.replanningDecisionTrace).toEqual(
+      newer.replanningDecisionTrace,
+    );
+  });
+
+  test('preserves replanning decision trace in memory and file-backed repositories', async () => {
+    const trace = createTrace({
+      traceId: 'trace-replanning-decision',
+      replanningDecisionTrace: true,
+    });
+    const inMemory = new InMemoryAgentCycleTraceRepository();
+    const rootDir = createRootDir();
+    const fileBacked = new FileAgentCycleTraceRepository({ rootDir });
+
+    await inMemory.record(trace);
+    await fileBacked.record(trace);
+
+    await expect(inMemory.get('trace-replanning-decision')).resolves.toMatchObject({
+      replanningDecisionTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'trace-replanning-decision:replanning-decision',
+        providerId: 'scripted-replanning',
+        model: 'replanning-model',
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          failedActionIds: ['trace-replanning-decision:work-hungry'],
+          evidenceRecordIds: ['trace-replanning-decision:memory-work-hungry'],
+        },
+        worldDecisionContext: {
+          agentId: 'agent-1',
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 1,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: false,
+        },
+      },
+    });
+    await expect(fileBacked.get('trace-replanning-decision')).resolves.toEqual(trace);
   });
 
   test('persists file-backed traces across repository instances', async () => {

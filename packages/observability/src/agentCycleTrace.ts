@@ -25,6 +25,37 @@ export type ReplanningTraceDecision =
       readonly matchingFailureCount: number;
     };
 
+export type AgentCycleReplanningDecisionTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly decision: ReplanningTraceDecision;
+  readonly attempts?: readonly {
+    readonly attemptIndex: number;
+    readonly status: string;
+    readonly providerId: string;
+    readonly model: string;
+    readonly message: string;
+    readonly usage: {
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly totalTokens: number;
+      readonly estimatedCostMicros: number;
+    };
+  }[];
+  readonly usage?: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
+  };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
+};
+
 export type AgentCycleReplanMaterializationTrace =
   | {
       readonly status: 'replanned';
@@ -361,6 +392,7 @@ export type AgentCycleTrace = {
   readonly simulatorEvents: readonly AgentCycleSimulatorEventTrace[];
   readonly selectionEvidence: AgentCycleSelectionTraceEvidence;
   readonly replanningDecision: ReplanningTraceDecision;
+  readonly replanningDecisionTrace?: AgentCycleReplanningDecisionTrace;
   readonly replanMaterialization?: AgentCycleReplanMaterializationTrace;
   readonly subtaskReplanningDecisions: readonly AgentCycleSubtaskReplanningDecisionTrace[];
   readonly emittedCommandIds: readonly string[];

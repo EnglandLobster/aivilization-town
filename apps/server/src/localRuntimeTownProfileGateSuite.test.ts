@@ -268,6 +268,7 @@ describe('local runtime town profile gate suite', () => {
               'socialDialogueGeneration',
               'globalSynthesis',
               'reactiveCorrection',
+              'replanningDecision',
             ]),
             cognitionLlmStageDiagnostics: createAcceptedCognitionLlmStageDiagnostics([
               'strategicPlanning',
@@ -360,6 +361,11 @@ describe('local runtime town profile gate suite', () => {
               model: 'global-model',
               providerId: 'global-provider',
             }),
+            replanningDecision: createLlmStageNode({
+              kind: 'traceable-llm-replanning-decider',
+              model: 'replanning-model',
+              providerId: 'replanning-provider',
+            }),
           },
         },
       }),
@@ -394,6 +400,14 @@ describe('local runtime town profile gate suite', () => {
             minimum: 1,
           },
         }),
+        expect.objectContaining({
+          code: 'agent-cycle-llm-stage-accepted-count-too-low',
+          evidence: {
+            stageName: 'replanningDecision',
+            actual: 0,
+            minimum: 1,
+          },
+        }),
       ]),
     );
   });
@@ -415,6 +429,11 @@ describe('local runtime town profile gate suite', () => {
               kind: 'traceable-llm-global-synthesizer',
               model: 'global-model',
               providerId: 'global-provider',
+            }),
+            replanningDecision: createLlmStageNode({
+              kind: 'traceable-llm-replanning-decider',
+              model: 'replanning-model',
+              providerId: 'replanning-provider',
             }),
           },
         },
@@ -450,6 +469,15 @@ describe('local runtime town profile gate suite', () => {
                 missingCycleCount: 0,
                 worldDecisionContextCount: 0,
               },
+              {
+                stageName: 'replanningDecision',
+                traceCount: 1,
+                llmAcceptedCount: 1,
+                deterministicFallbackCount: 0,
+                deterministicCount: 0,
+                missingCycleCount: 0,
+                worldDecisionContextCount: 0,
+              },
             ],
           }),
         ),
@@ -461,6 +489,16 @@ describe('local runtime town profile gate suite', () => {
         code: 'agent-cycle-llm-stage-world-context-count-too-low',
         evidence: {
           stageName: 'globalSynthesis',
+          actual: 0,
+          minimum: 1,
+        },
+      }),
+    );
+    expect(result.profiles[0]?.gate.failures).toContainEqual(
+      expect.objectContaining({
+        code: 'agent-cycle-llm-stage-world-context-count-too-low',
+        evidence: {
+          stageName: 'replanningDecision',
           actual: 0,
           minimum: 1,
         },

@@ -112,6 +112,9 @@ export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
   if (runtimeConfig.reactiveCorrection !== undefined) {
     stages.push('reactiveCorrection');
   }
+  if (runtimeConfig.replanningDecision !== undefined) {
+    stages.push('replanningDecision');
+  }
   return stages;
 }
 

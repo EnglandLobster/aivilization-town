@@ -806,6 +806,11 @@ describe('worker agent cycle runner', () => {
       expect(input.shortTermMemoryContext?.map((record) => record.id)).toEqual([
         'memory-study-failed-energy',
       ]);
+      expect(input.worldDecisionContext?.agent.inventory).toEqual({ Bread: 1 });
+      expect(input.worldDecisionContext?.market.spotPrices[0]).toEqual({
+        commodity: 'Bread',
+        spotPrice: 5,
+      });
       expect(input.simulationResults.map((result) => result.status)).toEqual(['needs-replan']);
       return {
         decision: {
@@ -825,6 +830,17 @@ describe('worker agent cycle runner', () => {
             reason: 'LLM replanning decider prefers recovery before more study attempts.',
             failedActionIds: ['study-energy-drained'],
             evidenceRecordIds: [evidenceRecordId],
+          },
+          worldDecisionContext: {
+            agentId: input.agentId,
+            hasPhysiology: input.worldDecisionContext !== undefined,
+            hasBalance: Number.isFinite(input.worldDecisionContext?.agent.balance),
+            hasEducationScore: Number.isFinite(input.worldDecisionContext?.agent.educationScore),
+            hasResidentialTier: Number.isFinite(input.worldDecisionContext?.agent.residentialTier),
+            inventoryItemCount: Object.keys(input.worldDecisionContext?.agent.inventory ?? {})
+              .length,
+            marketSpotPriceCount: input.worldDecisionContext?.market.spotPrices.length ?? 0,
+            hasLatestPriceIndex: input.worldDecisionContext?.market.latestPriceIndex !== undefined,
           },
         },
       };
@@ -854,7 +870,20 @@ describe('worker agent cycle runner', () => {
       signals: [],
       memoryRetrievalLimit: 1,
       replanningDecider,
-      projection: createProjection(),
+      projection: createWorldProjection({
+        agents: [
+          {
+            agentId,
+            physiology: { energy: 0, satiety: 80, health: 100 },
+            educationScore: 10,
+            balance: 100,
+            residentialTier: 1,
+            job: null,
+            inventory: { Bread: 1 },
+          },
+        ],
+        marketPools: [{ commodity: 'Bread', commodityReserve: 100, currencyReserve: 500 }],
+      }),
       policies,
       eventStore,
       streamName: partition.eventStreamName,
@@ -891,6 +920,20 @@ describe('worker agent cycle runner', () => {
       },
       memoryContextIds: ['memory-study-failed-energy'],
       emittedCommandIds: [],
+      replanningDecisionTrace: {
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'replanning-decision-cycle-worker',
+        worldDecisionContext: {
+          hasPhysiology: true,
+          hasBalance: true,
+          hasEducationScore: true,
+          hasResidentialTier: true,
+          inventoryItemCount: 1,
+          marketSpotPriceCount: 1,
+          hasLatestPriceIndex: false,
+        },
+      },
     });
   });
 

@@ -2,6 +2,7 @@ import type {
   ActionWithRepairResult,
   ActionSimulationTraceEvent,
   AtomicActionProposal,
+  AdaptiveReplanningPolicy,
   CycleActionSimulator,
   CycleRepairPolicy,
   CycleSubtaskCompletionPolicy,
@@ -50,6 +51,7 @@ export type CanonicalWorkerRuntimeResolverConfig = {
   readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly additionalRegistrations?: readonly WorkerDomainRuntimeRegistration[];
   readonly repair?: CycleRepairPolicy;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly issuedAt?: SimulationTimestamp;
   readonly nextSequence?: number;
   readonly commandIdPrefix?: string;
@@ -111,6 +113,9 @@ export function createCanonicalWorkerRuntimeResolver(
           : { commandIdPrefix: config.commandIdPrefix }),
       }),
       ...(config.repair === undefined ? {} : { repair: config.repair }),
+      ...(config.replanningPolicy === undefined
+        ? {}
+        : { replanningPolicy: config.replanningPolicy }),
       subtaskCompletion: createCanonicalSubtaskCompletionPolicy({
         context,
         ...(config.domainConfig?.production === undefined

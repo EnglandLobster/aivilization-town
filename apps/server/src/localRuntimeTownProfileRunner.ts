@@ -1,4 +1,5 @@
 import type {
+  AdaptiveReplanningPolicy,
   DailyPlanCompiler,
   ReactionEvaluator,
   StrategicPlanCompiler,
@@ -51,6 +52,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
   readonly reactionEvaluator?: ReactionEvaluator;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
   readonly llmPlanning?: LocalRuntimeTownProfileStrategicCompilerConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyCompilerConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionEvaluatorConfig;
@@ -132,6 +134,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       policies,
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
       ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
+      ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
       ...(input.agentMemoryRetrievalLimit === undefined
         ? {}
         : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
@@ -276,6 +279,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
     readonly policies?: WorldCommandPolicySource;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
     readonly dailyPlanCompiler?: DailyPlanCompiler;
+    readonly replanningPolicy?: AdaptiveReplanningPolicy;
     readonly memoryRetrievalLimit?: number;
     readonly memoryRetrievalCandidateLimit?: number;
   } = {},
@@ -343,6 +347,9 @@ export function createLocalRuntimeTownProfileAgentProvider(
         policies,
         issuedAt,
         commandIdPrefix: `${storage.partition.partitionKey}:profile-provider:${issuedAt}`,
+        ...(input.replanningPolicy === undefined
+          ? {}
+          : { replanningPolicy: input.replanningPolicy }),
       }),
     });
   };

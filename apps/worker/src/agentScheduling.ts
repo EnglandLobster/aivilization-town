@@ -1,6 +1,7 @@
 import {
   hasSelectableSubtasks,
   type ActionSynthesisPolicy,
+  type AdaptiveReplanningPolicy,
   type BranchPlanRecord,
   type BranchPlanProgressRepository,
   type BranchPlanRepository,
@@ -26,6 +27,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly repair?: CycleRepairPolicy;
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly subtaskCompletion?: CycleSubtaskCompletionPolicy;
+  readonly replanningPolicy?: AdaptiveReplanningPolicy;
 };
 
 export type WorkerAgentRuntimeResolver = (input: {
@@ -119,6 +121,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       ...(runtime.subtaskCompletion === undefined
         ? {}
         : { subtaskCompletion: runtime.subtaskCompletion }),
+      ...(runtime.replanningPolicy === undefined
+        ? {}
+        : { replanningPolicy: runtime.replanningPolicy }),
     });
   }
 

@@ -501,6 +501,72 @@ describe('local runtime town profile runner', () => {
     });
   });
 
+  test('uses profile replanning policy to materialize recovery plans during profile runs', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 180,
+      replanningPolicy: {
+        consecutiveFailureThreshold: 2,
+        majorContextShift: {
+          key: 'profile-recovery-drill',
+          reason: 'profile recovery drill requires a replacement plan',
+        },
+      },
+      strategicPlanCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'eat-recovery-drill',
+              objective: 'Try an impossible eat action so the profile proves replan recovery.',
+              subtasks: [
+                {
+                  id: 'eat-without-inventory',
+                  description: 'eat an Apple without inventory',
+                  basePriority: 99,
+                  intentionAffinityTags: ['eat'],
+                },
+              ],
+            },
+          ],
+        }),
+        planningTrace: {
+          status: 'deterministic',
+          source: 'deterministic',
+          message: 'Injected recovery drill plan',
+        },
+      }),
+    });
+
+    const traceRepository = new FileAgentCycleTraceRepository({
+      rootDir: join(
+        rootDir,
+        'simulations',
+        'aivilization-smoke-25',
+        'partitions',
+        'world-main',
+        'observability',
+      ),
+    });
+    const traces = await traceRepository.query({
+      simulationId: 'aivilization-smoke-25',
+    });
+
+    expect(summary.agentCycleDiagnostics.fullReplanMaterializationCount).toBeGreaterThan(0);
+    expect(summary.agentCycleDiagnostics.fullReplanMaterializationRatio).toBeGreaterThan(0);
+    expect(
+      traces.some(
+        (trace) =>
+          trace.replanMaterialization?.status === 'replanned' &&
+          trace.replanMaterialization.trigger === 'major-context-shift',
+      ),
+    ).toBe(true);
+  });
+
   test('uses an injected daily plan compiler before autonomous objective renewal', async () => {
     const rootDir = createRootDir();
     const compiledAgentIds: string[] = [];

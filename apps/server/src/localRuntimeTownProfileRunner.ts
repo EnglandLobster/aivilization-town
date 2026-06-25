@@ -31,6 +31,7 @@ import {
   type ObjectiveRenewalDecisionTrace,
   type LocalWorldRuntimeAgentProvider,
   type LocalSimulationLifecycleMemoryConsolidationSchedule,
+  type LocalSimulationRuntimeOperationTrace,
   type WorldCommandPolicyResolver,
   type WorldCommandPolicySource,
 } from '@aivilization/worker';
@@ -247,6 +248,9 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     cycleCount: input.cycleCount,
     ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
   });
+  const cycleOperationTraces = (
+    await Promise.all(run.cycles.map((cycle) => runtime.supervisor.getOperationTrace(cycle.traceId)))
+  ).flatMap((trace) => (trace === undefined ? [] : [trace]));
   const daemonStatus = await runtime.runtimeDaemonApi.getRuntimeDaemonStatus();
   const partitionResults = await Promise.all(
     runtime.host.partitions.map(async (partition) => {
@@ -313,6 +317,8 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     objectiveRenewalTraces: partitionResults.flatMap((result) => result.objectiveRenewalTraces),
     dailyPlanRenewalTraces: partitionResults.flatMap((result) => result.dailyPlanRenewalTraces),
     reactionEvaluationTraces: partitionResults.flatMap((result) => result.reactionEvaluationTraces),
+    reflectionSynthesisTraces: collectReflectionSynthesisTraces(cycleOperationTraces),
+    socialModelSynthesisTraces: collectSocialModelSynthesisTraces(cycleOperationTraces),
   });
 
   const summary: LocalRuntimeTownProfileRunnerSummary = {
@@ -368,6 +374,30 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
   }
 
   return summary;
+}
+
+function collectReflectionSynthesisTraces(
+  operationTraces: readonly LocalSimulationRuntimeOperationTrace[],
+) {
+  return operationTraces.flatMap((trace) =>
+    trace.partitions.flatMap((partition) =>
+      partition.outcome !== 'succeeded'
+        ? []
+        : (partition.memoryConsolidation?.reflectionSynthesisTraces ?? []),
+    ),
+  );
+}
+
+function collectSocialModelSynthesisTraces(
+  operationTraces: readonly LocalSimulationRuntimeOperationTrace[],
+) {
+  return operationTraces.flatMap((trace) =>
+    trace.partitions.flatMap((partition) =>
+      partition.outcome !== 'succeeded'
+        ? []
+        : (partition.memoryConsolidation?.socialModelSynthesisTraces ?? []),
+    ),
+  );
 }
 
 function createProfileRunOperationId(input: {

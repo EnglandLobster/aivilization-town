@@ -521,6 +521,100 @@ describe('local simulation runtime supervisor', () => {
     });
   });
 
+  test('records memory synthesis provider traces in memory consolidation operation traces', async () => {
+    const host = await bootstrapTestHost({
+      memoryConsolidationSchedule: {
+        ...createMemoryConsolidationSchedule(),
+        reflectiveInsightSynthesizer: (input) =>
+          Promise.resolve({
+            insights: [],
+            trace: {
+              status: 'accepted',
+              source: 'llm',
+              requestId: `reflection-${input.agentId}-${input.generatedAt}`,
+              providerId: 'test-reflection-provider',
+              model: 'test-reflection-model',
+            },
+          }),
+        socialModelSynthesizer: (input) =>
+          Promise.resolve({
+            patches: [],
+            socialReflections: [],
+            trace: {
+              status: 'accepted',
+              source: 'llm',
+              requestId: `social-model-${input.agentId}-${input.generatedAt}`,
+              providerId: 'test-social-model-provider',
+              model: 'test-social-model',
+            },
+          }),
+      },
+    });
+    await appendStudyMemories(host.partitions[0]!.bootstrap.storage, agentOne);
+    await appendStudyMemories(host.partitions[1]!.bootstrap.storage, agentTwo);
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+
+    await supervisor.startAll({
+      operationId: 'op-start-memory-synthesis-trace-610',
+      requestedAt: 610,
+    });
+
+    await expect(
+      supervisor.getOperationTrace('op-start-memory-synthesis-trace-610'),
+    ).resolves.toMatchObject({
+      traceId: 'op-start-memory-synthesis-trace-610',
+      outcome: 'succeeded',
+      partitions: [
+        {
+          partitionKey: 'world-main',
+          memoryConsolidation: {
+            reflectionSynthesisTraces: [
+              {
+                agentId: agentOne,
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'reflection-agent-1-610',
+                providerId: 'test-reflection-provider',
+                model: 'test-reflection-model',
+              },
+            ],
+            socialModelSynthesisTraces: [
+              {
+                agentId: agentOne,
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'social-model-agent-1-610',
+                providerId: 'test-social-model-provider',
+                model: 'test-social-model',
+              },
+            ],
+          },
+        },
+        {
+          partitionKey: 'world-east',
+          memoryConsolidation: {
+            reflectionSynthesisTraces: [
+              {
+                agentId: agentTwo,
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'reflection-agent-2-610',
+              },
+            ],
+            socialModelSynthesisTraces: [
+              {
+                agentId: agentTwo,
+                status: 'accepted',
+                source: 'llm',
+                requestId: 'social-model-agent-2-610',
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
   test('keeps completed start-all partitions successful when memory consolidation fails', async () => {
     const host = await bootstrapTestHost({
       memoryConsolidationSchedule: createFailingMemoryConsolidationSchedule(),

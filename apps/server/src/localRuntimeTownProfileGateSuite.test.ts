@@ -268,6 +268,8 @@ describe('local runtime town profile gate suite', () => {
               'strategicPlanning',
               'dailyPlanning',
               'reactionEvaluation',
+              'reflectionSynthesis',
+              'socialModelSynthesis',
             ]),
           }),
         );

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
+import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeSupervisorCommandOutcome,
   LocalSimulationRuntimeSupervisorPartitionCommandError,
@@ -26,12 +26,25 @@ export type LocalSimulationRuntimeOperationValidationFailureTrace = {
   readonly stack?: string;
 };
 
+export type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace = {
+  readonly agentId: AgentId;
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+};
+
 export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {
   readonly agentCount: number;
   readonly patchCount: number;
   readonly cursorCount: number;
   readonly socialReflectionObservationCount: number;
   readonly consolidatedAt: SimulationTimestamp;
+  readonly reflectionSynthesisTraces: readonly LocalSimulationRuntimeOperationMemorySynthesisProviderTrace[];
+  readonly socialModelSynthesisTraces: readonly LocalSimulationRuntimeOperationMemorySynthesisProviderTrace[];
 };
 
 export type LocalSimulationRuntimeOperationMemoryConsolidationFailureTrace = {

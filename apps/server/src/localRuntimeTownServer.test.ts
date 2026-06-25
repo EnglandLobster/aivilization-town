@@ -12,6 +12,7 @@ import { type ScenarioPreset } from '@aivilization/content';
 import { asMemoryRecordId } from '@aivilization/memory';
 import {
   InMemoryRuntimeProfileRunReportRepository,
+  createAgentCycleTrace,
   createExperimentValidationReport,
   createRuntimeProfileRunReport,
 } from '@aivilization/observability';
@@ -280,6 +281,69 @@ describe('local runtime town HTTP gateway', () => {
       traceId: 'sim-1:world-main:1:cmd-objective-study',
       objectiveId: 'objective-study',
       issuedAt: 320,
+    });
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.agentCycleTraceRepository.record(createServerAgentCycleTrace());
+    const agentCycleTraces = await fetchJson(
+      `${server.baseUrl}/simulations/sim-1/partitions/world-main/agent-cycle-traces?agentId=agent-1&limit=1`,
+    );
+    expect(agentCycleTraces).toMatchObject([
+      {
+        traceId: 'cycle-trace-agent-1-350',
+        agentId: 'agent-1',
+        selectedBranch: 'recovery',
+        simulatorResult: { status: 'repaired', reason: 'buy Apple before eating' },
+        simulatorEvents: [
+          {
+            actionId: 'eat-apple-1',
+            attempt: 'original',
+            status: 'rejected',
+            reason: 'insufficient Apple',
+            events: [
+              {
+                type: 'ActionRejected',
+                sequence: 10,
+                summary: 'insufficient Apple',
+              },
+            ],
+          },
+          {
+            actionId: 'buy-apple-1',
+            attempt: 'repair',
+            status: 'accepted',
+            events: [
+              {
+                type: 'TradeExecuted',
+                sequence: 11,
+                summary: 'buy Apple 1',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/agent-cycle-traces/cycle-trace-agent-1-350`,
+      ),
+    ).resolves.toMatchObject({
+      traceId: 'cycle-trace-agent-1-350',
+      agentId: 'agent-1',
+      cycleStartedAt: 350,
+      simulatorEvents: [
+        {
+          actionId: 'eat-apple-1',
+          attempt: 'original',
+          status: 'rejected',
+          reason: 'insufficient Apple',
+        },
+        {
+          actionId: 'buy-apple-1',
+          attempt: 'repair',
+          status: 'accepted',
+        },
+      ],
     });
     await runtime.host.registry
       .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
@@ -1164,6 +1228,113 @@ function createValidationReport() {
     thresholds: {
       heavyTailReturns: { minimumExcessKurtosis: -2 },
     },
+  });
+}
+
+function createServerAgentCycleTrace() {
+  return createAgentCycleTrace({
+    traceId: 'cycle-trace-agent-1-350',
+    simulationId: 'sim-1',
+    agentId: 'agent-1',
+    cycleStartedAt: 350,
+    observedStateSummary: 'energy=40 satiety=30 health=100 inventory.Apple=0',
+    selectedBranch: 'recovery',
+    subtaskCandidates: [
+      {
+        branchId: 'recovery',
+        subtaskId: 'restore-satiety',
+        description: 'eat before studying',
+        score: 8,
+        scoreBreakdown: {
+          basePriorityScore: 5,
+          signalInfluenceScore: 2,
+          intentionInfluenceScore: 0,
+          memoryInfluenceScore: 1,
+          profileInfluenceScore: 0,
+        },
+      },
+    ],
+    actionSynthesis: {
+      acceptedActions: [
+        {
+          id: 'eat-apple-1',
+          description: 'eat Apple 1',
+          commandType: 'AgentEat',
+          priority: 4,
+          synthesisContext: {
+            branchId: 'recovery',
+            subtaskId: 'restore-satiety',
+            subtaskScore: 8,
+          },
+          resourceEstimate: {
+            actionSeconds: 10,
+            inventoryCosts: { Apple: 1 },
+          },
+        },
+      ],
+      rejectedActions: [],
+    },
+    candidateActions: ['eat Apple 1'],
+    simulatorResult: { status: 'repaired', reason: 'buy Apple before eating' },
+    simulatorEvents: [
+      {
+        actionId: 'eat-apple-1',
+        attempt: 'original',
+        status: 'rejected',
+        reason: 'insufficient Apple',
+        events: [
+          {
+            type: 'ActionRejected',
+            sequence: 10,
+            summary: 'insufficient Apple',
+          },
+        ],
+      },
+      {
+        actionId: 'buy-apple-1',
+        attempt: 'repair',
+        status: 'accepted',
+        events: [
+          {
+            type: 'TradeExecuted',
+            sequence: 11,
+            summary: 'buy Apple 1',
+          },
+        ],
+      },
+    ],
+    selectionEvidence: {
+      selectedSubtaskId: 'restore-satiety',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 1,
+      profileInfluenceScore: 0,
+      memoryEvidenceRecordIds: ['stm-hungry-1'],
+      profileEntryKeys: ['habits:buy-food-when-hungry'],
+      profileEvidenceRecordIds: ['profile-habit-food-1'],
+    },
+    replanningDecision: {
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'buy Apple before eating',
+      failedActionIds: ['eat-apple-1'],
+      evidenceRecordIds: ['stm-hungry-1'],
+    },
+    subtaskReplanningDecisions: [
+      {
+        branchId: 'recovery',
+        subtaskId: 'restore-satiety',
+        decision: {
+          kind: 'memory-guided-correction',
+          trigger: 'simulator-rejection',
+          reason: 'buy Apple before eating',
+          failedActionIds: ['eat-apple-1'],
+          evidenceRecordIds: ['stm-hungry-1'],
+        },
+      },
+    ],
+    emittedCommandIds: ['cmd-buy-apple-1', 'cmd-eat-apple-1'],
+    memoryContextIds: ['stm-hungry-1'],
+    memoryWriteIds: ['stm-repair-food-1'],
   });
 }
 

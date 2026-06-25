@@ -25,7 +25,7 @@ import type {
 import { scorePrioritizedSubtaskCandidates } from './planner';
 import { scoreIntentionInfluence, type IntentionInfluenceScore } from './intentionInfluence';
 import { scoreMemoryInfluence, type MemoryInfluenceScore } from './memoryInfluence';
-import type { BranchPlanProgress } from './planProgress';
+import { markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
 import { scoreProfileInfluence, type ProfileInfluenceScore } from './profileInfluence';
 import {
   applyReplanningDecisionToProgress,
@@ -76,8 +76,14 @@ export type AgentCycleResult = {
   readonly commandDrafts: readonly CommandDraft[];
   readonly replanningDecision: ReplanningDecision;
   readonly subtaskCompletionDecision: SubtaskCompletionDecision;
+  readonly subtaskCompletionDecisions: readonly AgentCycleSubtaskCompletionDecision[];
   readonly progressUpdate?: BranchPlanProgress;
   readonly needsReplan: boolean;
+};
+
+export type AgentCycleSubtaskCompletionDecision = {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly decision: SubtaskCompletionDecision;
 };
 
 export type AgentCycleSelectionEvidence = {
@@ -173,6 +179,7 @@ export function runAgentPlanningCycle(input: {
       actionSynthesisResult,
       candidateActions,
       simulationResults,
+      selectedSubtasksByKey: synthesisSubtasksByKey,
     });
   }
 
@@ -218,6 +225,7 @@ export function runAgentPlanningCycle(input: {
     actionSynthesisResult,
     candidateActions,
     simulationResults,
+    selectedSubtasksByKey: synthesisSubtasksByKey,
   });
 }
 
@@ -235,6 +243,7 @@ function finalizeAgentCycleResult(input: {
   readonly actionSynthesisResult: ActionSynthesisResult;
   readonly candidateActions: readonly AtomicActionProposal[];
   readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
 }): AgentCycleResult {
   const replanningDecision = decideAdaptiveReplanning({
     selectedSubtask: input.selectedSubtask,
@@ -248,21 +257,32 @@ function finalizeAgentCycleResult(input: {
       ? {}
       : { majorContextShift: input.replanningPolicy.majorContextShift }),
   });
-  const subtaskCompletionDecision = decideSubtaskCompletion({
-    selectedSubtask: input.selectedSubtask,
+  const subtaskCompletionDecisions = decideSubtaskCompletionByProducer({
     simulationResults: input.simulationResults,
-    ...(input.subtaskCompletion === undefined
-      ? {}
-      : { subtaskCompletion: input.subtaskCompletion }),
+    fallback: input.selectedSubtask,
+    selectedSubtasksByKey: input.selectedSubtasksByKey,
+    subtaskCompletion: input.subtaskCompletion,
   });
+  const subtaskCompletionDecision =
+    subtaskCompletionDecisions.find((completion) =>
+      sameSelectedSubtask(completion.selectedSubtask, input.selectedSubtask),
+    )?.decision ??
+    decideSubtaskCompletion({
+      selectedSubtask: input.selectedSubtask,
+      simulationResults: input.simulationResults,
+      ...(input.subtaskCompletion === undefined
+        ? {}
+        : { subtaskCompletion: input.subtaskCompletion }),
+    });
   const progressUpdate =
     input.progress === undefined
       ? undefined
-      : applyReplanningDecisionToProgress({
+      : applyCycleProgressUpdate({
           progress: input.progress,
           selectedSubtask: input.selectedSubtask,
           decision: replanningDecision,
-          completionDecision: subtaskCompletionDecision,
+          selectedSubtaskCompletionDecision: subtaskCompletionDecision,
+          subtaskCompletionDecisions,
           at: input.issuedAt,
         });
 
@@ -280,9 +300,111 @@ function finalizeAgentCycleResult(input: {
     ),
     replanningDecision,
     subtaskCompletionDecision,
+    subtaskCompletionDecisions,
     ...(progressUpdate === undefined ? {} : { progressUpdate }),
     needsReplan: input.simulationResults.some((result) => result.status === 'needs-replan'),
   };
+}
+
+function decideSubtaskCompletionByProducer(input: {
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly fallback: PrioritizedSubtask;
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+  readonly subtaskCompletion: CycleSubtaskCompletionPolicy | undefined;
+}): readonly AgentCycleSubtaskCompletionDecision[] {
+  return groupSimulationResultsByProducer(input).map((group) => ({
+    selectedSubtask: group.selectedSubtask,
+    decision: decideSubtaskCompletion({
+      selectedSubtask: group.selectedSubtask,
+      simulationResults: group.simulationResults,
+      ...(input.subtaskCompletion === undefined
+        ? {}
+        : { subtaskCompletion: input.subtaskCompletion }),
+    }),
+  }));
+}
+
+function applyCycleProgressUpdate(input: {
+  readonly progress: BranchPlanProgress;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly decision: ReplanningDecision;
+  readonly selectedSubtaskCompletionDecision: SubtaskCompletionDecision;
+  readonly subtaskCompletionDecisions: readonly AgentCycleSubtaskCompletionDecision[];
+  readonly at: number;
+}): BranchPlanProgress | undefined {
+  if (input.decision.kind !== 'none') {
+    return applyReplanningDecisionToProgress({
+      progress: input.progress,
+      selectedSubtask: input.selectedSubtask,
+      decision: input.decision,
+      completionDecision: input.selectedSubtaskCompletionDecision,
+      at: input.at,
+    });
+  }
+
+  let updatedProgress = input.progress;
+  let hasCompletedSubtask = false;
+  for (const completion of input.subtaskCompletionDecisions) {
+    if (completion.decision.status === 'in-progress') {
+      continue;
+    }
+    updatedProgress = markSubtaskCompleted(updatedProgress, {
+      subtaskId: completion.selectedSubtask.subtaskId,
+      completedAt: input.at,
+    });
+    hasCompletedSubtask = true;
+  }
+
+  return hasCompletedSubtask ? updatedProgress : undefined;
+}
+
+function groupSimulationResultsByProducer(input: {
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly fallback: PrioritizedSubtask;
+  readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
+}): readonly {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly simulationResults: readonly ActionWithRepairResult[];
+}[] {
+  const groups = new Map<
+    string,
+    {
+      readonly selectedSubtask: PrioritizedSubtask;
+      readonly simulationResults: ActionWithRepairResult[];
+    }
+  >();
+
+  for (const result of input.simulationResults) {
+    const selectedSubtask = resolveSelectedSubtaskForAction({
+      action: actionFromSimulationResultForAttribution(result),
+      fallback: input.fallback,
+      selectedSubtasksByKey: input.selectedSubtasksByKey,
+    });
+    const key = createSubtaskContextKey(selectedSubtask.branchId, selectedSubtask.subtaskId);
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { selectedSubtask, simulationResults: [result] });
+      continue;
+    }
+    group.simulationResults.push(result);
+  }
+
+  return [...groups.values()];
+}
+
+function actionFromSimulationResultForAttribution(
+  result: ActionWithRepairResult,
+): AtomicActionProposal {
+  switch (result.status) {
+    case 'accepted':
+      return result.action;
+    case 'repaired':
+      return result.repairedAction.synthesisContext === undefined
+        ? result.originalAction
+        : result.repairedAction;
+    case 'needs-replan':
+      return result.action;
+  }
 }
 
 function createActionSynthesisReplanResults(
@@ -382,6 +504,10 @@ function attachSelectedSubtaskSynthesisContext(
 
 function createSubtaskContextKey(branchId: string, subtaskId: string): string {
   return `${branchId}\u0000${subtaskId}`;
+}
+
+function sameSelectedSubtask(left: PrioritizedSubtask, right: PrioritizedSubtask): boolean {
+  return left.branchId === right.branchId && left.subtaskId === right.subtaskId;
 }
 
 function decideSubtaskCompletion(input: {

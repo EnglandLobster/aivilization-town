@@ -290,6 +290,179 @@ describe('agent planning cycle', () => {
     expect(result.commandDrafts.map((draft) => draft.type)).toEqual(['AgentWork', 'AgentStudy']);
   });
 
+  test('updates progress for every completed synthesized subtask', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'balance income and development',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work a shift', basePriority: 6 }],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+        },
+      ],
+    });
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 50,
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      progress,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study after work',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.progressUpdate).toEqual({
+      planId: 'plan-1',
+      agentId,
+      completedSubtaskIds: ['study', 'work'],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+  });
+
+  test('keeps in-progress synthesized subtasks out of completed progress', () => {
+    const agentId = asAgentId('agent-1');
+    const plan = createBranchPlan({
+      objective: 'balance income and development',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work a shift', basePriority: 6 }],
+        },
+        {
+          id: 'development',
+          objective: 'improve education',
+          subtasks: [{ id: 'study', description: 'self study', basePriority: 5 }],
+        },
+      ],
+    });
+    const progress = createBranchPlanProgress({
+      planId: 'plan-1',
+      agentId,
+      createdAt: 50,
+    });
+
+    const result = runAgentPlanningCycle({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      progress,
+      signals: [],
+      actionSynthesis: {
+        maxActions: 2,
+        candidateSubtasks: { maxSubtasks: 2 },
+        branchLimits: { maxAcceptedActionsPerBranch: 1 },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+              priority: 5,
+              resourceEstimate: { actionSeconds: 60, energyCost: 10 },
+            },
+          ],
+        },
+        {
+          domain: 'study',
+          supports: ({ subtaskId }) => subtaskId === 'study',
+          propose: () => [
+            {
+              id: 'study-1',
+              description: 'study after work',
+              commandType: 'AgentStudy',
+              payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+              priority: 4,
+              resourceEstimate: { actionSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      subtaskCompletion: ({ selectedSubtask }) =>
+        selectedSubtask.subtaskId === 'study'
+          ? { status: 'in-progress', reason: 'study requires another session' }
+          : { status: 'completed' },
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.progressUpdate?.completedSubtaskIds).toEqual(['work']);
+    expect(result.subtaskCompletionDecisions).toEqual([
+      {
+        selectedSubtask: {
+          branchId: 'income',
+          subtaskId: 'work',
+          description: 'work a shift',
+          score: 6,
+        },
+        decision: { status: 'completed' },
+      },
+      {
+        selectedSubtask: {
+          branchId: 'development',
+          subtaskId: 'study',
+          description: 'self study',
+          score: 5,
+        },
+        decision: { status: 'in-progress', reason: 'study requires another session' },
+      },
+    ]);
+    expect(result.subtaskCompletionDecision).toEqual({ status: 'completed' });
+  });
+
   test('returns replan results when action synthesis rejects every proposal', () => {
     const plan = createBranchPlan({
       objective: 'study within available energy',

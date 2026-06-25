@@ -344,10 +344,7 @@ describe('worker agent cycle runner', () => {
       ...repositories,
     });
 
-    expect(simulatedActionIds).toEqual([
-      'sleep-1:recovery/sleep',
-      'study-1:development/study',
-    ]);
+    expect(simulatedActionIds).toEqual(['sleep-1:recovery/sleep', 'study-1:development/study']);
     expect(result.trace.actionSynthesis.acceptedActions).toEqual([
       {
         id: 'sleep-1',
@@ -1098,6 +1095,122 @@ describe('worker agent cycle runner', () => {
         },
       },
     ]);
+  });
+
+  test('materializes a replacement plan after repository-backed full replanning', async () => {
+    const repositories = createRepositories();
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const objective = {
+      id: 'objective-study',
+      agentId,
+      statement: 'Improve education without exhausting energy.',
+      priority: 8,
+      source: 'agent' as const,
+      affinityTags: ['study', 'energy'],
+      createdAt: 40,
+      updatedAt: 40,
+    };
+    const replacementPlan = createBranchPlan({
+      objective: objective.statement,
+      branches: [
+        {
+          id: 'recovery',
+          objective: 'recover before studying',
+          subtasks: [{ id: 'sleep-first', description: 'sleep before studying', basePriority: 9 }],
+        },
+      ],
+    });
+    await repositories.intentionRepository.setObjective(agentId, objective);
+    await planRepository.save({
+      planId: objective.id,
+      agentId,
+      plan: createStudyPlan(),
+      createdAt: 50,
+      updatedAt: 50,
+    });
+    await planProgressRepository.getOrCreate({
+      planId: objective.id,
+      agentId,
+      createdAt: 50,
+    });
+    await repositories.shortTermMemoryRepository.append(
+      createShortTermMemoryRecord({
+        id: 'study-energy-failure',
+        agentId,
+        kind: 'action',
+        status: 'failed',
+        summary: 'Failed to study because energy was too low.',
+        occurredAt: 90,
+        importanceScore: 0.9,
+        source: { eventIds: [] },
+        tags: ['study', 'energy'],
+      }),
+    );
+
+    const result = await runWorkerAgentCycle({
+      cycleId: 'cycle-materialize-full-replan',
+      simulationId,
+      agentId,
+      issuedAt: 200,
+      observedStateSummary: 'energy=0 satiety=80 health=100 education=10',
+      planRepository,
+      planId: objective.id,
+      planProgressRepository,
+      planProgressId: objective.id,
+      materializeFullReplan: {
+        strategicPlanCompiler: ({ objective: compilerObjective, issuedAt }) => {
+          expect(compilerObjective).toEqual(objective);
+          expect(issuedAt).toBe(200);
+          return replacementPlan;
+        },
+      },
+      signals: [],
+      memoryRetrievalLimit: 10,
+      replanningPolicy: { consecutiveFailureThreshold: 1 },
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'cycle-materialize-full-replan',
+      commandIdPrefix: 'cycle-materialize-full-replan-command',
+      microPlanners: [
+        createStudyPlanner({
+          id: 'study-1',
+          description: 'study for one minute',
+          commandType: 'AgentStudy',
+          payload: { durationSeconds: 60, educationRatePerSecond: 1 },
+        }),
+      ],
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+      ...repositories,
+    });
+
+    expect(result.events).toEqual([]);
+    expect(result.replanMaterialization).toMatchObject({
+      status: 'replanned',
+      agentId,
+      objectiveId: objective.id,
+      planId: objective.id,
+      progressReset: true,
+      trigger: 'repeated-failure',
+    });
+    await expect(planRepository.require({ planId: objective.id, agentId })).resolves.toMatchObject({
+      planId: objective.id,
+      agentId,
+      plan: replacementPlan,
+      createdAt: 50,
+      updatedAt: 200,
+    });
+    await expect(planProgressRepository.get({ planId: objective.id, agentId })).resolves.toEqual({
+      planId: objective.id,
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 200,
+    });
   });
 
   test('loads and saves progress updates through a repository', async () => {

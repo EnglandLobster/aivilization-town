@@ -81,6 +81,50 @@ describe('runtime profile run gate', () => {
       },
     });
   });
+
+  test('requires accepted LLM traces for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'contextualPrioritization',
+              traceCount: 1,
+              llmAcceptedCount: 1,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+            },
+            {
+              stageName: 'globalSynthesis',
+              traceCount: 1,
+              llmAcceptedCount: 0,
+              deterministicFallbackCount: 1,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmAcceptedStages: ['contextualPrioritization', 'globalSynthesis'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-accepted-count-too-low',
+      message: 'agent-cycle LLM stage globalSynthesis llmAcceptedCount must be at least 1',
+      evidence: {
+        stageName: 'globalSynthesis',
+        actual: 0,
+        minimum: 1,
+      },
+    });
+  });
 });
 
 function createCriteria(): RuntimeProfileRunGateCriteria {

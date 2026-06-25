@@ -1,4 +1,7 @@
-import type { RuntimeProfileRunReport } from './runtimeProfileRunReport';
+import type {
+  RuntimeProfileAgentCycleLlmStageName,
+  RuntimeProfileRunReport,
+} from './runtimeProfileRunReport';
 
 export type RuntimeProfileRunGateEvidenceValue = number | string | boolean;
 
@@ -19,6 +22,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredPartitionHealth: string;
   readonly requireStreamVersionMatchesEventCount: boolean;
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
+  readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
 };
 
 export type RuntimeProfileRunGateFailure = {
@@ -108,6 +112,11 @@ export function evaluateRuntimeProfileRunReport(
     actual: report.agentCycleDiagnostics.fullReplanMaterializationCount,
     minimum: criteria.minimumFullReplanMaterializationCount,
   });
+  addRequiredAgentCycleLlmStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmAcceptedStages ?? [],
+  );
 
   const allowedStatuses = new Set(criteria.allowedPartitionStatuses);
   for (const partition of report.partitions) {
@@ -186,6 +195,33 @@ export function evaluateRuntimeProfileRunReport(
     failureCount: failures.length,
     failures,
   };
+}
+
+function addRequiredAgentCycleLlmStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.llmAcceptedCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-accepted-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} llmAcceptedCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        minimum: 1,
+      },
+    });
+  }
 }
 
 function addExactFailure(

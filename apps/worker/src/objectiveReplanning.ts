@@ -8,13 +8,14 @@ import {
   type ReplanningDecision,
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
-import type { AgentIntentionRepository } from '@aivilization/memory';
+import type { AgentIntentionRepository, LongTermAgentProfile } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 
 export type WorkerFullReplanMaterializationInput = {
   readonly agentId: AgentId;
   readonly planId: string;
   readonly issuedAt: number;
+  readonly longTermProfile?: LongTermAgentProfile;
   readonly intentionRepository: AgentIntentionRepository;
   readonly planRepository: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
@@ -75,7 +76,11 @@ export async function materializeFullReplanForActiveObjective(
   });
   const compile = input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
   const compiled = normalizeStrategicPlanCompilerOutput(
-    await compile({ objective, issuedAt: input.issuedAt }),
+    await compile({
+      objective,
+      issuedAt: input.issuedAt,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    }),
   );
   const planRecord: BranchPlanRecord = {
     planId: input.planId,

@@ -197,6 +197,7 @@ export async function runWorkerAgentCycle(
           agentId: input.agentId,
           planId: input.planId,
           issuedAt: input.issuedAt,
+          longTermProfile,
           intentionRepository: input.intentionRepository,
           planRepository: input.planRepository,
           ...(input.planProgressRepository === undefined

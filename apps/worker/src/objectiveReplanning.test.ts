@@ -4,7 +4,11 @@ import {
   InMemoryBranchPlanProgressRepository,
   InMemoryBranchPlanRepository,
 } from '@aivilization/agent-runtime';
-import { InMemoryAgentIntentionRepository } from '@aivilization/memory';
+import {
+  asMemoryRecordId,
+  InMemoryAgentIntentionRepository,
+  type LongTermAgentProfile,
+} from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { materializeFullReplanForActiveObjective } from './index';
@@ -127,6 +131,80 @@ describe('worker objective replanning materialization', () => {
       blockedSubtasks: [],
       updatedAt: 200,
     });
+  });
+
+  test('passes long-term profile context into full replan strategic compilers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const objective = {
+      id: 'objective-high-tech',
+      agentId,
+      statement: 'Craft high-tech goods.',
+      priority: 9,
+      source: 'agent' as const,
+      affinityTags: ['production'],
+      createdAt: 40,
+      updatedAt: 40,
+    };
+    const longTermProfile: LongTermAgentProfile = {
+      agentId,
+      beliefs: [],
+      habits: [],
+      mood: [],
+      values: [
+        {
+          key: 'human-objective:study-before-production',
+          statement:
+            'Human steering set long-horizon objective: Study before high-tech production.',
+          confidence: 0.95,
+          updatedAt: 80,
+          provenanceRecordIds: [asMemoryRecordId('cmd-study:strategic-objective')],
+        },
+      ],
+      personality: [],
+      socialRecords: [],
+    };
+    let compilerProfileKeys: readonly string[] = [];
+
+    await intentionRepository.setObjective(agentId, objective);
+
+    await materializeFullReplanForActiveObjective({
+      agentId,
+      planId: objective.id,
+      issuedAt: 200,
+      intentionRepository,
+      planRepository,
+      longTermProfile,
+      replanningDecision: {
+        kind: 'full-replan',
+        trigger: 'major-context-shift',
+        reason: 'market regime changed',
+        failedActionIds: [],
+        evidenceRecordIds: [],
+        matchingFailureCount: 0,
+      },
+      strategicPlanCompiler: (input) => {
+        compilerProfileKeys = input.longTermProfile?.values.map((entry) => entry.key) ?? [];
+        return createBranchPlan({
+          objective: input.objective.statement,
+          branches: [
+            {
+              id: 'profile-aware-replan',
+              objective: 'Use profile context in recovery planning.',
+              subtasks: [
+                {
+                  id: 'study',
+                  description: 'Study before production.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        });
+      },
+    });
+
+    expect(compilerProfileKeys).toEqual(['human-objective:study-before-production']);
   });
 
   test('skips materialization when the active objective is missing', async () => {

@@ -1148,6 +1148,19 @@ describe('worker agent cycle runner', () => {
         tags: ['study', 'energy'],
       }),
     );
+    await repositories.longTermProfileRepository.applyPatches(agentId, [
+      {
+        id: 'ltm-patch-agent-1-value-study-before-production-100',
+        agentId,
+        section: 'values',
+        key: 'human-objective:study-before-production',
+        statement: 'Human steering set long-horizon objective: Study before high-tech production.',
+        confidence: 0.95,
+        provenanceRecordIds: [asMemoryRecordId('cmd-study:strategic-objective')],
+        proposedAt: 100,
+      },
+    ]);
+    let compilerProfileKeys: readonly string[] = [];
 
     const result = await runWorkerAgentCycle({
       cycleId: 'cycle-materialize-full-replan',
@@ -1160,9 +1173,10 @@ describe('worker agent cycle runner', () => {
       planProgressRepository,
       planProgressId: objective.id,
       materializeFullReplan: {
-        strategicPlanCompiler: ({ objective: compilerObjective, issuedAt }) => {
+        strategicPlanCompiler: ({ objective: compilerObjective, issuedAt, longTermProfile }) => {
           expect(compilerObjective).toEqual(objective);
           expect(issuedAt).toBe(200);
+          compilerProfileKeys = longTermProfile?.values.map((entry) => entry.key) ?? [];
           return replacementPlan;
         },
       },
@@ -1189,6 +1203,7 @@ describe('worker agent cycle runner', () => {
     });
 
     expect(result.events).toEqual([]);
+    expect(compilerProfileKeys).toEqual(['human-objective:study-before-production']);
     expect(result.replanMaterialization).toMatchObject({
       status: 'replanned',
       agentId,

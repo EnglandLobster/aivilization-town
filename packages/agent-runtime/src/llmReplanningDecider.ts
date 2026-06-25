@@ -202,6 +202,9 @@ function createReplanningDecisionMessages(input: {
         deterministicFallbackDecision: input.deterministicFallbackDecision,
         plan: input.input.plan,
         signals: input.input.signals,
+        ...(input.input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.input.observedStateSummary }),
         ...(input.input.intentionState === undefined
           ? {}
           : { intentionState: input.input.intentionState }),

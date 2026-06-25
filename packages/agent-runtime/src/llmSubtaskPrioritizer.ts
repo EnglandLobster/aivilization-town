@@ -177,6 +177,9 @@ function createSubtaskPrioritizerMessages(
         plan: input.plan,
         candidates: input.candidates,
         signals: input.signals,
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.progress === undefined ? {} : { progress: input.progress }),
         ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
         ...(input.shortTermMemoryContext === undefined

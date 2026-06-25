@@ -87,6 +87,7 @@ export type SocialDialogueGeneratorInput = {
   readonly action: AtomicActionProposal<'AgentStartConversation', SocialDialoguePayload>;
   readonly deterministicPayload: SocialDialoguePayload;
   readonly signals: readonly ContextSignal[];
+  readonly observedStateSummary?: string;
   readonly progress?: BranchPlanProgress;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];

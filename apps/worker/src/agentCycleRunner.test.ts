@@ -303,8 +303,10 @@ describe('worker agent cycle runner', () => {
     const repositories = createRepositories();
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const simulatedSubtasks: string[] = [];
-    const prioritizer: SubtaskPrioritizer = async ({ candidates, worldDecisionContext }) => {
+    const prioritizer: SubtaskPrioritizer = async (input) => {
       await Promise.resolve();
+      const { candidates, worldDecisionContext } = input;
+      expect(input.observedStateSummary).toBe('energy=50 satiety=30 health=100 education=10');
       expect(worldDecisionContext?.rules?.criticalThresholds).toEqual({ energy: 1, health: 1 });
       expect(worldDecisionContext?.rules?.occupations).toEqual(
         expect.arrayContaining([

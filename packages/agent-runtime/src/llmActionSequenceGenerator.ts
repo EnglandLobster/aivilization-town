@@ -197,6 +197,9 @@ function createActionSequenceMessages(
         allowedCommandTypes: sortedUnique(
           input.deterministicActions.map((action) => action.commandType),
         ),
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.progress === undefined ? {} : { progress: input.progress }),
         ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
         ...(input.shortTermMemoryContext === undefined

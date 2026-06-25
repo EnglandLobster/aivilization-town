@@ -130,6 +130,7 @@ export type ReactiveCorrectorInput = {
   readonly localRepairAttempt?: AtomicActionProposal;
   readonly localRepairRejectionReason?: string;
   readonly allowedCommandTypes: readonly string[];
+  readonly observedStateSummary?: string;
   readonly intentionState?: AgentIntentionState;
   readonly shortTermMemoryContext?: readonly ShortTermMemoryRecord[];
   readonly longTermProfile?: LongTermAgentProfile;

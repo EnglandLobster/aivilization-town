@@ -215,6 +215,9 @@ function createReactiveCorrectionMessages(
         ...(input.localRepairRejectionReason === undefined
           ? {}
           : { localRepairRejectionReason: input.localRepairRejectionReason }),
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
         ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
         ...(input.shortTermMemoryContext === undefined
           ? {}

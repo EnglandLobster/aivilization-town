@@ -12,6 +12,7 @@ export * from './llmActionSequenceGenerator';
 export * from './llmGlobalSynthesizer';
 export * from './llmReactionEvaluator';
 export * from './llmReactiveCorrector';
+export * from './llmReplanningDecider';
 export * from './llmSocialDialogueGenerator';
 export * from './llmSubtaskPrioritizer';
 export * from './llmStrategicPlanner';

@@ -1858,6 +1858,154 @@ describe('agent planning cycle', () => {
     expect(result.progressUpdate).toBeUndefined();
   });
 
+  test('uses an async replanning decider with STM and world context after simulator rejection', async () => {
+    const agentId = asAgentId('agent-1');
+    const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });
+    const plan = createBranchPlan({
+      objective: 'survive',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn wage',
+          subtasks: [{ id: 'work', description: 'work shift', basePriority: 5 }],
+        },
+      ],
+    });
+    const replanningInputs: unknown[] = [];
+
+    const result = await runAgentPlanningCycleWithPrioritization({
+      simulationId: asSimulationId('sim-1'),
+      agentId,
+      issuedAt: 100,
+      plan,
+      progress,
+      signals: [{ key: 'income', weight: 3 }],
+      replanningPolicy: { consecutiveFailureThreshold: 1 },
+      shortTermMemoryContext: [
+        createShortTermMemoryRecord({
+          id: 'stm-energy-failure',
+          agentId,
+          kind: 'action',
+          status: 'failed',
+          summary: 'Failed to work because energy was too low.',
+          occurredAt: 90,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['work', 'energy'],
+        }),
+      ],
+      worldDecisionContext: {
+        agent: {
+          agentId,
+          locationId: 'market',
+          physiology: { energy: 18, satiety: 42, health: 92 },
+          educationScore: 7,
+          balance: 23,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 1 },
+        },
+        market: {
+          spotPrices: [{ commodity: 'Bread', spotPrice: 11 }],
+        },
+      },
+      microPlanners: [
+        {
+          domain: 'work',
+          supports: ({ subtaskId }) => subtaskId === 'work',
+          propose: () => [
+            {
+              id: 'work-1',
+              description: 'work as Cleaner',
+              commandType: 'AgentWork',
+              payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+            },
+          ],
+        },
+      ],
+      replanningDecider: (input) => {
+        replanningInputs.push(input);
+        return Promise.resolve({
+          decision: {
+            kind: 'memory-guided-correction',
+            trigger: 'simulator-rejection',
+            reason: 'LLM chose a cheap recovery step before full replanning.',
+            failedActionIds: ['work-1'],
+            evidenceRecordIds: [asMemoryRecordId('stm-energy-failure')],
+          },
+          trace: {
+            status: 'accepted',
+            source: 'llm',
+            requestId: 'agent-1:100:replanning',
+            decision: {
+              kind: 'memory-guided-correction',
+              trigger: 'simulator-rejection',
+              reason: 'LLM chose a cheap recovery step before full replanning.',
+              failedActionIds: ['work-1'],
+              evidenceRecordIds: [asMemoryRecordId('stm-energy-failure')],
+            },
+            worldDecisionContext: {
+              agentId,
+              hasPhysiology: true,
+              hasBalance: true,
+              hasEducationScore: true,
+              hasResidentialTier: true,
+              inventoryItemCount: 1,
+              marketSpotPriceCount: 1,
+              hasLatestPriceIndex: false,
+            },
+          },
+        });
+      },
+      simulate: ({ action }) => ({ status: 'rejected', action, reason: 'energy too low' }),
+    });
+
+    expect(result.needsReplan).toBe(true);
+    expect(result.replanningDecision).toEqual({
+      kind: 'memory-guided-correction',
+      trigger: 'simulator-rejection',
+      reason: 'LLM chose a cheap recovery step before full replanning.',
+      failedActionIds: ['work-1'],
+      evidenceRecordIds: ['stm-energy-failure'],
+    });
+    expect(result.replanningTrace).toMatchObject({
+      status: 'accepted',
+      source: 'llm',
+      requestId: 'agent-1:100:replanning',
+      worldDecisionContext: {
+        agentId,
+        inventoryItemCount: 1,
+        marketSpotPriceCount: 1,
+      },
+    });
+    expect(result.progressUpdate).toBeUndefined();
+    expect(replanningInputs).toHaveLength(1);
+    expect(replanningInputs[0]).toMatchObject({
+      agentId,
+      issuedAt: 100,
+      plan,
+      signals: [{ key: 'income', weight: 3 }],
+      selectedSubtask: { branchId: 'income', subtaskId: 'work' },
+      simulationResults: [
+        {
+          status: 'needs-replan',
+          action: { id: 'work-1' },
+          reason: 'energy too low',
+        },
+      ],
+      shortTermMemoryContext: [{ id: 'stm-energy-failure' }],
+      policy: { consecutiveFailureThreshold: 1 },
+      worldDecisionContext: {
+        agent: {
+          balance: 23,
+          inventory: { Bread: 1 },
+          physiology: { energy: 18 },
+        },
+        market: { spotPrices: [{ commodity: 'Bread', spotPrice: 11 }] },
+      },
+    });
+  });
+
   test('returns a progress update when full replanning blocks the selected subtask', () => {
     const agentId = asAgentId('agent-1');
     const progress = createBranchPlanProgress({ planId: 'plan-1', agentId, createdAt: 50 });

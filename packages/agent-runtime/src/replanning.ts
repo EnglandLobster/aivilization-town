@@ -1,7 +1,18 @@
-import type { MemoryRecordId, ShortTermMemoryRecord } from '@aivilization/memory';
+import type {
+  AgentIntentionState,
+  LongTermAgentProfile,
+  MemoryRecordId,
+  ShortTermMemoryRecord,
+} from '@aivilization/memory';
+import type { AgentId } from '@aivilization/sim-core';
 import type { ActionWithRepairResult, AtomicActionProposal } from './actions';
 import { markSubtaskBlocked, markSubtaskCompleted, type BranchPlanProgress } from './planProgress';
-import type { PrioritizedSubtask } from './planner';
+import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
+import {
+  createWorldDecisionContextTrace,
+  type WorldDecisionContext,
+  type WorldDecisionContextTrace,
+} from './worldDecisionContext';
 
 export type ReplanningMajorContextShift = {
   readonly key: string;
@@ -34,6 +45,62 @@ export type ReplanningDecision =
       readonly matchingFailureCount: number;
     };
 
+export type ReplanningDecisionTraceAttempt = {
+  readonly attemptIndex: number;
+  readonly status: string;
+  readonly providerId: string;
+  readonly model: string;
+  readonly message: string;
+  readonly usage: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
+  };
+};
+
+export type ReplanningDecisionTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly decision: ReplanningDecision;
+  readonly attempts?: readonly ReplanningDecisionTraceAttempt[];
+  readonly usage?: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
+  };
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
+};
+
+export type ReplanningDecisionResult = {
+  readonly decision: ReplanningDecision;
+  readonly trace: ReplanningDecisionTrace;
+};
+
+export type ReplanningDeciderInput = {
+  readonly agentId: AgentId;
+  readonly issuedAt: number;
+  readonly plan: BranchPlan;
+  readonly signals: readonly ContextSignal[];
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
+  readonly policy: AdaptiveReplanningPolicy;
+  readonly intentionState?: AgentIntentionState;
+  readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
+};
+
+export type ReplanningDecider = (
+  input: ReplanningDeciderInput,
+) => ReplanningDecisionResult | Promise<ReplanningDecisionResult>;
+
 export type SubtaskCompletionDecision =
   | {
       readonly status: 'completed';
@@ -42,6 +109,34 @@ export type SubtaskCompletionDecision =
       readonly status: 'in-progress';
       readonly reason: string;
     };
+
+export function createDeterministicReplanningDecisionResult(input: {
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly simulationResults: readonly ActionWithRepairResult[];
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
+  readonly policy: AdaptiveReplanningPolicy;
+  readonly worldDecisionContext?: WorldDecisionContext;
+}): ReplanningDecisionResult {
+  const decision = decideAdaptiveReplanning({
+    selectedSubtask: input.selectedSubtask,
+    simulationResults: input.simulationResults,
+    shortTermMemoryContext: input.shortTermMemoryContext,
+    consecutiveFailureThreshold: input.policy.consecutiveFailureThreshold,
+    ...(input.policy.failureTags === undefined ? {} : { failureTags: input.policy.failureTags }),
+    ...(input.policy.majorContextShift === undefined
+      ? {}
+      : { majorContextShift: input.policy.majorContextShift }),
+  });
+  return {
+    decision,
+    trace: {
+      status: 'deterministic',
+      source: 'deterministic',
+      decision,
+      ...mapWorldDecisionContextTrace(input.worldDecisionContext),
+    },
+  };
+}
 
 export function decideAdaptiveReplanning(input: {
   readonly selectedSubtask: PrioritizedSubtask;
@@ -189,6 +284,14 @@ function compareMemoryRecords(left: ShortTermMemoryRecord, right: ShortTermMemor
     return left.occurredAt - right.occurredAt;
   }
   return left.id.localeCompare(right.id);
+}
+
+function mapWorldDecisionContextTrace(
+  context: WorldDecisionContext | undefined,
+): Pick<ReplanningDecisionTrace, 'worldDecisionContext'> {
+  return context === undefined
+    ? {}
+    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
 }
 
 function assertPositiveInteger(value: number, name: string): void {

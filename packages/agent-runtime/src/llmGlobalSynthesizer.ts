@@ -14,6 +14,7 @@ import {
   type GlobalSynthesisTrace,
   type GlobalSynthesizerInput,
 } from './globalSynthesis';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   createWorldDecisionContextTrace,
   type WorldDecisionContext,
@@ -286,6 +287,7 @@ function mapAcceptedTrace(
       usage: { ...attempt.usage },
     })),
     usage: { ...gateway.usage },
+    ...createLlmCognitiveContextTrace(input),
     ...mapWorldDecisionContextTrace(input.worldDecisionContext),
   };
 }
@@ -320,6 +322,7 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

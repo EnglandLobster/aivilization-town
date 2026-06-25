@@ -5,6 +5,10 @@ import type {
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
 import type { AtomicActionProposal } from './actions';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { BranchPlan, ContextSignal, PrioritizedSubtask } from './planner';
 import type { BranchPlanProgress } from './planProgress';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
@@ -65,6 +69,8 @@ export type SocialDialogueGenerationTrace = {
   readonly rationale: string;
   readonly attempts?: readonly SocialDialogueGenerationTraceAttempt[];
   readonly usage?: SocialDialogueGenerationUsage;
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

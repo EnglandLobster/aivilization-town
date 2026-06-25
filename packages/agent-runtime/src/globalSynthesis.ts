@@ -6,6 +6,10 @@ import type {
 import type { AgentId } from '@aivilization/sim-core';
 import type { AtomicActionProposal } from './actions';
 import type { ActionSynthesisPolicy, ActionSynthesisResult } from './actionSynthesis';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { BranchPlan, ContextSignal } from './planner';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
@@ -47,6 +51,8 @@ export type GlobalSynthesisTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

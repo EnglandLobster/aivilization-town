@@ -25,6 +25,8 @@ export type RuntimeProfileRunGateCriteria = {
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -125,6 +127,16 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredAgentCycleLlmWorldContextStages ?? [],
+  );
+  addRequiredAgentCycleLlmMemoryContextStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmMemoryContextStages ?? [],
+  );
+  addRequiredAgentCycleLlmProfileContextStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmProfileContextStages ?? [],
   );
   addRequiredCognitionLlmStageFailures(
     failures,
@@ -267,6 +279,60 @@ function addRequiredAgentCycleLlmWorldContextStageFailures(
         stageName,
         actual,
         worldDecisionContextCount,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredAgentCycleLlmMemoryContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.shortTermMemoryContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-memory-context-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} shortTermMemoryContextCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
+        minimum: 1,
+      },
+    });
+  }
+}
+
+function addRequiredAgentCycleLlmProfileContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const actual = diagnosticsByStage.get(stageName)?.longTermProfileContextCount ?? 0;
+    if (actual >= 1) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-profile-context-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} longTermProfileContextCount must be at least 1`,
+      evidence: {
+        stageName,
+        actual,
         minimum: 1,
       },
     });

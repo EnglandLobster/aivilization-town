@@ -94,6 +94,11 @@ type WorkerAgentCyclePlanInput =
       readonly planId: string;
     };
 
+type LlmCognitiveContextTrace = {
+  readonly shortTermMemoryContext?: { readonly recordCount: number };
+  readonly longTermProfileContext?: { readonly entryCount: number };
+};
+
 export async function runWorkerAgentCycle(
   input: {
     readonly cycleId: string;
@@ -532,6 +537,18 @@ function mapContextualPrioritizationTrace(
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...mapLlmCognitiveContextTrace(trace),
+  };
+}
+
+function mapLlmCognitiveContextTrace(trace: LlmCognitiveContextTrace): LlmCognitiveContextTrace {
+  return {
+    ...(trace.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: { recordCount: trace.shortTermMemoryContext.recordCount } }),
+    ...(trace.longTermProfileContext === undefined
+      ? {}
+      : { longTermProfileContext: { entryCount: trace.longTermProfileContext.entryCount } }),
   };
 }
 
@@ -572,6 +589,7 @@ function mapActionSequenceGenerationTrace(
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...mapLlmCognitiveContextTrace(trace),
   };
 }
 
@@ -607,6 +625,7 @@ function mapSocialDialogueGenerationTrace(
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...mapLlmCognitiveContextTrace(trace),
   };
 }
 
@@ -645,6 +664,7 @@ function mapGlobalSynthesisTrace(trace: GlobalSynthesisTrace): AgentCycleGlobalS
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...mapLlmCognitiveContextTrace(trace),
   };
 }
 
@@ -691,6 +711,7 @@ function mapReplanningDecisionTrace(
           })),
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
+    ...mapLlmCognitiveContextTrace(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: { ...trace.worldDecisionContext } }),
@@ -760,6 +781,7 @@ function mapActionRepairTrace(trace: ActionRepairTrace): AgentCycleActionRepairT
             ...(trace.reactiveCorrection.usage === undefined
               ? {}
               : { usage: { ...trace.reactiveCorrection.usage } }),
+            ...mapLlmCognitiveContextTrace(trace.reactiveCorrection),
             ...(trace.reactiveCorrection.simulatorResult === undefined
               ? {}
               : {

@@ -91,6 +91,8 @@ describe('LLM replanning decision seam', () => {
           totalTokens: 114,
           estimatedCostMicros: 300,
         },
+        shortTermMemoryContext: { recordCount: 2 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,

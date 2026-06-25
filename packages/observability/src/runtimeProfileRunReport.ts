@@ -57,6 +57,8 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingCycleCount: number;
+  readonly shortTermMemoryContextCount: number;
+  readonly longTermProfileContextCount: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
 };
@@ -488,6 +490,8 @@ function cloneAgentCycleDiagnostics(
       : {
           llmStageDiagnostics: diagnostics.llmStageDiagnostics.map((stage) => ({
             ...stage,
+            shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
+            longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
           })),
         }),
@@ -566,6 +570,8 @@ const COGNITION_LLM_STAGE_NAMES = [
 type AgentCycleLlmStageTrace = {
   readonly status: 'deterministic' | 'accepted' | 'fallback';
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly shortTermMemoryContext?: unknown;
+  readonly longTermProfileContext?: unknown;
   readonly worldDecisionContext?: unknown;
 };
 
@@ -578,6 +584,8 @@ type MutableLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingCycleCount: number;
+  shortTermMemoryContextCount: number;
+  longTermProfileContextCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
 };
@@ -614,6 +622,8 @@ function createLlmStageDiagnostics(
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingCycleCount: 0,
+        shortTermMemoryContextCount: 0,
+        longTermProfileContextCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
       },
@@ -693,6 +703,12 @@ function recordStageTrace(input: {
     if (trace.source === 'deterministic') {
       diagnostics.deterministicCount += 1;
     }
+    if (trace.shortTermMemoryContext !== undefined) {
+      diagnostics.shortTermMemoryContextCount += 1;
+    }
+    if (trace.longTermProfileContext !== undefined) {
+      diagnostics.longTermProfileContextCount += 1;
+    }
     if (trace.worldDecisionContext !== undefined) {
       diagnostics.worldDecisionContextCount += 1;
       if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
@@ -753,6 +769,16 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
       stage.missingCycleCount,
       `agentCycleDiagnostics ${stage.stageName} missingCycleCount`,
     );
+    const shortTermMemoryContextCount = stage.shortTermMemoryContextCount ?? 0;
+    assertNonNegativeInteger(
+      shortTermMemoryContextCount,
+      `agentCycleDiagnostics ${stage.stageName} shortTermMemoryContextCount`,
+    );
+    const longTermProfileContextCount = stage.longTermProfileContextCount ?? 0;
+    assertNonNegativeInteger(
+      longTermProfileContextCount,
+      `agentCycleDiagnostics ${stage.stageName} longTermProfileContextCount`,
+    );
     assertNonNegativeInteger(
       stage.worldDecisionContextCount,
       `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount`,
@@ -770,6 +796,16 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     if (stage.worldDecisionContextCount > stage.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
+      );
+    }
+    if (shortTermMemoryContextCount > stage.traceCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} shortTermMemoryContextCount must not exceed traceCount`,
+      );
+    }
+    if (longTermProfileContextCount > stage.traceCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} longTermProfileContextCount must not exceed traceCount`,
       );
     }
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {

@@ -4,6 +4,10 @@ import type {
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { BranchPlan, ContextSignal, PrioritizedSubtaskCandidate } from './planner';
 import type { BranchPlanProgress } from './planProgress';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
@@ -45,6 +49,8 @@ export type SubtaskPrioritizationTrace = {
     readonly totalTokens: number;
     readonly estimatedCostMicros: number;
   };
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

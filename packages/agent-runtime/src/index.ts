@@ -9,6 +9,7 @@ export * from './globalSynthesis';
 export * from './intentionInfluence';
 export * from './llmDailyPlanner';
 export * from './llmActionSequenceGenerator';
+export * from './llmContextTrace';
 export * from './llmGlobalSynthesizer';
 export * from './llmReactionEvaluator';
 export * from './llmReactiveCorrector';

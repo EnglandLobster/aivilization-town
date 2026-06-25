@@ -17,6 +17,8 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmWorldContextStages?: readonly RuntimeProfileCognitionLlmStageName[];
 };
@@ -37,6 +39,12 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmWorldContextStages =
     input.requiredAgentCycleLlmWorldContextStages ??
     deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmMemoryContextStages =
+    input.requiredAgentCycleLlmMemoryContextStages ??
+    deriveRequiredAgentCycleLlmMemoryContextStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmProfileContextStages =
+    input.requiredAgentCycleLlmProfileContextStages ??
+    deriveRequiredAgentCycleLlmProfileContextStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredCognitionLlmAcceptedStages =
     input.requiredCognitionLlmAcceptedStages ??
     deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
@@ -80,6 +88,12 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmWorldContextStages.length === 0
       ? {}
       : { requiredAgentCycleLlmWorldContextStages }),
+    ...(requiredAgentCycleLlmMemoryContextStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmMemoryContextStages }),
+    ...(requiredAgentCycleLlmProfileContextStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmProfileContextStages }),
     ...(requiredCognitionLlmAcceptedStages.length === 0
       ? {}
       : { requiredCognitionLlmAcceptedStages }),
@@ -119,6 +133,18 @@ export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(
 }
 
 export function deriveRequiredAgentCycleLlmWorldContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveRequiredAgentCycleLlmMemoryContextStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveRequiredAgentCycleLlmProfileContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileAgentCycleLlmStageName[] {
   return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);

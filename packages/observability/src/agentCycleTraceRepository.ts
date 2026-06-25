@@ -46,6 +46,11 @@ type PersistedAgentCycleTrace = Omit<
   readonly subtaskReplanningDecisions?: readonly AgentCycleSubtaskReplanningDecisionTrace[];
 };
 
+type LlmCognitiveContextTrace = {
+  readonly shortTermMemoryContext?: { readonly recordCount: number };
+  readonly longTermProfileContext?: { readonly entryCount: number };
+};
+
 export class InMemoryAgentCycleTraceRepository implements AgentCycleTraceRepository {
   private readonly tracesById = new Map<string, AgentCycleTrace>();
 
@@ -208,6 +213,17 @@ function cloneActionRepair(trace: AgentCycleActionRepairTrace): AgentCycleAction
   };
 }
 
+function cloneLlmCognitiveContext(trace: LlmCognitiveContextTrace): LlmCognitiveContextTrace {
+  return {
+    ...(trace.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: { recordCount: trace.shortTermMemoryContext.recordCount } }),
+    ...(trace.longTermProfileContext === undefined
+      ? {}
+      : { longTermProfileContext: { entryCount: trace.longTermProfileContext.entryCount } }),
+  };
+}
+
 function cloneReactiveCorrection(
   trace: NonNullable<AgentCycleActionRepairTrace['reactiveCorrection']>,
 ): NonNullable<AgentCycleActionRepairTrace['reactiveCorrection']> {
@@ -263,6 +279,7 @@ function cloneReactiveCorrection(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
@@ -422,6 +439,7 @@ function cloneContextualPrioritization(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
@@ -479,6 +497,7 @@ function cloneActionSequenceGeneration(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
@@ -531,6 +550,7 @@ function cloneSocialDialogueGeneration(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
@@ -588,6 +608,7 @@ function cloneGlobalSynthesis(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
@@ -744,6 +765,7 @@ function cloneReplanningDecisionTrace(
             estimatedCostMicros: trace.usage.estimatedCostMicros,
           },
         }),
+    ...cloneLlmCognitiveContext(trace),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

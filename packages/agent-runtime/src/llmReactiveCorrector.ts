@@ -7,6 +7,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import type { ActionResourceEstimate } from './actions';
+import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
   applyReactiveCorrectionDecision,
   type ReactiveCorrectionGeneratedAction,
@@ -379,6 +380,7 @@ function mapAcceptedTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }
@@ -412,6 +414,7 @@ function mapFallbackTrace(input: {
       usage: { ...attempt.usage },
     })),
     usage: { ...input.gateway.usage },
+    ...createLlmCognitiveContextTrace(input.input),
     ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
   };
 }

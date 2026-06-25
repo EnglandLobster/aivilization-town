@@ -293,6 +293,8 @@ describe('worker agent cycle runner', () => {
           status: 'accepted',
           source: 'llm',
           requestId: 'prioritize-cycle-worker',
+          shortTermMemoryContext: { recordCount: 3 },
+          longTermProfileContext: { entryCount: 2 },
           choices: [
             {
               branchId: 'recovery',
@@ -386,6 +388,8 @@ describe('worker agent cycle runner', () => {
       status: 'accepted',
       source: 'llm',
       requestId: 'prioritize-cycle-worker',
+      shortTermMemoryContext: { recordCount: 3 },
+      longTermProfileContext: { entryCount: 2 },
       choices: [{ subtaskId: 'eat' }, { subtaskId: 'work' }],
     });
   });
@@ -418,6 +422,8 @@ describe('worker agent cycle runner', () => {
           source: 'llm',
           selectedSubtask: { branchId: 'development', subtaskId: 'study' },
           requestId: 'sequence-cycle-worker',
+          shortTermMemoryContext: { recordCount: 1 },
+          longTermProfileContext: { entryCount: 4 },
           actions: [
             {
               id: 'llm-study-focused',
@@ -473,6 +479,8 @@ describe('worker agent cycle runner', () => {
         source: 'llm',
         selectedSubtask: { branchId: 'development', subtaskId: 'study' },
         requestId: 'sequence-cycle-worker',
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 4 },
         actions: [
           {
             id: 'llm-study-focused',
@@ -527,6 +535,8 @@ describe('worker agent cycle runner', () => {
           status: 'accepted',
           source: 'llm',
           requestId: 'global-synthesis-cycle-worker',
+          shortTermMemoryContext: { recordCount: 2 },
+          longTermProfileContext: { entryCount: 5 },
           choices: [
             {
               actionId: 'recover-basics',
@@ -620,6 +630,8 @@ describe('worker agent cycle runner', () => {
       status: 'accepted',
       source: 'llm',
       requestId: 'global-synthesis-cycle-worker',
+      shortTermMemoryContext: { recordCount: 2 },
+      longTermProfileContext: { entryCount: 5 },
       choices: [
         {
           actionId: 'recover-basics',
@@ -665,6 +677,8 @@ describe('worker agent cycle runner', () => {
           status: 'accepted',
           source: 'llm',
           requestId: 'reactive-correction-cycle-worker',
+          shortTermMemoryContext: { recordCount: 1 },
+          longTermProfileContext: { entryCount: 3 },
           decision: {
             kind: 'propose-action',
             rationale: 'STM shows work fails while hungry; use a safe short study action.',
@@ -776,6 +790,8 @@ describe('worker agent cycle runner', () => {
           status: 'accepted',
           source: 'llm',
           requestId: 'reactive-correction-cycle-worker',
+          shortTermMemoryContext: { recordCount: 1 },
+          longTermProfileContext: { entryCount: 3 },
           decision: {
             kind: 'propose-action',
             rationale: 'STM shows work fails while hungry; use a safe short study action.',
@@ -824,6 +840,8 @@ describe('worker agent cycle runner', () => {
           status: 'accepted',
           source: 'llm',
           requestId: 'replanning-decision-cycle-worker',
+          shortTermMemoryContext: { recordCount: 1 },
+          longTermProfileContext: { entryCount: 6 },
           decision: {
             kind: 'memory-guided-correction',
             trigger: 'simulator-rejection',
@@ -924,6 +942,8 @@ describe('worker agent cycle runner', () => {
         status: 'accepted',
         source: 'llm',
         requestId: 'replanning-decision-cycle-worker',
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 6 },
         worldDecisionContext: {
           hasPhysiology: true,
           hasBalance: true,

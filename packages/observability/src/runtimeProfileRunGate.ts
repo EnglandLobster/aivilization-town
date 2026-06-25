@@ -28,6 +28,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoDeterministicStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmWorldContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmEconomicContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmRulesContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -149,6 +150,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredAgentCycleLlmWorldContextStages ?? [],
+  );
+  addRequiredAgentCycleLlmEconomicContextStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmEconomicContextStages ?? [],
   );
   addRequiredAgentCycleLlmRulesContextStageFailures(
     failures,
@@ -456,6 +462,39 @@ function addRequiredAgentCycleLlmRulesContextStageFailures(
         stageName,
         actual,
         rulesContextCount,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredAgentCycleLlmEconomicContextStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.completeEconomicContextCount ?? 0;
+    const economicContextCount = stage?.economicContextCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-complete-economic-context-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} completeEconomicContextCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        economicContextCount,
         llmAcceptedCount,
         minimum,
       },

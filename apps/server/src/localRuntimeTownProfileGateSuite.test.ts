@@ -488,6 +488,8 @@ describe('local runtime town profile gate suite', () => {
                 longTermProfileContextCount: 1,
                 worldDecisionContextCount: 1,
                 completeWorldDecisionContextCount: 1,
+                economicContextCount: 1,
+                completeEconomicContextCount: 1,
                 rulesContextCount: 1,
                 completeRulesContextCount: 1,
               },
@@ -754,6 +756,8 @@ function createAcceptedAgentCycleLlmStageDiagnostics(
     observedStateSummaryCount: 1,
     worldDecisionContextCount: 1,
     completeWorldDecisionContextCount: 1,
+    economicContextCount: 1,
+    completeEconomicContextCount: 1,
     rulesContextCount: 1,
     completeRulesContextCount: 1,
   }));

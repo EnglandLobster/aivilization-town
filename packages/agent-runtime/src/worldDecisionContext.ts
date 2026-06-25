@@ -89,6 +89,9 @@ export type WorldDecisionContextTrace = {
   readonly inventoryItemCount: number;
   readonly marketSpotPriceCount: number;
   readonly hasLatestPriceIndex: boolean;
+  readonly hasEconomicState: boolean;
+  readonly hasMarketPrices: boolean;
+  readonly completeEconomicContext: boolean;
   readonly occupationRuleCount: number;
   readonly eligibleOccupationRuleCount: number;
   readonly productionRuleCount: number;
@@ -98,6 +101,16 @@ export type WorldDecisionContextTrace = {
 export function createWorldDecisionContextTrace(
   context: WorldDecisionContext,
 ): WorldDecisionContextTrace {
+  const hasBalance = Number.isFinite(context.agent.balance);
+  const hasInventory = context.agent.inventory !== undefined;
+  const hasLatestPriceIndex = context.market.latestPriceIndex !== undefined;
+  const hasEconomicState = hasBalance && hasInventory;
+  const hasMarketPrices =
+    context.market.spotPrices.length > 0 &&
+    context.market.spotPrices.every(
+      (price) => price.commodity.trim().length > 0 && Number.isFinite(price.spotPrice),
+    );
+
   return {
     agentId: context.agent.agentId,
     hasLocationId: context.agent.locationId !== undefined,
@@ -106,13 +119,16 @@ export function createWorldDecisionContextTrace(
       Number.isFinite(context.agent.physiology.satiety) &&
       Number.isFinite(context.agent.physiology.health),
     hasJob: context.agent.job !== undefined,
-    hasBalance: Number.isFinite(context.agent.balance),
+    hasBalance,
     hasEducationScore: Number.isFinite(context.agent.educationScore),
     hasResidentialTier: Number.isFinite(context.agent.residentialTier),
-    hasInventory: context.agent.inventory !== undefined,
+    hasInventory,
     inventoryItemCount: Object.keys(context.agent.inventory).length,
     marketSpotPriceCount: context.market.spotPrices.length,
-    hasLatestPriceIndex: context.market.latestPriceIndex !== undefined,
+    hasLatestPriceIndex,
+    hasEconomicState,
+    hasMarketPrices,
+    completeEconomicContext: hasEconomicState && hasMarketPrices && hasLatestPriceIndex,
     occupationRuleCount: context.rules?.occupations.length ?? 0,
     eligibleOccupationRuleCount:
       context.rules?.occupations.filter((occupation) => occupation.eligible).length ?? 0,

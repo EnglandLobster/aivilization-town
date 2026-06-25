@@ -123,9 +123,12 @@ describe('LLM contextual subtask prioritizer seam', () => {
           hasBalance: true,
           hasEducationScore: true,
           hasResidentialTier: true,
+          hasEconomicState: true,
           inventoryItemCount: 2,
           marketSpotPriceCount: 1,
           hasLatestPriceIndex: true,
+          hasMarketPrices: true,
+          completeEconomicContext: true,
         },
       },
     });

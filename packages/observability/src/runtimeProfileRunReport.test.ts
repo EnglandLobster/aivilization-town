@@ -433,6 +433,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 1,
+        completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
       },
@@ -448,6 +450,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 2,
         worldDecisionContextCount: 2,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 2,
+        completeEconomicContextCount: 1,
         rulesContextCount: 2,
         completeRulesContextCount: 2,
       },
@@ -463,6 +467,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 1,
+        completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
       },
@@ -478,6 +484,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 1,
+        completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
       },
@@ -493,6 +501,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 1,
+        completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
       },
@@ -508,6 +518,8 @@ describe('runtime profile run report repositories', () => {
         longTermProfileContextCount: 1,
         worldDecisionContextCount: 1,
         completeWorldDecisionContextCount: 1,
+        economicContextCount: 1,
+        completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
       },
@@ -535,6 +547,8 @@ describe('runtime profile run report repositories', () => {
       stageName: 'contextualPrioritization',
       worldDecisionContextCount: 1,
       completeWorldDecisionContextCount: 0,
+      economicContextCount: 1,
+      completeEconomicContextCount: 0,
     });
   });
 
@@ -996,6 +1010,8 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     longTermProfileContextCount: 0,
     worldDecisionContextCount: 0,
     completeWorldDecisionContextCount: 0,
+    economicContextCount: 0,
+    completeEconomicContextCount: 0,
     rulesContextCount: 0,
     completeRulesContextCount: 0,
   }));
@@ -1014,6 +1030,9 @@ function createWorldDecisionContextTrace() {
     inventoryItemCount: 2,
     marketSpotPriceCount: 1,
     hasLatestPriceIndex: true,
+    hasEconomicState: true,
+    hasMarketPrices: true,
+    completeEconomicContext: true,
     occupationRuleCount: 4,
     eligibleOccupationRuleCount: 2,
     productionRuleCount: 6,
@@ -1022,10 +1041,21 @@ function createWorldDecisionContextTrace() {
 }
 
 function createLegacyWorldDecisionContextTraceWithoutAgentStateCoverage() {
-  const { hasLocationId, hasJob, hasInventory, ...trace } = createWorldDecisionContextTrace();
+  const {
+    hasLocationId,
+    hasJob,
+    hasInventory,
+    hasEconomicState,
+    hasMarketPrices,
+    completeEconomicContext,
+    ...trace
+  } = createWorldDecisionContextTrace();
   void hasLocationId;
   void hasJob;
   void hasInventory;
+  void hasEconomicState;
+  void hasMarketPrices;
+  void completeEconomicContext;
   return trace;
 }
 
@@ -1035,6 +1065,8 @@ function createIncompleteWorldDecisionContextTrace() {
     agentId: 'agent-incomplete-context',
     marketSpotPriceCount: 0,
     hasLatestPriceIndex: false,
+    hasMarketPrices: false,
+    completeEconomicContext: false,
   };
 }
 

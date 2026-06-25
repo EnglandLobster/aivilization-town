@@ -48,6 +48,11 @@ describe('social reflection observation repositories', () => {
       }),
     ]);
 
+    await expect(repository.get('observation-1')).resolves.toMatchObject({
+      observationId: 'observation-1',
+      statement: 'First reflection.',
+    });
+    await expect(repository.get('missing-observation')).resolves.toBeUndefined();
     const rows = await repository.query({
       simulationId: 'sim-social',
       partitionKey: 'world-main',
@@ -63,6 +68,12 @@ describe('social reflection observation repositories', () => {
     ]);
 
     (rows[0] as { statement: string }).statement = 'mutated';
+    await expect(
+      repository.query({
+        simulationId: 'sim-social',
+        observationId: 'observation-2',
+      }),
+    ).resolves.toMatchObject([{ observationId: 'observation-2', statement: 'Second reflection.' }]);
     await expect(
       repository.query({
         simulationId: 'sim-social',
@@ -82,6 +93,10 @@ describe('social reflection observation repositories', () => {
 
     const reopened = new FileSocialReflectionObservationRepository({ rootDir });
 
+    await expect(reopened.get('file-observation')).resolves.toMatchObject({
+      observationId: 'file-observation',
+      reflectionId: 'reflection-file-observation',
+    });
     await expect(reopened.query({ simulationId: 'sim-social' })).resolves.toMatchObject([
       { observationId: 'file-observation', reflectionId: 'reflection-file-observation' },
     ]);

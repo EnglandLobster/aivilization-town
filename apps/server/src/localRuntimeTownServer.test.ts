@@ -103,6 +103,67 @@ describe('local runtime town HTTP gateway', () => {
     expect(Object.keys(projection.projection.agents)).toHaveLength(25);
   });
 
+  test('serves durable social reflection observations from partition storage', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const server = await listen(runtime.server);
+    const observationId = 'sim-1:world-main:social-reflection-agent-1-agent-2-memory-social-1-360';
+
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.socialReflectionObservationRepository.record([
+        {
+          observationId,
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          reflectionId: 'social-reflection-agent-1-agent-2-memory-social-1-360',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          statement: 'Interaction with agent-2 changed relation by 1 and attitude by 1.',
+          relationDelta: 1,
+          attitudeDelta: 1,
+          confidence: 0.8,
+          evidenceRecordIds: ['memory-social-1'],
+          generatedAt: 360,
+          tags: ['social', 'post-interaction-reflection'],
+          source: 'memory-consolidation',
+        },
+      ]);
+
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/social-reflection-observations?agentId=agent-1&targetAgentId=agent-2&limit=1`,
+      ),
+    ).resolves.toMatchObject([
+      {
+        observationId,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        generatedAt: 360,
+        source: 'memory-consolidation',
+      },
+    ]);
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/social-reflection-observations/${encodeURIComponent(observationId)}`,
+      ),
+    ).resolves.toMatchObject({
+      observationId,
+      reflectionId: 'social-reflection-agent-1-agent-2-memory-social-1-360',
+      agentId: 'agent-1',
+      targetAgentId: 'agent-2',
+      generatedAt: 360,
+    });
+  });
+
   test('serves supervisor and projection routes from a manifest-bootstrapped local runtime', async () => {
     const profileRunReportRepository = new InMemoryRuntimeProfileRunReportRepository();
     const runtime = await createLocalRuntimeTownNodeHttpServer({

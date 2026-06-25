@@ -6,6 +6,7 @@ import {
   createSteeringTraceApiService,
   createSimulationSyncSseRoute,
   createRuntimeProfileRunReportApiService,
+  createSocialReflectionObservationApiService,
   createTownHttpApiHandler,
   createTownNodeHttpServer,
   type TownHttpApiHandler,
@@ -57,6 +58,9 @@ export type LocalRuntimeTownApi = {
   readonly dailyPlanRenewalTracesApi: ReturnType<typeof createDailyPlanRenewalTraceApiService>;
   readonly objectiveRenewalTracesApi: ReturnType<typeof createObjectiveRenewalTraceApiService>;
   readonly steeringTracesApi: ReturnType<typeof createSteeringTraceApiService>;
+  readonly socialReflectionObservationsApi: ReturnType<
+    typeof createSocialReflectionObservationApiService
+  >;
   readonly handler: TownHttpApiHandler;
 };
 
@@ -161,6 +165,24 @@ export async function createLocalRuntimeTownApi(
           .storage.steeringTraceRepository.query(request),
     },
   });
+  const socialReflectionObservationsApi = createSocialReflectionObservationApiService({
+    observations: {
+      getObservation: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.socialReflectionObservationRepository.get(request.observationId),
+      queryObservations: async (request) =>
+        host.registry
+          .getBackend({
+            simulationId: request.simulationId,
+            partitionKey: request.partitionKey,
+          })
+          .storage.socialReflectionObservationRepository.query(request),
+    },
+  });
   const handler = createTownHttpApiHandler({
     simulation: host.registry.api,
     agentProfiles: agentProfilesApi,
@@ -168,6 +190,7 @@ export async function createLocalRuntimeTownApi(
     dailyPlanRenewalTraces: dailyPlanRenewalTracesApi,
     objectiveRenewalTraces: objectiveRenewalTracesApi,
     steeringTraces: steeringTracesApi,
+    socialReflectionObservations: socialReflectionObservationsApi,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeOrchestration.runtimeRunQueueApi,
     runtimeRunQueueWorker: runtimeOrchestration.runtimeRunQueueWorkerApi,
@@ -210,6 +233,7 @@ export async function createLocalRuntimeTownApi(
     dailyPlanRenewalTracesApi,
     objectiveRenewalTracesApi,
     steeringTracesApi,
+    socialReflectionObservationsApi,
     handler,
   };
 }

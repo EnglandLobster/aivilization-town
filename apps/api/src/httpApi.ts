@@ -15,6 +15,11 @@ import type {
   SteeringTraceResultKind,
 } from './steeringTraceApi';
 import type {
+  SocialReflectionObservationApiService,
+  SocialReflectionObservationLookupRequest,
+  SocialReflectionObservationQueryRequest,
+} from './socialReflectionObservationApi';
+import type {
   AgentProfileApiService,
   AgentProfileLookupRequest,
   AgentProfileQueryRequest,
@@ -137,6 +142,7 @@ export type TownHttpApiServices<
   readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
   readonly dailyPlanRenewalTraces?: DailyPlanRenewalTraceApiService<unknown>;
   readonly steeringTraces?: SteeringTraceApiService<unknown>;
+  readonly socialReflectionObservations?: SocialReflectionObservationApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -146,6 +152,7 @@ type SimulationRoute = {
   readonly runId?: string;
   readonly agentId?: string;
   readonly traceId?: string;
+  readonly observationId?: string;
   readonly marketObservationKind?: string;
 };
 
@@ -276,6 +283,7 @@ async function routeTownHttpRequest<
       services.objectiveRenewalTraces,
       services.dailyPlanRenewalTraces,
       services.steeringTraces,
+      services.socialReflectionObservations,
       request,
       simulationRoute,
     );
@@ -317,6 +325,7 @@ async function routeSimulationRequest<
   objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
   dailyPlanRenewalTraces: DailyPlanRenewalTraceApiService<unknown> | undefined,
   steeringTraces: SteeringTraceApiService<unknown> | undefined,
+  socialReflectionObservations: SocialReflectionObservationApiService<unknown> | undefined,
   request: TownHttpApiRequest,
   route: SimulationRoute,
 ): Promise<TownHttpApiResponse> {
@@ -463,6 +472,26 @@ async function routeSimulationRequest<
       200,
       await steeringTraces.querySteeringTraces(
         createSteeringTraceQueryRequest(route, request.query),
+      ),
+    );
+  }
+  if (route.action === 'social-reflection-observations') {
+    if (socialReflectionObservations === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (route.observationId !== undefined) {
+      return jsonResponse(
+        200,
+        await socialReflectionObservations.getSocialReflectionObservation(
+          createSocialReflectionObservationLookupRequest(route),
+        ),
+      );
+    }
+    return jsonResponse(
+      200,
+      await socialReflectionObservations.querySocialReflectionObservations(
+        createSocialReflectionObservationQueryRequest(route, request.query),
       ),
     );
   }
@@ -926,6 +955,25 @@ function matchSimulationRoute(segments: readonly string[]): SimulationRoute | un
       traceId: decodePathPart(traceId),
     };
   }
+  if (
+    segments.length === 6 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'partitions' &&
+    segments[4] === 'social-reflection-observations'
+  ) {
+    const simulationId = segments[1];
+    const partitionKey = segments[3];
+    const observationId = segments[5];
+    if (simulationId === undefined || partitionKey === undefined || observationId === undefined) {
+      return undefined;
+    }
+    return {
+      simulationId: decodePathPart(simulationId),
+      partitionKey: decodePathPart(partitionKey),
+      action: 'social-reflection-observations',
+      observationId: decodePathPart(observationId),
+    };
+  }
   return undefined;
 }
 
@@ -1225,6 +1273,38 @@ function createSteeringTraceQueryRequest(
     ...optionalQueryString(query, 'resultKind', parseSteeringTraceResultKind),
     ...optionalQueryNumber(query, 'fromIssuedAt'),
     ...optionalQueryNumber(query, 'toIssuedAt'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createSocialReflectionObservationLookupRequest(
+  route: SimulationRoute,
+): SocialReflectionObservationLookupRequest {
+  if (route.observationId === undefined) {
+    throw new TownHttpApiError(404, 'not_found', 'route not found');
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    observationId: route.observationId,
+  };
+}
+
+function createSocialReflectionObservationQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): SocialReflectionObservationQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'observationId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryString(query, 'targetAgentId'),
+    ...optionalQueryNumber(query, 'fromGeneratedAt'),
+    ...optionalQueryNumber(query, 'toGeneratedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',

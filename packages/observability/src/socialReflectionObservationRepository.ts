@@ -22,6 +22,7 @@ export type SocialReflectionObservation = {
 
 export type SocialReflectionObservationQuery = {
   readonly simulationId: string;
+  readonly observationId?: string;
   readonly partitionKey?: string;
   readonly agentId?: string;
   readonly targetAgentId?: string;
@@ -32,6 +33,7 @@ export type SocialReflectionObservationQuery = {
 
 export type SocialReflectionObservationRepository = {
   readonly record: (observations: readonly SocialReflectionObservation[]) => Promise<void>;
+  readonly get: (observationId: string) => Promise<SocialReflectionObservation | undefined>;
   readonly query: (
     query: SocialReflectionObservationQuery,
   ) => Promise<SocialReflectionObservation[]>;
@@ -48,6 +50,14 @@ export class InMemorySocialReflectionObservationRepository implements SocialRefl
           this.observationsById.set(clone.observationId, clone);
         }
       }
+    });
+  }
+
+  get(observationId: string): Promise<SocialReflectionObservation | undefined> {
+    return Promise.resolve().then(() => {
+      assertNonEmpty(observationId, 'observationId');
+      const observation = this.observationsById.get(observationId);
+      return observation === undefined ? undefined : cloneObservation(observation);
     });
   }
 
@@ -86,6 +96,16 @@ export class FileSocialReflectionObservationRepository implements SocialReflecti
     });
   }
 
+  get(observationId: string): Promise<SocialReflectionObservation | undefined> {
+    return Promise.resolve().then(() => {
+      assertNonEmpty(observationId, 'observationId');
+      const observation = readJsonLines<SocialReflectionObservation>(this.observationsPath).find(
+        (candidate) => candidate.observationId === observationId,
+      );
+      return observation === undefined ? undefined : cloneObservation(observation);
+    });
+  }
+
   query(query: SocialReflectionObservationQuery): Promise<SocialReflectionObservation[]> {
     return Promise.resolve().then(() =>
       queryObservations(readJsonLines<SocialReflectionObservation>(this.observationsPath), query),
@@ -100,6 +120,10 @@ function queryObservations(
   assertValidQuery(query);
   return observations
     .filter((observation) => observation.simulationId === query.simulationId)
+    .filter(
+      (observation) =>
+        query.observationId === undefined || observation.observationId === query.observationId,
+    )
     .filter(
       (observation) =>
         query.partitionKey === undefined || observation.partitionKey === query.partitionKey,
@@ -186,6 +210,9 @@ function assertValidObservation(observation: SocialReflectionObservation): void 
 
 function assertValidQuery(query: SocialReflectionObservationQuery): void {
   assertNonEmpty(query.simulationId, 'simulationId');
+  if (query.observationId !== undefined) {
+    assertNonEmpty(query.observationId, 'observationId');
+  }
   if (query.partitionKey !== undefined) {
     assertNonEmpty(query.partitionKey, 'partitionKey');
   }

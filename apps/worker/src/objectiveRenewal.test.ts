@@ -501,6 +501,57 @@ describe('worker objective renewal', () => {
     expect(seenMemoryIds).toEqual([['memory-study-observed']]);
   });
 
+  test('passes retrieved short-term memory context to autonomous strategic plan compilers', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+    await shortTermMemoryRepository.append(
+      createMemory({
+        id: 'memory-market-failure',
+        agentId: agentA,
+        status: 'failed',
+        summary: 'The agent could not buy fish because cash was too low.',
+        tags: ['market', 'failure', 'fish'],
+        importanceScore: 0.9,
+      }),
+    );
+    let compilerMemoryIds: readonly string[] = [];
+
+    await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      issuedAt: 100,
+      objectiveProposer: (input) =>
+        createObjective(input.agentId, 'objective-from-custom-proposer', ['market', 'recovery']),
+      strategicPlanCompiler: (input) => {
+        compilerMemoryIds = input.shortTermMemoryContext?.map((record) => record.id) ?? [];
+        return createBranchPlan({
+          objective: input.objective.statement,
+          branches: [
+            {
+              id: 'memory-aware-recovery',
+              objective: 'Use recent failure memory while planning recovery.',
+              subtasks: [
+                {
+                  id: 'check-funds',
+                  description: 'Check funds before buying fish.',
+                  basePriority: 12,
+                },
+              ],
+            },
+          ],
+        });
+      },
+    });
+
+    expect(compilerMemoryIds).toEqual(['memory-market-failure']);
+  });
+
   test('returns and emits objective renewal decision traces', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
@@ -816,14 +867,18 @@ function createAgent(input: {
   };
 }
 
-function createObjective(agentId: AgentId, id: string): LongHorizonObjective {
+function createObjective(
+  agentId: AgentId,
+  id: string,
+  affinityTags: readonly string[] = ['study'],
+): LongHorizonObjective {
   return {
     id,
     agentId,
     statement: `Existing objective ${id}.`,
     priority: 1,
     source: 'human',
-    affinityTags: ['study'],
+    affinityTags,
     createdAt: 50,
     updatedAt: 50,
   };

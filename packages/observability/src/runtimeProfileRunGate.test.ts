@@ -293,10 +293,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredAgentCycleLlmWorldContextStages: [
-          'contextualPrioritization',
-          'globalSynthesis',
-        ],
+        requiredAgentCycleLlmWorldContextStages: ['contextualPrioritization', 'globalSynthesis'],
       },
     );
 
@@ -355,10 +352,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredAgentCycleLlmWorldContextStages: [
-          'contextualPrioritization',
-          'globalSynthesis',
-        ],
+        requiredAgentCycleLlmWorldContextStages: ['contextualPrioritization', 'globalSynthesis'],
       },
     );
 
@@ -462,10 +456,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredAgentCycleLlmRulesContextStages: [
-          'contextualPrioritization',
-          'globalSynthesis',
-        ],
+        requiredAgentCycleLlmRulesContextStages: ['contextualPrioritization', 'globalSynthesis'],
       },
     );
 
@@ -516,8 +507,7 @@ describe('runtime profile run gate', () => {
     expect(result.status).toBe('fail');
     expect(result.failures).toContainEqual({
       code: 'agent-cycle-llm-stage-complete-rules-context-count-too-low',
-      message:
-        'agent-cycle LLM stage globalSynthesis completeRulesContextCount must be at least 2',
+      message: 'agent-cycle LLM stage globalSynthesis completeRulesContextCount must be at least 2',
       evidence: {
         stageName: 'globalSynthesis',
         actual: 1,
@@ -568,10 +558,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredAgentCycleLlmMemoryContextStages: [
-          'contextualPrioritization',
-          'globalSynthesis',
-        ],
+        requiredAgentCycleLlmMemoryContextStages: ['contextualPrioritization', 'globalSynthesis'],
       },
     );
 
@@ -673,10 +660,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredAgentCycleLlmProfileContextStages: [
-          'contextualPrioritization',
-          'globalSynthesis',
-        ],
+        requiredAgentCycleLlmProfileContextStages: ['contextualPrioritization', 'globalSynthesis'],
       },
     );
 
@@ -894,10 +878,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredCognitionLlmWorldContextStages: [
-          'reflectionSynthesis',
-          'socialModelSynthesis',
-        ],
+        requiredCognitionLlmWorldContextStages: ['reflectionSynthesis', 'socialModelSynthesis'],
       },
     );
 
@@ -949,10 +930,7 @@ describe('runtime profile run gate', () => {
       }),
       {
         ...createCriteria(),
-        requiredCognitionLlmWorldContextStages: [
-          'reflectionSynthesis',
-          'socialModelSynthesis',
-        ],
+        requiredCognitionLlmWorldContextStages: ['reflectionSynthesis', 'socialModelSynthesis'],
       },
     );
 
@@ -1095,6 +1073,195 @@ describe('runtime profile run gate', () => {
         stageName: 'dailyPlanning',
         actual: 1,
         rulesContextCount: 2,
+        llmAcceptedCount: 2,
+        minimum: 2,
+      },
+    });
+  });
+
+  test('requires memory context coverage for configured cognition stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 1,
+            longTermProfileContextCount: 1,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 0,
+            longTermProfileContextCount: 1,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmMemoryContextStages: ['strategicPlanning', 'dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-memory-context-count-too-low',
+      message: 'cognition LLM stage dailyPlanning shortTermMemoryContextCount must be at least 1',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 0,
+        llmAcceptedCount: 1,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires memory context coverage for every accepted cognition LLM trace', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 2,
+            llmAcceptedCount: 2,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 1,
+            longTermProfileContextCount: 2,
+            worldDecisionContextCount: 2,
+            completeWorldDecisionContextCount: 2,
+            rulesContextCount: 2,
+            completeRulesContextCount: 2,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmMemoryContextStages: ['strategicPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-memory-context-count-too-low',
+      message:
+        'cognition LLM stage strategicPlanning shortTermMemoryContextCount must be at least 2',
+      evidence: {
+        stageName: 'strategicPlanning',
+        actual: 1,
+        llmAcceptedCount: 2,
+        minimum: 2,
+      },
+    });
+  });
+
+  test('requires profile context coverage for configured cognition stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'strategicPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 1,
+            longTermProfileContextCount: 1,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 1,
+            llmAcceptedCount: 1,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 1,
+            longTermProfileContextCount: 0,
+            worldDecisionContextCount: 1,
+            completeWorldDecisionContextCount: 1,
+            rulesContextCount: 1,
+            completeRulesContextCount: 1,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmProfileContextStages: ['strategicPlanning', 'dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-profile-context-count-too-low',
+      message: 'cognition LLM stage dailyPlanning longTermProfileContextCount must be at least 1',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 0,
+        llmAcceptedCount: 1,
+        minimum: 1,
+      },
+    });
+  });
+
+  test('requires profile context coverage for every accepted cognition LLM trace', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        cognitionLlmStageDiagnostics: [
+          {
+            stageName: 'dailyPlanning',
+            traceCount: 2,
+            llmAcceptedCount: 2,
+            deterministicFallbackCount: 0,
+            deterministicCount: 0,
+            missingProviderTraceCount: 0,
+            shortTermMemoryContextCount: 2,
+            longTermProfileContextCount: 1,
+            worldDecisionContextCount: 2,
+            completeWorldDecisionContextCount: 2,
+            rulesContextCount: 2,
+            completeRulesContextCount: 2,
+          },
+        ],
+      }),
+      {
+        ...createCriteria(),
+        requiredCognitionLlmProfileContextStages: ['dailyPlanning'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'cognition-llm-stage-profile-context-count-too-low',
+      message: 'cognition LLM stage dailyPlanning longTermProfileContextCount must be at least 2',
+      evidence: {
+        stageName: 'dailyPlanning',
+        actual: 1,
         llmAcceptedCount: 2,
         minimum: 2,
       },

@@ -197,6 +197,7 @@ export async function renewMissingActiveObjectives(input: {
     const strategicPlan = await createStrategicPlanRecord({
       objective,
       issuedAt: input.issuedAt,
+      shortTermMemoryContext,
       longTermProfile,
       worldDecisionContext,
       compile,
@@ -221,6 +222,7 @@ export async function renewMissingActiveObjectives(input: {
 async function createStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
+  readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
   readonly longTermProfile: LongTermAgentProfile;
   readonly worldDecisionContext: WorldDecisionContext;
   readonly compile: StrategicPlanCompiler;
@@ -232,6 +234,7 @@ async function createStrategicPlanRecord(input: {
     await input.compile({
       objective: input.objective,
       issuedAt: input.issuedAt,
+      shortTermMemoryContext: input.shortTermMemoryContext,
       longTermProfile: input.longTermProfile,
       worldDecisionContext: input.worldDecisionContext,
     }),

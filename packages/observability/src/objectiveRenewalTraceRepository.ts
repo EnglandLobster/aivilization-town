@@ -31,6 +31,8 @@ export type ObjectiveRenewalStrategicPlanTrace = {
   readonly message?: string;
   readonly attempts?: readonly ObjectiveRenewalStrategicPlanAttemptTrace[];
   readonly usage?: ObjectiveRenewalStrategicPlanUsageTrace;
+  readonly shortTermMemoryContext?: { readonly recordCount: number };
+  readonly longTermProfileContext?: { readonly entryCount: number };
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
@@ -183,6 +185,20 @@ function cloneStrategicPlan(
       ? {}
       : { attempts: trace.attempts.map((attempt) => cloneStrategicPlanAttempt(attempt)) }),
     ...(trace.usage === undefined ? {} : { usage: cloneStrategicPlanUsage(trace.usage) }),
+    ...(trace.shortTermMemoryContext === undefined
+      ? {}
+      : {
+          shortTermMemoryContext: {
+            recordCount: trace.shortTermMemoryContext.recordCount,
+          },
+        }),
+    ...(trace.longTermProfileContext === undefined
+      ? {}
+      : {
+          longTermProfileContext: {
+            entryCount: trace.longTermProfileContext.entryCount,
+          },
+        }),
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),

@@ -61,6 +61,8 @@ describe('daily plan renewal trace repositories', () => {
           totalTokens: 18,
           estimatedCostMicros: 47,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 2 },
         worldDecisionContext: createWorldDecisionContextTrace('agent-1'),
       },
     });
@@ -155,6 +157,8 @@ describe('daily plan renewal trace repositories', () => {
             },
           },
         ],
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 2 },
       },
     });
     await repository.record(trace);
@@ -164,6 +168,9 @@ describe('daily plan renewal trace repositories', () => {
       throw new Error('expected trace');
     }
     (read.scheduledIntentionIds as string[]).push('mutated');
+    (read.planningTrace?.shortTermMemoryContext as
+      | { recordCount: number }
+      | undefined)!.recordCount = 999;
     const attempt = read.planningTrace?.attempts?.[0];
     if (attempt === undefined) {
       throw new Error('expected planning attempt');

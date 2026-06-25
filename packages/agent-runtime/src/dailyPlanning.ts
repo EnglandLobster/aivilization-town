@@ -5,6 +5,10 @@ import type {
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
+import type {
+  LlmLongTermProfileContextTrace,
+  LlmShortTermMemoryContextTrace,
+} from './llmContextTrace';
 import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDecisionContext';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -85,6 +89,8 @@ export type DailyPlanCompilationTrace = {
   readonly message?: string;
   readonly attempts?: readonly DailyPlanCompilationAttemptTrace[];
   readonly usage?: DailyPlanCompilationUsage;
+  readonly shortTermMemoryContext?: LlmShortTermMemoryContextTrace;
+  readonly longTermProfileContext?: LlmLongTermProfileContextTrace;
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 

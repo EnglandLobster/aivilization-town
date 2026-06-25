@@ -1,5 +1,9 @@
 import { createScriptedLlmProvider } from '@aivilization/llm';
-import { createShortTermMemoryRecord, type LongTermAgentProfile } from '@aivilization/memory';
+import {
+  asMemoryRecordId,
+  createShortTermMemoryRecord,
+  type LongTermAgentProfile,
+} from '@aivilization/memory';
 import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -284,6 +288,18 @@ describe('LLM daily planner seam', () => {
         agent: {
           physiology: { energy: 30, satiety: 90, health: 100 },
         },
+        longTermProfile: createProfile(agentId, {
+          habits: [
+            {
+              key: 'habit:morning-study',
+              statement: 'Agent studies before work when energy permits.',
+              confidence: 0.8,
+              updatedAt: 7 * hourMs,
+              provenanceRecordIds: [asMemoryRecordId('memory-social-party')],
+            },
+          ],
+        }),
+        memoryContext: [createPartyMemory()],
         worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
@@ -303,6 +319,8 @@ describe('LLM daily planner seam', () => {
           totalTokens: 34,
           estimatedCostMicros: 90,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,

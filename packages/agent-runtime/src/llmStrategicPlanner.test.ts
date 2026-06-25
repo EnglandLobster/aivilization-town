@@ -1,5 +1,5 @@
 import { createScriptedLlmProvider } from '@aivilization/llm';
-import { asMemoryRecordId } from '@aivilization/memory';
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
@@ -171,6 +171,51 @@ describe('LLM strategic planner seam', () => {
       '"Human steering set long-horizon objective: Study before high-tech production."',
     );
     expect(requestContent).toContain('"cmd-study:strategic-objective"');
+  });
+
+  test('includes short-term memory context in structured strategic planner requests', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-planner',
+      responses: [
+        {
+          providerId: 'scripted-planner',
+          model: 'planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            objective: 'Recover after a failed market purchase.',
+            branches: [
+              {
+                id: 'recovery',
+                objective: 'Adapt the plan from recent failed market experience.',
+                subtasks: [
+                  {
+                    id: 'check-funds',
+                    description: 'Check funds before buying food.',
+                    basePriority: 12,
+                    signalKeys: ['money', 'market'],
+                    memoryAffinityTags: ['market', 'failure'],
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await proposeStrategicBranchPlanWithLlm({
+      objective: objective('Recover after a failed market purchase.', ['market', 'recovery']),
+      issuedAt: 140,
+      shortTermMemoryContext: [createMarketFailureMemory()],
+      provider: scripted.provider,
+      model: 'planner-model',
+      requestId: 'llm-plan-with-memory',
+    });
+
+    const requestContent = scripted.getRequests()[0]?.messages[1]?.content ?? '';
+    expect(requestContent).toContain('"shortTermMemoryContext"');
+    expect(requestContent).toContain('"memory-market-failure"');
+    expect(requestContent).toContain('Could not buy fish because the balance was too low.');
   });
 
   test('includes world decision context in structured strategic planner requests', async () => {
@@ -399,6 +444,8 @@ describe('LLM strategic planner seam', () => {
       compiler({
         objective: objective('Recover satiety.', ['eat', 'satiety']),
         issuedAt: 400,
+        shortTermMemoryContext: [createMarketFailureMemory()],
+        longTermProfile: studyBeforeProductionProfile(),
         worldDecisionContext: createWorldDecisionContext(),
       }),
     ).resolves.toMatchObject({
@@ -418,6 +465,8 @@ describe('LLM strategic planner seam', () => {
           totalTokens: 32,
           estimatedCostMicros: 84,
         },
+        shortTermMemoryContext: { recordCount: 1 },
+        longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
           hasPhysiology: true,
@@ -568,6 +617,20 @@ function studyBeforeProductionProfile() {
     personality: [],
     socialRecords: [],
   };
+}
+
+function createMarketFailureMemory() {
+  return createShortTermMemoryRecord({
+    id: 'memory-market-failure',
+    agentId,
+    kind: 'action',
+    status: 'failed',
+    summary: 'Could not buy fish because the balance was too low.',
+    occurredAt: 120,
+    importanceScore: 0.9,
+    source: { eventIds: [] },
+    tags: ['market', 'failure', 'fish', 'money'],
+  });
 }
 
 function createWorldDecisionContext() {

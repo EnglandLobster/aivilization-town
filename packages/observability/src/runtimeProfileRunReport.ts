@@ -99,6 +99,8 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingProviderTraceCount: number;
+  readonly shortTermMemoryContextCount?: number;
+  readonly longTermProfileContextCount?: number;
   readonly worldDecisionContextCount: number;
   readonly completeWorldDecisionContextCount: number;
   readonly rulesContextCount: number;
@@ -108,6 +110,8 @@ export type RuntimeProfileCognitionLlmStageDiagnostics = {
 export type RuntimeProfileCognitionProviderTrace = {
   readonly status: 'deterministic' | 'accepted' | 'fallback';
   readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly shortTermMemoryContext?: unknown;
+  readonly longTermProfileContext?: unknown;
   readonly worldDecisionContext?: unknown;
 };
 
@@ -214,6 +218,8 @@ export function createRuntimeProfileRunReport(
       : {
           cognitionLlmStageDiagnostics: input.cognitionLlmStageDiagnostics.map((stage) => ({
             ...stage,
+            shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
+            longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             completeWorldDecisionContextCount: stage.completeWorldDecisionContextCount ?? 0,
             rulesContextCount: stage.rulesContextCount ?? 0,
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
@@ -308,6 +314,8 @@ export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
         deterministicFallbackCount: 0,
         deterministicCount: 0,
         missingProviderTraceCount: 0,
+        shortTermMemoryContextCount: 0,
+        longTermProfileContextCount: 0,
         worldDecisionContextCount: 0,
         completeWorldDecisionContextCount: 0,
         rulesContextCount: 0,
@@ -538,10 +546,7 @@ function validateAgentCycleDiagnostics(
     'fullReplanMaterializationCount',
   ] as const;
   for (const field of countFields) {
-    assertNonNegativeInteger(
-      diagnostics[field] ?? 0,
-      `agentCycleDiagnostics ${field}`,
-    );
+    assertNonNegativeInteger(diagnostics[field] ?? 0, `agentCycleDiagnostics ${field}`);
   }
   if (
     diagnostics.acceptedSimulatorCount +
@@ -630,6 +635,8 @@ type MutableCognitionLlmStageDiagnostics = {
   deterministicFallbackCount: number;
   deterministicCount: number;
   missingProviderTraceCount: number;
+  shortTermMemoryContextCount: number;
+  longTermProfileContextCount: number;
   worldDecisionContextCount: number;
   completeWorldDecisionContextCount: number;
   rulesContextCount: number;
@@ -955,6 +962,12 @@ function recordCognitionProviderTrace(
   if (trace.source === 'deterministic') {
     diagnostics.deterministicCount += 1;
   }
+  if (trace.shortTermMemoryContext !== undefined) {
+    diagnostics.shortTermMemoryContextCount += 1;
+  }
+  if (trace.longTermProfileContext !== undefined) {
+    diagnostics.longTermProfileContextCount += 1;
+  }
   if (trace.worldDecisionContext !== undefined) {
     diagnostics.worldDecisionContextCount += 1;
     if (isCompleteWorldDecisionContextTrace(trace.worldDecisionContext)) {
@@ -1005,6 +1018,16 @@ function validateCognitionLlmStageDiagnostics(
       stage.missingProviderTraceCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} missingProviderTraceCount`,
     );
+    const shortTermMemoryContextCount = stage.shortTermMemoryContextCount ?? 0;
+    assertNonNegativeInteger(
+      shortTermMemoryContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} shortTermMemoryContextCount`,
+    );
+    const longTermProfileContextCount = stage.longTermProfileContextCount ?? 0;
+    assertNonNegativeInteger(
+      longTermProfileContextCount,
+      `cognitionLlmStageDiagnostics ${stage.stageName} longTermProfileContextCount`,
+    );
     assertNonNegativeInteger(
       stage.worldDecisionContextCount,
       `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount`,
@@ -1038,6 +1061,16 @@ function validateCognitionLlmStageDiagnostics(
     if (stage.worldDecisionContextCount > stage.traceCount) {
       throw new Error(
         `cognitionLlmStageDiagnostics ${stage.stageName} worldDecisionContextCount must not exceed traceCount`,
+      );
+    }
+    if (shortTermMemoryContextCount > stage.traceCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} shortTermMemoryContextCount must not exceed traceCount`,
+      );
+    }
+    if (longTermProfileContextCount > stage.traceCount) {
+      throw new Error(
+        `cognitionLlmStageDiagnostics ${stage.stageName} longTermProfileContextCount must not exceed traceCount`,
       );
     }
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {

@@ -203,6 +203,23 @@ function clonePlanningTrace(trace: StrategicPlanCompilationTrace): StrategicPlan
       ? {}
       : { attempts: trace.attempts.map(clonePlanningAttemptTrace) }),
     ...(trace.usage === undefined ? {} : { usage: clonePlanningUsage(trace.usage) }),
+    ...(trace.shortTermMemoryContext === undefined
+      ? {}
+      : {
+          shortTermMemoryContext: {
+            recordCount: trace.shortTermMemoryContext.recordCount,
+          },
+        }),
+    ...(trace.longTermProfileContext === undefined
+      ? {}
+      : {
+          longTermProfileContext: {
+            entryCount: trace.longTermProfileContext.entryCount,
+          },
+        }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 

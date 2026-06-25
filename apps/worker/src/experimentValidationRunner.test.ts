@@ -342,6 +342,29 @@ describe('worker experiment validation runner', () => {
           tags: ['social', 'post-interaction-reflection'],
         },
       ],
+      steeringTraces: [
+        {
+          traceId: 'steering-objective-agent-a',
+          agentId: 'agent-a',
+          source: 'human',
+          resultKind: 'long-horizon-objective-set',
+          objectiveId: 'objective-study-production',
+          planId: 'objective-study-production',
+          commandDraftCount: 0,
+          shortTermMemoryRecordIds: [],
+          issuedAt: 270,
+        },
+        {
+          traceId: 'steering-reactive-agent-b',
+          agentId: 'agent-b',
+          source: 'human',
+          resultKind: 'reactive-command-routed',
+          reactiveCommandId: 'reactive-buy-fish',
+          commandDraftCount: 1,
+          shortTermMemoryRecordIds: ['stm-reactive-buy-fish'],
+          issuedAt: 280,
+        },
+      ],
       expectedTrajectoryAgentIds: ['agent-a', 'agent-b', 'agent-c'],
       agentCycleTraceRepository: traceRepository,
       thresholds: {
@@ -360,6 +383,12 @@ describe('worker experiment validation runner', () => {
           minimumDirectedPairCount: 2,
           minimumMeanConfidence: 0.7,
         },
+        steeringMemoryPropagation: {
+          minimumTraceCount: 2,
+          minimumAgentCoverageRatio: 0.6,
+          minimumLongHorizonTraceCount: 1,
+          minimumReactiveTraceCount: 1,
+        },
         trajectoryCoverage: { minimumCoverageRatio: 0.6, minimumMinimumStepCount: 1 },
       },
     });
@@ -371,6 +400,7 @@ describe('worker experiment validation runner', () => {
       'wealth-stratification',
       'planner-ablation',
       'social-reflection-coverage',
+      'steering-memory-propagation',
       'trajectory-coverage',
     ]);
 
@@ -382,6 +412,15 @@ describe('worker experiment validation runner', () => {
         observationCount: 2,
         coveredAgentCount: 2,
         directedPairCount: 2,
+      },
+    });
+    expect(getMetric(report.metrics, 'steering-memory-propagation')).toMatchObject({
+      status: 'pass',
+      evidence: {
+        humanTraceCount: 2,
+        coveredAgentCount: 2,
+        planBackedLongHorizonTraceCount: 1,
+        memoryBackedReactiveTraceCount: 1,
       },
     });
     expect(getMetric(report.metrics, 'trajectory-coverage').value).toBeCloseTo(2 / 3);

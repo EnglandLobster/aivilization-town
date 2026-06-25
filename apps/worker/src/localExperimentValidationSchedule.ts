@@ -12,6 +12,7 @@ import type {
   RuntimeProfileRunReportQuery,
   RuntimeProfileRunReportRepository,
   SocialReflectionValidationObservation,
+  SteeringValidationTrace,
 } from '@aivilization/observability';
 import type { WorldProjection } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
@@ -51,6 +52,18 @@ export type LocalExperimentValidationSocialReflectionObservationSource = {
   readonly limit?: number;
 };
 
+export type LocalExperimentValidationSteeringTraceSource = {
+  readonly traceId?: string;
+  readonly commandId?: string;
+  readonly agentId?: string;
+  readonly objectiveId?: string;
+  readonly reactiveCommandId?: string;
+  readonly resultKind?: 'long-horizon-objective-set' | 'reactive-command-routed';
+  readonly fromIssuedAt?: number;
+  readonly toIssuedAt?: number;
+  readonly limit?: number;
+};
+
 export type LocalExperimentValidationScheduleInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly initialProjection: WorldProjection;
@@ -62,6 +75,7 @@ export type LocalExperimentValidationScheduleInput = {
   readonly plannerRuns?: readonly PlannerExperimentRun[];
   readonly plannerRunSource?: LocalExperimentValidationPlannerRunSource;
   readonly socialReflectionObservationSource?: LocalExperimentValidationSocialReflectionObservationSource;
+  readonly steeringTraceSource?: LocalExperimentValidationSteeringTraceSource;
   readonly priceBinning?: WorkerExperimentValidationPriceBinning;
   readonly expectedTrajectoryAgentIds?: readonly string[];
   readonly trajectories?: readonly { readonly agentId: string; readonly stepCount: number }[];
@@ -116,6 +130,10 @@ export async function runLocalExperimentValidationSchedule(
     input.socialReflectionObservationSource === undefined
       ? undefined
       : await createValidationSocialReflectionObservationsFromSource(input);
+  const steeringTraces =
+    input.steeringTraceSource === undefined
+      ? undefined
+      : await createValidationSteeringTracesFromSource(input);
   const report = await recordWorkerExperimentValidationReport({
     repository: input.storage.experimentValidationReportRepository,
     run: {
@@ -129,6 +147,7 @@ export async function runLocalExperimentValidationSchedule(
     ...(priceSeries === undefined ? {} : { priceSeries }),
     plannerRuns,
     ...(socialReflectionObservations === undefined ? {} : { socialReflectionObservations }),
+    ...(steeringTraces === undefined ? {} : { steeringTraces }),
     agentCycleTraceRepository: input.storage.agentCycleTraceRepository,
     ...(input.priceBinning === undefined ? {} : { priceBinning: input.priceBinning }),
     ...(input.expectedTrajectoryAgentIds === undefined
@@ -248,6 +267,46 @@ async function createValidationSocialReflectionObservationsFromSource(
     evidenceRecordIds: [...observation.evidenceRecordIds],
     generatedAt: observation.generatedAt,
     tags: [...observation.tags],
+  }));
+}
+
+async function createValidationSteeringTracesFromSource(
+  input: LocalExperimentValidationScheduleInput,
+): Promise<SteeringValidationTrace[]> {
+  const source = input.steeringTraceSource;
+  if (source === undefined) {
+    return [];
+  }
+
+  const traces = await input.storage.steeringTraceRepository.query({
+    simulationId: input.storage.partition.simulationId,
+    partitionKey: input.storage.partition.partitionKey,
+    ...(source.traceId === undefined ? {} : { traceId: source.traceId }),
+    ...(source.commandId === undefined ? {} : { commandId: source.commandId }),
+    ...(source.agentId === undefined ? {} : { agentId: source.agentId }),
+    ...(source.objectiveId === undefined ? {} : { objectiveId: source.objectiveId }),
+    ...(source.reactiveCommandId === undefined
+      ? {}
+      : { reactiveCommandId: source.reactiveCommandId }),
+    ...(source.resultKind === undefined ? {} : { resultKind: source.resultKind }),
+    ...(source.fromIssuedAt === undefined ? {} : { fromIssuedAt: source.fromIssuedAt }),
+    ...(source.toIssuedAt === undefined ? {} : { toIssuedAt: source.toIssuedAt }),
+    ...(source.limit === undefined ? {} : { limit: source.limit }),
+  });
+
+  return traces.map((trace) => ({
+    traceId: trace.traceId,
+    agentId: trace.agentId,
+    source: trace.source,
+    resultKind: trace.resultKind,
+    ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
+    ...(trace.planId === undefined ? {} : { planId: trace.planId }),
+    ...(trace.reactiveCommandId === undefined
+      ? {}
+      : { reactiveCommandId: trace.reactiveCommandId }),
+    commandDraftCount: trace.commandDraftCount,
+    shortTermMemoryRecordIds: [...trace.shortTermMemoryRecordIds],
+    issuedAt: trace.issuedAt,
   }));
 }
 

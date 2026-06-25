@@ -76,6 +76,29 @@ describe('experiment validation report', () => {
           tags: ['social', 'post-interaction-reflection'],
         },
       ],
+      steeringTraces: [
+        {
+          traceId: 'steering-objective-agent-a',
+          agentId: 'agent-a',
+          source: 'human',
+          resultKind: 'long-horizon-objective-set',
+          objectiveId: 'objective-study-production',
+          planId: 'objective-study-production',
+          commandDraftCount: 0,
+          shortTermMemoryRecordIds: [],
+          issuedAt: 12,
+        },
+        {
+          traceId: 'steering-reactive-agent-b',
+          agentId: 'agent-b',
+          source: 'human',
+          resultKind: 'reactive-command-routed',
+          reactiveCommandId: 'reactive-buy-fish',
+          commandDraftCount: 1,
+          shortTermMemoryRecordIds: ['stm-reactive-buy-fish'],
+          issuedAt: 13,
+        },
+      ],
       expectedTrajectoryAgentIds: ['agent-a', 'agent-b', 'agent-c'],
       trajectories: [
         {
@@ -110,6 +133,12 @@ describe('experiment validation report', () => {
           minimumMeanConfidence: 0.7,
           requiredTag: 'post-interaction-reflection',
         },
+        steeringMemoryPropagation: {
+          minimumTraceCount: 2,
+          minimumAgentCoverageRatio: 0.6,
+          minimumLongHorizonTraceCount: 1,
+          minimumReactiveTraceCount: 1,
+        },
         trajectoryCoverage: { minimumCoverageRatio: 0.6, minimumMinimumStepCount: 1 },
       },
     });
@@ -127,6 +156,7 @@ describe('experiment validation report', () => {
       'wealth-stratification',
       'planner-ablation',
       'social-reflection-coverage',
+      'steering-memory-propagation',
       'trajectory-coverage',
     ]);
 
@@ -169,6 +199,23 @@ describe('experiment validation report', () => {
     expect(socialReflection.evidence.agentCoverageRatio).toBeCloseTo(2 / 3);
     expect(socialReflection.evidence.meanConfidence).toBeCloseTo(0.7);
 
+    const steering = getMetric(report.metrics, 'steering-memory-propagation');
+    expect(steering.status).toBe('pass');
+    expect(steering.value).toBeCloseTo(2 / 3);
+    expect(steering.evidence).toMatchObject({
+      traceCount: 2,
+      humanTraceCount: 2,
+      expectedAgentCount: 3,
+      coveredAgentCount: 2,
+      longHorizonTraceCount: 1,
+      reactiveTraceCount: 1,
+      planBackedLongHorizonTraceCount: 1,
+      memoryBackedReactiveTraceCount: 1,
+      commandDraftBackedReactiveTraceCount: 1,
+      latestIssuedAt: 13,
+    });
+    expect(steering.evidence.agentCoverageRatio).toBeCloseTo(2 / 3);
+
     const trajectories = getMetric(report.metrics, 'trajectory-coverage');
     expect(trajectories.status).toBe('pass');
     expect(trajectories.value).toBeCloseTo(2 / 3);
@@ -176,7 +223,7 @@ describe('experiment validation report', () => {
     expect(trajectories.evidence.minimumStepCount).toBe(1);
     expect(trajectories.evidence.commandBackedTrajectoryCount).toBe(1);
 
-    expect(report.findings).toHaveLength(7);
+    expect(report.findings).toHaveLength(8);
     expect(report.findings.map((finding) => finding.topic)).toEqual(
       report.metrics.map((metric) => metric.id),
     );
@@ -281,6 +328,24 @@ describe('experiment validation report', () => {
         ],
       }),
     ).toThrow('socialReflectionObservations targetAgentId must differ from agentId');
+
+    expect(() =>
+      createExperimentValidationReport({
+        ...validInput,
+        steeringTraces: [
+          {
+            traceId: 'steering-reactive-without-memory',
+            agentId: 'agent-a',
+            source: 'human',
+            resultKind: 'reactive-command-routed',
+            reactiveCommandId: 'reactive-buy-fish',
+            commandDraftCount: 1,
+            shortTermMemoryRecordIds: [],
+            issuedAt: 12,
+          },
+        ],
+      }),
+    ).toThrow('steeringTraces reactive trace requires at least one shortTermMemoryRecordId');
   });
 
   test('reports missing social reflection coverage as watch without non-finite evidence', () => {
@@ -342,6 +407,70 @@ describe('experiment validation report', () => {
       evidenceBackedObservationCount: 0,
       requiredTagObservationCount: 0,
       latestGeneratedAt: 0,
+    });
+  });
+
+  test('reports missing steering propagation as watch without non-finite evidence', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-steering-missing',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_002,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 101 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'task-1',
+          variant: 'default',
+          metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a', 'agent-b'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: { minimumExcessKurtosis: -2 },
+        steeringMemoryPropagation: {
+          minimumTraceCount: 1,
+          minimumAgentCoverageRatio: 0.5,
+          minimumLongHorizonTraceCount: 1,
+          minimumReactiveTraceCount: 1,
+        },
+      },
+    });
+
+    const steering = getMetric(report.metrics, 'steering-memory-propagation');
+
+    expect(steering.status).toBe('watch');
+    expect(steering.value).toBe(0);
+    expect(steering.evidence).toMatchObject({
+      traceCount: 0,
+      humanTraceCount: 0,
+      expectedAgentCount: 2,
+      coveredAgentCount: 0,
+      agentCoverageRatio: 0,
+      longHorizonTraceCount: 0,
+      reactiveTraceCount: 0,
+      planBackedLongHorizonTraceCount: 0,
+      memoryBackedReactiveTraceCount: 0,
+      commandDraftBackedReactiveTraceCount: 0,
+      latestIssuedAt: 0,
     });
   });
 

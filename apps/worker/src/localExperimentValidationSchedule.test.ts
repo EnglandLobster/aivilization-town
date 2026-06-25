@@ -5,6 +5,7 @@ import {
   type AgentCycleTrace,
   type ExperimentValidationMetric,
   InMemoryRuntimeProfileRunReportRepository,
+  type SteeringTrace,
 } from '@aivilization/observability';
 import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent } from '@aivilization/world';
@@ -324,6 +325,75 @@ describe('local experiment validation schedule', () => {
     expect(socialReflection.evidence.meanConfidence).toBeCloseTo(0.75);
   });
 
+  test('generates steering propagation diagnostics from durable steering traces', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    appendTradeEvents(storage, [100, 110]);
+    await storage.steeringTraceRepository.record(
+      createSteeringTrace({
+        traceId: 'steering-objective-agent-1',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+        issuedAt: 120,
+      }),
+    );
+    await storage.steeringTraceRepository.record(
+      createSteeringTrace({
+        traceId: 'steering-reactive-agent-2',
+        agentId: 'agent-2',
+        resultKind: 'reactive-command-routed',
+        issuedAt: 130,
+      }),
+    );
+
+    const result = await runLocalExperimentValidationSchedule({
+      storage,
+      initialProjection: createInitialProjection(),
+      runId: 'validation-steering-source',
+      generatedAt: 930,
+      plannerRuns: createPlannerRuns(),
+      steeringTraceSource: {
+        fromIssuedAt: 120,
+        toIssuedAt: 130,
+        limit: 5,
+      },
+      expectedTrajectoryAgentIds: ['agent-1', 'agent-2'],
+      trajectories: [
+        { agentId: 'agent-1', stepCount: 1 },
+        { agentId: 'agent-2', stepCount: 1 },
+      ],
+      thresholds: {
+        steeringMemoryPropagation: {
+          minimumTraceCount: 2,
+          minimumAgentCoverageRatio: 1,
+          minimumLongHorizonTraceCount: 1,
+          minimumReactiveTraceCount: 1,
+        },
+      },
+    });
+
+    const steering = getMetric(result.report.metrics, 'steering-memory-propagation');
+    expect(steering).toMatchObject({
+      status: 'pass',
+      evidence: {
+        traceCount: 2,
+        humanTraceCount: 2,
+        expectedAgentCount: 2,
+        coveredAgentCount: 2,
+        longHorizonTraceCount: 1,
+        reactiveTraceCount: 1,
+        planBackedLongHorizonTraceCount: 1,
+        memoryBackedReactiveTraceCount: 1,
+        commandDraftBackedReactiveTraceCount: 1,
+        latestIssuedAt: 130,
+      },
+    });
+    expect(steering.evidence.agentCoverageRatio).toBe(1);
+  });
+
   test('rejects durable planner sources that do not cover the paper ablation variants', async () => {
     const storage = createLocalWorldRuntimeStorage({
       rootDir: createRootDir(),
@@ -519,6 +589,41 @@ function createSocialReflectionObservation(input: {
     generatedAt: input.generatedAt,
     tags: ['social', 'post-interaction-reflection'],
     source: 'memory-consolidation' as const,
+  };
+}
+
+function createSteeringTrace(input: {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly resultKind: 'long-horizon-objective-set' | 'reactive-command-routed';
+  readonly issuedAt: number;
+}): SteeringTrace {
+  const isLongHorizon = input.resultKind === 'long-horizon-objective-set';
+  const objectiveId = `objective-${input.agentId}`;
+  const reactiveCommandId = `reactive-${input.agentId}`;
+  return {
+    traceId: input.traceId,
+    simulationId,
+    partitionKey: 'world-main',
+    commandId: `cmd-${input.traceId}`,
+    commandType: isLongHorizon ? 'SetLongHorizonObjective' : 'IssueReactiveCommand',
+    source: 'human',
+    agentId: input.agentId,
+    resultKind: input.resultKind,
+    ...(isLongHorizon
+      ? {
+          objectiveId,
+          planId: objectiveId,
+        }
+      : {
+          reactiveCommandId,
+          selectedPlannerDomain: 'market',
+        }),
+    candidateActionCount: isLongHorizon ? 0 : 1,
+    commandDraftCount: isLongHorizon ? 0 : 1,
+    shortTermMemoryRecordIds: isLongHorizon ? [] : [`stm-${reactiveCommandId}`],
+    issuedAt: input.issuedAt,
+    recordedAt: input.issuedAt + 10,
   };
 }
 

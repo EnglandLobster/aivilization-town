@@ -394,7 +394,38 @@ describe('local runtime town profile gate suite', () => {
         reason: 'profile recovery drill requires a replacement plan',
       },
     });
+    expect(inputs[0]?.preseedMarketPriceIndex).toBeUndefined();
     expect(result.profiles[0]?.gate.status).toBe('pass');
+  });
+
+  test('preseeds market price index for LLM runtime configs', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'llm-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        subtaskPrioritization: createLlmStageNode({
+          kind: 'traceable-llm-subtask-prioritizer',
+          model: 'priority-model',
+          providerId: 'priority-provider',
+        }),
+      }),
+    );
+
+    await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createPassingSummary(input));
+      },
+    });
+
+    expect(inputs[0]?.preseedMarketPriceIndex).toBe(true);
   });
 
   test('forwards every profile LLM cognition stage from runtime config into profile runners', async () => {

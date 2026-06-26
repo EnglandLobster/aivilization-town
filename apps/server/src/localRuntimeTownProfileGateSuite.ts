@@ -300,6 +300,7 @@ function createProfileRunnerInput(input: {
     ...(input.suiteInput.reportGeneratedAt === undefined
       ? {}
       : { reportGeneratedAt: input.suiteInput.reportGeneratedAt }),
+    ...(hasRuntimeConfigLlmStages(input.runtimeConfig) ? { preseedMarketPriceIndex: true } : {}),
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { profileRunReportRepository: input.profileRunReportRepository }),
@@ -355,6 +356,24 @@ function createProfileRunnerInput(input: {
       ? {}
       : { replanningPolicy: input.runtimeConfig.replanningPolicy }),
   };
+}
+
+function hasRuntimeConfigLlmStages(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): boolean {
+  return (
+    runtimeConfig?.strategicPlanning !== undefined ||
+    runtimeConfig?.dailyPlanning !== undefined ||
+    runtimeConfig?.reactionPlanning !== undefined ||
+    runtimeConfig?.subtaskPrioritization !== undefined ||
+    runtimeConfig?.actionSequenceGeneration !== undefined ||
+    runtimeConfig?.socialDialogue !== undefined ||
+    runtimeConfig?.globalSynthesis !== undefined ||
+    runtimeConfig?.reactiveCorrection !== undefined ||
+    runtimeConfig?.replanningDecision !== undefined ||
+    runtimeConfig?.reflectionSynthesis !== undefined ||
+    runtimeConfig?.socialModelSynthesis !== undefined
+  );
 }
 
 function clonePartitionSummary(

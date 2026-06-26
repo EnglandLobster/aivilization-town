@@ -379,13 +379,41 @@ export function deriveRequiredCognitionLlmEconomicContextStagesFromRuntimeConfig
 export function deriveRequiredCognitionLlmMemoryContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
-  return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileCognitionLlmStageName[] = [];
+  if (runtimeConfig.strategicPlanning !== undefined) {
+    stages.push('strategicPlanning');
+  }
+  if (runtimeConfig.reflectionSynthesis !== undefined) {
+    stages.push('reflectionSynthesis');
+  }
+  if (runtimeConfig.socialModelSynthesis !== undefined) {
+    stages.push('socialModelSynthesis');
+  }
+  return stages;
 }
 
 export function deriveRequiredCognitionLlmProfileContextStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileCognitionLlmStageName[] {
-  return deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+  if (runtimeConfig === undefined) {
+    return [];
+  }
+
+  const stages: RuntimeProfileCognitionLlmStageName[] = [];
+  if (runtimeConfig.strategicPlanning !== undefined) {
+    stages.push('strategicPlanning');
+  }
+  if (runtimeConfig.reflectionSynthesis !== undefined) {
+    stages.push('reflectionSynthesis');
+  }
+  if (runtimeConfig.socialModelSynthesis !== undefined) {
+    stages.push('socialModelSynthesis');
+  }
+  return stages;
 }
 
 export function deriveRequiredCognitionLlmObservedStateStagesFromRuntimeConfig(

@@ -4,6 +4,7 @@ import type {
   DailyPlanCompiler,
   GlobalActionSynthesizer,
   ReactionEvaluator,
+  ReactiveActionSimulator,
   ReactiveCorrector,
   ReplanningDecider,
   SocialDialogueGenerator,
@@ -32,12 +33,14 @@ import {
   createCanonicalWorkerRuntimeResolver,
   renewDailyPlanScheduledIntentions,
   renewMissingActiveObjectives,
+  recordMarketPriceIndexToEventStream,
   runLocalExperimentValidationSchedule,
   type ObjectiveRenewalDecisionTrace,
   type LocalExperimentValidationScheduleInput,
   type LocalWorldRuntimeAgentProvider,
   type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationRuntimeOperationTrace,
+  type CanonicalDomainRuntimeConfig,
   type WorldCommandPolicyResolver,
   type WorldCommandPolicySource,
 } from '@aivilization/worker';
@@ -81,6 +84,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly runIdSuffix?: string;
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
+  readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
@@ -89,6 +93,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
+  readonly steeringSimulator?: ReactiveActionSimulator;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
@@ -112,6 +117,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly agentMemoryRetrievalLimit?: number;
   readonly agentMemoryRetrievalCandidateLimit?: number;
+  readonly preseedMarketPriceIndex?: boolean;
 };
 
 export type LocalRuntimeTownProfileExperimentValidationSchedule = Omit<
@@ -246,6 +252,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     input.agentProvider ??
     createLocalRuntimeTownProfileAgentProvider({
       policies,
+      ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
       ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
       ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
@@ -262,6 +269,11 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
         ? {}
         : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
     });
+  const profileRunOperationId = createProfileRunOperationId({
+    manifestId: profile.manifest.id,
+    requestedAt: input.requestedAt,
+    ...(input.runIdSuffix === undefined ? {} : { runIdSuffix: input.runIdSuffix }),
+  });
   const runtime = await createLocalRuntimeTownApi({
     rootDir: input.rootDir,
     bootstrappedAt: input.requestedAt,
@@ -269,7 +281,8 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     scenarioPresets: profile.scenarioPresets,
     policies,
     localizedPlanners: [],
-    steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+    steeringSimulator:
+      input.steeringSimulator ?? (({ action }) => ({ status: 'accepted', action })),
     agents: [],
     agentProvider,
     runtimeRunQueue: profile.runtimeRunQueue,
@@ -283,12 +296,16 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       ? {}
       : { ambientObservationMemory: { enabled: true, reactionEvaluator } }),
   });
+  if (input.preseedMarketPriceIndex === true) {
+    preseedRuntimeMarketPriceIndices({
+      runtime,
+      baselineAt: input.requestedAt,
+      issuedAt: input.requestedAt,
+      appendIdempotencyKeyPrefix: profileRunOperationId,
+    });
+  }
   const run = await runtime.supervisor.runCycles({
-    operationId: createProfileRunOperationId({
-      manifestId: profile.manifest.id,
-      requestedAt: input.requestedAt,
-      ...(input.runIdSuffix === undefined ? {} : { runIdSuffix: input.runIdSuffix }),
-    }),
+    operationId: profileRunOperationId,
     requestedAt: input.requestedAt,
     cycleCount: input.cycleCount,
     ...(input.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: input.cycleIntervalMs }),
@@ -435,6 +452,32 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     ...baseSummary,
     ...(experimentValidationReports.length === 0 ? {} : { experimentValidationReports }),
   };
+}
+
+function preseedRuntimeMarketPriceIndices(input: {
+  readonly runtime: Awaited<ReturnType<typeof createLocalRuntimeTownApi>>;
+  readonly baselineAt: SimulationTimestamp;
+  readonly issuedAt: SimulationTimestamp;
+  readonly appendIdempotencyKeyPrefix: string;
+}): void {
+  for (const partition of input.runtime.host.partitions) {
+    const backend = input.runtime.host.registry.getBackend({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+    });
+    const streamName = backend.storage.partition.eventStreamName;
+    recordMarketPriceIndexToEventStream({
+      simulationId: backend.storage.partition.simulationId,
+      baselineProjection: partition.bootstrap.initialProjection,
+      currentProjection: partition.bootstrap.initialProjection,
+      baselineAt: input.baselineAt,
+      issuedAt: input.issuedAt,
+      eventStore: backend.storage.eventStore,
+      streamName,
+      expectedVersion: backend.storage.eventStore.getStreamVersion(streamName),
+      appendIdempotencyKey: `${input.appendIdempotencyKeyPrefix}:${partition.partitionKey}:preseed-market-price-index`,
+    });
+  }
 }
 
 async function runProfileExperimentValidationSchedule(input: {
@@ -620,6 +663,7 @@ function createProfileMemoryConsolidationSchedule(input: {
 export function createLocalRuntimeTownProfileAgentProvider(
   input: {
     readonly policies?: WorldCommandPolicySource;
+    readonly domainConfig?: CanonicalDomainRuntimeConfig;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
     readonly dailyPlanCompiler?: DailyPlanCompiler;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -697,6 +741,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,
         policies,
+        ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
         issuedAt,
         commandIdPrefix: `${storage.partition.partitionKey}:profile-provider:${issuedAt}`,
         ...(input.replanningPolicy === undefined

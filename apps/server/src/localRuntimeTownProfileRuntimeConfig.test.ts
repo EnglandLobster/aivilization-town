@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { createLlmStructuredProviderFromConfig } from '@aivilization/llm';
 import { describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
@@ -358,6 +359,97 @@ describe('local runtime town profile runtime config', () => {
         },
       ],
     });
+  });
+
+  test('expands repeated scripted provider responses from runtime config', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'default-100',
+      path: '/runtime/config.json',
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            llmPlanning: {
+              kind: 'traceable-llm-strategic-planner',
+              model: 'scripted-strategic-model',
+              provider: {
+                kind: 'scripted',
+                providerId: 'scripted-strategic-provider',
+                responses: [
+                  {
+                    providerId: 'scripted-strategic-provider',
+                    model: 'scripted-model',
+                    content: '{"ok":true}',
+                    finishReason: 'stop',
+                    repeat: 3,
+                  },
+                ],
+              },
+            },
+          }),
+        ),
+    });
+
+    expect(config.strategicPlanning?.provider).toMatchObject({
+      kind: 'scripted',
+      responses: [
+        { content: '{"ok":true}', finishReason: 'stop' },
+        { content: '{"ok":true}', finishReason: 'stop' },
+        { content: '{"ok":true}', finishReason: 'stop' },
+      ],
+    });
+  });
+
+  test('renders scripted provider content templates from request user JSON', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'smoke-25',
+      path: '/runtime/config.json',
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            dailyPlanning: {
+              kind: 'traceable-llm-daily-planner',
+              model: 'daily-planner',
+              provider: {
+                kind: 'scripted',
+                providerId: 'scripted-daily-provider',
+                responses: [
+                  {
+                    providerId: 'scripted-daily-provider',
+                    model: 'daily-planner',
+                    contentTemplate:
+                      '{"agentId":"{{user.agentId}}","generatedAt":{{user.issuedAt}},"requestId":"{{request.requestId}}","firstActionId":"{{user.deterministicActions.0.id}}","firstActionPayload":{{json user.deterministicActions.0.payload}}}',
+                    finishReason: 'stop',
+                  },
+                ],
+              },
+            },
+          }),
+        ),
+    });
+
+    if (config.dailyPlanning === undefined) {
+      throw new Error('missing parsed daily planning config');
+    }
+    const provider = createLlmStructuredProviderFromConfig(config.dailyPlanning.provider);
+    const response = await provider.complete({
+      requestId: 'template-request',
+      model: 'daily-planner',
+      schemaName: 'aivilization_daily_plan',
+      messages: [
+        { role: 'system', content: 'system prompt' },
+        {
+          role: 'user',
+          content:
+            '{"agentId":"agent-a","issuedAt":175,"deterministicActions":[{"id":"action-a","payload":{"targetAgentId":"agent-b"}}]}',
+        },
+      ],
+      tools: [],
+      signal: new AbortController().signal,
+    });
+
+    expect(response.content).toBe(
+      '{"agentId":"agent-a","generatedAt":175,"requestId":"template-request","firstActionId":"action-a","firstActionPayload":{"targetAgentId":"agent-b"}}',
+    );
   });
 
   test('uses top-level daily and reaction planning config unless a profile disables it', async () => {

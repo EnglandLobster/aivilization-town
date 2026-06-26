@@ -253,6 +253,9 @@ describe('local runtime town profile runner', () => {
       ...(runtimeConfig.actionSynthesis === undefined
         ? {}
         : { actionSynthesis: runtimeConfig.actionSynthesis }),
+      ...(runtimeConfig.shortTermMemorySeeds === undefined
+        ? {}
+        : { preseedShortTermMemorySeeds: runtimeConfig.shortTermMemorySeeds }),
       ...(runtimeConfig.strategicPlanning === undefined
         ? {}
         : { llmPlanning: runtimeConfig.strategicPlanning }),
@@ -319,6 +322,7 @@ describe('local runtime town profile runner', () => {
       'reactiveCorrection',
       'replanningDecision',
     ]);
+    expect(criteria.requiredAgentCycleLlmEvidenceBackedStages).toEqual(['reactiveCorrection']);
     expect(criteria.requiredCognitionLlmAcceptedStages).toEqual([
       'strategicPlanning',
       'dailyPlanning',
@@ -336,6 +340,15 @@ describe('local runtime town profile runner', () => {
       expect(diagnostics.llmAcceptedCount).toBeGreaterThan(0);
       expect(diagnostics.deterministicFallbackCount).toBe(0);
       expect(diagnostics.deterministicCount).toBe(0);
+    }
+    for (const stageName of criteria.requiredAgentCycleLlmEvidenceBackedStages ?? []) {
+      const diagnostics = (report.agentCycleDiagnostics.llmStageDiagnostics ?? []).find(
+        (stage) => stage.stageName === stageName,
+      );
+      if (diagnostics === undefined) {
+        throw new Error(`missing agent-cycle LLM diagnostics for ${stageName}`);
+      }
+      expect(diagnostics.evidenceBackedAcceptedCount).toBeGreaterThan(0);
     }
     for (const stageName of criteria.requiredCognitionLlmAcceptedStages ?? []) {
       const diagnostics = report.cognitionLlmStageDiagnostics?.find(

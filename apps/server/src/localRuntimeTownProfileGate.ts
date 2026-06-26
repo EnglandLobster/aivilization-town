@@ -26,6 +26,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmObservedStateStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmEvidenceBackedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
@@ -77,6 +78,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const requiredAgentCycleLlmObservedStateStages =
     input.requiredAgentCycleLlmObservedStateStages ??
     deriveRequiredAgentCycleLlmObservedStateStagesFromRuntimeConfig(input.runtimeConfig);
+  const requiredAgentCycleLlmEvidenceBackedStages =
+    input.requiredAgentCycleLlmEvidenceBackedStages ??
+    deriveRequiredAgentCycleLlmEvidenceBackedStagesFromRuntimeConfig(input.runtimeConfig);
   const requiredCognitionLlmAcceptedStages =
     input.requiredCognitionLlmAcceptedStages ??
     deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(input.runtimeConfig);
@@ -172,6 +176,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(requiredAgentCycleLlmObservedStateStages.length === 0
       ? {}
       : { requiredAgentCycleLlmObservedStateStages }),
+    ...(requiredAgentCycleLlmEvidenceBackedStages.length === 0
+      ? {}
+      : { requiredAgentCycleLlmEvidenceBackedStages }),
     ...(requiredCognitionLlmAcceptedStages.length === 0
       ? {}
       : { requiredCognitionLlmAcceptedStages }),
@@ -297,6 +304,15 @@ export function deriveRequiredAgentCycleLlmObservedStateStagesFromRuntimeConfig(
   runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
 ): readonly RuntimeProfileAgentCycleLlmStageName[] {
   return deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(runtimeConfig);
+}
+
+export function deriveRequiredAgentCycleLlmEvidenceBackedStagesFromRuntimeConfig(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): readonly RuntimeProfileAgentCycleLlmStageName[] {
+  if (runtimeConfig?.reactiveCorrection === undefined) {
+    return [];
+  }
+  return ['reactiveCorrection'];
 }
 
 export function deriveRequiredCognitionLlmAcceptedStagesFromRuntimeConfig(

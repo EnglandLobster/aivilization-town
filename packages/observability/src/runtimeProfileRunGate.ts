@@ -34,6 +34,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requiredAgentCycleLlmMemoryContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmProfileContextStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmObservedStateStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
+  readonly requiredAgentCycleLlmEvidenceBackedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredCognitionLlmAcceptedStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoFallbackStages?: readonly RuntimeProfileCognitionLlmStageName[];
   readonly requiredCognitionLlmNoDeterministicStages?: readonly RuntimeProfileCognitionLlmStageName[];
@@ -181,6 +182,11 @@ export function evaluateRuntimeProfileRunReport(
     failures,
     report,
     criteria.requiredAgentCycleLlmObservedStateStages ?? [],
+  );
+  addRequiredAgentCycleLlmEvidenceBackedStageFailures(
+    failures,
+    report,
+    criteria.requiredAgentCycleLlmEvidenceBackedStages ?? [],
   );
   addRequiredCognitionLlmStageFailures(
     failures,
@@ -628,6 +634,37 @@ function addRequiredAgentCycleLlmObservedStateStageFailures(
     failures.push({
       code: 'agent-cycle-llm-stage-observed-state-count-too-low',
       message: `agent-cycle LLM stage ${stageName} observedStateSummaryCount must be at least ${minimum}`,
+      evidence: {
+        stageName,
+        actual,
+        llmAcceptedCount,
+        minimum,
+      },
+    });
+  }
+}
+
+function addRequiredAgentCycleLlmEvidenceBackedStageFailures(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  requiredStages: readonly RuntimeProfileAgentCycleLlmStageName[],
+): void {
+  const diagnosticsByStage = new Map(
+    report.agentCycleDiagnostics.llmStageDiagnostics?.map((stage) => [stage.stageName, stage]) ??
+      [],
+  );
+
+  for (const stageName of new Set(requiredStages)) {
+    const stage = diagnosticsByStage.get(stageName);
+    const actual = stage?.evidenceBackedAcceptedCount ?? 0;
+    const llmAcceptedCount = stage?.llmAcceptedCount ?? 0;
+    const minimum = Math.max(1, llmAcceptedCount);
+    if (actual >= minimum) {
+      continue;
+    }
+    failures.push({
+      code: 'agent-cycle-llm-stage-evidence-backed-count-too-low',
+      message: `agent-cycle LLM stage ${stageName} evidenceBackedAcceptedCount must be at least ${minimum}`,
       evidence: {
         stageName,
         actual,

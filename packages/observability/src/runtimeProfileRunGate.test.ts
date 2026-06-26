@@ -639,6 +639,51 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('requires evidence-backed accepted traces for configured agent-cycle stages', () => {
+    const result = evaluateRuntimeProfileRunReport(
+      createRuntimeProfileRunReport({
+        ...createReport(),
+        agentCycleDiagnostics: {
+          ...createAgentCycleDiagnostics(5),
+          llmStageDiagnostics: [
+            {
+              stageName: 'reactiveCorrection',
+              traceCount: 2,
+              llmAcceptedCount: 2,
+              deterministicFallbackCount: 0,
+              deterministicCount: 0,
+              missingCycleCount: 0,
+              evidenceBackedAcceptedCount: 1,
+              shortTermMemoryContextCount: 2,
+              longTermProfileContextCount: 2,
+              worldDecisionContextCount: 2,
+              completeWorldDecisionContextCount: 2,
+              rulesContextCount: 2,
+              completeRulesContextCount: 2,
+            },
+          ],
+        },
+      }),
+      {
+        ...createCriteria(),
+        requiredAgentCycleLlmEvidenceBackedStages: ['reactiveCorrection'],
+      },
+    );
+
+    expect(result.status).toBe('fail');
+    expect(result.failures).toContainEqual({
+      code: 'agent-cycle-llm-stage-evidence-backed-count-too-low',
+      message:
+        'agent-cycle LLM stage reactiveCorrection evidenceBackedAcceptedCount must be at least 2',
+      evidence: {
+        stageName: 'reactiveCorrection',
+        actual: 1,
+        llmAcceptedCount: 2,
+        minimum: 2,
+      },
+    });
+  });
+
   test('requires long-term profile context coverage for configured agent-cycle stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({

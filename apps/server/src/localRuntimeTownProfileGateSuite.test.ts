@@ -417,6 +417,12 @@ describe('local runtime town profile gate suite', () => {
           retrievalLimit: 10,
           minPatternCount: 1,
         },
+        actionSynthesis: {
+          maxActions: 2,
+          candidateSubtasks: {
+            maxSubtasks: 2,
+          },
+        },
         steeringSimulator: {
           kind: 'reject-action-id-prefix-until-suffix',
           commandType: 'AgentStartConversation',
@@ -450,6 +456,12 @@ describe('local runtime town profile gate suite', () => {
       agentIds: ['smoke-25-world-main-agent-001'],
       retrievalLimit: 10,
       minPatternCount: 1,
+    });
+    expect(inputs[0]?.actionSynthesis).toEqual({
+      maxActions: 2,
+      candidateSubtasks: {
+        maxSubtasks: 2,
+      },
     });
     expect(inputs[0]?.steeringSimulator).toBeDefined();
     const rejected = inputs[0]?.steeringSimulator?.({
@@ -893,6 +905,39 @@ describe('local runtime town profile gate suite', () => {
       passedConfiguredCapabilityCount: 11,
       failedConfiguredCapabilityCount: 0,
     });
+  });
+
+  test('passes all paper-alignment capabilities from the full scripted LLM runtime config through real suite execution', async () => {
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+    const configPath = fileURLToPath(
+      new URL('../examples/full-scripted-llm-runtime-config.json', import.meta.url),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      reportRootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 275,
+      reportGeneratedAt: 325,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      minimumLocalRepairAcceptedCount: 1,
+    });
+
+    expect(result.profiles[0]?.gate.failures).toEqual([]);
+    expect(result.status).toBe('pass');
+    expect(result.bundleManifest?.paperAlignment).toMatchObject({
+      schemaVersion: 1,
+      capabilityCount: 12,
+      configuredCapabilityCount: 12,
+      passedConfiguredCapabilityCount: 12,
+      failedConfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 0,
+    });
+    expect(
+      result.profiles[0]?.summary.agentCycleDiagnostics.localRepairAcceptedCount,
+    ).toBeGreaterThan(0);
   });
 
   test('requires accepted agent-cycle LLM traces for stages enabled by runtime config', async () => {

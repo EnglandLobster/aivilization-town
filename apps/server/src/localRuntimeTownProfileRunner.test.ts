@@ -250,6 +250,9 @@ describe('local runtime town profile runner', () => {
           topic: 'town plans',
         },
       },
+      ...(runtimeConfig.actionSynthesis === undefined
+        ? {}
+        : { actionSynthesis: runtimeConfig.actionSynthesis }),
       ...(runtimeConfig.strategicPlanning === undefined
         ? {}
         : { llmPlanning: runtimeConfig.strategicPlanning }),

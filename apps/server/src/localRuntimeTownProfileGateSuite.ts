@@ -304,6 +304,9 @@ function createProfileRunnerInput(input: {
     ...(input.runtimeConfig?.domainConfig === undefined
       ? {}
       : { domainConfig: input.runtimeConfig.domainConfig }),
+    ...(input.runtimeConfig?.actionSynthesis === undefined
+      ? {}
+      : { actionSynthesis: input.runtimeConfig.actionSynthesis }),
     ...(input.runtimeConfig?.memoryConsolidationSchedule === undefined
       ? {}
       : { memoryConsolidationSchedule: input.runtimeConfig.memoryConsolidationSchedule }),

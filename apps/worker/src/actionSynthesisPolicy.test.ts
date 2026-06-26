@@ -58,6 +58,25 @@ describe('world-state action synthesis policy', () => {
       },
     });
   });
+
+  test('propagates configured candidate subtask window into action synthesis policy', () => {
+    expect(
+      deriveActionSynthesisPolicyFromWorldState({
+        agent: createAgent({
+          physiology: { energy: 80, satiety: 80, health: 100 },
+          balance: 100,
+          inventory: { Apple: 1 },
+        }),
+        config: {
+          maxActions: 2,
+          candidateSubtasks: { maxSubtasks: 2 },
+        },
+      }),
+    ).toMatchObject({
+      maxActions: 2,
+      candidateSubtasks: { maxSubtasks: 2 },
+    });
+  });
 });
 
 function createAgent(input: {

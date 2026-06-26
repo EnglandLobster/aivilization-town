@@ -7,6 +7,9 @@ export type WorldStateActionSynthesisPolicyConfig = {
   readonly minEnergyReserve?: number;
   readonly minSatietyReserve?: number;
   readonly minBalanceReserve?: number;
+  readonly candidateSubtasks?: {
+    readonly maxSubtasks?: number;
+  };
 };
 
 export function deriveActionSynthesisPolicyFromWorldState(input: {
@@ -16,6 +19,9 @@ export function deriveActionSynthesisPolicyFromWorldState(input: {
   const config = normalizeConfig(input.config);
   return {
     ...(config.maxActions === undefined ? {} : { maxActions: config.maxActions }),
+    ...(config.candidateSubtasks === undefined
+      ? {}
+      : { candidateSubtasks: config.candidateSubtasks }),
     budget: {
       ...(config.planningWindowSeconds === undefined
         ? {}
@@ -34,6 +40,9 @@ type NormalizedWorldStateActionSynthesisPolicyConfig = {
   readonly minEnergyReserve: number;
   readonly minSatietyReserve: number;
   readonly minBalanceReserve: number;
+  readonly candidateSubtasks?: {
+    readonly maxSubtasks?: number;
+  };
 };
 
 function normalizeConfig(
@@ -44,17 +53,12 @@ function normalizeConfig(
     config?.planningWindowSeconds,
     'actionSynthesis.planningWindowSeconds',
   );
-  assertNonNegativeFiniteIfPresent(
-    config?.minEnergyReserve,
-    'actionSynthesis.minEnergyReserve',
-  );
-  assertNonNegativeFiniteIfPresent(
-    config?.minSatietyReserve,
-    'actionSynthesis.minSatietyReserve',
-  );
-  assertNonNegativeFiniteIfPresent(
-    config?.minBalanceReserve,
-    'actionSynthesis.minBalanceReserve',
+  assertNonNegativeFiniteIfPresent(config?.minEnergyReserve, 'actionSynthesis.minEnergyReserve');
+  assertNonNegativeFiniteIfPresent(config?.minSatietyReserve, 'actionSynthesis.minSatietyReserve');
+  assertNonNegativeFiniteIfPresent(config?.minBalanceReserve, 'actionSynthesis.minBalanceReserve');
+  assertPositiveIntegerIfPresent(
+    config?.candidateSubtasks?.maxSubtasks,
+    'actionSynthesis.candidateSubtasks.maxSubtasks',
   );
 
   return {
@@ -62,6 +66,15 @@ function normalizeConfig(
     ...(config?.planningWindowSeconds === undefined
       ? {}
       : { planningWindowSeconds: config.planningWindowSeconds }),
+    ...(config?.candidateSubtasks === undefined
+      ? {}
+      : {
+          candidateSubtasks: {
+            ...(config.candidateSubtasks.maxSubtasks === undefined
+              ? {}
+              : { maxSubtasks: config.candidateSubtasks.maxSubtasks }),
+          },
+        }),
     minEnergyReserve: config?.minEnergyReserve ?? 0,
     minSatietyReserve: config?.minSatietyReserve ?? 0,
     minBalanceReserve: config?.minBalanceReserve ?? 0,
@@ -86,6 +99,12 @@ function copyPositiveInventory(
 function assertNonNegativeIntegerIfPresent(value: number | undefined, name: string): void {
   if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
     throw new Error(`${name} must be a non-negative integer`);
+  }
+}
+
+function assertPositiveIntegerIfPresent(value: number | undefined, name: string): void {
+  if (value !== undefined && (!Number.isInteger(value) || value < 1)) {
+    throw new Error(`${name} must be a positive integer`);
   }
 }
 

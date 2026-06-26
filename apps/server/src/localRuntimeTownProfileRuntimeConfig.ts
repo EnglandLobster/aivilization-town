@@ -16,6 +16,7 @@ import { asAgentId, type CoreCommandType } from '@aivilization/sim-core';
 import type {
   CanonicalDomainRuntimeConfig,
   LocalSimulationLifecycleMemoryConsolidationSchedule,
+  WorldStateActionSynthesisPolicyConfig,
 } from '@aivilization/worker';
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
@@ -65,6 +66,7 @@ export type LocalRuntimeTownProfileRuntimeConfigLoadInput =
 
 export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
+  readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
@@ -156,6 +158,13 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
       document,
       profileId: input.profileId,
       nodeName: 'domainConfig',
+    }),
+  });
+  const actionSynthesis = parseActionSynthesisNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'actionSynthesis',
     }),
   });
   const strategicPlanning = parseLlmPlanningNode({
@@ -281,6 +290,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
 
   return {
     ...(domainConfig === undefined ? {} : { domainConfig }),
+    ...(actionSynthesis === undefined ? {} : { actionSynthesis }),
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
@@ -766,6 +776,66 @@ function parseDomainConfigNode(input: {
   };
 }
 
+function parseActionSynthesisNode(input: {
+  readonly node: unknown;
+}): WorldStateActionSynthesisPolicyConfig | false | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+  if (input.node === false) {
+    return false;
+  }
+
+  const record = requireRecord(input.node, 'actionSynthesis');
+  const maxActions = readOptionalNonNegativeInteger(
+    record.maxActions,
+    'actionSynthesis.maxActions',
+  );
+  const planningWindowSeconds = readOptionalNonNegativeFinite(
+    record.planningWindowSeconds,
+    'actionSynthesis.planningWindowSeconds',
+  );
+  const minEnergyReserve = readOptionalNonNegativeFinite(
+    record.minEnergyReserve,
+    'actionSynthesis.minEnergyReserve',
+  );
+  const minSatietyReserve = readOptionalNonNegativeFinite(
+    record.minSatietyReserve,
+    'actionSynthesis.minSatietyReserve',
+  );
+  const minBalanceReserve = readOptionalNonNegativeFinite(
+    record.minBalanceReserve,
+    'actionSynthesis.minBalanceReserve',
+  );
+  const candidateSubtasks = parseActionSynthesisCandidateSubtasks(
+    record.candidateSubtasks,
+    'actionSynthesis.candidateSubtasks',
+  );
+
+  return {
+    ...(maxActions === undefined ? {} : { maxActions }),
+    ...(planningWindowSeconds === undefined ? {} : { planningWindowSeconds }),
+    ...(minEnergyReserve === undefined ? {} : { minEnergyReserve }),
+    ...(minSatietyReserve === undefined ? {} : { minSatietyReserve }),
+    ...(minBalanceReserve === undefined ? {} : { minBalanceReserve }),
+    ...(candidateSubtasks === undefined ? {} : { candidateSubtasks }),
+  };
+}
+
+function parseActionSynthesisCandidateSubtasks(
+  value: unknown,
+  name: string,
+): NonNullable<WorldStateActionSynthesisPolicyConfig['candidateSubtasks']> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const record = requireRecord(value, name);
+  const maxSubtasks = readOptionalPositiveInteger(record.maxSubtasks, `${name}.maxSubtasks`);
+  return {
+    ...(maxSubtasks === undefined ? {} : { maxSubtasks }),
+  };
+}
+
 function parseStudyDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['study'] {
   const record = readOptionalNullableRecord(value, 'domainConfig.study');
   if (record === undefined) {
@@ -1017,6 +1087,7 @@ function parseSteeringSimulatorNode(input: {
 
 type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'domainConfig'
+  | 'actionSynthesis'
   | 'llmPlanning'
   | 'dailyPlanning'
   | 'reactionPlanning'
@@ -1368,6 +1439,16 @@ function readOptionalPositiveInteger(value: unknown, name: string): number | und
   }
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
     throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
+
+function readOptionalNonNegativeInteger(value: unknown, name: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer`);
   }
   return value;
 }

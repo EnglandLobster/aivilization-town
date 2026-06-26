@@ -20,6 +20,7 @@ export type LocalRuntimeTownProfileGateSuiteCliConfig = Pick<
   | 'runtimeConfigPath'
   | 'minimumFullReplanMaterializationCount'
   | 'minimumSimulatorRolloutCoverageRatio'
+  | 'minimumLocalRepairAcceptedCount'
 >;
 
 export type LocalRuntimeTownProfileGateSuiteCliWriter = {
@@ -59,6 +60,10 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     args,
     '--minimum-simulator-rollout-coverage-ratio',
   );
+  const minimumLocalRepairAcceptedCount = readOptionalNonNegativeInteger(
+    args,
+    '--minimum-local-repair-accepted-count',
+  );
   if (experimentValidation === true && reportRootDir === undefined) {
     throw new Error('--experiment-validation requires --report-root-dir');
   }
@@ -78,6 +83,7 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     ...(minimumSimulatorRolloutCoverageRatio === undefined
       ? {}
       : { minimumSimulatorRolloutCoverageRatio }),
+    ...(minimumLocalRepairAcceptedCount === undefined ? {} : { minimumLocalRepairAcceptedCount }),
   };
 }
 

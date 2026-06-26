@@ -635,9 +635,11 @@ describe('local runtime town profile gate suite', () => {
       reportGeneratedAt: 200,
       cycleCount: 1,
       profileIds: ['default-100'],
+      minimumLocalRepairAcceptedCount: 1,
       runProfile: (input) =>
         Promise.resolve(
           createPassingSummary(input, {
+            localRepairAcceptedCount: 1,
             llmStageDiagnostics: createAcceptedAgentCycleLlmStageDiagnostics([
               'contextualPrioritization',
               'actionSequenceGeneration',
@@ -660,18 +662,18 @@ describe('local runtime town profile gate suite', () => {
     expect(result.status).toBe('pass');
     expect(result.bundleManifest?.paperAlignment).toEqual({
       schemaVersion: 1,
-      capabilityCount: 11,
-      configuredCapabilityCount: 11,
-      passedConfiguredCapabilityCount: 11,
+      capabilityCount: 12,
+      configuredCapabilityCount: 12,
+      passedConfiguredCapabilityCount: 12,
       failedConfiguredCapabilityCount: 0,
       unconfiguredCapabilityCount: 0,
     });
     const profileCoverage = result.bundleManifest?.profiles[0]?.paperAlignment;
     expect(profileCoverage).toMatchObject({
       schemaVersion: 1,
-      stageCount: 11,
-      configuredStageCount: 11,
-      passedConfiguredStageCount: 11,
+      stageCount: 12,
+      configuredStageCount: 12,
+      passedConfiguredStageCount: 12,
       failedConfiguredStageCount: 0,
       unconfiguredStageCount: 0,
     });
@@ -680,6 +682,7 @@ describe('local runtime town profile gate suite', () => {
       'contextual-prioritization',
       'daily-planning',
       'global-synthesis',
+      'local-repair',
       'memory-guided-replanning',
       'reaction-evaluation',
       'reactive-correction',
@@ -708,6 +711,28 @@ describe('local runtime town profile gate suite', () => {
             shortTermMemoryContext: true,
             longTermProfileContext: true,
             outputArtifactCount: 0,
+            localRepairAcceptedCount: 0,
+          },
+        }),
+        expect.objectContaining({
+          paperCapabilityId: 'local-repair',
+          paperSection: '2.1.2 Action Simulator And Tiered Replanning',
+          stageFamily: 'agent-cycle',
+          stageName: 'localRepair',
+          runtimeConfigured: true,
+          gateStatus: 'pass',
+          requirements: {
+            acceptedTrace: false,
+            noFallback: false,
+            noDeterministic: false,
+            observedState: false,
+            worldDecisionContext: false,
+            economicContext: false,
+            rulesContext: false,
+            shortTermMemoryContext: false,
+            longTermProfileContext: false,
+            outputArtifactCount: 0,
+            localRepairAcceptedCount: 1,
           },
         }),
         expect.objectContaining({
@@ -728,6 +753,7 @@ describe('local runtime town profile gate suite', () => {
             shortTermMemoryContext: true,
             longTermProfileContext: true,
             outputArtifactCount: 1,
+            localRepairAcceptedCount: 0,
           },
         }),
       ]),
@@ -1012,6 +1038,7 @@ function createPassingSummary(
   input: LocalRuntimeTownProfileRunnerInput,
   options: {
     readonly fullReplanMaterializationCount?: number;
+    readonly localRepairAcceptedCount?: number;
     readonly llmStageDiagnostics?: ReturnType<typeof createAcceptedAgentCycleLlmStageDiagnostics>;
     readonly cognitionLlmStageDiagnostics?: ReturnType<
       typeof createAcceptedCognitionLlmStageDiagnostics
@@ -1063,6 +1090,7 @@ function createPassingSummary(
     totalAgentTraceCount,
     agentCycleDiagnostics: createAgentCycleDiagnostics(totalAgentTraceCount, {
       fullReplanMaterializationCount: options.fullReplanMaterializationCount ?? 0,
+      localRepairAcceptedCount: options.localRepairAcceptedCount ?? 0,
       ...(options.llmStageDiagnostics === undefined
         ? {}
         : { llmStageDiagnostics: options.llmStageDiagnostics }),
@@ -1085,17 +1113,19 @@ function createAgentCycleDiagnostics(
   traceCount: number,
   options: {
     readonly fullReplanMaterializationCount?: number;
+    readonly localRepairAcceptedCount?: number;
     readonly llmStageDiagnostics?: ReturnType<typeof createAcceptedAgentCycleLlmStageDiagnostics>;
   } = {},
 ) {
   const fullReplanMaterializationCount = options.fullReplanMaterializationCount ?? 0;
+  const localRepairAcceptedCount = options.localRepairAcceptedCount ?? 0;
   return {
     traceCount,
     acceptedSimulatorCount: traceCount,
     repairedSimulatorCount: 0,
     rejectedSimulatorCount: 0,
-    localRepairAttemptCount: 0,
-    localRepairAcceptedCount: 0,
+    localRepairAttemptCount: localRepairAcceptedCount,
+    localRepairAcceptedCount,
     localRepairRejectedCount: 0,
     localRepairSkippedCount: 0,
     replanningDecisionCount: 0,
@@ -1108,7 +1138,7 @@ function createAgentCycleDiagnostics(
     fullReplanMaterializationRatio:
       traceCount === 0 ? 0 : fullReplanMaterializationCount / traceCount,
     repairedSimulatorRatio: 0,
-    localRepairAcceptedRatio: 0,
+    localRepairAcceptedRatio: localRepairAcceptedCount === 0 ? 0 : 1,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
     simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,

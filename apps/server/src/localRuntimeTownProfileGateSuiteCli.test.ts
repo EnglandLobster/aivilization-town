@@ -39,6 +39,8 @@ describe('local runtime town profile gate suite CLI', () => {
         '1',
         '--minimum-simulator-rollout-coverage-ratio',
         '0.75',
+        '--minimum-local-repair-accepted-count',
+        '1',
       ]),
     ).toEqual({
       rootDir: '/tmp/suite',
@@ -51,6 +53,7 @@ describe('local runtime town profile gate suite CLI', () => {
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
       minimumSimulatorRolloutCoverageRatio: 0.75,
+      minimumLocalRepairAcceptedCount: 1,
     });
   });
 
@@ -94,6 +97,8 @@ describe('local runtime town profile gate suite CLI', () => {
         '1',
         '--minimum-simulator-rollout-coverage-ratio',
         '0.75',
+        '--minimum-local-repair-accepted-count',
+        '1',
       ],
       stdout: {
         write: (chunk) => {
@@ -117,6 +122,7 @@ describe('local runtime town profile gate suite CLI', () => {
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
       minimumSimulatorRolloutCoverageRatio: 0.75,
+      minimumLocalRepairAcceptedCount: 1,
     });
     expect(JSON.parse(output)).toMatchObject({
       status: 'pass',

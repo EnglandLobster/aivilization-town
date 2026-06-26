@@ -20,6 +20,7 @@ export type LocalRuntimeTownPaperAlignmentRequirements = {
   readonly shortTermMemoryContext: boolean;
   readonly longTermProfileContext: boolean;
   readonly outputArtifactCount: number;
+  readonly localRepairAcceptedCount: number;
 };
 
 export type LocalRuntimeTownPaperAlignmentStageCoverage = {
@@ -63,6 +64,12 @@ type PaperAlignmentStageDefinition =
       readonly paperSection: string;
       readonly stageFamily: 'cognition';
       readonly stageName: RuntimeProfileCognitionLlmStageName;
+    }
+  | {
+      readonly paperCapabilityId: string;
+      readonly paperSection: string;
+      readonly stageFamily: 'agent-cycle';
+      readonly stageName: 'localRepair';
     };
 
 const PAPER_ALIGNMENT_STAGE_DEFINITIONS = [
@@ -113,6 +120,12 @@ const PAPER_ALIGNMENT_STAGE_DEFINITIONS = [
     paperSection: '2.1.2 Action Simulator And Tiered Replanning',
     stageFamily: 'agent-cycle',
     stageName: 'reactiveCorrection',
+  },
+  {
+    paperCapabilityId: 'local-repair',
+    paperSection: '2.1.2 Action Simulator And Tiered Replanning',
+    stageFamily: 'agent-cycle',
+    stageName: 'localRepair',
   },
   {
     paperCapabilityId: 'memory-guided-replanning',
@@ -173,6 +186,10 @@ function createStageCoverage(
   criteria: RuntimeProfileRunGateCriteria,
   gate: RuntimeProfileRunGateResult,
 ): LocalRuntimeTownPaperAlignmentStageCoverage {
+  if (definition.stageName === 'localRepair') {
+    return createLocalRepairStageCoverage(definition, criteria, gate);
+  }
+
   const requirements =
     definition.stageFamily === 'agent-cycle'
       ? createAgentCycleRequirements(definition.stageName, criteria)
@@ -186,6 +203,28 @@ function createStageCoverage(
     runtimeConfigured,
     gateStatus: runtimeConfigured
       ? hasStageFailure(definition, gate)
+        ? 'fail'
+        : 'pass'
+      : 'not-configured',
+    requirements,
+  };
+}
+
+function createLocalRepairStageCoverage(
+  definition: Extract<PaperAlignmentStageDefinition, { readonly stageName: 'localRepair' }>,
+  criteria: RuntimeProfileRunGateCriteria,
+  gate: RuntimeProfileRunGateResult,
+): LocalRuntimeTownPaperAlignmentStageCoverage {
+  const requirements = createLocalRepairRequirements(criteria);
+  const runtimeConfigured = requirements.localRepairAcceptedCount > 0;
+  return {
+    paperCapabilityId: definition.paperCapabilityId,
+    paperSection: definition.paperSection,
+    stageFamily: definition.stageFamily,
+    stageName: definition.stageName,
+    runtimeConfigured,
+    gateStatus: runtimeConfigured
+      ? hasLocalRepairFailure(gate)
         ? 'fail'
         : 'pass'
       : 'not-configured',
@@ -217,6 +256,7 @@ function createAgentCycleRequirements(
       stageName,
     ),
     outputArtifactCount: 0,
+    localRepairAcceptedCount: 0,
   };
 }
 
@@ -241,6 +281,25 @@ function createCognitionRequirements(
       stageName,
     ),
     outputArtifactCount: criteria.minimumCognitionLlmOutputArtifactCounts?.[stageName] ?? 0,
+    localRepairAcceptedCount: 0,
+  };
+}
+
+function createLocalRepairRequirements(
+  criteria: RuntimeProfileRunGateCriteria,
+): LocalRuntimeTownPaperAlignmentRequirements {
+  return {
+    acceptedTrace: false,
+    noFallback: false,
+    noDeterministic: false,
+    observedState: false,
+    worldDecisionContext: false,
+    economicContext: false,
+    rulesContext: false,
+    shortTermMemoryContext: false,
+    longTermProfileContext: false,
+    outputArtifactCount: 0,
+    localRepairAcceptedCount: criteria.minimumLocalRepairAcceptedCount ?? 0,
   };
 }
 
@@ -248,11 +307,19 @@ function hasStageFailure(
   definition: PaperAlignmentStageDefinition,
   gate: RuntimeProfileRunGateResult,
 ): boolean {
+  if (definition.stageName === 'localRepair') {
+    return hasLocalRepairFailure(gate);
+  }
+
   const prefix = definition.stageFamily === 'agent-cycle' ? 'agent-cycle-' : 'cognition-';
   return gate.failures.some(
     (failure) =>
       failure.code.startsWith(prefix) && failure.evidence.stageName === definition.stageName,
   );
+}
+
+function hasLocalRepairFailure(gate: RuntimeProfileRunGateResult): boolean {
+  return gate.failures.some((failure) => failure.code === 'local-repair-accepted-count-too-low');
 }
 
 function summarizeStages(

@@ -17,6 +17,7 @@ import {
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileExperimentValidationReportSummary,
+  type LocalRuntimeTownProfileExperimentValidationMetricSummary,
   type LocalRuntimeTownProfileRunnerInput,
   type LocalRuntimeTownProfileRunnerPartitionSummary,
   type LocalRuntimeTownProfileRunnerSummary,
@@ -29,6 +30,8 @@ export const localRuntimeTownProfileGateSuiteDefaultProfileIds = [
   'headless-stress-1000',
   'recovery-drill-25',
 ] as const satisfies readonly LocalRuntimeTownDaemonScenarioProfileId[];
+
+const EXPERIMENT_VALIDATION_REPORTS_ARTIFACT_PATH = 'experiment-validation-reports.jsonl';
 
 export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly rootDir: string;
@@ -61,9 +64,20 @@ export type LocalRuntimeTownProfileGateSuiteBundleValidationReport = {
   readonly partitionKey: string;
   readonly generatedAt: SimulationTimestamp;
   readonly source?: string;
+  readonly artifactPaths: {
+    readonly experimentValidationReports: string;
+  };
+  readonly evidenceWindow: {
+    readonly streamVersion: number;
+    readonly fromSequence: number;
+    readonly toSequence: number;
+    readonly eventCount: number;
+    readonly projectionSequence: number;
+  };
   readonly gateStatus?: 'pass' | 'watch' | 'fail';
   readonly gateFailureCount?: number;
   readonly metricStatusCounts: Readonly<Record<'pass' | 'watch' | 'fail', number>>;
+  readonly metrics: readonly LocalRuntimeTownProfileExperimentValidationMetricSummary[];
 };
 
 export type LocalRuntimeTownProfileGateSuiteBundleProfile = {
@@ -415,9 +429,33 @@ function createGateSuiteBundleValidationReport(
     partitionKey: report.partitionKey,
     generatedAt: report.generatedAt,
     ...(report.source === undefined ? {} : { source: report.source }),
+    artifactPaths: {
+      experimentValidationReports: EXPERIMENT_VALIDATION_REPORTS_ARTIFACT_PATH,
+    },
+    evidenceWindow: {
+      streamVersion: report.streamVersion,
+      fromSequence: report.fromSequence,
+      toSequence: report.toSequence,
+      eventCount: report.eventCount,
+      projectionSequence: report.projectionSequence,
+    },
     ...(report.gateStatus === undefined ? {} : { gateStatus: report.gateStatus }),
     ...(report.gateFailureCount === undefined ? {} : { gateFailureCount: report.gateFailureCount }),
     metricStatusCounts: { ...report.metricStatusCounts },
+    metrics: report.metrics.map(cloneExperimentValidationMetricSummary),
+  };
+}
+
+function cloneExperimentValidationMetricSummary(
+  metric: LocalRuntimeTownProfileExperimentValidationMetricSummary,
+): LocalRuntimeTownProfileExperimentValidationMetricSummary {
+  return {
+    id: metric.id,
+    label: metric.label,
+    status: metric.status,
+    value: metric.value,
+    unit: metric.unit,
+    evidence: { ...metric.evidence },
   };
 }
 
@@ -442,10 +480,7 @@ function createGateSuiteBundleManifestFileName(requestedAt: SimulationTimestamp)
   return `profile-gate-suite-${requestedAt}-bundle-manifest.json`;
 }
 
-function sumBy<TValue>(
-  values: readonly TValue[],
-  getValue: (value: TValue) => number,
-): number {
+function sumBy<TValue>(values: readonly TValue[], getValue: (value: TValue) => number): number {
   return values.reduce((total, value) => total + getValue(value), 0);
 }
 

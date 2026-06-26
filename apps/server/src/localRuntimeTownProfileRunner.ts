@@ -121,6 +121,11 @@ export type LocalRuntimeTownProfileExperimentValidationSchedule = Omit<
   readonly runIdPrefix?: string;
 };
 
+export type LocalRuntimeTownProfileExperimentValidationMetricSummary = Pick<
+  ExperimentValidationMetric,
+  'id' | 'label' | 'status' | 'value' | 'unit' | 'evidence'
+>;
+
 export type LocalRuntimeTownProfileExperimentValidationReportSummary = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -130,6 +135,7 @@ export type LocalRuntimeTownProfileExperimentValidationReportSummary = {
   readonly gateStatus?: ExperimentValidationReportGateResult['status'];
   readonly gateFailureCount?: number;
   readonly metricStatusCounts: Readonly<Record<ExperimentValidationStatus, number>>;
+  readonly metrics: readonly LocalRuntimeTownProfileExperimentValidationMetricSummary[];
   readonly streamVersion: number;
   readonly fromSequence: number;
   readonly toSequence: number;
@@ -492,12 +498,26 @@ function createProfileExperimentValidationReportSummary(input: {
           gateFailureCount: input.result.reportGate.failureCount,
         }),
     metricStatusCounts: countExperimentValidationMetricStatuses(input.result.report.metrics),
+    metrics: summarizeExperimentValidationMetrics(input.result.report.metrics),
     streamVersion: input.result.streamVersion,
     fromSequence: input.result.fromSequence,
     toSequence: input.result.toSequence,
     eventCount: input.result.eventCount,
     projectionSequence: input.result.projectionSequence,
   };
+}
+
+function summarizeExperimentValidationMetrics(
+  metrics: readonly ExperimentValidationMetric[],
+): readonly LocalRuntimeTownProfileExperimentValidationMetricSummary[] {
+  return metrics.map((metric) => ({
+    id: metric.id,
+    label: metric.label,
+    status: metric.status,
+    value: metric.value,
+    unit: metric.unit,
+    evidence: { ...metric.evidence },
+  }));
 }
 
 function countExperimentValidationMetricStatuses(

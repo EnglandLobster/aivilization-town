@@ -523,6 +523,69 @@ describe('experiment validation report', () => {
     expect(trajectories.evidence.maximumStepCount).toBe(0);
   });
 
+  test('requires mature price sample size before accepting stylized market facts', () => {
+    const report = createExperimentValidationReport({
+      run: {
+        runId: 'validation-run-short-price-sample',
+        simulationId: 'sim-validation',
+        generatedAt: 1_700_000_003,
+      },
+      priceSeries: [
+        { commodityId: 'Fish', observedAt: 0, closePrice: 100 },
+        { commodityId: 'Fish', observedAt: 1, closePrice: 130 },
+        { commodityId: 'Fish', observedAt: 2, closePrice: 95 },
+        { commodityId: 'Fish', observedAt: 3, closePrice: 140 },
+      ],
+      wealthSnapshot: [
+        { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+        { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+      ],
+      plannerRuns: [
+        {
+          taskId: 'task-1',
+          variant: 'default',
+          metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-branch',
+          metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+        },
+        {
+          taskId: 'task-1',
+          variant: 'without-objective-decomposition',
+          metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+        },
+      ],
+      expectedTrajectoryAgentIds: ['agent-a'],
+      trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+      thresholds: {
+        heavyTailReturns: {
+          minimumExcessKurtosis: -10,
+          minimumReturnObservationCount: 5,
+        },
+        volatilityClustering: {
+          minimumLagOneAbsoluteReturnAutocorrelation: -1,
+          minimumReturnObservationCount: 5,
+        },
+      },
+    });
+
+    const heavyTail = getMetric(report.metrics, 'heavy-tail-returns');
+    const volatility = getMetric(report.metrics, 'volatility-clustering');
+
+    expect(heavyTail.status).toBe('watch');
+    expect(heavyTail.evidence).toMatchObject({
+      returnObservationCount: 3,
+      minimumReturnObservationCount: 5,
+    });
+    expect(volatility.status).toBe('watch');
+    expect(volatility.evidence).toMatchObject({
+      returnObservationCount: 3,
+      minimumReturnObservationCount: 5,
+    });
+  });
+
   test('consumes planner shape and outcome metrics in ablation validation', () => {
     const report = createExperimentValidationReport({
       run: {

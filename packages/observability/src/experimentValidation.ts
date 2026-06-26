@@ -89,10 +89,12 @@ export type MarketStabilityThresholds = {
 
 export type HeavyTailThresholds = {
   readonly minimumExcessKurtosis?: number;
+  readonly minimumReturnObservationCount?: number;
 };
 
 export type VolatilityClusteringThresholds = {
   readonly minimumLagOneAbsoluteReturnAutocorrelation?: number;
+  readonly minimumReturnObservationCount?: number;
 };
 
 export type WealthStratificationThresholds = {
@@ -207,6 +209,7 @@ export type ExperimentValidationReportGateResult = {
 type PriceSeriesDiagnostics = {
   readonly commodityCount: number;
   readonly observationCount: number;
+  readonly returnObservationCount: number;
   readonly maximumLogPriceRange: number;
   readonly maximumDrawdown: number;
   readonly minimumLogReturnStandardDeviation: number;
@@ -305,9 +308,11 @@ const DEFAULT_THRESHOLDS = {
   },
   heavyTailReturns: {
     minimumExcessKurtosis: 3,
+    minimumReturnObservationCount: 100,
   },
   volatilityClustering: {
     minimumLagOneAbsoluteReturnAutocorrelation: 0.05,
+    minimumReturnObservationCount: 100,
   },
   wealthStratification: {
     minimumGiniCoefficient: 0.1,
@@ -534,6 +539,10 @@ function calculatePriceSeriesDiagnostics(
   return {
     commodityCount: commodityDiagnostics.length,
     observationCount: priceSeries.length,
+    returnObservationCount: commodityDiagnostics.reduce(
+      (total, diagnostics) => total + diagnostics.logReturnCount,
+      0,
+    ),
     maximumLogPriceRange: Math.max(
       ...commodityDiagnostics.map((diagnostics) => diagnostics.logPriceRange),
     ),
@@ -556,6 +565,7 @@ function calculatePriceSeriesDiagnostics(
 function calculateSingleCommodityDiagnostics(series: readonly PriceCloseObservation[]): {
   readonly logPriceRange: number;
   readonly drawdown: number;
+  readonly logReturnCount: number;
   readonly logReturnStandardDeviation: number;
   readonly excessKurtosis: number;
   readonly skewness: number;
@@ -572,6 +582,7 @@ function calculateSingleCommodityDiagnostics(series: readonly PriceCloseObservat
   return {
     logPriceRange: Math.max(...logPrices) - Math.min(...logPrices),
     drawdown: calculateMaximumDrawdown(closePrices),
+    logReturnCount: logReturns.length,
     logReturnStandardDeviation: Math.sqrt(calculateVariance(logReturns)),
     excessKurtosis: calculateExcessKurtosis(logReturns),
     skewness: calculateSkewness(logReturns),
@@ -969,17 +980,26 @@ function createHeavyTailMetric(
   diagnostics: PriceSeriesDiagnostics,
   thresholds: Required<HeavyTailThresholds>,
 ): ExperimentValidationMetric {
+  validateHeavyTailThresholds(thresholds);
+  const status =
+    diagnostics.returnObservationCount >= thresholds.minimumReturnObservationCount &&
+    diagnostics.maximumExcessKurtosis >= thresholds.minimumExcessKurtosis
+      ? 'pass'
+      : 'watch';
+
   return {
     id: 'heavy-tail-returns',
     label: 'Heavy-tail returns',
-    status:
-      diagnostics.maximumExcessKurtosis >= thresholds.minimumExcessKurtosis ? 'pass' : 'watch',
+    status,
     value: diagnostics.maximumExcessKurtosis,
     unit: 'maximum excess kurtosis',
     evidence: {
       maximumExcessKurtosis: diagnostics.maximumExcessKurtosis,
       maximumAbsoluteSkewness: diagnostics.maximumAbsoluteSkewness,
       commodityCount: diagnostics.commodityCount,
+      observationCount: diagnostics.observationCount,
+      returnObservationCount: diagnostics.returnObservationCount,
+      minimumReturnObservationCount: thresholds.minimumReturnObservationCount,
     },
   };
 }
@@ -988,20 +1008,27 @@ function createVolatilityClusteringMetric(
   diagnostics: PriceSeriesDiagnostics,
   thresholds: Required<VolatilityClusteringThresholds>,
 ): ExperimentValidationMetric {
+  validateVolatilityClusteringThresholds(thresholds);
+  const status =
+    diagnostics.returnObservationCount >= thresholds.minimumReturnObservationCount &&
+    diagnostics.maximumLagOneAbsoluteReturnAutocorrelation >=
+      thresholds.minimumLagOneAbsoluteReturnAutocorrelation
+      ? 'pass'
+      : 'watch';
+
   return {
     id: 'volatility-clustering',
     label: 'Volatility clustering',
-    status:
-      diagnostics.maximumLagOneAbsoluteReturnAutocorrelation >=
-      thresholds.minimumLagOneAbsoluteReturnAutocorrelation
-        ? 'pass'
-        : 'watch',
+    status,
     value: diagnostics.maximumLagOneAbsoluteReturnAutocorrelation,
     unit: 'lag-1 absolute-return autocorrelation',
     evidence: {
       maximumLagOneAbsoluteReturnAutocorrelation:
         diagnostics.maximumLagOneAbsoluteReturnAutocorrelation,
       commodityCount: diagnostics.commodityCount,
+      observationCount: diagnostics.observationCount,
+      returnObservationCount: diagnostics.returnObservationCount,
+      minimumReturnObservationCount: thresholds.minimumReturnObservationCount,
     },
   };
 }
@@ -1328,6 +1355,22 @@ function validatePlannerEconomicSensitivityThresholds(
   assertUnitInterval(
     thresholds.minimumCompleteEconomicContextRatio,
     'plannerEconomicSensitivity minimumCompleteEconomicContextRatio',
+  );
+}
+
+function validateHeavyTailThresholds(thresholds: Required<HeavyTailThresholds>): void {
+  assertNonNegativeInteger(
+    thresholds.minimumReturnObservationCount,
+    'heavyTailReturns minimumReturnObservationCount',
+  );
+}
+
+function validateVolatilityClusteringThresholds(
+  thresholds: Required<VolatilityClusteringThresholds>,
+): void {
+  assertNonNegativeInteger(
+    thresholds.minimumReturnObservationCount,
+    'volatilityClustering minimumReturnObservationCount',
   );
 }
 

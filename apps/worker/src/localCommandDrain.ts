@@ -6,9 +6,10 @@ import type {
   StrategicPlanCompilationTrace,
 } from '@aivilization/agent-runtime';
 import type { SteeringStrategicPlanTrace, SteeringTrace } from '@aivilization/observability';
-import type { CommandConsumerId } from '@aivilization/sim-core';
+import type { CommandConsumerId, EventId } from '@aivilization/sim-core';
 import type { WorkerSteeringCommand } from './steering';
 import type { WorldProjection } from '@aivilization/world';
+import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
@@ -102,9 +103,14 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
         ...(input.strategicPlanCompiler === undefined
           ? {}
           : { strategicPlanCompiler: input.strategicPlanCompiler }),
+        persistShortTermMemoryRecords: false,
       });
 
       if (steering.commandDrafts.length === 0) {
+        await persistSteeringShortTermMemoryRecords({
+          storage: input.storage,
+          steering,
+        });
         await recordSteeringTrace({
           storage: input.storage,
           sequence: record.sequence,
@@ -133,20 +139,87 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
       });
       projection = dispatch.projection;
       worldDispatchResults.push(dispatch);
+      const enrichedSteering = enrichSteeringResultWithDispatchEventIds({
+        steering,
+        eventIds: dispatch.events.map((event) => event.id),
+      });
+      await persistSteeringShortTermMemoryRecords({
+        storage: input.storage,
+        steering: enrichedSteering,
+      });
       await recordSteeringTrace({
         storage: input.storage,
         sequence: record.sequence,
         command,
-        steering,
+        steering: enrichedSteering,
         recordedAt: input.checkpointUpdatedAt,
       });
-      return { steering, dispatch };
+      return { steering: enrichedSteering, dispatch };
     },
   }).then((result) => ({
     ...result,
     projection,
     worldDispatchResults,
   }));
+}
+
+async function persistSteeringShortTermMemoryRecords(input: {
+  readonly storage: LocalWorldRuntimeStorage;
+  readonly steering: WorkerSteeringResult;
+}): Promise<void> {
+  if (input.steering.shortTermMemoryRecords.length === 0) {
+    return;
+  }
+  await input.storage.shortTermMemoryRepository.appendMany(input.steering.shortTermMemoryRecords);
+}
+
+function enrichSteeringResultWithDispatchEventIds(input: {
+  readonly steering: WorkerSteeringResult;
+  readonly eventIds: readonly EventId[];
+}): WorkerSteeringResult {
+  if (input.steering.kind !== 'reactive-command-routed' || input.eventIds.length === 0) {
+    return input.steering;
+  }
+
+  const shortTermMemoryRecords = input.steering.shortTermMemoryRecords.map((record) =>
+    isReactiveOutcomeRecord(record)
+      ? enrichMemoryRecordSourceEventIds({ record, eventIds: input.eventIds })
+      : record,
+  );
+
+  return {
+    ...input.steering,
+    routeResult: {
+      ...input.steering.routeResult,
+      shortTermMemoryRecords,
+    },
+    shortTermMemoryRecords,
+  };
+}
+
+function isReactiveOutcomeRecord(record: ShortTermMemoryRecord): boolean {
+  return (
+    record.kind === 'human-command' &&
+    record.tags.includes('reactive') &&
+    record.id.endsWith(':outcome')
+  );
+}
+
+function enrichMemoryRecordSourceEventIds(input: {
+  readonly record: ShortTermMemoryRecord;
+  readonly eventIds: readonly EventId[];
+}): ShortTermMemoryRecord {
+  return {
+    ...input.record,
+    source: {
+      ...input.record.source,
+      eventIds: stableUnique([...input.record.source.eventIds, ...input.eventIds]),
+    },
+  };
+}
+
+function stableUnique<TValue>(values: readonly TValue[]): readonly TValue[] {
+  return [...new Set(values)];
 }
 
 function createSteeringWorldAppendIdempotencyKey(input: {

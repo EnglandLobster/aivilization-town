@@ -152,6 +152,47 @@ describe('agent action command handlers', () => {
     });
   });
 
+  test('AgentStudy records STM with source event ids for summarized execution events', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentStudyCommand({
+      command: createCommandEnvelope({
+        id: 'command-study-provenance',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 120, educationRatePerSecond: 0.5 },
+        issuedAt: 20,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events[1]).toMatchObject({
+      type: 'ShortTermMemoryRecorded',
+      payload: {
+        record: {
+          source: {
+            commandId: 'command-study-provenance',
+            eventIds: ['command-study-provenance:event:0'],
+          },
+        },
+      },
+    });
+  });
+
   test('invalid AgentEat emits rejection and failed STM without mutating inventory', () => {
     const projection = createWorldProjection({
       agents: [
@@ -2495,6 +2536,13 @@ describe('agent conversation command handling', () => {
           agentId: 'agent-1',
           kind: 'social-interaction',
           status: 'succeeded',
+          source: {
+            eventIds: [
+              'command-conversation:event:0',
+              'command-conversation:event:1',
+              'command-conversation:event:2',
+            ],
+          },
           tags: ['conversation', 'homework', 'agent-2', 'school'],
         },
       },
@@ -2505,6 +2553,13 @@ describe('agent conversation command handling', () => {
           agentId: 'agent-2',
           kind: 'social-interaction',
           status: 'succeeded',
+          source: {
+            eventIds: [
+              'command-conversation:event:0',
+              'command-conversation:event:1',
+              'command-conversation:event:2',
+            ],
+          },
           tags: ['conversation', 'homework', 'agent-1', 'school'],
         },
       },

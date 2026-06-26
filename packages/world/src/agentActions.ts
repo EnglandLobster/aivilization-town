@@ -10,6 +10,7 @@ import {
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
   asConversationId,
+  asEventId,
   advanceClock,
   createEventEnvelope,
   createSeededRandom,
@@ -683,6 +684,7 @@ export function handleAgentStartConversationCommand(input: {
       kind: 'social-interaction',
       summary,
       status: 'succeeded',
+      sourceEventOffsets: [0, 1, 2],
       tags: stableUnique(['conversation', payload.topic, targetAgent.agentId, location.locationId]),
       consolidationHint: {
         kind: 'social',
@@ -697,6 +699,7 @@ export function handleAgentStartConversationCommand(input: {
       kind: 'social-interaction',
       summary,
       status: 'succeeded',
+      sourceEventOffsets: [0, 1, 2],
       tags: stableUnique(['conversation', payload.topic, agent.agentId, location.locationId]),
       consolidationHint: {
         kind: 'social',
@@ -1510,6 +1513,7 @@ function makeMemoryEvent(
     readonly kind?: Parameters<typeof createShortTermMemoryRecord>[0]['kind'];
     readonly summary: string;
     readonly status: Parameters<typeof createShortTermMemoryRecord>[0]['status'];
+    readonly sourceEventOffsets?: readonly number[];
     readonly tags: readonly string[];
     readonly consolidationHint?: Parameters<
       typeof createShortTermMemoryRecord
@@ -1531,7 +1535,13 @@ function makeMemoryEvent(
       importanceScore: memory.status === 'failed' ? 0.8 : 0.6,
       source: {
         commandId: input.command.id,
-        eventIds: [],
+        eventIds: createMemorySourceEventIds({
+          commandId: input.command.id,
+          offset,
+          ...(memory.sourceEventOffsets === undefined
+            ? {}
+            : { sourceEventOffsets: memory.sourceEventOffsets }),
+        }),
       },
       tags: memory.tags,
       ...(memory.consolidationHint === undefined
@@ -1539,6 +1549,16 @@ function makeMemoryEvent(
         : { consolidationHint: memory.consolidationHint }),
     }),
   });
+}
+
+function createMemorySourceEventIds(input: {
+  readonly commandId: CommandEnvelope<CoreCommandType, unknown>['id'];
+  readonly offset: number;
+  readonly sourceEventOffsets?: readonly number[];
+}) {
+  const sourceEventOffsets =
+    input.sourceEventOffsets ?? Array.from({ length: input.offset }, (_, index) => index);
+  return sourceEventOffsets.map((offset) => asEventId(`${input.commandId}:event:${offset}`));
 }
 
 function stableUnique<TValue>(values: readonly TValue[]): readonly TValue[] {

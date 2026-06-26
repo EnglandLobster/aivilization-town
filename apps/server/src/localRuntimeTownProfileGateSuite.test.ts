@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
@@ -109,6 +109,84 @@ describe('local runtime town profile gate suite', () => {
       });
       expect(input.experimentValidationSchedule?.plannerRunSource?.repository).toBeDefined();
     }
+  });
+
+  test('writes a consolidated bundle manifest for report-backed validation suites', async () => {
+    const reportRootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir: '/tmp/aivilization-suite',
+      reportRootDir,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 2,
+      profileIds: ['smoke-25'],
+      experimentValidation: true,
+      runProfile: (input) =>
+        Promise.resolve({
+          ...createPassingSummary(input),
+          experimentValidationReports: [
+            {
+              simulationId: 'aivilization-smoke-25',
+              partitionKey: 'world-main',
+              runId: 'aivilization-smoke-25:profile-run:100:world-main:experiment-validation',
+              generatedAt: 200,
+              source: 'local-runtime-profile-validation',
+              gateStatus: 'pass',
+              gateFailureCount: 0,
+              metricStatusCounts: { pass: 4, watch: 2, fail: 0 },
+              streamVersion: 3,
+              fromSequence: 0,
+              toSequence: 3,
+              eventCount: 3,
+              projectionSequence: 3,
+            },
+          ],
+        }),
+    });
+
+    expect(result.bundleManifest).toMatchObject({
+      manifestId: 'profile-gate-suite:100',
+      generatedAt: 200,
+      requestedAt: 100,
+      status: 'pass',
+      profileCount: 1,
+      passedProfileCount: 1,
+      failedProfileCount: 0,
+      artifactPaths: {
+        bundleManifest: 'profile-gate-suite-100-bundle-manifest.json',
+        runtimeProfileRuns: 'runtime-profile-runs.jsonl',
+      },
+      validationReportCount: 1,
+      validationGateStatusCounts: {
+        pass: 1,
+        watch: 0,
+        fail: 0,
+        missing: 0,
+      },
+      profiles: [
+        {
+          profileId: 'smoke-25',
+          profileRunId: 'aivilization-smoke-25:profile-run:100',
+          runtimeProfileReportRunId: 'aivilization-smoke-25:profile-run:100',
+          gateStatus: 'pass',
+          gateFailureCount: 0,
+          validationReportCount: 1,
+          validationReports: [
+            {
+              runId: 'aivilization-smoke-25:profile-run:100:world-main:experiment-validation',
+              simulationId: 'aivilization-smoke-25',
+              partitionKey: 'world-main',
+              gateStatus: 'pass',
+              gateFailureCount: 0,
+              metricStatusCounts: { pass: 4, watch: 2, fail: 0 },
+            },
+          ],
+        },
+      ],
+    });
+    const manifestPath = join(reportRootDir, 'profile-gate-suite-100-bundle-manifest.json');
+    expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toEqual(result.bundleManifest);
   });
 
   test('requires report root when experiment validation is requested', async () => {

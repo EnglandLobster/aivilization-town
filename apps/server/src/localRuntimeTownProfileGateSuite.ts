@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   FileRuntimeProfileRunReportRepository,
@@ -15,6 +16,7 @@ import {
 } from './localRuntimeTownProfileRuntimeConfig';
 import {
   runLocalRuntimeTownDaemonScenarioProfile,
+  type LocalRuntimeTownProfileExperimentValidationReportSummary,
   type LocalRuntimeTownProfileRunnerInput,
   type LocalRuntimeTownProfileRunnerPartitionSummary,
   type LocalRuntimeTownProfileRunnerSummary,
@@ -53,12 +55,55 @@ export type LocalRuntimeTownProfileGateSuiteProfileResult = {
   readonly gate: RuntimeProfileRunGateResult;
 };
 
+export type LocalRuntimeTownProfileGateSuiteBundleValidationReport = {
+  readonly runId: string;
+  readonly simulationId: string;
+  readonly partitionKey: string;
+  readonly generatedAt: SimulationTimestamp;
+  readonly source?: string;
+  readonly gateStatus?: 'pass' | 'watch' | 'fail';
+  readonly gateFailureCount?: number;
+  readonly metricStatusCounts: Readonly<Record<'pass' | 'watch' | 'fail', number>>;
+};
+
+export type LocalRuntimeTownProfileGateSuiteBundleProfile = {
+  readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
+  readonly profileRunId: string;
+  readonly runtimeProfileReportRunId: string;
+  readonly manifestId: string;
+  readonly rootDir: string;
+  readonly gateStatus: RuntimeProfileRunGateResult['status'];
+  readonly gateFailureCount: number;
+  readonly validationReportCount: number;
+  readonly validationReports: readonly LocalRuntimeTownProfileGateSuiteBundleValidationReport[];
+};
+
+export type LocalRuntimeTownProfileGateSuiteBundleManifest = {
+  readonly manifestId: string;
+  readonly generatedAt: SimulationTimestamp;
+  readonly requestedAt: SimulationTimestamp;
+  readonly status: 'pass' | 'fail';
+  readonly profileCount: number;
+  readonly passedProfileCount: number;
+  readonly failedProfileCount: number;
+  readonly artifactPaths: {
+    readonly bundleManifest: string;
+    readonly runtimeProfileRuns: string;
+  };
+  readonly validationReportCount: number;
+  readonly validationGateStatusCounts: Readonly<
+    Record<'pass' | 'watch' | 'fail' | 'missing', number>
+  >;
+  readonly profiles: readonly LocalRuntimeTownProfileGateSuiteBundleProfile[];
+};
+
 export type LocalRuntimeTownProfileGateSuiteSummary = {
   readonly status: 'pass' | 'fail';
   readonly requestedAt: SimulationTimestamp;
   readonly profileCount: number;
   readonly passedProfileCount: number;
   readonly failedProfileCount: number;
+  readonly bundleManifest?: LocalRuntimeTownProfileGateSuiteBundleManifest;
   readonly profiles: readonly LocalRuntimeTownProfileGateSuiteProfileResult[];
 };
 
@@ -151,13 +196,27 @@ export async function runLocalRuntimeTownProfileGateSuite(
 
   const failedProfileCount = profiles.filter((profile) => profile.gate.status === 'fail').length;
   const passedProfileCount = profiles.length - failedProfileCount;
+  const status = failedProfileCount === 0 ? 'pass' : 'fail';
+  const bundleManifest =
+    input.reportRootDir === undefined
+      ? undefined
+      : writeGateSuiteBundleManifest({
+          reportRootDir: input.reportRootDir,
+          requestedAt: input.requestedAt,
+          generatedAt: input.reportGeneratedAt ?? Date.now(),
+          status,
+          passedProfileCount,
+          failedProfileCount,
+          profiles,
+        });
 
   return {
-    status: failedProfileCount === 0 ? 'pass' : 'fail',
+    status,
     requestedAt: input.requestedAt,
     profileCount: profiles.length,
     passedProfileCount,
     failedProfileCount,
+    ...(bundleManifest === undefined ? {} : { bundleManifest }),
     profiles,
   };
 }
@@ -270,6 +329,124 @@ function clonePartitionSummary(
   partition: LocalRuntimeTownProfileRunnerPartitionSummary,
 ): LocalRuntimeTownProfileRunnerPartitionSummary {
   return { ...partition };
+}
+
+function writeGateSuiteBundleManifest(input: {
+  readonly reportRootDir: string;
+  readonly requestedAt: SimulationTimestamp;
+  readonly generatedAt: SimulationTimestamp;
+  readonly status: 'pass' | 'fail';
+  readonly passedProfileCount: number;
+  readonly failedProfileCount: number;
+  readonly profiles: readonly LocalRuntimeTownProfileGateSuiteProfileResult[];
+}): LocalRuntimeTownProfileGateSuiteBundleManifest {
+  const bundleManifestFileName = createGateSuiteBundleManifestFileName(input.requestedAt);
+  const manifest = createGateSuiteBundleManifest({
+    requestedAt: input.requestedAt,
+    generatedAt: input.generatedAt,
+    status: input.status,
+    passedProfileCount: input.passedProfileCount,
+    failedProfileCount: input.failedProfileCount,
+    bundleManifestFileName,
+    profiles: input.profiles,
+  });
+  mkdirSync(input.reportRootDir, { recursive: true });
+  writeFileSync(
+    join(input.reportRootDir, bundleManifestFileName),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  return manifest;
+}
+
+function createGateSuiteBundleManifest(input: {
+  readonly requestedAt: SimulationTimestamp;
+  readonly generatedAt: SimulationTimestamp;
+  readonly status: 'pass' | 'fail';
+  readonly passedProfileCount: number;
+  readonly failedProfileCount: number;
+  readonly bundleManifestFileName: string;
+  readonly profiles: readonly LocalRuntimeTownProfileGateSuiteProfileResult[];
+}): LocalRuntimeTownProfileGateSuiteBundleManifest {
+  const profiles = input.profiles.map(createGateSuiteBundleProfile);
+  const validationGateStatusCounts = countValidationGateStatuses(profiles);
+  return {
+    manifestId: `profile-gate-suite:${input.requestedAt}`,
+    generatedAt: input.generatedAt,
+    requestedAt: input.requestedAt,
+    status: input.status,
+    profileCount: profiles.length,
+    passedProfileCount: input.passedProfileCount,
+    failedProfileCount: input.failedProfileCount,
+    artifactPaths: {
+      bundleManifest: input.bundleManifestFileName,
+      runtimeProfileRuns: 'runtime-profile-runs.jsonl',
+    },
+    validationReportCount: sumBy(profiles, (profile) => profile.validationReportCount),
+    validationGateStatusCounts,
+    profiles,
+  };
+}
+
+function createGateSuiteBundleProfile(
+  profile: LocalRuntimeTownProfileGateSuiteProfileResult,
+): LocalRuntimeTownProfileGateSuiteBundleProfile {
+  const validationReports = (profile.summary.experimentValidationReports ?? []).map(
+    createGateSuiteBundleValidationReport,
+  );
+  return {
+    profileId: profile.profileId,
+    profileRunId: profile.summary.run.traceId,
+    runtimeProfileReportRunId: profile.report.runId,
+    manifestId: profile.summary.manifestId,
+    rootDir: profile.rootDir,
+    gateStatus: profile.gate.status,
+    gateFailureCount: profile.gate.failureCount,
+    validationReportCount: validationReports.length,
+    validationReports,
+  };
+}
+
+function createGateSuiteBundleValidationReport(
+  report: LocalRuntimeTownProfileExperimentValidationReportSummary,
+): LocalRuntimeTownProfileGateSuiteBundleValidationReport {
+  return {
+    runId: report.runId,
+    simulationId: report.simulationId,
+    partitionKey: report.partitionKey,
+    generatedAt: report.generatedAt,
+    ...(report.source === undefined ? {} : { source: report.source }),
+    ...(report.gateStatus === undefined ? {} : { gateStatus: report.gateStatus }),
+    ...(report.gateFailureCount === undefined ? {} : { gateFailureCount: report.gateFailureCount }),
+    metricStatusCounts: { ...report.metricStatusCounts },
+  };
+}
+
+function countValidationGateStatuses(
+  profiles: readonly LocalRuntimeTownProfileGateSuiteBundleProfile[],
+): LocalRuntimeTownProfileGateSuiteBundleManifest['validationGateStatusCounts'] {
+  const counts: Record<'pass' | 'watch' | 'fail' | 'missing', number> = {
+    pass: 0,
+    watch: 0,
+    fail: 0,
+    missing: 0,
+  };
+  for (const profile of profiles) {
+    for (const report of profile.validationReports) {
+      counts[report.gateStatus ?? 'missing'] += 1;
+    }
+  }
+  return counts;
+}
+
+function createGateSuiteBundleManifestFileName(requestedAt: SimulationTimestamp): string {
+  return `profile-gate-suite-${requestedAt}-bundle-manifest.json`;
+}
+
+function sumBy<TValue>(
+  values: readonly TValue[],
+  getValue: (value: TValue) => number,
+): number {
+  return values.reduce((total, value) => total + getValue(value), 0);
 }
 
 function assertNonEmpty(value: string, label: string): void {

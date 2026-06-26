@@ -1,4 +1,22 @@
 {
+  "domainConfig": {
+    "social": {
+      "targetAgentId": "smoke-25-world-main-agent-008",
+      "topic": "town plans"
+    }
+  },
+  "memoryConsolidationSchedule": {
+    "agentIds": ["smoke-25-world-main-agent-001"],
+    "retrievalLimit": 10,
+    "minPatternCount": 1
+  },
+  "steeringSimulator": {
+    "kind": "reject-action-id-prefix-until-suffix",
+    "commandType": "AgentStartConversation",
+    "actionIdPrefix": "scripted-social-check-in:",
+    "repairedActionIdSuffix": ":repaired",
+    "reason": "scripted rejection drill"
+  },
   "llmPlanning": {
     "kind": "traceable-llm-strategic-planner",
     "model": "aivilization-scripted-planner",

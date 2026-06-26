@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { createLlmStructuredProviderFromConfig } from '@aivilization/llm';
+import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
@@ -875,6 +876,102 @@ describe('local runtime town profile runtime config', () => {
         readTextFile: () => Promise.resolve(document),
       }),
     ).resolves.toEqual({});
+  });
+
+  test('loads profile runtime context hooks for full scripted LLM suite execution', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'smoke-25',
+      path: '/runtime/config.json',
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            domainConfig: {
+              social: {
+                targetAgentId: 'smoke-25-world-main-agent-008',
+                topic: 'town plans',
+                openingUtterance: 'Can we compare plans?',
+                responseUtterance: 'Yes, briefly.',
+                relationDelta: 2,
+                attitudeDelta: 1,
+              },
+              trade: {
+                side: 'buy',
+                commodityName: 'Apple',
+                quantity: 2,
+              },
+            },
+            memoryConsolidationSchedule: {
+              agentIds: ['smoke-25-world-main-agent-001'],
+              retrievalLimit: 10,
+              minPatternCount: 1,
+              reflectionTrigger: {
+                minimumImportanceScore: 1,
+              },
+            },
+            steeringSimulator: {
+              kind: 'reject-action-id-prefix-until-suffix',
+              commandType: 'AgentStartConversation',
+              actionIdPrefix: 'scripted-social-check-in:',
+              repairedActionIdSuffix: ':repaired',
+              reason: 'scripted rejection drill',
+            },
+          }),
+        ),
+    });
+
+    expect(config.domainConfig).toEqual({
+      social: {
+        targetAgentId: asAgentId('smoke-25-world-main-agent-008'),
+        topic: 'town plans',
+        openingUtterance: 'Can we compare plans?',
+        responseUtterance: 'Yes, briefly.',
+        relationDelta: 2,
+        attitudeDelta: 1,
+      },
+      trade: {
+        side: 'buy',
+        commodityName: 'Apple',
+        quantity: 2,
+      },
+    });
+    expect(config.memoryConsolidationSchedule).toEqual({
+      agentIds: [asAgentId('smoke-25-world-main-agent-001')],
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      reflectionTrigger: {
+        minimumImportanceScore: 1,
+      },
+    });
+
+    if (config.steeringSimulator === undefined) {
+      throw new Error('missing parsed steering simulator');
+    }
+    const rejected = config.steeringSimulator({
+      action: {
+        id: 'scripted-social-check-in:smoke-25-world-main-agent-001',
+        description: 'initial scripted check-in',
+        commandType: 'AgentStartConversation',
+        payload: {},
+      },
+      command: { id: 'command-1', summary: 'social command' },
+    });
+    const repaired = config.steeringSimulator({
+      action: {
+        id: 'scripted-social-check-in:smoke-25-world-main-agent-001:repaired',
+        description: 'repaired scripted check-in',
+        commandType: 'AgentStartConversation',
+        payload: {},
+      },
+      command: { id: 'command-2', summary: 'social command' },
+    });
+
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      reason: 'scripted rejection drill',
+    });
+    expect(repaired).toMatchObject({
+      status: 'accepted',
+    });
   });
 
   test('loads reflection synthesis config with profile overrides and env secrets', async () => {

@@ -1,5 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import type { AdaptiveReplanningPolicy } from '@aivilization/agent-runtime';
+import type {
+  AdaptiveReplanningPolicy,
+  ReactiveActionSimulator,
+} from '@aivilization/agent-runtime';
 import type {
   LlmGatewayPricing,
   LlmProviderCompletionRequest,
@@ -9,6 +12,11 @@ import type {
   OpenAiCompatibleResponseFormatMode,
   ScriptedLlmProviderResponse,
 } from '@aivilization/llm';
+import { asAgentId, type CoreCommandType } from '@aivilization/sim-core';
+import type {
+  CanonicalDomainRuntimeConfig,
+  LocalSimulationLifecycleMemoryConsolidationSchedule,
+} from '@aivilization/worker';
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
   LocalRuntimeTownProfileDailyPlanningConfig,
@@ -56,6 +64,7 @@ export type LocalRuntimeTownProfileRuntimeConfigLoadInput =
   LocalRuntimeTownProfileLlmPlanningConfigLoadInput;
 
 export type LocalRuntimeTownProfileRuntimeConfig = {
+  readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
@@ -68,7 +77,28 @@ export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectionSynthesisConfig;
   readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesisConfig;
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
+  readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
+  readonly steeringSimulator?: ReactiveActionSimulator;
 };
+
+const CORE_COMMAND_TYPES = [
+  'AgentProduce',
+  'AgentTrade',
+  'AgentEat',
+  'AgentMoveTo',
+  'AgentObserveLocation',
+  'AgentStartConversation',
+  'AgentSleep',
+  'AgentSeeDoctor',
+  'AgentStudy',
+  'AgentApplyJob',
+  'AgentUpgradeResidentialTier',
+  'AgentWork',
+  'AgentSocialize',
+  'SetLongHorizonObjective',
+  'IssueReactiveCommand',
+  'AdvanceSimulationTime',
+] as const satisfies readonly CoreCommandType[];
 
 export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
   input: LocalRuntimeTownProfileLlmPlanningConfigLoadInput,
@@ -121,6 +151,13 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
 }): LocalRuntimeTownProfileRuntimeConfig {
   const document = requireRecord(input.document, 'runtime profile config document');
   const env = input.env ?? {};
+  const domainConfig = parseDomainConfigNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'domainConfig',
+    }),
+  });
   const strategicPlanning = parseLlmPlanningNode({
     profileId: input.profileId,
     node: selectProfilePlanningNode({
@@ -227,8 +264,23 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     }),
     env,
   });
+  const memoryConsolidationSchedule = parseMemoryConsolidationScheduleNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'memoryConsolidationSchedule',
+    }),
+  });
+  const steeringSimulator = parseSteeringSimulatorNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'steeringSimulator',
+    }),
+  });
 
   return {
+    ...(domainConfig === undefined ? {} : { domainConfig }),
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
@@ -241,6 +293,8 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(reflectionSynthesis === undefined ? {} : { reflectionSynthesis }),
     ...(socialModelSynthesis === undefined ? {} : { socialModelSynthesis }),
     ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
+    ...(memoryConsolidationSchedule === undefined ? {} : { memoryConsolidationSchedule }),
+    ...(steeringSimulator === undefined ? {} : { steeringSimulator }),
   };
 }
 
@@ -681,7 +735,288 @@ function parseReplanningPolicyNode(input: {
   };
 }
 
+function parseDomainConfigNode(input: {
+  readonly node: unknown;
+}): CanonicalDomainRuntimeConfig | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'domainConfig');
+  const study = parseStudyDomainConfig(record.study);
+  const work = parseWorkDomainConfig(record.work);
+  const trade = parseTradeDomainConfig(record.trade);
+  const sleep = parseSleepDomainConfig(record.sleep);
+  const health = parseHealthDomainConfig(record.health);
+  const eat = parseEatDomainConfig(record.eat);
+  const social = parseSocialDomainConfig(record.social);
+  const production = parseProductionDomainConfig(record.production);
+  const residential = parseResidentialDomainConfig(record.residential);
+
+  return {
+    ...(study === undefined ? {} : { study }),
+    ...(work === undefined ? {} : { work }),
+    ...(trade === undefined ? {} : { trade }),
+    ...(sleep === undefined ? {} : { sleep }),
+    ...(health === undefined ? {} : { health }),
+    ...(eat === undefined ? {} : { eat }),
+    ...(social === undefined ? {} : { social }),
+    ...(production === undefined ? {} : { production }),
+    ...(residential === undefined ? {} : { residential }),
+  };
+}
+
+function parseStudyDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['study'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.study');
+  if (record === undefined) {
+    return undefined;
+  }
+  const durationSeconds = readOptionalPositiveFinite(
+    record.durationSeconds,
+    'domainConfig.study.durationSeconds',
+  );
+  const educationRatePerSecond = readOptionalNonNegativeFinite(
+    record.educationRatePerSecond,
+    'domainConfig.study.educationRatePerSecond',
+  );
+  return {
+    ...(durationSeconds === undefined ? {} : { durationSeconds }),
+    ...(educationRatePerSecond === undefined ? {} : { educationRatePerSecond }),
+  };
+}
+
+function parseWorkDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['work'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.work');
+  if (record === undefined) {
+    return undefined;
+  }
+  const laborSeconds = readOptionalPositiveFinite(
+    record.laborSeconds,
+    'domainConfig.work.laborSeconds',
+  );
+  const defaultOccupationName = readOptionalString(
+    record.defaultOccupationName,
+    'domainConfig.work.defaultOccupationName',
+  );
+  return {
+    ...(laborSeconds === undefined ? {} : { laborSeconds }),
+    ...(defaultOccupationName === undefined ? {} : { defaultOccupationName }),
+  };
+}
+
+function parseTradeDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['trade'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.trade');
+  if (record === undefined) {
+    return undefined;
+  }
+  const side = readOptionalTradeSide(record.side, 'domainConfig.trade.side');
+  const commodityName = readOptionalString(
+    record.commodityName,
+    'domainConfig.trade.commodityName',
+  );
+  const quantity = readOptionalPositiveFinite(record.quantity, 'domainConfig.trade.quantity');
+  return {
+    ...(side === undefined ? {} : { side }),
+    ...(commodityName === undefined ? {} : { commodityName }),
+    ...(quantity === undefined ? {} : { quantity }),
+  };
+}
+
+function parseSleepDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['sleep'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.sleep');
+  if (record === undefined) {
+    return undefined;
+  }
+  const durationSeconds = readOptionalPositiveFinite(
+    record.durationSeconds,
+    'domainConfig.sleep.durationSeconds',
+  );
+  return {
+    ...(durationSeconds === undefined ? {} : { durationSeconds }),
+  };
+}
+
+function parseHealthDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['health'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.health');
+  if (record === undefined) {
+    return undefined;
+  }
+  const durationSeconds = readOptionalPositiveFinite(
+    record.durationSeconds,
+    'domainConfig.health.durationSeconds',
+  );
+  return {
+    ...(durationSeconds === undefined ? {} : { durationSeconds }),
+  };
+}
+
+function parseEatDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['eat'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.eat');
+  if (record === undefined) {
+    return undefined;
+  }
+  const commodityName = readOptionalString(record.commodityName, 'domainConfig.eat.commodityName');
+  const quantity = readOptionalPositiveFinite(record.quantity, 'domainConfig.eat.quantity');
+  return {
+    ...(commodityName === undefined ? {} : { commodityName }),
+    ...(quantity === undefined ? {} : { quantity }),
+  };
+}
+
+function parseSocialDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['social'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.social');
+  if (record === undefined) {
+    return undefined;
+  }
+  const targetAgentId = readOptionalString(
+    record.targetAgentId,
+    'domainConfig.social.targetAgentId',
+  );
+  const topic = readOptionalString(record.topic, 'domainConfig.social.topic');
+  const openingUtterance = readOptionalString(
+    record.openingUtterance,
+    'domainConfig.social.openingUtterance',
+  );
+  const responseUtterance = readOptionalString(
+    record.responseUtterance,
+    'domainConfig.social.responseUtterance',
+  );
+  const relationDelta = readOptionalFinite(
+    record.relationDelta,
+    'domainConfig.social.relationDelta',
+  );
+  const attitudeDelta = readOptionalFinite(
+    record.attitudeDelta,
+    'domainConfig.social.attitudeDelta',
+  );
+  return {
+    ...(targetAgentId === undefined ? {} : { targetAgentId: asAgentId(targetAgentId) }),
+    ...(topic === undefined ? {} : { topic }),
+    ...(openingUtterance === undefined ? {} : { openingUtterance }),
+    ...(responseUtterance === undefined ? {} : { responseUtterance }),
+    ...(relationDelta === undefined ? {} : { relationDelta }),
+    ...(attitudeDelta === undefined ? {} : { attitudeDelta }),
+  };
+}
+
+function parseProductionDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['production'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.production');
+  if (record === undefined) {
+    return undefined;
+  }
+  const commodityName = readOptionalString(
+    record.commodityName,
+    'domainConfig.production.commodityName',
+  );
+  const quantity = readOptionalPositiveFinite(record.quantity, 'domainConfig.production.quantity');
+  const availableLaborSeconds = readOptionalPositiveFinite(
+    record.availableLaborSeconds,
+    'domainConfig.production.availableLaborSeconds',
+  );
+  return {
+    ...(commodityName === undefined ? {} : { commodityName }),
+    ...(quantity === undefined ? {} : { quantity }),
+    ...(availableLaborSeconds === undefined ? {} : { availableLaborSeconds }),
+  };
+}
+
+function parseResidentialDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['residential'] {
+  const record = readOptionalNullableRecord(value, 'domainConfig.residential');
+  if (record === undefined) {
+    return undefined;
+  }
+  const targetResidentialTier = readOptionalPositiveInteger(
+    record.targetResidentialTier,
+    'domainConfig.residential.targetResidentialTier',
+  );
+  return {
+    ...(targetResidentialTier === undefined ? {} : { targetResidentialTier }),
+  };
+}
+
+function parseMemoryConsolidationScheduleNode(input: {
+  readonly node: unknown;
+}): LocalSimulationLifecycleMemoryConsolidationSchedule | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'memoryConsolidationSchedule');
+  const agentIds = readOptionalStringArray(
+    record.agentIds,
+    'memoryConsolidationSchedule.agentIds',
+  )?.map(asAgentId);
+  const reflectionTrigger = parseMemoryConsolidationReflectionTrigger(
+    record.reflectionTrigger,
+    'memoryConsolidationSchedule.reflectionTrigger',
+  );
+
+  return {
+    ...(agentIds === undefined ? {} : { agentIds }),
+    retrievalLimit: readRequiredPositiveInteger(
+      record.retrievalLimit,
+      'memoryConsolidationSchedule.retrievalLimit',
+    ),
+    minPatternCount: readRequiredPositiveInteger(
+      record.minPatternCount,
+      'memoryConsolidationSchedule.minPatternCount',
+    ),
+    ...(reflectionTrigger === undefined ? {} : { reflectionTrigger }),
+  };
+}
+
+function parseMemoryConsolidationReflectionTrigger(
+  value: unknown,
+  name: string,
+): LocalSimulationLifecycleMemoryConsolidationSchedule['reflectionTrigger'] {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const record = requireRecord(value, name);
+  return {
+    minimumImportanceScore: readRequiredNonNegativeFinite(
+      record.minimumImportanceScore,
+      `${name}.minimumImportanceScore`,
+    ),
+  };
+}
+
+function parseSteeringSimulatorNode(input: {
+  readonly node: unknown;
+}): ReactiveActionSimulator | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'steeringSimulator');
+  const kind = readRequiredString(record.kind, 'steeringSimulator.kind');
+  if (kind !== 'reject-action-id-prefix-until-suffix') {
+    throw new Error('steeringSimulator.kind must be reject-action-id-prefix-until-suffix');
+  }
+  const commandType = readOptionalCoreCommandType(
+    record.commandType,
+    'steeringSimulator.commandType',
+  );
+  const actionIdPrefix = readRequiredString(
+    record.actionIdPrefix,
+    'steeringSimulator.actionIdPrefix',
+  );
+  const repairedActionIdSuffix = readRequiredString(
+    record.repairedActionIdSuffix,
+    'steeringSimulator.repairedActionIdSuffix',
+  );
+  const reason = readRequiredString(record.reason, 'steeringSimulator.reason');
+
+  return ({ action }) =>
+    (commandType === undefined || action.commandType === commandType) &&
+    action.id.startsWith(actionIdPrefix) &&
+    !action.id.endsWith(repairedActionIdSuffix)
+      ? { status: 'rejected', action, reason }
+      : { status: 'accepted', action };
+}
+
 type LocalRuntimeTownProfileRuntimeConfigNodeName =
+  | 'domainConfig'
   | 'llmPlanning'
   | 'dailyPlanning'
   | 'reactionPlanning'
@@ -693,7 +1028,9 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'replanningDecision'
   | 'reflectionSynthesis'
   | 'socialModelSynthesis'
-  | 'replanningPolicy';
+  | 'replanningPolicy'
+  | 'memoryConsolidationSchedule'
+  | 'steeringSimulator';
 
 function parseLlmStructuredProviderConfig(
   value: unknown,
@@ -1056,11 +1393,41 @@ function readOptionalNonNegativeFinite(value: unknown, name: string): number | u
   return readRequiredNonNegativeFinite(value, name);
 }
 
+function readOptionalPositiveFinite(value: unknown, name: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive finite number`);
+  }
+  return value;
+}
+
+function readOptionalFinite(value: unknown, name: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number`);
+  }
+  return value;
+}
+
 function readOptionalRecord(
   value: unknown,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
   if (value === undefined) {
+    return undefined;
+  }
+  return requireRecord(value, name);
+}
+
+function readOptionalNullableRecord(
+  value: unknown,
+  name: string,
+): Readonly<Record<string, unknown>> | undefined {
+  if (value === undefined || value === null) {
     return undefined;
   }
   return requireRecord(value, name);
@@ -1081,6 +1448,27 @@ function readOptionalStringArray(value: unknown, name: string): readonly string[
     throw new Error(`${name} must be an array of strings`);
   }
   return value.map((entry, index) => readRequiredString(entry, `${name}[${index}]`));
+}
+
+function readOptionalTradeSide(value: unknown, name: string): 'buy' | 'sell' | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 'buy' || value === 'sell') {
+    return value;
+  }
+  throw new Error(`${name} must be buy or sell`);
+}
+
+function readOptionalCoreCommandType(value: unknown, name: string): CoreCommandType | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const commandType = readRequiredString(value, name);
+  if ((CORE_COMMAND_TYPES as readonly string[]).includes(commandType)) {
+    return commandType as CoreCommandType;
+  }
+  throw new Error(`${name} must be a known core command type`);
 }
 
 function parseOptionalMajorContextShift(

@@ -296,6 +296,70 @@ describe('local runtime town profile runtime config', () => {
     });
   });
 
+  test('loads scripted providers from runtime config for deterministic profile dry runs', async () => {
+    const config = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'default-100',
+      path: '/runtime/config.json',
+      readTextFile: () =>
+        Promise.resolve(
+          JSON.stringify({
+            profiles: {
+              'default-100': {
+                llmPlanning: {
+                  kind: 'traceable-llm-strategic-planner',
+                  model: 'scripted-strategic-model',
+                  provider: createScriptedProviderNode('scripted-strategic-provider'),
+                },
+                subtaskPrioritization: {
+                  kind: 'traceable-llm-subtask-prioritizer',
+                  model: 'scripted-priority-model',
+                  provider: createScriptedProviderNode('scripted-priority-provider'),
+                },
+                reflectionSynthesis: {
+                  kind: 'traceable-llm-reflective-insight-synthesizer',
+                  model: 'scripted-reflection-model',
+                  provider: createScriptedProviderNode('scripted-reflection-provider'),
+                },
+              },
+            },
+          }),
+        ),
+    });
+
+    expect(config.strategicPlanning?.provider).toEqual({
+      kind: 'scripted',
+      providerId: 'scripted-strategic-provider',
+      responses: [
+        {
+          providerId: 'scripted-strategic-provider',
+          model: 'scripted-model',
+          content: '{"ok":true}',
+          finishReason: 'stop',
+        },
+      ],
+    });
+    expect(config.subtaskPrioritization?.provider).toMatchObject({
+      kind: 'scripted',
+      providerId: 'scripted-priority-provider',
+      responses: [
+        {
+          content: '{"ok":true}',
+          finishReason: 'stop',
+        },
+      ],
+    });
+    expect(config.reflectionSynthesis?.provider).toMatchObject({
+      kind: 'scripted',
+      providerId: 'scripted-reflection-provider',
+      responses: [
+        {
+          content: '{"ok":true}',
+          finishReason: 'stop',
+        },
+      ],
+    });
+  });
+
   test('uses top-level daily and reaction planning config unless a profile disables it', async () => {
     const document = JSON.stringify({
       dailyPlanning: {
@@ -920,7 +984,7 @@ describe('local runtime town profile runtime config', () => {
     );
   });
 
-  test('rejects unsupported providers and invalid numeric settings', async () => {
+  test('rejects malformed providers and invalid numeric settings', async () => {
     await expect(
       loadLocalRuntimeTownProfileLlmPlanningConfig({
         profileId: 'default-100',
@@ -933,8 +997,9 @@ describe('local runtime town profile runtime config', () => {
                 model: 'default-planner',
                 maxAttempts: 0,
                 provider: {
-                  kind: 'scripted',
-                  providerId: 'scripted-provider',
+                  kind: 'openai-compatible',
+                  providerId: 'default-provider',
+                  endpoint: 'https://llm.example.test/v1/chat/completions',
                 },
               },
             }),
@@ -960,7 +1025,7 @@ describe('local runtime town profile runtime config', () => {
             }),
           ),
       }),
-    ).rejects.toThrow('llmPlanning.provider.kind must be openai-compatible');
+    ).rejects.toThrow('llmPlanning.provider.scripted.responses must be a non-empty array');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({
@@ -1001,7 +1066,7 @@ describe('local runtime town profile runtime config', () => {
             }),
           ),
       }),
-    ).rejects.toThrow('reactionPlanning.provider.kind must be openai-compatible');
+    ).rejects.toThrow('reactionPlanning.provider.scripted.responses must be a non-empty array');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({
@@ -1042,7 +1107,7 @@ describe('local runtime town profile runtime config', () => {
             }),
           ),
       }),
-    ).rejects.toThrow('reactiveCorrection.provider.kind must be openai-compatible');
+    ).rejects.toThrow('reactiveCorrection.provider.scripted.responses must be a non-empty array');
 
     await expect(
       loadLocalRuntimeTownProfileRuntimeConfig({
@@ -1125,3 +1190,18 @@ describe('local runtime town profile runtime config', () => {
     ).rejects.toThrow('replanningPolicy.consecutiveFailureThreshold must be a positive integer');
   });
 });
+
+function createScriptedProviderNode(providerId: string) {
+  return {
+    kind: 'scripted',
+    providerId,
+    responses: [
+      {
+        providerId,
+        model: 'scripted-model',
+        content: '{"ok":true}',
+        finishReason: 'stop',
+      },
+    ],
+  };
+}

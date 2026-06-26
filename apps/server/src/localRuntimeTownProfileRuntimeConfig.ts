@@ -1,6 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import type { AdaptiveReplanningPolicy } from '@aivilization/agent-runtime';
-import type { LlmGatewayPricing, OpenAiCompatibleResponseFormatMode } from '@aivilization/llm';
+import type {
+  LlmGatewayPricing,
+  LlmProviderCompletionResponse,
+  LlmProviderFinishReason,
+  LlmStructuredProviderConfig,
+  OpenAiCompatibleResponseFormatMode,
+} from '@aivilization/llm';
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
   LocalRuntimeTownProfileDailyPlanningConfig,
@@ -298,7 +304,7 @@ function parseLlmPlanningNode(input: {
     kind: 'traceable-llm-strategic-planner',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'llmPlanning.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'llmPlanning'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'llmPlanning'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -328,7 +334,7 @@ function parseDailyPlanningNode(input: {
     kind: 'traceable-llm-daily-planner',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'dailyPlanning.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'dailyPlanning'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'dailyPlanning'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -361,7 +367,7 @@ function parseReactionPlanningNode(input: {
     kind: 'traceable-llm-reaction-evaluator',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'reactionPlanning.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'reactionPlanning'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'reactionPlanning'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -397,11 +403,7 @@ function parseSubtaskPrioritizationNode(input: {
     kind: 'traceable-llm-subtask-prioritizer',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'subtaskPrioritization.model'),
-    provider: parseOpenAiCompatibleProviderConfig(
-      record.provider,
-      input.env,
-      'subtaskPrioritization',
-    ),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'subtaskPrioritization'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -439,7 +441,7 @@ function parseActionSequenceGenerationNode(input: {
     kind: 'traceable-llm-action-sequence-generator',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'actionSequenceGeneration.model'),
-    provider: parseOpenAiCompatibleProviderConfig(
+    provider: parseLlmStructuredProviderConfig(
       record.provider,
       input.env,
       'actionSequenceGeneration',
@@ -476,7 +478,7 @@ function parseGlobalSynthesisNode(input: {
     kind: 'traceable-llm-global-synthesizer',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'globalSynthesis.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'globalSynthesis'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'globalSynthesis'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -506,7 +508,7 @@ function parseSocialDialogueNode(input: {
     kind: 'traceable-llm-social-dialogue-generator',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'socialDialogue.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'socialDialogue'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'socialDialogue'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -539,7 +541,7 @@ function parseReactiveCorrectionNode(input: {
     kind: 'traceable-llm-reactive-corrector',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'reactiveCorrection.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'reactiveCorrection'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'reactiveCorrection'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -565,17 +567,14 @@ function parseReplanningDecisionNode(input: {
     record.maxAttempts,
     'replanningDecision.maxAttempts',
   );
-  const timeoutMs = readOptionalNonNegativeFinite(
-    record.timeoutMs,
-    'replanningDecision.timeoutMs',
-  );
+  const timeoutMs = readOptionalNonNegativeFinite(record.timeoutMs, 'replanningDecision.timeoutMs');
   const pricing = parseOptionalPricing(record.pricing, 'replanningDecision');
 
   return {
     kind: 'traceable-llm-replanning-decider',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'replanningDecision.model'),
-    provider: parseOpenAiCompatibleProviderConfig(record.provider, input.env, 'replanningDecision'),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'replanningDecision'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -613,11 +612,7 @@ function parseReflectionSynthesisNode(input: {
     kind: 'traceable-llm-reflective-insight-synthesizer',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'reflectionSynthesis.model'),
-    provider: parseOpenAiCompatibleProviderConfig(
-      record.provider,
-      input.env,
-      'reflectionSynthesis',
-    ),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'reflectionSynthesis'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -653,11 +648,7 @@ function parseSocialModelSynthesisNode(input: {
     kind: 'traceable-llm-social-model-synthesizer',
     profileId: input.profileId,
     model: readRequiredString(record.model, 'socialModelSynthesis.model'),
-    provider: parseOpenAiCompatibleProviderConfig(
-      record.provider,
-      input.env,
-      'socialModelSynthesis',
-    ),
+    provider: parseLlmStructuredProviderConfig(record.provider, input.env, 'socialModelSynthesis'),
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(pricing === undefined ? {} : { pricing }),
@@ -702,17 +693,28 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'socialModelSynthesis'
   | 'replanningPolicy';
 
-function parseOpenAiCompatibleProviderConfig(
+function parseLlmStructuredProviderConfig(
   value: unknown,
   env: Readonly<Record<string, string | undefined>>,
   nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
-): LocalRuntimeTownProfileLlmPlanningConfig['provider'] {
+): LlmStructuredProviderConfig {
   const record = requireRecord(value, `${nodeName}.provider`);
   const kind = readRequiredString(record.kind, `${nodeName}.provider.kind`);
-  if (kind !== 'openai-compatible') {
-    throw new Error(`${nodeName}.provider.kind must be openai-compatible`);
+  if (kind === 'openai-compatible') {
+    return parseOpenAiCompatibleProviderConfig(record, env, nodeName);
+  }
+  if (kind === 'scripted') {
+    return parseScriptedProviderConfig(record, nodeName);
   }
 
+  throw new Error(`${nodeName}.provider.kind must be openai-compatible or scripted`);
+}
+
+function parseOpenAiCompatibleProviderConfig(
+  record: Readonly<Record<string, unknown>>,
+  env: Readonly<Record<string, string | undefined>>,
+  nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
+): LlmStructuredProviderConfig {
   const apiKey = readOptionalSecretString(record.apiKey, `${nodeName}.provider.apiKey`, env);
   const defaultHeaders = parseOptionalDefaultHeaders(record.defaultHeaders, env, nodeName);
   const responseFormat = readOptionalResponseFormat(
@@ -728,6 +730,71 @@ function parseOpenAiCompatibleProviderConfig(
     ...(defaultHeaders === undefined ? {} : { defaultHeaders }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
   };
+}
+
+function parseScriptedProviderConfig(
+  record: Readonly<Record<string, unknown>>,
+  nodeName: LocalRuntimeTownProfileRuntimeConfigNodeName,
+): LlmStructuredProviderConfig {
+  const responses = parseScriptedProviderResponses(
+    record.responses,
+    `${nodeName}.provider.scripted.responses`,
+  );
+
+  return {
+    kind: 'scripted',
+    providerId: readRequiredString(record.providerId, `${nodeName}.provider.providerId`),
+    responses,
+  };
+}
+
+function parseScriptedProviderResponses(
+  value: unknown,
+  name: string,
+): readonly LlmProviderCompletionResponse[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${name} must be a non-empty array`);
+  }
+
+  return value.map((entry, index) => parseScriptedProviderResponse(entry, `${name}[${index}]`));
+}
+
+function parseScriptedProviderResponse(
+  value: unknown,
+  name: string,
+): LlmProviderCompletionResponse {
+  const record = requireRecord(value, name);
+  const usage = parseOptionalTokenUsage(record.usage, `${name}.usage`);
+
+  return {
+    providerId: readRequiredString(record.providerId, `${name}.providerId`),
+    model: readRequiredString(record.model, `${name}.model`),
+    content: readRequiredString(record.content, `${name}.content`),
+    finishReason: readProviderFinishReason(record.finishReason, `${name}.finishReason`),
+    ...(usage === undefined ? {} : { usage }),
+  };
+}
+
+function parseOptionalTokenUsage(
+  value: unknown,
+  name: string,
+): LlmProviderCompletionResponse['usage'] {
+  const record = readOptionalRecord(value, name);
+  if (record === undefined) {
+    return undefined;
+  }
+
+  return {
+    inputTokens: readRequiredNonNegativeFinite(record.inputTokens, `${name}.inputTokens`),
+    outputTokens: readRequiredNonNegativeFinite(record.outputTokens, `${name}.outputTokens`),
+  };
+}
+
+function readProviderFinishReason(value: unknown, name: string): LlmProviderFinishReason {
+  if (value === 'stop' || value === 'length' || value === 'content-filtered') {
+    return value;
+  }
+  throw new Error(`${name} must be stop, length, or content-filtered`);
 }
 
 function parseOptionalDefaultHeaders(

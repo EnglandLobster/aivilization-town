@@ -1,6 +1,10 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MemorySynthesisWorldDecisionContextTrace } from '@aivilization/memory';
+import type {
+  ExperimentValidationReportGateResult,
+  ExperimentValidationStatus,
+} from '@aivilization/observability';
 import type { AgentId, PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import type {
   LocalSimulationRuntimeSupervisorCommandOutcome,
@@ -14,6 +18,9 @@ export type LocalSimulationRuntimeOperationValidationReportTrace = {
   readonly runId: string;
   readonly generatedAt: SimulationTimestamp;
   readonly source?: string;
+  readonly gateStatus?: ExperimentValidationReportGateResult['status'];
+  readonly gateFailureCount?: number;
+  readonly metricStatusCounts: Readonly<Record<ExperimentValidationStatus, number>>;
   readonly streamVersion: number;
   readonly fromSequence: number;
   readonly toSequence: number;

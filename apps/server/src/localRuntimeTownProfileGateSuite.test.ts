@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
   RuntimeProfileAgentCycleLlmStageDiagnostics,
   RuntimeProfileAgentCycleLlmStageName,
@@ -396,6 +397,74 @@ describe('local runtime town profile gate suite', () => {
     });
     expect(inputs[0]?.preseedMarketPriceIndex).toBeUndefined();
     expect(result.profiles[0]?.gate.status).toBe('pass');
+  });
+
+  test('forwards runtime context hooks from config into profile runners', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const rootDir = createRootDir();
+    const configPath = join(rootDir, 'profile-runtime-context-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        domainConfig: {
+          social: {
+            targetAgentId: 'smoke-25-world-main-agent-008',
+            topic: 'town plans',
+          },
+        },
+        memoryConsolidationSchedule: {
+          agentIds: ['smoke-25-world-main-agent-001'],
+          retrievalLimit: 10,
+          minPatternCount: 1,
+        },
+        steeringSimulator: {
+          kind: 'reject-action-id-prefix-until-suffix',
+          commandType: 'AgentStartConversation',
+          actionIdPrefix: 'scripted-social-check-in:',
+          repairedActionIdSuffix: ':repaired',
+          reason: 'scripted rejection drill',
+        },
+      }),
+    );
+
+    await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createPassingSummary(input));
+      },
+    });
+
+    expect(inputs[0]?.domainConfig).toMatchObject({
+      social: {
+        targetAgentId: 'smoke-25-world-main-agent-008',
+        topic: 'town plans',
+      },
+    });
+    expect(inputs[0]?.memoryConsolidationSchedule).toMatchObject({
+      agentIds: ['smoke-25-world-main-agent-001'],
+      retrievalLimit: 10,
+      minPatternCount: 1,
+    });
+    expect(inputs[0]?.steeringSimulator).toBeDefined();
+    const rejected = inputs[0]?.steeringSimulator?.({
+      action: {
+        id: 'scripted-social-check-in:smoke-25-world-main-agent-001',
+        description: 'initial scripted check-in',
+        commandType: 'AgentStartConversation',
+        payload: {},
+      },
+      command: { id: 'command-1', summary: 'social command' },
+    });
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      reason: 'scripted rejection drill',
+    });
   });
 
   test('preseeds market price index for LLM runtime configs', async () => {
@@ -795,6 +864,34 @@ describe('local runtime town profile gate suite', () => {
       ),
     ).toMatchObject({
       paperAlignment: result.bundleManifest?.paperAlignment,
+    });
+  });
+
+  test('passes paper-alignment coverage from the full scripted LLM runtime config through real suite execution', async () => {
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+    const configPath = fileURLToPath(
+      new URL('../examples/full-scripted-llm-runtime-config.json', import.meta.url),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      reportRootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 175,
+      reportGeneratedAt: 225,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+    });
+
+    expect(result.profiles[0]?.gate.failures).toEqual([]);
+    expect(result.status).toBe('pass');
+    expect(result.bundleManifest?.paperAlignment).toMatchObject({
+      schemaVersion: 1,
+      capabilityCount: 12,
+      configuredCapabilityCount: 11,
+      passedConfiguredCapabilityCount: 11,
+      failedConfiguredCapabilityCount: 0,
     });
   });
 

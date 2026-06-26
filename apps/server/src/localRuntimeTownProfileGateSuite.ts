@@ -301,6 +301,15 @@ function createProfileRunnerInput(input: {
       ? {}
       : { reportGeneratedAt: input.suiteInput.reportGeneratedAt }),
     ...(hasRuntimeConfigLlmStages(input.runtimeConfig) ? { preseedMarketPriceIndex: true } : {}),
+    ...(input.runtimeConfig?.domainConfig === undefined
+      ? {}
+      : { domainConfig: input.runtimeConfig.domainConfig }),
+    ...(input.runtimeConfig?.memoryConsolidationSchedule === undefined
+      ? {}
+      : { memoryConsolidationSchedule: input.runtimeConfig.memoryConsolidationSchedule }),
+    ...(input.runtimeConfig?.steeringSimulator === undefined
+      ? {}
+      : { steeringSimulator: input.runtimeConfig.steeringSimulator }),
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { profileRunReportRepository: input.profileRunReportRepository }),

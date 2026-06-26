@@ -64,9 +64,14 @@ export type LocalRuntimeTownProfileLlmPlanningConfigLoadInput = {
 export type LocalRuntimeTownProfileRuntimeConfigLoadInput =
   LocalRuntimeTownProfileLlmPlanningConfigLoadInput;
 
+export type LocalRuntimeTownProfilePaperAlignmentConfig = {
+  readonly minimumLocalRepairAcceptedCount?: number;
+};
+
 export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
+  readonly paperAlignment?: LocalRuntimeTownProfilePaperAlignmentConfig;
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
@@ -165,6 +170,13 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
       document,
       profileId: input.profileId,
       nodeName: 'actionSynthesis',
+    }),
+  });
+  const paperAlignment = parsePaperAlignmentNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'paperAlignment',
     }),
   });
   const strategicPlanning = parseLlmPlanningNode({
@@ -291,6 +303,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
   return {
     ...(domainConfig === undefined ? {} : { domainConfig }),
     ...(actionSynthesis === undefined ? {} : { actionSynthesis }),
+    ...(paperAlignment === undefined ? {} : { paperAlignment }),
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
@@ -836,6 +849,24 @@ function parseActionSynthesisCandidateSubtasks(
   };
 }
 
+function parsePaperAlignmentNode(input: {
+  readonly node: unknown;
+}): LocalRuntimeTownProfilePaperAlignmentConfig | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+
+  const record = requireRecord(input.node, 'paperAlignment');
+  const minimumLocalRepairAcceptedCount = readOptionalNonNegativeInteger(
+    record.minimumLocalRepairAcceptedCount,
+    'paperAlignment.minimumLocalRepairAcceptedCount',
+  );
+
+  return {
+    ...(minimumLocalRepairAcceptedCount === undefined ? {} : { minimumLocalRepairAcceptedCount }),
+  };
+}
+
 function parseStudyDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['study'] {
   const record = readOptionalNullableRecord(value, 'domainConfig.study');
   if (record === undefined) {
@@ -1088,6 +1119,7 @@ function parseSteeringSimulatorNode(input: {
 type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'domainConfig'
   | 'actionSynthesis'
+  | 'paperAlignment'
   | 'llmPlanning'
   | 'dailyPlanning'
   | 'reactionPlanning'

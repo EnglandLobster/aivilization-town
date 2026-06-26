@@ -15,6 +15,9 @@
       "maxSubtasks": 2
     }
   },
+  "paperAlignment": {
+    "minimumLocalRepairAcceptedCount": 1
+  },
   "memoryConsolidationSchedule": {
     "agentIds": ["smoke-25-world-main-agent-001"],
     "retrievalLimit": 10,

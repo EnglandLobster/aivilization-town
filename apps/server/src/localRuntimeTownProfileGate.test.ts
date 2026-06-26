@@ -60,6 +60,27 @@ describe('local runtime town profile gate criteria', () => {
     });
   });
 
+  test('uses the stricter local repair requirement from runtime config and caller input', () => {
+    const runtimeConfig: LocalRuntimeTownProfileRuntimeConfig = {
+      paperAlignment: {
+        minimumLocalRepairAcceptedCount: 2,
+      },
+    };
+
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+        minimumLocalRepairAcceptedCount: 1,
+      }).minimumLocalRepairAcceptedCount,
+    ).toBe(2);
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        runtimeConfig,
+        minimumLocalRepairAcceptedCount: 3,
+      }).minimumLocalRepairAcceptedCount,
+    ).toBe(3);
+  });
+
   test('derives required agent-cycle LLM accepted stages from runtime config', () => {
     const runtimeConfig: LocalRuntimeTownProfileRuntimeConfig = {
       strategicPlanning: createLlmConfig('traceable-llm-strategic-planner'),

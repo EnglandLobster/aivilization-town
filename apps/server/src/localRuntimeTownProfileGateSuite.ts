@@ -214,6 +214,9 @@ export async function runLocalRuntimeTownProfileGateSuite(
     const paperAlignment = createLocalRuntimeTownPaperAlignmentProfileCoverage({
       criteria: gateCriteria,
       gate,
+      ...(summary.experimentValidationReports === undefined
+        ? {}
+        : { experimentValidationReports: summary.experimentValidationReports }),
     });
 
     profiles.push({

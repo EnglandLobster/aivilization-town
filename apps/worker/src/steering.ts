@@ -58,8 +58,10 @@ export async function handleWorkerSteeringCommand(input: {
   readonly localizedPlanners: readonly ReactiveLocalizedPlanner[];
   readonly simulate: ReactiveActionSimulator;
   readonly repair?: ReactiveRepairPolicy;
+  readonly persistShortTermMemoryRecords?: boolean;
 }): Promise<WorkerSteeringResult> {
   const agentId = requireActorId(input.command);
+  const persistShortTermMemoryRecords = input.persistShortTermMemoryRecords ?? true;
 
   switch (input.command.type) {
     case 'SetLongHorizonObjective': {
@@ -75,7 +77,9 @@ export async function handleWorkerSteeringCommand(input: {
         command: input.command,
         objective,
       });
-      await input.shortTermMemoryRepository.append(strategicMemoryRecord);
+      if (persistShortTermMemoryRecords) {
+        await input.shortTermMemoryRepository.append(strategicMemoryRecord);
+      }
       const longTermProfileRepository = input.longTermProfileRepository;
       const longTermMemoryPatches =
         longTermProfileRepository === undefined
@@ -123,7 +127,9 @@ export async function handleWorkerSteeringCommand(input: {
         simulate: input.simulate,
         ...(input.repair === undefined ? {} : { repair: input.repair }),
       });
-      await input.shortTermMemoryRepository.appendMany(routeResult.shortTermMemoryRecords);
+      if (persistShortTermMemoryRecords) {
+        await input.shortTermMemoryRepository.appendMany(routeResult.shortTermMemoryRecords);
+      }
       return {
         kind: 'reactive-command-routed',
         routeResult,

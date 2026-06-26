@@ -366,6 +366,65 @@ describe('local runtime steering command drain', () => {
       updatedAt: 1000,
     });
   });
+
+  test('links persisted reactive command outcome memory to dispatched world events', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendCommands(storage.partition.commandStreamName, storage.commandStore, [
+      reactiveTradeCommand({
+        id: 'cmd-reactive-study',
+        reactiveCommandId: 'reactive-study',
+        summary: 'study for one minute now',
+        issuedAt: 200,
+      }),
+    ]);
+
+    const result = await drainLocalRuntimeSteeringCommandsToWorld({
+      storage,
+      consumerId: 'worker-main',
+      checkpointUpdatedAt: 1000,
+      projection: createWorldProjection({
+        agents: [
+          {
+            agentId: agentOne,
+            physiology: { energy: 50, satiety: 80, health: 100 },
+            educationScore: 10,
+            balance: 100,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+      }),
+      policies,
+      localizedPlanners: [studyPlanner()],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    const dispatchEventIds = result.worldDispatchResults.flatMap((dispatch) =>
+      dispatch.events.map((event) => event.id),
+    );
+    await expect(
+      storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        kinds: ['human-command'],
+        statuses: ['succeeded'],
+        requiredTags: ['reactive', 'AgentStudy'],
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'reactive-study:outcome',
+        source: {
+          commandId: 'reactive-study',
+          eventIds: dispatchEventIds,
+        },
+      },
+    ]);
+  });
 });
 
 function tradePlanner(): ReactiveLocalizedPlanner {

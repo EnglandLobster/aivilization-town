@@ -78,3 +78,48 @@ Observed GREEN: `pnpm vitest apps/server/src/localRuntimeTownProfileGateSuite.te
 - Spec coverage: converts multi-profile validation output into a durable experiment-package index, moving closer to paper Section 5 reproducibility.
 - Boundary: manifest references existing reports and compact validation summaries; it does not duplicate full reports or invent missing OHLC/wealth evidence.
 - Remaining gap: future stages should add OHLC window snapshots and wealth-distribution snapshot ids to the bundle once those durable extractors exist.
+
+---
+
+### Task 2: Validation Evidence Summary
+
+**Goal:** Expose experiment validation evidence windows and metric evidence in the bundle manifest so Section 5 profile runs are auditable from the consolidated report package.
+
+**Files:**
+
+- Modify: `apps/server/src/localRuntimeTownProfileRunner.ts`
+- Modify: `apps/server/src/localRuntimeTownProfileRunner.test.ts`
+- Modify: `apps/server/src/localRuntimeTownProfileGateSuite.ts`
+- Modify: `apps/server/src/localRuntimeTownProfileGateSuite.test.ts`
+- Modify: `apps/server/src/localRuntimeTownProfileRunnerCli.test.ts`
+- Modify: `docs/superpowers/plans/2026-06-26-profile-gate-suite-bundle-manifest.md`
+
+- [x] **Step 1: Write the failing bundle manifest test**
+
+Extend the gate-suite bundle manifest test with injected validation metrics and assert each validation report includes:
+
+- `artifactPaths.experimentValidationReports`;
+- an `evidenceWindow` containing stream version, sequence range, event count, and projection sequence;
+- compact metric evidence for market stability and wealth stratification.
+
+Observed RED: `pnpm vitest apps/server/src/localRuntimeTownProfileGateSuite.test.ts --run` fails because validation report artifact paths, evidence window, and metrics are absent from the bundle manifest.
+
+- [x] **Step 2: Write the failing runner summary test**
+
+Extend the profile runner validation test to assert `experimentValidationReports[*].metrics` preserves metric id, label, status, value, unit, and evidence from the observability validation report.
+
+Observed RED: `pnpm vitest apps/server/src/localRuntimeTownProfileRunner.test.ts --run` fails because runner validation summaries only expose status counts.
+
+- [x] **Step 3: Implement the summary path**
+
+Add a compact `LocalRuntimeTownProfileExperimentValidationMetricSummary`, copy metric evidence in the runner summary, and let the gate suite manifest reference the durable `experiment-validation-reports.jsonl` artifact plus the validation event window. The server layer still indexes already-produced observability reports; it does not recompute validation math.
+
+- [x] **Step 4: Verify the focused slice**
+
+Observed GREEN: `pnpm vitest apps/server/src/localRuntimeTownProfileRunner.test.ts apps/server/src/localRuntimeTownProfileGateSuite.test.ts --run` passes with 33 tests.
+
+## Task 2 Review
+
+- Spec coverage: exposes enough provenance for profile-gate validation consumers to answer which event window and which metric evidence backed a pass/watch/fail status.
+- Boundary: metric calculation remains in `@aivilization/observability`; server summaries clone compact evidence for reporting and indexing only.
+- Remaining gap: future stages should attach full OHLC and wealth-distribution snapshot artifact ids when those extractors are promoted into durable report outputs.

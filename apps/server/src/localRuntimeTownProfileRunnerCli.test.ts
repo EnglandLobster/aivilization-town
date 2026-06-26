@@ -923,6 +923,7 @@ describe('local runtime town profile runner CLI', () => {
               gateStatus: 'pass',
               gateFailureCount: 0,
               metricStatusCounts: { pass: 3, watch: 6, fail: 0 },
+              metrics: [],
               streamVersion: 3,
               fromSequence: 0,
               toSequence: 3,

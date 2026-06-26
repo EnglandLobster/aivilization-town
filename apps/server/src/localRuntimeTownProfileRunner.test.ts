@@ -344,6 +344,21 @@ describe('local runtime town profile runner', () => {
     const validationSummary = summary.experimentValidationReports?.[0];
     expect(validationSummary?.eventCount).toBeGreaterThan(0);
     expect(validationSummary?.metricStatusCounts.pass).toBeGreaterThan(0);
+    expect(validationSummary?.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'market-stability',
+          label: 'Market stability',
+          status: expect.any(String),
+          value: expect.any(Number),
+          unit: expect.any(String),
+          evidence: expect.objectContaining({
+            observationCount: expect.any(Number),
+            maximumLogPriceRange: expect.any(Number),
+          }),
+        }),
+      ]),
+    );
 
     const storage = createLocalWorldRuntimeStorage({
       rootDir,

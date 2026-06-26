@@ -1094,6 +1094,10 @@ function createAgentCycleDiagnostics(
     acceptedSimulatorCount: traceCount,
     repairedSimulatorCount: 0,
     rejectedSimulatorCount: 0,
+    localRepairAttemptCount: 0,
+    localRepairAcceptedCount: 0,
+    localRepairRejectedCount: 0,
+    localRepairSkippedCount: 0,
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
@@ -1104,6 +1108,7 @@ function createAgentCycleDiagnostics(
     fullReplanMaterializationRatio:
       traceCount === 0 ? 0 : fullReplanMaterializationCount / traceCount,
     repairedSimulatorRatio: 0,
+    localRepairAcceptedRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
     simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,

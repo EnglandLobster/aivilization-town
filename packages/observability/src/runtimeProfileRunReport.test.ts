@@ -271,6 +271,10 @@ describe('runtime profile run report repositories', () => {
       acceptedSimulatorCount: 1,
       repairedSimulatorCount: 1,
       rejectedSimulatorCount: 1,
+      localRepairAttemptCount: 0,
+      localRepairAcceptedCount: 0,
+      localRepairRejectedCount: 0,
+      localRepairSkippedCount: 0,
       replanningDecisionCount: 2,
       simulatorEventTraceCount: 3,
       simulatorEventCount: 3,
@@ -280,6 +284,7 @@ describe('runtime profile run report repositories', () => {
       commandEmittingCycleRatio: 2 / 3,
       fullReplanMaterializationRatio: 2 / 3,
       repairedSimulatorRatio: 1 / 3,
+      localRepairAcceptedRatio: 0,
       rejectedSimulatorRatio: 1 / 3,
       replanningDecisionRatio: 2 / 3,
       simulatorRolloutCoverageRatio: 2 / 3,
@@ -290,6 +295,10 @@ describe('runtime profile run report repositories', () => {
       acceptedSimulatorCount: 0,
       repairedSimulatorCount: 0,
       rejectedSimulatorCount: 0,
+      localRepairAttemptCount: 0,
+      localRepairAcceptedCount: 0,
+      localRepairRejectedCount: 0,
+      localRepairSkippedCount: 0,
       replanningDecisionCount: 0,
       simulatorEventTraceCount: 0,
       simulatorEventCount: 0,
@@ -299,10 +308,87 @@ describe('runtime profile run report repositories', () => {
       commandEmittingCycleRatio: 0,
       fullReplanMaterializationRatio: 0,
       repairedSimulatorRatio: 0,
+      localRepairAcceptedRatio: 0,
       rejectedSimulatorRatio: 0,
       replanningDecisionRatio: 0,
       simulatorRolloutCoverageRatio: 0,
       llmStageDiagnostics: createEmptyLlmStageDiagnostics(0),
+    });
+  });
+
+  test('summarizes local repair outcomes from action repair traces', () => {
+    const diagnostics = createRuntimeProfileAgentCycleDiagnostics([
+      createTrace({
+        traceId: 'local-repair-accepted',
+        simulatorStatus: 'repaired',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        actionRepair: [
+          {
+            actionId: 'eat-apple',
+            rejectionReason: 'missing inventory',
+            selectedSubtask: { branchId: 'survival', subtaskId: 'eat' },
+            localRepair: {
+              status: 'accepted',
+              attemptedAction: {
+                id: 'buy-apple',
+                description: 'Buy Apple before eating',
+                commandType: 'AgentTrade',
+              },
+            },
+            outcome: 'repaired',
+          },
+        ],
+      }),
+      createTrace({
+        traceId: 'local-repair-rejected',
+        simulatorStatus: 'rejected',
+        replanning: true,
+        emittedCommandCount: 0,
+        simulatorEvents: [],
+        actionRepair: [
+          {
+            actionId: 'work-no-energy',
+            rejectionReason: 'energy too low',
+            selectedSubtask: { branchId: 'work', subtaskId: 'earn' },
+            localRepair: {
+              status: 'rejected',
+              attemptedAction: {
+                id: 'sleep-first',
+                description: 'Sleep before work',
+                commandType: 'AgentSleep',
+              },
+              rejectionReason: 'sleep location unavailable',
+            },
+            outcome: 'needs-replan',
+          },
+        ],
+      }),
+      createTrace({
+        traceId: 'local-repair-skipped',
+        simulatorStatus: 'rejected',
+        replanning: true,
+        emittedCommandCount: 0,
+        simulatorEvents: [],
+        actionRepair: [
+          {
+            actionId: 'unknown-failure',
+            rejectionReason: 'unsupported failure',
+            selectedSubtask: { branchId: 'explore', subtaskId: 'wander' },
+            localRepair: { status: 'skipped' },
+            outcome: 'needs-replan',
+          },
+        ],
+      }),
+    ]);
+
+    expect(diagnostics).toMatchObject({
+      localRepairAttemptCount: 2,
+      localRepairAcceptedCount: 1,
+      localRepairRejectedCount: 1,
+      localRepairSkippedCount: 1,
+      localRepairAcceptedRatio: 1 / 2,
     });
   });
 
@@ -894,6 +980,10 @@ function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
     acceptedSimulatorCount: 2,
     repairedSimulatorCount: 2,
     rejectedSimulatorCount: 1,
+    localRepairAttemptCount: 0,
+    localRepairAcceptedCount: 0,
+    localRepairRejectedCount: 0,
+    localRepairSkippedCount: 0,
     replanningDecisionCount: 3,
     simulatorEventTraceCount: 7,
     simulatorEventCount: 12,
@@ -903,6 +993,7 @@ function createDiagnostics(): RuntimeProfileAgentCycleDiagnostics {
     commandEmittingCycleRatio: 0.8,
     fullReplanMaterializationRatio: 0.2,
     repairedSimulatorRatio: 0.4,
+    localRepairAcceptedRatio: 0,
     rejectedSimulatorRatio: 0.2,
     replanningDecisionRatio: 0.6,
     simulatorRolloutCoverageRatio: 1,

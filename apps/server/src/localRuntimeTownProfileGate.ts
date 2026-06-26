@@ -15,6 +15,7 @@ export type LocalRuntimeTownProfileGateCriteriaInput = {
   readonly minimumTotalAgentTraceCount?: number;
   readonly minimumFullReplanMaterializationCount?: number;
   readonly minimumSimulatorRolloutCoverageRatio?: number;
+  readonly minimumLocalRepairAcceptedCount?: number;
   readonly runtimeConfig?: LocalRuntimeTownProfileRuntimeConfig;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -200,6 +201,9 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(minimumSimulatorRolloutCoverageRatio === undefined
       ? {}
       : { minimumSimulatorRolloutCoverageRatio }),
+    ...(input.minimumLocalRepairAcceptedCount === undefined
+      ? {}
+      : { minimumLocalRepairAcceptedCount: input.minimumLocalRepairAcceptedCount }),
   };
 }
 

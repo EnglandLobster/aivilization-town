@@ -49,6 +49,17 @@ describe('local runtime town profile gate criteria', () => {
     });
   });
 
+  test('allows profile gates to require accepted local repair evidence', () => {
+    expect(
+      createLocalRuntimeTownProfileGateCriteria('smoke-25', {
+        minimumLocalRepairAcceptedCount: 1,
+      }),
+    ).toMatchObject({
+      criteriaId: 'aivilization-smoke-25:profile-run-gate',
+      minimumLocalRepairAcceptedCount: 1,
+    });
+  });
+
   test('derives required agent-cycle LLM accepted stages from runtime config', () => {
     const runtimeConfig: LocalRuntimeTownProfileRuntimeConfig = {
       strategicPlanning: createLlmConfig('traceable-llm-strategic-planner'),

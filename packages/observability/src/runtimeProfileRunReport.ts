@@ -73,6 +73,10 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly acceptedSimulatorCount: number;
   readonly repairedSimulatorCount: number;
   readonly rejectedSimulatorCount: number;
+  readonly localRepairAttemptCount: number;
+  readonly localRepairAcceptedCount: number;
+  readonly localRepairRejectedCount: number;
+  readonly localRepairSkippedCount: number;
   readonly replanningDecisionCount: number;
   readonly simulatorEventTraceCount: number;
   readonly simulatorEventCount: number;
@@ -82,6 +86,7 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly commandEmittingCycleRatio: number;
   readonly fullReplanMaterializationRatio: number;
   readonly repairedSimulatorRatio: number;
+  readonly localRepairAcceptedRatio: number;
   readonly rejectedSimulatorRatio: number;
   readonly replanningDecisionRatio: number;
   readonly simulatorRolloutCoverageRatio: number;
@@ -254,6 +259,10 @@ export function createRuntimeProfileAgentCycleDiagnostics(
   let acceptedSimulatorCount = 0;
   let repairedSimulatorCount = 0;
   let rejectedSimulatorCount = 0;
+  let localRepairAttemptCount = 0;
+  let localRepairAcceptedCount = 0;
+  let localRepairRejectedCount = 0;
+  let localRepairSkippedCount = 0;
   let replanningDecisionCount = 0;
   let simulatorEventTraceCount = 0;
   let simulatorEventCount = 0;
@@ -270,6 +279,19 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     }
     if (trace.simulatorResult.status === 'rejected') {
       rejectedSimulatorCount += 1;
+    }
+    for (const repair of trace.actionRepair ?? []) {
+      if (repair.localRepair.status === 'accepted') {
+        localRepairAttemptCount += 1;
+        localRepairAcceptedCount += 1;
+      }
+      if (repair.localRepair.status === 'rejected') {
+        localRepairAttemptCount += 1;
+        localRepairRejectedCount += 1;
+      }
+      if (repair.localRepair.status === 'skipped') {
+        localRepairSkippedCount += 1;
+      }
     }
     if (trace.replanningDecision.kind !== 'none') {
       replanningDecisionCount += 1;
@@ -293,6 +315,10 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     acceptedSimulatorCount,
     repairedSimulatorCount,
     rejectedSimulatorCount,
+    localRepairAttemptCount,
+    localRepairAcceptedCount,
+    localRepairRejectedCount,
+    localRepairSkippedCount,
     replanningDecisionCount,
     simulatorEventTraceCount,
     simulatorEventCount,
@@ -302,6 +328,7 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     commandEmittingCycleRatio: ratio(commandEmittingCycleCount, traceCount),
     fullReplanMaterializationRatio: ratio(fullReplanMaterializationCount, traceCount),
     repairedSimulatorRatio: ratio(repairedSimulatorCount, traceCount),
+    localRepairAcceptedRatio: ratio(localRepairAcceptedCount, localRepairAttemptCount),
     rejectedSimulatorRatio: ratio(rejectedSimulatorCount, traceCount),
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
     simulatorRolloutCoverageRatio: ratio(simulatorRolloutEventCount, simulatorEventCount),
@@ -529,6 +556,11 @@ function cloneAgentCycleDiagnostics(
   validateAgentCycleDiagnostics(diagnostics);
   return {
     ...diagnostics,
+    localRepairAttemptCount: diagnostics.localRepairAttemptCount ?? 0,
+    localRepairAcceptedCount: diagnostics.localRepairAcceptedCount ?? 0,
+    localRepairRejectedCount: diagnostics.localRepairRejectedCount ?? 0,
+    localRepairSkippedCount: diagnostics.localRepairSkippedCount ?? 0,
+    localRepairAcceptedRatio: diagnostics.localRepairAcceptedRatio ?? 0,
     simulatorRolloutEventCount: diagnostics.simulatorRolloutEventCount ?? 0,
     simulatorRolloutCoverageRatio: diagnostics.simulatorRolloutCoverageRatio ?? 0,
     ...(diagnostics.llmStageDiagnostics === undefined
@@ -560,6 +592,10 @@ function validateAgentCycleDiagnostics(
     'acceptedSimulatorCount',
     'repairedSimulatorCount',
     'rejectedSimulatorCount',
+    'localRepairAttemptCount',
+    'localRepairAcceptedCount',
+    'localRepairRejectedCount',
+    'localRepairSkippedCount',
     'replanningDecisionCount',
     'simulatorEventTraceCount',
     'simulatorEventCount',
@@ -581,6 +617,14 @@ function validateAgentCycleDiagnostics(
   if (diagnostics.replanningDecisionCount > diagnostics.traceCount) {
     throw new Error('agentCycleDiagnostics replanningDecisionCount must not exceed traceCount');
   }
+  if (
+    (diagnostics.localRepairAcceptedCount ?? 0) + (diagnostics.localRepairRejectedCount ?? 0) !==
+    (diagnostics.localRepairAttemptCount ?? 0)
+  ) {
+    throw new Error(
+      'agentCycleDiagnostics local repair accepted and rejected counts must equal localRepairAttemptCount',
+    );
+  }
   if (diagnostics.commandEmittingCycleCount > diagnostics.traceCount) {
     throw new Error('agentCycleDiagnostics commandEmittingCycleCount must not exceed traceCount');
   }
@@ -598,6 +642,7 @@ function validateAgentCycleDiagnostics(
     'commandEmittingCycleRatio',
     'fullReplanMaterializationRatio',
     'repairedSimulatorRatio',
+    'localRepairAcceptedRatio',
     'rejectedSimulatorRatio',
     'replanningDecisionRatio',
     'simulatorRolloutCoverageRatio',

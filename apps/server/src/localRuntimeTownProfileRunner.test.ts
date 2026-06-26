@@ -249,6 +249,121 @@ describe('local runtime town profile runner', () => {
     });
   });
 
+  test('records experiment validation reports after profile runs when validation schedule is supplied', async () => {
+    const rootDir = createRootDir();
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 2,
+      requestedAt: 110,
+      cycleIntervalMs: 100,
+      reportGeneratedAt: 170,
+      agentProvider: () => [
+        {
+          agentId: asAgentId('smoke-25-world-main-agent-001'),
+          observedStateSummary: 'agent-001 is validating market trade observations.',
+          plan: createBranchPlan({
+            objective: 'Buy fish to generate market validation observations.',
+            branches: [
+              {
+                id: 'market-validation',
+                objective: 'Create real market trades.',
+                subtasks: [
+                  {
+                    id: 'buy-fish',
+                    description: 'buy Fish from the market',
+                    basePriority: 10,
+                  },
+                ],
+              },
+            ],
+          }),
+          signals: [],
+          microPlanners: [
+            {
+              domain: 'trade',
+              supports: ({ subtaskId }) => subtaskId === 'buy-fish',
+              propose: () => [
+                {
+                  id: 'buy-fish',
+                  description: 'buy Fish 1',
+                  commandType: 'AgentTrade',
+                  payload: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      experimentValidationSchedule: {
+        plannerRuns: createValidationPlannerRuns(),
+        expectedTrajectoryAgentIds: ['smoke-25-world-main-agent-001'],
+        thresholds: {
+          marketStability: {
+            maximumLogPriceRange: 10,
+            maximumDrawdown: 1,
+            minimumLogReturnStandardDeviation: 0,
+          },
+          heavyTailReturns: {
+            minimumExcessKurtosis: -2,
+            minimumReturnObservationCount: 1,
+          },
+          volatilityClustering: {
+            minimumLagOneAbsoluteReturnAutocorrelation: -1,
+            minimumReturnObservationCount: 1,
+          },
+          plannerAblation: {
+            minimumDefaultWinRate: 1,
+          },
+        },
+        reportGate: {
+          criteriaId: 'profile-validation-gate',
+          defaultAllowedStatuses: ['pass', 'watch'],
+        },
+      },
+    });
+
+    expect(summary).toMatchObject({
+      experimentValidationReports: [
+        {
+          simulationId: 'aivilization-smoke-25',
+          partitionKey: 'world-main',
+          runId: 'aivilization-smoke-25:profile-run:110:world-main:experiment-validation',
+          generatedAt: 170,
+          source: 'local-runtime-profile-validation',
+          gateStatus: 'pass',
+          gateFailureCount: 0,
+          metricStatusCounts: {
+            fail: 0,
+          },
+        },
+      ],
+    });
+    const validationSummary = summary.experimentValidationReports?.[0];
+    expect(validationSummary?.eventCount).toBeGreaterThan(0);
+    expect(validationSummary?.metricStatusCounts.pass).toBeGreaterThan(0);
+
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'aivilization-smoke-25',
+      partitionKey: 'world-main',
+    });
+    await expect(
+      storage.experimentValidationReportRepository.get(
+        'aivilization-smoke-25:profile-run:110:world-main:experiment-validation',
+      ),
+    ).resolves.toMatchObject({
+      run: {
+        runId: 'aivilization-smoke-25:profile-run:110:world-main:experiment-validation',
+        simulationId: 'aivilization-smoke-25',
+        generatedAt: 170,
+        source: 'local-runtime-profile-validation',
+      },
+    });
+  });
+
   test('uses a run id suffix for variant-safe profile run reports', async () => {
     const rootDir = createRootDir();
     const repository = new InMemoryRuntimeProfileRunReportRepository();
@@ -1214,6 +1329,26 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-profile-runner-'));
   tmpRoots.push(root);
   return root;
+}
+
+function createValidationPlannerRuns() {
+  return [
+    {
+      taskId: 'high-tech-production',
+      variant: 'default',
+      metrics: [{ metricId: 'net-worth', value: 110_098, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-branch',
+      metrics: [{ metricId: 'net-worth', value: 75_237, higherIsBetter: true }],
+    },
+    {
+      taskId: 'high-tech-production',
+      variant: 'without-objective-decomposition',
+      metrics: [{ metricId: 'net-worth', value: 95_279, higherIsBetter: true }],
+    },
+  ];
 }
 
 function createLlmStudyPlanResponses(count: number) {

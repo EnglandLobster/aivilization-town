@@ -214,6 +214,7 @@ describe('local runtime town profile runner CLI', () => {
           apiKey: 'secret-key',
         },
       });
+      expect(receivedInput?.preseedMarketPriceIndex).toBe(true);
     } finally {
       if (previousKey === undefined) {
         delete process.env.AIVILIZATION_TEST_LLM_KEY;
@@ -221,6 +222,46 @@ describe('local runtime town profile runner CLI', () => {
         process.env.AIVILIZATION_TEST_LLM_KEY = previousKey;
       }
     }
+  });
+
+  test('does not preseed market price index for deterministic runtime policy configs', async () => {
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const configRoot = createRootDir();
+    const configPath = join(configRoot, 'profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        replanningPolicy: {
+          consecutiveFailureThreshold: 2,
+        },
+      }),
+    );
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--runtime-config',
+        configPath,
+      ],
+      stdout: { write: () => undefined },
+      runProfile: (input) => {
+        receivedInput = input;
+        return Promise.resolve(createPassingCliSummary(input));
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(receivedInput?.replanningPolicy).toEqual({
+      consecutiveFailureThreshold: 2,
+    });
+    expect(receivedInput?.preseedMarketPriceIndex).toBeUndefined();
   });
 
   test('loads daily planning config files and passes resolved provider config to the runner', async () => {
@@ -1188,5 +1229,31 @@ function createCliAgentCycleDiagnostics(traceCount = 1) {
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
     simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,
+  };
+}
+
+function createPassingCliSummary(input: LocalRuntimeTownProfileRunnerInput) {
+  const isDefaultProfile = input.profileId === 'default-100';
+  const totalProjectionAgentCount = isDefaultProfile ? 100 : 25;
+  const manifestId = `aivilization-${input.profileId}`;
+  return {
+    profileId: input.profileId,
+    manifestId,
+    rootDir: input.rootDir,
+    requestedAt: input.requestedAt,
+    daemonHealth: 'healthy' as const,
+    partitionCount: 1,
+    totalProjectionAgentCount,
+    totalEventCount: 3,
+    totalAgentTraceCount: 1,
+    agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+    run: {
+      traceId: `${manifestId}:profile-run:${input.requestedAt}`,
+      outcome: 'succeeded',
+      requestedCycleCount: input.cycleCount,
+      completedCycleCount: input.cycleCount,
+      stopReason: 'cycle-count-completed',
+    },
+    partitions: [],
   };
 }

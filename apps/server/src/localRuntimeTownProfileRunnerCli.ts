@@ -139,6 +139,7 @@ async function createRunnerContext(
       cycleCount: config.cycleCount,
       requestedAt: config.requestedAt,
       ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
+      ...(hasRuntimeConfigLlmStages(runtimeConfig) ? { preseedMarketPriceIndex: true } : {}),
       ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
       ...(config.experimentValidation !== true || profileRunReportRepository === undefined
         ? {}
@@ -193,6 +194,24 @@ async function createRunnerContext(
     },
     ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
   };
+}
+
+function hasRuntimeConfigLlmStages(
+  runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined,
+): boolean {
+  return (
+    runtimeConfig?.strategicPlanning !== undefined ||
+    runtimeConfig?.dailyPlanning !== undefined ||
+    runtimeConfig?.reactionPlanning !== undefined ||
+    runtimeConfig?.subtaskPrioritization !== undefined ||
+    runtimeConfig?.actionSequenceGeneration !== undefined ||
+    runtimeConfig?.socialDialogue !== undefined ||
+    runtimeConfig?.globalSynthesis !== undefined ||
+    runtimeConfig?.reactiveCorrection !== undefined ||
+    runtimeConfig?.replanningDecision !== undefined ||
+    runtimeConfig?.reflectionSynthesis !== undefined ||
+    runtimeConfig?.socialModelSynthesis !== undefined
+  );
 }
 
 function readRuntimeConfigPath(args: ReadonlyMap<string, string>): string | undefined {

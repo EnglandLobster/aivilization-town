@@ -774,20 +774,20 @@ describe('local runtime town profile gate suite', () => {
     expect(result.status).toBe('pass');
     expect(result.bundleManifest?.paperAlignment).toEqual({
       schemaVersion: 1,
-      capabilityCount: 12,
+      capabilityCount: 14,
       configuredCapabilityCount: 12,
       passedConfiguredCapabilityCount: 12,
       failedConfiguredCapabilityCount: 0,
-      unconfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 2,
     });
     const profileCoverage = result.bundleManifest?.profiles[0]?.paperAlignment;
     expect(profileCoverage).toMatchObject({
       schemaVersion: 1,
-      stageCount: 12,
+      stageCount: 14,
       configuredStageCount: 12,
       passedConfiguredStageCount: 12,
       failedConfiguredStageCount: 0,
-      unconfiguredStageCount: 0,
+      unconfiguredStageCount: 2,
     });
     expect(profileCoverage?.stages.map((stage) => stage.paperCapabilityId).sort()).toEqual([
       'action-sequence-generation',
@@ -798,10 +798,12 @@ describe('local runtime town profile gate suite', () => {
       'memory-guided-replanning',
       'reaction-evaluation',
       'reactive-correction',
+      'reactive-steering',
       'reflection-synthesis',
       'social-dialogue-generation',
       'social-model-synthesis',
       'strategic-branch-planning',
+      'strategic-steering',
     ]);
     expect(profileCoverage?.stages).toEqual(
       expect.arrayContaining([
@@ -893,8 +895,37 @@ describe('local runtime town profile gate suite', () => {
             localRepairAcceptedCount: 0,
           },
         }),
+        expect.objectContaining({
+          paperCapabilityId: 'strategic-steering',
+          paperSection: '2.3 Human-in-the-Loop Steering',
+          stageFamily: 'human-steering',
+          stageName: 'strategicSteering',
+          runtimeConfigured: false,
+          gateStatus: 'not-configured',
+          requirements: {
+            acceptedTrace: false,
+            evidenceBackedTrace: false,
+            noFallback: false,
+            noDeterministic: false,
+            observedState: false,
+            worldDecisionContext: false,
+            economicContext: false,
+            rulesContext: false,
+            shortTermMemoryContext: false,
+            longTermProfileContext: false,
+            outputArtifactCount: 0,
+            localRepairAcceptedCount: 0,
+          },
+        }),
       ]),
     );
+    const strategicSteeringStage = profileCoverage?.stages.find(
+      (stage) => stage.paperCapabilityId === 'strategic-steering',
+    );
+    expect(strategicSteeringStage?.steeringRequirements).toMatchObject({
+      memoryPropagationMetric: false,
+      metricStatus: 'missing',
+    });
     expect(
       JSON.parse(
         readFileSync(join(reportRootDir, 'profile-gate-suite-100-bundle-manifest.json'), 'utf8'),
@@ -904,7 +935,131 @@ describe('local runtime town profile gate suite', () => {
     });
   });
 
-  test('passes paper-alignment coverage from the full scripted LLM runtime config through real suite execution', async () => {
+  test('marks human steering paper capabilities as passed from steering memory propagation evidence', async () => {
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      reportRootDir,
+      requestedAt: 410,
+      reportGeneratedAt: 510,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      experimentValidation: true,
+      runProfile: (input) =>
+        Promise.resolve(
+          createPassingSummary(input, {
+            experimentValidationReports: [
+              createSteeringMemoryPropagationReport({
+                input,
+                status: 'pass',
+                humanTraceCount: 2,
+                longHorizonTraceCount: 1,
+                reactiveTraceCount: 1,
+                planBackedLongHorizonTraceCount: 1,
+                memoryBackedReactiveTraceCount: 1,
+                commandDraftBackedReactiveTraceCount: 1,
+              }),
+            ],
+          }),
+        ),
+    });
+
+    expect(result.bundleManifest?.paperAlignment).toMatchObject({
+      schemaVersion: 1,
+      capabilityCount: 14,
+      configuredCapabilityCount: 2,
+      passedConfiguredCapabilityCount: 2,
+      failedConfiguredCapabilityCount: 0,
+    });
+    const stages = result.bundleManifest?.profiles[0]?.paperAlignment.stages ?? [];
+    expect(stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          paperCapabilityId: 'strategic-steering',
+          paperSection: '2.3 Human-in-the-Loop Steering',
+          stageFamily: 'human-steering',
+          stageName: 'strategicSteering',
+          runtimeConfigured: true,
+          gateStatus: 'pass',
+        }),
+        expect.objectContaining({
+          paperCapabilityId: 'reactive-steering',
+          paperSection: '2.3 Human-in-the-Loop Steering',
+          stageFamily: 'human-steering',
+          stageName: 'reactiveSteering',
+          runtimeConfigured: true,
+          gateStatus: 'pass',
+        }),
+      ]),
+    );
+    const strategicSteeringStage = stages.find(
+      (stage) => stage.paperCapabilityId === 'strategic-steering',
+    );
+    expect(strategicSteeringStage?.steeringRequirements).toMatchObject({
+      memoryPropagationMetric: true,
+      metricStatus: 'pass',
+      humanTraceCount: 2,
+      longHorizonTraceCount: 1,
+      planBackedLongHorizonTraceCount: 1,
+    });
+    const reactiveSteeringStage = stages.find(
+      (stage) => stage.paperCapabilityId === 'reactive-steering',
+    );
+    expect(reactiveSteeringStage?.steeringRequirements).toMatchObject({
+      memoryPropagationMetric: true,
+      metricStatus: 'pass',
+      humanTraceCount: 2,
+      reactiveTraceCount: 1,
+      memoryBackedReactiveTraceCount: 1,
+      commandDraftBackedReactiveTraceCount: 1,
+    });
+  });
+
+  test('fails configured steering paper capabilities when propagation evidence is watch', async () => {
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      reportRootDir,
+      requestedAt: 411,
+      reportGeneratedAt: 511,
+      cycleCount: 1,
+      profileIds: ['smoke-25'],
+      experimentValidation: true,
+      runProfile: (input) =>
+        Promise.resolve(
+          createPassingSummary(input, {
+            experimentValidationReports: [
+              createSteeringMemoryPropagationReport({
+                input,
+                status: 'watch',
+                humanTraceCount: 2,
+                longHorizonTraceCount: 1,
+                reactiveTraceCount: 1,
+                planBackedLongHorizonTraceCount: 1,
+                memoryBackedReactiveTraceCount: 0,
+                commandDraftBackedReactiveTraceCount: 1,
+              }),
+            ],
+          }),
+        ),
+    });
+
+    const stages = result.bundleManifest?.profiles[0]?.paperAlignment.stages ?? [];
+    expect(stages.find((stage) => stage.paperCapabilityId === 'strategic-steering')).toMatchObject({
+      runtimeConfigured: true,
+      gateStatus: 'fail',
+    });
+    expect(stages.find((stage) => stage.paperCapabilityId === 'reactive-steering')).toMatchObject({
+      runtimeConfigured: true,
+      gateStatus: 'fail',
+    });
+  });
+
+  test('passes configured LLM paper-alignment coverage from the full scripted runtime config through real suite execution', async () => {
     const rootDir = createRootDir();
     const reportRootDir = createRootDir();
     const configPath = fileURLToPath(
@@ -925,18 +1080,18 @@ describe('local runtime town profile gate suite', () => {
     expect(result.status).toBe('pass');
     expect(result.bundleManifest?.paperAlignment).toMatchObject({
       schemaVersion: 1,
-      capabilityCount: 12,
+      capabilityCount: 14,
       configuredCapabilityCount: 12,
       passedConfiguredCapabilityCount: 12,
       failedConfiguredCapabilityCount: 0,
-      unconfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 2,
     });
     expect(
       result.profiles[0]?.summary.agentCycleDiagnostics.localRepairAcceptedCount,
     ).toBeGreaterThan(0);
   });
 
-  test('passes all paper-alignment capabilities from the full scripted LLM runtime config through real suite execution', async () => {
+  test('passes configured LLM paper-alignment capabilities from the full scripted runtime config through real suite execution', async () => {
     const rootDir = createRootDir();
     const reportRootDir = createRootDir();
     const configPath = fileURLToPath(
@@ -958,11 +1113,11 @@ describe('local runtime town profile gate suite', () => {
     expect(result.status).toBe('pass');
     expect(result.bundleManifest?.paperAlignment).toMatchObject({
       schemaVersion: 1,
-      capabilityCount: 12,
+      capabilityCount: 14,
       configuredCapabilityCount: 12,
       passedConfiguredCapabilityCount: 12,
       failedConfiguredCapabilityCount: 0,
-      unconfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 2,
     });
     expect(
       result.profiles[0]?.summary.agentCycleDiagnostics.localRepairAcceptedCount,
@@ -1245,6 +1400,7 @@ function createPassingSummary(
     readonly cognitionLlmStageDiagnostics?: ReturnType<
       typeof createAcceptedCognitionLlmStageDiagnostics
     >;
+    readonly experimentValidationReports?: LocalRuntimeTownProfileRunnerSummary['experimentValidationReports'];
   } = {},
 ): LocalRuntimeTownProfileRunnerSummary {
   const profile = createLocalRuntimeTownDaemonScenarioProfile(input.profileId);
@@ -1300,6 +1456,9 @@ function createPassingSummary(
     ...(options.cognitionLlmStageDiagnostics === undefined
       ? {}
       : { cognitionLlmStageDiagnostics: options.cognitionLlmStageDiagnostics }),
+    ...(options.experimentValidationReports === undefined
+      ? {}
+      : { experimentValidationReports: options.experimentValidationReports }),
     run: {
       traceId: `${profile.manifest.id}:profile-run:${input.requestedAt}`,
       outcome: 'succeeded',
@@ -1308,6 +1467,59 @@ function createPassingSummary(
       stopReason: 'cycle-count-completed',
     },
     partitions,
+  };
+}
+
+function createSteeringMemoryPropagationReport(input: {
+  readonly input: LocalRuntimeTownProfileRunnerInput;
+  readonly status: 'pass' | 'watch' | 'fail';
+  readonly humanTraceCount: number;
+  readonly longHorizonTraceCount: number;
+  readonly reactiveTraceCount: number;
+  readonly planBackedLongHorizonTraceCount: number;
+  readonly memoryBackedReactiveTraceCount: number;
+  readonly commandDraftBackedReactiveTraceCount: number;
+}): NonNullable<LocalRuntimeTownProfileRunnerSummary['experimentValidationReports']>[number] {
+  return {
+    simulationId: `aivilization-${input.input.profileId}`,
+    partitionKey: 'world-main',
+    runId: `aivilization-${input.input.profileId}:steering-validation:${input.input.requestedAt}`,
+    generatedAt: input.input.reportGeneratedAt ?? input.input.requestedAt,
+    source: 'local-runtime-profile-validation',
+    gateStatus: input.status === 'pass' ? 'pass' : 'fail',
+    gateFailureCount: input.status === 'pass' ? 0 : 1,
+    metricStatusCounts: {
+      pass: input.status === 'pass' ? 1 : 0,
+      watch: input.status === 'watch' ? 1 : 0,
+      fail: input.status === 'fail' ? 1 : 0,
+    },
+    metrics: [
+      {
+        id: 'steering-memory-propagation',
+        label: 'Steering memory propagation',
+        status: input.status,
+        value: 1,
+        unit: 'covered expected-agent ratio',
+        evidence: {
+          traceCount: input.humanTraceCount,
+          humanTraceCount: input.humanTraceCount,
+          expectedAgentCount: 1,
+          coveredAgentCount: 1,
+          agentCoverageRatio: 1,
+          longHorizonTraceCount: input.longHorizonTraceCount,
+          reactiveTraceCount: input.reactiveTraceCount,
+          planBackedLongHorizonTraceCount: input.planBackedLongHorizonTraceCount,
+          memoryBackedReactiveTraceCount: input.memoryBackedReactiveTraceCount,
+          commandDraftBackedReactiveTraceCount: input.commandDraftBackedReactiveTraceCount,
+          latestIssuedAt: input.input.requestedAt,
+        },
+      },
+    ],
+    streamVersion: 3,
+    fromSequence: 0,
+    toSequence: 3,
+    eventCount: 3,
+    projectionSequence: 3,
   };
 }
 

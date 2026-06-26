@@ -18,6 +18,26 @@
   "paperAlignment": {
     "minimumLocalRepairAcceptedCount": 1
   },
+  "shortTermMemorySeeds": [
+    {
+      "id": "scripted-stm-social-retry",
+      "agentId": "smoke-25-world-main-agent-001",
+      "kind": "social-interaction",
+      "status": "failed",
+      "summary": "A previous neighbor town-plan check-in was too broad and needed a concise retry after simulator rejection.",
+      "occurredAt": 0,
+      "importanceScore": 0.35,
+      "replicateToProfileAgents": true,
+      "tags": ["social", "town-plans", "simulator-rejection", "reactive-correction"],
+      "consolidationHint": {
+        "kind": "social",
+        "targetAgentId": "smoke-25-world-main-agent-008",
+        "relationDelta": 0,
+        "attitudeDelta": 0,
+        "summary": "Keep town-plan check-ins concise when retrying after a rejection."
+      }
+    }
+  ],
   "memoryConsolidationSchedule": {
     "agentIds": ["smoke-25-world-main-agent-001"],
     "retrievalLimit": 10,
@@ -173,7 +193,7 @@
         {
           "providerId": "aivilization-scripted-reactive",
           "model": "aivilization-scripted-planner",
-          "contentTemplate": "{\"decision\":{\"kind\":\"propose-action\",\"rationale\":\"The first scripted social action was rejected by the fixture simulator, so retry with a conservative one-step conversation.\",\"action\":{\"id\":\"{{user.rejectedAction.id}}:repaired\",\"description\":\"Retry the scripted neighbor check-in after simulator rejection.\",\"commandType\":\"{{user.rejectedAction.commandType}}\",\"payload\":{\"targetAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"topic\":\"town plans retry\",\"relationDelta\":1,\"attitudeDelta\":1,\"turns\":[{\"speakerAgentId\":\"{{user.agentId}}\",\"utterance\":\"Let me retry the town planning check-in more simply.\",\"intent\":\"retry-social-plan\"},{\"speakerAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"utterance\":\"That works; we can keep it brief.\",\"intent\":\"accept-retry\"}]},\"priority\":25,\"resourceEstimate\":{\"actionSeconds\":45}}}}",
+          "contentTemplate": "{\"decision\":{\"kind\":\"propose-action\",\"rationale\":\"The first scripted social action was rejected by the fixture simulator, so retry with a conservative one-step conversation grounded in the latest short-term memory.\",\"evidenceRecordIds\":[\"{{user.shortTermMemoryContext.0.id}}\"],\"action\":{\"id\":\"{{user.rejectedAction.id}}:repaired\",\"description\":\"Retry the scripted neighbor check-in after simulator rejection.\",\"commandType\":\"{{user.rejectedAction.commandType}}\",\"payload\":{\"targetAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"topic\":\"town plans retry\",\"relationDelta\":1,\"attitudeDelta\":1,\"turns\":[{\"speakerAgentId\":\"{{user.agentId}}\",\"utterance\":\"Let me retry the town planning check-in more simply.\",\"intent\":\"retry-social-plan\"},{\"speakerAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"utterance\":\"That works; we can keep it brief.\",\"intent\":\"accept-retry\"}]},\"priority\":25,\"resourceEstimate\":{\"actionSeconds\":45}}}}",
           "finishReason": "stop",
           "repeat": 50
         }

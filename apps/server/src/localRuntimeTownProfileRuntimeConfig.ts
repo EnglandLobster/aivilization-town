@@ -12,7 +12,15 @@ import type {
   OpenAiCompatibleResponseFormatMode,
   ScriptedLlmProviderResponse,
 } from '@aivilization/llm';
-import { asAgentId, type CoreCommandType } from '@aivilization/sim-core';
+import { asAgentId, asCommandId, asEventId, type CoreCommandType } from '@aivilization/sim-core';
+import {
+  createShortTermMemoryRecord,
+  type MemoryConsolidationHint,
+  type MemorySource,
+  type ShortTermMemoryKind,
+  type ShortTermMemoryRecord,
+  type ShortTermMemoryStatus,
+} from '@aivilization/memory';
 import type {
   CanonicalDomainRuntimeConfig,
   LocalSimulationLifecycleMemoryConsolidationSchedule,
@@ -68,10 +76,16 @@ export type LocalRuntimeTownProfilePaperAlignmentConfig = {
   readonly minimumLocalRepairAcceptedCount?: number;
 };
 
+export type LocalRuntimeTownProfileShortTermMemorySeed = {
+  readonly record: ShortTermMemoryRecord;
+  readonly replicateToProfileAgents: boolean;
+};
+
 export type LocalRuntimeTownProfileRuntimeConfig = {
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
   readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly paperAlignment?: LocalRuntimeTownProfilePaperAlignmentConfig;
+  readonly shortTermMemorySeeds?: readonly LocalRuntimeTownProfileShortTermMemorySeed[];
   readonly strategicPlanning?: LocalRuntimeTownProfileLlmPlanningConfig;
   readonly dailyPlanning?: LocalRuntimeTownProfileDailyPlanningConfig;
   readonly reactionPlanning?: LocalRuntimeTownProfileReactionPlanningConfig;
@@ -106,6 +120,20 @@ const CORE_COMMAND_TYPES = [
   'IssueReactiveCommand',
   'AdvanceSimulationTime',
 ] as const satisfies readonly CoreCommandType[];
+
+const SHORT_TERM_MEMORY_KINDS = [
+  'action',
+  'observation',
+  'social-interaction',
+  'human-command',
+] as const satisfies readonly ShortTermMemoryKind[];
+
+const SHORT_TERM_MEMORY_STATUSES = [
+  'succeeded',
+  'failed',
+  'repaired',
+  'observed',
+] as const satisfies readonly ShortTermMemoryStatus[];
 
 export async function loadLocalRuntimeTownProfileLlmPlanningConfig(
   input: LocalRuntimeTownProfileLlmPlanningConfigLoadInput,
@@ -177,6 +205,13 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
       document,
       profileId: input.profileId,
       nodeName: 'paperAlignment',
+    }),
+  });
+  const shortTermMemorySeeds = parseShortTermMemorySeedsNode({
+    node: selectProfilePlanningNode({
+      document,
+      profileId: input.profileId,
+      nodeName: 'shortTermMemorySeeds',
     }),
   });
   const strategicPlanning = parseLlmPlanningNode({
@@ -304,6 +339,7 @@ export function parseLocalRuntimeTownProfileRuntimeConfigDocument(input: {
     ...(domainConfig === undefined ? {} : { domainConfig }),
     ...(actionSynthesis === undefined ? {} : { actionSynthesis }),
     ...(paperAlignment === undefined ? {} : { paperAlignment }),
+    ...(shortTermMemorySeeds === undefined ? {} : { shortTermMemorySeeds }),
     ...(strategicPlanning === undefined ? {} : { strategicPlanning }),
     ...(dailyPlanning === undefined ? {} : { dailyPlanning }),
     ...(reactionPlanning === undefined ? {} : { reactionPlanning }),
@@ -867,6 +903,93 @@ function parsePaperAlignmentNode(input: {
   };
 }
 
+function parseShortTermMemorySeedsNode(input: {
+  readonly node: unknown;
+}): readonly LocalRuntimeTownProfileShortTermMemorySeed[] | undefined {
+  if (input.node === undefined || input.node === null) {
+    return undefined;
+  }
+  if (!Array.isArray(input.node)) {
+    throw new Error('shortTermMemorySeeds must be an array');
+  }
+  return input.node.map((entry, index) =>
+    parseShortTermMemorySeed(entry, `shortTermMemorySeeds[${index}]`),
+  );
+}
+
+function parseShortTermMemorySeed(
+  value: unknown,
+  name: string,
+): LocalRuntimeTownProfileShortTermMemorySeed {
+  const record = requireRecord(value, name);
+  return {
+    record: createShortTermMemoryRecord({
+      id: readRequiredString(record.id, `${name}.id`),
+      agentId: asAgentId(readRequiredString(record.agentId, `${name}.agentId`)),
+      kind: readShortTermMemoryKind(record.kind, `${name}.kind`),
+      status: readShortTermMemoryStatus(record.status, `${name}.status`),
+      summary: readRequiredString(record.summary, `${name}.summary`),
+      occurredAt: readRequiredNonNegativeFinite(record.occurredAt, `${name}.occurredAt`),
+      importanceScore: readRequiredRatio(record.importanceScore, `${name}.importanceScore`),
+      source: parseShortTermMemorySource(record.source, `${name}.source`),
+      tags: readOptionalStringArray(record.tags, `${name}.tags`) ?? [],
+      ...(record.consolidationHint === undefined
+        ? {}
+        : {
+            consolidationHint: parseMemoryConsolidationHint(
+              record.consolidationHint,
+              `${name}.consolidationHint`,
+            ),
+          }),
+    }),
+    replicateToProfileAgents:
+      readOptionalBoolean(record.replicateToProfileAgents, `${name}.replicateToProfileAgents`) ??
+      false,
+  };
+}
+
+function parseShortTermMemorySource(value: unknown, name: string): MemorySource {
+  if (value === undefined || value === null) {
+    return { eventIds: [] };
+  }
+  const record = requireRecord(value, name);
+  const commandId = readOptionalString(record.commandId, `${name}.commandId`);
+  const eventIds = readOptionalStringArray(record.eventIds, `${name}.eventIds`) ?? [];
+  return {
+    ...(commandId === undefined ? {} : { commandId: asCommandId(commandId) }),
+    eventIds: eventIds.map(asEventId),
+  };
+}
+
+function parseMemoryConsolidationHint(value: unknown, name: string): MemoryConsolidationHint {
+  const record = requireRecord(value, name);
+  const kind = readRequiredString(record.kind, `${name}.kind`);
+  if (kind === 'habit') {
+    return {
+      kind,
+      patternKey: readRequiredString(record.patternKey, `${name}.patternKey`),
+      statement: readRequiredString(record.statement, `${name}.statement`),
+    };
+  }
+  if (kind === 'caution') {
+    return {
+      kind,
+      patternKey: readRequiredString(record.patternKey, `${name}.patternKey`),
+      statement: readRequiredString(record.statement, `${name}.statement`),
+    };
+  }
+  if (kind === 'social') {
+    return {
+      kind,
+      targetAgentId: asAgentId(readRequiredString(record.targetAgentId, `${name}.targetAgentId`)),
+      relationDelta: readRequiredFinite(record.relationDelta, `${name}.relationDelta`),
+      attitudeDelta: readRequiredFinite(record.attitudeDelta, `${name}.attitudeDelta`),
+      summary: readRequiredString(record.summary, `${name}.summary`),
+    };
+  }
+  throw new Error(`${name}.kind must be habit, caution, or social`);
+}
+
 function parseStudyDomainConfig(value: unknown): CanonicalDomainRuntimeConfig['study'] {
   const record = readOptionalNullableRecord(value, 'domainConfig.study');
   if (record === undefined) {
@@ -1120,6 +1243,7 @@ type LocalRuntimeTownProfileRuntimeConfigNodeName =
   | 'domainConfig'
   | 'actionSynthesis'
   | 'paperAlignment'
+  | 'shortTermMemorySeeds'
   | 'llmPlanning'
   | 'dailyPlanning'
   | 'reactionPlanning'
@@ -1465,6 +1589,16 @@ function readOptionalString(value: unknown, name: string): string | undefined {
   return readRequiredString(value, name);
 }
 
+function readOptionalBoolean(value: unknown, name: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'boolean') {
+    throw new Error(`${name} must be a boolean`);
+  }
+  return value;
+}
+
 function readOptionalPositiveInteger(value: unknown, name: string): number | undefined {
   if (value === undefined) {
     return undefined;
@@ -1495,6 +1629,20 @@ function readRequiredPositiveInteger(value: unknown, name: string): number {
 function readRequiredNonNegativeFinite(value: unknown, name: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
+  }
+  return value;
+}
+
+function readRequiredFinite(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number`);
+  }
+  return value;
+}
+
+function readRequiredRatio(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${name} must be a finite number within [0, 1]`);
   }
   return value;
 }
@@ -1582,6 +1730,22 @@ function readOptionalCoreCommandType(value: unknown, name: string): CoreCommandT
     return commandType as CoreCommandType;
   }
   throw new Error(`${name} must be a known core command type`);
+}
+
+function readShortTermMemoryKind(value: unknown, name: string): ShortTermMemoryKind {
+  const kind = readRequiredString(value, name);
+  if ((SHORT_TERM_MEMORY_KINDS as readonly string[]).includes(kind)) {
+    return kind as ShortTermMemoryKind;
+  }
+  throw new Error(`${name} must be a known short-term memory kind`);
+}
+
+function readShortTermMemoryStatus(value: unknown, name: string): ShortTermMemoryStatus {
+  const status = readRequiredString(value, name);
+  if ((SHORT_TERM_MEMORY_STATUSES as readonly string[]).includes(status)) {
+    return status as ShortTermMemoryStatus;
+  }
+  throw new Error(`${name} must be a known short-term memory status`);
 }
 
 function parseOptionalMajorContextShift(

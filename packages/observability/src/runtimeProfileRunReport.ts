@@ -57,6 +57,7 @@ export type RuntimeProfileAgentCycleLlmStageDiagnostics = {
   readonly deterministicFallbackCount: number;
   readonly deterministicCount: number;
   readonly missingCycleCount: number;
+  readonly evidenceBackedAcceptedCount?: number;
   readonly shortTermMemoryContextCount: number;
   readonly longTermProfileContextCount: number;
   readonly observedStateSummaryCount?: number;
@@ -568,6 +569,7 @@ function cloneAgentCycleDiagnostics(
       : {
           llmStageDiagnostics: diagnostics.llmStageDiagnostics.map((stage) => ({
             ...stage,
+            evidenceBackedAcceptedCount: stage.evidenceBackedAcceptedCount ?? 0,
             shortTermMemoryContextCount: stage.shortTermMemoryContextCount ?? 0,
             longTermProfileContextCount: stage.longTermProfileContextCount ?? 0,
             observedStateSummaryCount: stage.observedStateSummaryCount ?? 0,
@@ -677,6 +679,7 @@ type AgentCycleLlmStageTrace = {
   readonly longTermProfileContext?: unknown;
   readonly observedStateSummary?: string;
   readonly worldDecisionContext?: unknown;
+  readonly decision?: unknown;
 };
 
 type CognitionLlmStageTrace = RuntimeProfileCognitionProviderTrace;
@@ -697,6 +700,7 @@ type MutableLlmStageDiagnostics = {
   completeEconomicContextCount: number;
   rulesContextCount: number;
   completeRulesContextCount: number;
+  evidenceBackedAcceptedCount: number;
 };
 
 type MutableCognitionLlmStageDiagnostics = {
@@ -767,6 +771,7 @@ function createLlmStageDiagnostics(
         completeEconomicContextCount: 0,
         rulesContextCount: 0,
         completeRulesContextCount: 0,
+        evidenceBackedAcceptedCount: 0,
       },
     ]),
   );
@@ -837,6 +842,9 @@ function recordStageTrace(input: {
     diagnostics.traceCount += 1;
     if (trace.source === 'llm' && trace.status === 'accepted') {
       diagnostics.llmAcceptedCount += 1;
+      if (hasEvidenceRecordIds(trace)) {
+        diagnostics.evidenceBackedAcceptedCount += 1;
+      }
     }
     if (trace.source === 'deterministic-fallback') {
       diagnostics.deterministicFallbackCount += 1;
@@ -965,6 +973,19 @@ function hasObservedStateSummary(value: string | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function hasEvidenceRecordIds(trace: AgentCycleLlmStageTrace): boolean {
+  if (trace.decision === null || typeof trace.decision !== 'object') {
+    return false;
+  }
+  const decision = trace.decision as { readonly evidenceRecordIds?: unknown };
+  if (!Array.isArray(decision.evidenceRecordIds)) {
+    return false;
+  }
+  return decision.evidenceRecordIds.some(
+    (recordId) => typeof recordId === 'string' && recordId.trim().length > 0,
+  );
+}
+
 function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagnostics): void {
   if (diagnostics.llmStageDiagnostics === undefined) {
     return;
@@ -1013,6 +1034,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     assertNonNegativeInteger(
       observedStateSummaryCount,
       `agentCycleDiagnostics ${stage.stageName} observedStateSummaryCount`,
+    );
+    const evidenceBackedAcceptedCount = stage.evidenceBackedAcceptedCount ?? 0;
+    assertNonNegativeInteger(
+      evidenceBackedAcceptedCount,
+      `agentCycleDiagnostics ${stage.stageName} evidenceBackedAcceptedCount`,
     );
     assertNonNegativeInteger(
       stage.worldDecisionContextCount,
@@ -1066,6 +1092,11 @@ function validateLlmStageDiagnostics(diagnostics: RuntimeProfileAgentCycleDiagno
     if (observedStateSummaryCount > stage.traceCount) {
       throw new Error(
         `agentCycleDiagnostics ${stage.stageName} observedStateSummaryCount must not exceed traceCount`,
+      );
+    }
+    if (evidenceBackedAcceptedCount > stage.llmAcceptedCount) {
+      throw new Error(
+        `agentCycleDiagnostics ${stage.stageName} evidenceBackedAcceptedCount must not exceed llmAcceptedCount`,
       );
     }
     if (completeWorldDecisionContextCount > stage.worldDecisionContextCount) {

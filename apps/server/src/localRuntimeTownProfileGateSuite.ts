@@ -307,6 +307,9 @@ function createProfileRunnerInput(input: {
     ...(input.runtimeConfig?.actionSynthesis === undefined
       ? {}
       : { actionSynthesis: input.runtimeConfig.actionSynthesis }),
+    ...(input.runtimeConfig?.shortTermMemorySeeds === undefined
+      ? {}
+      : { preseedShortTermMemorySeeds: input.runtimeConfig.shortTermMemorySeeds }),
     ...(input.runtimeConfig?.memoryConsolidationSchedule === undefined
       ? {}
       : { memoryConsolidationSchedule: input.runtimeConfig.memoryConsolidationSchedule }),

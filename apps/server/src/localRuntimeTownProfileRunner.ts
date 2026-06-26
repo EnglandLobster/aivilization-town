@@ -11,7 +11,12 @@ import type {
   StrategicPlanCompiler,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
-import type { ReflectiveInsightSynthesizer, SocialModelSynthesizer } from '@aivilization/memory';
+import {
+  createShortTermMemoryRecord,
+  type ReflectiveInsightSynthesizer,
+  type ShortTermMemoryRecord,
+  type SocialModelSynthesizer,
+} from '@aivilization/memory';
 import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileCognitionLlmStageDiagnostics,
@@ -25,7 +30,7 @@ import {
   type RuntimeProfilePlannerExperiment,
   type RuntimeProfileRunReportRepository,
 } from '@aivilization/observability';
-import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
+import { asAgentId, type PartitionKey, type SimulationTimestamp } from '@aivilization/sim-core';
 import {
   buildWorkerTickAgentsFromActivePlans,
   completeFinishedActiveObjectives,
@@ -70,6 +75,7 @@ import {
   type LocalRuntimeTownProfileSocialModelSynthesizerConfig,
   type LocalRuntimeTownProfileSubtaskPrioritizerConfig,
 } from './localRuntimeTownProfileLlmPlanning';
+import type { LocalRuntimeTownProfileShortTermMemorySeed } from './localRuntimeTownProfileRuntimeConfig';
 import { createLocalRuntimeTownProfileDefaults } from './localRuntimeTownProfileDefaults';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownDaemonScenarioProfileId } from './localRuntimeTownScenarioProfile';
@@ -120,6 +126,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly agentMemoryRetrievalLimit?: number;
   readonly agentMemoryRetrievalCandidateLimit?: number;
   readonly preseedMarketPriceIndex?: boolean;
+  readonly preseedShortTermMemorySeeds?: readonly LocalRuntimeTownProfileShortTermMemorySeed[];
 };
 
 export type LocalRuntimeTownProfileExperimentValidationSchedule = Omit<
@@ -307,6 +314,12 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
       appendIdempotencyKeyPrefix: profileRunOperationId,
     });
   }
+  if (input.preseedShortTermMemorySeeds !== undefined) {
+    await preseedRuntimeShortTermMemoryRecords({
+      runtime,
+      seeds: input.preseedShortTermMemorySeeds,
+    });
+  }
   const run = await runtime.supervisor.runCycles({
     operationId: profileRunOperationId,
     requestedAt: input.requestedAt,
@@ -481,6 +494,54 @@ function preseedRuntimeMarketPriceIndices(input: {
       appendIdempotencyKey: `${input.appendIdempotencyKeyPrefix}:${partition.partitionKey}:preseed-market-price-index`,
     });
   }
+}
+
+async function preseedRuntimeShortTermMemoryRecords(input: {
+  readonly runtime: Awaited<ReturnType<typeof createLocalRuntimeTownApi>>;
+  readonly seeds: readonly LocalRuntimeTownProfileShortTermMemorySeed[];
+}): Promise<void> {
+  if (input.seeds.length === 0) {
+    return;
+  }
+  await Promise.all(
+    input.runtime.host.partitions.map(async (partition) => {
+      const backend = input.runtime.host.registry.getBackend({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+      });
+      const records = expandShortTermMemorySeeds({
+        seeds: input.seeds,
+        agentIds: Object.keys(partition.bootstrap.initialProjection.agents),
+      });
+      await backend.storage.shortTermMemoryRepository.appendMany(records);
+    }),
+  );
+}
+
+function expandShortTermMemorySeeds(input: {
+  readonly seeds: readonly LocalRuntimeTownProfileShortTermMemorySeed[];
+  readonly agentIds: readonly string[];
+}): readonly ShortTermMemoryRecord[] {
+  return input.seeds.flatMap((seed) =>
+    seed.replicateToProfileAgents
+      ? input.agentIds.map((agentId) =>
+          createShortTermMemoryRecord({
+            id: `${seed.record.id}:${agentId}`,
+            agentId: asAgentId(agentId),
+            kind: seed.record.kind,
+            status: seed.record.status,
+            summary: seed.record.summary,
+            occurredAt: seed.record.occurredAt,
+            importanceScore: seed.record.importanceScore,
+            source: seed.record.source,
+            tags: seed.record.tags,
+            ...(seed.record.consolidationHint === undefined
+              ? {}
+              : { consolidationHint: seed.record.consolidationHint }),
+          }),
+        )
+      : [seed.record],
+  );
 }
 
 async function runProfileExperimentValidationSchedule(input: {

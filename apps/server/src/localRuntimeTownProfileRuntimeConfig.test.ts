@@ -75,6 +75,7 @@ describe('local runtime town profile runtime config', () => {
     expect(criteria.requiredAgentCycleLlmObservedStateStages).toEqual(
       criteria.requiredAgentCycleLlmAcceptedStages,
     );
+    expect(criteria.requiredAgentCycleLlmEvidenceBackedStages).toEqual(['reactiveCorrection']);
     expect(criteria.requiredCognitionLlmAcceptedStages).toEqual([
       'strategicPlanning',
       'dailyPlanning',
@@ -929,6 +930,26 @@ describe('local runtime town profile runtime config', () => {
             paperAlignment: {
               minimumLocalRepairAcceptedCount: 2,
             },
+            shortTermMemorySeeds: [
+              {
+                id: 'scripted-stm-social-retry',
+                agentId: 'smoke-25-world-main-agent-001',
+                kind: 'social-interaction',
+                status: 'failed',
+                summary: 'Prior social retry needed a concise follow-up.',
+                occurredAt: 0,
+                importanceScore: 0.35,
+                replicateToProfileAgents: true,
+                tags: ['social', 'reactive-correction'],
+                consolidationHint: {
+                  kind: 'social',
+                  targetAgentId: 'smoke-25-world-main-agent-008',
+                  relationDelta: 0,
+                  attitudeDelta: 0,
+                  summary: 'Keep retry concise.',
+                },
+              },
+            ],
             steeringSimulator: {
               kind: 'reject-action-id-prefix-until-suffix',
               commandType: 'AgentStartConversation',
@@ -972,6 +993,31 @@ describe('local runtime town profile runtime config', () => {
     expect(config.paperAlignment).toEqual({
       minimumLocalRepairAcceptedCount: 2,
     });
+    expect(config.shortTermMemorySeeds).toMatchObject([
+      {
+        replicateToProfileAgents: true,
+        record: {
+          id: 'scripted-stm-social-retry',
+          agentId: asAgentId('smoke-25-world-main-agent-001'),
+          kind: 'social-interaction',
+          status: 'failed',
+          summary: 'Prior social retry needed a concise follow-up.',
+          occurredAt: 0,
+          importanceScore: 0.35,
+          source: {
+            eventIds: [],
+          },
+          tags: ['social', 'reactive-correction'],
+          consolidationHint: {
+            kind: 'social',
+            targetAgentId: asAgentId('smoke-25-world-main-agent-008'),
+            relationDelta: 0,
+            attitudeDelta: 0,
+            summary: 'Keep retry concise.',
+          },
+        },
+      },
+    ]);
 
     if (config.steeringSimulator === undefined) {
       throw new Error('missing parsed steering simulator');

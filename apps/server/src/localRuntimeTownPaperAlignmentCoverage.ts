@@ -11,6 +11,7 @@ export type LocalRuntimeTownPaperAlignmentGateStatus = 'pass' | 'fail' | 'not-co
 
 export type LocalRuntimeTownPaperAlignmentRequirements = {
   readonly acceptedTrace: boolean;
+  readonly evidenceBackedTrace: boolean;
   readonly noFallback: boolean;
   readonly noDeterministic: boolean;
   readonly observedState: boolean;
@@ -238,6 +239,10 @@ function createAgentCycleRequirements(
 ): LocalRuntimeTownPaperAlignmentRequirements {
   return {
     acceptedTrace: includesStage(criteria.requiredAgentCycleLlmAcceptedStages, stageName),
+    evidenceBackedTrace: includesStage(
+      criteria.requiredAgentCycleLlmEvidenceBackedStages,
+      stageName,
+    ),
     noFallback: includesStage(criteria.requiredAgentCycleLlmNoFallbackStages, stageName),
     noDeterministic: includesStage(criteria.requiredAgentCycleLlmNoDeterministicStages, stageName),
     observedState: includesStage(criteria.requiredAgentCycleLlmObservedStateStages, stageName),
@@ -266,6 +271,7 @@ function createCognitionRequirements(
 ): LocalRuntimeTownPaperAlignmentRequirements {
   return {
     acceptedTrace: includesStage(criteria.requiredCognitionLlmAcceptedStages, stageName),
+    evidenceBackedTrace: false,
     noFallback: includesStage(criteria.requiredCognitionLlmNoFallbackStages, stageName),
     noDeterministic: includesStage(criteria.requiredCognitionLlmNoDeterministicStages, stageName),
     observedState: includesStage(criteria.requiredCognitionLlmObservedStateStages, stageName),
@@ -290,6 +296,7 @@ function createLocalRepairRequirements(
 ): LocalRuntimeTownPaperAlignmentRequirements {
   return {
     acceptedTrace: false,
+    evidenceBackedTrace: false,
     noFallback: false,
     noDeterministic: false,
     observedState: false,

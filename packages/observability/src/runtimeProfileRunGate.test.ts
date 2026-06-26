@@ -112,6 +112,25 @@ describe('runtime profile run gate', () => {
     });
   });
 
+  test('fails when accepted local repair count is below the configured minimum', () => {
+    const result = evaluateRuntimeProfileRunReport(createReport(), {
+      ...createCriteria(),
+      minimumLocalRepairAcceptedCount: 1,
+    });
+
+    expect(result.failures).toContainEqual({
+      code: 'local-repair-accepted-count-too-low',
+      message: 'localRepairAcceptedCount must be at least 1',
+      evidence: {
+        actual: 0,
+        minimum: 1,
+        localRepairAttemptCount: 0,
+        localRepairRejectedCount: 0,
+        localRepairSkippedCount: 0,
+      },
+    });
+  });
+
   test('requires accepted LLM traces for configured agent-cycle stages', () => {
     const result = evaluateRuntimeProfileRunReport(
       createRuntimeProfileRunReport({
@@ -1559,6 +1578,10 @@ function createAgentCycleDiagnostics(traceCount: number) {
     acceptedSimulatorCount: traceCount,
     repairedSimulatorCount: 0,
     rejectedSimulatorCount: 0,
+    localRepairAttemptCount: 0,
+    localRepairAcceptedCount: 0,
+    localRepairRejectedCount: 0,
+    localRepairSkippedCount: 0,
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
@@ -1568,6 +1591,7 @@ function createAgentCycleDiagnostics(traceCount: number) {
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
     fullReplanMaterializationRatio: 0,
     repairedSimulatorRatio: 0,
+    localRepairAcceptedRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
     simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,

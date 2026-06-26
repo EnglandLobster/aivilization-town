@@ -566,21 +566,21 @@ function createSuitePlanRecord(variant: string): BranchPlanRecord {
                 ],
               },
             ]
-        : [
-            {
-              id: 'research',
-              objective: 'Research alternatives.',
-              subtasks: [{ id: 'study', description: 'Study.', basePriority: 1 }],
-            },
-            {
-              id: 'production',
-              objective: 'Produce resources.',
-              subtasks: [
-                { id: 'source-inputs', description: 'Source inputs.', basePriority: 1 },
-                { id: 'produce-output', description: 'Produce output.', basePriority: 1 },
-              ],
-            },
-          ],
+          : [
+              {
+                id: 'research',
+                objective: 'Research alternatives.',
+                subtasks: [{ id: 'study', description: 'Study.', basePriority: 1 }],
+              },
+              {
+                id: 'production',
+                objective: 'Produce resources.',
+                subtasks: [
+                  { id: 'source-inputs', description: 'Source inputs.', basePriority: 1 },
+                  { id: 'produce-output', description: 'Produce output.', basePriority: 1 },
+                ],
+              },
+            ],
     }),
     planningTrace: {
       status: isWithoutBranch ? 'deterministic' : 'accepted',
@@ -641,7 +641,8 @@ function chooseProbeSubtaskId(input: SubtaskPrioritizerInput): string {
       : 'buy-food';
   }
   if (subtaskIds.has('apply-occupation')) {
-    return worldDecisionContext.rules?.occupations.some((occupation) => occupation.eligible) === true
+    return worldDecisionContext.rules?.occupations.some((occupation) => occupation.eligible) ===
+      true
       ? 'apply-occupation'
       : 'study';
   }
@@ -931,6 +932,10 @@ function createAgentCycleDiagnostics(traceCount: number) {
     acceptedSimulatorCount: traceCount,
     repairedSimulatorCount: 0,
     rejectedSimulatorCount: 0,
+    localRepairAttemptCount: 0,
+    localRepairAcceptedCount: 0,
+    localRepairRejectedCount: 0,
+    localRepairSkippedCount: 0,
     replanningDecisionCount: 0,
     simulatorEventTraceCount: traceCount,
     simulatorEventCount: traceCount,
@@ -940,6 +945,7 @@ function createAgentCycleDiagnostics(traceCount: number) {
     commandEmittingCycleRatio: traceCount === 0 ? 0 : 1,
     fullReplanMaterializationRatio: 0,
     repairedSimulatorRatio: 0,
+    localRepairAcceptedRatio: 0,
     rejectedSimulatorRatio: 0,
     replanningDecisionRatio: 0,
     simulatorRolloutCoverageRatio: traceCount === 0 ? 0 : 1,

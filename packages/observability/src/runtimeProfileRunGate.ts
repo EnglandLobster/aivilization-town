@@ -24,6 +24,7 @@ export type RuntimeProfileRunGateCriteria = {
   readonly requireStreamVersionMatchesEventCount: boolean;
   readonly expectedProjectionAgentCountByPartition: Readonly<Record<string, number>>;
   readonly minimumSimulatorRolloutCoverageRatio?: number;
+  readonly minimumLocalRepairAcceptedCount?: number;
   readonly requiredAgentCycleLlmAcceptedStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoFallbackStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
   readonly requiredAgentCycleLlmNoDeterministicStages?: readonly RuntimeProfileAgentCycleLlmStageName[];
@@ -135,6 +136,7 @@ export function evaluateRuntimeProfileRunReport(
     minimum: criteria.minimumFullReplanMaterializationCount,
   });
   addSimulatorRolloutCoverageFailure(failures, report, criteria);
+  addMinimumLocalRepairAcceptedCountFailure(failures, report, criteria);
   addRequiredAgentCycleLlmStageFailures(
     failures,
     report,
@@ -332,6 +334,33 @@ function addSimulatorRolloutCoverageFailure(
       minimum: criteria.minimumSimulatorRolloutCoverageRatio,
       simulatorRolloutEventCount: report.agentCycleDiagnostics.simulatorRolloutEventCount,
       simulatorEventCount: report.agentCycleDiagnostics.simulatorEventCount,
+    },
+  });
+}
+
+function addMinimumLocalRepairAcceptedCountFailure(
+  failures: RuntimeProfileRunGateFailure[],
+  report: RuntimeProfileRunReport,
+  criteria: RuntimeProfileRunGateCriteria,
+): void {
+  if (criteria.minimumLocalRepairAcceptedCount === undefined) {
+    return;
+  }
+
+  const actual = report.agentCycleDiagnostics.localRepairAcceptedCount ?? 0;
+  if (actual >= criteria.minimumLocalRepairAcceptedCount) {
+    return;
+  }
+
+  failures.push({
+    code: 'local-repair-accepted-count-too-low',
+    message: `localRepairAcceptedCount must be at least ${criteria.minimumLocalRepairAcceptedCount}`,
+    evidence: {
+      actual,
+      minimum: criteria.minimumLocalRepairAcceptedCount,
+      localRepairAttemptCount: report.agentCycleDiagnostics.localRepairAttemptCount ?? 0,
+      localRepairRejectedCount: report.agentCycleDiagnostics.localRepairRejectedCount ?? 0,
+      localRepairSkippedCount: report.agentCycleDiagnostics.localRepairSkippedCount ?? 0,
     },
   });
 }

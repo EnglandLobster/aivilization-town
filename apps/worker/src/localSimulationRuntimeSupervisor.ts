@@ -1,3 +1,4 @@
+import type { ExperimentValidationMetric } from '@aivilization/observability';
 import type { PartitionKey, SimulationTimestamp } from '@aivilization/sim-core';
 import { join } from 'node:path';
 import type {
@@ -639,12 +640,34 @@ function createOperationValidationReportTrace(
     ...(validationReport.report.run.source === undefined
       ? {}
       : { source: validationReport.report.run.source }),
+    ...(validationReport.reportGate === undefined
+      ? {}
+      : {
+          gateStatus: validationReport.reportGate.status,
+          gateFailureCount: validationReport.reportGate.failureCount,
+        }),
+    metricStatusCounts: countValidationMetricStatuses(validationReport.report.metrics),
     streamVersion: validationReport.streamVersion,
     fromSequence: validationReport.fromSequence,
     toSequence: validationReport.toSequence,
     eventCount: validationReport.eventCount,
     projectionSequence: validationReport.projectionSequence,
   };
+}
+
+function countValidationMetricStatuses(
+  metrics: readonly ExperimentValidationMetric[],
+): LocalSimulationRuntimeOperationValidationReportTrace['metricStatusCounts'] {
+  const counts: Record<ExperimentValidationMetric['status'], number> = {
+    pass: 0,
+    watch: 0,
+    fail: 0,
+  };
+
+  for (const metric of metrics) {
+    counts[metric.status] += 1;
+  }
+  return counts;
 }
 
 function createOperationValidationFailureTrace(

@@ -14,6 +14,7 @@ export type LocalRuntimeTownProfileGateSuiteCliConfig = Pick<
   | 'requestedAt'
   | 'cycleCount'
   | 'cycleIntervalMs'
+  | 'experimentValidation'
   | 'profileIds'
   | 'reportRootDir'
   | 'runtimeConfigPath'
@@ -41,13 +42,14 @@ const profileIds = new Set<LocalRuntimeTownDaemonScenarioProfileId>(
 export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
   argv: readonly string[],
 ): LocalRuntimeTownProfileGateSuiteCliConfig {
-  const args = parseFlagArgs(argv);
+  const args = parseFlagArgs(argv, new Set(['--experiment-validation']));
   const rootDir = readRequiredString(args, '--root-dir');
   const requestedAt = readOptionalNonNegativeFinite(args, '--requested-at') ?? Date.now();
   const cycleCount = readOptionalPositiveInteger(args, '--cycles') ?? 1;
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const profileIds = readOptionalProfileIds(args, '--profiles');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
+  const experimentValidation = readOptionalBoolean(args, '--experiment-validation');
   const runtimeConfigPath = readOptionalString(args, '--runtime-config');
   const minimumFullReplanMaterializationCount = readOptionalNonNegativeInteger(
     args,
@@ -57,6 +59,9 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     args,
     '--minimum-simulator-rollout-coverage-ratio',
   );
+  if (experimentValidation === true && reportRootDir === undefined) {
+    throw new Error('--experiment-validation requires --report-root-dir');
+  }
 
   return {
     rootDir,
@@ -65,6 +70,7 @@ export function parseLocalRuntimeTownProfileGateSuiteCliArgs(
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(profileIds === undefined ? {} : { profileIds }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
+    ...(experimentValidation === undefined ? {} : { experimentValidation }),
     ...(runtimeConfigPath === undefined ? {} : { runtimeConfigPath }),
     ...(minimumFullReplanMaterializationCount === undefined
       ? {}
@@ -99,7 +105,10 @@ export async function runLocalRuntimeTownProfileGateSuiteCli(
   }
 }
 
-function parseFlagArgs(argv: readonly string[]): ReadonlyMap<string, string> {
+function parseFlagArgs(
+  argv: readonly string[],
+  booleanFlags: ReadonlySet<string> = new Set(),
+): ReadonlyMap<string, string> {
   const args = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -108,12 +117,30 @@ function parseFlagArgs(argv: readonly string[]): ReadonlyMap<string, string> {
     }
     const value = argv[index + 1];
     if (value === undefined || value.startsWith('--')) {
+      if (booleanFlags.has(flag)) {
+        args.set(flag, 'true');
+        continue;
+      }
       throw new Error(`missing value for ${flag}`);
     }
     args.set(flag, value);
     index += 1;
   }
   return args;
+}
+
+function readOptionalBoolean(args: ReadonlyMap<string, string>, flag: string): boolean | undefined {
+  const value = args.get(flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  throw new Error(`${flag} must be true or false`);
 }
 
 function readRequiredString(args: ReadonlyMap<string, string>, flag: string): string {

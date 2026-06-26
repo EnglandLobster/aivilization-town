@@ -15,6 +15,9 @@ import {
   createRuntimeProfileAgentCycleDiagnostics,
   createRuntimeProfileCognitionLlmStageDiagnostics,
   createRuntimeProfileRunReport,
+  type ExperimentValidationMetric,
+  type ExperimentValidationReportGateResult,
+  type ExperimentValidationStatus,
   type ObjectiveRenewalTrace,
   type RuntimeProfileAgentCycleDiagnostics,
   type RuntimeProfileCognitionLlmStageDiagnostics,
@@ -29,7 +32,9 @@ import {
   createCanonicalWorkerRuntimeResolver,
   renewDailyPlanScheduledIntentions,
   renewMissingActiveObjectives,
+  runLocalExperimentValidationSchedule,
   type ObjectiveRenewalDecisionTrace,
+  type LocalExperimentValidationScheduleInput,
   type LocalWorldRuntimeAgentProvider,
   type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationRuntimeOperationTrace,
@@ -101,11 +106,35 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly reflectionSynthesis?: LocalRuntimeTownProfileReflectiveInsightSynthesizerConfig;
   readonly socialModelSynthesis?: LocalRuntimeTownProfileSocialModelSynthesizerConfig;
   readonly memoryConsolidationSchedule?: LocalSimulationLifecycleMemoryConsolidationSchedule;
+  readonly experimentValidationSchedule?: LocalRuntimeTownProfileExperimentValidationSchedule;
   readonly profileRunReportRepository?: RuntimeProfileRunReportRepository;
   readonly plannerExperiment?: RuntimeProfilePlannerExperiment;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly agentMemoryRetrievalLimit?: number;
   readonly agentMemoryRetrievalCandidateLimit?: number;
+};
+
+export type LocalRuntimeTownProfileExperimentValidationSchedule = Omit<
+  LocalExperimentValidationScheduleInput,
+  'storage' | 'initialProjection' | 'runId' | 'generatedAt'
+> & {
+  readonly runIdPrefix?: string;
+};
+
+export type LocalRuntimeTownProfileExperimentValidationReportSummary = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly runId: string;
+  readonly generatedAt: SimulationTimestamp;
+  readonly source?: string;
+  readonly gateStatus?: ExperimentValidationReportGateResult['status'];
+  readonly gateFailureCount?: number;
+  readonly metricStatusCounts: Readonly<Record<ExperimentValidationStatus, number>>;
+  readonly streamVersion: number;
+  readonly fromSequence: number;
+  readonly toSequence: number;
+  readonly eventCount: number;
+  readonly projectionSequence: number;
 };
 
 export type LocalRuntimeTownProfileRunnerPartitionSummary = {
@@ -133,6 +162,7 @@ export type LocalRuntimeTownProfileRunnerSummary = {
   readonly totalAgentTraceCount: number;
   readonly agentCycleDiagnostics: RuntimeProfileAgentCycleDiagnostics;
   readonly cognitionLlmStageDiagnostics?: readonly RuntimeProfileCognitionLlmStageDiagnostics[];
+  readonly experimentValidationReports?: readonly LocalRuntimeTownProfileExperimentValidationReportSummary[];
   readonly run: {
     readonly traceId: string;
     readonly outcome: string;
@@ -332,7 +362,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     socialModelSynthesisTraces: collectSocialModelSynthesisTraces(cycleOperationTraces),
   });
 
-  const summary: LocalRuntimeTownProfileRunnerSummary = {
+  const baseSummary: Omit<LocalRuntimeTownProfileRunnerSummary, 'experimentValidationReports'> = {
     profileId: profile.profileId,
     manifestId: profile.manifest.id,
     rootDir: input.rootDir,
@@ -353,30 +383,31 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     },
     partitions,
   };
+  const reportGeneratedAt = input.reportGeneratedAt ?? Date.now();
 
   if (input.profileRunReportRepository !== undefined) {
     await input.profileRunReportRepository.record(
       createRuntimeProfileRunReport({
-        runId: summary.run.traceId,
-        profileId: summary.profileId,
-        manifestId: summary.manifestId,
-        rootDir: summary.rootDir,
-        generatedAt: input.reportGeneratedAt ?? Date.now(),
-        requestedAt: summary.requestedAt,
-        daemonHealth: summary.daemonHealth,
-        outcome: summary.run.outcome,
-        requestedCycleCount: summary.run.requestedCycleCount,
-        completedCycleCount: summary.run.completedCycleCount,
-        stopReason: summary.run.stopReason,
-        partitionCount: summary.partitionCount,
-        totalProjectionAgentCount: summary.totalProjectionAgentCount,
-        totalEventCount: summary.totalEventCount,
-        totalAgentTraceCount: summary.totalAgentTraceCount,
-        agentCycleDiagnostics: summary.agentCycleDiagnostics,
-        ...(summary.cognitionLlmStageDiagnostics === undefined
+        runId: baseSummary.run.traceId,
+        profileId: baseSummary.profileId,
+        manifestId: baseSummary.manifestId,
+        rootDir: baseSummary.rootDir,
+        generatedAt: reportGeneratedAt,
+        requestedAt: baseSummary.requestedAt,
+        daemonHealth: baseSummary.daemonHealth,
+        outcome: baseSummary.run.outcome,
+        requestedCycleCount: baseSummary.run.requestedCycleCount,
+        completedCycleCount: baseSummary.run.completedCycleCount,
+        stopReason: baseSummary.run.stopReason,
+        partitionCount: baseSummary.partitionCount,
+        totalProjectionAgentCount: baseSummary.totalProjectionAgentCount,
+        totalEventCount: baseSummary.totalEventCount,
+        totalAgentTraceCount: baseSummary.totalAgentTraceCount,
+        agentCycleDiagnostics: baseSummary.agentCycleDiagnostics,
+        ...(baseSummary.cognitionLlmStageDiagnostics === undefined
           ? {}
-          : { cognitionLlmStageDiagnostics: summary.cognitionLlmStageDiagnostics }),
-        partitions: summary.partitions,
+          : { cognitionLlmStageDiagnostics: baseSummary.cognitionLlmStageDiagnostics }),
+        partitions: baseSummary.partitions,
         ...(input.plannerExperiment === undefined
           ? {}
           : { plannerExperiment: input.plannerExperiment }),
@@ -384,7 +415,113 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     );
   }
 
-  return summary;
+  const experimentValidationReports =
+    input.experimentValidationSchedule === undefined
+      ? []
+      : await runProfileExperimentValidationSchedule({
+          runtime,
+          profileRunId: baseSummary.run.traceId,
+          generatedAt: reportGeneratedAt,
+          schedule: input.experimentValidationSchedule,
+        });
+
+  return {
+    ...baseSummary,
+    ...(experimentValidationReports.length === 0 ? {} : { experimentValidationReports }),
+  };
+}
+
+async function runProfileExperimentValidationSchedule(input: {
+  readonly runtime: Awaited<ReturnType<typeof createLocalRuntimeTownApi>>;
+  readonly profileRunId: string;
+  readonly generatedAt: SimulationTimestamp;
+  readonly schedule: LocalRuntimeTownProfileExperimentValidationSchedule;
+}): Promise<LocalRuntimeTownProfileExperimentValidationReportSummary[]> {
+  const { runIdPrefix, source, ...schedule } = input.schedule;
+  const reports = await Promise.all(
+    input.runtime.host.partitions.map(async (partition) => {
+      const backend = input.runtime.host.registry.getBackend({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+      });
+      const result = await runLocalExperimentValidationSchedule({
+        storage: backend.storage,
+        initialProjection: partition.bootstrap.initialProjection,
+        runId: createProfileExperimentValidationRunId({
+          profileRunId: input.profileRunId,
+          partitionKey: partition.partitionKey,
+          ...(runIdPrefix === undefined ? {} : { runIdPrefix }),
+        }),
+        generatedAt: input.generatedAt,
+        source: source ?? 'local-runtime-profile-validation',
+        ...schedule,
+      });
+
+      return createProfileExperimentValidationReportSummary({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        result,
+      });
+    }),
+  );
+  return reports.sort((left, right) => {
+    if (left.simulationId !== right.simulationId) {
+      return left.simulationId.localeCompare(right.simulationId);
+    }
+    return left.partitionKey.localeCompare(right.partitionKey);
+  });
+}
+
+function createProfileExperimentValidationReportSummary(input: {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly result: Awaited<ReturnType<typeof runLocalExperimentValidationSchedule>>;
+}): LocalRuntimeTownProfileExperimentValidationReportSummary {
+  return {
+    simulationId: input.simulationId,
+    partitionKey: input.partitionKey,
+    runId: input.result.report.run.runId,
+    generatedAt: input.result.report.run.generatedAt,
+    ...(input.result.report.run.source === undefined
+      ? {}
+      : { source: input.result.report.run.source }),
+    ...(input.result.reportGate === undefined
+      ? {}
+      : {
+          gateStatus: input.result.reportGate.status,
+          gateFailureCount: input.result.reportGate.failureCount,
+        }),
+    metricStatusCounts: countExperimentValidationMetricStatuses(input.result.report.metrics),
+    streamVersion: input.result.streamVersion,
+    fromSequence: input.result.fromSequence,
+    toSequence: input.result.toSequence,
+    eventCount: input.result.eventCount,
+    projectionSequence: input.result.projectionSequence,
+  };
+}
+
+function countExperimentValidationMetricStatuses(
+  metrics: readonly ExperimentValidationMetric[],
+): LocalRuntimeTownProfileExperimentValidationReportSummary['metricStatusCounts'] {
+  const counts: Record<ExperimentValidationMetric['status'], number> = {
+    pass: 0,
+    watch: 0,
+    fail: 0,
+  };
+  for (const metric of metrics) {
+    counts[metric.status] += 1;
+  }
+  return counts;
+}
+
+function createProfileExperimentValidationRunId(input: {
+  readonly profileRunId: string;
+  readonly partitionKey: PartitionKey;
+  readonly runIdPrefix?: string;
+}): string {
+  const prefix = input.runIdPrefix ?? input.profileRunId;
+  assertNonEmpty(prefix, 'experimentValidationSchedule runIdPrefix');
+  return `${prefix}:${input.partitionKey}:experiment-validation`;
 }
 
 function collectReflectionSynthesisTraces(

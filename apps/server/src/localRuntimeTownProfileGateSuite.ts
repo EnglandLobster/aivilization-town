@@ -15,6 +15,12 @@ import {
   type LocalRuntimeTownProfileRuntimeConfig,
 } from './localRuntimeTownProfileRuntimeConfig';
 import {
+  createLocalRuntimeTownPaperAlignmentProfileCoverage,
+  summarizeLocalRuntimeTownPaperAlignmentProfileCoverages,
+  type LocalRuntimeTownPaperAlignmentProfileCoverage,
+  type LocalRuntimeTownPaperAlignmentSummary,
+} from './localRuntimeTownPaperAlignmentCoverage';
+import {
   runLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownProfileExperimentValidationReportSummary,
   type LocalRuntimeTownProfileExperimentValidationMetricSummary,
@@ -56,6 +62,7 @@ export type LocalRuntimeTownProfileGateSuiteProfileResult = {
   readonly summary: LocalRuntimeTownProfileRunnerSummary;
   readonly report: RuntimeProfileRunReport;
   readonly gate: RuntimeProfileRunGateResult;
+  readonly paperAlignment: LocalRuntimeTownPaperAlignmentProfileCoverage;
 };
 
 export type LocalRuntimeTownProfileGateSuiteBundleValidationReport = {
@@ -90,6 +97,7 @@ export type LocalRuntimeTownProfileGateSuiteBundleProfile = {
   readonly gateFailureCount: number;
   readonly validationReportCount: number;
   readonly validationReports: readonly LocalRuntimeTownProfileGateSuiteBundleValidationReport[];
+  readonly paperAlignment: LocalRuntimeTownPaperAlignmentProfileCoverage;
 };
 
 export type LocalRuntimeTownProfileGateSuiteBundleManifest = {
@@ -108,6 +116,7 @@ export type LocalRuntimeTownProfileGateSuiteBundleManifest = {
   readonly validationGateStatusCounts: Readonly<
     Record<'pass' | 'watch' | 'fail' | 'missing', number>
   >;
+  readonly paperAlignment: LocalRuntimeTownPaperAlignmentSummary;
   readonly profiles: readonly LocalRuntimeTownProfileGateSuiteBundleProfile[];
 };
 
@@ -181,23 +190,25 @@ export async function runLocalRuntimeTownProfileGateSuite(
     if (profileRunReportRepository !== undefined) {
       await profileRunReportRepository.record(report);
     }
-    const gate = evaluateRuntimeProfileRunReport(
-      report,
-      createLocalRuntimeTownProfileGateCriteria(profileId, {
-        minimumCompletedCycleCount: cycleCount,
-        ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
-        ...(input.minimumFullReplanMaterializationCount === undefined
-          ? {}
-          : {
-              minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount,
-            }),
-        ...(input.minimumSimulatorRolloutCoverageRatio === undefined
-          ? {}
-          : {
-              minimumSimulatorRolloutCoverageRatio: input.minimumSimulatorRolloutCoverageRatio,
-            }),
-      }),
-    );
+    const gateCriteria = createLocalRuntimeTownProfileGateCriteria(profileId, {
+      minimumCompletedCycleCount: cycleCount,
+      ...(runtimeConfig === undefined ? {} : { runtimeConfig }),
+      ...(input.minimumFullReplanMaterializationCount === undefined
+        ? {}
+        : {
+            minimumFullReplanMaterializationCount: input.minimumFullReplanMaterializationCount,
+          }),
+      ...(input.minimumSimulatorRolloutCoverageRatio === undefined
+        ? {}
+        : {
+            minimumSimulatorRolloutCoverageRatio: input.minimumSimulatorRolloutCoverageRatio,
+          }),
+    });
+    const gate = evaluateRuntimeProfileRunReport(report, gateCriteria);
+    const paperAlignment = createLocalRuntimeTownPaperAlignmentProfileCoverage({
+      criteria: gateCriteria,
+      gate,
+    });
 
     profiles.push({
       profileId,
@@ -205,6 +216,7 @@ export async function runLocalRuntimeTownProfileGateSuite(
       summary,
       report,
       gate,
+      paperAlignment,
     });
   }
 
@@ -383,6 +395,9 @@ function createGateSuiteBundleManifest(input: {
 }): LocalRuntimeTownProfileGateSuiteBundleManifest {
   const profiles = input.profiles.map(createGateSuiteBundleProfile);
   const validationGateStatusCounts = countValidationGateStatuses(profiles);
+  const paperAlignment = summarizeLocalRuntimeTownPaperAlignmentProfileCoverages(
+    profiles.map((profile) => profile.paperAlignment),
+  );
   return {
     manifestId: `profile-gate-suite:${input.requestedAt}`,
     generatedAt: input.generatedAt,
@@ -397,6 +412,7 @@ function createGateSuiteBundleManifest(input: {
     },
     validationReportCount: sumBy(profiles, (profile) => profile.validationReportCount),
     validationGateStatusCounts,
+    paperAlignment,
     profiles,
   };
 }
@@ -417,6 +433,7 @@ function createGateSuiteBundleProfile(
     gateFailureCount: profile.gate.failureCount,
     validationReportCount: validationReports.length,
     validationReports,
+    paperAlignment: profile.paperAlignment,
   };
 }
 

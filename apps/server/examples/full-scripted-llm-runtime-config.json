@@ -3,6 +3,16 @@
     "social": {
       "targetAgentId": "smoke-25-world-main-agent-008",
       "topic": "town plans"
+    },
+    "eat": {
+      "commodityName": "Apple",
+      "quantity": 1
+    }
+  },
+  "actionSynthesis": {
+    "maxActions": 2,
+    "candidateSubtasks": {
+      "maxSubtasks": 2
     }
   },
   "memoryConsolidationSchedule": {
@@ -13,7 +23,7 @@
   "steeringSimulator": {
     "kind": "reject-action-id-prefix-until-suffix",
     "commandType": "AgentStartConversation",
-    "actionIdPrefix": "scripted-social-check-in:",
+    "actionIdPrefix": "scripted-action:socialize:",
     "repairedActionIdSuffix": ":repaired",
     "reason": "scripted rejection drill"
   },
@@ -27,7 +37,7 @@
         {
           "providerId": "aivilization-scripted-strategic",
           "model": "aivilization-scripted-planner",
-          "content": "{\"objective\":\"Scripted full LLM social objective\",\"branches\":[{\"id\":\"social\",\"objective\":\"Coordinate social interaction through LLM planning.\",\"subtasks\":[{\"id\":\"socialize\",\"description\":\"Socialize with a nearby neighbor about town plans.\",\"basePriority\":20,\"signalKeys\":[\"social\"],\"intentionAffinityTags\":[\"social\"],\"memoryAffinityTags\":[\"social\"],\"profileAffinityTags\":[\"social\"]}]}]}",
+          "content": "{\"objective\":\"Scripted full LLM social and repair objective\",\"branches\":[{\"id\":\"social\",\"objective\":\"Coordinate social interaction through LLM planning.\",\"subtasks\":[{\"id\":\"socialize\",\"description\":\"Socialize with a nearby neighbor about town plans.\",\"basePriority\":20,\"signalKeys\":[\"social\"],\"intentionAffinityTags\":[\"social\"],\"memoryAffinityTags\":[\"social\"],\"profileAffinityTags\":[\"social\"]}]},{\"id\":\"eat\",\"objective\":\"Exercise canonical local repair using market-backed missing inventory.\",\"subtasks\":[{\"id\":\"eat-repair-drill\",\"description\":\"Eat an Apple through simulator-backed local repair.\",\"basePriority\":19,\"signalKeys\":[\"eat\"],\"intentionAffinityTags\":[\"eat\"],\"memoryAffinityTags\":[\"eat\"],\"profileAffinityTags\":[\"eat\"]}]}]}",
           "finishReason": "stop",
           "repeat": 50
         }
@@ -84,7 +94,7 @@
         {
           "providerId": "aivilization-scripted-prioritizer",
           "model": "aivilization-scripted-planner",
-          "content": "{\"rankedSubtasks\":[{\"branchId\":\"social\",\"subtaskId\":\"socialize\",\"priorityScore\":30,\"rationale\":\"The scripted fixture prioritizes the stable social subtask so downstream LLM stages are exercised.\"}]}",
+          "content": "{\"rankedSubtasks\":[{\"branchId\":\"social\",\"subtaskId\":\"socialize\",\"priorityScore\":30,\"rationale\":\"The scripted fixture prioritizes the stable social subtask so downstream LLM stages are exercised.\"},{\"branchId\":\"eat\",\"subtaskId\":\"eat-repair-drill\",\"priorityScore\":24,\"rationale\":\"Keep a simulator-backed missing-inventory eat action in the same planning window so canonical local repair is exercised.\"}]}",
           "finishReason": "stop",
           "repeat": 50
         }
@@ -103,7 +113,7 @@
         {
           "providerId": "aivilization-scripted-action-sequence",
           "model": "aivilization-scripted-planner",
-          "contentTemplate": "{\"actions\":[{\"id\":\"scripted-social-check-in:{{user.agentId}}\",\"description\":\"Use an LLM-authored social step compatible with the canonical micro-planner command type.\",\"commandType\":\"{{user.deterministicActions.0.commandType}}\",\"payload\":{{json user.deterministicActions.0.payload}},\"priority\":30,\"resourceEstimate\":{\"actionSeconds\":60},\"rationale\":\"Translate the stable social subtask into an executable action while preserving simulator-allowed command type and payload shape.\"}]}",
+          "contentTemplate": "{\"actions\":[{\"id\":\"scripted-action:{{user.selectedSubtask.subtaskId}}:{{user.agentId}}\",\"description\":\"Use an LLM-authored step compatible with the canonical micro-planner command type.\",\"commandType\":\"{{user.deterministicActions.0.commandType}}\",\"payload\":{{json user.deterministicActions.0.payload}},\"priority\":30,\"resourceEstimate\":{\"actionSeconds\":60},\"rationale\":\"Translate the selected subtask into an executable action while preserving simulator-allowed command type and payload shape.\"}]}",
           "finishReason": "stop",
           "repeat": 50
         }
@@ -141,7 +151,7 @@
         {
           "providerId": "aivilization-scripted-global",
           "model": "aivilization-scripted-planner",
-          "contentTemplate": "{\"rankedActions\":[{\"actionId\":\"{{user.candidateActions.0.id}}\",\"priorityScore\":30,\"rationale\":\"The scripted social action is the only candidate and remains globally coherent.\",\"strategicAlignment\":1,\"branchUrgency\":1}]}",
+          "contentTemplate": "{\"rankedActions\":[{\"actionId\":\"{{user.candidateActions.0.id}}\",\"priorityScore\":30,\"rationale\":\"The scripted social action anchors the interaction evidence for the full LLM suite.\",\"strategicAlignment\":1,\"branchUrgency\":1},{\"actionId\":\"{{user.candidateActions.1.id}}\",\"priorityScore\":24,\"rationale\":\"The eat action remains in the same planning window to exercise simulator-backed canonical local repair.\",\"strategicAlignment\":0.8,\"branchUrgency\":0.8}]}",
           "finishReason": "stop",
           "repeat": 50
         }

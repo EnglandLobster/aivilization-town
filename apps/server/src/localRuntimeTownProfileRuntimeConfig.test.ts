@@ -908,6 +908,12 @@ describe('local runtime town profile runtime config', () => {
                 minimumImportanceScore: 1,
               },
             },
+            actionSynthesis: {
+              maxActions: 2,
+              candidateSubtasks: {
+                maxSubtasks: 2,
+              },
+            },
             steeringSimulator: {
               kind: 'reject-action-id-prefix-until-suffix',
               commandType: 'AgentStartConversation',
@@ -940,6 +946,12 @@ describe('local runtime town profile runtime config', () => {
       minPatternCount: 1,
       reflectionTrigger: {
         minimumImportanceScore: 1,
+      },
+    });
+    expect(config.actionSynthesis).toEqual({
+      maxActions: 2,
+      candidateSubtasks: {
+        maxSubtasks: 2,
       },
     });
 

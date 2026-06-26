@@ -41,6 +41,7 @@ import {
   type LocalSimulationLifecycleMemoryConsolidationSchedule,
   type LocalSimulationRuntimeOperationTrace,
   type CanonicalDomainRuntimeConfig,
+  type WorldStateActionSynthesisPolicyConfig,
   type WorldCommandPolicyResolver,
   type WorldCommandPolicySource,
 } from '@aivilization/worker';
@@ -85,6 +86,7 @@ export type LocalRuntimeTownProfileRunnerInput = {
   readonly cycleIntervalMs?: number;
   readonly policies?: WorldCommandPolicySource;
   readonly domainConfig?: CanonicalDomainRuntimeConfig;
+  readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
   readonly agentProvider?: LocalWorldRuntimeAgentProvider;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly dailyPlanCompiler?: DailyPlanCompiler;
@@ -253,6 +255,7 @@ export async function runLocalRuntimeTownDaemonScenarioProfile(
     createLocalRuntimeTownProfileAgentProvider({
       policies,
       ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
+      ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
       ...(strategicPlanCompiler === undefined ? {} : { strategicPlanCompiler }),
       ...(dailyPlanCompiler === undefined ? {} : { dailyPlanCompiler }),
       ...(replanningPolicy === undefined ? {} : { replanningPolicy }),
@@ -664,6 +667,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
   input: {
     readonly policies?: WorldCommandPolicySource;
     readonly domainConfig?: CanonicalDomainRuntimeConfig;
+    readonly actionSynthesis?: WorldStateActionSynthesisPolicyConfig | false;
     readonly strategicPlanCompiler?: StrategicPlanCompiler;
     readonly dailyPlanCompiler?: DailyPlanCompiler;
     readonly replanningPolicy?: AdaptiveReplanningPolicy;
@@ -742,6 +746,7 @@ export function createLocalRuntimeTownProfileAgentProvider(
         simulationId: storage.partition.simulationId,
         policies,
         ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
+        ...(input.actionSynthesis === undefined ? {} : { actionSynthesis: input.actionSynthesis }),
         issuedAt,
         commandIdPrefix: `${storage.partition.partitionKey}:profile-provider:${issuedAt}`,
         ...(input.replanningPolicy === undefined

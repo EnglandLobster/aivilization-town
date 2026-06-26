@@ -23,6 +23,7 @@ export type LocalRuntimeTownProfileRunnerCliConfig = Pick<
   'profileId' | 'rootDir' | 'cycleCount' | 'requestedAt' | 'cycleIntervalMs'
 > & {
   readonly reportRootDir?: string;
+  readonly experimentValidation?: boolean;
   readonly requireGate?: boolean;
   readonly runtimeConfigPath?: string;
 };
@@ -50,13 +51,14 @@ const profileIds = new Set<LocalRuntimeTownDaemonScenarioProfileId>([
 export function parseLocalRuntimeTownProfileRunnerCliArgs(
   argv: readonly string[],
 ): LocalRuntimeTownProfileRunnerCliConfig {
-  const args = parseFlagArgs(argv, new Set(['--require-gate']));
+  const args = parseFlagArgs(argv, new Set(['--require-gate', '--experiment-validation']));
   const profileId = readRequiredProfileId(args, '--profile');
   const rootDir = readRequiredString(args, '--root-dir');
   const cycleCount = readOptionalPositiveInteger(args, '--cycles') ?? 1;
   const requestedAt = readOptionalNonNegativeFinite(args, '--requested-at') ?? Date.now();
   const cycleIntervalMs = readOptionalNonNegativeFinite(args, '--cycle-interval-ms');
   const reportRootDir = readOptionalString(args, '--report-root-dir');
+  const experimentValidation = readOptionalBoolean(args, '--experiment-validation');
   const requireGate = readOptionalBoolean(args, '--require-gate');
   const runtimeConfigPath = readRuntimeConfigPath(args);
 
@@ -67,6 +69,7 @@ export function parseLocalRuntimeTownProfileRunnerCliArgs(
     requestedAt,
     ...(cycleIntervalMs === undefined ? {} : { cycleIntervalMs }),
     ...(reportRootDir === undefined ? {} : { reportRootDir }),
+    ...(experimentValidation === undefined ? {} : { experimentValidation }),
     ...(requireGate === undefined ? {} : { requireGate }),
     ...(runtimeConfigPath === undefined ? {} : { runtimeConfigPath }),
   };
@@ -117,6 +120,9 @@ async function createRunnerContext(
     config.reportRootDir === undefined
       ? undefined
       : new FileRuntimeProfileRunReportRepository({ rootDir: config.reportRootDir });
+  if (config.experimentValidation === true && profileRunReportRepository === undefined) {
+    throw new Error('--experiment-validation requires --report-root-dir');
+  }
   const runtimeConfig =
     config.runtimeConfigPath === undefined
       ? undefined
@@ -134,6 +140,20 @@ async function createRunnerContext(
       requestedAt: config.requestedAt,
       ...(config.cycleIntervalMs === undefined ? {} : { cycleIntervalMs: config.cycleIntervalMs }),
       ...(profileRunReportRepository === undefined ? {} : { profileRunReportRepository }),
+      ...(config.experimentValidation !== true || profileRunReportRepository === undefined
+        ? {}
+        : {
+            experimentValidationSchedule: {
+              plannerRunSource: {
+                repository: profileRunReportRepository,
+                profileId: config.profileId,
+              },
+              reportGate: {
+                criteriaId: `${config.profileId}:profile-runner-cli:experiment-validation-gate`,
+                defaultAllowedStatuses: ['pass', 'watch'],
+              },
+            },
+          }),
       ...(runtimeConfig?.strategicPlanning === undefined
         ? {}
         : { llmPlanning: runtimeConfig.strategicPlanning }),

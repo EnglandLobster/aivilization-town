@@ -36,6 +36,7 @@ describe('local runtime town profile runner CLI', () => {
         '50',
         '--report-root-dir',
         '/tmp/reports',
+        '--experiment-validation',
         '--runtime-config',
         '/runtime/profile-config.json',
         '--require-gate',
@@ -47,6 +48,7 @@ describe('local runtime town profile runner CLI', () => {
       requestedAt: 100,
       cycleIntervalMs: 50,
       reportRootDir: '/tmp/reports',
+      experimentValidation: true,
       runtimeConfigPath: '/runtime/profile-config.json',
       requireGate: true,
     });
@@ -871,6 +873,123 @@ describe('local runtime town profile runner CLI', () => {
         totalProjectionAgentCount: 25,
       }),
     ]);
+  });
+
+  test('passes experiment validation schedule to profile runner when requested', async () => {
+    let output = '';
+    let receivedInput: LocalRuntimeTownProfileRunnerInput | undefined;
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        rootDir,
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--report-root-dir',
+        reportRootDir,
+        '--experiment-validation',
+      ],
+      stdout: {
+        write: (chunk) => {
+          output += chunk;
+        },
+      },
+      runProfile: (input) => {
+        receivedInput = input;
+        return Promise.resolve({
+          profileId: input.profileId,
+          manifestId: 'aivilization-smoke-25',
+          rootDir: input.rootDir,
+          requestedAt: input.requestedAt,
+          daemonHealth: 'healthy',
+          partitionCount: 1,
+          totalProjectionAgentCount: 25,
+          totalEventCount: 3,
+          totalAgentTraceCount: 1,
+          agentCycleDiagnostics: createCliAgentCycleDiagnostics(),
+          experimentValidationReports: [
+            {
+              simulationId: 'aivilization-smoke-25',
+              partitionKey: 'world-main',
+              runId: 'aivilization-smoke-25:profile-run:100:world-main:experiment-validation',
+              generatedAt: 100,
+              source: 'local-runtime-profile-validation',
+              gateStatus: 'pass',
+              gateFailureCount: 0,
+              metricStatusCounts: { pass: 3, watch: 6, fail: 0 },
+              streamVersion: 3,
+              fromSequence: 0,
+              toSequence: 3,
+              eventCount: 3,
+              projectionSequence: 3,
+            },
+          ],
+          run: {
+            traceId: 'aivilization-smoke-25:profile-run:100',
+            outcome: 'succeeded',
+            requestedCycleCount: input.cycleCount,
+            completedCycleCount: input.cycleCount,
+            stopReason: 'cycle-count-completed',
+          },
+          partitions: [],
+        });
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output)).toMatchObject({
+      experimentValidationReports: [
+        {
+          gateStatus: 'pass',
+          metricStatusCounts: { fail: 0 },
+        },
+      ],
+    });
+    expect(receivedInput?.experimentValidationSchedule).toMatchObject({
+      plannerRunSource: {
+        profileId: 'smoke-25',
+      },
+      reportGate: {
+        criteriaId: 'smoke-25:profile-runner-cli:experiment-validation-gate',
+        defaultAllowedStatuses: ['pass', 'watch'],
+      },
+    });
+    expect(receivedInput?.experimentValidationSchedule?.plannerRunSource?.repository).toBeDefined();
+  });
+
+  test('requires report root when experiment validation is requested', async () => {
+    let stderr = '';
+
+    const exitCode = await runLocalRuntimeTownProfileRunnerCli({
+      argv: [
+        '--profile',
+        'smoke-25',
+        '--root-dir',
+        '/tmp/town',
+        '--cycles',
+        '1',
+        '--requested-at',
+        '100',
+        '--experiment-validation',
+      ],
+      stderr: {
+        write: (chunk) => {
+          stderr += chunk;
+        },
+      },
+      runProfile: () => {
+        throw new Error('runner should not be called');
+      },
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--experiment-validation requires --report-root-dir');
   });
 
   test('returns a profile gate failure exit code when require gate is supplied', async () => {

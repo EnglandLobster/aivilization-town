@@ -49,6 +49,7 @@ export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly experimentValidation?: boolean;
   readonly minimumFullReplanMaterializationCount?: number;
   readonly minimumSimulatorRolloutCoverageRatio?: number;
+  readonly minimumLocalRepairAcceptedCount?: number;
   readonly runtimeConfigPath?: string;
   readonly reportGeneratedAt?: SimulationTimestamp;
   readonly runProfile?: (
@@ -202,6 +203,11 @@ export async function runLocalRuntimeTownProfileGateSuite(
         ? {}
         : {
             minimumSimulatorRolloutCoverageRatio: input.minimumSimulatorRolloutCoverageRatio,
+          }),
+      ...(input.minimumLocalRepairAcceptedCount === undefined
+        ? {}
+        : {
+            minimumLocalRepairAcceptedCount: input.minimumLocalRepairAcceptedCount,
           }),
     });
     const gate = evaluateRuntimeProfileRunReport(report, gateCriteria);

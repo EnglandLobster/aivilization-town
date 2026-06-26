@@ -1,4 +1,13 @@
 {
+  "actionSynthesis": {
+    "maxActions": 2,
+    "candidateSubtasks": {
+      "maxSubtasks": 2
+    }
+  },
+  "paperAlignment": {
+    "minimumLocalRepairAcceptedCount": 1
+  },
   "llmPlanning": {
     "kind": "traceable-llm-strategic-planner",
     "model": "aivilization-default-planner",

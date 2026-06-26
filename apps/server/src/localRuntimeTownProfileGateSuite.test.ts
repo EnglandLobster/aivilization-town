@@ -901,10 +901,14 @@ describe('local runtime town profile gate suite', () => {
     expect(result.bundleManifest?.paperAlignment).toMatchObject({
       schemaVersion: 1,
       capabilityCount: 12,
-      configuredCapabilityCount: 11,
-      passedConfiguredCapabilityCount: 11,
+      configuredCapabilityCount: 12,
+      passedConfiguredCapabilityCount: 12,
       failedConfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 0,
     });
+    expect(
+      result.profiles[0]?.summary.agentCycleDiagnostics.localRepairAcceptedCount,
+    ).toBeGreaterThan(0);
   });
 
   test('passes all paper-alignment capabilities from the full scripted LLM runtime config through real suite execution', async () => {

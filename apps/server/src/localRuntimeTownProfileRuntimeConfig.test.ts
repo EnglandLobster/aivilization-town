@@ -24,8 +24,10 @@ describe('local runtime town profile runtime config', () => {
 
     expect(Object.keys(config).sort()).toEqual([
       'actionSequenceGeneration',
+      'actionSynthesis',
       'dailyPlanning',
       'globalSynthesis',
+      'paperAlignment',
       'reactionPlanning',
       'reactiveCorrection',
       'reflectionSynthesis',
@@ -44,6 +46,15 @@ describe('local runtime town profile runtime config', () => {
         apiKey: 'test-api-key',
         responseFormat: 'json-schema',
       },
+    });
+    expect(config.actionSynthesis).toEqual({
+      maxActions: 2,
+      candidateSubtasks: {
+        maxSubtasks: 2,
+      },
+    });
+    expect(config.paperAlignment).toEqual({
+      minimumLocalRepairAcceptedCount: 1,
     });
 
     const criteria = createLocalRuntimeTownProfileGateCriteria('default-100', {
@@ -81,6 +92,7 @@ describe('local runtime town profile runtime config', () => {
       reflectionSynthesis: 1,
       socialModelSynthesis: 1,
     });
+    expect(criteria.minimumLocalRepairAcceptedCount).toBe(1);
   });
 
   test('loads profile-specific OpenAI-compatible LLM planning config and resolves env secrets', async () => {
@@ -914,6 +926,9 @@ describe('local runtime town profile runtime config', () => {
                 maxSubtasks: 2,
               },
             },
+            paperAlignment: {
+              minimumLocalRepairAcceptedCount: 2,
+            },
             steeringSimulator: {
               kind: 'reject-action-id-prefix-until-suffix',
               commandType: 'AgentStartConversation',
@@ -953,6 +968,9 @@ describe('local runtime town profile runtime config', () => {
       candidateSubtasks: {
         maxSubtasks: 2,
       },
+    });
+    expect(config.paperAlignment).toEqual({
+      minimumLocalRepairAcceptedCount: 2,
     });
 
     if (config.steeringSimulator === undefined) {

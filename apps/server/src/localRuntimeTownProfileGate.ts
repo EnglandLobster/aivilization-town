@@ -110,6 +110,10 @@ export function createLocalRuntimeTownProfileGateCriteria(
   const minimumSimulatorRolloutCoverageRatio =
     input.minimumSimulatorRolloutCoverageRatio ??
     profileDefaults.minimumSimulatorRolloutCoverageRatio;
+  const minimumLocalRepairAcceptedCount = deriveMinimumLocalRepairAcceptedCount({
+    inputMinimum: input.minimumLocalRepairAcceptedCount,
+    runtimeConfig: input.runtimeConfig,
+  });
 
   for (const partition of profile.manifest.partitions) {
     const agentCount = agentCountByPresetId.get(partition.scenarioPresetId);
@@ -201,10 +205,21 @@ export function createLocalRuntimeTownProfileGateCriteria(
     ...(minimumSimulatorRolloutCoverageRatio === undefined
       ? {}
       : { minimumSimulatorRolloutCoverageRatio }),
-    ...(input.minimumLocalRepairAcceptedCount === undefined
+    ...(minimumLocalRepairAcceptedCount === undefined
       ? {}
-      : { minimumLocalRepairAcceptedCount: input.minimumLocalRepairAcceptedCount }),
+      : { minimumLocalRepairAcceptedCount: minimumLocalRepairAcceptedCount }),
   };
+}
+
+function deriveMinimumLocalRepairAcceptedCount(input: {
+  readonly inputMinimum: number | undefined;
+  readonly runtimeConfig: LocalRuntimeTownProfileRuntimeConfig | undefined;
+}): number | undefined {
+  const configMinimum = input.runtimeConfig?.paperAlignment?.minimumLocalRepairAcceptedCount;
+  if (input.inputMinimum === undefined && configMinimum === undefined) {
+    return undefined;
+  }
+  return Math.max(input.inputMinimum ?? 0, configMinimum ?? 0);
 }
 
 export function deriveRequiredAgentCycleLlmAcceptedStagesFromRuntimeConfig(

@@ -30,6 +30,7 @@ describe('local runtime town profile gate suite CLI', () => {
         'smoke-25,default-100',
         '--report-root-dir',
         '/tmp/reports',
+        '--experiment-validation',
         '--runtime-config',
         '/runtime/profile-config.json',
         '--minimum-full-replan-materializations',
@@ -44,6 +45,7 @@ describe('local runtime town profile gate suite CLI', () => {
       cycleIntervalMs: 25,
       profileIds: ['smoke-25', 'default-100'],
       reportRootDir: '/tmp/reports',
+      experimentValidation: true,
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
       minimumSimulatorRolloutCoverageRatio: 0.75,
@@ -81,6 +83,9 @@ describe('local runtime town profile gate suite CLI', () => {
         '2',
         '--profiles',
         'smoke-25',
+        '--report-root-dir',
+        '/tmp/reports',
+        '--experiment-validation',
         '--runtime-config',
         '/runtime/profile-config.json',
         '--minimum-full-replan-materializations',
@@ -105,6 +110,8 @@ describe('local runtime town profile gate suite CLI', () => {
       requestedAt: 100,
       cycleCount: 2,
       profileIds: ['smoke-25'],
+      reportRootDir: '/tmp/reports',
+      experimentValidation: true,
       runtimeConfigPath: '/runtime/profile-config.json',
       minimumFullReplanMaterializationCount: 1,
       minimumSimulatorRolloutCoverageRatio: 0.75,
@@ -116,6 +123,33 @@ describe('local runtime town profile gate suite CLI', () => {
       failedProfileCount: 0,
     });
     expect(output.endsWith('\n')).toBe(true);
+  });
+
+  test('returns an input error when experiment validation lacks report root', async () => {
+    let stderr = '';
+
+    const exitCode = await runLocalRuntimeTownProfileGateSuiteCli({
+      argv: [
+        '--root-dir',
+        '/tmp/suite',
+        '--requested-at',
+        '100',
+        '--profiles',
+        'smoke-25',
+        '--experiment-validation',
+      ],
+      stderr: {
+        write: (chunk) => {
+          stderr += chunk;
+        },
+      },
+      runSuite: () => {
+        throw new Error('suite should not be called');
+      },
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('--experiment-validation requires --report-root-dir');
   });
 
   test('returns a suite gate failure exit code when any profile gate fails', async () => {

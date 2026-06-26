@@ -35,6 +35,7 @@ export type LocalRuntimeTownProfileGateSuiteInput = {
   readonly requestedAt: SimulationTimestamp;
   readonly cycleCount?: number;
   readonly cycleIntervalMs?: number;
+  readonly experimentValidation?: boolean;
   readonly minimumFullReplanMaterializationCount?: number;
   readonly minimumSimulatorRolloutCoverageRatio?: number;
   readonly runtimeConfigPath?: string;
@@ -91,6 +92,9 @@ export async function runLocalRuntimeTownProfileGateSuite(
     input.reportRootDir === undefined
       ? undefined
       : new FileRuntimeProfileRunReportRepository({ rootDir: input.reportRootDir });
+  if (input.experimentValidation === true && profileRunReportRepository === undefined) {
+    throw new Error('--experiment-validation requires --report-root-dir');
+  }
   const profiles: LocalRuntimeTownProfileGateSuiteProfileResult[] = [];
 
   for (const profileId of profileIds) {
@@ -131,8 +135,7 @@ export async function runLocalRuntimeTownProfileGateSuite(
         ...(input.minimumSimulatorRolloutCoverageRatio === undefined
           ? {}
           : {
-              minimumSimulatorRolloutCoverageRatio:
-                input.minimumSimulatorRolloutCoverageRatio,
+              minimumSimulatorRolloutCoverageRatio: input.minimumSimulatorRolloutCoverageRatio,
             }),
       }),
     );
@@ -209,6 +212,21 @@ function createProfileRunnerInput(input: {
     ...(input.profileRunReportRepository === undefined
       ? {}
       : { profileRunReportRepository: input.profileRunReportRepository }),
+    ...(input.suiteInput.experimentValidation !== true ||
+    input.profileRunReportRepository === undefined
+      ? {}
+      : {
+          experimentValidationSchedule: {
+            plannerRunSource: {
+              repository: input.profileRunReportRepository,
+              profileId: input.profileId,
+            },
+            reportGate: {
+              criteriaId: `${input.profileId}:profile-gate-suite:experiment-validation-gate`,
+              defaultAllowedStatuses: ['pass', 'watch'],
+            },
+          },
+        }),
     ...(input.runtimeConfig?.strategicPlanning === undefined
       ? {}
       : { llmPlanning: input.runtimeConfig.strategicPlanning }),

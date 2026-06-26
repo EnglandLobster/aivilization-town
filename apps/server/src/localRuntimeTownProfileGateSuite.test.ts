@@ -77,6 +77,55 @@ describe('local runtime town profile gate suite', () => {
     expect(inputs.every((input) => input.profileRunReportRepository !== undefined)).toBe(true);
   });
 
+  test('passes experiment validation schedule to each profile runner when requested', async () => {
+    const inputs: LocalRuntimeTownProfileRunnerInput[] = [];
+    const reportRootDir = createRootDir();
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir: '/tmp/aivilization-suite',
+      reportRootDir,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 2,
+      profileIds: ['smoke-25', 'default-100'],
+      experimentValidation: true,
+      runProfile: (input) => {
+        inputs.push(input);
+        return Promise.resolve(createPassingSummary(input));
+      },
+    });
+
+    expect(result.status).toBe('pass');
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) {
+      expect(input.experimentValidationSchedule).toMatchObject({
+        plannerRunSource: {
+          profileId: input.profileId,
+        },
+        reportGate: {
+          criteriaId: `${input.profileId}:profile-gate-suite:experiment-validation-gate`,
+          defaultAllowedStatuses: ['pass', 'watch'],
+        },
+      });
+      expect(input.experimentValidationSchedule?.plannerRunSource?.repository).toBeDefined();
+    }
+  });
+
+  test('requires report root when experiment validation is requested', async () => {
+    await expect(
+      runLocalRuntimeTownProfileGateSuite({
+        rootDir: '/tmp/aivilization-suite',
+        requestedAt: 100,
+        cycleCount: 1,
+        profileIds: ['smoke-25'],
+        experimentValidation: true,
+        runProfile: () => {
+          throw new Error('runner should not be called');
+        },
+      }),
+    ).rejects.toThrow('--experiment-validation requires --report-root-dir');
+  });
+
   test('returns a failing suite when an injected profile summary violates its gate', async () => {
     const result = await runLocalRuntimeTownProfileGateSuite({
       rootDir: '/tmp/aivilization-suite',

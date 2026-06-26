@@ -727,9 +727,21 @@ function createOperationMemorySynthesisProviderTrace(input: {
       ? {}
       : { failureReason: input.trace.failureReason }),
     ...(input.trace.message === undefined ? {} : { message: input.trace.message }),
+    ...(input.trace.shortTermMemoryContext === undefined
+      ? {}
+      : { shortTermMemoryContext: input.trace.shortTermMemoryContext }),
+    ...(input.trace.longTermProfileContext === undefined
+      ? {}
+      : { longTermProfileContext: input.trace.longTermProfileContext }),
+    ...(input.trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: input.trace.observedStateSummary }),
     ...(input.trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: input.trace.worldDecisionContext }),
+    ...(input.trace.choices === undefined ? {} : { choices: input.trace.choices }),
+    ...(input.trace.patches === undefined ? {} : { patches: input.trace.patches }),
+    ...(input.trace.reflections === undefined ? {} : { reflections: input.trace.reflections }),
   };
 }
 

@@ -1,0 +1,215 @@
+{
+  "llmPlanning": {
+    "kind": "traceable-llm-strategic-planner",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-strategic",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-strategic",
+          "model": "aivilization-scripted-planner",
+          "content": "{\"objective\":\"Scripted full LLM social objective\",\"branches\":[{\"id\":\"social\",\"objective\":\"Coordinate social interaction through LLM planning.\",\"subtasks\":[{\"id\":\"socialize\",\"description\":\"Socialize with a nearby neighbor about town plans.\",\"basePriority\":20,\"signalKeys\":[\"social\"],\"intentionAffinityTags\":[\"social\"],\"memoryAffinityTags\":[\"social\"],\"profileAffinityTags\":[\"social\"]}]}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "dailyPlanning": {
+    "kind": "traceable-llm-daily-planner",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-daily",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-daily",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"id\":\"scripted-daily-plan:{{user.agentId}}:{{user.dayStart}}\",\"agentId\":\"{{user.agentId}}\",\"dayStart\":{{user.dayStart}},\"generatedAt\":{{user.issuedAt}},\"summary\":\"Use LLM daily planning to prioritize social coordination with current world context.\",\"items\":[{\"id\":\"scripted-social-routine\",\"description\":\"Coordinate with neighbors after checking state and market context.\",\"priority\":10,\"startsAtOffsetMs\":0,\"endsAtOffsetMs\":3600000,\"affinityTags\":[\"social\",\"world-state\"],\"source\":\"world-state\"}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "reactionPlanning": {
+    "kind": "traceable-llm-reaction-evaluator",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-reaction",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-reaction",
+          "model": "aivilization-scripted-planner",
+          "content": "{\"kind\":\"ignore\",\"confidence\":0.9,\"rationale\":\"The observation is acknowledged but does not require a follow-up intention in this deterministic fixture.\"}",
+          "finishReason": "stop",
+          "repeat": 100
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "subtaskPrioritization": {
+    "kind": "traceable-llm-subtask-prioritizer",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-prioritizer",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-prioritizer",
+          "model": "aivilization-scripted-planner",
+          "content": "{\"rankedSubtasks\":[{\"branchId\":\"social\",\"subtaskId\":\"socialize\",\"priorityScore\":30,\"rationale\":\"The scripted fixture prioritizes the stable social subtask so downstream LLM stages are exercised.\"}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "actionSequenceGeneration": {
+    "kind": "traceable-llm-action-sequence-generator",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-action-sequence",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-action-sequence",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"actions\":[{\"id\":\"scripted-social-check-in:{{user.agentId}}\",\"description\":\"Use an LLM-authored social step compatible with the canonical micro-planner command type.\",\"commandType\":\"{{user.deterministicActions.0.commandType}}\",\"payload\":{{json user.deterministicActions.0.payload}},\"priority\":30,\"resourceEstimate\":{\"actionSeconds\":60},\"rationale\":\"Translate the stable social subtask into an executable action while preserving simulator-allowed command type and payload shape.\"}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "socialDialogue": {
+    "kind": "traceable-llm-social-dialogue-generator",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-social-dialogue",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-social-dialogue",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"dialogue\":{\"topic\":\"town plans\",\"relationDelta\":2,\"attitudeDelta\":2,\"rationale\":\"The acting agent and nearby neighbor exchange a compact planning dialogue.\",\"turns\":[{\"speakerAgentId\":\"{{user.agentId}}\",\"utterance\":\"I am checking how our town plans fit today.\",\"intent\":\"open-planning-dialogue\"},{\"speakerAgentId\":\"{{user.targetAgentId}}\",\"utterance\":\"I can help compare the plan with what is happening nearby.\",\"intent\":\"respond-to-planning-dialogue\"}]}}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "globalSynthesis": {
+    "kind": "traceable-llm-global-synthesizer",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-global",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-global",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"rankedActions\":[{\"actionId\":\"{{user.candidateActions.0.id}}\",\"priorityScore\":30,\"rationale\":\"The scripted social action is the only candidate and remains globally coherent.\",\"strategicAlignment\":1,\"branchUrgency\":1}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "reactiveCorrection": {
+    "kind": "traceable-llm-reactive-corrector",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-reactive",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-reactive",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"decision\":{\"kind\":\"propose-action\",\"rationale\":\"The first scripted social action was rejected by the fixture simulator, so retry with a conservative one-step conversation.\",\"action\":{\"id\":\"{{user.rejectedAction.id}}:repaired\",\"description\":\"Retry the scripted neighbor check-in after simulator rejection.\",\"commandType\":\"{{user.rejectedAction.commandType}}\",\"payload\":{\"targetAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"topic\":\"town plans retry\",\"relationDelta\":1,\"attitudeDelta\":1,\"turns\":[{\"speakerAgentId\":\"{{user.agentId}}\",\"utterance\":\"Let me retry the town planning check-in more simply.\",\"intent\":\"retry-social-plan\"},{\"speakerAgentId\":\"{{user.rejectedAction.payload.targetAgentId}}\",\"utterance\":\"That works; we can keep it brief.\",\"intent\":\"accept-retry\"}]},\"priority\":25,\"resourceEstimate\":{\"actionSeconds\":45}}}}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "replanningDecision": {
+    "kind": "traceable-llm-replanning-decider",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-replanning",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-replanning",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"decision\":{{json user.deterministicFallbackDecision}}}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "reflectionSynthesis": {
+    "kind": "traceable-llm-reflective-insight-synthesizer",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-reflection",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-reflection",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"insights\":[{\"kind\":\"habit\",\"topicKey\":\"scripted-social-check-in\",\"statement\":\"The agent treats brief town-plan check-ins as useful social coordination.\",\"confidence\":0.72,\"evidenceRecordIds\":[\"{{user.records.0.id}}\"],\"tags\":[\"social\",\"town-plans\",\"scripted\"],\"rationale\":\"The synthesis window contains a successful social memory for a town planning check-in.\"}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "socialModelSynthesis": {
+    "kind": "traceable-llm-social-model-synthesizer",
+    "model": "aivilization-scripted-planner",
+    "provider": {
+      "kind": "scripted",
+      "providerId": "aivilization-scripted-social-model",
+      "responses": [
+        {
+          "providerId": "aivilization-scripted-social-model",
+          "model": "aivilization-scripted-planner",
+          "contentTemplate": "{\"socialRecords\":[{\"targetAgentId\":\"{{user.records.0.consolidationHint.targetAgentId}}\",\"statement\":\"Brief town-plan check-ins are a positive coordination pattern with this neighbor.\",\"confidence\":0.74,\"evidenceRecordIds\":[\"{{user.records.0.id}}\"],\"relationDelta\":1,\"attitudeDelta\":1,\"rationale\":\"The provided social memory records a successful town-plans conversation with the target agent.\"}],\"socialReflections\":[{\"targetAgentId\":\"{{user.records.0.consolidationHint.targetAgentId}}\",\"statement\":\"The interaction suggests this neighbor is receptive to concise town planning coordination.\",\"confidence\":0.7,\"evidenceRecordIds\":[\"{{user.records.0.id}}\"],\"relationDelta\":1,\"attitudeDelta\":1,\"tags\":[\"town-plans\",\"scripted\"],\"rationale\":\"The conversation completed successfully and included positive social deltas.\"}]}",
+          "finishReason": "stop",
+          "repeat": 50
+        }
+      ]
+    },
+    "maxAttempts": 1,
+    "timeoutMs": 30000
+  },
+  "replanningPolicy": {
+    "consecutiveFailureThreshold": 2,
+    "failureTags": ["simulator-rejected-action", "resource-blocked"]
+  }
+}

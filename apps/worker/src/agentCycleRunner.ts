@@ -28,6 +28,7 @@ import {
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
+  type WorldDecisionContextTrace,
 } from '@aivilization/agent-runtime';
 import type {
   AgentIntentionRepository,
@@ -102,6 +103,8 @@ type WorkerAgentCyclePlanInput =
 type LlmCognitiveContextTrace = {
   readonly shortTermMemoryContext?: { readonly recordCount: number };
   readonly longTermProfileContext?: { readonly entryCount: number };
+  readonly observedStateSummary?: string;
+  readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
 export async function runWorkerAgentCycle(
@@ -568,6 +571,12 @@ function mapLlmCognitiveContextTrace(trace: LlmCognitiveContextTrace): LlmCognit
     ...(trace.longTermProfileContext === undefined
       ? {}
       : { longTermProfileContext: { entryCount: trace.longTermProfileContext.entryCount } }),
+    ...(trace.observedStateSummary === undefined
+      ? {}
+      : { observedStateSummary: trace.observedStateSummary }),
+    ...(trace.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 
@@ -731,9 +740,6 @@ function mapReplanningDecisionTrace(
         }),
     ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
     ...mapLlmCognitiveContextTrace(trace),
-    ...(trace.worldDecisionContext === undefined
-      ? {}
-      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
   };
 }
 

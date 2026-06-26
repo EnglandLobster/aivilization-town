@@ -2,10 +2,12 @@ import { readFile } from 'node:fs/promises';
 import type { AdaptiveReplanningPolicy } from '@aivilization/agent-runtime';
 import type {
   LlmGatewayPricing,
+  LlmProviderCompletionRequest,
   LlmProviderCompletionResponse,
   LlmProviderFinishReason,
   LlmStructuredProviderConfig,
   OpenAiCompatibleResponseFormatMode,
+  ScriptedLlmProviderResponse,
 } from '@aivilization/llm';
 import type {
   LocalRuntimeTownProfileDailyCompilerConfig,
@@ -751,28 +753,153 @@ function parseScriptedProviderConfig(
 function parseScriptedProviderResponses(
   value: unknown,
   name: string,
-): readonly LlmProviderCompletionResponse[] {
+): readonly ScriptedLlmProviderResponse[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${name} must be a non-empty array`);
   }
 
-  return value.map((entry, index) => parseScriptedProviderResponse(entry, `${name}[${index}]`));
+  return value.flatMap((entry, index) => parseScriptedProviderResponse(entry, `${name}[${index}]`));
 }
 
 function parseScriptedProviderResponse(
   value: unknown,
   name: string,
-): LlmProviderCompletionResponse {
+): readonly ScriptedLlmProviderResponse[] {
   const record = requireRecord(value, name);
   const usage = parseOptionalTokenUsage(record.usage, `${name}.usage`);
+  const repeat = readOptionalPositiveInteger(record.repeat, `${name}.repeat`) ?? 1;
+  const content = readOptionalString(record.content, `${name}.content`);
+  const contentTemplate = readOptionalString(record.contentTemplate, `${name}.contentTemplate`);
+  if (content !== undefined && contentTemplate !== undefined) {
+    throw new Error(`${name} must define either content or contentTemplate, not both`);
+  }
+  if (content === undefined && contentTemplate === undefined) {
+    throw new Error(`${name} must define content or contentTemplate`);
+  }
 
-  return {
+  const responseBase = {
     providerId: readRequiredString(record.providerId, `${name}.providerId`),
     model: readRequiredString(record.model, `${name}.model`),
-    content: readRequiredString(record.content, `${name}.content`),
     finishReason: readProviderFinishReason(record.finishReason, `${name}.finishReason`),
     ...(usage === undefined ? {} : { usage }),
   };
+  const response =
+    contentTemplate === undefined
+      ? {
+          ...responseBase,
+          content: content ?? '',
+        }
+      : (request: LlmProviderCompletionRequest): LlmProviderCompletionResponse => ({
+          ...responseBase,
+          content: renderScriptedContentTemplate({
+            template: contentTemplate,
+            request,
+            name,
+          }),
+        });
+  return Array.from({ length: repeat }, () => response);
+}
+
+function renderScriptedContentTemplate(input: {
+  readonly template: string;
+  readonly request: LlmProviderCompletionRequest;
+  readonly name: string;
+}): string {
+  const context = createScriptedTemplateContext(input.request);
+  return input.template.replace(
+    /\{\{\s*(json\s+)?([a-zA-Z0-9_.-]+)\s*\}\}/g,
+    (_match, jsonPrefix: string | undefined, path: string) => {
+      const value = resolveTemplateValue(context, path, `${input.name}.contentTemplate`);
+      return jsonPrefix === undefined
+        ? stringifyTemplateValue(value)
+        : stringifyJsonTemplateValue(value);
+    },
+  );
+}
+
+function createScriptedTemplateContext(
+  request: LlmProviderCompletionRequest,
+): Readonly<Record<string, unknown>> {
+  const userMessage = [...request.messages].reverse().find((message) => message.role === 'user');
+  const parsedUser = userMessage === undefined ? {} : parseOptionalJsonObject(userMessage.content);
+  return {
+    request: {
+      requestId: request.requestId,
+      model: request.model,
+      schemaName: request.schemaName,
+    },
+    user: parsedUser,
+  };
+}
+
+function parseOptionalJsonObject(value: string): Readonly<Record<string, unknown>> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return requireRecord(parsed, 'scripted provider user message JSON');
+  } catch (error) {
+    throw new Error(
+      `scripted provider user message must be JSON object: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function resolveTemplateValue(
+  context: Readonly<Record<string, unknown>>,
+  path: string,
+  name: string,
+): unknown {
+  const segments = path.split('.');
+  let current: unknown = context;
+  for (const segment of segments) {
+    if (segment.length === 0) {
+      throw new Error(`${name} placeholder ${path} must not contain empty path segments`);
+    }
+    if (Array.isArray(current)) {
+      if (!/^\d+$/.test(segment)) {
+        throw new Error(
+          `${name} placeholder ${path} array index ${segment} must be non-negative integer`,
+        );
+      }
+      const index = Number(segment);
+      if (index >= current.length) {
+        throw new Error(`${name} placeholder ${path} array index ${index} is out of bounds`);
+      }
+      current = current[index];
+      continue;
+    }
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+      throw new Error(`${name} placeholder ${path} does not resolve to a scalar value`);
+    }
+    const record = current as Readonly<Record<string, unknown>>;
+    if (!(segment in record)) {
+      throw new Error(`${name} placeholder ${path} is missing`);
+    }
+    current = record[segment];
+  }
+  return current;
+}
+
+function stringifyTemplateValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value === null) {
+    return 'null';
+  }
+  throw new Error('scripted provider contentTemplate placeholders must resolve to scalar values');
+}
+
+function stringifyJsonTemplateValue(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    throw new Error(
+      'scripted provider contentTemplate json placeholders must be JSON-serializable',
+    );
+  }
+  return serialized;
 }
 
 function parseOptionalTokenUsage(
@@ -889,6 +1016,13 @@ function readRequiredString(value: unknown, name: string): string {
   }
   assertNonEmpty(value, name);
   return value;
+}
+
+function readOptionalString(value: unknown, name: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return readRequiredString(value, name);
 }
 
 function readOptionalPositiveInteger(value: unknown, name: string): number | undefined {

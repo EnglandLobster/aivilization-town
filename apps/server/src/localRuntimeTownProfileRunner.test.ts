@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   type ActionSequenceGenerator,
   FileBranchPlanRepository,
@@ -20,14 +21,17 @@ import {
   FileObjectiveRenewalTraceRepository,
   FileReactionEvaluationTraceRepository,
   InMemoryRuntimeProfileRunReportRepository,
+  evaluateRuntimeProfileRunReport,
 } from '@aivilization/observability';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalWorldRuntimeStorage } from '@aivilization/worker';
 import {
+  createLocalRuntimeTownProfileGateCriteria,
   createLocalRuntimeTownProfileAgentProvider,
   createLocalRuntimeTownProfileWorldPolicies,
+  loadLocalRuntimeTownProfileRuntimeConfig,
   runLocalRuntimeTownDaemonScenarioProfile,
 } from './index';
 
@@ -219,6 +223,128 @@ describe('local runtime town profile runner', () => {
       agentCycleDiagnostics: summary.agentCycleDiagnostics,
       partitions: summary.partitions,
     });
+  });
+
+  test('passes profile gate from full scripted LLM runtime config without live provider calls', async () => {
+    const rootDir = createRootDir();
+    const repository = new InMemoryRuntimeProfileRunReportRepository();
+    const fixturePath = fileURLToPath(
+      new URL('../examples/full-scripted-llm-runtime-config.json', import.meta.url),
+    );
+    const runtimeConfig = await loadLocalRuntimeTownProfileRuntimeConfig({
+      profileId: 'smoke-25',
+      path: fixturePath,
+    });
+
+    const summary = await runLocalRuntimeTownDaemonScenarioProfile({
+      profileId: 'smoke-25',
+      rootDir,
+      cycleCount: 1,
+      requestedAt: 175,
+      reportGeneratedAt: 225,
+      preseedMarketPriceIndex: true,
+      profileRunReportRepository: repository,
+      domainConfig: {
+        social: {
+          targetAgentId: asAgentId('smoke-25-world-main-agent-008'),
+          topic: 'town plans',
+        },
+      },
+      ...(runtimeConfig.strategicPlanning === undefined
+        ? {}
+        : { llmPlanning: runtimeConfig.strategicPlanning }),
+      ...(runtimeConfig.dailyPlanning === undefined
+        ? {}
+        : { dailyPlanning: runtimeConfig.dailyPlanning }),
+      ...(runtimeConfig.reactionPlanning === undefined
+        ? {}
+        : { reactionPlanning: runtimeConfig.reactionPlanning }),
+      ...(runtimeConfig.subtaskPrioritization === undefined
+        ? {}
+        : { subtaskPrioritization: runtimeConfig.subtaskPrioritization }),
+      ...(runtimeConfig.actionSequenceGeneration === undefined
+        ? {}
+        : { actionSequenceGeneration: runtimeConfig.actionSequenceGeneration }),
+      ...(runtimeConfig.socialDialogue === undefined
+        ? {}
+        : { socialDialogue: runtimeConfig.socialDialogue }),
+      ...(runtimeConfig.globalSynthesis === undefined
+        ? {}
+        : { globalSynthesis: runtimeConfig.globalSynthesis }),
+      ...(runtimeConfig.reactiveCorrection === undefined
+        ? {}
+        : { reactiveCorrection: runtimeConfig.reactiveCorrection }),
+      ...(runtimeConfig.replanningDecision === undefined
+        ? {}
+        : { replanningDecision: runtimeConfig.replanningDecision }),
+      ...(runtimeConfig.reflectionSynthesis === undefined
+        ? {}
+        : { reflectionSynthesis: runtimeConfig.reflectionSynthesis }),
+      ...(runtimeConfig.socialModelSynthesis === undefined
+        ? {}
+        : { socialModelSynthesis: runtimeConfig.socialModelSynthesis }),
+      ...(runtimeConfig.replanningPolicy === undefined
+        ? {}
+        : { replanningPolicy: runtimeConfig.replanningPolicy }),
+      memoryConsolidationSchedule: {
+        agentIds: [asAgentId('smoke-25-world-main-agent-001')],
+        retrievalLimit: 10,
+        minPatternCount: 1,
+      },
+      steeringSimulator: ({ action }) =>
+        action.commandType === 'AgentStartConversation' &&
+        action.id.startsWith('scripted-social-check-in:') &&
+        !action.id.endsWith(':repaired')
+          ? { status: 'rejected', action, reason: 'scripted rejection drill' }
+          : { status: 'accepted', action },
+    });
+    const report = await repository.get(summary.run.traceId);
+    if (report === undefined) {
+      throw new Error(`missing profile run report ${summary.run.traceId}`);
+    }
+
+    const criteria = createLocalRuntimeTownProfileGateCriteria('smoke-25', { runtimeConfig });
+    const gate = evaluateRuntimeProfileRunReport(report, criteria);
+
+    expect(gate.failures).toEqual([]);
+    expect(gate.status).toBe('pass');
+    expect(criteria.requiredAgentCycleLlmAcceptedStages).toEqual([
+      'contextualPrioritization',
+      'actionSequenceGeneration',
+      'socialDialogueGeneration',
+      'globalSynthesis',
+      'reactiveCorrection',
+      'replanningDecision',
+    ]);
+    expect(criteria.requiredCognitionLlmAcceptedStages).toEqual([
+      'strategicPlanning',
+      'dailyPlanning',
+      'reactionEvaluation',
+      'reflectionSynthesis',
+      'socialModelSynthesis',
+    ]);
+    for (const stageName of criteria.requiredAgentCycleLlmAcceptedStages ?? []) {
+      const diagnostics = (report.agentCycleDiagnostics.llmStageDiagnostics ?? []).find(
+        (stage) => stage.stageName === stageName,
+      );
+      if (diagnostics === undefined) {
+        throw new Error(`missing agent-cycle LLM diagnostics for ${stageName}`);
+      }
+      expect(diagnostics.llmAcceptedCount).toBeGreaterThan(0);
+      expect(diagnostics.deterministicFallbackCount).toBe(0);
+      expect(diagnostics.deterministicCount).toBe(0);
+    }
+    for (const stageName of criteria.requiredCognitionLlmAcceptedStages ?? []) {
+      const diagnostics = report.cognitionLlmStageDiagnostics?.find(
+        (stage) => stage.stageName === stageName,
+      );
+      if (diagnostics === undefined) {
+        throw new Error(`missing cognition LLM diagnostics for ${stageName}`);
+      }
+      expect(diagnostics.llmAcceptedCount).toBeGreaterThan(0);
+      expect(diagnostics.deterministicFallbackCount).toBe(0);
+      expect(diagnostics.deterministicCount).toBe(0);
+    }
   });
 
   test('records planner experiment metadata on runtime profile run reports', async () => {

@@ -43,7 +43,13 @@ export type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace = {
   readonly model?: string;
   readonly failureReason?: string;
   readonly message?: string;
+  readonly shortTermMemoryContext?: unknown;
+  readonly longTermProfileContext?: unknown;
+  readonly observedStateSummary?: string;
   readonly worldDecisionContext?: MemorySynthesisWorldDecisionContextTrace;
+  readonly choices?: readonly unknown[];
+  readonly patches?: readonly unknown[];
+  readonly reflections?: readonly unknown[];
 };
 
 export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {

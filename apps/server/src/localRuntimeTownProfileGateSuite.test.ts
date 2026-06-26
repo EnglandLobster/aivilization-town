@@ -558,6 +558,189 @@ describe('local runtime town profile gate suite', () => {
     });
   });
 
+  test('writes paper-alignment coverage for full LLM runtime config into bundle manifests', async () => {
+    const rootDir = createRootDir();
+    const reportRootDir = createRootDir();
+    const configPath = join(rootDir, 'full-llm-profile-runtime-config.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        profiles: {
+          'default-100': {
+            llmPlanning: createLlmStageNode({
+              kind: 'traceable-llm-strategic-planner',
+              model: 'strategic-model',
+              providerId: 'strategic-provider',
+            }),
+            dailyPlanning: createLlmStageNode({
+              kind: 'traceable-llm-daily-planner',
+              model: 'daily-model',
+              providerId: 'daily-provider',
+            }),
+            reactionPlanning: createLlmStageNode({
+              kind: 'traceable-llm-reaction-evaluator',
+              model: 'reaction-model',
+              providerId: 'reaction-provider',
+            }),
+            subtaskPrioritization: createLlmStageNode({
+              kind: 'traceable-llm-subtask-prioritizer',
+              model: 'priority-model',
+              providerId: 'priority-provider',
+            }),
+            actionSequenceGeneration: createLlmStageNode({
+              kind: 'traceable-llm-action-sequence-generator',
+              model: 'action-model',
+              providerId: 'action-provider',
+            }),
+            socialDialogue: createLlmStageNode({
+              kind: 'traceable-llm-social-dialogue-generator',
+              model: 'dialogue-model',
+              providerId: 'dialogue-provider',
+            }),
+            globalSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-global-synthesizer',
+              model: 'global-model',
+              providerId: 'global-provider',
+            }),
+            reactiveCorrection: createLlmStageNode({
+              kind: 'traceable-llm-reactive-corrector',
+              model: 'reactive-model',
+              providerId: 'reactive-provider',
+            }),
+            replanningDecision: createLlmStageNode({
+              kind: 'traceable-llm-replanning-decider',
+              model: 'replanning-model',
+              providerId: 'replanning-provider',
+            }),
+            reflectionSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-reflective-insight-synthesizer',
+              model: 'reflection-model',
+              providerId: 'reflection-provider',
+            }),
+            socialModelSynthesis: createLlmStageNode({
+              kind: 'traceable-llm-social-model-synthesizer',
+              model: 'social-model',
+              providerId: 'social-model-provider',
+            }),
+          },
+        },
+      }),
+    );
+
+    const result = await runLocalRuntimeTownProfileGateSuite({
+      rootDir,
+      reportRootDir,
+      runtimeConfigPath: configPath,
+      requestedAt: 100,
+      reportGeneratedAt: 200,
+      cycleCount: 1,
+      profileIds: ['default-100'],
+      runProfile: (input) =>
+        Promise.resolve(
+          createPassingSummary(input, {
+            llmStageDiagnostics: createAcceptedAgentCycleLlmStageDiagnostics([
+              'contextualPrioritization',
+              'actionSequenceGeneration',
+              'socialDialogueGeneration',
+              'globalSynthesis',
+              'reactiveCorrection',
+              'replanningDecision',
+            ]),
+            cognitionLlmStageDiagnostics: createAcceptedCognitionLlmStageDiagnostics([
+              'strategicPlanning',
+              'dailyPlanning',
+              'reactionEvaluation',
+              'reflectionSynthesis',
+              'socialModelSynthesis',
+            ]),
+          }),
+        ),
+    });
+
+    expect(result.status).toBe('pass');
+    expect(result.bundleManifest?.paperAlignment).toEqual({
+      schemaVersion: 1,
+      capabilityCount: 11,
+      configuredCapabilityCount: 11,
+      passedConfiguredCapabilityCount: 11,
+      failedConfiguredCapabilityCount: 0,
+      unconfiguredCapabilityCount: 0,
+    });
+    const profileCoverage = result.bundleManifest?.profiles[0]?.paperAlignment;
+    expect(profileCoverage).toMatchObject({
+      schemaVersion: 1,
+      stageCount: 11,
+      configuredStageCount: 11,
+      passedConfiguredStageCount: 11,
+      failedConfiguredStageCount: 0,
+      unconfiguredStageCount: 0,
+    });
+    expect(profileCoverage?.stages.map((stage) => stage.paperCapabilityId).sort()).toEqual([
+      'action-sequence-generation',
+      'contextual-prioritization',
+      'daily-planning',
+      'global-synthesis',
+      'memory-guided-replanning',
+      'reaction-evaluation',
+      'reactive-correction',
+      'reflection-synthesis',
+      'social-dialogue-generation',
+      'social-model-synthesis',
+      'strategic-branch-planning',
+    ]);
+    expect(profileCoverage?.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          paperCapabilityId: 'contextual-prioritization',
+          paperSection: '2.1.1 Branch-Thinking Planner',
+          stageFamily: 'agent-cycle',
+          stageName: 'contextualPrioritization',
+          runtimeConfigured: true,
+          gateStatus: 'pass',
+          requirements: {
+            acceptedTrace: true,
+            noFallback: true,
+            noDeterministic: true,
+            observedState: true,
+            worldDecisionContext: true,
+            economicContext: true,
+            rulesContext: true,
+            shortTermMemoryContext: true,
+            longTermProfileContext: true,
+            outputArtifactCount: 0,
+          },
+        }),
+        expect.objectContaining({
+          paperCapabilityId: 'reflection-synthesis',
+          paperSection: '2.2 Adaptive Agent Profile',
+          stageFamily: 'cognition',
+          stageName: 'reflectionSynthesis',
+          runtimeConfigured: true,
+          gateStatus: 'pass',
+          requirements: {
+            acceptedTrace: true,
+            noFallback: true,
+            noDeterministic: true,
+            observedState: true,
+            worldDecisionContext: true,
+            economicContext: true,
+            rulesContext: true,
+            shortTermMemoryContext: true,
+            longTermProfileContext: true,
+            outputArtifactCount: 1,
+          },
+        }),
+      ]),
+    );
+    expect(
+      JSON.parse(
+        readFileSync(join(reportRootDir, 'profile-gate-suite-100-bundle-manifest.json'), 'utf8'),
+      ),
+    ).toMatchObject({
+      paperAlignment: result.bundleManifest?.paperAlignment,
+    });
+  });
+
   test('requires accepted agent-cycle LLM traces for stages enabled by runtime config', async () => {
     const rootDir = createRootDir();
     const configPath = join(rootDir, 'agent-cycle-llm-profile-runtime-config.json');

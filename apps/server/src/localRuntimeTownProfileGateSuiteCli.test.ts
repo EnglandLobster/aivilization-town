@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { createLocalRuntimeTownProfileGateCriteria } from './localRuntimeTownProfileGate';
 import {
   createLocalRuntimeTownProfileRunReportFromSummary,
   type LocalRuntimeTownProfileGateSuiteInput,
@@ -13,6 +14,7 @@ import {
   createLocalRuntimeTownDaemonScenarioProfile,
   type LocalRuntimeTownDaemonScenarioProfileId,
 } from './localRuntimeTownScenarioProfile';
+import { createLocalRuntimeTownPaperAlignmentProfileCoverage } from './localRuntimeTownPaperAlignmentCoverage';
 
 describe('local runtime town profile gate suite CLI', () => {
   test('parses suite arguments', () => {
@@ -196,6 +198,9 @@ function createSuiteSummary(
     summary,
     generatedAt: input.reportGeneratedAt ?? 200,
   });
+  const criteria = createLocalRuntimeTownProfileGateCriteria(profileId, {
+    minimumCompletedCycleCount: input.cycleCount ?? 1,
+  });
   const gate =
     status === 'pass'
       ? {
@@ -237,6 +242,10 @@ function createSuiteSummary(
         summary,
         report,
         gate,
+        paperAlignment: createLocalRuntimeTownPaperAlignmentProfileCoverage({
+          criteria,
+          gate,
+        }),
       },
     ],
   };

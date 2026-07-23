@@ -1,0 +1,33 @@
+HANDOFF.md
+  s_0d163d2f936b6c::t_825e9c2c7c7b32 1-162
+README.md
+  s_0d163d2f936b6c::t_312a3fcfd68f50 3-5,7-11,13-14,16-17,19,21-37,39-40,42,44-53,57,62-63,66-71,74-79,82,85-374,376-394
+design-qa.md
+  s_0d163d2f936b6c::t_be93c2c7c2669b 1-49
+docs/DEPLOYMENT_AND_RECOVERY.md
+  s_0d163d2f936b6c::t_8d28c3ad2cc586 1-427
+docs/FRONTEND_SYSTEM.md
+  s_0d163d2f936b6c::t_fae448b5e0834f 1-97
+docs/OPERATIONS_SLOS.md
+  s_0d163d2f936b6c::t_30be9fb98a130d 1-71
+docs/SCIENTIFIC_LIMITATIONS.md
+  s_0d163d2f936b6c::t_3c5e173cbe26c2 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a90f99ca23b680ebb57a60af70863a88c34440c1",
+  "prompts": {},
+  "sessions": {
+    "s_0d163d2f936b6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7ee0-e525-78d2-aac1-0edd46f60824",
+        "model": "unknown"
+      },
+      "human_author": "Codex <codex@local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}

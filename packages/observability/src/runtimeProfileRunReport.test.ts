@@ -289,6 +289,7 @@ describe('runtime profile run report repositories', () => {
       replanningDecisionRatio: 2 / 3,
       simulatorRolloutCoverageRatio: 2 / 3,
       llmStageDiagnostics: createEmptyLlmStageDiagnostics(3),
+      educationOpportunityCost: createEducationOpportunityCostDiagnostics({ studyCount: 3 }),
     });
     expect(createRuntimeProfileAgentCycleDiagnostics([])).toEqual({
       traceCount: 0,
@@ -313,6 +314,83 @@ describe('runtime profile run report repositories', () => {
       replanningDecisionRatio: 0,
       simulatorRolloutCoverageRatio: 0,
       llmStageDiagnostics: createEmptyLlmStageDiagnostics(0),
+      educationOpportunityCost: createEducationOpportunityCostDiagnostics({ studyCount: 0 }),
+    });
+  });
+
+  test('measures planned study time, direct cost, foregone alternatives, and constrained deferral', () => {
+    const diagnostics = createRuntimeProfileAgentCycleDiagnostics([
+      createTrace({
+        traceId: 'study-selected',
+        simulatorStatus: 'accepted',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        actionSynthesis: {
+          acceptedActions: [
+            {
+              id: 'study-selected:study',
+              description: 'Study',
+              commandType: 'AgentStudy',
+              resourceEstimate: { actionSeconds: 1800, currencyCost: 10 },
+            },
+          ],
+          rejectedActions: [
+            {
+              action: {
+                id: 'study-selected:work',
+                description: 'Work',
+                commandType: 'AgentWork',
+                resourceEstimate: { actionSeconds: 3600 },
+              },
+              reason: 'maxActions exhausted',
+            },
+          ],
+        },
+      }),
+      createTrace({
+        traceId: 'study-deferred',
+        simulatorStatus: 'accepted',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        actionSynthesis: {
+          acceptedActions: [
+            {
+              id: 'study-deferred:work',
+              description: 'Work',
+              commandType: 'AgentWork',
+              resourceEstimate: { actionSeconds: 3600 },
+            },
+          ],
+          rejectedActions: [
+            {
+              action: {
+                id: 'study-deferred:study',
+                description: 'Study',
+                commandType: 'AgentStudy',
+                resourceEstimate: { actionSeconds: 1800, currencyCost: 10 },
+              },
+              reason: 'currency budget exceeded',
+            },
+          ],
+        },
+      }),
+    ]);
+
+    expect(diagnostics.educationOpportunityCost).toEqual({
+      metricVersion: 'education-opportunity-cost-diagnostics-v1',
+      plannedActivityAllocation: [
+        { activity: 'study', acceptedActionCount: 1, actionSeconds: 1800 },
+        { activity: 'labor', acceptedActionCount: 1, actionSeconds: 3600 },
+        { activity: 'production', acceptedActionCount: 0, actionSeconds: 0 },
+        { activity: 'consumption', acceptedActionCount: 0, actionSeconds: 0 },
+        { activity: 'survival', acceptedActionCount: 0, actionSeconds: 0 },
+        { activity: 'other', acceptedActionCount: 0, actionSeconds: 0 },
+      ],
+      directStudyCurrencyCost: 10,
+      foregoneCompetingActionCount: 1,
+      studyDeferredForResourceConstraintCount: 1,
     });
   });
 
@@ -1030,6 +1108,7 @@ function createTrace(input: {
   readonly globalSynthesis?: AgentCycleTrace['globalSynthesis'];
   readonly actionRepair?: AgentCycleTrace['actionRepair'];
   readonly replanningDecisionTrace?: AgentCycleTrace['replanningDecisionTrace'];
+  readonly actionSynthesis?: AgentCycleTrace['actionSynthesis'];
 }): AgentCycleTrace {
   return createAgentCycleTrace({
     traceId: input.traceId,
@@ -1067,7 +1146,7 @@ function createTrace(input: {
         },
       },
     ],
-    actionSynthesis: {
+    actionSynthesis: input.actionSynthesis ?? {
       acceptedActions: [
         {
           id: `${input.traceId}:action`,
@@ -1154,6 +1233,23 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     rulesContextCount: 0,
     completeRulesContextCount: 0,
   }));
+}
+
+function createEducationOpportunityCostDiagnostics(input: { readonly studyCount: number }) {
+  return {
+    metricVersion: 'education-opportunity-cost-diagnostics-v1',
+    plannedActivityAllocation: [
+      { activity: 'study', acceptedActionCount: input.studyCount, actionSeconds: 0 },
+      { activity: 'labor', acceptedActionCount: 0, actionSeconds: 0 },
+      { activity: 'production', acceptedActionCount: 0, actionSeconds: 0 },
+      { activity: 'consumption', acceptedActionCount: 0, actionSeconds: 0 },
+      { activity: 'survival', acceptedActionCount: 0, actionSeconds: 0 },
+      { activity: 'other', acceptedActionCount: 0, actionSeconds: 0 },
+    ],
+    directStudyCurrencyCost: 0,
+    foregoneCompetingActionCount: 0,
+    studyDeferredForResourceConstraintCount: 0,
+  };
 }
 
 function createWorldDecisionContextTrace() {

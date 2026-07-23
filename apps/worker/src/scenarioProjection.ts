@@ -9,9 +9,7 @@ export type ScenarioProjectionInput = {
   readonly moneySupply?: number;
 };
 
-export function createWorldProjectionFromScenario(
-  input: ScenarioProjectionInput,
-): WorldProjection {
+export function createWorldProjectionFromScenario(input: ScenarioProjectionInput): WorldProjection {
   return createWorldProjection({
     clock: input.clock ?? input.preset.clock,
     locations: input.preset.locations.map((location) => ({
@@ -20,6 +18,9 @@ export function createWorldProjectionFromScenario(
       kind: location.kind,
       activityAffinities: location.activityAffinities,
       capacity: location.capacity,
+      source: location.source,
+      ...(location.mapPosition === undefined ? {} : { mapPosition: location.mapPosition }),
+      ...(location.connections === undefined ? {} : { connections: location.connections }),
     })),
     agents: input.preset.agentSeeds.map((agent) => ({
       agentId: agent.agentId,

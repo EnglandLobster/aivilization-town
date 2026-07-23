@@ -194,6 +194,30 @@ describe('local simulation runtime supervisor', () => {
     ]);
   });
 
+  test('stagger-starts hosted partitions across cooperative event-loop turns', async () => {
+    const host = await bootstrapTestHost();
+    let cooperativeYieldCount = 0;
+    const supervisor = createLocalSimulationRuntimeSupervisor({
+      host,
+      cooperativeYield: () => {
+        cooperativeYieldCount += 1;
+        return Promise.resolve();
+      },
+    });
+
+    const result = await supervisor.startAll({
+      operationId: 'op-staggered-start-200',
+      requestedAt: 200,
+    });
+
+    expect(result.outcome).toBe('succeeded');
+    expect(result.partitions.map((partition) => partition.partitionKey)).toEqual([
+      'world-main',
+      'world-east',
+    ]);
+    expect(cooperativeYieldCount).toBe(1);
+  });
+
   test('surfaces partial partition failures without rejecting the whole bulk start command', async () => {
     const host = await bootstrapTestHost();
     const supervisor = createLocalSimulationRuntimeSupervisor({ host });
@@ -551,6 +575,8 @@ describe('local simulation runtime supervisor', () => {
               requestId: `reflection-${input.agentId}-${input.generatedAt}`,
               providerId: 'test-reflection-provider',
               model: 'test-reflection-model',
+              attempts: [createMemorySynthesisAttempt('test-reflection-provider')],
+              usage: createMemorySynthesisUsage(),
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId),
             },
           }),
@@ -564,6 +590,8 @@ describe('local simulation runtime supervisor', () => {
               requestId: `social-model-${input.agentId}-${input.generatedAt}`,
               providerId: 'test-social-model-provider',
               model: 'test-social-model',
+              attempts: [createMemorySynthesisAttempt('test-social-model-provider')],
+              usage: createMemorySynthesisUsage(),
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId),
             },
           }),
@@ -595,6 +623,8 @@ describe('local simulation runtime supervisor', () => {
                 requestId: 'reflection-agent-1-610',
                 providerId: 'test-reflection-provider',
                 model: 'test-reflection-model',
+                attempts: [createMemorySynthesisAttempt('test-reflection-provider')],
+                usage: createMemorySynthesisUsage(),
                 worldDecisionContext: createWorldDecisionContextTrace(agentOne),
               },
             ],
@@ -606,6 +636,8 @@ describe('local simulation runtime supervisor', () => {
                 requestId: 'social-model-agent-1-610',
                 providerId: 'test-social-model-provider',
                 model: 'test-social-model',
+                attempts: [createMemorySynthesisAttempt('test-social-model-provider')],
+                usage: createMemorySynthesisUsage(),
                 worldDecisionContext: createWorldDecisionContextTrace(agentOne),
               },
             ],
@@ -665,13 +697,13 @@ describe('local simulation runtime supervisor', () => {
         partitionKey: 'world-main',
         health: 'attention',
         lastMemoryConsolidationStatus: 'failed',
-        lastMemoryConsolidationFailure: 'limit must be a positive integer',
+        lastMemoryConsolidationFailure: 'limit must be a positive safe integer',
       },
       {
         partitionKey: 'world-east',
         health: 'attention',
         lastMemoryConsolidationStatus: 'failed',
-        lastMemoryConsolidationFailure: 'limit must be a positive integer',
+        lastMemoryConsolidationFailure: 'limit must be a positive safe integer',
       },
     ]);
     await expect(
@@ -686,7 +718,7 @@ describe('local simulation runtime supervisor', () => {
           status: 'completed',
           memoryConsolidationFailure: {
             name: 'Error',
-            message: 'limit must be a positive integer',
+            message: 'limit must be a positive safe integer',
           },
         },
         {
@@ -695,7 +727,7 @@ describe('local simulation runtime supervisor', () => {
           status: 'completed',
           memoryConsolidationFailure: {
             name: 'Error',
-            message: 'limit must be a positive integer',
+            message: 'limit must be a positive safe integer',
           },
         },
       ],
@@ -1144,6 +1176,26 @@ async function bootstrapTestHost(
       ? {}
       : { memoryConsolidationSchedule: input.memoryConsolidationSchedule }),
   });
+}
+
+function createMemorySynthesisUsage() {
+  return {
+    inputTokens: 12,
+    outputTokens: 4,
+    totalTokens: 16,
+    estimatedCostMicros: 28,
+  };
+}
+
+function createMemorySynthesisAttempt(providerId: string) {
+  return {
+    attemptIndex: 1,
+    status: 'succeeded',
+    providerId,
+    model: 'memory-synthesis-model',
+    message: 'LLM structured response validated',
+    usage: createMemorySynthesisUsage(),
+  };
 }
 
 function createRootDir(): string {

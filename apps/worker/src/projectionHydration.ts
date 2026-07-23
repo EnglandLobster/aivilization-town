@@ -8,7 +8,12 @@ import {
   type ProjectionSnapshotStore,
   type SnapshotReference,
 } from '@aivilization/sim-core';
-import { applyWorldEvent, type WorldEvent, type WorldProjection } from '@aivilization/world';
+import {
+  applyWorldEvent,
+  enforceWorldProjectionMemoryRetention,
+  type WorldEvent,
+  type WorldProjection,
+} from '@aivilization/world';
 
 export type WorldProjectionCheckpointHydrationInput = {
   readonly checkpointStore: ProjectionCheckpointStore;
@@ -58,7 +63,9 @@ export function hydrateWorldProjectionFromEventStream(
     streamVersion,
   });
   const replayFromSequence = checkpointHydration?.fromSequence ?? fromSequence;
-  const initialProjection = checkpointHydration?.projection ?? input.initialProjection;
+  const initialProjection = enforceWorldProjectionMemoryRetention(
+    checkpointHydration?.projection ?? input.initialProjection,
+  );
   const events = input.eventStore
     .readStream(input.streamName, { afterSequence: replayFromSequence })
     .filter((event) => event.sequence <= toSequence);

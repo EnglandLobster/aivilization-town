@@ -586,6 +586,119 @@ describe('experiment validation report', () => {
     });
   });
 
+  test('reports multi-lag absolute-return ACF and Ljung-Box significance per commodity', () => {
+    const clusteredMagnitudes = [
+      ...Array<number>(30).fill(0.001),
+      ...Array<number>(30).fill(0.08),
+      ...Array<number>(30).fill(0.001),
+      ...Array<number>(30).fill(0.08),
+    ];
+    const alternatingMagnitudes = Array.from({ length: 120 }, (_, index) =>
+      index % 2 === 0 ? 0.08 : 0.001,
+    );
+    const report = createMarketDiagnosticsReport({
+      priceSeries: [
+        ...createPriceSeriesFromReturns(
+          'Clustered',
+          clusteredMagnitudes.map((magnitude, index) => (index % 2 === 0 ? magnitude : -magnitude)),
+        ),
+        ...createPriceSeriesFromReturns(
+          'Alternating',
+          alternatingMagnitudes.map((magnitude, index) =>
+            index % 4 < 2 ? magnitude : -magnitude,
+          ),
+        ),
+      ],
+      thresholds: {
+        volatilityClustering: {
+          minimumLagOneAbsoluteReturnAutocorrelation: 0.05,
+          minimumReturnObservationCount: 100,
+          ljungBoxLagCount: 10,
+          maximumLjungBoxPValue: 0.01,
+        },
+      },
+    });
+
+    const volatility = getMetric(report.metrics, 'volatility-clustering');
+    expect(volatility.status).toBe('watch');
+    expect(volatility.evidence).toMatchObject({
+      ljungBoxLagCount: 10,
+      degreesOfFreedomRule: 'tested-lag-count-no-fitted-model-parameters',
+      maximumAcceptedPValue: 0.01,
+      passingCommodityCount: 1,
+      failingCommodityCount: 1,
+      perCommodity: {
+        Alternating: {
+          returnObservationCount: 120,
+          ljungBoxLagCount: 10,
+          degreesOfFreedom: 10,
+          pass: false,
+        },
+        Clustered: {
+          returnObservationCount: 120,
+          ljungBoxLagCount: 10,
+          degreesOfFreedom: 10,
+          pass: true,
+        },
+      },
+    });
+    const perCommodity = volatility.evidence.perCommodity;
+    if (typeof perCommodity !== 'object' || perCommodity === null) {
+      throw new Error('expected per-commodity volatility evidence');
+    }
+    const clustered = perCommodity.Clustered;
+    expect(clustered).toMatchObject({ pass: true });
+    if (typeof clustered !== 'object' || clustered === null) {
+      throw new Error('expected clustered commodity evidence');
+    }
+    expect(clustered.pValue).toBeLessThanOrEqual(0.01);
+    const autocorrelations = clustered.absoluteReturnAutocorrelations;
+    if (typeof autocorrelations !== 'object' || autocorrelations === null) {
+      throw new Error('expected multi-lag autocorrelation evidence');
+    }
+    expect(typeof autocorrelations['1']).toBe('number');
+    expect(typeof autocorrelations['10']).toBe('number');
+  });
+
+  test('requires every commodity to satisfy heavy-tail thresholds', () => {
+    const heavyReturns = Array.from({ length: 120 }, (_, index) => {
+      if (index === 20 || index === 80) {
+        return 0.25;
+      }
+      if (index === 50 || index === 110) {
+        return -0.25;
+      }
+      return index % 2 === 0 ? 0.0001 : -0.0001;
+    });
+    const lightReturns = Array.from({ length: 120 }, (_, index) =>
+      index % 2 === 0 ? 0.01 : -0.01,
+    );
+    const report = createMarketDiagnosticsReport({
+      priceSeries: [
+        ...createPriceSeriesFromReturns('Heavy', heavyReturns),
+        ...createPriceSeriesFromReturns('Light', lightReturns),
+      ],
+      thresholds: {
+        heavyTailReturns: {
+          minimumExcessKurtosis: 3,
+          minimumReturnObservationCount: 100,
+        },
+      },
+    });
+
+    expect(getMetric(report.metrics, 'heavy-tail-returns')).toMatchObject({
+      status: 'watch',
+      evidence: {
+        passingCommodityCount: 1,
+        failingCommodityCount: 1,
+        perCommodity: {
+          Heavy: { pass: true },
+          Light: { pass: false },
+        },
+      },
+    });
+  });
+
   test('consumes planner shape and outcome metrics in ablation validation', () => {
     const report = createExperimentValidationReport({
       run: {
@@ -912,4 +1025,53 @@ function createPlannerRun(input: {
       },
     ],
   };
+}
+
+function createMarketDiagnosticsReport(input: {
+  readonly priceSeries: Parameters<typeof createExperimentValidationReport>[0]['priceSeries'];
+  readonly thresholds: Parameters<typeof createExperimentValidationReport>[0]['thresholds'];
+}) {
+  return createExperimentValidationReport({
+    run: {
+      runId: 'market-diagnostics-test',
+      simulationId: 'sim-validation',
+      generatedAt: 1_700_000_004,
+    },
+    priceSeries: input.priceSeries,
+    wealthSnapshot: [
+      { agentId: 'agent-a', educationScore: 10, netWorth: 100 },
+      { agentId: 'agent-b', educationScore: 0, netWorth: 25 },
+    ],
+    plannerRuns: [
+      {
+        taskId: 'task-1',
+        variant: 'default',
+        metrics: [{ metricId: 'net-worth', value: 100, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-branch',
+        metrics: [{ metricId: 'net-worth', value: 80, higherIsBetter: true }],
+      },
+      {
+        taskId: 'task-1',
+        variant: 'without-objective-decomposition',
+        metrics: [{ metricId: 'net-worth', value: 90, higherIsBetter: true }],
+      },
+    ],
+    expectedTrajectoryAgentIds: ['agent-a'],
+    trajectories: [{ agentId: 'agent-a', stepCount: 1 }],
+    ...(input.thresholds === undefined ? {} : { thresholds: input.thresholds }),
+  });
+}
+
+function createPriceSeriesFromReturns(commodityId: string, returns: readonly number[]) {
+  let logPrice = Math.log(100);
+  return [
+    { commodityId, observedAt: 0, closePrice: Math.exp(logPrice) },
+    ...returns.map((value, index) => {
+      logPrice += value;
+      return { commodityId, observedAt: index + 1, closePrice: Math.exp(logPrice) };
+    }),
+  ];
 }

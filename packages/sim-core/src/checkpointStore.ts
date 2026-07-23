@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AppendOnlyJsonLinesFile } from './appendOnlyJsonLinesFile';
 import type { SimulationId } from './ids';
 import type { PartitionKey } from './partition';
 import type { ProjectionCheckpoint } from './snapshot';
@@ -33,32 +34,51 @@ export class InMemoryProjectionCheckpointStore implements ProjectionCheckpointSt
 export class FileProjectionCheckpointStore implements ProjectionCheckpointStore {
   private readonly rootDir: string;
   private readonly checkpointsPath: string;
+  private readonly checkpointsFile: AppendOnlyJsonLinesFile<ProjectionCheckpoint>;
+  private indexedCheckpoints: readonly ProjectionCheckpoint[] | undefined;
+  private indexedCheckpointCount = 0;
+  private readonly latestCheckpointByPartition = new Map<string, ProjectionCheckpoint>();
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
     this.rootDir = input.rootDir;
     this.checkpointsPath = join(input.rootDir, 'projection-checkpoints.jsonl');
     this.ensureStorage();
+    this.checkpointsFile = new AppendOnlyJsonLinesFile(this.checkpointsPath);
   }
 
   saveCheckpoint(checkpoint: ProjectionCheckpoint): ProjectionCheckpoint {
     const current = this.getLatestCheckpoint(checkpoint);
     assertCheckpointIsNotStale(current, checkpoint);
-    appendJsonLine(this.checkpointsPath, checkpoint);
+    this.checkpointsFile.append([checkpoint]);
     return checkpoint;
   }
 
   getLatestCheckpoint(input: ProjectionCheckpointLookup): ProjectionCheckpoint | undefined {
     const key = createCheckpointKey(input);
-    return readJsonLines<ProjectionCheckpoint>(this.checkpointsPath)
-      .filter((checkpoint) => createCheckpointKey(checkpoint) === key)
-      .reduce<ProjectionCheckpoint | undefined>(
-        (latest, checkpoint) =>
-          latest === undefined || checkpoint.lastAppliedSequence >= latest.lastAppliedSequence
-            ? checkpoint
-            : latest,
-        undefined,
-      );
+    this.refreshLatestCheckpointIndex();
+    return this.latestCheckpointByPartition.get(key);
+  }
+
+  private refreshLatestCheckpointIndex(): void {
+    const checkpoints = this.checkpointsFile.read();
+    if (checkpoints !== this.indexedCheckpoints) {
+      this.latestCheckpointByPartition.clear();
+      this.indexedCheckpointCount = 0;
+      this.indexedCheckpoints = checkpoints;
+    }
+    for (let index = this.indexedCheckpointCount; index < checkpoints.length; index += 1) {
+      const checkpoint = checkpoints[index];
+      if (checkpoint === undefined) {
+        continue;
+      }
+      const key = createCheckpointKey(checkpoint);
+      const current = this.latestCheckpointByPartition.get(key);
+      if (current === undefined || checkpoint.lastAppliedSequence >= current.lastAppliedSequence) {
+        this.latestCheckpointByPartition.set(key, checkpoint);
+      }
+    }
+    this.indexedCheckpointCount = checkpoints.length;
   }
 
   private ensureStorage(): void {
@@ -82,21 +102,6 @@ function assertCheckpointIsNotStale(
 
 function createCheckpointKey(input: ProjectionCheckpointLookup): string {
   return `${input.simulationId}:${input.partitionKey}`;
-}
-
-function appendJsonLine(path: string, value: unknown): void {
-  appendFileSync(path, `${JSON.stringify(value)}\n`);
-}
-
-function readJsonLines<TValue>(path: string): readonly TValue[] {
-  if (!existsSync(path)) {
-    return [];
-  }
-  const content = readFileSync(path, 'utf8').trim();
-  if (content.length === 0) {
-    return [];
-  }
-  return content.split('\n').map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

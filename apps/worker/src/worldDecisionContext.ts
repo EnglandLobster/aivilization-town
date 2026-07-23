@@ -10,11 +10,13 @@ import type {
   WorldDecisionContext,
   WorldDecisionOccupationRule,
   WorldDecisionProductionRule,
+  WorldDecisionResidentialUpgradeRule,
   WorldDecisionRulesContext,
 } from '@aivilization/agent-runtime';
 import type { AgentId } from '@aivilization/sim-core';
 import {
   calculateApplicationQuota,
+  calculateRecruitmentCycleNumber,
   calculateEffectiveKnowledgeThreshold,
 } from '@aivilization/society';
 import type {
@@ -23,11 +25,18 @@ import type {
   WorldMarketPriceIndexState,
   WorldProjection,
 } from '@aivilization/world';
+import {
+  createEducationOpportunityCostRule,
+  type EducationOpportunityCostConfig,
+} from './educationOpportunityCost';
+import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
 
 export function createWorldDecisionContextFromProjection(input: {
   readonly projection: WorldProjection;
   readonly agentId: AgentId;
   readonly policies?: WorldCommandPolicies;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
+  readonly societyDirectory?: LocalSimulationSocietyDirectory;
 }): WorldDecisionContext {
   const agent = input.projection.agents[input.agentId];
   if (agent === undefined) {
@@ -42,6 +51,9 @@ export function createWorldDecisionContextFromProjection(input: {
           projection: input.projection,
           agent,
           policies: input.policies,
+          ...(input.educationOpportunityCost === undefined
+            ? {}
+            : { educationOpportunityCost: input.educationOpportunityCost }),
         });
   return {
     agent: {
@@ -72,7 +84,36 @@ export function createWorldDecisionContextFromProjection(input: {
             },
           }),
     },
+    ...(input.societyDirectory === undefined
+      ? {}
+      : { society: createSocietyDecisionContext(input.societyDirectory) }),
     ...(rules === undefined ? {} : { rules }),
+  };
+}
+
+function createSocietyDecisionContext(directory: LocalSimulationSocietyDirectory) {
+  return {
+    directoryId: directory.directoryId,
+    simulationId: directory.simulationId,
+    partitionBoundaries: directory.partitionBoundaries.map((boundary) => ({ ...boundary })),
+    agents: directory.agents.map((agent) => ({
+      agentId: agent.agentId,
+      ownerPartitionKey: agent.ownerPartitionKey,
+      ownerLastAppliedSequence: agent.ownerLastAppliedSequence,
+      locationId: agent.publicState.locationId,
+      job: agent.publicState.job,
+      residentialTier: agent.publicState.residentialTier,
+      educationScore: agent.publicState.educationScore,
+      ...(agent.publicState.displayName === undefined
+        ? {}
+        : { displayName: agent.publicState.displayName }),
+      ...(agent.publicState.activityAvailableAt === undefined
+        ? {}
+        : { activityAvailableAt: agent.publicState.activityAvailableAt }),
+      ...(agent.publicState.transit === undefined
+        ? {}
+        : { transit: { ...agent.publicState.transit } }),
+    })),
   };
 }
 
@@ -100,12 +141,83 @@ function createWorldDecisionRulesContext(input: {
   readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
 }): WorldDecisionRulesContext {
   return {
     criticalThresholds: { ...input.policies.criticalThresholds },
     occupations: createOccupationRules(input),
     production: createProductionRules(input),
+    ...withResidentialUpgradeRule(input),
+    ...withEducationOpportunityCostRule(input),
   };
+}
+
+function withResidentialUpgradeRule(input: {
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+}): Pick<WorldDecisionRulesContext, 'residentialUpgrade'> | Record<string, never> {
+  const policy = input.policies.residentialTierUpgrade;
+  if (policy === undefined) {
+    return {};
+  }
+  const targetResidentialTier = input.agent.residentialTier + 1;
+  if (
+    policy.maxResidentialTier !== undefined &&
+    targetResidentialTier > policy.maxResidentialTier
+  ) {
+    return {};
+  }
+  const cost = policy.costs.find(
+    (candidate) => candidate.targetResidentialTier === targetResidentialTier,
+  );
+  if (cost === undefined) {
+    return {};
+  }
+
+  const currencyCost = cost.currencyCost ?? 0;
+  const minEducationScore = cost.minEducationScore ?? 0;
+  const inventoryCosts = copyPositiveSortedRecord(cost.inventoryCosts ?? {});
+  const missingInventory = Object.fromEntries(
+    Object.entries(inventoryCosts)
+      .map(
+        ([commodity, requiredQuantity]) =>
+          [
+            commodity,
+            Math.max(0, requiredQuantity - getInventoryQuantity(input.agent.inventory, commodity)),
+          ] as const,
+      )
+      .filter(([, missingQuantity]) => missingQuantity > 0),
+  );
+  const rejectionReasons = [
+    ...(input.agent.educationScore < minEducationScore ? ['insufficient-education'] : []),
+    ...(input.agent.balance < currencyCost ? ['insufficient-balance'] : []),
+    ...(Object.keys(missingInventory).length > 0 ? ['insufficient-inventory'] : []),
+  ];
+  const residentialUpgrade: WorldDecisionResidentialUpgradeRule = {
+    targetResidentialTier,
+    currencyCost,
+    minEducationScore,
+    inventoryCosts,
+    missingInventory,
+    eligible: rejectionReasons.length === 0,
+    rejectionReasons,
+  };
+  return { residentialUpgrade };
+}
+
+function withEducationOpportunityCostRule(input: {
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
+}): Pick<WorldDecisionRulesContext, 'educationOpportunityCost'> | Record<string, never> {
+  const educationOpportunityCost = createEducationOpportunityCostRule({
+    agent: input.agent,
+    policies: input.policies,
+    ...(input.educationOpportunityCost === undefined
+      ? {}
+      : { config: input.educationOpportunityCost }),
+  });
+  return educationOpportunityCost === undefined ? {} : { educationOpportunityCost };
 }
 
 function createOccupationRules(input: {
@@ -118,8 +230,17 @@ function createOccupationRules(input: {
     return [];
   }
 
+  const currentCycleNumber =
+    jobApplication.recruitmentCycle === undefined
+      ? undefined
+      : calculateRecruitmentCycleNumber({
+          simulationTime: input.projection.clock.now,
+          cycleDurationMs: jobApplication.recruitmentCycle.cycleDurationMs,
+        });
   const currentApplications = input.projection.jobApplications.filter(
-    (application) => application.agentId === input.agent.agentId,
+    (application) =>
+      application.agentId === input.agent.agentId &&
+      (currentCycleNumber === undefined || application.cycleNumber === currentCycleNumber),
   ).length;
   const applicationLimit = calculateApplicationQuota({
     residentialTier: input.agent.residentialTier,
@@ -152,6 +273,7 @@ function createOccupationRules(input: {
         occupationName: occupation.name,
         jobTier: occupation.jobTier,
         baseWage: occupation.baseWage,
+        currentWage: input.policies.wageCalculator(occupation.name),
         effectiveEducationThreshold,
         requiredResidentialTier,
         prerequisiteCommodity: jobTier.prerequisiteCommodity,
@@ -199,6 +321,7 @@ function createOccupationRejectionReasons(input: {
 }
 
 function createProductionRules(input: {
+  readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
 }): readonly WorldDecisionProductionRule[] {
@@ -246,6 +369,22 @@ function createProductionRules(input: {
         },
         productionEfficiencyRejected: productionEfficiencyDecision?.status === 'rejected',
       });
+      const outputSpotPrice = resolveCommoditySpotPrice(input.projection, commodity.name);
+      const inputSpotCost = Object.entries(definition.recipe.inputs).reduce(
+        (total, [inputCommodity, quantity]) => {
+          const spotPrice = resolveCommoditySpotPrice(input.projection, inputCommodity);
+          return spotPrice === undefined ? Number.NaN : total + spotPrice * quantity;
+        },
+        0,
+      );
+      const grossMargin =
+        outputSpotPrice === undefined || !Number.isFinite(inputSpotCost)
+          ? undefined
+          : outputSpotPrice - inputSpotCost;
+      const grossMarginPerSecond =
+        grossMargin === undefined || timeCostSeconds <= 0
+          ? undefined
+          : grossMargin / timeCostSeconds;
 
       return [
         {
@@ -255,12 +394,24 @@ function createProductionRules(input: {
           energyCost,
           satietyCost,
           timeCostSeconds,
+          ...(outputSpotPrice === undefined ? {} : { outputSpotPrice }),
+          ...(Number.isFinite(inputSpotCost) ? { inputSpotCost } : {}),
+          ...(grossMargin === undefined ? {} : { grossMargin }),
+          ...(grossMarginPerSecond === undefined ? {} : { grossMarginPerSecond }),
           producible: rejectionReasons.length === 0,
           rejectionReasons,
         },
       ];
     })
     .sort((left, right) => left.commodity.localeCompare(right.commodity));
+}
+
+function resolveCommoditySpotPrice(
+  projection: WorldProjection,
+  commodity: string,
+): number | undefined {
+  const pool = projection.marketPools[commodity];
+  return pool === undefined ? undefined : getSpotPrice(pool);
 }
 
 function createProductionRejectionReasons(input: {

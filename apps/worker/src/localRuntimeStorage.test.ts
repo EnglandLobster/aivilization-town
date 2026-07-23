@@ -142,6 +142,39 @@ function createTickAgents() {
 }
 
 describe('local world runtime storage', () => {
+  test('wires crash-safe bounded projection snapshot retention', () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId,
+      partitionKey: 'world-main',
+    });
+    const first = storage.snapshotStore.saveSnapshot({
+      simulationId,
+      partitionKey: 'world-main',
+      sequence: 10,
+      createdAt: 100,
+      projection: createProjection(),
+    });
+    const second = storage.snapshotStore.saveSnapshot({
+      simulationId,
+      partitionKey: 'world-main',
+      sequence: 20,
+      createdAt: 200,
+      projection: createProjection(),
+    });
+    const third = storage.snapshotStore.saveSnapshot({
+      simulationId,
+      partitionKey: 'world-main',
+      sequence: 30,
+      createdAt: 300,
+      projection: createProjection(),
+    });
+
+    expect(storage.snapshotStore.loadSnapshot(first)).toBeUndefined();
+    expect(storage.snapshotStore.loadSnapshot(second)).toEqual(createProjection());
+    expect(storage.snapshotStore.loadSnapshot(third)).toEqual(createProjection());
+  });
+
   test('restarts file-backed world tick storage and continues from the latest checkpoint', async () => {
     const rootDir = createRootDir();
     const storage = createLocalWorldRuntimeStorage({
@@ -299,7 +332,7 @@ describe('local world runtime storage', () => {
       partitionKey: 'world-main',
     });
 
-    expect(first.streamVersion).toBe(5);
+    expect(first.streamVersion).toBe(7);
     expect(storage.paths.partitionDir).toContain('simulations');
     expect(storage.paths.planningDir).toContain('planning');
     await expect(
@@ -409,7 +442,7 @@ describe('local world runtime storage', () => {
         objective: 'Do not work yet; study until education score exceeds 100.',
       },
     });
-    expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(5);
+    expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(7);
     await expect(
       restarted.planProgressRepository.getOrCreate({
         planId: 'plan-1',
@@ -434,7 +467,7 @@ describe('local world runtime storage', () => {
         simulationId,
         partitionKey: restarted.partition.partitionKey,
       })?.lastAppliedSequence,
-    ).toBe(5);
+    ).toBe(7);
     await expect(
       restarted.shortTermMemoryRepository.retrieve({
         agentId: agentOne,
@@ -461,17 +494,14 @@ describe('local world runtime storage', () => {
     });
 
     expect(second.events.map((event: WorldEvent) => [event.sequence, event.type])).toEqual([
-      [6, 'SimulationTimeAdvanced'],
-      [7, 'EducationChanged'],
-      [8, 'ShortTermMemoryRecorded'],
-      [9, 'EducationChanged'],
-      [10, 'ShortTermMemoryRecorded'],
+      [8, 'SimulationTimeAdvanced'],
     ]);
     expect(second.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
-    expect(second.projection.agents['agent-1']?.educationScore).toBe(130);
-    expect(second.projection.agents['agent-2']?.educationScore).toBe(80);
-    expect(second.streamVersion).toBe(10);
-    expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(10);
+    expect(second.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(second.projection.agents['agent-2']?.educationScore).toBe(50);
+    expect(second.skippedBusyAgentIds).toEqual([agentOne, agentTwo]);
+    expect(second.streamVersion).toBe(8);
+    expect(restarted.eventStore.getStreamVersion(restarted.partition.eventStreamName)).toBe(8);
     expect(
       restarted.checkpointStore.getLatestCheckpoint({
         simulationId,
@@ -489,7 +519,7 @@ describe('local world runtime storage', () => {
         requiredTags: ['study'],
         limit: 10,
       }),
-    ).resolves.toHaveLength(2);
+    ).resolves.toHaveLength(1);
   });
 
   test('persists worker tick traces through local trace repository storage', async () => {

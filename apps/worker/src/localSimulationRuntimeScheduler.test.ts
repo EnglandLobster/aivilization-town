@@ -98,6 +98,8 @@ describe('local simulation runtime scheduler', () => {
     });
     await deadLetterRepository.fail({
       jobId: 'job-dead',
+      workerId: 'worker-1',
+      attemptNumber: 1,
       failedAt: 220,
       maxAttempts: 1,
       error: { name: 'Error', message: 'runtime exploded' },

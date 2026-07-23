@@ -27,6 +27,7 @@ export function proposeSocialInteractionReflections(input: {
     .sort(compareRecordsByOccurrence)
     .map((record) => {
       const hint = socialHintFor(record);
+      const outcomeValence = classifyOutcomeValence(hint.relationDelta, hint.attitudeDelta);
       return {
         id: `social-reflection-${input.agentId}-${hint.targetAgentId}-${record.id}-${input.generatedAt}`,
         agentId: input.agentId,
@@ -41,10 +42,28 @@ export function proposeSocialInteractionReflections(input: {
           'social',
           'post-interaction-reflection',
           hint.targetAgentId,
+          `social-outcome-${outcomeValence}`,
+          ...(hint.outcomeSignals ?? []),
           ...record.tags,
         ]),
       };
     });
+}
+
+function classifyOutcomeValence(
+  relationDelta: number,
+  attitudeDelta: number,
+): 'positive' | 'negative' | 'mixed' | 'neutral' {
+  if (relationDelta >= 0 && attitudeDelta >= 0 && (relationDelta > 0 || attitudeDelta > 0)) {
+    return 'positive';
+  }
+  if (relationDelta <= 0 && attitudeDelta <= 0 && (relationDelta < 0 || attitudeDelta < 0)) {
+    return 'negative';
+  }
+  if (relationDelta !== 0 || attitudeDelta !== 0) {
+    return 'mixed';
+  }
+  return 'neutral';
 }
 
 function isSuccessfulSocialInteractionMemory(record: ShortTermMemoryRecord): boolean {

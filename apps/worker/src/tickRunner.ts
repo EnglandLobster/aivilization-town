@@ -3,6 +3,7 @@ import type {
   ActionSequenceGenerator,
   AdaptiveReplanningPolicy,
   BranchPlan,
+  BranchPlanProgress,
   BranchPlanRepository,
   BranchPlanProgressRepository,
   CycleActionSimulator,
@@ -44,7 +45,13 @@ import {
   type SimulationTimestamp,
   type SnapshotReference,
 } from '@aivilization/sim-core';
-import type { WorldCommandPolicies, WorldEvent, WorldProjection } from '@aivilization/world';
+import {
+  applyWorldEvent,
+  isAgentAvailableForWorldAction,
+  type WorldCommandPolicies,
+  type WorldEvent,
+  type WorldProjection,
+} from '@aivilization/world';
 import {
   runWorkerAgentCycle,
   type WorkerAgentCycleResult,
@@ -88,6 +95,7 @@ export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
   readonly observedStateSummary: string;
   readonly worldDecisionContext?: WorldDecisionContext;
+  readonly progress?: BranchPlanProgress;
   readonly signals: Parameters<typeof runWorkerAgentCycle>[0]['signals'];
   readonly memoryRetrievalLimit?: number;
   readonly memoryRetrievalCandidateLimit?: number;
@@ -105,11 +113,16 @@ export type WorkerTickAgentInput = {
   readonly replanningPolicy?: AdaptiveReplanningPolicy;
 } & WorkerTickAgentPlanInput;
 
+export type WorkerTickAgentProvider = (input: {
+  readonly projection: WorldProjection;
+}) => readonly WorkerTickAgentInput[] | Promise<readonly WorkerTickAgentInput[]>;
+
 export type WorkerTickResult = {
   readonly tickId: string;
   readonly simulationId: SimulationId;
   readonly issuedAt: number;
   readonly agentResults: readonly WorkerAgentCycleResult[];
+  readonly skippedBusyAgentIds: readonly AgentId[];
   readonly events: readonly WorldEvent[];
   readonly projection: WorldProjection;
   readonly traces: readonly AgentCycleTrace[];
@@ -156,6 +169,7 @@ export type WorkerTickAmbientObservationMemoryInput =
       readonly enabled?: true;
       readonly importanceScore?: number;
       readonly maxObserversPerEvent?: number;
+      readonly visibleEventTypes?: readonly WorldEvent['type'][];
       readonly reactionEvaluator?: ReactionEvaluator;
     }
   | {
@@ -175,6 +189,7 @@ type WorkerTickBaseInput = {
   readonly planRepository?: BranchPlanRepository;
   readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly agents: readonly WorkerTickAgentInput[];
+  readonly agentProvider?: WorkerTickAgentProvider;
   readonly timeDeltaMs?: number;
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: WorkerTickMarketObservationsInput;
@@ -185,6 +200,7 @@ type WorkerTickBaseInput = {
     readonly resetProgress?: boolean;
   };
   readonly expectedVersion?: number;
+  readonly replayExistingAgentAppends?: boolean;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
 };
@@ -203,6 +219,7 @@ type CycleProgressInput =
   | {
       readonly planProgressRepository: BranchPlanProgressRepository;
       readonly planProgressId: string;
+      readonly progress?: BranchPlanProgress;
     }
   | {
       readonly planProgressRepository?: never;
@@ -236,77 +253,139 @@ export async function runWorkerSimulationTick(
   projection = timeAdvanceResult.projection;
   expectedVersion = timeAdvanceResult.appendResult.streamVersion;
   const agentResults: WorkerAgentCycleResult[] = [];
+  const recoveredAgentEvents: WorldEvent[] = [];
+  const skippedBusyAgentIds: AgentId[] = [];
+  const tickAgents = [...input.agents, ...((await input.agentProvider?.({ projection })) ?? [])];
+  const batchedTraceSink = input.traceSink?.recordMany === undefined ? undefined : input.traceSink;
+  let agentLoopFailed = false;
+  let agentLoopFailure: unknown;
 
-  for (const [index, agent] of input.agents.entries()) {
-    const cycleResult = await runWorkerAgentCycle({
-      cycleId: createCycleId(input.tickId, index, agent.agentId),
-      simulationId: input.simulationId,
-      agentId: agent.agentId,
-      issuedAt: input.issuedAt,
-      observedStateSummary: agent.observedStateSummary,
-      ...(agent.worldDecisionContext === undefined
-        ? {}
-        : { worldDecisionContext: agent.worldDecisionContext }),
-      ...resolveCyclePlanInput({ agent, planRepository: input.planRepository }),
-      ...resolveCycleProgressInput({
-        agent,
-        planProgressRepository: input.planProgressRepository,
-      }),
-      signals: agent.signals,
-      projection,
-      policies: input.policies,
-      eventStore: input.eventStore,
-      streamName: input.streamName,
-      appendIdempotencyKey: createAppendIdempotencyKey(input.tickId, index, agent.agentId),
-      commandIdPrefix: createCommandIdPrefix(input.tickId, index, agent.agentId),
-      intentionRepository: input.intentionRepository,
-      longTermProfileRepository: input.longTermProfileRepository,
-      shortTermMemoryRepository: input.shortTermMemoryRepository,
-      ...(agent.memoryRetrievalLimit === undefined
-        ? {}
-        : { memoryRetrievalLimit: agent.memoryRetrievalLimit }),
-      ...(agent.memoryRetrievalCandidateLimit === undefined
-        ? {}
-        : { memoryRetrievalCandidateLimit: agent.memoryRetrievalCandidateLimit }),
-      microPlanners: agent.microPlanners,
-      ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
-      ...(agent.actionSequenceGenerator === undefined
-        ? {}
-        : { actionSequenceGenerator: agent.actionSequenceGenerator }),
-      ...(agent.socialDialogueGenerator === undefined
-        ? {}
-        : { socialDialogueGenerator: agent.socialDialogueGenerator }),
-      ...(agent.globalSynthesizer === undefined
-        ? {}
-        : { globalSynthesizer: agent.globalSynthesizer }),
-      ...(agent.reactiveCorrector === undefined
-        ? {}
-        : { reactiveCorrector: agent.reactiveCorrector }),
-      ...(agent.replanningDecider === undefined
-        ? {}
-        : { replanningDecider: agent.replanningDecider }),
-      simulate: agent.simulate,
-      ...(agent.repair === undefined ? {} : { repair: agent.repair }),
-      ...(agent.subtaskCompletion === undefined
-        ? {}
-        : { subtaskCompletion: agent.subtaskCompletion }),
-      ...(agent.subtaskPrioritizer === undefined
-        ? {}
-        : { subtaskPrioritizer: agent.subtaskPrioritizer }),
-      ...(agent.replanningPolicy === undefined ? {} : { replanningPolicy: agent.replanningPolicy }),
-      ...(input.materializeFullReplan === undefined
-        ? {}
-        : { materializeFullReplan: input.materializeFullReplan }),
-      expectedVersion,
-      ...(input.traceSink === undefined ? {} : { traceSink: input.traceSink }),
-    });
+  try {
+    for (const [index, agent] of tickAgents.entries()) {
+      if (!isAgentAvailableForWorldAction(projection, agent.agentId)) {
+        skippedBusyAgentIds.push(agent.agentId);
+        continue;
+      }
+      const appendIdempotencyKey = createAppendIdempotencyKey(
+        input.tickId,
+        index,
+        agent.agentId,
+      );
+      const recoveredAppend =
+        input.replayExistingAgentAppends === true
+          ? input.eventStore.getIdempotentAppend(appendIdempotencyKey)
+          : undefined;
+      if (recoveredAppend !== undefined) {
+        if (
+          recoveredAppend.streamName !== input.streamName ||
+          recoveredAppend.expectedVersion !== expectedVersion
+        ) {
+          throw new Error(
+            `recovered agent append ${appendIdempotencyKey} does not continue the interrupted tick`,
+          );
+        }
+        projection = recoveredAppend.appendedEvents.reduce(applyWorldEvent, projection);
+        expectedVersion = recoveredAppend.streamVersion;
+        recoveredAgentEvents.push(...recoveredAppend.appendedEvents);
+        continue;
+      }
+      const cycleResult = await runWorkerAgentCycle({
+        cycleId: createCycleId(input.tickId, index, agent.agentId),
+        simulationId: input.simulationId,
+        agentId: agent.agentId,
+        issuedAt: input.issuedAt,
+        observedStateSummary: agent.observedStateSummary,
+        ...(agent.worldDecisionContext === undefined
+          ? {}
+          : { worldDecisionContext: agent.worldDecisionContext }),
+        ...resolveCyclePlanInput({ agent, planRepository: input.planRepository }),
+        ...resolveCycleProgressInput({
+          agent,
+          planProgressRepository: input.planProgressRepository,
+        }),
+        signals: agent.signals,
+        projection,
+        policies: input.policies,
+        eventStore: input.eventStore,
+        streamName: input.streamName,
+        appendIdempotencyKey,
+        commandIdPrefix: createCommandIdPrefix(input.tickId, index, agent.agentId),
+        intentionRepository: input.intentionRepository,
+        longTermProfileRepository: input.longTermProfileRepository,
+        shortTermMemoryRepository: input.shortTermMemoryRepository,
+        ...(agent.memoryRetrievalLimit === undefined
+          ? {}
+          : { memoryRetrievalLimit: agent.memoryRetrievalLimit }),
+        ...(agent.memoryRetrievalCandidateLimit === undefined
+          ? {}
+          : { memoryRetrievalCandidateLimit: agent.memoryRetrievalCandidateLimit }),
+        microPlanners: agent.microPlanners,
+        ...(agent.actionSynthesis === undefined ? {} : { actionSynthesis: agent.actionSynthesis }),
+        ...(agent.actionSequenceGenerator === undefined
+          ? {}
+          : { actionSequenceGenerator: agent.actionSequenceGenerator }),
+        ...(agent.socialDialogueGenerator === undefined
+          ? {}
+          : { socialDialogueGenerator: agent.socialDialogueGenerator }),
+        ...(agent.globalSynthesizer === undefined
+          ? {}
+          : { globalSynthesizer: agent.globalSynthesizer }),
+        ...(agent.reactiveCorrector === undefined
+          ? {}
+          : { reactiveCorrector: agent.reactiveCorrector }),
+        ...(agent.replanningDecider === undefined
+          ? {}
+          : { replanningDecider: agent.replanningDecider }),
+        simulate: agent.simulate,
+        ...(agent.repair === undefined ? {} : { repair: agent.repair }),
+        ...(agent.subtaskCompletion === undefined
+          ? {}
+          : { subtaskCompletion: agent.subtaskCompletion }),
+        ...(agent.subtaskPrioritizer === undefined
+          ? {}
+          : { subtaskPrioritizer: agent.subtaskPrioritizer }),
+        ...(agent.replanningPolicy === undefined
+          ? {}
+          : { replanningPolicy: agent.replanningPolicy }),
+        ...(input.materializeFullReplan === undefined
+          ? {}
+          : { materializeFullReplan: input.materializeFullReplan }),
+        expectedVersion,
+        ...(input.traceSink === undefined || batchedTraceSink !== undefined
+          ? {}
+          : { traceSink: input.traceSink }),
+      });
 
-    agentResults.push(cycleResult);
-    projection = cycleResult.projection;
-    expectedVersion = cycleResult.dispatchResult?.appendResult.streamVersion ?? expectedVersion;
+      agentResults.push(cycleResult);
+      projection = cycleResult.projection;
+      expectedVersion = cycleResult.dispatchResult?.appendResult.streamVersion ?? expectedVersion;
+    }
+  } catch (error) {
+    agentLoopFailed = true;
+    agentLoopFailure = error;
   }
 
-  const agentEvents = agentResults.flatMap((result) => result.events);
+  if (batchedTraceSink !== undefined && agentResults.length > 0) {
+    try {
+      await batchedTraceSink.recordMany!(agentResults.map((result) => result.trace));
+    } catch (tracePersistenceFailure) {
+      if (agentLoopFailed) {
+        throw new AggregateError(
+          [agentLoopFailure, tracePersistenceFailure],
+          'worker agent loop and batched trace persistence both failed',
+        );
+      }
+      throw tracePersistenceFailure;
+    }
+  }
+  if (agentLoopFailed) {
+    throw agentLoopFailure;
+  }
+
+  const agentEvents = [
+    ...recoveredAgentEvents,
+    ...agentResults.flatMap((result) => result.events),
+  ];
   let marketMetricEvents: readonly WorldEvent[] = [];
   if (input.marketMetrics !== undefined) {
     const marketMetricsResult = recordMarketPriceIndexToEventStream({
@@ -331,6 +410,7 @@ export async function runWorkerSimulationTick(
       ? undefined
       : await recordWorkerMarketObservations({
           simulationId: input.simulationId,
+          simulatedAt: projection.clock.now,
           events,
           repository: input.marketObservations.repository,
           ...(input.marketObservations.priceBinning === undefined
@@ -349,6 +429,7 @@ export async function runWorkerSimulationTick(
     simulationId: input.simulationId,
     issuedAt: input.issuedAt,
     agentResults,
+    skippedBusyAgentIds,
     projection,
     traces: agentResults.map((result) => result.trace),
     streamVersion: expectedVersion,
@@ -384,6 +465,9 @@ async function recordAmbientObservationMemoryIfConfigured(input: {
     ...(input.input.ambientObservationMemory.maxObserversPerEvent === undefined
       ? {}
       : { maxObserversPerEvent: input.input.ambientObservationMemory.maxObserversPerEvent }),
+    ...(input.input.ambientObservationMemory.visibleEventTypes === undefined
+      ? {}
+      : { visibleEventTypes: input.input.ambientObservationMemory.visibleEventTypes }),
   });
   if (result.records.length > 0) {
     await input.input.shortTermMemoryRepository.appendMany(result.records);
@@ -624,6 +708,7 @@ function resolveCycleProgressInput(input: {
   return {
     planProgressRepository: input.planProgressRepository,
     planProgressId: input.agent.planId,
+    ...(input.agent.progress === undefined ? {} : { progress: input.agent.progress }),
   };
 }
 

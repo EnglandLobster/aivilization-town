@@ -25,6 +25,16 @@ export type TownLocationConfig = {
   readonly kind: TownLocationKind;
   readonly activityAffinities: readonly TownActivityAffinity[];
   readonly capacity: number | null;
+  readonly mapPosition?: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly connections?: readonly {
+    readonly targetLocationId: LocationId;
+    readonly travelDurationSeconds: number;
+  }[];
   readonly source: string;
 };
 
@@ -37,7 +47,13 @@ export const townLocations = [
     name: 'Town Square',
     kind: 'social',
     activityAffinities: ['socialize', 'trade'],
-    capacity: null,
+    capacity: 70,
+    mapPosition: { x: 0.16, y: 0.22, width: 0.28, height: 0.35 },
+    connections: [
+      { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 360 },
+      { targetLocationId: asLocationId('clinic'), travelDurationSeconds: 420 },
+      { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 300 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -45,7 +61,13 @@ export const townLocations = [
     name: 'Residential Block',
     kind: 'residence',
     activityAffinities: ['sleep', 'socialize'],
-    capacity: null,
+    capacity: 100,
+    mapPosition: { x: 0.5, y: 0.22, width: 0.28, height: 0.37 },
+    connections: [
+      { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 360 },
+      { targetLocationId: asLocationId('school'), travelDurationSeconds: 360 },
+      { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 420 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -53,7 +75,12 @@ export const townLocations = [
     name: 'School',
     kind: 'education',
     activityAffinities: ['study', 'socialize'],
-    capacity: null,
+    capacity: 40,
+    mapPosition: { x: 0.82, y: 0.22, width: 0.28, height: 0.38 },
+    connections: [
+      { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 360 },
+      { targetLocationId: asLocationId('workshop'), travelDurationSeconds: 420 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -61,7 +88,12 @@ export const townLocations = [
     name: 'Clinic',
     kind: 'healthcare',
     activityAffinities: ['health', 'socialize'],
-    capacity: null,
+    capacity: 20,
+    mapPosition: { x: 0.14, y: 0.66, width: 0.25, height: 0.39 },
+    connections: [
+      { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 420 },
+      { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 300 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -69,7 +101,14 @@ export const townLocations = [
     name: 'Restaurant',
     kind: 'food',
     activityAffinities: ['eat', 'socialize', 'trade'],
-    capacity: null,
+    capacity: 30,
+    mapPosition: { x: 0.4, y: 0.68, width: 0.26, height: 0.41 },
+    connections: [
+      { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 300 },
+      { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 420 },
+      { targetLocationId: asLocationId('clinic'), travelDurationSeconds: 300 },
+      { targetLocationId: asLocationId('market'), travelDurationSeconds: 240 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -77,7 +116,12 @@ export const townLocations = [
     name: 'Market',
     kind: 'market',
     activityAffinities: ['trade', 'socialize'],
-    capacity: null,
+    capacity: 45,
+    mapPosition: { x: 0.63, y: 0.68, width: 0.25, height: 0.4 },
+    connections: [
+      { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 240 },
+      { targetLocationId: asLocationId('workshop'), travelDurationSeconds: 300 },
+    ],
     source: townEnvironmentSource,
   },
   {
@@ -85,7 +129,12 @@ export const townLocations = [
     name: 'Workshop',
     kind: 'production',
     activityAffinities: ['work', 'produce', 'trade'],
-    capacity: null,
+    capacity: 45,
+    mapPosition: { x: 0.86, y: 0.68, width: 0.25, height: 0.4 },
+    connections: [
+      { targetLocationId: asLocationId('school'), travelDurationSeconds: 420 },
+      { targetLocationId: asLocationId('market'), travelDurationSeconds: 300 },
+    ],
     source: townEnvironmentSource,
   },
 ] as const satisfies readonly TownLocationConfig[];

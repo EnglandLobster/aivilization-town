@@ -6,8 +6,13 @@ import {
   markSubtaskCompleted,
 } from '@aivilization/agent-runtime';
 import { InMemoryAgentIntentionRepository, type LongHorizonObjective } from '@aivilization/memory';
-import { asAgentId, type AgentId } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
+import { asAgentId, createEventEnvelope, type AgentId } from '@aivilization/sim-core';
+import {
+  applyWorldEvent,
+  createWorldProjection,
+  type AgentActivityTimeCommittedPayload,
+  type WorldAgentState,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import { completeFinishedActiveObjectives } from './index';
 
@@ -64,6 +69,86 @@ describe('worker objective lifecycle', () => {
       activeObjective: objectiveB,
       completedObjectives: [],
     });
+  });
+
+  test('keeps a finished objective active until its committed activity time elapses', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const objective = createObjective(agentA, 'objective-trade');
+    await intentionRepository.setObjective(agentA, objective);
+    await planRepository.save(createSingleStepPlanRecord({ agentId: agentA, planId: objective.id }));
+    await planProgressRepository.save(
+      markSubtaskCompleted(
+        createBranchPlanProgress({ planId: objective.id, agentId: agentA, createdAt: 100 }),
+        { subtaskId: 'pursue-objective', completedAt: 200 },
+      ),
+    );
+    const initial = createWorldProjection({
+      clock: { now: 1_000, tickDurationMs: 1_000 },
+      agents: [createAgent(agentA), createAgent(agentB)],
+    });
+    const busy = applyWorldEvent(
+      initial,
+      createEventEnvelope({
+        id: 'event-trade-time',
+        simulationId: 'sim-1',
+        commandId: 'command-trade',
+        type: 'AgentActivityTimeCommitted',
+        payload: {
+          agentId: agentA,
+          activity: 'trade',
+          commandType: 'AgentTrade',
+          policyVersion: 'exclusive-agent-activity-time-v2',
+          settlementTiming: 'effects-at-commit',
+          startedAt: 1_000,
+          durationSeconds: 2,
+          availableAt: 3_000,
+        } satisfies AgentActivityTimeCommittedPayload,
+        occurredAt: 200,
+        sequence: 1,
+      }),
+    );
+
+    await expect(
+      completeFinishedActiveObjectives({
+        projection: busy,
+        intentionRepository,
+        planRepository,
+        planProgressRepository,
+        completedAt: 300,
+      }),
+    ).resolves.toEqual([]);
+    await expect(intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: objective,
+      completedObjectives: [],
+    });
+
+    const available = applyWorldEvent(
+      busy,
+      createEventEnvelope({
+        id: 'event-time-advanced',
+        simulationId: 'sim-1',
+        commandId: 'command-time-advanced',
+        type: 'SimulationTimeAdvanced',
+        payload: {
+          previous: { now: 1_000, tickDurationMs: 1_000 },
+          next: { now: 3_000, tickDurationMs: 1_000 },
+          deltaMs: 2_000,
+        },
+        occurredAt: 400,
+        sequence: 2,
+      }),
+    );
+    await expect(
+      completeFinishedActiveObjectives({
+        projection: available,
+        intentionRepository,
+        planRepository,
+        planProgressRepository,
+        completedAt: 400,
+      }),
+    ).resolves.toEqual([{ agentId: agentA, objectiveId: objective.id, planId: objective.id }]);
   });
 });
 

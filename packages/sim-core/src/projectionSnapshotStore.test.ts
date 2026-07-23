@@ -79,6 +79,50 @@ describe('file projection snapshot store', () => {
     expect(restartedStore.loadSnapshot(reference)).toEqual(projection);
   });
 
+  test('retains the latest two snapshots so checkpoint promotion is crash-safe', () => {
+    const rootDir = createRootDir();
+    const store = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir,
+      maximumSnapshotsPerPartition: 2,
+    });
+    const projection = createProjection();
+    const first = store.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 10,
+      createdAt: 100,
+      projection,
+    });
+    const second = store.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 20,
+      createdAt: 200,
+      projection,
+    });
+    const third = store.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 30,
+      createdAt: 300,
+      projection,
+    });
+
+    expect(store.loadSnapshot(first)).toBeUndefined();
+    expect(store.loadSnapshot(second)).toEqual(projection);
+    expect(store.loadSnapshot(third)).toEqual(projection);
+  });
+
+  test('rejects invalid bounded-retention configuration', () => {
+    expect(
+      () =>
+        new FileProjectionSnapshotStore<WorldProjection>({
+          rootDir: createRootDir(),
+          maximumSnapshotsPerPartition: 0,
+        }),
+    ).toThrow('maximumSnapshotsPerPartition must be a positive safe integer');
+  });
+
   test('returns undefined when the snapshot file is missing', () => {
     const rootDir = createRootDir();
     const store = new FileProjectionSnapshotStore<WorldProjection>({ rootDir });

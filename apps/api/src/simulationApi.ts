@@ -1,13 +1,11 @@
 import {
   createCommandEnvelope,
   type CommandEnvelope,
+  type HumanCommandAttribution,
   type PartitionKey,
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
-import type {
-  MarketOhlcBar,
-  MarketTradeObservation,
-} from '@aivilization/observability';
+import type { MarketOhlcBar, MarketTradeObservation } from '@aivilization/observability';
 
 export type ProjectionQueryRequest = {
   readonly simulationId: string;
@@ -65,6 +63,7 @@ export type SimulationLifecycleRequest = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
   readonly requestedAt: SimulationTimestamp;
+  readonly operationId?: string;
   readonly scenarioPresetId?: string;
   readonly fromSequence?: number;
   readonly toSequence?: number;
@@ -82,6 +81,20 @@ export type SubmitLongHorizonObjectiveRequest = {
   readonly commandId?: string;
   readonly idempotencyKey?: string;
   readonly expectedVersion?: number;
+  readonly humanAttribution?: HumanCommandAttribution;
+};
+
+export type SubmitAgentRegistrationRequest = {
+  readonly simulationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly agentId: string;
+  readonly creatorId: string;
+  readonly displayName: string;
+  readonly issuedAt: SimulationTimestamp;
+  readonly commandId?: string;
+  readonly idempotencyKey?: string;
+  readonly expectedVersion?: number;
+  readonly humanAttribution?: HumanCommandAttribution;
 };
 
 export type SubmitReactiveCommandRequest = {
@@ -95,6 +108,7 @@ export type SubmitReactiveCommandRequest = {
   readonly commandId?: string;
   readonly idempotencyKey?: string;
   readonly expectedVersion?: number;
+  readonly humanAttribution?: HumanCommandAttribution;
 };
 
 export type ProjectionQueryPort<TProjection> = {
@@ -172,6 +186,9 @@ export type SimulationApiService<
   readonly submitLongHorizonObjective: (
     request: SubmitLongHorizonObjectiveRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
+  readonly submitAgentRegistration: (
+    request: SubmitAgentRegistrationRequest,
+  ) => Promise<ApiCommandSubmission<TSteeringResult>>;
   readonly submitReactiveCommand: (
     request: SubmitReactiveCommandRequest,
   ) => Promise<ApiCommandSubmission<TSteeringResult>>;
@@ -219,6 +236,11 @@ export function createSimulationApiService<
     queryMarketTradeObservations: async (request) =>
       input.marketObservations.queryMarketTradeObservations(request),
     queryMarketOhlcBars: async (request) => input.marketObservations.queryMarketOhlcBars(request),
+    submitAgentRegistration: async (request) => {
+      const command = createAgentRegistrationCommand(request);
+      const result = await input.steeringCommands.submit(command, createSteeringContext(request));
+      return { command, result };
+    },
     submitLongHorizonObjective: async (request) => {
       const command = createLongHorizonObjectiveCommand(request);
       const result = await input.steeringCommands.submit(command, createSteeringContext(request));
@@ -236,6 +258,29 @@ export function createSimulationApiService<
   };
 }
 
+function createAgentRegistrationCommand(
+  request: SubmitAgentRegistrationRequest,
+): CommandEnvelope<'RegisterAgent'> {
+  return createCommandEnvelope({
+    id: request.commandId ?? `api-register-${request.simulationId}-${request.agentId}`,
+    simulationId: request.simulationId,
+    ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
+    actorId: request.agentId,
+    source: 'human',
+    ...(request.humanAttribution === undefined
+      ? {}
+      : { humanAttribution: request.humanAttribution }),
+    type: 'RegisterAgent',
+    payload: {
+      agentId: request.agentId,
+      creatorId: request.creatorId,
+      displayName: request.displayName,
+    },
+    issuedAt: request.issuedAt,
+    ...(request.expectedVersion === undefined ? {} : { expectedVersion: request.expectedVersion }),
+  });
+}
+
 function createSteeringContext(request: {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
@@ -249,6 +294,7 @@ function createSteeringContext(request: {
 function createLongHorizonObjectiveCommand(
   request: SubmitLongHorizonObjectiveRequest,
 ): CommandEnvelope<'SetLongHorizonObjective'> {
+  assertNonEmptyUniqueStrings(request.affinityTags, 'affinityTags');
   return createCommandEnvelope({
     id:
       request.commandId ??
@@ -257,6 +303,9 @@ function createLongHorizonObjectiveCommand(
     ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
     actorId: request.agentId,
     source: 'human',
+    ...(request.humanAttribution === undefined
+      ? {}
+      : { humanAttribution: request.humanAttribution }),
     type: 'SetLongHorizonObjective',
     payload: {
       objectiveId: request.objectiveId,
@@ -267,6 +316,19 @@ function createLongHorizonObjectiveCommand(
     issuedAt: request.issuedAt,
     ...(request.expectedVersion === undefined ? {} : { expectedVersion: request.expectedVersion }),
   });
+}
+
+function assertNonEmptyUniqueStrings(values: readonly string[], name: string): void {
+  if (values.length === 0) {
+    throw new Error(`${name} must contain at least one value`);
+  }
+  const normalized = values.map((value) => value.trim());
+  if (normalized.some((value) => value.length === 0)) {
+    throw new Error(`${name} must contain only non-empty values`);
+  }
+  if (new Set(normalized).size !== normalized.length) {
+    throw new Error(`${name} must not contain duplicate values`);
+  }
 }
 
 function createReactiveCommand(
@@ -280,6 +342,9 @@ function createReactiveCommand(
     ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
     actorId: request.agentId,
     source: 'human',
+    ...(request.humanAttribution === undefined
+      ? {}
+      : { humanAttribution: request.humanAttribution }),
     type: 'IssueReactiveCommand',
     payload: {
       reactiveCommandId: request.reactiveCommandId,

@@ -92,6 +92,29 @@ export type RuntimeProfileAgentCycleDiagnostics = {
   readonly replanningDecisionRatio: number;
   readonly simulatorRolloutCoverageRatio: number;
   readonly llmStageDiagnostics?: readonly RuntimeProfileAgentCycleLlmStageDiagnostics[];
+  readonly educationOpportunityCost?: RuntimeProfileEducationOpportunityCostDiagnostics;
+};
+
+export type RuntimeProfileActivityAllocationKind =
+  | 'study'
+  | 'labor'
+  | 'production'
+  | 'consumption'
+  | 'survival'
+  | 'other';
+
+export type RuntimeProfileActivityAllocation = {
+  readonly activity: RuntimeProfileActivityAllocationKind;
+  readonly acceptedActionCount: number;
+  readonly actionSeconds: number;
+};
+
+export type RuntimeProfileEducationOpportunityCostDiagnostics = {
+  readonly metricVersion: 'education-opportunity-cost-diagnostics-v1';
+  readonly plannedActivityAllocation: readonly RuntimeProfileActivityAllocation[];
+  readonly directStudyCurrencyCost: number;
+  readonly foregoneCompetingActionCount: number;
+  readonly studyDeferredForResourceConstraintCount: number;
 };
 
 export type RuntimeProfileCognitionLlmStageName =
@@ -334,7 +357,114 @@ export function createRuntimeProfileAgentCycleDiagnostics(
     replanningDecisionRatio: ratio(replanningDecisionCount, traceCount),
     simulatorRolloutCoverageRatio: ratio(simulatorRolloutEventCount, simulatorEventCount),
     llmStageDiagnostics: createLlmStageDiagnostics(traces),
+    educationOpportunityCost: createEducationOpportunityCostDiagnostics(traces),
   };
+}
+
+function createEducationOpportunityCostDiagnostics(
+  traces: readonly AgentCycleTrace[],
+): RuntimeProfileEducationOpportunityCostDiagnostics {
+  const allocations = new Map<RuntimeProfileActivityAllocationKind, RuntimeProfileActivityAllocation>(
+    EDUCATION_ACTIVITY_ALLOCATION_ORDER.map((activity) => [
+      activity,
+      { activity, acceptedActionCount: 0, actionSeconds: 0 },
+    ]),
+  );
+  let directStudyCurrencyCost = 0;
+  let foregoneCompetingActionCount = 0;
+  let studyDeferredForResourceConstraintCount = 0;
+
+  for (const trace of traces) {
+    const acceptedStudy = trace.actionSynthesis.acceptedActions.some(
+      (action) => action.commandType === 'AgentStudy',
+    );
+    for (const action of trace.actionSynthesis.acceptedActions) {
+      const activity = classifyActivity(action.commandType);
+      const current = allocations.get(activity);
+      if (current === undefined) {
+        throw new Error(`missing activity allocation bucket ${activity}`);
+      }
+      allocations.set(activity, {
+        activity,
+        acceptedActionCount: current.acceptedActionCount + 1,
+        actionSeconds: current.actionSeconds + (action.resourceEstimate?.actionSeconds ?? 0),
+      });
+      if (activity === 'study') {
+        directStudyCurrencyCost += action.resourceEstimate?.currencyCost ?? 0;
+      }
+    }
+
+    if (acceptedStudy) {
+      foregoneCompetingActionCount += trace.actionSynthesis.rejectedActions.filter(
+        (rejected) =>
+          rejected.reason === 'maxActions exhausted' &&
+          isImmediateCompetingActivity(classifyActivity(rejected.action.commandType)),
+      ).length;
+    }
+    const resourceConstrainedStudy = trace.actionSynthesis.rejectedActions.some(
+      (rejected) =>
+        rejected.action.commandType === 'AgentStudy' && rejected.reason.includes('budget exceeded'),
+    );
+    if (
+      resourceConstrainedStudy &&
+      trace.actionSynthesis.acceptedActions.some((action) =>
+        isImmediateCompetingActivity(classifyActivity(action.commandType)),
+      )
+    ) {
+      studyDeferredForResourceConstraintCount += 1;
+    }
+  }
+
+  return {
+    metricVersion: 'education-opportunity-cost-diagnostics-v1',
+    plannedActivityAllocation: EDUCATION_ACTIVITY_ALLOCATION_ORDER.map((activity) => {
+      const allocation = allocations.get(activity);
+      if (allocation === undefined) {
+        throw new Error(`missing activity allocation bucket ${activity}`);
+      }
+      return allocation;
+    }),
+    directStudyCurrencyCost,
+    foregoneCompetingActionCount,
+    studyDeferredForResourceConstraintCount,
+  };
+}
+
+const EDUCATION_ACTIVITY_ALLOCATION_ORDER = [
+  'study',
+  'labor',
+  'production',
+  'consumption',
+  'survival',
+  'other',
+] as const;
+
+function classifyActivity(commandType: string): RuntimeProfileActivityAllocationKind {
+  if (commandType === 'AgentStudy') {
+    return 'study';
+  }
+  if (commandType === 'AgentWork') {
+    return 'labor';
+  }
+  if (commandType === 'AgentProduce') {
+    return 'production';
+  }
+  if (commandType === 'AgentEat') {
+    return 'consumption';
+  }
+  if (commandType === 'AgentSleep' || commandType === 'AgentSeeDoctor') {
+    return 'survival';
+  }
+  return 'other';
+}
+
+function isImmediateCompetingActivity(activity: RuntimeProfileActivityAllocationKind): boolean {
+  return (
+    activity === 'labor' ||
+    activity === 'production' ||
+    activity === 'consumption' ||
+    activity === 'survival'
+  );
 }
 
 export function createRuntimeProfileCognitionLlmStageDiagnostics(input: {
@@ -580,6 +710,17 @@ function cloneAgentCycleDiagnostics(
             completeRulesContextCount: stage.completeRulesContextCount ?? 0,
           })),
         }),
+    ...(diagnostics.educationOpportunityCost === undefined
+      ? {}
+      : {
+          educationOpportunityCost: {
+            ...diagnostics.educationOpportunityCost,
+            plannedActivityAllocation:
+              diagnostics.educationOpportunityCost.plannedActivityAllocation.map(
+                (allocation) => ({ ...allocation }),
+              ),
+          },
+        }),
   };
 }
 
@@ -652,7 +793,50 @@ function validateAgentCycleDiagnostics(
   for (const field of ratioFields) {
     assertRatio(diagnostics[field] ?? 0, `agentCycleDiagnostics ${field}`);
   }
+  validateEducationOpportunityCostDiagnostics(diagnostics.educationOpportunityCost);
   validateLlmStageDiagnostics(diagnostics);
+}
+
+function validateEducationOpportunityCostDiagnostics(
+  diagnostics: RuntimeProfileEducationOpportunityCostDiagnostics | undefined,
+): void {
+  if (diagnostics === undefined) {
+    return;
+  }
+  if (diagnostics.metricVersion !== 'education-opportunity-cost-diagnostics-v1') {
+    throw new Error('educationOpportunityCost metricVersion is unsupported');
+  }
+  if (diagnostics.plannedActivityAllocation.length !== EDUCATION_ACTIVITY_ALLOCATION_ORDER.length) {
+    throw new Error('educationOpportunityCost plannedActivityAllocation is incomplete');
+  }
+  for (const [index, expectedActivity] of EDUCATION_ACTIVITY_ALLOCATION_ORDER.entries()) {
+    const allocation = diagnostics.plannedActivityAllocation[index];
+    if (allocation?.activity !== expectedActivity) {
+      throw new Error(
+        `educationOpportunityCost activity ${index} must equal ${expectedActivity}`,
+      );
+    }
+    assertNonNegativeInteger(
+      allocation.acceptedActionCount,
+      `educationOpportunityCost ${expectedActivity} acceptedActionCount`,
+    );
+    assertNonNegativeFinite(
+      allocation.actionSeconds,
+      `educationOpportunityCost ${expectedActivity} actionSeconds`,
+    );
+  }
+  assertNonNegativeFinite(
+    diagnostics.directStudyCurrencyCost,
+    'educationOpportunityCost directStudyCurrencyCost',
+  );
+  assertNonNegativeInteger(
+    diagnostics.foregoneCompetingActionCount,
+    'educationOpportunityCost foregoneCompetingActionCount',
+  );
+  assertNonNegativeInteger(
+    diagnostics.studyDeferredForResourceConstraintCount,
+    'educationOpportunityCost studyDeferredForResourceConstraintCount',
+  );
 }
 
 const AGENT_CYCLE_LLM_STAGE_NAMES = [
@@ -1418,6 +1602,12 @@ function assertNonEmpty(value: string, name: string): void {
 function assertFinite(value: number, name: string): void {
   if (!Number.isFinite(value)) {
     throw new Error(`${name} must be finite`);
+  }
+}
+
+function assertNonNegativeFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be non-negative finite`);
   }
 }
 

@@ -4,6 +4,7 @@ import {
   type DomainMicroPlanner,
   type ReactiveLocalizedPlanner,
   type ReactionEvaluator,
+  type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
@@ -104,6 +105,7 @@ describe('local simulation runtime manifest', () => {
         loopId: registration.loopId,
         tickBatchSize: registration.tickBatchSize,
         tickIntervalMs: registration.tickIntervalMs,
+        timeDeltaMs: registration.timeDeltaMs,
         commandConsumerId: registration.commandConsumerId,
         agentIds: Object.keys(registration.initialProjection.agents),
       })),
@@ -114,6 +116,7 @@ describe('local simulation runtime manifest', () => {
         loopId: 'loop-main',
         tickBatchSize: 1,
         tickIntervalMs: 100,
+        timeDeltaMs: 35_000,
         commandConsumerId: 'worker-world-main',
         agentIds: ['agent-1'],
       },
@@ -123,10 +126,35 @@ describe('local simulation runtime manifest', () => {
         loopId: 'loop-east',
         tickBatchSize: 1,
         tickIntervalMs: 100,
+        timeDeltaMs: 35_000,
         commandConsumerId: 'worker-world-east',
         agentIds: ['agent-2'],
       },
     ]);
+
+    const strategicPlanCompiler: StrategicPlanCompiler = ({ objective }) =>
+      createBranchPlan({
+        objective: objective.statement,
+        branches: [
+          {
+            id: 'development',
+            objective: 'Develop skills',
+            subtasks: [{ id: 'study', description: 'Study', basePriority: 1 }],
+          },
+        ],
+      });
+    const strategicPlanningRegistrations = createLocalSimulationBackendRegistrationsFromManifest({
+      manifest,
+      scenarioPresets,
+      policies,
+      localizedPlanners: [reactiveStudyPlanner()],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      strategicPlanCompiler,
+      agents: [],
+    });
+    expect(
+      strategicPlanningRegistrations.map((registration) => registration.strategicPlanCompiler),
+    ).toEqual([strategicPlanCompiler, strategicPlanCompiler]);
 
     const validationSchedule = createValidationSchedule();
     const validationRegistrations = createLocalSimulationBackendRegistrationsFromManifest({
@@ -208,7 +236,7 @@ describe('local simulation runtime manifest', () => {
         requestedAt: 200,
       }),
     );
-    expect(started.state.lastAppliedSequence).toBe(3);
+    expect(started.state.lastAppliedSequence).toBe(4);
 
     const eastProjection = await registry.api.getProjection({
       simulationId: 'sim-1',
@@ -308,7 +336,7 @@ describe('local simulation runtime manifest', () => {
         requestedAt: 200,
       }),
     );
-    expect(started.state.lastAppliedSequence).toBe(3);
+    expect(started.state.lastAppliedSequence).toBe(4);
     expect(providerObserved).toEqual(['world-main:10']);
 
     const projection = await registry.api.getProjection({

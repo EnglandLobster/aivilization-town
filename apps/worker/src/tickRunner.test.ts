@@ -566,6 +566,8 @@ describe('worker tick runner', () => {
   test('runs agent cycles in order while carrying projection and stream version forward', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();
+    const individuallyRecordedTraceIds: string[] = [];
+    const recordedTraceBatches: string[][] = [];
     const result = await runWorkerSimulationTick({
       tickId: 'tick-1',
       simulationId,
@@ -576,6 +578,14 @@ describe('worker tick runner', () => {
       streamName: partition.eventStreamName,
       expectedVersion: 0,
       agents: createTickAgents(),
+      traceSink: {
+        record: (trace) => {
+          individuallyRecordedTraceIds.push(trace.traceId);
+        },
+        recordMany: (traces) => {
+          recordedTraceBatches.push(traces.map((trace) => trace.traceId));
+        },
+      },
       ...repositories,
     });
 
@@ -583,9 +593,11 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'EducationChanged'],
-      [3, 'ShortTermMemoryRecorded'],
-      [4, 'EducationChanged'],
-      [5, 'ShortTermMemoryRecorded'],
+      [3, 'AgentActivityTimeCommitted'],
+      [4, 'ShortTermMemoryRecorded'],
+      [5, 'EducationChanged'],
+      [6, 'AgentActivityTimeCommitted'],
+      [7, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.events[0]).toMatchObject({
       id: 'tick-1-advance-time:event:0',
@@ -599,12 +611,14 @@ describe('worker tick runner', () => {
     expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
-    expect(result.streamVersion).toBe(5);
+    expect(result.streamVersion).toBe(7);
     expect(result.traces.map((trace) => trace.traceId)).toEqual([
       'tick-1:cycle:1:agent-1',
       'tick-1:cycle:2:agent-2',
     ]);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
+    expect(individuallyRecordedTraceIds).toEqual([]);
+    expect(recordedTraceBatches).toEqual([['tick-1:cycle:1:agent-1', 'tick-1:cycle:2:agent-2']]);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(7);
   });
 
   test('passes tick agent action synthesis policy into cycle traces', async () => {
@@ -698,6 +712,7 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
   });
@@ -1831,7 +1846,8 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'PhysiologyChanged'],
-      [3, 'ShortTermMemoryRecorded'],
+      [3, 'AgentActivityTimeCommitted'],
+      [4, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.events[1]).toMatchObject({
       payload: {
@@ -1842,8 +1858,8 @@ describe('worker tick runner', () => {
       },
     });
     expect(result.projection.agents[agentOne]?.physiology.energy).toBe(120);
-    expect(result.streamVersion).toBe(3);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
+    expect(result.streamVersion).toBe(4);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
   });
 
   test('applies safety net subsidies during the worker time phase', async () => {
@@ -1961,7 +1977,9 @@ describe('worker tick runner', () => {
       [1, 'SimulationTimeAdvanced'],
       [2, 'PhysiologyChanged'],
       [3, 'ResidentialUpkeepCharged'],
-      [4, 'SubsidyPaid'],
+      [4, 'PhysiologicalDistressChanged'],
+      [5, 'SafetyNetGranted'],
+      [6, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.events[1]).toMatchObject({
       payload: {
@@ -1972,8 +1990,15 @@ describe('worker tick runner', () => {
       },
     });
     expect(result.projection.agents[agentOne]?.physiology.health).toBe(72);
-    expect(result.projection.agents[agentOne]?.balance).toBe(25);
-    expect(result.projection.moneySupply).toBe(1015);
+    expect(result.projection.agents[agentOne]?.balance).toBe(0);
+    expect(result.projection.agents[agentOne]?.inventory).toEqual({ Apple: 2 });
+    expect(result.projection.moneySupply).toBe(990);
+    expect(result.projection.physiologicalDistressByAgent[agentOne]).toEqual({
+      policyVersion: 'physiological-safety-net-v1',
+      distressStartedAt: 0,
+      lowAxes: ['energy'],
+      lastGrantedAt: 3_600_000,
+    });
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(result.streamVersion);
   });
 
@@ -2001,7 +2026,8 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'CommodityProduced'],
-      [3, 'ShortTermMemoryRecorded'],
+      [3, 'AgentActivityTimeCommitted'],
+      [4, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.events[1]).toMatchObject({
       payload: {
@@ -2014,8 +2040,8 @@ describe('worker tick runner', () => {
       Chip: 1,
       'Gold Apple': 1,
     });
-    expect(result.streamVersion).toBe(3);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
+    expect(result.streamVersion).toBe(4);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
   });
 
   test('records a market price index after agent actions when market metrics are configured', async () => {
@@ -2088,7 +2114,7 @@ describe('worker tick runner', () => {
         commodityId: 'Apple',
         sourceSequence: 2,
         side: 'buy',
-        observedAt: 100,
+        observedAt: 1000,
         commodityQuantity: 10,
       },
     ]);
@@ -2098,11 +2124,11 @@ describe('worker tick runner', () => {
       repository.queryOhlcBars({ simulationId, commodityId: 'Apple' }),
     ).resolves.toMatchObject([
       {
-        barId: `${simulationId}:ohlc:1000:0:Apple:0`,
+        barId: `${simulationId}:ohlc:1000:0:Apple:1000`,
         simulationId,
         commodityId: 'Apple',
-        intervalStartedAt: 0,
-        intervalEndedAt: 1000,
+        intervalStartedAt: 1000,
+        intervalEndedAt: 2000,
         tradeCount: 1,
       },
     ]);
@@ -2183,8 +2209,10 @@ describe('worker tick runner', () => {
     expect(eventStore.readStream(partition.eventStreamName).map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     await expect(
@@ -2234,11 +2262,7 @@ describe('worker tick runner', () => {
     });
 
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
-      [6, 'SimulationTimeAdvanced'],
-      [7, 'EducationChanged'],
-      [8, 'ShortTermMemoryRecorded'],
-      [9, 'EducationChanged'],
-      [10, 'ShortTermMemoryRecorded'],
+      [8, 'SimulationTimeAdvanced'],
     ]);
     expect(result.events[0]).toMatchObject({
       payload: {
@@ -2248,10 +2272,11 @@ describe('worker tick runner', () => {
       },
     });
     expect(result.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
-    expect(result.projection.agents['agent-1']?.educationScore).toBe(130);
-    expect(result.projection.agents['agent-2']?.educationScore).toBe(80);
-    expect(result.streamVersion).toBe(10);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(10);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
+    expect(result.skippedBusyAgentIds).toEqual([agentOne, agentTwo]);
+    expect(result.streamVersion).toBe(8);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(8);
   });
 
   test('hydrates the starting projection from a checkpoint snapshot when available', async () => {
@@ -2306,11 +2331,7 @@ describe('worker tick runner', () => {
     });
 
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
-      [6, 'SimulationTimeAdvanced'],
-      [7, 'EducationChanged'],
-      [8, 'ShortTermMemoryRecorded'],
-      [9, 'EducationChanged'],
-      [10, 'ShortTermMemoryRecorded'],
+      [8, 'SimulationTimeAdvanced'],
     ]);
     expect(result.events[0]).toMatchObject({
       payload: {
@@ -2320,9 +2341,10 @@ describe('worker tick runner', () => {
       },
     });
     expect(result.projection.clock).toEqual({ now: 2000, tickDurationMs: 1000 });
-    expect(result.projection.agents['agent-1']?.educationScore).toBe(130);
-    expect(result.projection.agents['agent-2']?.educationScore).toBe(80);
-    expect(result.streamVersion).toBe(10);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
+    expect(result.skippedBusyAgentIds).toEqual([agentOne, agentTwo]);
+    expect(result.streamVersion).toBe(8);
   });
 
   test('continues later agents when an earlier agent requires replanning', async () => {
@@ -2358,12 +2380,13 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'EducationChanged'],
-      [3, 'ShortTermMemoryRecorded'],
+      [3, 'AgentActivityTimeCommitted'],
+      [4, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(result.projection.agents['agent-1']?.educationScore).toBe(10);
     expect(result.projection.agents['agent-2']?.educationScore).toBe(50);
-    expect(result.streamVersion).toBe(3);
+    expect(result.streamVersion).toBe(4);
     expect(result.traces.map((trace) => trace.simulatorResult.status)).toEqual([
       'rejected',
       'accepted',
@@ -2599,9 +2622,11 @@ describe('worker tick runner', () => {
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'EducationChanged'],
-      [3, 'ShortTermMemoryRecorded'],
-      [4, 'EducationChanged'],
-      [5, 'ShortTermMemoryRecorded'],
+      [3, 'AgentActivityTimeCommitted'],
+      [4, 'ShortTermMemoryRecorded'],
+      [5, 'EducationChanged'],
+      [6, 'AgentActivityTimeCommitted'],
+      [7, 'ShortTermMemoryRecorded'],
     ]);
     expect(
       result.agentResults.map((agentResult) => agentResult.cycleResult.selectedSubtask),

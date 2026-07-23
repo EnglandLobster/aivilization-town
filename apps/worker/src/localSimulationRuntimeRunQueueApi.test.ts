@@ -72,6 +72,8 @@ describe('local simulation runtime run queue API adapter', () => {
     });
     await repository.fail({
       jobId: 'job-dead-100',
+      workerId: 'worker-1',
+      attemptNumber: 1,
       failedAt: 120,
       maxAttempts: 1,
       error: { name: 'Error', message: 'runtime exploded' },

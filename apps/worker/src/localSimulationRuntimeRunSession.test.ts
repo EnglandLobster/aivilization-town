@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
@@ -109,6 +109,45 @@ describe('local simulation runtime run session repository', () => {
     await expect(
       restartedRepository.requestStop({ traceId: 'missing-run-session', requestedAt: 200 }),
     ).resolves.toBeUndefined();
+  });
+
+  test('persists cycle progress with linear-size delta records', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    const cycles: ReturnType<typeof createCycle>[] = [];
+    await repository.save({
+      ...createRunningSession(),
+      requestedCycleCount: 200,
+      completedCycleCount: 0,
+      cycles: [],
+    });
+    for (let cycleIndex = 1; cycleIndex <= 200; cycleIndex += 1) {
+      const cycle = createCycle(cycleIndex, 100 + cycleIndex * 50);
+      cycles.push(cycle);
+      await repository.appendCycle({
+        traceId: 'op-run-session',
+        cycle,
+        statusSnapshot: createStatus(cycleIndex),
+        updatedAt: 100 + cycleIndex * 50,
+      });
+    }
+
+    const ledgerPath = join(rootDir, 'supervisor-run-sessions.jsonl');
+    expect(statSync(ledgerPath).size).toBeLessThan(500_000);
+    const records = readFileSync(ledgerPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { appendedCycles: unknown[] });
+    expect(records).toHaveLength(201);
+    expect(records[0]?.appendedCycles).toHaveLength(0);
+    expect(records.slice(1).every((record) => record.appendedCycles.length === 1)).toBe(true);
+
+    const restarted = new FileLocalSimulationRuntimeRunSessionRepository({ rootDir });
+    const recovered = await restarted.get('op-run-session');
+    expect(recovered).toMatchObject({ completedCycleCount: 200 });
+    expect(recovered?.cycles).toHaveLength(200);
+    expect(recovered?.cycles[0]).toMatchObject({ cycleIndex: 1 });
+    expect(recovered?.cycles.at(-1)).toMatchObject({ cycleIndex: 200 });
   });
 });
 

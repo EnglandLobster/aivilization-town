@@ -43,6 +43,7 @@ export type MemorySynthesisWorldDecisionOccupationRule = {
   readonly occupationName: string;
   readonly jobTier: number;
   readonly baseWage: number;
+  readonly currentWage?: number;
   readonly effectiveEducationThreshold: number;
   readonly requiredResidentialTier: number;
   readonly prerequisiteCommodity: string | null;
@@ -58,7 +59,21 @@ export type MemorySynthesisWorldDecisionProductionRule = {
   readonly energyCost: number;
   readonly satietyCost: number;
   readonly timeCostSeconds: number;
+  readonly outputSpotPrice?: number;
+  readonly inputSpotCost?: number;
+  readonly grossMargin?: number;
+  readonly grossMarginPerSecond?: number;
   readonly producible: boolean;
+  readonly rejectionReasons: readonly string[];
+};
+
+export type MemorySynthesisWorldDecisionResidentialUpgradeRule = {
+  readonly targetResidentialTier: number;
+  readonly currencyCost: number;
+  readonly minEducationScore: number;
+  readonly inventoryCosts: Readonly<Record<string, number>>;
+  readonly missingInventory: Readonly<Record<string, number>>;
+  readonly eligible: boolean;
   readonly rejectionReasons: readonly string[];
 };
 
@@ -69,6 +84,7 @@ export type MemorySynthesisWorldDecisionRulesContext = {
   };
   readonly occupations: readonly MemorySynthesisWorldDecisionOccupationRule[];
   readonly production: readonly MemorySynthesisWorldDecisionProductionRule[];
+  readonly residentialUpgrade?: MemorySynthesisWorldDecisionResidentialUpgradeRule;
 };
 
 export type MemorySynthesisWorldDecisionContext = {
@@ -96,6 +112,8 @@ export type MemorySynthesisWorldDecisionContextTrace = {
   readonly eligibleOccupationRuleCount: number;
   readonly productionRuleCount: number;
   readonly producibleCommodityRuleCount: number;
+  readonly hasResidentialUpgradeRule?: boolean;
+  readonly residentialUpgradeEligible?: boolean;
 };
 
 export function createMemorySynthesisWorldDecisionContextTrace(
@@ -135,5 +153,7 @@ export function createMemorySynthesisWorldDecisionContextTrace(
     productionRuleCount: context.rules?.production.length ?? 0,
     producibleCommodityRuleCount:
       context.rules?.production.filter((production) => production.producible).length ?? 0,
+    hasResidentialUpgradeRule: context.rules?.residentialUpgrade !== undefined,
+    residentialUpgradeEligible: context.rules?.residentialUpgrade?.eligible ?? false,
   };
 }

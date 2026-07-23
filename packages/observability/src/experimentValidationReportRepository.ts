@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import type {
   ExperimentValidationEvidence,
+  ExperimentValidationEvidenceValue,
   ExperimentValidationFinding,
   ExperimentValidationMetric,
   ExperimentValidationReport,
@@ -138,7 +139,20 @@ function cloneFinding(finding: ExperimentValidationFinding): ExperimentValidatio
 }
 
 function cloneEvidence(evidence: ExperimentValidationEvidence): ExperimentValidationEvidence {
-  return { ...evidence };
+  return Object.fromEntries(
+    Object.entries(evidence).map(([key, value]) => [key, cloneEvidenceValue(value)]),
+  );
+}
+
+function cloneEvidenceValue(
+  value: ExperimentValidationEvidenceValue,
+): ExperimentValidationEvidenceValue {
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, cloneEvidenceValue(item)]),
+    );
+  }
+  return value;
 }
 
 function compareReportLatestFirst(

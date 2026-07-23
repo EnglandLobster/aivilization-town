@@ -25,6 +25,7 @@ export type LocalSimulationLifecycleRequest = {
   readonly simulationId: string;
   readonly partitionKey: PartitionKey;
   readonly requestedAt: SimulationTimestamp;
+  readonly operationId?: string;
   readonly scenarioPresetId?: string;
   readonly fromSequence?: number;
   readonly toSequence?: number;
@@ -54,6 +55,7 @@ export type LocalSimulationLifecycleState = {
   readonly nextTickIndex: number;
   readonly lastAppliedSequence: number;
   readonly updatedAt: SimulationTimestamp;
+  readonly lastOperationId?: string;
   readonly lastLoopId?: string;
   readonly completedTickCount?: number;
   readonly lastValidationStatus?: LocalSimulationLifecycleValidationStatus;
@@ -108,7 +110,13 @@ export type LocalSimulationLifecycleMemoryConsolidationSchedule = {
 
 export type LocalSimulationLifecycleControllerInput = Omit<
   LocalWorldRuntimeLoopInput,
-  'loopId' | 'firstTickIndex' | 'tickCount' | 'issuedAtStart' | 'pauseBeforeTick'
+  | 'loopId'
+  | 'firstTickIndex'
+  | 'tickCount'
+  | 'issuedAtStart'
+  | 'pauseBeforeTick'
+  | 'firstTickRecoveryToSequence'
+  | 'recoveryThroughSequence'
 > & {
   readonly loopId: string;
   readonly tickBatchSize: number;
@@ -130,6 +138,7 @@ export type LocalSimulationLifecycleStartResult = {
   readonly validationFailure?: LocalSimulationLifecycleValidationFailure;
   readonly memoryConsolidation?: WorkerMemoryConsolidationScheduleResult;
   readonly memoryConsolidationFailure?: LocalSimulationLifecycleValidationFailure;
+  readonly idempotentReplay?: boolean;
 };
 
 export type LocalSimulationLifecyclePauseResult = {
@@ -244,11 +253,37 @@ export function createLocalSimulationLifecycleController(
       if (previousState?.status === 'reset-requested') {
         throw new Error('local simulation reset has not been materialized');
       }
+      if (request.operationId !== undefined) {
+        assertNonEmpty(request.operationId, 'operationId');
+        if (
+          previousState?.status === 'completed' &&
+          previousState.lastOperationId === request.operationId
+        ) {
+          return createIdempotentLifecycleStartResult({
+            controllerInput: input,
+            state: previousState,
+          });
+        }
+        if (
+          previousState?.status === 'running' &&
+          previousState.lastOperationId !== undefined &&
+          previousState.lastOperationId !== request.operationId
+        ) {
+          throw new Error(
+            `local simulation operation ${previousState.lastOperationId} is still running`,
+          );
+        }
+      }
 
       const firstTickIndex = previousState?.nextTickIndex ?? initialTickIndex;
       const streamVersionBeforeStart = input.storage.eventStore.getStreamVersion(
         input.storage.partition.eventStreamName,
       );
+      const firstTickRecoveryToSequence =
+        previousState?.status === 'running' &&
+        previousState.lastAppliedSequence < streamVersionBeforeStart
+          ? previousState.lastAppliedSequence
+          : undefined;
       lifecycleStateStore.saveState({
         simulationId: request.simulationId,
         partitionKey: request.partitionKey,
@@ -257,6 +292,7 @@ export function createLocalSimulationLifecycleController(
         lastAppliedSequence: streamVersionBeforeStart,
         updatedAt: request.requestedAt,
         lastLoopId: input.loopId,
+        ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
       });
 
       const loop = await runLocalWorldRuntimeLoop({
@@ -265,6 +301,12 @@ export function createLocalSimulationLifecycleController(
         firstTickIndex,
         tickCount: input.tickBatchSize,
         issuedAtStart: request.requestedAt,
+        ...(firstTickRecoveryToSequence === undefined
+          ? {}
+          : {
+              firstTickRecoveryToSequence,
+              recoveryThroughSequence: streamVersionBeforeStart,
+            }),
         pauseBeforeTick: (step) => {
           if (lifecycleStateStore.getState(request)?.status === 'paused') {
             return true;
@@ -282,6 +324,7 @@ export function createLocalSimulationLifecycleController(
         ),
         updatedAt: request.requestedAt,
         lastLoopId: input.loopId,
+        ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
         completedTickCount: loop.completedTickCount,
       });
       const validation =
@@ -351,6 +394,9 @@ export function createLocalSimulationLifecycleController(
         ...(previousState?.completedTickCount === undefined
           ? {}
           : { completedTickCount: previousState.completedTickCount }),
+        ...(previousState?.lastOperationId === undefined
+          ? {}
+          : { lastOperationId: previousState.lastOperationId }),
       });
 
       return Promise.resolve({
@@ -428,6 +474,40 @@ export function createLocalSimulationLifecycleController(
         ...(state === undefined ? {} : { state }),
       });
     },
+  };
+}
+
+function createIdempotentLifecycleStartResult(input: {
+  readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly state: LocalSimulationLifecycleState;
+}): LocalSimulationLifecycleStartResult {
+  if (input.state.status !== 'completed') {
+    throw new Error('only a completed lifecycle operation can be replayed idempotently');
+  }
+  const hydrated = hydrateWorldProjectionFromEventStream({
+    initialProjection: input.controllerInput.initialProjection,
+    eventStore: input.controllerInput.storage.eventStore,
+    streamName: input.controllerInput.storage.partition.eventStreamName,
+    checkpoint: {
+      checkpointStore: input.controllerInput.storage.checkpointStore,
+      snapshotStore: input.controllerInput.storage.snapshotStore,
+      lookup: {
+        simulationId: input.controllerInput.storage.partition.simulationId,
+        partitionKey: input.controllerInput.storage.partition.partitionKey,
+      },
+    },
+  });
+  return {
+    status: 'completed',
+    state: input.state,
+    loop: {
+      status: 'completed',
+      steps: [],
+      completedTickCount: input.state.completedTickCount ?? 0,
+      nextTickIndex: input.state.nextTickIndex,
+      projection: hydrated.projection,
+    },
+    idempotentReplay: true,
   };
 }
 
@@ -848,6 +928,9 @@ function parseLocalSimulationLifecycleState(
     ...(record.lastLoopId === undefined
       ? {}
       : { lastLoopId: parseString(record.lastLoopId, 'lastLoopId', source) }),
+    ...(record.lastOperationId === undefined
+      ? {}
+      : { lastOperationId: parseString(record.lastOperationId, 'lastOperationId', source) }),
     ...(record.completedTickCount === undefined
       ? {}
       : {

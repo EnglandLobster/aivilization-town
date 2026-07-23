@@ -50,6 +50,20 @@ describe('projection-backed wage policy', () => {
     ).toThrow(/market price index/i);
   });
 
+  test('uses an explicit neutral price-index strategy during canonical cold start', () => {
+    const projection = createWorldProjection({
+      agents: createPopulationAgents(),
+    });
+    const calculator = createProjectionBackedWageCalculator({
+      projection,
+      missingMarketPriceIndexStrategy: 'neutral',
+      knowledgePremium: (effectiveKnowledgeThreshold) => 1 + effectiveKnowledgeThreshold / 1000,
+    });
+
+    expect(calculator('Cleaner')).toBe(250);
+    expect(calculator('Doctor')).toBeCloseTo(579.15);
+  });
+
   test('dispatches AgentWork with projection-derived wages through world policies', () => {
     const projection = createProjectionWithPriceIndices();
     const policies = createProjectionBackedWorldCommandPolicies({

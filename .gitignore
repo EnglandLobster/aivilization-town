@@ -12,3 +12,4 @@ coverage/
 .DS_Store
 tmp/
 data/local/
+.aivilization/

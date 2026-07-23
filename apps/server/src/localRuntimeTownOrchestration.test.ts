@@ -170,6 +170,8 @@ describe('local runtime town orchestration', () => {
     });
     await orchestration.runQueueRepository.fail({
       jobId: 'job-dead-health-1',
+      workerId: 'worker-health',
+      attemptNumber: 1,
       failedAt: 150,
       maxAttempts: 1,
       error: { name: 'Error', message: 'health failure' },

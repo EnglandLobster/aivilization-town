@@ -43,6 +43,7 @@ export type WorldDecisionOccupationRule = {
   readonly occupationName: string;
   readonly jobTier: number;
   readonly baseWage: number;
+  readonly currentWage?: number;
   readonly effectiveEducationThreshold: number;
   readonly requiredResidentialTier: number;
   readonly prerequisiteCommodity: string | null;
@@ -58,8 +59,39 @@ export type WorldDecisionProductionRule = {
   readonly energyCost: number;
   readonly satietyCost: number;
   readonly timeCostSeconds: number;
+  readonly outputSpotPrice?: number;
+  readonly inputSpotCost?: number;
+  readonly grossMargin?: number;
+  readonly grossMarginPerSecond?: number;
   readonly producible: boolean;
   readonly rejectionReasons: readonly string[];
+};
+
+export type WorldDecisionResidentialUpgradeRule = {
+  readonly targetResidentialTier: number;
+  readonly currencyCost: number;
+  readonly minEducationScore: number;
+  readonly inventoryCosts: Readonly<Record<string, number>>;
+  readonly missingInventory: Readonly<Record<string, number>>;
+  readonly eligible: boolean;
+  readonly rejectionReasons: readonly string[];
+};
+
+export type WorldDecisionEducationOpportunityCostRule = {
+  readonly policyVersion: string;
+  readonly studyDurationSeconds: number;
+  readonly educationRatePerSecond: number;
+  readonly expectedEducationGain: number;
+  readonly directCurrencyCost: number;
+  readonly directInventoryCosts: Readonly<Record<string, number>>;
+  readonly workLaborSeconds: number;
+  readonly currentOccupationName: string | null;
+  readonly foregoneLaborIncome: number;
+  readonly totalCurrencyOpportunityCost: number;
+  readonly minimumBalanceReserve: number;
+  readonly balanceAfterDirectCost: number;
+  readonly directlyAffordable: boolean;
+  readonly preservesMinimumBalanceReserve: boolean;
 };
 
 export type WorldDecisionRulesContext = {
@@ -69,11 +101,44 @@ export type WorldDecisionRulesContext = {
   };
   readonly occupations: readonly WorldDecisionOccupationRule[];
   readonly production: readonly WorldDecisionProductionRule[];
+  readonly residentialUpgrade?: WorldDecisionResidentialUpgradeRule;
+  readonly educationOpportunityCost?: WorldDecisionEducationOpportunityCostRule;
+};
+
+export type WorldDecisionSocietyAgentContext = {
+  readonly agentId: AgentId;
+  readonly ownerPartitionKey: string;
+  readonly ownerLastAppliedSequence: number;
+  readonly locationId: string | null;
+  readonly job: string | null;
+  readonly residentialTier: number;
+  readonly educationScore: number;
+  readonly displayName?: string;
+  readonly activityAvailableAt?: number;
+  readonly transit?: {
+    readonly fromLocationId: string;
+    readonly toLocationId: string;
+    readonly departedAt: number;
+    readonly arrivesAt: number;
+  };
+};
+
+export type WorldDecisionSocietyContext = {
+  readonly directoryId: string;
+  readonly simulationId: string;
+  readonly partitionBoundaries: readonly {
+    readonly partitionKey: string;
+    readonly lastAppliedSequence: number;
+    readonly snapshotSequence: number;
+    readonly simulationTime: number;
+  }[];
+  readonly agents: readonly WorldDecisionSocietyAgentContext[];
 };
 
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
+  readonly society?: WorldDecisionSocietyContext;
   readonly rules?: WorldDecisionRulesContext;
 };
 
@@ -92,10 +157,19 @@ export type WorldDecisionContextTrace = {
   readonly hasEconomicState: boolean;
   readonly hasMarketPrices: boolean;
   readonly completeEconomicContext: boolean;
+  readonly hasSocietyDirectory?: boolean;
+  readonly societyPartitionCount?: number;
+  readonly societyAgentCount?: number;
+  readonly remoteSocietyAgentCount?: number;
   readonly occupationRuleCount: number;
   readonly eligibleOccupationRuleCount: number;
   readonly productionRuleCount: number;
   readonly producibleCommodityRuleCount: number;
+  readonly hasResidentialUpgradeRule?: boolean;
+  readonly residentialUpgradeEligible?: boolean;
+  readonly hasEducationOpportunityCost?: boolean;
+  readonly educationInvestmentDirectlyAffordable?: boolean;
+  readonly educationInvestmentPreservesMinimumBalanceReserve?: boolean;
 };
 
 export function createWorldDecisionContextTrace(
@@ -110,6 +184,9 @@ export function createWorldDecisionContextTrace(
     context.market.spotPrices.every(
       (price) => price.commodity.trim().length > 0 && Number.isFinite(price.spotPrice),
     );
+  const localOwnerPartitionKey = context.society?.agents.find(
+    (agent) => agent.agentId === context.agent.agentId,
+  )?.ownerPartitionKey;
 
   return {
     agentId: context.agent.agentId,
@@ -129,11 +206,28 @@ export function createWorldDecisionContextTrace(
     hasEconomicState,
     hasMarketPrices,
     completeEconomicContext: hasEconomicState && hasMarketPrices && hasLatestPriceIndex,
+    ...(context.society === undefined
+      ? {}
+      : {
+          hasSocietyDirectory: true,
+          societyPartitionCount: context.society.partitionBoundaries.length,
+          societyAgentCount: context.society.agents.length,
+          remoteSocietyAgentCount: context.society.agents.filter(
+            (agent) => agent.ownerPartitionKey !== localOwnerPartitionKey,
+          ).length,
+        }),
     occupationRuleCount: context.rules?.occupations.length ?? 0,
     eligibleOccupationRuleCount:
       context.rules?.occupations.filter((occupation) => occupation.eligible).length ?? 0,
     productionRuleCount: context.rules?.production.length ?? 0,
     producibleCommodityRuleCount:
       context.rules?.production.filter((production) => production.producible).length ?? 0,
+    hasResidentialUpgradeRule: context.rules?.residentialUpgrade !== undefined,
+    residentialUpgradeEligible: context.rules?.residentialUpgrade?.eligible ?? false,
+    hasEducationOpportunityCost: context.rules?.educationOpportunityCost !== undefined,
+    educationInvestmentDirectlyAffordable:
+      context.rules?.educationOpportunityCost?.directlyAffordable ?? false,
+    educationInvestmentPreservesMinimumBalanceReserve:
+      context.rules?.educationOpportunityCost?.preservesMinimumBalanceReserve ?? false,
   };
 }

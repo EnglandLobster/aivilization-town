@@ -8,6 +8,7 @@ import type {
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import {
   applyGlobalSynthesisChoices,
+  createDeterministicGlobalSynthesisResult,
   type GlobalActionSynthesizer,
   type GlobalSynthesisChoice,
   type GlobalSynthesisResult,
@@ -254,14 +255,15 @@ function createFallbackResult(input: {
   readonly failureReason: string;
   readonly message: string;
 }): LlmGlobalSynthesisFallbackResult {
+  const deterministic = createDeterministicGlobalSynthesisResult(input.input);
   return {
     status: 'fallback',
     source: 'deterministic-fallback',
-    actions: input.input.candidateActions,
+    actions: deterministic.actions,
     trace: mapFallbackTrace({
       input: input.input,
       gateway: input.failure,
-      candidateActions: input.input.candidateActions,
+      deterministicTrace: deterministic.trace,
       failureReason: input.failureReason,
       message: input.message,
     }),
@@ -301,7 +303,7 @@ function mapAcceptedTrace(
 function mapFallbackTrace(input: {
   readonly input: LlmGlobalSynthesizerInput;
   readonly gateway: LlmStructuredFailure | LlmStructuredSuccess<LlmGlobalSynthesisProposal>;
-  readonly candidateActions: readonly { readonly id: string; readonly priority?: number }[];
+  readonly deterministicTrace: GlobalSynthesisTrace;
   readonly failureReason: string;
   readonly message: string;
 }): GlobalSynthesisTrace {
@@ -314,11 +316,14 @@ function mapFallbackTrace(input: {
     ...(lastAttempt === undefined ? {} : { model: lastAttempt.model }),
     failureReason: input.failureReason,
     message: input.message,
-    choices: input.candidateActions.map((action) => ({
-      actionId: action.id,
-      priorityScore: action.priority ?? 0,
-      rationale: 'deterministic fallback after LLM global synthesis failure',
-    })),
+    ...(input.deterministicTrace.choices === undefined
+      ? {}
+      : {
+          choices: input.deterministicTrace.choices.map((choice) => ({
+            ...choice,
+            rationale: `${choice.rationale}; deterministic fallback after LLM global synthesis failure`,
+          })),
+        }),
     attempts: input.gateway.attempts.map((attempt) => ({
       attemptIndex: attempt.attemptIndex,
       status: attempt.status,

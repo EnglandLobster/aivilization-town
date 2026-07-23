@@ -11,6 +11,10 @@ import {
 } from '@aivilization/agent-runtime';
 import type { AgentIntentionRepository, LongTermAgentProfile } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
+import {
+  createStrategicPlanContextSnapshot,
+  STRATEGIC_PLAN_RENEWAL_POLICY_VERSION,
+} from './strategicPlanRenewal';
 
 export type WorkerFullReplanMaterializationInput = {
   readonly agentId: AgentId;
@@ -87,11 +91,31 @@ export async function materializeFullReplanForActiveObjective(
         : { worldDecisionContext: input.worldDecisionContext }),
     }),
   );
+  const strategicContext =
+    input.worldDecisionContext === undefined || input.longTermProfile === undefined
+      ? undefined
+      : createStrategicPlanContextSnapshot({
+          worldDecisionContext: input.worldDecisionContext,
+          longTermProfile: input.longTermProfile,
+          capturedAt: input.issuedAt,
+        });
   const planRecord: BranchPlanRecord = {
     planId: input.planId,
     agentId: input.agentId,
     plan: compiled.plan,
     ...(compiled.planningTrace === undefined ? {} : { planningTrace: compiled.planningTrace }),
+    ...(strategicContext === undefined ? {} : { strategicContext }),
+    ...(strategicContext === undefined || existingRecord?.strategicContext === undefined
+      ? {}
+      : {
+          revision: {
+            policyVersion: STRATEGIC_PLAN_RENEWAL_POLICY_VERSION,
+            trigger: input.replanningDecision.trigger,
+            reasons: [input.replanningDecision.reason],
+            previousContext: existingRecord.strategicContext,
+            currentContext: strategicContext,
+          },
+        }),
     createdAt: existingRecord?.createdAt ?? input.issuedAt,
     updatedAt: input.issuedAt,
   };

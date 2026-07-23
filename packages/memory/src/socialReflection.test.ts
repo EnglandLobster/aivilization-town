@@ -37,7 +37,14 @@ describe('social interaction reflection artifacts', () => {
         confidence: 0.8,
         evidenceRecordIds: ['social-1'],
         generatedAt: 100,
-        tags: ['social', 'post-interaction-reflection', 'agent-2', 'conversation', 'community'],
+        tags: [
+          'social',
+          'post-interaction-reflection',
+          'agent-2',
+          'social-outcome-positive',
+          'conversation',
+          'community',
+        ],
       },
     ]);
   });

@@ -1,5 +1,11 @@
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 
+export type RegisterAgentPayload = {
+  readonly agentId: AgentId;
+  readonly creatorId: string;
+  readonly displayName: string;
+};
+
 export type AgentEatPayload = {
   readonly commodityName: string;
   readonly quantity: number;
@@ -58,6 +64,13 @@ export type AgentTradePayload = {
   readonly quantity: number;
 };
 
+export type AgentGiveResourcePayload = {
+  readonly targetAgentId: AgentId;
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly note?: string;
+};
+
 export type AgentApplyJobPayload = {
   readonly occupationName: string;
 };
@@ -76,6 +89,26 @@ export type AgentSocializePayload = {
 export type AdvanceSimulationTimePayload = {
   readonly deltaMs: number;
 };
+
+export function assertRegisterAgentPayload(payload: unknown): RegisterAgentPayload {
+  if (!isRecord(payload)) {
+    throw new Error('RegisterAgent payload must be an object');
+  }
+  const agentId = payload['agentId'];
+  const creatorId = payload['creatorId'];
+  const displayName = payload['displayName'];
+  assertBoundedNonEmptyString(agentId, 'RegisterAgent agentId', 128);
+  assertBoundedNonEmptyString(creatorId, 'RegisterAgent creatorId', 128);
+  assertBoundedNonEmptyString(displayName, 'RegisterAgent displayName', 160);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(agentId)) {
+    throw new Error('RegisterAgent agentId contains unsupported characters');
+  }
+  return {
+    agentId: asAgentId(agentId.trim()),
+    creatorId: creatorId.trim(),
+    displayName: displayName.trim(),
+  };
+}
 
 export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   if (!isRecord(payload)) {
@@ -260,6 +293,32 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
   };
 }
 
+export function assertAgentGiveResourcePayload(payload: unknown): AgentGiveResourcePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentGiveResource payload must be an object');
+  }
+  const targetAgentId = payload['targetAgentId'];
+  const commodityName = payload['commodityName'];
+  const quantity = payload['quantity'];
+  const note = payload['note'];
+  if (typeof targetAgentId !== 'string' || targetAgentId.trim().length === 0) {
+    throw new Error('AgentGiveResource targetAgentId must not be empty');
+  }
+  if (typeof commodityName !== 'string' || commodityName.trim().length === 0) {
+    throw new Error('AgentGiveResource commodityName must not be empty');
+  }
+  assertPositiveFinite(quantity, 'AgentGiveResource quantity');
+  if (note !== undefined && (typeof note !== 'string' || note.trim().length === 0)) {
+    throw new Error('AgentGiveResource note must not be empty');
+  }
+  return {
+    targetAgentId: asAgentId(targetAgentId.trim()),
+    commodityName: commodityName.trim(),
+    quantity,
+    ...(note === undefined ? {} : { note: note.trim() }),
+  };
+}
+
 export function assertAgentApplyJobPayload(payload: unknown): AgentApplyJobPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentApplyJob payload must be an object');
@@ -349,6 +408,19 @@ function assertNonNegativeFinite(value: unknown, name: string): asserts value is
 function assertFinite(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new Error(`${name} must be finite`);
+  }
+}
+
+function assertBoundedNonEmptyString(
+  value: unknown,
+  name: string,
+  maximumLength: number,
+): asserts value is string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${name} must not be empty`);
+  }
+  if (value.trim().length > maximumLength) {
+    throw new Error(`${name} must not exceed ${maximumLength} characters`);
   }
 }
 

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { createLocalRuntimeTownDaemonScenarioProfile } from './index';
 
 describe('local runtime town daemon scenario profiles', () => {
-  test('creates registered smoke, default, and headless stress backend profiles', () => {
+  test('creates registered smoke, default, stress, recovery, and paper ablation profiles', () => {
     const smoke = createLocalRuntimeTownDaemonScenarioProfile('smoke-25');
     expect(smoke).toMatchObject({
       profileId: 'smoke-25',
@@ -131,6 +131,56 @@ describe('local runtime town daemon scenario profiles', () => {
       'world-main',
     ]);
     expect(totalAgents(recovery.scenarioPresets)).toBe(25);
+
+    const ablation = createLocalRuntimeTownDaemonScenarioProfile('ablation-80');
+    expect(ablation).toMatchObject({
+      profileId: 'ablation-80',
+      agentCount: 80,
+      headless: true,
+      manifest: {
+        id: 'aivilization-ablation-80',
+        defaults: {
+          tickBatchSize: 1,
+          tickIntervalMs: 0,
+          commandConsumerIdPrefix: 'ablation-worker',
+        },
+      },
+      runtimeRunQueue: { maxJobsPerPoll: 1 },
+      runtimeScheduler: { cycleCount: 1, maxPendingJobs: 1 },
+    });
+    expect(ablation.scenarioPresets).toHaveLength(1);
+    const ablationPreset = ablation.scenarioPresets[0];
+    expect(ablationPreset).toMatchObject({
+      id: 'aivilization-ablation-80-agent-cohort',
+      timeScale: 35,
+    });
+    expect(ablationPreset?.agentSeeds).toHaveLength(80);
+    const mbtiCounts = ablationPreset?.agentSeeds.reduce<Record<string, number>>(
+      (counts, agent) => {
+        const mbti = agent.profile.personality.mbti;
+        counts[mbti] = (counts[mbti] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
+    expect(Object.values(mbtiCounts ?? {})).toEqual(Array.from({ length: 16 }, () => 5));
+    expect(
+      ablationPreset?.agentSeeds.every(
+        (agent) =>
+          agent.physiology.energy === 60 &&
+          agent.physiology.satiety === 60 &&
+          agent.physiology.health === 60 &&
+          agent.balance === 0 &&
+          agent.educationScore === 0 &&
+          Object.keys(agent.inventory).length === 0,
+      ),
+    ).toBe(true);
+    const ablationPartition = ablation.manifest.partitions[0];
+    const ablationMarketPools = ablationPartition?.marketPools ?? [];
+    expect(ablationMarketPools).not.toEqual([]);
+    expect(ablationPartition?.moneySupply).toBe(
+      ablationMarketPools.reduce((total, marketPool) => total + marketPool.currencyReserve, 0),
+    );
   });
 });
 

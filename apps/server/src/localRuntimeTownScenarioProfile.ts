@@ -1,4 +1,5 @@
 import {
+  aivilizationAblationScenarioPreset,
   createAivilizationPopulationScenarioPreset,
   createCommodityMarketPoolSeeds,
   type ScenarioPreset,
@@ -15,7 +16,8 @@ export type LocalRuntimeTownDaemonScenarioProfileId =
   | 'smoke-25'
   | 'default-100'
   | 'headless-stress-1000'
-  | 'recovery-drill-25';
+  | 'recovery-drill-25'
+  | 'ablation-80';
 
 export type LocalRuntimeTownDaemonScenarioProfile = {
   readonly profileId: LocalRuntimeTownDaemonScenarioProfileId;
@@ -133,6 +135,23 @@ const profileConfigs = {
     currencyReserve: 1_000,
     partitions: [{ partitionKey: 'world-main', agentCount: 25, label: 'Main' }],
   },
+  'ablation-80': {
+    profileId: 'ablation-80',
+    manifestId: 'aivilization-ablation-80',
+    name: 'AIvilization Paper Ablation 80',
+    description:
+      'Section 5.1 controlled 80-agent cohort with five agents per MBTI type and otherwise empty profiles.',
+    headless: true,
+    commandConsumerIdPrefix: 'ablation-worker',
+    tickBatchSize: 1,
+    tickIntervalMs: 0,
+    maxJobsPerPoll: 1,
+    scheduleIntervalMs: 100,
+    recoveryIntervalMs: 1_000,
+    commodityReserve: 1_000,
+    currencyReserve: 10_000,
+    partitions: [{ partitionKey: 'world-main', agentCount: 80, label: 'Main' }],
+  },
 } as const satisfies Record<
   LocalRuntimeTownDaemonScenarioProfileId,
   LocalRuntimeTownDaemonScenarioProfileConfig
@@ -180,6 +199,10 @@ export function createLocalRuntimeTownDaemonScenarioProfile(
 function createScenarioPresets(
   config: LocalRuntimeTownDaemonScenarioProfileConfig,
 ): readonly ScenarioPreset[] {
+  if (config.profileId === 'ablation-80') {
+    return [aivilizationAblationScenarioPreset];
+  }
+
   let startingIndex = 1;
   return config.partitions.map((partition) => {
     const preset = createAivilizationPopulationScenarioPreset({
@@ -228,7 +251,7 @@ function createManifest(
         marketPools,
         moneySupply:
           marketPools.reduce((total, pool) => total + pool.currencyReserve, 0) +
-          partition.agentCount * 100,
+          preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0),
       };
     }),
   };

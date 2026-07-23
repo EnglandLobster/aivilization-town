@@ -28,6 +28,13 @@ import {
   type LocalSimulationRuntimeSupervisor,
   type LocalSimulationRuntimeSupervisorStatus,
 } from '@aivilization/worker';
+import {
+  createLocalRuntimeTownProductionSloPolicy,
+  evaluateLocalRuntimeTownProductionSlo,
+  summarizeLocalRuntimeTownLlmProviderTraces,
+  type LocalRuntimeTownProductionSloPolicy,
+  type LocalRuntimeTownProductionSloReport,
+} from './localRuntimeTownProductionSlo';
 
 export type LocalRuntimeTownRunQueueWorkerInput = {
   readonly workerId?: string;
@@ -93,6 +100,7 @@ export type LocalRuntimeTownDaemonStatus = {
   readonly manifestId: string;
   readonly observedAt: SimulationTimestamp;
   readonly health: LocalRuntimeTownDaemonHealth;
+  readonly productionSlo: LocalRuntimeTownProductionSloReport;
   readonly components: {
     readonly supervisor: LocalRuntimeTownDaemonSupervisorComponentStatus;
     readonly runQueue: LocalRuntimeTownDaemonRunQueueComponentStatus;
@@ -105,12 +113,20 @@ export type LocalRuntimeTownDaemonStatus = {
 export type LocalRuntimeTownOrchestrationInput = LocalRuntimeTownOrchestrationProfile & {
   readonly host: LocalSimulationRuntimeHost;
   readonly supervisor: LocalSimulationRuntimeSupervisor;
+  readonly runManifestId?: string;
+  readonly llmProviderConfigured?: boolean;
+  readonly llmPricingConfigured?: boolean;
   readonly clock?: LocalRuntimeTownDaemonHealthClock;
 };
 
 export type LocalRuntimeTownOrchestrationCore = {
   readonly manifestId: string;
+  readonly runManifestId?: string;
+  readonly llmProviderConfigured: boolean;
+  readonly llmPricingConfigured: boolean;
   readonly profile: LocalRuntimeTownOrchestrationProfile;
+  readonly productionSloPolicy: LocalRuntimeTownProductionSloPolicy;
+  readonly host: LocalSimulationRuntimeHost;
   readonly supervisor: LocalSimulationRuntimeSupervisor;
   readonly clock: LocalRuntimeTownDaemonHealthClock;
   readonly runQueueRepository: FileLocalSimulationRuntimeRunQueueRepository;
@@ -223,7 +239,18 @@ export function createLocalRuntimeTownOrchestration(
       : createLocalSimulationRuntimeRecoveryApiService({ host: runQueueRecoveryHost });
   const orchestrationCore: LocalRuntimeTownOrchestrationCore = {
     manifestId: input.host.manifestId,
+    ...(input.runManifestId === undefined ? {} : { runManifestId: input.runManifestId }),
+    llmProviderConfigured: input.llmProviderConfigured ?? false,
+    llmPricingConfigured: input.llmPricingConfigured ?? false,
     profile,
+    productionSloPolicy: createLocalRuntimeTownProductionSloPolicy({
+      maxPendingJobs:
+        input.runtimeScheduler?.maxPendingJobs ?? input.runtimeRunQueue?.maxJobsPerPoll ?? 1,
+      workerPollIntervalMs: input.runtimeRunQueue?.pollIntervalMs ?? 1_000,
+      schedulerIntervalMs: input.runtimeScheduler?.scheduleIntervalMs ?? 1_000,
+      recoveryIntervalMs: input.runtimeRecovery?.recoveryIntervalMs ?? 1_000,
+    }),
+    host: input.host,
     supervisor: input.supervisor,
     clock,
     runQueueRepository,
@@ -305,7 +332,7 @@ async function getLocalRuntimeTownDaemonStatus(
           desiredRunning: orchestration.profile.runtimeRecovery?.autoStart ?? false,
           status: orchestration.runQueueRecoveryHost.getStatus(),
         });
-  const health = combineHealth(
+  const baseHealth = combineHealth(
     [
       supervisorComponent.health,
       runQueueComponent.health,
@@ -314,11 +341,20 @@ async function getLocalRuntimeTownDaemonStatus(
       recoveryComponent?.health,
     ].filter((value): value is LocalRuntimeTownDaemonHealth => value !== undefined),
   );
+  const productionSlo = await createProductionSloReport({
+    orchestration,
+    observedAt,
+    baseHealth,
+    runQueueStats,
+    recoveryStatus: recoveryComponent?.status,
+  });
+  const health = productionSlo.status === 'fail' ? 'attention' : baseHealth;
 
   return {
     manifestId: orchestration.manifestId,
     observedAt,
     health,
+    productionSlo,
     components: {
       supervisor: supervisorComponent,
       runQueue: runQueueComponent,
@@ -327,6 +363,297 @@ async function getLocalRuntimeTownDaemonStatus(
       ...(recoveryComponent === undefined ? {} : { recovery: recoveryComponent }),
     },
   };
+}
+
+async function createProductionSloReport(input: {
+  readonly orchestration: LocalRuntimeTownOrchestrationCore;
+  readonly observedAt: SimulationTimestamp;
+  readonly baseHealth: LocalRuntimeTownDaemonHealth;
+  readonly runQueueStats: LocalSimulationRuntimeRunQueueStats;
+  readonly recoveryStatus: LocalSimulationRuntimeRecoveryHostStatus | undefined;
+}): Promise<LocalRuntimeTownProductionSloReport> {
+  const supervisorStatus = input.orchestration.supervisor.getStatus();
+  const partitionObservations = await Promise.all(
+    input.orchestration.host.registry.listPartitions().map(async (partition) => {
+      const backend = input.orchestration.host.registry.getBackend(partition);
+      const projectionResult = await backend.projectionQueries.getProjection(partition);
+      const simulationNow = projectionResult.projection.clock.now;
+      const llmWindowStartedAt = Math.max(
+        0,
+        simulationNow - input.orchestration.productionSloPolicy.llm.simulatedWindowMs,
+      );
+      const marketWindowStartedAt = Math.max(
+        0,
+        simulationNow - input.orchestration.productionSloPolicy.market.maxObservationLagSimulatedMs,
+      );
+      const traceLimit = 100_000;
+      const [providerTraceRoots, recentTrades, recentBars] = await Promise.all([
+        input.orchestration.llmProviderConfigured
+          ? Promise.all([
+              backend.storage.agentCycleTraceRepository.query({
+                simulationId: partition.simulationId,
+                fromCycleStartedAt: llmWindowStartedAt,
+                toCycleStartedAt: simulationNow,
+                limit: traceLimit,
+              }),
+              backend.storage.objectiveRenewalTraceRepository.query({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                fromIssuedAt: llmWindowStartedAt,
+                toIssuedAt: simulationNow,
+                limit: traceLimit,
+              }),
+              backend.storage.dailyPlanRenewalTraceRepository.query({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                fromIssuedAt: llmWindowStartedAt,
+                toIssuedAt: simulationNow,
+                limit: traceLimit,
+              }),
+              backend.storage.reactionEvaluationTraceRepository.query({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                fromIssuedAt: llmWindowStartedAt,
+                toIssuedAt: simulationNow,
+                limit: traceLimit,
+              }),
+              backend.storage.steeringTraceRepository.query({
+                simulationId: partition.simulationId,
+                partitionKey: partition.partitionKey,
+                fromIssuedAt: llmWindowStartedAt,
+                toIssuedAt: simulationNow,
+                limit: traceLimit,
+              }),
+            ])
+          : Promise.resolve([[], [], [], [], []] as const),
+        backend.storage.marketObservationRepository.queryTrades({
+          simulationId: partition.simulationId,
+          fromObservedAt: marketWindowStartedAt,
+          toObservedAt: simulationNow,
+          limit: traceLimit,
+        }),
+        backend.storage.marketObservationRepository.queryOhlcBars({
+          simulationId: partition.simulationId,
+          fromIntervalStartedAt: Math.max(
+            0,
+            marketWindowStartedAt -
+              input.orchestration.productionSloPolicy.market.maxObservationLagSimulatedMs,
+          ),
+          toIntervalStartedAt: simulationNow,
+          limit: traceLimit,
+        }),
+      ]);
+      const [
+        agentCycleTraces,
+        objectiveRenewalTraces,
+        dailyPlanRenewalTraces,
+        reactionEvaluationTraces,
+        steeringTraces,
+      ] = providerTraceRoots;
+      const checkpoint = backend.storage.checkpointStore.getLatestCheckpoint(
+        backend.storage.partition,
+      );
+      const eventStreamVersion = backend.storage.eventStore.getStreamVersion(
+        backend.storage.partition.eventStreamName,
+      );
+      const supervisorPartition = supervisorStatus.partitions.find(
+        (candidate) =>
+          candidate.simulationId === partition.simulationId &&
+          candidate.partitionKey === partition.partitionKey,
+      );
+      const latestTradeObservedAt = maximum(recentTrades.map((trade) => trade.observedAt));
+      const tradedCommodityIds = [...new Set(recentTrades.map((trade) => trade.commodityId))];
+      const coveringBarEnds = tradedCommodityIds.map((commodityId) => {
+        const latestCommodityTradeAt = maximum(
+          recentTrades
+            .filter((trade) => trade.commodityId === commodityId)
+            .map((trade) => trade.observedAt),
+        );
+        return latestCommodityTradeAt === undefined
+          ? undefined
+          : maximum(
+              recentBars
+                .filter(
+                  (bar) =>
+                    bar.commodityId === commodityId &&
+                    bar.intervalStartedAt <= latestCommodityTradeAt &&
+                    bar.intervalEndedAt >= latestCommodityTradeAt,
+                )
+                .map((bar) => bar.intervalEndedAt),
+            );
+      });
+      const everyTradeCovered = coveringBarEnds.every((value) => value !== undefined);
+      const latestCoveringBarEndedAt = everyTradeCovered
+        ? minimum(coveringBarEnds.filter((value): value is number => value !== undefined))
+        : undefined;
+      return {
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        simulationNow,
+        llmWindowStartedAt,
+        agentCycleCount: agentCycleTraces.length,
+        traceCollectionTruncated: [
+          agentCycleTraces,
+          objectiveRenewalTraces,
+          dailyPlanRenewalTraces,
+          reactionEvaluationTraces,
+          steeringTraces,
+        ].some((records) => records.length === traceLimit),
+        traceRoots: [
+          ...agentCycleTraces,
+          ...objectiveRenewalTraces,
+          ...dailyPlanRenewalTraces,
+          ...reactionEvaluationTraces,
+          ...steeringTraces,
+        ],
+        checkpoint: {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+          eventStreamVersion,
+          checkpointSequence: checkpoint?.lastAppliedSequence ?? 0,
+          ...(supervisorPartition?.updatedAt === undefined ||
+          input.observedAt < supervisorPartition.updatedAt
+            ? {}
+            : {
+                checkpointWallClockAgeMs: input.observedAt - supervisorPartition.updatedAt,
+              }),
+        },
+        market: {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+          recentTradeCount: recentTrades.length,
+          collectionTruncated:
+            recentTrades.length === traceLimit || recentBars.length === traceLimit,
+          ...(latestTradeObservedAt === undefined ? {} : { latestTradeObservedAt }),
+          ...(latestCoveringBarEndedAt === undefined ? {} : { latestCoveringBarEndedAt }),
+          ...(recentTrades.length === 0 || latestCoveringBarEndedAt === undefined
+            ? {}
+            : {
+                observationLagSimulatedMs: Math.max(0, simulationNow - latestCoveringBarEndedAt),
+              }),
+        },
+      };
+    }),
+  );
+  const llmWindowStartedAt =
+    minimum(partitionObservations.map((partition) => partition.llmWindowStartedAt)) ?? 0;
+  const llmWindowEndedAt =
+    maximum(partitionObservations.map((partition) => partition.simulationNow)) ?? 0;
+  const operationTraces = await input.orchestration.supervisor.queryOperationTraces({
+    manifestId: input.orchestration.manifestId,
+    limit: 10_000,
+  });
+  const recentMemoryProviderTraces = operationTraces.flatMap((trace) =>
+    trace.partitions.flatMap((partition) => {
+      if (
+        partition.outcome !== 'succeeded' ||
+        partition.memoryConsolidation === undefined ||
+        partition.memoryConsolidation.consolidatedAt < llmWindowStartedAt ||
+        partition.memoryConsolidation.consolidatedAt > llmWindowEndedAt
+      ) {
+        return [];
+      }
+      return [partition.memoryConsolidation];
+    }),
+  );
+  const llmSummary = summarizeLocalRuntimeTownLlmProviderTraces([
+    ...partitionObservations.flatMap((partition) => partition.traceRoots),
+    ...recentMemoryProviderTraces,
+  ]);
+  const artifactIntegrity = await inspectRegisteredArtifactIntegrity(input.orchestration);
+  const recoveryStatus = input.recoveryStatus;
+  return evaluateLocalRuntimeTownProductionSlo({
+    policy: input.orchestration.productionSloPolicy,
+    observation: {
+      observedAt: input.observedAt,
+      manifestId: input.orchestration.manifestId,
+      baseDaemonHealth: input.baseHealth,
+      schedulerDesiredRunning: input.orchestration.profile.runtimeScheduler?.autoStart ?? false,
+      queue: {
+        readyDepth: input.runQueueStats.readyQueueCount,
+        ...(input.runQueueStats.oldestReadyJobEnqueuedAt === undefined ||
+        input.observedAt < input.runQueueStats.oldestReadyJobEnqueuedAt
+          ? {}
+          : {
+              oldestReadyAgeMs: input.observedAt - input.runQueueStats.oldestReadyJobEnqueuedAt,
+            }),
+        deadLetterCount: input.runQueueStats.statusCounts['dead-lettered'],
+        expiredLeaseCount: input.runQueueStats.expiredLeaseCount,
+      },
+      checkpoints: partitionObservations.map((partition) => partition.checkpoint),
+      llm: {
+        providerConfigured: input.orchestration.llmProviderConfigured,
+        pricingConfigured: input.orchestration.llmPricingConfigured,
+        observedAgentCycleCount: partitionObservations.reduce(
+          (total, partition) => total + partition.agentCycleCount,
+          0,
+        ),
+        traceCollectionTruncated:
+          operationTraces.length === 10_000 ||
+          partitionObservations.some((partition) => partition.traceCollectionTruncated),
+        simulatedWindowStartedAt: llmWindowStartedAt,
+        simulatedWindowEndedAt: llmWindowEndedAt,
+        ...llmSummary,
+      },
+      market: partitionObservations.map((partition) => partition.market),
+      recovery:
+        recoveryStatus === undefined
+          ? undefined
+          : {
+              desiredRunning: input.orchestration.profile.runtimeRecovery?.autoStart ?? false,
+              running: recoveryStatus.running,
+              attemptedRecoveryCount: recoveryStatus.attemptedRecoveryCount,
+              recoveredCount: recoveryStatus.recoveredCount,
+              ...(recoveryStatus.lastRecoveryCompletedAt === undefined ||
+              input.observedAt < recoveryStatus.lastRecoveryCompletedAt
+                ? {}
+                : {
+                    lastCompletedCheckAgeMs:
+                      input.observedAt - recoveryStatus.lastRecoveryCompletedAt,
+                  }),
+              hasLastError: recoveryStatus.lastError !== undefined,
+            },
+      artifacts: artifactIntegrity,
+    },
+  });
+}
+
+async function inspectRegisteredArtifactIntegrity(
+  orchestration: LocalRuntimeTownOrchestrationCore,
+): Promise<{
+  readonly registeredCount: number;
+  readonly verifiedCount: number;
+  readonly failedArtifactIds: readonly string[];
+}> {
+  if (orchestration.runManifestId === undefined) {
+    return { registeredCount: 0, verifiedCount: 0, failedArtifactIds: [] };
+  }
+  try {
+    const manifest = await orchestration.supervisor.getResolvedRunManifest(
+      orchestration.runManifestId,
+    );
+    return manifest === undefined
+      ? {
+          registeredCount: 1,
+          verifiedCount: 0,
+          failedArtifactIds: [orchestration.runManifestId],
+        }
+      : { registeredCount: 1, verifiedCount: 1, failedArtifactIds: [] };
+  } catch {
+    return {
+      registeredCount: 1,
+      verifiedCount: 0,
+      failedArtifactIds: [orchestration.runManifestId],
+    };
+  }
+}
+
+function maximum(values: readonly number[]): number | undefined {
+  return values.length === 0 ? undefined : Math.max(...values);
+}
+
+function minimum(values: readonly number[]): number | undefined {
+  return values.length === 0 ? undefined : Math.min(...values);
 }
 
 function createSupervisorComponent(

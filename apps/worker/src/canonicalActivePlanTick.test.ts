@@ -87,15 +87,16 @@ describe('canonical active-plan worker tick', () => {
     expect(result.agentResults).toHaveLength(1);
     expect(result.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
       type: 'AgentStudy',
-      payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+      payload: { durationSeconds: 1800, educationRatePerSecond: 1 / 60 },
     });
     expect(result.events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(result.projection.clock.now).toBe(1000);
-    expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+    expect(result.projection.agents[agentA]?.educationScore).toBe(30);
   });
 
   test('moves to the study location before completing the active study plan', async () => {
@@ -167,16 +168,17 @@ describe('canonical active-plan worker tick', () => {
 
     expect(second.agentResults[0]?.cycleResult.commandDrafts[0]).toMatchObject({
       type: 'AgentStudy',
-      payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+      payload: { durationSeconds: 1800, educationRatePerSecond: 1 / 60 },
     });
     expect(second.events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(second.events[0]?.sequence).toBe(first.streamVersion + 1);
     expect(second.projection.agents[agentA]?.locationId).toBe(asLocationId('school'));
-    expect(second.projection.agents[agentA]?.educationScore).toBe(1800);
+    expect(second.projection.agents[agentA]?.educationScore).toBe(30);
     await expect(
       planProgressRepository.getOrCreate({
         planId: 'objective-study',
@@ -188,12 +190,31 @@ describe('canonical active-plan worker tick', () => {
       blockedSubtasks: [],
       updatedAt: 200,
     });
+    const busyIntentionState = await repositories.intentionRepository.getOrCreate(agentA);
+    expect(busyIntentionState.activeObjective).toEqual(createObjective(agentA));
+    expect(busyIntentionState.completedObjectives).toEqual([]);
+
+    const completion = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-study-available',
+      simulationId,
+      issuedAt: 300,
+      projectionHydration: { initialProjection },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      timeDeltaMs: 1_800_000,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+    expect(completion.agentResults).toEqual([]);
+    expect(completion.events.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
     const completedIntentionState = await repositories.intentionRepository.getOrCreate(agentA);
     expect(completedIntentionState.activeObjective).toBeUndefined();
     expect(completedIntentionState.completedObjectives).toMatchObject([
       {
         objective: createObjective(agentA),
-        completedAt: 200,
+        completedAt: 300,
         reason: 'plan-completed',
         planId: 'objective-study',
       },
@@ -226,6 +247,7 @@ describe('canonical active-plan worker tick', () => {
     expect(result.events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
       'CommodityProduced',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(result.events.find((event) => event.type === 'CommodityProduced')?.payload).toEqual({
@@ -432,12 +454,23 @@ describe('canonical active-plan worker tick', () => {
           {
             speakerAgentId: agentA,
             utterance: 'Let us coordinate community routines.',
-            intent: 'social-plan',
+            intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentB,
             utterance: 'I will remember our community routine plan.',
-            intent: 'acknowledge-topic',
+            intent: 'invite-perspective',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'It connects to my current plans, and I want to understand your perspective on community routines.',
+            intent: 'share-goal-and-listen',
+          },
+          {
+            speakerAgentId: agentB,
+            utterance: "Let's keep each other informed as we learn more about community routines.",
+            intent: 'continue-relationship',
           },
         ],
       },
@@ -459,13 +492,13 @@ describe('canonical active-plan worker tick', () => {
       recordedAt: 100,
     });
     expect(result.projection.socialRelations['agent-a->agent-b']).toMatchObject({
-      relationScore: 0.2,
-      attitudeScore: 0.1,
+      relationScore: 0.06,
+      attitudeScore: 0.08,
       interactionCount: 1,
     });
     expect(result.projection.socialRelations['agent-b->agent-a']).toMatchObject({
-      relationScore: 0.2,
-      attitudeScore: 0.1,
+      relationScore: 0.04,
+      attitudeScore: 0.06,
       interactionCount: 1,
     });
     expect(result.projection.memoryRecords.map((record) => record.agentId)).toEqual([
@@ -579,7 +612,7 @@ describe('canonical active-plan worker tick', () => {
       type: 'AgentStartConversation',
       payload: {
         targetAgentId: agentB,
-        topic: 'Discuss community routines.',
+        topic: 'employment opportunities and local application strategy',
       },
     });
     expect(second.events.map((event) => event.type)).toEqual([
@@ -691,17 +724,31 @@ describe('canonical active-plan worker tick', () => {
       type: 'AgentStartConversation',
       payload: {
         targetAgentId: agentC,
-        topic: 'community cooperation',
+        topic: 'employment opportunities and local application strategy',
         turns: [
           {
             speakerAgentId: agentA,
-            utterance: 'Discuss community cooperation.',
-            intent: 'social-plan',
+            utterance:
+              "I'd like to compare notes about employment opportunities and local application strategy.",
+            intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
-            utterance: 'I will remember this conversation about community cooperation.',
-            intent: 'acknowledge-topic',
+            utterance:
+              'What part of employment opportunities and local application strategy matters most to you right now?',
+            intent: 'invite-perspective',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'It connects to my current plans, and I want to understand your perspective on employment opportunities and local application strategy.',
+            intent: 'share-goal-and-listen',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance:
+              "Let's keep each other informed as we learn more about employment opportunities and local application strategy.",
+            intent: 'continue-relationship',
           },
         ],
       },
@@ -709,7 +756,7 @@ describe('canonical active-plan worker tick', () => {
     expect(second.projection.conversationRecords[0]).toMatchObject({
       initiatorAgentId: agentA,
       participantAgentIds: [agentA, agentC],
-      topic: 'community cooperation',
+      topic: 'employment opportunities and local application strategy',
     });
     await expect(
       planProgressRepository.getOrCreate({
@@ -863,12 +910,30 @@ describe('canonical active-plan worker tick', () => {
       blockedSubtasks: [],
       updatedAt: 200,
     });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: { id: 'objective-production' },
+      completedObjectives: [],
+    });
+    const completion = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-production-chain-available',
+      simulationId,
+      issuedAt: 300,
+      projectionHydration: { initialProjection: createProjection() },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      timeDeltaMs: hourMs,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+    expect(completion.agentResults).toEqual([]);
     const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
     expect(intentionState.activeObjective).toBeUndefined();
     expect(intentionState.completedObjectives).toEqual([
       {
         objective: createProductionObjective(agentA),
-        completedAt: 200,
+        completedAt: 300,
         reason: 'plan-completed',
         planId: 'objective-production',
       },
@@ -948,12 +1013,30 @@ describe('canonical active-plan worker tick', () => {
       blockedSubtasks: [],
       updatedAt: 200,
     });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: { id: 'objective-book-production' },
+      completedObjectives: [],
+    });
+    const completion = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-inferred-production-chain-available',
+      simulationId,
+      issuedAt: 300,
+      projectionHydration: { initialProjection: createProjection() },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      timeDeltaMs: hourMs,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+    expect(completion.agentResults).toEqual([]);
     const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
     expect(intentionState.activeObjective).toBeUndefined();
     expect(intentionState.completedObjectives).toEqual([
       {
         objective: createBookProductionObjective(agentA),
-        completedAt: 200,
+        completedAt: 300,
         reason: 'plan-completed',
         planId: 'objective-book-production',
       },
@@ -1020,6 +1103,7 @@ describe('canonical active-plan worker tick', () => {
         eventStore,
         streamName: partition.eventStreamName,
         planProgressRepository,
+        timeDeltaMs: hourMs,
         objectiveProposer: () => undefined,
         ...repositories,
       });
@@ -1088,7 +1172,7 @@ describe('canonical active-plan worker tick', () => {
           id: 'objective-town-stack',
           statement,
         },
-        completedAt: 1600,
+        completedAt: 1700,
         reason: 'plan-completed',
         planId: 'objective-town-stack',
       },
@@ -1123,32 +1207,34 @@ describe('canonical active-plan worker tick', () => {
       policies,
       eventStore,
       streamName: partition.eventStreamName,
+      dailyRoutineSchedule: null,
       ...repositories,
     });
 
     expect(result.agentResults).toHaveLength(1);
     expect(result.events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
-      'EducationChanged',
+      'JobApplicationSubmitted',
+      'JobAssigned',
       'ShortTermMemoryRecorded',
     ]);
-    expect(result.projection.agents[agentA]?.educationScore).toBe(1800);
+    expect(result.projection.agents[agentA]?.job).toBe('Cleaner');
     await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
       activeObjective: {
-        id: 'auto-objective-agent-a-100',
-        statement: 'Improve education to qualify for better town opportunities.',
+        id: 'auto-objective-agent-a-100-1',
+        statement: "Apply for Cleaner to advance through the town's occupation ladder.",
       },
     });
     await expect(
       repositories.planRepository.require({
-        planId: 'auto-objective-agent-a-100',
+        planId: 'auto-objective-agent-a-100-1',
         agentId: agentA,
       }),
     ).resolves.toMatchObject({
-      planId: 'auto-objective-agent-a-100',
+      planId: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       plan: {
-        objective: 'Improve education to qualify for better town opportunities.',
+        objective: "Apply for Cleaner to advance through the town's occupation ladder.",
       },
     });
   });
@@ -1208,12 +1294,12 @@ describe('canonical active-plan worker tick', () => {
     });
     await expect(
       planProgressRepository.getOrCreate({
-        planId: 'auto-objective-agent-a-100',
+        planId: 'auto-objective-agent-a-100-1',
         agentId: agentA,
         createdAt: 999,
       }),
     ).resolves.toEqual({
-      planId: 'auto-objective-agent-a-100',
+      planId: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       completedSubtaskIds: ['eat'],
       blockedSubtasks: [],
@@ -1224,13 +1310,13 @@ describe('canonical active-plan worker tick', () => {
     expect(intentionState.completedObjectives).toMatchObject([
       {
         objective: {
-          id: 'auto-objective-agent-a-100',
+          id: 'auto-objective-agent-a-100-1',
           statement: 'Recover satiety before pursuing growth.',
           affinityTags: ['maintain', 'eat', 'satiety'],
         },
         completedAt: 100,
         reason: 'plan-completed',
-        planId: 'auto-objective-agent-a-100',
+        planId: 'auto-objective-agent-a-100-1',
       },
     ]);
   });
@@ -1256,16 +1342,17 @@ describe('canonical active-plan worker tick', () => {
           renewalTraces.push(trace);
         },
       },
+      dailyRoutineSchedule: null,
       ...repositories,
     });
 
     expect(renewalTraces).toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-100',
-        selectedCandidateId: 'education-growth',
-        rationale: 'Education score is below the threshold for better town opportunities.',
-        score: 41,
+        objectiveId: 'auto-objective-agent-a-100-1',
+        selectedCandidateId: 'occupation-application:Cleaner',
+        rationale: 'The occupation is currently eligible and pays 10, compared with the current wage 0.',
+        score: 83,
         shortTermMemoryContextIds: [],
         profileEntryKeys: [],
         profileEvidenceRecordIds: [],
@@ -1308,7 +1395,7 @@ describe('canonical active-plan worker tick', () => {
     expect(renewalTraces).toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-30600000',
+        objectiveId: 'auto-objective-agent-a-30600000-1',
         selectedCandidateId: 'scheduled-routine-study',
         rationale: 'Active scheduled intention daily-routine:agent-a:0:morning-study is in window.',
         score: 28,
@@ -1327,7 +1414,7 @@ describe('canonical active-plan worker tick', () => {
       ),
     ).toHaveLength(1);
     expect(intentionState.activeObjective).toMatchObject({
-      id: 'auto-objective-agent-a-30600000',
+      id: 'auto-objective-agent-a-30600000-1',
       statement: 'Follow the current study routine: Attend the morning study routine at school.',
       affinityTags: ['routine', 'study', 'education', 'school'],
     });
@@ -1396,7 +1483,7 @@ describe('canonical active-plan worker tick', () => {
     expect(renewalTraces).toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-36000000',
+        objectiveId: 'auto-objective-agent-a-36000000-1',
         selectedCandidateId: 'scheduled-routine-social',
         rationale:
           'Active scheduled intention social-observation:agent-a:memory-party-observation is in window.',
@@ -1410,7 +1497,7 @@ describe('canonical active-plan worker tick', () => {
     ]);
     const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
     expect(intentionState.activeObjective).toMatchObject({
-      id: 'auto-objective-agent-a-36000000',
+      id: 'auto-objective-agent-a-36000000-1',
       statement:
         'Follow the current social routine: Follow up on observed social event: Observed agent-b and agent-c discuss Valentine party at Town Square.',
       affinityTags: [
@@ -1502,7 +1589,7 @@ describe('canonical active-plan worker tick', () => {
     expect(renewalTraces).toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-30600000',
+        objectiveId: 'auto-objective-agent-a-30600000-1',
         selectedCandidateId: 'scheduled-routine-social',
         rationale: 'Active scheduled intention daily-plan:agent-a:0:party-prep is in window.',
         score: 40,
@@ -1539,7 +1626,7 @@ describe('canonical active-plan worker tick', () => {
       }),
     ]);
     expect(intentionState.activeObjective).toMatchObject({
-      id: 'auto-objective-agent-a-30600000',
+      id: 'auto-objective-agent-a-30600000-1',
       statement: 'Follow the current social routine: Coordinate party invitations at town square.',
       affinityTags: ['routine', 'daily-plan', 'social', 'party', 'town-square'],
     });
@@ -1580,7 +1667,7 @@ describe('canonical active-plan worker tick', () => {
     expect(renewalTraces).toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-34200000',
+        objectiveId: 'auto-objective-agent-a-34200000-1',
         selectedCandidateId: 'scheduled-routine-work',
         rationale:
           'Active scheduled intention daily-routine:agent-a:0:job-work-shift is in window.',
@@ -1603,7 +1690,7 @@ describe('canonical active-plan worker tick', () => {
     });
     expect(intentionState).toMatchObject({
       activeObjective: {
-        id: 'auto-objective-agent-a-34200000',
+        id: 'auto-objective-agent-a-34200000-1',
         agentId: agentA,
         statement: 'Follow the current work routine: Work the scheduled Stock Clerk shift.',
         priority: 1,
@@ -1668,6 +1755,7 @@ describe('canonical active-plan worker tick', () => {
     const repositories = createRepositories();
     const planProgressRepository = new InMemoryBranchPlanProgressRepository();
     const eventStore = new InMemoryEventStore<WorldEvent>();
+    const initialProjection = createProjection();
     await repositories.intentionRepository.setObjective(agentA, createObjective(agentA));
     await repositories.planRepository.save(createStudyPlanRecord(agentA));
 
@@ -1675,7 +1763,7 @@ describe('canonical active-plan worker tick', () => {
       tickId: 'tick-progress',
       simulationId,
       issuedAt: 100,
-      projection: createProjection(),
+      projection: initialProjection,
       policies,
       eventStore,
       streamName: partition.eventStreamName,
@@ -1697,12 +1785,30 @@ describe('canonical active-plan worker tick', () => {
       blockedSubtasks: [],
       updatedAt: 100,
     });
+    await expect(repositories.intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
+      activeObjective: { id: 'objective-study' },
+      completedObjectives: [],
+    });
+    const completion = await runCanonicalWorkerActivePlanTick({
+      tickId: 'tick-progress-available',
+      simulationId,
+      issuedAt: 200,
+      projectionHydration: { initialProjection },
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      planProgressRepository,
+      timeDeltaMs: 1_800_000,
+      objectiveProposer: () => undefined,
+      ...repositories,
+    });
+    expect(completion.agentResults).toEqual([]);
     const intentionState = await repositories.intentionRepository.getOrCreate(agentA);
     expect(intentionState.activeObjective).toBeUndefined();
     expect(intentionState.completedObjectives).toEqual([
       {
         objective: createObjective(agentA),
-        completedAt: 100,
+        completedAt: 200,
         reason: 'plan-completed',
         planId: 'objective-study',
       },
@@ -1864,6 +1970,7 @@ describe('canonical active-plan worker tick', () => {
       simulationId,
       issuedAt: 200,
       projectionHydration: { initialProjection },
+      timeDeltaMs: 1_800_000,
       policies,
       eventStore,
       streamName: partition.eventStreamName,
@@ -1872,9 +1979,9 @@ describe('canonical active-plan worker tick', () => {
     });
 
     expect(second.events[0]?.sequence).toBe(first.streamVersion + 1);
-    expect(second.projection.clock.now).toBe(2000);
-    expect(second.projection.agents[agentA]?.educationScore).toBe(3600);
-    expect(second.streamVersion).toBe(first.streamVersion + 3);
+    expect(second.projection.clock.now).toBe(1_801_000);
+    expect(second.projection.agents[agentA]?.educationScore).toBe(60);
+    expect(second.streamVersion).toBe(first.streamVersion + 4);
   });
 
   test('advances time when no active plans can be scheduled', async () => {

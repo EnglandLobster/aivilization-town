@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BoundedTraceLedger, type BoundedTraceLedgerDiagnostics } from './boundedTraceLedger';
 import {
   cloneWorldDecisionContextTrace,
   type WorldDecisionContextTrace,
@@ -24,6 +24,8 @@ export type ObjectiveRenewalStrategicPlanAttemptTrace = {
 export type ObjectiveRenewalStrategicPlanTrace = {
   readonly status: 'accepted' | 'fallback' | 'deterministic';
   readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly plannerVariant?: 'default' | 'without-branch' | 'without-objective-decomposition';
+  readonly ablationPolicyVersion?: 'paper-planner-ablation-v1';
   readonly requestId?: string;
   readonly providerId?: string;
   readonly model?: string;
@@ -96,35 +98,36 @@ export class InMemoryObjectiveRenewalTraceRepository implements ObjectiveRenewal
 }
 
 export class FileObjectiveRenewalTraceRepository implements ObjectiveRenewalTraceRepository {
-  private readonly tracesPath: string;
+  private readonly traces: BoundedTraceLedger<ObjectiveRenewalTrace>;
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
-    this.tracesPath = join(input.rootDir, 'objective-renewal-traces.jsonl');
-    ensureFile(this.tracesPath, input.rootDir);
+    this.traces = new BoundedTraceLedger({
+      path: join(input.rootDir, 'objective-renewal-traces.jsonl'),
+      keyOf: (trace) => trace.traceId,
+      clone: cloneTrace,
+    });
   }
 
-  async record(trace: ObjectiveRenewalTrace): Promise<void> {
-    if ((await this.get(trace.traceId)) !== undefined) {
-      return;
-    }
-    appendJsonLines(this.tracesPath, [cloneTrace(trace)]);
+  record(trace: ObjectiveRenewalTrace): Promise<void> {
+    return Promise.resolve().then(() => {
+      this.traces.appendUnique(trace);
+    });
   }
 
   get(traceId: string): Promise<ObjectiveRenewalTrace | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const trace = readJsonLines<ObjectiveRenewalTrace>(this.tracesPath).find(
-        (candidate) => candidate.traceId === traceId,
-      );
-      return trace === undefined ? undefined : cloneTrace(trace);
+      return this.traces.get(traceId);
     });
   }
 
   query(query: ObjectiveRenewalTraceQuery): Promise<ObjectiveRenewalTrace[]> {
-    return Promise.resolve().then(() =>
-      queryTraces(readJsonLines<ObjectiveRenewalTrace>(this.tracesPath), query),
-    );
+    return Promise.resolve().then(() => queryTraces(this.traces.readAll(), query));
+  }
+
+  getStorageDiagnostics(): BoundedTraceLedgerDiagnostics {
+    return this.traces.diagnostics();
   }
 }
 
@@ -177,6 +180,10 @@ function cloneStrategicPlan(
   return {
     status: trace.status,
     source: trace.source,
+    ...(trace.plannerVariant === undefined ? {} : { plannerVariant: trace.plannerVariant }),
+    ...(trace.ablationPolicyVersion === undefined
+      ? {}
+      : { ablationPolicyVersion: trace.ablationPolicyVersion }),
     ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
     ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
     ...(trace.model === undefined ? {} : { model: trace.model }),
@@ -278,31 +285,6 @@ function assertValidQuery(query: ObjectiveRenewalTraceQuery): void {
   if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1)) {
     throw new Error('limit must be a positive integer');
   }
-}
-
-function ensureFile(filePath: string, rootDir: string): void {
-  mkdirSync(rootDir, { recursive: true });
-  if (!existsSync(filePath)) {
-    writeFileSync(filePath, '');
-  }
-}
-
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  if (values.length === 0) {
-    return;
-  }
-  appendFileSync(path, `${values.map((value) => JSON.stringify(value)).join('\n')}\n`);
-}
-
-function readJsonLines<TValue>(path: string): TValue[] {
-  const text = readFileSync(path, 'utf8');
-  if (text.trim().length === 0) {
-    return [];
-  }
-  return text
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

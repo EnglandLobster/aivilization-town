@@ -20,10 +20,19 @@ export type AppendToEventStreamResult<TEvent extends EventEnvelope = EventEnvelo
   readonly idempotentReplay: boolean;
 };
 
+export type IdempotentEventStreamAppend<TEvent extends EventEnvelope = EventEnvelope> = {
+  readonly idempotencyKey: string;
+  readonly streamName: EventStreamName;
+  readonly expectedVersion?: number;
+  readonly appendedEvents: readonly TEvent[];
+  readonly streamVersion: number;
+};
+
 export interface EventStore<TEvent extends EventEnvelope = EventEnvelope> {
   appendToStream(request: AppendToEventStreamRequest<TEvent>): AppendToEventStreamResult<TEvent>;
   readStream(streamName: EventStreamName, options?: EventStreamReadOptions): readonly TEvent[];
   getStreamVersion(streamName: EventStreamName): number;
+  getIdempotentAppend(idempotencyKey: string): IdempotentEventStreamAppend<TEvent> | undefined;
 }
 
 type StoredIdempotencyRecord<TEvent extends EventEnvelope> = {
@@ -102,6 +111,23 @@ export class InMemoryEventStore<
   getStreamVersion(streamName: EventStreamName): number {
     assertNonEmpty(streamName, 'streamName');
     return this.streams.get(streamName)?.length ?? 0;
+  }
+
+  getIdempotentAppend(
+    idempotencyKey: string,
+  ): IdempotentEventStreamAppend<TEvent> | undefined {
+    assertNonEmpty(idempotencyKey, 'idempotencyKey');
+    const record = this.idempotencyRecords.get(idempotencyKey);
+    if (record === undefined) return undefined;
+    return {
+      idempotencyKey,
+      streamName: record.streamName,
+      ...(record.expectedVersion === undefined
+        ? {}
+        : { expectedVersion: record.expectedVersion }),
+      appendedEvents: record.appendedEvents,
+      streamVersion: record.streamVersion,
+    };
   }
 
   private replayIdempotentAppendIfPresent(

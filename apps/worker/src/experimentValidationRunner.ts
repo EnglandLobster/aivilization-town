@@ -48,6 +48,7 @@ export type RecordWorkerExperimentValidationReportInput = WorkerExperimentValida
 
 export type WorkerTradePriceObservation = {
   readonly sourceEventId: string;
+  readonly agentId?: string;
   readonly commodityId: string;
   readonly observedAt: number;
   readonly sourceSequence: number;
@@ -151,6 +152,7 @@ export function createTradePriceObservationsFromWorldEvents(input: {
 
     observations.push({
       sourceEventId: event.id,
+      agentId: event.payload.agentId,
       commodityId: event.payload.commodityName,
       observedAt: event.occurredAt,
       sourceSequence: event.sequence,

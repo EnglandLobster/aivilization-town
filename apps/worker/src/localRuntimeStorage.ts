@@ -1,6 +1,7 @@
 import {
   FileBranchPlanProgressRepository,
   FileBranchPlanRepository,
+  PLANNING_JOURNAL_COMPACTION_BYTES,
 } from '@aivilization/agent-runtime';
 import {
   FileAgentIntentionRepository,
@@ -36,6 +37,24 @@ import type {
 import type { WorkerSteeringCommand } from './steering';
 import { FileLocalSimulationLifecycleStateStore } from './localSimulationLifecycle';
 import { FileMemoryConsolidationCursorStore } from './memoryConsolidation';
+
+export const LOCAL_PROJECTION_SNAPSHOT_RETENTION_POLICY_VERSION =
+  'local-projection-snapshot-retention-v1';
+export const LOCAL_PROJECTION_SNAPSHOT_RETENTION_COUNT = 2;
+
+export function createLocalProjectionSnapshotRetentionPolicy(): {
+  readonly policyVersion: typeof LOCAL_PROJECTION_SNAPSHOT_RETENTION_POLICY_VERSION;
+  readonly maximumSnapshotsPerPartition: number;
+  readonly retentionRule: string;
+  readonly recoveryRule: string;
+} {
+  return {
+    policyVersion: LOCAL_PROJECTION_SNAPSHOT_RETENTION_POLICY_VERSION,
+    maximumSnapshotsPerPartition: LOCAL_PROJECTION_SNAPSHOT_RETENTION_COUNT,
+    retentionRule: 'retain-latest-sequences-per-simulation-partition',
+    recoveryRule: 'retain-current-checkpoint-predecessor-until-next-snapshot-save',
+  };
+}
 
 export type LocalWorldRuntimeStoragePaths = {
   readonly rootDir: string;
@@ -115,6 +134,7 @@ export function createLocalWorldRuntimeStorage(input: {
   });
   const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
     rootDir: paths.snapshotStoreDir,
+    maximumSnapshotsPerPartition: LOCAL_PROJECTION_SNAPSHOT_RETENTION_COUNT,
   });
   const lifecycleStateStore = new FileLocalSimulationLifecycleStateStore({
     rootDir: paths.lifecycleStateStoreDir,
@@ -122,6 +142,7 @@ export function createLocalWorldRuntimeStorage(input: {
   const intentionRepository = new FileAgentIntentionRepository({ rootDir: paths.memoryDir });
   const longTermProfileRepository = new FileLongTermProfileRepository({
     rootDir: paths.memoryDir,
+    singleWriterCompactionMaximumBytes: PLANNING_JOURNAL_COMPACTION_BYTES,
   });
   const shortTermMemoryRepository = new FileShortTermMemoryRepository({
     rootDir: paths.memoryDir,
@@ -131,9 +152,11 @@ export function createLocalWorldRuntimeStorage(input: {
   });
   const planRepository = new FileBranchPlanRepository({
     rootDir: paths.planningDir,
+    singleWriterCompactionMaximumBytes: PLANNING_JOURNAL_COMPACTION_BYTES,
   });
   const planProgressRepository = new FileBranchPlanProgressRepository({
     rootDir: paths.planningDir,
+    singleWriterCompactionMaximumBytes: PLANNING_JOURNAL_COMPACTION_BYTES,
   });
   const agentCycleTraceRepository = new FileAgentCycleTraceRepository({
     rootDir: paths.observabilityDir,

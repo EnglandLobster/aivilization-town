@@ -86,6 +86,11 @@ export function createLocalSimulationRuntimeRunQueueWorkerHost(input: {
 
   const host: LocalSimulationRuntimeRunQueueWorkerHost = {
     runOnce: async () => {
+      // Recovery and the polling loop share this host. Never allow both paths to
+      // claim work concurrently; lease renewal handles long-running ownership.
+      if (inFlight) {
+        return { status: 'idle' };
+      }
       const claimedAt = clock.now();
       inFlight = true;
       lastRunStartedAt = claimedAt;

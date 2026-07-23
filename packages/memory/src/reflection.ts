@@ -96,6 +96,7 @@ export function proposeReflectiveInsights(input: {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly minEvidenceCount: number;
   readonly generatedAt: SimulationTimestamp;
+  readonly longTermProfile?: LongTermAgentProfile;
 }): ReflectiveInsightRecord[] {
   assertPositiveInteger(input.minEvidenceCount, 'minEvidenceCount');
   assertFiniteNumber(input.generatedAt, 'generatedAt');
@@ -123,19 +124,27 @@ export function proposeReflectiveInsights(input: {
       records,
       minEvidenceCount: input.minEvidenceCount,
       generatedAt: input.generatedAt,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     }),
     ...createSocialProfileInsights({
       agentId: input.agentId,
       records,
       minEvidenceCount: input.minEvidenceCount,
       generatedAt: input.generatedAt,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
     }),
   ].sort(compareInsights);
 }
 
 export function createDeterministicReflectiveInsightSynthesizer(): ReflectiveInsightSynthesizer {
   return (input) => ({
-    insights: proposeReflectiveInsights(input),
+    insights: proposeReflectiveInsights({
+      agentId: input.agentId,
+      records: input.records,
+      minEvidenceCount: input.minEvidenceCount,
+      generatedAt: input.generatedAt,
+      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    }),
     trace: {
       status: 'deterministic',
       source: 'deterministic',
@@ -298,34 +307,43 @@ function createSocialRoutineInsights(input: {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly minEvidenceCount: number;
   readonly generatedAt: SimulationTimestamp;
+  readonly longTermProfile?: LongTermAgentProfile;
 }): readonly ReflectiveInsightRecord[] {
-  const groups = new Map<string, ShortTermMemoryRecord[]>();
-  for (const record of input.records) {
-    if (record.status !== 'succeeded') {
-      continue;
-    }
-    const targetKey = extractSocialTargetKey(record);
-    if (targetKey === undefined) {
-      continue;
-    }
-    const group = groups.get(targetKey) ?? [];
-    group.push(record);
-    groups.set(targetKey, group);
+  const groups = new Map<string, SocialIdentityEvidence[]>();
+  for (const evidence of collectSocialIdentityEvidence(input)) {
+    const group = groups.get(`${evidence.targetKey}:${evidence.valence}`) ?? [];
+    group.push(evidence);
+    groups.set(`${evidence.targetKey}:${evidence.valence}`, group);
   }
 
   return [...groups.entries()]
-    .filter(([, records]) => records.length >= input.minEvidenceCount)
-    .map(([targetKey, records]) =>
-      createInsight({
+    .filter(([, evidence]) => evidence.length >= input.minEvidenceCount)
+    .map(([groupKey, evidence]) => {
+      const first = evidence[0];
+      if (first === undefined) {
+        throw new Error(`social identity evidence group ${groupKey} must not be empty`);
+      }
+      const targetKey = first.targetKey;
+      const valence = first.valence;
+      const constructive = valence === 'positive';
+      return createInsightFromEvidence({
         agentId: input.agentId,
-        kind: 'habit',
-        topicKey: `social-${targetKey}`,
-        statement: `Repeated successful social interactions with ${targetKey} suggest a stable social routine.`,
-        records,
+        kind: constructive ? 'habit' : 'caution',
+        topicKey: constructive ? `social-${targetKey}` : `social-${valence}-${targetKey}`,
+        statement: constructive
+          ? `Repeated successful social interactions with ${targetKey} suggest a stable social routine.`
+          : valence === 'betrayal'
+            ? `Repeated harmful interactions with ${targetKey} suggest caution and reduced trust.`
+            : valence === 'conflict'
+              ? `Repeated conflict with ${targetKey} suggests firm boundaries and de-escalation.`
+              : `Mixed interactions with ${targetKey} suggest an ambivalent relationship requiring verification.`,
+        evidence,
         generatedAt: input.generatedAt,
-        tags: ['social', targetKey, 'routine'],
-      }),
-    );
+        tags: constructive
+          ? ['social', targetKey, 'routine']
+          : ['social', targetKey, valence, 'caution'],
+      });
+    });
 }
 
 function createSocialProfileInsights(input: {
@@ -333,54 +351,221 @@ function createSocialProfileInsights(input: {
   readonly records: readonly ShortTermMemoryRecord[];
   readonly minEvidenceCount: number;
   readonly generatedAt: SimulationTimestamp;
+  readonly longTermProfile?: LongTermAgentProfile;
 }): readonly ReflectiveInsightRecord[] {
-  const evidence = input.records.filter(
-    (record) => record.status === 'succeeded' && matchesSocialContext(record),
+  const evidence = collectSocialIdentityEvidence(input);
+  const positiveEvidence = evidence.filter((item) => item.valence === 'positive');
+  const conflictEvidence = evidence.filter((item) => item.valence === 'conflict');
+  const adverseEvidence = evidence.filter(
+    (item) => item.valence === 'betrayal' || item.valence === 'mixed',
   );
-  if (evidence.length < input.minEvidenceCount) {
-    return [];
+  const positiveTargetKeys = new Set(positiveEvidence.map((item) => item.targetKey));
+  const adverseTargetKeys = new Set(adverseEvidence.map((item) => item.targetKey));
+  const conflictTargetKeys = new Set(conflictEvidence.map((item) => item.targetKey));
+  const insights: ReflectiveInsightRecord[] = [];
+
+  if (positiveEvidence.length >= input.minEvidenceCount && positiveTargetKeys.size >= 2) {
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'mood',
+        topicKey: 'cooperative-composure',
+        statement: 'Repeated positive social interactions suggest a cooperative and composed mood.',
+        evidence: positiveEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'mood', 'cooperative-composure'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'personality',
+        topicKey: 'sociable',
+        statement:
+          'Repeated positive social interactions with multiple agents suggest a sociable disposition.',
+        evidence: positiveEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'personality', 'sociable'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'value',
+        topicKey: 'community-cooperation',
+        statement:
+          'Repeated positive social interactions suggest the agent values cooperative community routines.',
+        evidence: positiveEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'community', 'cooperation', 'value'],
+      }),
+    );
   }
 
-  const targetKeys = new Set(
-    evidence
-      .map((record) => extractSocialTargetKey(record))
-      .filter((targetKey): targetKey is string => targetKey !== undefined),
-  );
-  if (targetKeys.size < 2) {
-    return [];
+  if (adverseEvidence.length >= input.minEvidenceCount && adverseTargetKeys.size >= 2) {
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'mood',
+        topicKey: 'guarded-vigilance',
+        statement: 'Repeated harmful or mixed interactions suggest a guarded and vigilant mood.',
+        evidence: adverseEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'mood', 'guarded-vigilance'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'personality',
+        topicKey: 'socially-wary',
+        statement: 'Repeated harmful interactions with multiple agents suggest a wary disposition.',
+        evidence: adverseEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'personality', 'socially-wary'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'value',
+        topicKey: 'verified-reciprocity',
+        statement:
+          'Repeated social harm suggests valuing verified reciprocity and promise keeping.',
+        evidence: adverseEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'trust', 'reciprocity', 'value'],
+      }),
+    );
   }
 
-  return [
-    createInsight({
-      agentId: input.agentId,
-      kind: 'mood',
-      topicKey: 'cooperative-composure',
-      statement: 'Repeated positive social interactions suggest a cooperative and composed mood.',
-      records: evidence,
-      generatedAt: input.generatedAt,
-      tags: ['social', 'mood', 'cooperative-composure'],
-    }),
-    createInsight({
-      agentId: input.agentId,
-      kind: 'personality',
-      topicKey: 'sociable',
-      statement:
-        'Repeated positive social interactions with multiple agents suggest a sociable disposition.',
-      records: evidence,
-      generatedAt: input.generatedAt,
-      tags: ['social', 'personality', 'sociable'],
-    }),
-    createInsight({
-      agentId: input.agentId,
-      kind: 'value',
-      topicKey: 'community-cooperation',
-      statement:
-        'Repeated positive social interactions suggest the agent values cooperative community routines.',
-      records: evidence,
-      generatedAt: input.generatedAt,
-      tags: ['social', 'community', 'cooperation', 'value'],
-    }),
-  ];
+  if (conflictEvidence.length >= input.minEvidenceCount && conflictTargetKeys.size >= 2) {
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'mood',
+        topicKey: 'conflict-alert',
+        statement:
+          'Repeated conflict suggests an alert mood while social tension remains unresolved.',
+        evidence: conflictEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'mood', 'conflict-alert'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'personality',
+        topicKey: 'boundary-conscious',
+        statement: 'Repeated conflict suggests a boundary-conscious social disposition.',
+        evidence: conflictEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'personality', 'boundary-conscious'],
+      }),
+    );
+    insights.push(
+      createInsightFromEvidence({
+        agentId: input.agentId,
+        kind: 'value',
+        topicKey: 'constructive-disagreement',
+        statement:
+          'Repeated conflict suggests valuing clear boundaries and constructive disagreement.',
+        evidence: conflictEvidence,
+        generatedAt: input.generatedAt,
+        tags: ['social', 'boundaries', 'de-escalation', 'value'],
+      }),
+    );
+  }
+
+  return insights;
+}
+
+type ReflectiveEvidence = {
+  readonly recordId: MemoryRecordId;
+  readonly confidence: number;
+};
+
+type SocialIdentityEvidence = ReflectiveEvidence & {
+  readonly targetKey: string;
+  readonly valence: 'positive' | 'conflict' | 'betrayal' | 'mixed';
+};
+
+/**
+ * Combines the unprocessed social event with the bounded semantic evidence already preserved in
+ * LTM. Immediate post-interaction reflection advances the STM cursor after every social event, so
+ * relying only on the current batch would make slow identity synthesis impossible across cycles.
+ */
+function collectSocialIdentityEvidence(input: {
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly longTermProfile?: LongTermAgentProfile;
+}): readonly SocialIdentityEvidence[] {
+  const evidenceByRecordId = new Map<MemoryRecordId, SocialIdentityEvidence>();
+
+  for (const entry of input.longTermProfile?.socialRecords ?? []) {
+    const valence = classifySocialValence(
+      entry.relationDelta ?? 0,
+      entry.attitudeDelta ?? 0,
+      entry.outcomeSignals ?? [],
+    );
+    if (valence === undefined) {
+      continue;
+    }
+    for (const recordId of entry.provenanceRecordIds) {
+      evidenceByRecordId.set(recordId, {
+        recordId,
+        targetKey: entry.key,
+        confidence: entry.confidence,
+        valence,
+      });
+    }
+  }
+
+  for (const record of input.records) {
+    if (record.status !== 'succeeded' || !matchesSocialContext(record)) {
+      continue;
+    }
+    const targetKey = extractSocialTargetKey(record);
+    const hint = record.consolidationHint;
+    if (targetKey === undefined || hint?.kind !== 'social') {
+      continue;
+    }
+    const valence = classifySocialValence(
+      hint.relationDelta,
+      hint.attitudeDelta,
+      hint.outcomeSignals ?? [],
+    );
+    if (valence === undefined) {
+      continue;
+    }
+    evidenceByRecordId.set(record.id, {
+      recordId: record.id,
+      targetKey,
+      confidence: record.importanceScore,
+      valence,
+    });
+  }
+
+  return [...evidenceByRecordId.values()];
+}
+
+function classifySocialValence(
+  relationDelta: number,
+  attitudeDelta: number,
+  outcomeSignals: readonly string[],
+): SocialIdentityEvidence['valence'] | undefined {
+  if (relationDelta >= 0 && attitudeDelta >= 0 && (relationDelta > 0 || attitudeDelta > 0)) {
+    return 'positive';
+  }
+  if (relationDelta <= 0 && attitudeDelta <= 0 && (relationDelta < 0 || attitudeDelta < 0)) {
+    if (outcomeSignals.some((signal) => signal === 'hostility' || signal === 'rejection')) {
+      return 'conflict';
+    }
+    return 'betrayal';
+  }
+  if (relationDelta !== 0 || attitudeDelta !== 0) {
+    return 'mixed';
+  }
+  return undefined;
 }
 
 function createInsight(input: {
@@ -392,14 +577,37 @@ function createInsight(input: {
   readonly generatedAt: SimulationTimestamp;
   readonly tags: readonly string[];
 }): ReflectiveInsightRecord {
+  return createInsightFromEvidence({
+    agentId: input.agentId,
+    kind: input.kind,
+    topicKey: input.topicKey,
+    statement: input.statement,
+    evidence: input.records.map((record) => ({
+      recordId: record.id,
+      confidence: record.importanceScore,
+    })),
+    generatedAt: input.generatedAt,
+    tags: input.tags,
+  });
+}
+
+function createInsightFromEvidence(input: {
+  readonly agentId: AgentId;
+  readonly kind: ReflectiveInsightKind;
+  readonly topicKey: string;
+  readonly statement: string;
+  readonly evidence: readonly ReflectiveEvidence[];
+  readonly generatedAt: SimulationTimestamp;
+  readonly tags: readonly string[];
+}): ReflectiveInsightRecord {
   return {
     id: createReflectiveInsightId(input),
     agentId: input.agentId,
     kind: input.kind,
     topicKey: input.topicKey,
     statement: input.statement,
-    confidence: averageImportance(input.records),
-    evidenceRecordIds: input.records.map((record) => record.id),
+    confidence: averageConfidence(input.evidence),
+    evidenceRecordIds: input.evidence.map((evidence) => evidence.recordId),
     generatedAt: input.generatedAt,
     tags: [...input.tags],
   };
@@ -451,9 +659,9 @@ function recordContext(record: ShortTermMemoryRecord): string {
   return `${record.summary} ${record.tags.join(' ')}`.toLowerCase();
 }
 
-function averageImportance(records: readonly ShortTermMemoryRecord[]): number {
-  const sum = records.reduce((total, record) => total + record.importanceScore, 0);
-  return Number((sum / records.length).toFixed(6));
+function averageConfidence(evidence: readonly { readonly confidence: number }[]): number {
+  const sum = evidence.reduce((total, item) => total + item.confidence, 0);
+  return Number((sum / evidence.length).toFixed(6));
 }
 
 function compareRecordsByOccurrence(

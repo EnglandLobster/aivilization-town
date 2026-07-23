@@ -22,12 +22,14 @@ import {
 } from './tickRunner';
 import type { WorkerExperimentValidationPriceBinning } from './experimentValidationRunner';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
 
 export type LocalWorldRuntimeAgentProviderInput = {
   readonly storage: LocalWorldRuntimeStorage;
   readonly simulationId: SimulationId | string;
   readonly issuedAt: number;
   readonly projection: WorldProjection;
+  readonly societyDirectory?: LocalSimulationSocietyDirectory;
 };
 
 export type LocalWorldRuntimeAgentProvider = (
@@ -49,6 +51,11 @@ export type LocalWorldRuntimeStepInput = {
   readonly simulationId: SimulationId | string;
   readonly issuedAt: number;
   readonly initialProjection: WorldProjection;
+  /**
+   * Replays an interrupted tick from its pre-tick authoritative boundary.
+   * Existing append idempotency records reconstruct the exact partial prefix.
+   */
+  readonly recoveryToSequence?: number;
   readonly policies: WorldCommandPolicySource;
   readonly commandConsumerId: CommandConsumerId;
   readonly commandCheckpointUpdatedAt?: number;
@@ -85,6 +92,7 @@ export async function runLocalWorldRuntimeStep(
     initialProjection: input.initialProjection,
     eventStore: input.storage.eventStore,
     streamName: input.storage.partition.eventStreamName,
+    ...(input.recoveryToSequence === undefined ? {} : { toSequence: input.recoveryToSequence }),
     checkpoint: {
       checkpointStore: input.storage.checkpointStore,
       snapshotStore: input.storage.snapshotStore,
@@ -117,10 +125,6 @@ export async function runLocalWorldRuntimeStep(
     };
   }
 
-  const agents = await resolveTickAgents({
-    input,
-    projection: commandDrain.projection,
-  });
   const tick = await runWorkerSimulationTick({
     tickId: input.tickId,
     simulationId: input.storage.partition.simulationId,
@@ -129,6 +133,10 @@ export async function runLocalWorldRuntimeStep(
     policies: input.policies,
     eventStore: input.storage.eventStore,
     streamName: input.storage.partition.eventStreamName,
+    ...(input.recoveryToSequence === undefined
+      ? {}
+      : { expectedVersion: hydrated.lastAppliedSequence }),
+    ...(input.recoveryToSequence === undefined ? {} : { replayExistingAgentAppends: true }),
     checkpointing: input.storage.checkpointing,
     traceSink: input.storage.agentCycleTraceRepository,
     reactionEvaluationTraceSink: {
@@ -136,7 +144,18 @@ export async function runLocalWorldRuntimeStep(
       partitionKey: input.storage.partition.partitionKey,
       record: (trace) => input.storage.reactionEvaluationTraceRepository.record(trace),
     },
-    agents,
+    agents: input.agents,
+    ...(input.agentProvider === undefined
+      ? {}
+      : {
+          agentProvider: ({ projection }) =>
+            input.agentProvider?.({
+              storage: input.storage,
+              simulationId: input.simulationId,
+              issuedAt: input.issuedAt,
+              projection,
+            }) ?? [],
+        }),
     ...input.storage.repositories,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
@@ -190,19 +209,4 @@ function createTickFullReplanMaterializationInput(input: LocalWorldRuntimeStepIn
         : { strategicPlanCompiler: input.strategicPlanCompiler }),
     },
   };
-}
-
-async function resolveTickAgents(input: {
-  readonly input: LocalWorldRuntimeStepInput;
-  readonly projection: WorldProjection;
-}): Promise<readonly WorkerTickAgentInput[]> {
-  const providedAgents =
-    (await input.input.agentProvider?.({
-      storage: input.input.storage,
-      simulationId: input.input.simulationId,
-      issuedAt: input.input.issuedAt,
-      projection: input.projection,
-    })) ?? [];
-
-  return [...input.input.agents, ...providedAgents];
 }

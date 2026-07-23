@@ -73,6 +73,7 @@ import { createWorldDecisionContextFromProjection } from './worldDecisionContext
 
 export type WorkerAgentCycleTraceSink = {
   readonly record: (trace: AgentCycleTrace) => void | Promise<void>;
+  readonly recordMany?: (traces: readonly AgentCycleTrace[]) => void | Promise<void>;
 };
 
 const DEFAULT_AGENT_CYCLE_MEMORY_RETRIEVAL_LIMIT = 8;
@@ -633,6 +634,24 @@ function mapSocialDialogueGenerationTrace(
     },
     actionId: trace.actionId,
     targetAgentId: trace.targetAgentId,
+    ...(trace.topic === undefined ? {} : { topic: trace.topic }),
+    ...(trace.policyVersion === undefined ? {} : { policyVersion: trace.policyVersion }),
+    ...(trace.planningContext === undefined
+      ? {}
+      : {
+          planningContext: {
+            policyVersion: trace.planningContext.policyVersion,
+            targetSelection: {
+              selectedAgentId: trace.planningContext.targetSelection.selectedAgentId,
+              candidates: trace.planningContext.targetSelection.candidates.map((candidate) => ({
+                agentId: candidate.agentId,
+                score: { ...candidate.score },
+              })),
+              tieBreak: trace.planningContext.targetSelection.tieBreak,
+            },
+            topicSelection: { ...trace.planningContext.topicSelection },
+          },
+        }),
     ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
     ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
     ...(trace.model === undefined ? {} : { model: trace.model }),

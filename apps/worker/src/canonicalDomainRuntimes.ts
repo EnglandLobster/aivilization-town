@@ -13,11 +13,12 @@ import {
   resolveProductionDefinition,
   type ProductionChainStep,
 } from '@aivilization/economy';
-import type { LongTermProfileEntry } from '@aivilization/memory';
+import { calculateEducationInvestmentRequirements } from '@aivilization/society';
 import { asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type {
   AgentApplyJobPayload,
   AgentEatPayload,
+  AgentGiveResourcePayload,
   AgentMoveToPayload,
   AgentObserveLocationPayload,
   AgentProducePayload,
@@ -34,6 +35,12 @@ import type {
   WorkerDomainRuntimeFactoryInput,
   WorkerDomainRuntimeRegistration,
 } from './domainRuntimeRegistry';
+import {
+  CANONICAL_EDUCATION_RATE_PER_SECOND,
+  CANONICAL_STUDY_DURATION_SECONDS,
+  CANONICAL_WORK_LABOR_SECONDS,
+} from './educationOpportunityCost';
+import { createCanonicalSocialDialogueTurns, resolveCanonicalSocialPlan } from './socialPlanning';
 
 export type CanonicalDomainName =
   | 'study'
@@ -124,9 +131,6 @@ export type CanonicalDomainRuntimeConfig = {
   readonly residential?: ResidentialDomainRuntimeConfig;
 };
 
-const DEFAULT_STUDY_DURATION_SECONDS = 1800;
-const DEFAULT_EDUCATION_RATE_PER_SECOND = 1;
-const DEFAULT_WORK_LABOR_SECONDS = 3600;
 const DEFAULT_OCCUPATION_NAME = 'Cleaner';
 const DEFAULT_TRADE_SIDE = 'buy';
 const DEFAULT_TRADE_QUANTITY = 1;
@@ -135,9 +139,10 @@ const DEFAULT_SLEEP_DURATION_SECONDS = 28800;
 const DEFAULT_HEALTH_RECOVERY_DURATION_SECONDS = 1800;
 const DEFAULT_EAT_COMMODITY = 'Apple';
 const DEFAULT_EAT_QUANTITY = 1;
-const DEFAULT_SOCIAL_OPENING_UTTERANCE = 'Socialized during planned activity.';
-const DEFAULT_SOCIAL_RELATION_DELTA = 1;
-const DEFAULT_SOCIAL_ATTITUDE_DELTA = 1;
+// Compatibility-only hints. The world derives authoritative directional outcomes from the
+// transcript under SOCIAL_OUTCOME_POLICY_VERSION and never trusts an agent-supplied score.
+const DEFAULT_SOCIAL_RELATION_DELTA = 0;
+const DEFAULT_SOCIAL_ATTITUDE_DELTA = 0;
 const DEFAULT_PRODUCTION_COMMODITY = 'Apple';
 const DEFAULT_PRODUCTION_QUANTITY = 1;
 const DEFAULT_PRODUCTION_AVAILABLE_LABOR_SECONDS = 3600;
@@ -158,7 +163,7 @@ export function createCanonicalDomainRuntimeRegistrations(
   policies?: WorldCommandPolicies,
 ): readonly WorkerDomainRuntimeRegistration[] {
   return [
-    createStudyDomainRuntimeRegistration(config.study),
+    createStudyDomainRuntimeRegistration(config.study, policies?.educationInvestment),
     createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
@@ -175,6 +180,7 @@ export function createCanonicalDomainRuntimeRegistrations(
 
 export function createStudyDomainRuntimeRegistration(
   config: StudyDomainRuntimeConfig = {},
+  educationInvestment?: WorldCommandPolicies['educationInvestment'],
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'study',
@@ -183,23 +189,67 @@ export function createStudyDomainRuntimeRegistration(
         domain: 'study',
         context,
         planRecord: context.planRecord,
-        propose: (selectedSubtask) => ({
-          id: createCanonicalActionId('study', selectedSubtask),
-          description: `Study for ${selectedSubtask.description}.`,
-          commandType: 'AgentStudy',
-          priority: selectedSubtask.score,
-          payload: {
-            durationSeconds: config.durationSeconds ?? DEFAULT_STUDY_DURATION_SECONDS,
-            educationRatePerSecond:
-              config.educationRatePerSecond ?? DEFAULT_EDUCATION_RATE_PER_SECOND,
-          },
-          resourceEstimate: {
-            actionSeconds: config.durationSeconds ?? DEFAULT_STUDY_DURATION_SECONDS,
-          },
-        }),
+        propose: (selectedSubtask) => {
+          const educationRatePerSecond =
+            config.educationRatePerSecond ?? CANONICAL_EDUCATION_RATE_PER_SECOND;
+          const durationSeconds = resolveStudyActionDurationSeconds({
+            maximumDurationSeconds: config.durationSeconds ?? CANONICAL_STUDY_DURATION_SECONDS,
+            educationRatePerSecond,
+            currentEducationScore: context.agent.educationScore,
+            objectiveAffinityTags: context.activeObjective.affinityTags,
+          });
+          const requirements =
+            educationInvestment === undefined
+              ? undefined
+              : calculateEducationInvestmentRequirements({
+                  studyDurationSeconds: durationSeconds,
+                  policy: educationInvestment,
+                });
+          return {
+            id: createCanonicalActionId('study', selectedSubtask),
+            description: `Study for ${selectedSubtask.description}.`,
+            commandType: 'AgentStudy',
+            priority: selectedSubtask.score,
+            payload: {
+              durationSeconds,
+              educationRatePerSecond,
+            },
+            resourceEstimate: {
+              actionSeconds: durationSeconds,
+              ...(requirements === undefined
+                ? {}
+                : {
+                    currencyCost: requirements.currencyCost,
+                    inventoryCosts: requirements.inventoryCosts,
+                  }),
+            },
+          };
+        },
       }),
     ],
   };
+}
+
+export function resolveStudyActionDurationSeconds(input: {
+  readonly maximumDurationSeconds: number;
+  readonly educationRatePerSecond: number;
+  readonly currentEducationScore: number;
+  readonly objectiveAffinityTags: readonly string[];
+}): number {
+  const targetEducationScore = input.objectiveAffinityTags
+    .map((tag) => /^education-target-(\d+(?:\.\d+)?)$/.exec(tag)?.[1])
+    .filter((value): value is string => value !== undefined)
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value >= 0)
+    .sort((left, right) => left - right)[0];
+  if (targetEducationScore === undefined || input.educationRatePerSecond <= 0) {
+    return input.maximumDurationSeconds;
+  }
+  const missingEducation = Math.max(0, targetEducationScore - input.currentEducationScore);
+  return Math.min(
+    input.maximumDurationSeconds,
+    Math.ceil(missingEducation / input.educationRatePerSecond),
+  );
 }
 
 export function createWorkDomainRuntimeRegistration(
@@ -232,7 +282,7 @@ export function createWorkDomainRuntimeRegistration(
             };
           }
 
-          const laborSeconds = config.laborSeconds ?? DEFAULT_WORK_LABOR_SECONDS;
+          const laborSeconds = config.laborSeconds ?? CANONICAL_WORK_LABOR_SECONDS;
           return {
             id: createCanonicalActionId('work', selectedSubtask),
             description: `Work as ${occupationName}.`,
@@ -270,33 +320,37 @@ export function createTradeDomainRuntimeRegistration(
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'trade',
-    createMicroPlanners: (context) => {
-      const commodityName = config.commodityName ?? resolveFirstMarketCommodity(context);
-      return [
-        createContextualDomainMicroPlanner({
-          domain: 'trade',
-          context,
-          planRecord: context.planRecord,
-          propose: (selectedSubtask) => ({
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'trade',
+        context,
+        planRecord: context.planRecord,
+        propose: (selectedSubtask) => {
+          const side = config.side ?? resolveContextualTradeSide({ context, selectedSubtask });
+          const commodityName =
+            config.commodityName ??
+            resolveContextualTradeCommodityName({ context, selectedSubtask }) ??
+            resolveFirstMarketCommodity(context);
+          return {
             id: createCanonicalActionId('trade', selectedSubtask),
-            description: `${config.side ?? DEFAULT_TRADE_SIDE} ${commodityName}.`,
+            description: `${side} ${commodityName}.`,
             commandType: 'AgentTrade',
             priority: selectedSubtask.score,
             payload: {
-              side: config.side ?? DEFAULT_TRADE_SIDE,
+              side,
               commodityName,
               quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
             },
             ...createTradeResourceEstimate({
-              side: config.side ?? DEFAULT_TRADE_SIDE,
+              side,
               commodityName,
               quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
               context,
             }),
-          }),
-        }),
-      ];
-    },
+          };
+        },
+      }),
+    ],
   };
 }
 
@@ -400,8 +454,15 @@ export function createSocialDomainRuntimeRegistration(
             : (context.projection.agents[config.targetAgentId]?.locationId ??
               DEFAULT_DOMAIN_LOCATION_IDS.social),
         propose: (selectedSubtask) => {
-          const targetAgentId = config.targetAgentId ?? resolveSocialTargetAgentId(context);
-          if (targetAgentId === undefined) {
+          const socialPlan = resolveCanonicalSocialPlan({
+            context,
+            selectedSubtask,
+            ...(config.targetAgentId === undefined
+              ? {}
+              : { configuredTargetAgentId: config.targetAgentId }),
+            ...(config.topic === undefined ? {} : { configuredTopic: config.topic }),
+          });
+          if (socialPlan === undefined) {
             return {
               id: createCanonicalActionId('social', selectedSubtask),
               description: `Observe location before ${selectedSubtask.description}.`,
@@ -410,38 +471,62 @@ export function createSocialDomainRuntimeRegistration(
               payload: { focus: selectedSubtask.description },
             };
           }
-          const topic = resolveSocialTopic({
-            config,
+          if (isSocialCautionObjective(context)) {
+            return {
+              id: createCanonicalActionId('social', selectedSubtask),
+              description: `Observe before engaging ${socialPlan.targetAgentId}.`,
+              commandType: 'AgentObserveLocation',
+              priority: selectedSubtask.score,
+              payload: {
+                focus: `Verify commitments and social context around ${socialPlan.targetAgentId}.`,
+              },
+            };
+          }
+          const resourceGift = resolveSocialResourceGift({
             context,
             selectedSubtask,
           });
-
+          if (resourceGift !== undefined) {
+            return {
+              id: createCanonicalActionId('social', selectedSubtask),
+              description: `Give ${resourceGift.quantity} ${resourceGift.commodityName} to ${socialPlan.targetAgentId}.`,
+              commandType: 'AgentGiveResource',
+              priority: selectedSubtask.score,
+              payload: {
+                targetAgentId: socialPlan.targetAgentId,
+                commodityName: resourceGift.commodityName,
+                quantity: resourceGift.quantity,
+                note: `Grounded help for ${selectedSubtask.description}.`,
+              },
+              resourceEstimate: {
+                inventoryCosts: {
+                  [resourceGift.commodityName]: resourceGift.quantity,
+                },
+              },
+            };
+          }
           return {
             id: createCanonicalActionId('social', selectedSubtask),
             description: `Start conversation for ${selectedSubtask.description}.`,
             commandType: 'AgentStartConversation',
             priority: selectedSubtask.score,
             payload: {
-              targetAgentId,
-              topic: topic.value,
+              targetAgentId: socialPlan.targetAgentId,
+              topic: socialPlan.topic,
               relationDelta: config.relationDelta ?? DEFAULT_SOCIAL_RELATION_DELTA,
               attitudeDelta: config.attitudeDelta ?? DEFAULT_SOCIAL_ATTITUDE_DELTA,
-              turns: [
-                {
-                  speakerAgentId: context.agentId,
-                  utterance: config.openingUtterance ?? createDefaultSocialOpening(topic),
-                  intent: 'social-plan',
-                },
-                {
-                  speakerAgentId: targetAgentId,
-                  utterance:
-                    config.responseUtterance ??
-                    `I will remember this conversation about ${formatConversationTopicForSentence(
-                      topic.value,
-                    )}.`,
-                  intent: 'acknowledge-topic',
-                },
-              ],
+              turns: createCanonicalSocialDialogueTurns({
+                agentId: context.agentId,
+                targetAgentId: socialPlan.targetAgentId,
+                topic: socialPlan.topic,
+                ...(config.openingUtterance === undefined
+                  ? {}
+                  : { openingUtterance: config.openingUtterance }),
+                ...(config.responseUtterance === undefined
+                  ? {}
+                  : { responseUtterance: config.responseUtterance }),
+              }),
+              planningContext: socialPlan.planningContext,
             },
           };
         },
@@ -636,9 +721,43 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentWork', AgentWorkPayload>
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>
+  | AtomicActionProposal<'AgentGiveResource', AgentGiveResourcePayload>
   | AtomicActionProposal<'AgentStartConversation', AgentStartConversationPayload>
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>;
+
+function resolveSocialResourceGift(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+}): { readonly commodityName: string; readonly quantity: number } | undefined {
+  const intent = [
+    input.selectedSubtask.description,
+    input.context.activeObjective.statement,
+    ...input.context.activeObjective.affinityTags,
+  ]
+    .join(' ')
+    .toLowerCase();
+  if (!/(?:give|gift|share-resource|resource-help|provide-food|donate)/u.test(intent)) {
+    return undefined;
+  }
+  const commodityName = Object.entries(input.context.agent.inventory)
+    .filter(([, quantity]) => Number.isFinite(quantity) && quantity > 1)
+    .map(([name]) => name)
+    .sort()[0];
+  return commodityName === undefined ? undefined : { commodityName, quantity: 1 };
+}
+
+function isSocialCautionObjective(context: WorkerDomainRuntimeFactoryInput): boolean {
+  const objectiveContext = [
+    context.activeObjective.statement,
+    ...context.activeObjective.affinityTags,
+  ]
+    .join(' ')
+    .toLowerCase();
+  return /(?:social-caution|verify-commitment|rebuild(?:ing)? trust|before engaging)/u.test(
+    objectiveContext,
+  );
+}
 
 function createContextualDomainMicroPlanner(
   input: ContextualDomainMicroPlannerInput,
@@ -702,10 +821,6 @@ function createLocationAwareActionProposal(input: {
   ];
 }
 
-function formatConversationTopicForSentence(topic: string): string {
-  return topic.trim().replace(/[.!?]+$/u, '');
-}
-
 function selectedSubtaskMatchesDomain(input: {
   readonly domain: CanonicalDomainName;
   readonly planRecord: BranchPlanRecord;
@@ -736,6 +851,37 @@ function selectedSubtaskMatchesDomain(input: {
 
 function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): string {
   return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
+}
+
+function resolveContextualTradeSide(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
+}): 'buy' | 'sell' {
+  for (const text of collectContextualTargetTexts(input)) {
+    const tokens = new Set(tokenizeText(text));
+    if (tokens.has('sell')) {
+      return 'sell';
+    }
+    if (tokens.has('buy') || tokens.has('purchase')) {
+      return 'buy';
+    }
+  }
+  return DEFAULT_TRADE_SIDE;
+}
+
+function resolveContextualTradeCommodityName(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
+}): string | undefined {
+  for (const text of collectContextualTargetTexts(input)) {
+    const commodity = findMatchingTargetNamesInText(text, COMMODITY_TARGETS).find(
+      (candidate) => input.context.projection.marketPools[candidate] !== undefined,
+    );
+    if (commodity !== undefined) {
+      return commodity;
+    }
+  }
+  return undefined;
 }
 
 function hasValidSatietyRecovery(
@@ -1087,129 +1233,6 @@ function createProductionResourceEstimate(input: {
         : { inventoryCosts: productionPlan.consumedInputs }),
     },
   };
-}
-
-type SocialTopicResolution = {
-  readonly value: string;
-  readonly source: 'config' | 'profile' | 'plan';
-};
-
-function resolveSocialTargetAgentId(context: WorkerDomainRuntimeFactoryInput): AgentId | undefined {
-  const candidates = resolveObservedSocialTargetAgentIds(context);
-  return [...candidates].sort((left, right) =>
-    compareSocialTargetCandidates(context, left, right),
-  )[0];
-}
-
-function resolveObservedSocialTargetAgentIds(
-  context: WorkerDomainRuntimeFactoryInput,
-): readonly AgentId[] {
-  const locationId = context.agent.locationId;
-  if (locationId === null) {
-    return [];
-  }
-
-  const latestObservation = [...context.projection.locationObservations]
-    .filter((observation) => observation.agentId === context.agentId)
-    .filter((observation) => observation.locationId === locationId)
-    .sort((left, right) => right.observedAt - left.observedAt)[0];
-  if (latestObservation === undefined) {
-    return [];
-  }
-
-  return latestObservation.observedAgentIds
-    .filter((candidate) => candidate !== context.agentId)
-    .filter((candidate) => context.projection.agents[candidate]?.locationId === locationId)
-    .sort((left, right) => left.localeCompare(right));
-}
-
-function compareSocialTargetCandidates(
-  context: WorkerDomainRuntimeFactoryInput,
-  left: AgentId,
-  right: AgentId,
-): number {
-  const leftScore = scoreSocialTargetCandidate(context, left);
-  const rightScore = scoreSocialTargetCandidate(context, right);
-  if (leftScore !== rightScore) {
-    return rightScore - leftScore;
-  }
-  return left.localeCompare(right);
-}
-
-function scoreSocialTargetCandidate(
-  context: WorkerDomainRuntimeFactoryInput,
-  candidateAgentId: AgentId,
-): number {
-  const socialRecord = context.longTermProfile?.socialRecords.find(
-    (entry) => entry.key === candidateAgentId,
-  );
-  if (socialRecord === undefined) {
-    return 0;
-  }
-  return (
-    socialRecord.confidence + (socialRecord.relationDelta ?? 0) + (socialRecord.attitudeDelta ?? 0)
-  );
-}
-
-function resolveSocialTopic(input: {
-  readonly config: SocialDomainRuntimeConfig;
-  readonly context: WorkerDomainRuntimeFactoryInput;
-  readonly selectedSubtask: PrioritizedSubtask;
-}): SocialTopicResolution {
-  if (input.config.topic !== undefined) {
-    return { value: input.config.topic, source: 'config' };
-  }
-
-  const profileTopic = resolveProfileSocialTopic(input.context);
-  if (profileTopic !== undefined) {
-    return { value: profileTopic, source: 'profile' };
-  }
-
-  return { value: input.selectedSubtask.description, source: 'plan' };
-}
-
-function resolveProfileSocialTopic(context: WorkerDomainRuntimeFactoryInput): string | undefined {
-  const valuesTopic = selectProfileTopicKey(context.longTermProfile?.values);
-  if (valuesTopic !== undefined) {
-    return humanizeProfileTopicKey(valuesTopic);
-  }
-
-  const personalityTopic = selectProfileTopicKey(context.longTermProfile?.personality);
-  return personalityTopic === undefined ? undefined : humanizeProfileTopicKey(personalityTopic);
-}
-
-function selectProfileTopicKey(
-  entries: readonly LongTermProfileEntry[] | undefined,
-): string | undefined {
-  return [...(entries ?? [])].sort(compareProfileTopicEntries)[0]?.key;
-}
-
-function compareProfileTopicEntries(
-  left: LongTermProfileEntry,
-  right: LongTermProfileEntry,
-): number {
-  if (left.confidence !== right.confidence) {
-    return right.confidence - left.confidence;
-  }
-  if (left.updatedAt !== right.updatedAt) {
-    return right.updatedAt - left.updatedAt;
-  }
-  return left.key.localeCompare(right.key);
-}
-
-function humanizeProfileTopicKey(key: string): string {
-  return key
-    .trim()
-    .split(/[-_]+/u)
-    .filter((token) => token.length > 0)
-    .join(' ');
-}
-
-function createDefaultSocialOpening(topic: SocialTopicResolution): string {
-  if (topic.source === 'profile') {
-    return `Discuss ${formatConversationTopicForSentence(topic.value)}.`;
-  }
-  return DEFAULT_SOCIAL_OPENING_UTTERANCE;
 }
 
 function createCanonicalActionId(

@@ -55,6 +55,53 @@ function createRootDir(): string {
 }
 
 describe('local simulation lifecycle controller', () => {
+  test('replays a completed lifecycle operation id without advancing ticks twice', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const operationRequest = { ...createRequest(1000), operationId: 'cycle-1' };
+
+    const first = await createController({ storage, initialProjection }).start(operationRequest);
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const replay = await createController({
+      storage: restartedStorage,
+      initialProjection,
+    }).start(operationRequest);
+
+    expect(first.state).toMatchObject({
+      status: 'completed',
+      nextTickIndex: 3,
+      lastOperationId: 'cycle-1',
+    });
+    expect(replay).toMatchObject({
+      status: 'completed',
+      idempotentReplay: true,
+      state: { nextTickIndex: 3, lastAppliedSequence: 2, lastOperationId: 'cycle-1' },
+      loop: { steps: [], nextTickIndex: 3 },
+    });
+    expect(
+      restartedStorage.eventStore.getStreamVersion(restartedStorage.partition.eventStreamName),
+    ).toBe(2);
+
+    const next = await createController({
+      storage: restartedStorage,
+      initialProjection,
+    }).start({ ...createRequest(1100), operationId: 'cycle-2' });
+    expect(next.state).toMatchObject({
+      nextTickIndex: 5,
+      lastAppliedSequence: 4,
+      lastOperationId: 'cycle-2',
+    });
+  });
+
   test('starts, pauses, resumes from lifecycle state, and replays world projection from events', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();
@@ -393,6 +440,7 @@ describe('local simulation lifecycle controller', () => {
       cursors: [
         {
           agentId: 'agent-1',
+          lastProcessedAppendSequence: 3,
           lastProcessedOccurredAt: 3,
           updatedAt: 1000,
         },
@@ -408,6 +456,7 @@ describe('local simulation lifecycle controller', () => {
     });
     await expect(storage.memoryConsolidationCursorStore.getCursor(agentOne)).resolves.toEqual({
       agentId: 'agent-1',
+      lastProcessedAppendSequence: 3,
       lastProcessedOccurredAt: 3,
       updatedAt: 1000,
     });
@@ -776,13 +825,13 @@ describe('local simulation lifecycle controller', () => {
     expect(result.memoryConsolidation).toBeUndefined();
     expect(result.memoryConsolidationFailure).toMatchObject({
       name: 'Error',
-      message: 'limit must be a positive integer',
+      message: 'limit must be a positive safe integer',
     });
     expect(result.state).toMatchObject({
       lastMemoryConsolidationStatus: 'failed',
       lastMemoryConsolidationFailure: {
         name: 'Error',
-        message: 'limit must be a positive integer',
+        message: 'limit must be a positive safe integer',
       },
     });
     const restartedStorage = createLocalWorldRuntimeStorage({
@@ -794,7 +843,7 @@ describe('local simulation lifecycle controller', () => {
       lastMemoryConsolidationStatus: 'failed',
       lastMemoryConsolidationFailure: {
         name: 'Error',
-        message: 'limit must be a positive integer',
+        message: 'limit must be a positive safe integer',
       },
     });
   });

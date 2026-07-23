@@ -17,6 +17,7 @@
       "@aivilization/sim-core": ["packages/sim-core/src/index.ts"],
       "@aivilization/society": ["packages/society/src/index.ts"],
       "@aivilization/worker": ["apps/worker/src/index.ts"],
+      "@aivilization/web": ["apps/web/src/index.ts"],
       "@aivilization/world": ["packages/world/src/index.ts"]
     },
     "strict": true,

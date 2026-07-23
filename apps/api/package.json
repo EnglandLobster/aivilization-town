@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@aivilization/observability": "workspace:*",
-    "@aivilization/sim-core": "workspace:*"
+    "@aivilization/sim-core": "workspace:*",
+    "jose": "^6.2.4"
   }
 }

@@ -2,12 +2,13 @@ import {
   compileStrategicObjectiveToBranchPlan,
   normalizeStrategicPlanCompilerOutput,
   type BranchPlanRecord,
+  type BranchPlanProgressRepository,
   type BranchPlanRepository,
   type StrategicPlanCompilationTrace,
   type StrategicPlanCompiler,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
-import { selectActiveScheduledIntentions } from '@aivilization/memory';
+import { getCompletedObjectiveCount, selectActiveScheduledIntentions } from '@aivilization/memory';
 import type {
   AgentIntentionRepository,
   AgentIntentionState,
@@ -22,12 +23,52 @@ import type { AgentId } from '@aivilization/sim-core';
 import type { WorldAgentState, WorldProjection } from '@aivilization/world';
 import { summarizeObservedAgentState } from './agentStateSummary';
 import {
+  createAutonomousLifeCourseCandidates,
+  createAutonomousLifeCoursePolicyManifest,
+  type AutonomousLifeCourseCandidate,
+} from './autonomousLifeCourse';
+import type { EducationOpportunityCostConfig } from './educationOpportunityCost';
+import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
+import { publishPlanningSession } from './planningSessionPublication';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v3';
+
+const MARKET_PARTICIPATION_SCORE = 12;
+const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
+const SOCIAL_IDENTITY_SCORE = 59;
+
+export function createAutonomousObjectiveSelectionPolicyManifest() {
+  return {
+    policyVersion: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
+    source: 'repository-design' as const,
+    paperDefinesObjectiveCandidateScores: false as const,
+    objectiveIdentity: 'agent-id-plus-issued-at-plus-durable-completed-objective-ordinal' as const,
+    precedence:
+      'physiology-recovery-scheduled-life-course-profile-legacy-fallback-balanced' as const,
+    lifeCourse: createAutonomousLifeCoursePolicyManifest(),
+    legacyFallback: {
+      enabledOnlyWithoutUsableLifeCourseCandidates: true as const,
+      score: MARKET_PARTICIPATION_SCORE,
+      quantity: 1,
+      sellRule: 'sell-one-owned-market-listed-commodity-before-buying' as const,
+      buyRule: 'buy-one-agent-stable-affordable-market-listed-commodity' as const,
+      minimumBalanceToSpotPriceMultiplier: MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER,
+      commodityTieBreak: 'stable-agent-id-hash-modulo-sorted-candidates' as const,
+    },
+    socialIdentity: {
+      score: SOCIAL_IDENTITY_SCORE,
+      cooldownRule: 'skip-while-retrieved-stm-contains-a-social-interaction',
+      adverseAction: 'observe-and-verify-before-engaging',
+      constructiveAction: 'maintain-cooperative-relationship',
+    },
+  };
+}
 
 export type AutonomousObjectiveProposerInput = {
   readonly agentId: AgentId;
@@ -37,6 +78,7 @@ export type AutonomousObjectiveProposerInput = {
   readonly longTermProfile: LongTermAgentProfile;
   readonly shortTermMemoryContext: readonly ShortTermMemoryRecord[];
   readonly issuedAt: number;
+  readonly worldDecisionContext?: WorldDecisionContext;
 };
 
 export type ObjectiveRenewalDecisionTrace = {
@@ -87,7 +129,11 @@ export function createDefaultAutonomousObjectiveProposal(
   input: AutonomousObjectiveProposerInput,
 ): AutonomousObjectiveProposal {
   const base = {
-    id: createAutonomousObjectiveId(input.agentId, input.issuedAt),
+    id: createAutonomousObjectiveId(
+      input.agentId,
+      input.issuedAt,
+      getCompletedObjectiveCount(input.intentionState) + 1,
+    ),
     agentId: input.agentId,
     source: 'agent' as const,
     createdAt: input.issuedAt,
@@ -105,6 +151,9 @@ export function createDefaultAutonomousObjectiveProposal(
     statement: selected.statement,
     priority: selected.priority,
     affinityTags: selected.affinityTags,
+    ...(selected.planningDomains === undefined
+      ? {}
+      : { planningDomains: selected.planningDomains }),
   };
 
   return {
@@ -133,11 +182,13 @@ export async function renewMissingActiveObjectives(input: {
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository: BranchPlanRepository;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly issuedAt: number;
   readonly memoryRetrievalLimit?: number;
   readonly objectiveProposer?: AutonomousObjectiveProposer;
   readonly objectiveRenewalTraceSink?: WorkerObjectiveRenewalTraceSink;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
 }): Promise<readonly RenewedActiveObjectiveResult[]> {
   const renewed: RenewedActiveObjectiveResult[] = [];
   const proposer = input.objectiveProposer ?? createDefaultAutonomousObjectiveProposal;
@@ -173,6 +224,9 @@ export async function renewMissingActiveObjectives(input: {
       projection: input.projection,
       agentId: agent.agentId,
       ...(policies === undefined ? {} : { policies }),
+      ...(input.educationOpportunityCost === undefined
+        ? {}
+        : { educationOpportunityCost: input.educationOpportunityCost }),
     });
     const proposed = await proposer({
       agentId: agent.agentId,
@@ -182,6 +236,7 @@ export async function renewMissingActiveObjectives(input: {
       longTermProfile,
       shortTermMemoryContext,
       issuedAt: input.issuedAt,
+      worldDecisionContext,
     });
     if (proposed === undefined) {
       continue;
@@ -194,7 +249,6 @@ export async function renewMissingActiveObjectives(input: {
     });
     const { objective, decisionTrace } = proposal;
 
-    await input.intentionRepository.setObjective(agent.agentId, objective);
     const strategicPlan = await createStrategicPlanRecord({
       objective,
       issuedAt: input.issuedAt,
@@ -204,7 +258,16 @@ export async function renewMissingActiveObjectives(input: {
       worldDecisionContext,
       compile,
     });
-    await input.planRepository.save(strategicPlan.record);
+    await publishPlanningSession({
+      objective,
+      publishedAt: input.issuedAt,
+      intentionRepository: input.intentionRepository,
+      planRecord: strategicPlan.record,
+      planRepository: input.planRepository,
+      ...(input.planProgressRepository === undefined
+        ? {}
+        : { planProgressRepository: input.planProgressRepository }),
+    });
     const tracedDecision = addStrategicPlanTrace({
       decisionTrace,
       planningTrace: strategicPlan.planningTrace,
@@ -249,6 +312,11 @@ async function createStrategicPlanRecord(input: {
       agentId: input.objective.agentId,
       plan: compiled.plan,
       ...(compiled.planningTrace === undefined ? {} : { planningTrace: compiled.planningTrace }),
+      strategicContext: createStrategicPlanContextSnapshot({
+        worldDecisionContext: input.worldDecisionContext,
+        longTermProfile: input.longTermProfile,
+        capturedAt: input.issuedAt,
+      }),
       createdAt: input.issuedAt,
       updatedAt: input.issuedAt,
     },
@@ -270,8 +338,13 @@ function addStrategicPlanTrace(input: {
   };
 }
 
-function createAutonomousObjectiveId(agentId: AgentId, issuedAt: number): string {
-  return `auto-objective-${agentId}-${issuedAt}`;
+function createAutonomousObjectiveId(
+  agentId: AgentId,
+  issuedAt: number,
+  objectiveOrdinal: number,
+): string {
+  assertPositiveInteger(objectiveOrdinal, 'objectiveOrdinal');
+  return `auto-objective-${agentId}-${issuedAt}-${objectiveOrdinal}`;
 }
 
 function normalizeAutonomousObjectiveProposal(input: {
@@ -306,16 +379,7 @@ function isAutonomousObjectiveProposal(
   return 'objective' in value && 'decisionTrace' in value;
 }
 
-type ObjectiveCandidate = {
-  readonly id: string;
-  readonly statement: string;
-  readonly priority: number;
-  readonly affinityTags: readonly string[];
-  readonly score: number;
-  readonly rationale: string;
-  readonly shortTermMemoryContextIds: readonly string[];
-  readonly profileEntryKeys: readonly string[];
-  readonly profileEvidenceRecordIds: readonly string[];
+type ObjectiveCandidate = AutonomousLifeCourseCandidate & {
   readonly scheduledIntentionIds?: readonly string[];
 };
 
@@ -323,6 +387,16 @@ function scoreObjectiveCandidates(
   input: AutonomousObjectiveProposerInput,
 ): readonly ObjectiveCandidate[] {
   const candidates: ObjectiveCandidate[] = [];
+  const educationOpportunityCost = input.worldDecisionContext?.rules?.educationOpportunityCost;
+  const decisionRules = input.worldDecisionContext?.rules;
+  const lifeCourseContext =
+    decisionRules !== undefined &&
+    (decisionRules.occupations.length > 0 ||
+      decisionRules.production.length > 0 ||
+      decisionRules.residentialUpgrade !== undefined)
+      ? input.worldDecisionContext
+      : undefined;
+  let lifeCourseCandidateCount = 0;
   const physiologyDanger =
     input.agent.physiology.energy < 30 ||
     input.agent.physiology.satiety < 30 ||
@@ -357,22 +431,66 @@ function scoreObjectiveCandidates(
     });
   }
 
-  if (input.agent.educationScore < 100) {
+  const scheduledRoutineCandidate = createScheduledRoutineCandidate({
+    intentionState: input.intentionState,
+    issuedAt: input.issuedAt,
+  });
+
+  if (lifeCourseContext !== undefined && scheduledRoutineCandidate === undefined) {
+    const lifeCourseCandidates = createAutonomousLifeCourseCandidates({
+      agent: input.agent,
+      worldDecisionContext: lifeCourseContext,
+    });
+    lifeCourseCandidateCount = lifeCourseCandidates.length;
+    candidates.push(...lifeCourseCandidates);
+  }
+
+  const useLegacyFallback =
+    scheduledRoutineCandidate === undefined &&
+    (lifeCourseContext === undefined || lifeCourseCandidateCount === 0);
+
+  if (useLegacyFallback && input.agent.educationScore < 100) {
+    const affordabilityPenalty =
+      educationOpportunityCost === undefined
+        ? 0
+        : !educationOpportunityCost.directlyAffordable
+          ? 40
+          : !educationOpportunityCost.preservesMinimumBalanceReserve
+            ? 10
+            : 0;
     candidates.push({
       id: 'education-growth',
-      statement: 'Improve education to qualify for better town opportunities.',
+      statement:
+        educationOpportunityCost === undefined
+          ? 'Improve education to qualify for better town opportunities.'
+          : 'Balance education investment with immediate income to qualify for better town opportunities.',
       priority: 2,
-      affinityTags: ['study', 'education'],
-      score: 40 + (100 - input.agent.educationScore) / 100,
-      rationale: 'Education score is below the threshold for better town opportunities.',
+      affinityTags:
+        educationOpportunityCost === undefined
+          ? ['study', 'education']
+          : ['study', 'education', 'work', 'income'],
+      score: Math.max(0, 40 + (100 - input.agent.educationScore) / 100 - affordabilityPenalty),
+      rationale:
+        educationOpportunityCost === undefined
+          ? 'Education score is below the threshold for better town opportunities.'
+          : createEducationOpportunityCostRationale(educationOpportunityCost),
       shortTermMemoryContextIds: [],
       profileEntryKeys: [],
       profileEvidenceRecordIds: [],
     });
   }
 
-  const incomePressureScore = input.agent.balance < 50 ? 35 + (50 - input.agent.balance) / 50 : 0;
-  if (incomePressureScore > 0) {
+  const incomeBalanceTarget =
+    educationOpportunityCost === undefined
+      ? 50
+      : educationOpportunityCost.directCurrencyCost +
+        educationOpportunityCost.minimumBalanceReserve;
+  const incomePressureScore =
+    input.agent.balance < incomeBalanceTarget
+      ? (educationOpportunityCost === undefined ? 35 : 45) +
+        (incomeBalanceTarget - input.agent.balance) / Math.max(1, incomeBalanceTarget)
+      : 0;
+  if (useLegacyFallback && incomePressureScore > 0) {
     candidates.push({
       id: 'income-stability',
       statement: 'Earn enough money to stay economically stable.',
@@ -386,17 +504,25 @@ function scoreObjectiveCandidates(
     });
   }
 
-  const scheduledRoutineCandidate = createScheduledRoutineCandidate({
-    intentionState: input.intentionState,
-    issuedAt: input.issuedAt,
-  });
   if (scheduledRoutineCandidate !== undefined) {
     candidates.push(scheduledRoutineCandidate);
+  }
+
+  const socialIdentityCandidate = createSocialIdentityCandidate(input);
+  if (socialIdentityCandidate !== undefined) {
+    candidates.push(socialIdentityCandidate);
   }
 
   const profileCandidate = createProfileRoutineCandidate(input.longTermProfile);
   if (profileCandidate !== undefined) {
     candidates.push(profileCandidate);
+  }
+
+  if (useLegacyFallback) {
+    const marketCandidate = createMarketParticipationCandidate(input);
+    if (marketCandidate !== undefined) {
+      candidates.push(marketCandidate);
+    }
   }
 
   candidates.push({
@@ -412,6 +538,196 @@ function scoreObjectiveCandidates(
   });
 
   return candidates.sort(compareObjectiveCandidates);
+}
+
+function createSocialIdentityCandidate(
+  input: AutonomousObjectiveProposerInput,
+): ObjectiveCandidate | undefined {
+  if (input.shortTermMemoryContext.some((record) => record.kind === 'social-interaction')) {
+    return undefined;
+  }
+  const identityEntries = [
+    ...input.longTermProfile.mood,
+    ...input.longTermProfile.values,
+    ...input.longTermProfile.personality,
+    ...input.longTermProfile.habits,
+  ];
+  const conflictEntry = identityEntries.find((entry) =>
+    containsAny(`${entry.key} ${entry.statement}`.toLowerCase(), [
+      'conflict-alert',
+      'boundary-conscious',
+      'constructive-disagreement',
+      'de-escalation',
+    ]),
+  );
+  const adverseEntry = identityEntries.find((entry) =>
+    containsAny(`${entry.key} ${entry.statement}`.toLowerCase(), [
+      'guarded',
+      'wary',
+      'verified-reciprocity',
+      'reduced trust',
+      'ambivalent',
+    ]),
+  );
+  const constructiveEntry = identityEntries.find((entry) =>
+    containsAny(`${entry.key} ${entry.statement}`.toLowerCase(), [
+      'cooperative',
+      'sociable',
+      'community-cooperation',
+      'social routine',
+    ]),
+  );
+  const strongestConflictRelation = [...input.longTermProfile.socialRecords]
+    .filter((entry) =>
+      (entry.outcomeSignals ?? []).some(
+        (signal) => signal === 'hostility' || signal === 'rejection',
+      ),
+    )
+    .sort((left, right) => left.key.localeCompare(right.key))[0];
+  const strongestAdverseRelation = [...input.longTermProfile.socialRecords]
+    .filter(
+      (entry) =>
+        ((entry.relationDelta ?? 0) < 0 || (entry.attitudeDelta ?? 0) < 0) &&
+        !(entry.outcomeSignals ?? []).some(
+          (signal) => signal === 'hostility' || signal === 'rejection',
+        ),
+    )
+    .sort(
+      (left, right) =>
+        Math.min(left.relationDelta ?? 0, left.attitudeDelta ?? 0) -
+          Math.min(right.relationDelta ?? 0, right.attitudeDelta ?? 0) ||
+        left.key.localeCompare(right.key),
+    )[0];
+  const strongestConstructiveRelation = [...input.longTermProfile.socialRecords]
+    .filter((entry) => (entry.relationDelta ?? 0) > 0 || (entry.attitudeDelta ?? 0) > 0)
+    .sort(
+      (left, right) =>
+        Math.max(right.relationDelta ?? 0, right.attitudeDelta ?? 0) -
+          Math.max(left.relationDelta ?? 0, left.attitudeDelta ?? 0) ||
+        left.key.localeCompare(right.key),
+    )[0];
+  const evidence =
+    conflictEntry ??
+    strongestConflictRelation ??
+    adverseEntry ??
+    strongestAdverseRelation ??
+    constructiveEntry ??
+    strongestConstructiveRelation;
+  if (evidence === undefined) {
+    return undefined;
+  }
+  const conflict = conflictEntry !== undefined || strongestConflictRelation !== undefined;
+  const adverse =
+    !conflict && (adverseEntry !== undefined || strongestAdverseRelation !== undefined);
+  return {
+    id: conflict
+      ? 'social-identity-deescalation'
+      : adverse
+        ? 'social-identity-caution'
+        : 'social-identity-cooperation',
+    statement: conflict
+      ? 'Hold a bounded conversation to clarify disagreement and reinforce social boundaries.'
+      : adverse
+        ? 'Observe the social setting and verify commitments before rebuilding trust.'
+        : 'Strengthen a trusted relationship through cooperative social contact.',
+    priority: 2,
+    affinityTags: conflict
+      ? ['social', 'deescalate', 'boundaries', 'constructive-disagreement']
+      : adverse
+        ? ['social', 'social-caution', 'observe', 'verify-commitment']
+        : ['social', 'cooperate', 'relationship', 'community'],
+    score: SOCIAL_IDENTITY_SCORE + evidence.confidence,
+    rationale: conflict
+      ? 'Outcome-grounded conflict evidence favors bounded de-escalation and clear boundaries.'
+      : adverse
+        ? 'Outcome-grounded adverse social evidence favors cautious verification before engagement.'
+        : 'Outcome-grounded constructive social evidence favors maintaining cooperative ties.',
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [evidence.key],
+    profileEvidenceRecordIds: evidence.provenanceRecordIds,
+  };
+}
+
+function createMarketParticipationCandidate(
+  input: AutonomousObjectiveProposerInput,
+): ObjectiveCandidate | undefined {
+  const spotPrices = input.worldDecisionContext?.market.spotPrices;
+  if (spotPrices === undefined || spotPrices.length === 0) {
+    return undefined;
+  }
+  const listedCommodities = new Set(spotPrices.map((price) => price.commodity));
+  const ownedCommodities = Object.entries(input.agent.inventory)
+    .filter(([commodity, quantity]) => quantity >= 1 && listedCommodities.has(commodity))
+    .map(([commodity]) => commodity)
+    .sort();
+  if (ownedCommodities.length > 0) {
+    const commodity = selectStableAgentCommodity(input.agentId, ownedCommodities);
+    return {
+      id: 'market-participation-sell',
+      statement: `Sell one ${commodity} through the town market while preserving economic stability.`,
+      priority: 1,
+      affinityTags: ['trade', 'market', 'sell', commodity],
+      score: MARKET_PARTICIPATION_SCORE,
+      rationale: `Inventory contains a market-listed ${commodity} that can be exchanged for currency.`,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    };
+  }
+
+  const affordableCommodities = spotPrices
+    .filter(
+      (price) =>
+        Number.isFinite(price.spotPrice) &&
+        price.spotPrice > 0 &&
+        input.agent.balance >= price.spotPrice * MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER,
+    )
+    .map((price) => price.commodity)
+    .sort();
+  if (affordableCommodities.length === 0) {
+    return undefined;
+  }
+  const commodity = selectStableAgentCommodity(input.agentId, affordableCommodities);
+  return {
+    id: 'market-participation-buy',
+    statement: `Buy one ${commodity} through the town market while preserving economic stability.`,
+    priority: 1,
+    affinityTags: ['trade', 'market', 'buy', commodity],
+    score: MARKET_PARTICIPATION_SCORE,
+    rationale: `Balance covers at least ${MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER} times the ${commodity} spot price.`,
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+  };
+}
+
+function selectStableAgentCommodity(
+  agentId: AgentId,
+  sortedCommodities: readonly string[],
+): string {
+  if (sortedCommodities.length === 0) {
+    throw new Error('market participation requires at least one commodity');
+  }
+  let hash = 2_166_136_261;
+  for (const character of agentId) {
+    hash = Math.imul(hash ^ character.codePointAt(0)!, 16_777_619) >>> 0;
+  }
+  return sortedCommodities[hash % sortedCommodities.length]!;
+}
+
+function createEducationOpportunityCostRationale(
+  opportunityCost: NonNullable<
+    NonNullable<WorldDecisionContext['rules']>['educationOpportunityCost']
+  >,
+): string {
+  return [
+    'Education is below the growth threshold.',
+    `The next study action costs ${opportunityCost.directCurrencyCost} currency directly`,
+    `and foregoes ${opportunityCost.foregoneLaborIncome} currency of current labor income.`,
+    opportunityCost.preservesMinimumBalanceReserve
+      ? `The post-study balance preserves the ${opportunityCost.minimumBalanceReserve} currency reserve.`
+      : `The post-study balance does not preserve the ${opportunityCost.minimumBalanceReserve} currency reserve.`,
+  ].join(' ');
 }
 
 function createPhysiologyMaintenanceAffinityTags(agent: WorldAgentState): readonly string[] {

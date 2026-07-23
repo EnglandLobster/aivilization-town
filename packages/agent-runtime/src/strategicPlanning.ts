@@ -44,6 +44,8 @@ export type StrategicPlanCompilationAttemptTrace = {
 export type StrategicPlanCompilationTrace = {
   readonly status: 'accepted' | 'fallback' | 'deterministic';
   readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly plannerVariant?: PaperPlannerVariant;
+  readonly ablationPolicyVersion?: typeof PAPER_PLANNER_ABLATION_POLICY_VERSION;
   readonly requestId?: string;
   readonly providerId?: string;
   readonly model?: string;
@@ -73,6 +75,106 @@ export type NormalizedStrategicPlanCompilation = {
   readonly planningTrace?: StrategicPlanCompilationTrace;
 };
 
+export const PAPER_PLANNER_ABLATION_POLICY_VERSION = 'paper-planner-ablation-v1';
+export const DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION =
+  'deterministic-strategic-planning-v3';
+
+export function createDeterministicStrategicPlanningPolicyManifest() {
+  return {
+    policyVersion: DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION,
+    source: 'repository-design' as const,
+    domainSelection:
+      'explicit-planning-domains-or-affinity-alias-or-unambiguous-objective-and-profile-keyword' as const,
+    explicitPlanningDomainPrecedence: 'authoritative-when-present' as const,
+    ambiguousTokensExcludedFromResidentialInference: ['tier'],
+    completionBoundary:
+      'autonomous-single-domain-objectives-must-not-gain-unrelated-selectable-branches' as const,
+  };
+}
+
+export type PaperPlannerVariant = 'default' | 'without-branch' | 'without-objective-decomposition';
+
+const PAPER_PLANNER_VARIANTS = new Set<PaperPlannerVariant>([
+  'default',
+  'without-branch',
+  'without-objective-decomposition',
+]);
+
+export function assertPaperPlannerVariant(value: string): asserts value is PaperPlannerVariant {
+  if (!PAPER_PLANNER_VARIANTS.has(value as PaperPlannerVariant)) {
+    throw new Error(`unsupported paper planner variant ${value}`);
+  }
+}
+
+export function createPaperPlannerAblationPolicyManifest(
+  activeVariant: PaperPlannerVariant = 'default',
+) {
+  assertPaperPlannerVariant(activeVariant);
+  return {
+    policyVersion: PAPER_PLANNER_ABLATION_POLICY_VERSION,
+    activeVariant,
+    controlledBaseCompilerRule:
+      'apply-structural-ablation-after-the-same-configured-strategic-compiler',
+    variants: {
+      default: {
+        branchDecomposition: 'parallel-reasoning-branches',
+        objectiveDecomposition: 'structured-objectives-and-subtasks',
+      },
+      'without-branch': {
+        branchDecomposition: 'removed-single-reasoning-branch',
+        objectiveDecomposition: 'preserved-structured-subtasks',
+        transform: 'merge-all-source-branch-subtasks-into-one-branch',
+      },
+      'without-objective-decomposition': {
+        branchDecomposition: 'preserved-parallel-reasoning-branches',
+        objectiveDecomposition: 'removed-direct-action-generation',
+        transform: 'one-direct-action-subtask-per-source-branch',
+      },
+    },
+    heldConstant: [
+      'scenario-and-agent-cohort',
+      'seed-and-time-scaling',
+      'base-llm-or-deterministic-compiler',
+      'memory-and-context-inputs',
+      'action-simulation-and-replanning',
+      'world-policies-and-economic-rules',
+    ],
+    verificationInvariants: {
+      default: 'at-least-one-valid-branch',
+      'without-branch': 'exactly-one-branch-with-all-source-subtasks',
+      'without-objective-decomposition':
+        'source-branch-count-preserved-and-each-branch-has-one-direct-action-subtask',
+    },
+  } as const;
+}
+
+export function createPaperPlannerVariantCompiler(input: {
+  readonly variant: PaperPlannerVariant;
+  readonly baseCompiler?: StrategicPlanCompiler;
+}): StrategicPlanCompiler {
+  assertPaperPlannerVariant(input.variant);
+  const baseCompiler = input.baseCompiler ?? compileStrategicObjectiveToBranchPlan;
+  if (input.variant === 'default') {
+    return baseCompiler;
+  }
+  const ablationVariant: Exclude<PaperPlannerVariant, 'default'> = input.variant;
+
+  return async (compilerInput) => {
+    const base = normalizeStrategicPlanCompilerOutput(await baseCompiler(compilerInput));
+    const plan =
+      ablationVariant === 'without-branch'
+        ? transformBranchPlanWithoutBranch(base.plan)
+        : transformBranchPlanWithoutObjectiveDecomposition(base.plan);
+    return {
+      plan,
+      planningTrace: createAblationPlanningTrace({
+        variant: ablationVariant,
+        ...(base.planningTrace === undefined ? {} : { baseTrace: base.planningTrace }),
+      }),
+    };
+  };
+}
+
 export function normalizeStrategicPlanCompilerOutput(
   output: StrategicPlanCompilerOutput,
 ): NormalizedStrategicPlanCompilation {
@@ -97,15 +199,19 @@ export function compileStrategicObjectiveToBranchPlan(
     tags,
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
   });
-  const branches = STRATEGIC_DOMAIN_RULES.filter((rule) => ruleMatchesContext(rule, context)).map(
-    (rule) =>
+  const branches = selectStrategicDomainRules({
+    ...(input.objective.planningDomains === undefined
+      ? {}
+      : { planningDomains: input.objective.planningDomains }),
+    context,
+  }).map((rule) =>
       createDomainBranch({
         rule,
         objectiveText,
         objectivePriority: input.objective.priority,
         tags,
       }),
-  );
+    );
 
   if (branches.length === 0) {
     branches.push(
@@ -129,15 +235,19 @@ export function compileStrategicObjectiveWithoutObjectiveDecomposition(
   const plan = compileStrategicObjectiveToBranchPlan(input);
 
   return {
-    plan: createBranchPlan({
-      objective: plan.objective,
-      branches: plan.branches.map(createDirectActionBranchWithoutObjectiveDecomposition),
+    plan: transformBranchPlanWithoutObjectiveDecomposition(plan),
+    planningTrace: createAblationPlanningTrace({
+      variant: 'without-objective-decomposition',
     }),
-    planningTrace: {
-      status: 'deterministic',
-      source: 'deterministic',
-      message: 'Planner ablation without objective decomposition',
-    },
+  };
+}
+
+export function compileStrategicObjectiveWithoutBranch(
+  input: StrategicPlanCompilerInput,
+): StrategicPlanCompilationResult {
+  return {
+    plan: transformBranchPlanWithoutBranch(compileStrategicObjectiveToBranchPlan(input)),
+    planningTrace: createAblationPlanningTrace({ variant: 'without-branch' }),
   };
 }
 
@@ -170,6 +280,44 @@ type PlanningTextContext = {
 };
 
 const PROFILE_PLANNING_CONTEXT_MIN_CONFIDENCE = 0.7;
+
+function transformBranchPlanWithoutBranch(plan: BranchPlan): BranchPlan {
+  return createBranchPlan({
+    objective: plan.objective,
+    branches: [
+      {
+        id: 'without-branch',
+        objective: `Single reasoning branch for: ${plan.objective}`,
+        subtasks: plan.branches.flatMap((branch) => branch.subtasks),
+      },
+    ],
+  });
+}
+
+function transformBranchPlanWithoutObjectiveDecomposition(plan: BranchPlan): BranchPlan {
+  return createBranchPlan({
+    objective: plan.objective,
+    branches: plan.branches.map(createDirectActionBranchWithoutObjectiveDecomposition),
+  });
+}
+
+function createAblationPlanningTrace(input: {
+  readonly variant: Exclude<PaperPlannerVariant, 'default'>;
+  readonly baseTrace?: StrategicPlanCompilationTrace;
+}): StrategicPlanCompilationTrace {
+  return {
+    ...(input.baseTrace ?? {
+      status: 'deterministic' as const,
+      source: 'deterministic' as const,
+    }),
+    plannerVariant: input.variant,
+    ablationPolicyVersion: PAPER_PLANNER_ABLATION_POLICY_VERSION,
+    message:
+      input.variant === 'without-branch'
+        ? 'Planner ablation without branch decomposition'
+        : 'Planner ablation without objective decomposition',
+  };
+}
 
 function createDirectActionBranchWithoutObjectiveDecomposition(
   branch: PlannerBranch,
@@ -277,7 +425,7 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
     subtaskDescription: (objectiveText) => `Upgrade residential tier toward: ${objectiveText}`,
     priorityOffset: 11,
     affinityAliases: ['residential', 'housing', 'home'],
-    keywords: ['residential', 'housing', 'home', 'house', 'tier', 'upgrade'],
+    keywords: ['residential', 'housing', 'home', 'house', 'upgrade'],
   },
   {
     domain: 'health',
@@ -436,6 +584,17 @@ function ruleMatchesContext(rule: StrategicDomainRule, context: PlanningTextCont
   }
 
   return rule.keywords.some((keyword) => keywordMatchesContext(keyword, context));
+}
+
+function selectStrategicDomainRules(input: {
+  readonly planningDomains?: readonly string[];
+  readonly context: PlanningTextContext;
+}): readonly StrategicDomainRule[] {
+  if (input.planningDomains !== undefined && input.planningDomains.length > 0) {
+    const planningDomains = new Set(input.planningDomains);
+    return STRATEGIC_DOMAIN_RULES.filter((rule) => planningDomains.has(rule.domain));
+  }
+  return STRATEGIC_DOMAIN_RULES.filter((rule) => ruleMatchesContext(rule, input.context));
 }
 
 function keywordMatchesContext(keyword: string, context: PlanningTextContext): boolean {

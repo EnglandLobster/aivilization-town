@@ -139,6 +139,89 @@ describe('branch plan progress repositories', () => {
       updatedAt: 300,
     });
   });
+
+  test('file repository suppresses semantically unchanged saves', async () => {
+    const rootDir = createTempRoot();
+    const repository = new FileBranchPlanProgressRepository({ rootDir });
+    const progress = await repository.getOrCreate({ planId: 'plan-1', agentId, createdAt: 100 });
+    const bytesAfterCreate = repository.getStorageDiagnostics().fileBytes;
+
+    await repository.save(structuredClone(progress));
+
+    expect(repository.getStorageDiagnostics()).toMatchObject({
+      completeRecordCount: 1,
+      fileBytes: bytesAfterCreate,
+      suppressedDuplicateSaveCount: 1,
+    });
+  });
+
+  test('file repository atomically compacts latest progress in explicit single-writer mode', async () => {
+    const rootDir = createTempRoot();
+    const repository = new FileBranchPlanProgressRepository({
+      rootDir,
+      singleWriterCompactionMaximumBytes: 1,
+    });
+    const created = await repository.getOrCreate({ planId: 'plan-1', agentId, createdAt: 100 });
+    const blocked = markSubtaskBlocked(created, {
+      subtaskId: 'work',
+      reason: 'repeated-failure: energy too low',
+      blockedAt: 200,
+    });
+
+    await repository.save(blocked);
+
+    expect(repository.getStorageDiagnostics()).toMatchObject({
+      completeRecordCount: 1,
+      hotRecordCount: 1,
+      compactionCount: 2,
+    });
+    expect(repository.getStorageDiagnostics().compactionReclaimedBytes).toBeGreaterThan(0);
+    await expect(repository.get({ planId: 'plan-1', agentId })).resolves.toEqual(blocked);
+  });
+
+  test('file repository refreshes its key index after another instance appends', async () => {
+    const rootDir = createTempRoot();
+    const reader = new FileBranchPlanProgressRepository({ rootDir });
+    const writer = new FileBranchPlanProgressRepository({ rootDir });
+
+    await expect(reader.get({ planId: 'external-plan', agentId })).resolves.toBeUndefined();
+    const created = await writer.getOrCreate({
+      planId: 'external-plan',
+      agentId,
+      createdAt: 500,
+    });
+
+    await expect(reader.get({ planId: 'external-plan', agentId })).resolves.toEqual(created);
+  });
+
+  test('file repository bounds hot progress and cold-reads an evicted plan after restart', async () => {
+    const rootDir = createTempRoot();
+    const repository = new FileBranchPlanProgressRepository({ rootDir });
+    for (let index = 0; index < 10; index += 1) {
+      await repository.getOrCreate({
+        planId: `plan-${index}`,
+        agentId,
+        createdAt: 100 + index,
+      });
+    }
+
+    const restarted = new FileBranchPlanProgressRepository({ rootDir });
+    expect(restarted.getStorageDiagnostics()).toMatchObject({
+      completeRecordCount: 10,
+      hotAgentCount: 1,
+      hotRecordCount: 4,
+      hotRecordsPerAgent: 4,
+      hasIncompleteTrailingRow: false,
+    });
+    await expect(restarted.get({ planId: 'plan-0', agentId })).resolves.toEqual({
+      planId: 'plan-0',
+      agentId,
+      completedSubtaskIds: [],
+      blockedSubtasks: [],
+      updatedAt: 100,
+    });
+    expect(restarted.getStorageDiagnostics().hotRecordCount).toBe(4);
+  });
 });
 
 function createTempRoot(): string {

@@ -63,6 +63,10 @@ describe('runtime supervisor API service', () => {
           calls.push({ method: 'getRunSession', traceId });
           return Promise.resolve(runSession);
         },
+        getResolvedRunManifest: (runManifestId) => {
+          calls.push({ method: 'getResolvedRunManifest', runManifestId });
+          return Promise.resolve({ runManifestId });
+        },
         requestRunSessionStop: (request) => {
           calls.push({ method: 'requestRunSessionStop', request });
           return Promise.resolve({
@@ -121,6 +125,9 @@ describe('runtime supervisor API service', () => {
     });
     await expect(service.getRuntimeRunSession({ traceId: 'op-run-200' })).resolves.toBe(runSession);
     await expect(
+      service.getRuntimeResolvedRunManifest({ runManifestId: 'resolved-run-manifest:sha256:abc' }),
+    ).resolves.toEqual({ runManifestId: 'resolved-run-manifest:sha256:abc' });
+    await expect(
       service.stopRuntimeRunSession({ traceId: 'op-run-200', requestedAt: 260 }),
     ).resolves.toEqual({
       ...runSession,
@@ -151,6 +158,10 @@ describe('runtime supervisor API service', () => {
       },
       { method: 'getOperationTrace', traceId: 'op-start-100' },
       { method: 'getRunSession', traceId: 'op-run-200' },
+      {
+        method: 'getResolvedRunManifest',
+        runManifestId: 'resolved-run-manifest:sha256:abc',
+      },
       {
         method: 'requestRunSessionStop',
         request: { traceId: 'op-run-200', requestedAt: 260 },
@@ -201,6 +212,10 @@ describe('runtime supervisor API service', () => {
           calls.push(traceId);
           return Promise.resolve(undefined);
         },
+        getResolvedRunManifest: (runManifestId) => {
+          calls.push(runManifestId);
+          return Promise.resolve(undefined);
+        },
         requestRunSessionStop: (request) => {
           calls.push(request.traceId);
           return Promise.resolve(undefined);
@@ -220,6 +235,9 @@ describe('runtime supervisor API service', () => {
       'traceId must not be empty',
     );
     await expect(service.getRuntimeRunSession({ traceId: '   ' })).rejects.toThrow(
+      'traceId must not be empty',
+    );
+    await expect(service.getRuntimeResolvedRunManifest({ runManifestId: '   ' })).rejects.toThrow(
       'traceId must not be empty',
     );
     await expect(

@@ -62,10 +62,11 @@ import {
   type TieredActionRepairResult,
 } from './actionRepair';
 import type { GlobalActionSynthesizer, GlobalSynthesisTrace } from './globalSynthesis';
-import type {
-  SocialDialogueGenerationTrace,
-  SocialDialogueGenerator,
-  SocialDialoguePayload,
+import {
+  parseSocialPlanningContextTrace,
+  type SocialDialogueGenerationTrace,
+  type SocialDialogueGenerator,
+  type SocialDialoguePayload,
 } from './socialDialogueGeneration';
 
 export type DomainMicroPlanner = {
@@ -1548,6 +1549,10 @@ function readSocialDialoguePayload(value: unknown): SocialDialoguePayload | unde
   if (turns === undefined) {
     return undefined;
   }
+  const planningContext = parseSocialPlanningContextTrace(record.planningContext);
+  if (record.planningContext !== undefined && planningContext === undefined) {
+    return undefined;
+  }
 
   return {
     targetAgentId: asAgentId(record.targetAgentId),
@@ -1555,6 +1560,7 @@ function readSocialDialoguePayload(value: unknown): SocialDialoguePayload | unde
     relationDelta: record.relationDelta,
     attitudeDelta: record.attitudeDelta,
     turns,
+    ...(planningContext === undefined ? {} : { planningContext }),
   };
 }
 

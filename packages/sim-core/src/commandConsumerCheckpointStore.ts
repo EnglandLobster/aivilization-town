@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AppendOnlyJsonLinesFile } from './appendOnlyJsonLinesFile';
 import type { CommandStreamName } from './commandStore';
 import type { SimulationTimestamp } from './time';
 
@@ -68,18 +69,23 @@ export class InMemoryCommandConsumerCheckpointStore implements CommandConsumerCh
 export class FileCommandConsumerCheckpointStore implements CommandConsumerCheckpointStore {
   private readonly rootDir: string;
   private readonly checkpointsPath: string;
+  private readonly checkpointsFile: AppendOnlyJsonLinesFile<CommandConsumerCheckpoint>;
+  private indexedCheckpoints: readonly CommandConsumerCheckpoint[] | undefined;
+  private indexedCheckpointCount = 0;
+  private readonly latestCheckpointByConsumerStream = new Map<string, CommandConsumerCheckpoint>();
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
     this.rootDir = input.rootDir;
     this.checkpointsPath = join(input.rootDir, 'command-consumer-checkpoints.jsonl');
     this.ensureStorage();
+    this.checkpointsFile = new AppendOnlyJsonLinesFile(this.checkpointsPath);
   }
 
   saveCheckpoint(checkpoint: CommandConsumerCheckpoint): CommandConsumerCheckpoint {
     const current = this.getLatestCheckpoint(checkpoint);
     assertCheckpointIsNotStale(current, checkpoint);
-    appendJsonLine(this.checkpointsPath, checkpoint);
+    this.checkpointsFile.append([checkpoint]);
     return checkpoint;
   }
 
@@ -87,16 +93,32 @@ export class FileCommandConsumerCheckpointStore implements CommandConsumerCheckp
     input: CommandConsumerCheckpointLookup,
   ): CommandConsumerCheckpoint | undefined {
     const key = createCheckpointKey(input);
-    return readJsonLines<CommandConsumerCheckpoint>(this.checkpointsPath)
-      .filter((checkpoint) => createCheckpointKey(checkpoint) === key)
-      .reduce<CommandConsumerCheckpoint | undefined>(
-        (latest, checkpoint) =>
-          latest === undefined ||
-          checkpoint.lastConsumedSequence >= latest.lastConsumedSequence
-            ? checkpoint
-            : latest,
-        undefined,
-      );
+    this.refreshLatestCheckpointIndex();
+    return this.latestCheckpointByConsumerStream.get(key);
+  }
+
+  private refreshLatestCheckpointIndex(): void {
+    const checkpoints = this.checkpointsFile.read();
+    if (checkpoints !== this.indexedCheckpoints) {
+      this.latestCheckpointByConsumerStream.clear();
+      this.indexedCheckpointCount = 0;
+      this.indexedCheckpoints = checkpoints;
+    }
+    for (let index = this.indexedCheckpointCount; index < checkpoints.length; index += 1) {
+      const checkpoint = checkpoints[index];
+      if (checkpoint === undefined) {
+        continue;
+      }
+      const key = createCheckpointKey(checkpoint);
+      const current = this.latestCheckpointByConsumerStream.get(key);
+      if (
+        current === undefined ||
+        checkpoint.lastConsumedSequence >= current.lastConsumedSequence
+      ) {
+        this.latestCheckpointByConsumerStream.set(key, checkpoint);
+      }
+    }
+    this.indexedCheckpointCount = checkpoints.length;
   }
 
   private ensureStorage(): void {
@@ -120,21 +142,6 @@ function assertCheckpointIsNotStale(
 
 function createCheckpointKey(input: CommandConsumerCheckpointLookup): string {
   return `${input.consumerId}:${input.streamName}`;
-}
-
-function appendJsonLine(path: string, value: unknown): void {
-  appendFileSync(path, `${JSON.stringify(value)}\n`);
-}
-
-function readJsonLines<TValue>(path: string): readonly TValue[] {
-  if (!existsSync(path)) {
-    return [];
-  }
-  const content = readFileSync(path, 'utf8').trim();
-  if (content.length === 0) {
-    return [];
-  }
-  return content.split('\n').map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

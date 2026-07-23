@@ -17,13 +17,23 @@ export type LocalWorldRuntimeLoopPausePredicate = (input: {
 
 export type LocalWorldRuntimeLoopInput = Omit<
   LocalWorldRuntimeStepInput,
-  'tickId' | 'issuedAt' | 'commandCheckpointUpdatedAt'
+  'tickId' | 'issuedAt' | 'commandCheckpointUpdatedAt' | 'recoveryToSequence'
 > & {
   readonly loopId: string;
   readonly firstTickIndex?: number;
   readonly tickCount: number;
   readonly issuedAtStart: number;
   readonly tickIntervalMs: number;
+  /**
+   * Authoritative sequence before the interrupted lifecycle batch began.
+   * Recovery advances this boundary after every replayed tick.
+   */
+  readonly firstTickRecoveryToSequence?: number;
+  /**
+   * Event-stream tail observed before recovery starts. Ticks remain in replay
+   * mode until their reconstructed stream version reaches this boundary.
+   */
+  readonly recoveryThroughSequence?: number;
   readonly pauseBeforeTick?: LocalWorldRuntimeLoopPausePredicate;
 };
 
@@ -63,6 +73,15 @@ export async function runLocalWorldRuntimeLoop(
   const steps: LocalWorldRuntimeLoopStep[] = [];
   const firstTickIndex = input.firstTickIndex ?? 1;
   let projection = input.initialProjection;
+  let recoveryToSequence = input.firstTickRecoveryToSequence;
+
+  if (
+    recoveryToSequence !== undefined &&
+    input.recoveryThroughSequence !== undefined &&
+    input.recoveryThroughSequence < recoveryToSequence
+  ) {
+    throw new Error('recoveryThroughSequence must not precede firstTickRecoveryToSequence');
+  }
 
   for (let offset = 0; offset < input.tickCount; offset += 1) {
     const tickIndex = firstTickIndex + offset;
@@ -84,13 +103,22 @@ export async function runLocalWorldRuntimeLoop(
 
     const tickId = createLoopTickId(input.loopId, tickIndex);
     const issuedAt = input.issuedAtStart + (tickIndex - 1) * input.tickIntervalMs;
+    const recoveringInterruptedPrefix =
+      recoveryToSequence !== undefined &&
+      (input.recoveryThroughSequence === undefined
+        ? offset === 0
+        : recoveryToSequence < input.recoveryThroughSequence);
     const result = await runLocalWorldRuntimeStep({
       ...input,
       tickId,
       issuedAt,
       commandCheckpointUpdatedAt: issuedAt,
+      ...(recoveringInterruptedPrefix ? { recoveryToSequence } : {}),
     });
     projection = result.projection;
+    if (recoveringInterruptedPrefix && result.status === 'ticked') {
+      recoveryToSequence = result.tick.streamVersion;
+    }
     const step = createLoopStep({ tickIndex, tickId, issuedAt, result });
     steps.push(step);
 

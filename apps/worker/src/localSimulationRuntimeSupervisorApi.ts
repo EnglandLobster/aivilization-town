@@ -7,6 +7,7 @@ import type {
   LocalSimulationRuntimeOperationTrace,
 } from './localSimulationRuntimeOperationTrace';
 import type { LocalSimulationRuntimeRunSessionState } from './localSimulationRuntimeRunSession';
+import type { LocalSimulationRuntimeResolvedRunManifest } from './localSimulationRuntimeResolvedRunManifest';
 import type {
   LocalSimulationRuntimeSupervisor,
   LocalSimulationRuntimeSupervisorPauseAllResult,
@@ -22,7 +23,8 @@ export type LocalSimulationRuntimeSupervisorApiService = RuntimeSupervisorApiSer
   LocalSimulationRuntimeSupervisorRunCyclesResult,
   LocalSimulationRuntimeOperationTrace,
   LocalSimulationRuntimeOperationCommand,
-  LocalSimulationRuntimeRunSessionState
+  LocalSimulationRuntimeRunSessionState,
+  LocalSimulationRuntimeResolvedRunManifest
 >;
 
 export function createLocalSimulationRuntimeSupervisorApiService(input: {

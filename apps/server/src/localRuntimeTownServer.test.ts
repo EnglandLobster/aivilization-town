@@ -9,7 +9,9 @@ import {
   type DomainMicroPlanner,
 } from '@aivilization/agent-runtime';
 import { type ScenarioPreset } from '@aivilization/content';
-import { asMemoryRecordId } from '@aivilization/memory';
+import { createTownStaticBearerCredentialDigest } from '@aivilization/api';
+import { asMemoryRecordId, createShortTermMemoryRecord } from '@aivilization/memory';
+import { createScriptedLlmProvider } from '@aivilization/llm';
 import {
   InMemoryRuntimeProfileRunReportRepository,
   createAgentCycleTrace,
@@ -20,6 +22,7 @@ import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import {
   createLocalRuntimeTownDaemonScenarioProfile,
+  createLocalRuntimeTownApi,
   createLocalRuntimeTownNodeHttpServer,
 } from './index';
 import {
@@ -59,6 +62,805 @@ afterEach(async () => {
 });
 
 describe('local runtime town HTTP gateway', () => {
+  test('exposes one content-addressed Agent directory across runtime partitions', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const server = await listen(runtime.server);
+
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/society/agents`),
+    ).resolves.toMatchObject({
+      schemaVersion: 'local-simulation-society-directory-v1',
+      manifestId: 'town-runtime',
+      simulationId: 'sim-1',
+      agents: [
+        { agentId: 'agent-1', ownerPartitionKey: 'world-main' },
+        { agentId: 'agent-2', ownerPartitionKey: 'world-east' },
+      ],
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/society/agents/agent-2`),
+    ).resolves.toMatchObject({
+      agentId: 'agent-2',
+      ownerPartitionKey: 'world-east',
+      publicState: { educationScore: 20, locationId: 'main-square' },
+    });
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/society/agents/missing-agent`),
+    ).rejects.toThrow('404');
+
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/society/interactions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operationId: 'http-agent-1-meets-agent-2',
+          initiatorAgentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          topic: 'town cooperation',
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Could we coordinate our work at the square?',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: 'Yes, I will share what the east side needs.',
+            },
+          ],
+          issuedAt: 100,
+        }),
+      }),
+    ).resolves.toMatchObject({
+      schemaVersion: 'local-simulation-social-interaction-v1',
+      operationId: 'http-agent-1-meets-agent-2',
+      sourcePartitionKey: 'world-main',
+      targetPartitionKey: 'world-east',
+      partitionStreamVersions: { 'world-main': 4, 'world-east': 4 },
+      idempotentReplay: false,
+    });
+    for (const partitionKey of ['world-main', 'world-east']) {
+      await expect(
+        fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/${partitionKey}/projection`),
+      ).resolves.toMatchObject({
+        streamVersion: 4,
+        projection: {
+          conversationRecords: [
+            {
+              initiatorAgentId: 'agent-1',
+              participantAgentIds: ['agent-1', 'agent-2'],
+            },
+          ],
+        },
+      });
+    }
+  });
+
+  test('creates a post-bootstrap agent through the durable HTTP command lifecycle', async () => {
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      canonicalAgents: true,
+    });
+    const server = await listen(runtime.server);
+
+    await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/world-main/agents`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'agent-created-ada',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+        }),
+      }),
+    ).resolves.toMatchObject({
+      command: {
+        id: 'api-register-sim-1-agent-created-ada',
+        actorId: 'agent-created-ada',
+        type: 'RegisterAgent',
+      },
+      result: { accepted: true, sequence: 1 },
+    });
+
+    await expect(
+      fetchJson(`${server.baseUrl}/runtime/run`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operationId: 'run-materialize-agent-registration',
+          requestedAt: 100,
+          cycleCount: 1,
+          cycleIntervalMs: 0,
+        }),
+      }),
+    ).resolves.toMatchObject({ outcome: 'succeeded', completedCycleCount: 1 });
+
+    const projection = requireProjection(
+      await fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/world-main/projection`),
+    );
+    expect(projection.projection.agents['agent-created-ada']).toMatchObject({
+      agentId: 'agent-created-ada',
+      registration: {
+        creatorId: 'participant-7',
+        displayName: 'Ada',
+        policyVersion: 'runtime-agent-registration-v3',
+        provenance: 'post-bootstrap-command',
+      },
+    });
+    await expect(
+      runtime.host.registry
+        .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+        .storage.longTermProfileRepository.getOrCreate(asAgentId('agent-created-ada')),
+    ).resolves.toMatchObject({ agentId: 'agent-created-ada' });
+    const eventFeed = (await fetchJson(
+      `${server.baseUrl}/simulations/sim-1/partitions/world-main/events?limit=10`,
+    )) as { readonly events: readonly unknown[] };
+    expect(eventFeed.events[0]).toMatchObject({
+      type: 'AgentRegistered',
+      commandId: 'api-register-sim-1-agent-created-ada',
+      payload: { creatorId: 'participant-7' },
+    });
+    expect(
+      eventFeed.events.some((event) => {
+        if (typeof event !== 'object' || event === null || !('type' in event)) return false;
+        if (event.type !== 'EducationChanged' || !('payload' in event)) return false;
+        const payload = event.payload;
+        return (
+          typeof payload === 'object' &&
+          payload !== null &&
+          'agentId' in payload &&
+          payload.agentId === 'agent-created-ada'
+        );
+      }),
+    ).toBe(true);
+  });
+
+  test('authenticates participants, binds ownership, enforces quota, and reserves operations for operators', async () => {
+    const participantToken = 'participant-token-0000000000000000000001';
+    const otherParticipantToken = 'participant-token-0000000000000000000002';
+    const operatorToken = 'operator-token-0000000000000000000000001';
+    const runtime = await createLocalRuntimeTownNodeHttpServer({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      canonicalAgents: true,
+      participantAccess: {
+        mode: 'authenticated',
+        maxAgentsPerParticipant: 1,
+        credentials: (
+          [
+            {
+              keyId: 'participant-7-primary',
+              subjectId: 'participant-7',
+              token: participantToken,
+              roles: ['participant'],
+            },
+            {
+              keyId: 'participant-8-primary',
+              subjectId: 'participant-8',
+              token: otherParticipantToken,
+              roles: ['participant'],
+            },
+            {
+              keyId: 'operator-primary',
+              subjectId: 'operator-1',
+              token: operatorToken,
+              roles: ['operator'],
+            },
+          ] as const
+        ).map(createTownStaticBearerCredentialDigest),
+      },
+    });
+    const server = await listen(runtime.server);
+    const agentsUrl = `${server.baseUrl}/simulations/sim-1/partitions/world-main/agents`;
+
+    const anonymous = await fetch(agentsUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agentId: 'agent-owned',
+        displayName: 'Owned',
+        issuedAt: 100,
+        consentPolicyVersion: 'participant-data-consent-v1',
+      }),
+    });
+    expect(anonymous.status).toBe(401);
+    await expect(anonymous.json()).resolves.toMatchObject({
+      error: { code: 'authentication_required' },
+    });
+
+    const registration = await fetch(agentsUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${participantToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'agent-owned',
+        displayName: 'Owned',
+        issuedAt: 100,
+        consentPolicyVersion: 'participant-data-consent-v1',
+      }),
+    });
+    expect(registration.status).toBe(202);
+    await expect(registration.json() as Promise<unknown>).resolves.toMatchObject({
+      command: {
+        type: 'RegisterAgent',
+        payload: { creatorId: 'participant-7', agentId: 'agent-owned' },
+      },
+    });
+
+    const operatorRun = await fetch(`${server.baseUrl}/runtime/run`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${operatorToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationId: 'run-authenticated-registration',
+        requestedAt: 100,
+        cycleCount: 1,
+        cycleIntervalMs: 0,
+      }),
+    });
+    expect(operatorRun.status).toBe(202);
+
+    const session = await fetch(`${server.baseUrl}/access/session`, {
+      headers: { authorization: `Bearer ${participantToken}` },
+    });
+    await expect(session.json()).resolves.toMatchObject({
+      policy: {
+        policyVersion: 'participant-access-control-v2',
+        mode: 'authenticated',
+        maxAgentsPerParticipant: 1,
+      },
+      authentication: {
+        authenticated: true,
+        principal: { subjectId: 'participant-7', roles: ['participant'] },
+      },
+    });
+
+    const objectiveUrl = `${server.baseUrl}/simulations/sim-1/partitions/world-main/objectives`;
+    const ownObjective = await fetch(objectiveUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${participantToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'agent-owned',
+        objectiveId: 'objective-owned',
+        statement: 'Build a durable future.',
+        priority: 10,
+        affinityTags: ['education'],
+        issuedAt: 200,
+        consentPolicyVersion: 'participant-data-consent-v1',
+      }),
+    });
+    expect(ownObjective.status).toBe(202);
+
+    const postObjectiveCycle = await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .lifecycle.start({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt: 200,
+      });
+    if ('loop' in postObjectiveCycle && postObjectiveCycle.loop.status === 'command-drain-failed') {
+      const failedDrain = postObjectiveCycle.loop.failedStep.result.commandDrain;
+      if (failedDrain.status === 'failed') throw failedDrain.error;
+      throw new Error('command-drain-failed lifecycle must expose a failed command drain');
+    }
+    expect(postObjectiveCycle.status).toBe('completed');
+
+    const crossOwnerObjective = await fetch(objectiveUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${otherParticipantToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'agent-owned',
+        objectiveId: 'objective-spoofed',
+        statement: 'Take over another participant agent.',
+        priority: 10,
+        affinityTags: [],
+        issuedAt: 200,
+      }),
+    });
+    expect(crossOwnerObjective.status).toBe(403);
+    await expect(crossOwnerObjective.json()).resolves.toMatchObject({
+      error: { code: 'agent_not_owned' },
+    });
+
+    const participantRuntimeMutation = await fetch(`${server.baseUrl}/runtime/run`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${participantToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ requestedAt: 200, cycleCount: 1 }),
+    });
+    expect(participantRuntimeMutation.status).toBe(403);
+    await expect(participantRuntimeMutation.json()).resolves.toMatchObject({
+      error: { code: 'insufficient_role' },
+    });
+
+    const quota = await fetch(agentsUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${participantToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId: 'agent-over-quota',
+        displayName: 'Extra',
+        issuedAt: 200,
+        consentPolicyVersion: 'participant-data-consent-v1',
+      }),
+    });
+    expect(quota.status).toBe(429);
+    await expect(quota.json()).resolves.toMatchObject({
+      error: { code: 'participant_agent_quota_reached' },
+    });
+
+    const projection = requireProjection(
+      await fetchJson(`${server.baseUrl}/simulations/sim-1/partitions/world-main/projection`),
+    );
+    expect(projection.projection.agents['agent-owned']).toMatchObject({
+      registration: {
+        creatorId: 'participant-7',
+        policyVersion: 'runtime-agent-registration-v3',
+        humanAttribution: {
+          principalSubjectId: 'participant-7',
+          accessPolicyVersion: 'participant-access-control-v2',
+          consentPolicyVersion: 'participant-data-consent-v1',
+        },
+      },
+    });
+    await expect(
+      runtime.host.registry
+        .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+        .storage.steeringTraceRepository.query({
+          simulationId: 'sim-1',
+          agentId: 'agent-owned',
+        }),
+    ).resolves.toMatchObject([
+      {
+        objectiveId: 'objective-owned',
+        humanAttribution: {
+          principalSubjectId: 'participant-7',
+          principalRoles: ['participant'],
+          accessPolicyVersion: 'participant-access-control-v2',
+          consentPolicyVersion: 'participant-data-consent-v1',
+        },
+      },
+    ]);
+  });
+
+  test('applies paper planner ablations after the same configured base compiler', async () => {
+    const compiledObjectives: string[] = [];
+
+    for (const plannerVariant of ['without-branch', 'without-objective-decomposition'] as const) {
+      const runtime = await createLocalRuntimeTownApi({
+        rootDir: createRootDir(),
+        bootstrappedAt: 100,
+        manifest: createManifest(),
+        scenarioPresets: createScenarioPresets(),
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        canonicalAgents: true,
+        plannerVariant,
+        strategicPlanCompiler: ({ objective }) => {
+          compiledObjectives.push(objective.statement);
+          return {
+            plan: createBranchPlan({
+              objective: objective.statement,
+              branches: [
+                {
+                  id: 'development',
+                  objective: 'Build capability.',
+                  subtasks: [
+                    {
+                      id: 'study',
+                      description: 'Study before working.',
+                      basePriority: 10,
+                      signalKeys: ['education'],
+                    },
+                  ],
+                },
+                {
+                  id: 'employment',
+                  objective: 'Secure income.',
+                  subtasks: [
+                    {
+                      id: 'apply-for-work',
+                      description: 'Apply for suitable work.',
+                      basePriority: 9,
+                      signalKeys: ['work'],
+                    },
+                  ],
+                },
+              ],
+            }),
+            planningTrace: {
+              status: 'accepted',
+              source: 'llm',
+              requestId: 'controlled-base-request',
+              providerId: 'controlled-provider',
+              model: 'controlled-model',
+              usage: {
+                inputTokens: 100,
+                outputTokens: 40,
+                totalTokens: 140,
+                estimatedCostMicros: 12,
+              },
+            },
+          };
+        },
+        ambientObservationMemory: { enabled: false },
+      });
+      const backend = runtime.host.registry.getBackend({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+      });
+
+      await backend.lifecycle.start({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt: 200,
+      });
+      const record = await backend.storage.planRepository.require({
+        planId: 'auto-objective-agent-1-200-1',
+        agentId: agentOne,
+      });
+
+      expect(record.planningTrace).toMatchObject({
+        status: 'accepted',
+        source: 'llm',
+        requestId: 'controlled-base-request',
+        providerId: 'controlled-provider',
+        model: 'controlled-model',
+        plannerVariant,
+        ablationPolicyVersion: 'paper-planner-ablation-v1',
+        usage: { totalTokens: 140, estimatedCostMicros: 12 },
+      });
+      if (plannerVariant === 'without-branch') {
+        expect(record.plan.branches).toHaveLength(1);
+        expect(record.plan.branches[0]).toMatchObject({ id: 'without-branch' });
+        expect(record.plan.branches[0]?.subtasks.map((subtask) => subtask.id)).toEqual([
+          'study',
+          'apply-for-work',
+        ]);
+      } else {
+        expect(record.plan.branches).toHaveLength(2);
+        expect(
+          record.plan.branches.every(
+            (branch) =>
+              branch.id.startsWith('without-objective-decomposition-') &&
+              branch.subtasks.length === 1,
+          ),
+        ).toBe(true);
+      }
+    }
+
+    expect(compiledObjectives).toEqual([
+      'Improve education to qualify for better town opportunities.',
+      'Improve education to qualify for better town opportunities.',
+    ]);
+  });
+
+  test('builds autonomous agents from durable objectives through the canonical provider', async () => {
+    const runtime = await createLocalRuntimeTownApi({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      canonicalAgents: true,
+      ambientObservationMemory: { enabled: false },
+    });
+    const backend = runtime.host.registry.getBackend({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+
+    const result = await backend.lifecycle.start({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      loop: {
+        steps: [
+          {
+            tick: {
+              traces: [
+                {
+                  agentId: agentOne,
+                  globalSynthesis: {
+                    status: 'deterministic',
+                    source: 'deterministic',
+                    message: 'global-action-synthesis-v1',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    await expect(backend.storage.intentionRepository.getOrCreate(agentOne)).resolves.toMatchObject({
+      activeObjective: {
+        id: 'auto-objective-agent-1-200-1',
+        statement: 'Improve education to qualify for better town opportunities.',
+      },
+    });
+    await expect(
+      backend.storage.planRepository.require({
+        planId: 'auto-objective-agent-1-200-1',
+        agentId: agentOne,
+      }),
+    ).resolves.toMatchObject({
+      plan: { objective: 'Improve education to qualify for better town opportunities.' },
+      strategicContext: {
+        policyVersion: 'strategic-plan-renewal-v3',
+        physiologyRegimes: ['stable'],
+      },
+    });
+    await expect(
+      backend.storage.objectiveRenewalTraceRepository.query({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        agentId: agentOne,
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([
+      {
+        objectiveId: 'auto-objective-agent-1-200-1',
+        selectedCandidateId: 'education-growth',
+      },
+    ]);
+  });
+
+  test('rejects ambiguous canonical and caller-owned agent provider wiring', async () => {
+    const baseInput = {
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }: { readonly action: AtomicActionProposal }) => ({
+        status: 'accepted' as const,
+        action,
+      }),
+      agents: [],
+      canonicalAgents: true as const,
+    };
+
+    await expect(
+      createLocalRuntimeTownApi({
+        ...baseInput,
+        agentProvider: () => [],
+      }),
+    ).rejects.toThrow('canonicalAgents cannot be combined with agentProvider');
+    await expect(
+      createLocalRuntimeTownApi({
+        ...baseInput,
+        agents: [
+          {
+            agentId: agentOne,
+            observedStateSummary: 'static agent',
+            plan: createStudyPlan(),
+            signals: [],
+            microPlanners: [],
+            simulate: ({ action }) => ({ status: 'accepted' as const, action }),
+          },
+        ],
+      }),
+    ).rejects.toThrow('canonicalAgents cannot be combined with static agents');
+  });
+
+  test('applies configured structured LLM stages to canonical server agents', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-server-llm',
+      responses: Array.from({ length: 4 }, () => ({
+        providerId: 'scripted-server-llm',
+        model: 'server-test-model',
+        content: '{}',
+        finishReason: 'stop' as const,
+        usage: { inputTokens: 4, outputTokens: 2 },
+      })),
+    });
+    const studyAction: AtomicActionProposal = {
+      id: 'study-with-llm-fallback',
+      description: 'Study with a validated deterministic fallback.',
+      commandType: 'AgentStudy',
+      payload: { durationSeconds: 60, educationRatePerSecond: 0.01 },
+    };
+    const runtime = await createLocalRuntimeTownApi({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'energy=50 satiety=80 health=100 education=10',
+          plan: createStudyPlan(),
+          signals: [{ key: 'study', weight: 5 }],
+          microPlanners: [studyMicroPlanner(studyAction)],
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ambientObservationMemory: { enabled: false },
+      llm: {
+        provider: scripted.provider,
+        model: 'server-test-model',
+        maxAttempts: 1,
+        pricing: { inputTokenCostMicros: 2, outputTokenCostMicros: 3 },
+        stages: {
+          'strategic-planning': false,
+          'reactive-correction': false,
+          'social-dialogue': false,
+          'ambient-reaction': false,
+          'memory-reflection': false,
+          'social-model-synthesis': false,
+        },
+      },
+    });
+    const result = await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .lifecycle.start({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt: 200,
+      });
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      loop: {
+        steps: [
+          {
+            tick: {
+              traces: [
+                {
+                  contextualPrioritization: {
+                    status: 'fallback',
+                    source: 'deterministic-fallback',
+                    providerId: 'scripted-server-llm',
+                  },
+                  actionSequenceGeneration: [
+                    {
+                      status: 'fallback',
+                      source: 'deterministic-fallback',
+                      providerId: 'scripted-server-llm',
+                    },
+                  ],
+                  globalSynthesis: {
+                    status: 'fallback',
+                    source: 'deterministic-fallback',
+                    providerId: 'scripted-server-llm',
+                  },
+                  replanningDecisionTrace: {
+                    status: 'fallback',
+                    source: 'deterministic-fallback',
+                    providerId: 'scripted-server-llm',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    expect(scripted.getRequests().map((request) => request.schemaName)).toEqual([
+      'aivilization_subtask_prioritization',
+      'aivilization_action_sequence_generation',
+      'aivilization_global_synthesis',
+      'aivilization_replanning_decision',
+    ]);
+  });
+
+  test('enables canonical memory consolidation without caller wiring', async () => {
+    const runtime = await createLocalRuntimeTownApi({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    const backend = runtime.host.registry.getBackend({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    await backend.storage.shortTermMemoryRepository.appendMany(
+      [1, 2, 3].map((index) =>
+        createShortTermMemoryRecord({
+          id: `canonical-study-${index}`,
+          agentId: agentOne,
+          kind: 'action',
+          status: 'succeeded',
+          summary: 'Completed a focused study session.',
+          occurredAt: 100 + index,
+          importanceScore: 0.6,
+          source: { eventIds: [] },
+          tags: ['study'],
+          consolidationHint: {
+            kind: 'habit',
+            patternKey: 'focused-study',
+            statement: 'Studies in focused sessions.',
+          },
+        }),
+      ),
+    );
+
+    const result = await backend.lifecycle.start({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      state: {
+        lastMemoryConsolidationStatus: 'succeeded',
+        lastMemoryConsolidationAt: 200,
+        lastMemoryConsolidationPatchCount: 1,
+        lastMemoryConsolidationCursorCount: 1,
+      },
+      memoryConsolidation: {
+        patchCount: 1,
+        skipped: [],
+      },
+    });
+    await expect(
+      backend.storage.longTermProfileRepository.getOrCreate(agentOne),
+    ).resolves.toMatchObject({
+      habits: [
+        expect.objectContaining({
+          key: 'focused-study',
+          provenanceRecordIds: ['canonical-study-1', 'canonical-study-2', 'canonical-study-3'],
+        }),
+      ],
+    });
+  });
+
   test('boots the smoke scale profile through the local HTTP gateway', async () => {
     const profile = createLocalRuntimeTownDaemonScenarioProfile('smoke-25');
     const runtime = await createLocalRuntimeTownNodeHttpServer({
@@ -178,6 +980,47 @@ describe('local runtime town HTTP gateway', () => {
       runtimeProfileRunReports: profileRunReportRepository,
     });
     const server = await listen(runtime.server);
+
+    const uiResponse = await fetch(`${server.baseUrl}/`);
+    expect(uiResponse.status).toBe(200);
+    expect(uiResponse.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(uiResponse.headers.get('content-security-policy')).toContain("default-src 'self'");
+    const uiHtml = await uiResponse.text();
+    expect(uiHtml).toContain('Aivilization Observatory');
+    expect(uiHtml).toContain('aria-orientation="horizontal"');
+    expect(uiHtml).toContain('Mission control');
+    expect(uiHtml).toContain('id="view-description"');
+    expect(uiHtml).toContain('Access & ownership');
+    expect(uiHtml).toContain('Semantic town layout · not geographic');
+    expect(uiHtml).toContain('src="/ui/assets/town-map.png"');
+    const scriptResponse = await fetch(`${server.baseUrl}/ui/app.js`);
+    expect(scriptResponse.status).toBe(200);
+    expect(scriptResponse.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+    const script = await scriptResponse.text();
+    expect(script).toContain('loadAgentCognition');
+    expect(script).toContain('aivilization.access-token');
+    expect(script).toContain('readViewFromLocation');
+    expect(script).toContain("window.history.pushState(null, '', `#${view}`)");
+    expect(script).toContain("'ArrowRight'");
+    expect(script).toContain('renderTownMap');
+    expect(script).toContain('data-location-id');
+    const townMapResponse = await fetch(`${server.baseUrl}/ui/assets/town-map.png`);
+    expect(townMapResponse.status).toBe(200);
+    expect(townMapResponse.headers.get('content-type')).toBe('image/png');
+    expect(townMapResponse.headers.get('cache-control')).toBe(
+      'public, max-age=31536000, immutable',
+    );
+    const townMapBytes = new Uint8Array(await townMapResponse.arrayBuffer());
+    expect([...townMapBytes.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    await runtime.host.registry
+      .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
+      .storage.planRepository.save({
+        planId: 'plan-agent-1-education',
+        agentId: agentOne,
+        plan: createStudyPlan(),
+        createdAt: 150,
+        updatedAt: 150,
+      });
 
     const status = await fetchJson(`${server.baseUrl}/runtime/status`);
     expect(status).toMatchObject({
@@ -548,6 +1391,18 @@ describe('local runtime town HTTP gateway', () => {
       succeededPartitionCount: 2,
       failedPartitionCount: 0,
     });
+    await expect(
+      fetchJson(
+        `${server.baseUrl}/simulations/sim-1/partitions/world-main/branch-plans?agentId=agent-1&limit=1`,
+      ),
+    ).resolves.toMatchObject([
+      {
+        agentId: 'agent-1',
+        plan: {
+          objective: 'develop education',
+        },
+      },
+    ]);
 
     const eventFeed = requireEventFeed(
       await fetchJson(
@@ -768,6 +1623,8 @@ describe('local runtime town HTTP gateway', () => {
     });
     await runQueueRepository.fail({
       jobId: 'job-dead-server-1',
+      workerId: 'worker-dead',
+      attemptNumber: 1,
       failedAt: 830,
       maxAttempts: 1,
       error: { name: 'Error', message: 'server-side failure' },

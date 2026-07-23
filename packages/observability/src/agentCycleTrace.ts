@@ -200,6 +200,31 @@ export type AgentCycleSocialDialogueGenerationTrace = {
   };
   readonly actionId: string;
   readonly targetAgentId: string;
+  readonly topic?: string;
+  readonly policyVersion?: string;
+  readonly planningContext?: {
+    readonly policyVersion: string;
+    readonly targetSelection: {
+      readonly selectedAgentId: string;
+      readonly candidates: readonly {
+        readonly agentId: string;
+        readonly score: {
+          readonly relationshipHistory: number;
+          readonly goalRelevance: number;
+          readonly economicNeed: number;
+          readonly personalityFit: number;
+          readonly worldContext: number;
+          readonly total: number;
+        };
+      }[];
+      readonly tieBreak: 'agent-id-ascending';
+    };
+    readonly topicSelection: {
+      readonly topic: string;
+      readonly source: 'config' | 'economic-need' | 'goal' | 'profile' | 'world-context';
+      readonly rationale: string;
+    };
+  };
   readonly requestId?: string;
   readonly providerId?: string;
   readonly model?: string;

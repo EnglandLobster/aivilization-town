@@ -43,6 +43,15 @@ export type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace = {
   readonly model?: string;
   readonly failureReason?: string;
   readonly message?: string;
+  readonly attempts?: readonly {
+    readonly attemptIndex: number;
+    readonly status: string;
+    readonly providerId: string;
+    readonly model: string;
+    readonly message: string;
+    readonly usage: LocalSimulationRuntimeOperationLlmUsage;
+  }[];
+  readonly usage?: LocalSimulationRuntimeOperationLlmUsage;
   readonly shortTermMemoryContext?: unknown;
   readonly longTermProfileContext?: unknown;
   readonly observedStateSummary?: string;
@@ -50,6 +59,13 @@ export type LocalSimulationRuntimeOperationMemorySynthesisProviderTrace = {
   readonly choices?: readonly unknown[];
   readonly patches?: readonly unknown[];
   readonly reflections?: readonly unknown[];
+};
+
+export type LocalSimulationRuntimeOperationLlmUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly estimatedCostMicros: number;
 };
 
 export type LocalSimulationRuntimeOperationMemoryConsolidationTrace = {
@@ -100,6 +116,7 @@ export type LocalSimulationRuntimeOperationPartitionTrace =
 export type LocalSimulationRuntimeOperationTrace = {
   readonly traceId: string;
   readonly manifestId: string;
+  readonly runManifestId?: string;
   readonly command: LocalSimulationRuntimeOperationCommand;
   readonly requestedAt: SimulationTimestamp;
   readonly recordedAt: SimulationTimestamp;

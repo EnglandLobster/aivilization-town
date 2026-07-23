@@ -152,6 +152,69 @@ describe('long-term memory consolidation', () => {
     ]);
   });
 
+  test('preserves received claims as source-qualified beliefs without treating them as facts', () => {
+    const agentId = asAgentId('agent-1');
+    const targetAgentId = asAgentId('agent-2');
+    const record = createShortTermMemoryRecord({
+      id: 'social-claim-1',
+      agentId,
+      kind: 'social-interaction',
+      status: 'succeeded',
+      summary: 'Agent-2 discussed the harvest.',
+      occurredAt: 1,
+      importanceScore: 0.6,
+      source: { eventIds: [] },
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId,
+        relationDelta: -0.2,
+        attitudeDelta: -0.25,
+        summary: 'Agent-2 discussed the harvest.',
+        knowledgeClaims: [
+          {
+            sourceAgentId: targetAgentId,
+            topic: 'wheat harvest',
+            statement: 'The wheat harvest has failed.',
+            status: 'suspected-misinformation',
+          },
+        ],
+      },
+    });
+
+    expect(
+      proposeLongTermMemoryPatches({
+        agentId,
+        records: [record],
+        minPatternCount: 3,
+        proposedAt: 35,
+      }),
+    ).toEqual([
+      {
+        id: 'ltm-patch-agent-1-belief-social-knowledge-agent-2:wheat-harvest-35',
+        agentId,
+        section: 'beliefs',
+        key: 'social-knowledge:agent-2:wheat-harvest',
+        statement:
+          'agent-2 supplied suspected misinformation about wheat harvest: "The wheat harvest has failed.".',
+        confidence: 0.6,
+        provenanceRecordIds: ['social-claim-1'],
+        proposedAt: 35,
+      },
+      {
+        id: 'ltm-patch-agent-1-social-agent-2-35',
+        agentId,
+        section: 'socialRecords',
+        key: 'agent-2',
+        statement: 'Agent-2 discussed the harvest.',
+        confidence: 0.6,
+        provenanceRecordIds: ['social-claim-1'],
+        proposedAt: 35,
+        relationDelta: -0.2,
+        attitudeDelta: -0.25,
+      },
+    ]);
+  });
+
   test('can propose non-social patches without leaking social records', () => {
     const agentId = asAgentId('agent-1');
     const targetAgentId = asAgentId('agent-2');

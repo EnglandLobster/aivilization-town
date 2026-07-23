@@ -218,6 +218,58 @@ describe('world simulation time', () => {
     });
   });
 
+  test('uses the resolved experiment seed to reproduce and vary stochastic illness outcomes', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-seeded-illness'),
+          locationId: null,
+          physiology: { energy: 80, satiety: 80, health: 90 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      clock: { now: 1000, tickDurationMs: 3_600_000 },
+    });
+    const command = createCommandEnvelope({
+      id: 'command-time-seeded-illness',
+      simulationId: 'sim-seeded',
+      source: 'system',
+      type: 'AdvanceSimulationTime',
+      payload: { deltaMs: 3_600_000 },
+      issuedAt: 1000,
+    });
+    const dispatchWithSeed = (randomSeed: string) =>
+      dispatchWorldCommand({
+        command,
+        projection,
+        policies: {
+          ...policies,
+          randomSeed,
+          stochasticIllness: {
+            illnessProbabilityPercentPerHour: 50,
+            healthDamage: 12,
+            minHealth: 10,
+          },
+        },
+        nextSequence: 7,
+      });
+
+    expect(dispatchWithSeed('experiment-seed-0')).toEqual(dispatchWithSeed('experiment-seed-0'));
+
+    const physiologySignatures = Array.from({ length: 16 }, (_, index) =>
+      dispatchWithSeed(`experiment-seed-${index}`)
+        .filter((event) => event.type === 'PhysiologyChanged')
+        .map((event) => JSON.stringify(event.payload)),
+    );
+    expect(new Set(physiologySignatures.map((signature) => JSON.stringify(signature))).size).toBe(
+      2,
+    );
+  });
+
   test('composes sleep deprivation before stochastic illness in one time tick', () => {
     const projection = createWorldProjection({
       agents: [

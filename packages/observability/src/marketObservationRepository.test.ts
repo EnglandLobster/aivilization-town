@@ -1,10 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import {
   FileMarketObservationRepository,
   InMemoryMarketObservationRepository,
+  MARKET_OBSERVATION_RECENT_TRADE_ID_LIMIT,
+  MARKET_OBSERVATION_TRADE_BLOOM_BIT_COUNT,
+  createMarketObservationStoragePolicyManifest,
   type MarketOhlcBar,
   type MarketTradeObservation,
 } from './index';
@@ -46,7 +49,7 @@ describe('market observation repositories', () => {
     ).resolves.toMatchObject([{ observationId: 'trade-1', price: 10 }]);
   });
 
-  test('records OHLC bars idempotently and queries by commodity interval', async () => {
+  test('upserts evolving OHLC bars and queries the latest revision by commodity interval', async () => {
     const repository = new InMemoryMarketObservationRepository();
 
     await repository.recordOhlcBars([
@@ -70,7 +73,7 @@ describe('market observation repositories', () => {
 
     expect(bars.map((bar) => [bar.barId, bar.closePrice])).toEqual([
       ['bar-1', 10],
-      ['bar-2', 12],
+      ['bar-2', 999],
     ]);
   });
 
@@ -81,6 +84,9 @@ describe('market observation repositories', () => {
 
     await repository.recordTrades([createTrade({ observationId: 'trade-file', price: 14 })]);
     await repository.recordOhlcBars([createOhlcBar({ barId: 'bar-file', closePrice: 14 })]);
+    await repository.recordOhlcBars([
+      createOhlcBar({ barId: 'bar-file', closePrice: 16, tradeCount: 2 }),
+    ]);
 
     const reopened = new FileMarketObservationRepository({ rootDir });
 
@@ -88,8 +94,162 @@ describe('market observation repositories', () => {
       { observationId: 'trade-file', price: 14 },
     ]);
     await expect(reopened.queryOhlcBars({ simulationId: 'sim-market' })).resolves.toMatchObject([
-      { barId: 'bar-file', closePrice: 14 },
+      { barId: 'bar-file', closePrice: 16, tradeCount: 2 },
     ]);
+  });
+
+  test('preserves global chronology and keeps legacy participant-less JSONL readable', async () => {
+    const memory = new InMemoryMarketObservationRepository();
+    await memory.recordTrades([
+      createTrade({
+        observationId: 'apple-later',
+        commodityId: 'Apple',
+        sourceSequence: 2,
+        observedAt: 20,
+      }),
+      createTrade({
+        observationId: 'fish-earlier',
+        commodityId: 'Fish',
+        sourceSequence: 1,
+        observedAt: 10,
+      }),
+    ]);
+    await expect(memory.queryTrades({ simulationId: 'sim-market' })).resolves.toMatchObject([
+      { observationId: 'fish-earlier' },
+      { observationId: 'apple-later' },
+    ]);
+
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-market-observations-legacy-'));
+    tempDirs.push(rootDir);
+    new FileMarketObservationRepository({ rootDir });
+    writeFileSync(
+      join(rootDir, 'market-trade-observations.jsonl'),
+      `${JSON.stringify({
+        observationId: 'legacy-trade',
+        simulationId: 'sim-market',
+        commodityId: 'Apple',
+        sourceEventId: 'legacy-event',
+        sourceSequence: 1,
+        side: 'buy',
+        observedAt: 10,
+        price: 10,
+        commodityQuantity: 1,
+        currencyQuantity: 10,
+      })}\n`,
+      'utf8',
+    );
+    const legacy = new FileMarketObservationRepository({ rootDir });
+    await expect(legacy.queryTrades({ simulationId: 'sim-market' })).resolves.toEqual([
+      {
+        observationId: 'legacy-trade',
+        simulationId: 'sim-market',
+        commodityId: 'Apple',
+        sourceEventId: 'legacy-event',
+        sourceSequence: 1,
+        side: 'buy',
+        observedAt: 10,
+        price: 10,
+        commodityQuantity: 1,
+        currencyQuantity: 10,
+      },
+    ]);
+  });
+
+  test('uses a bounded trade index while preserving cold idempotency and cross-instance appends', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-market-observations-indexed-'));
+    tempDirs.push(rootDir);
+    const first = new FileMarketObservationRepository({ rootDir });
+    const initialCount = MARKET_OBSERVATION_RECENT_TRADE_ID_LIMIT + 8;
+    await first.recordTrades(
+      Array.from({ length: initialCount }, (_, index) =>
+        createTrade({
+          observationId: `indexed-trade-${index}`,
+          sourceSequence: index + 1,
+          observedAt: index,
+        }),
+      ),
+    );
+
+    const reopened = new FileMarketObservationRepository({ rootDir });
+    expect(reopened.getStorageDiagnostics()).toMatchObject({
+      tradeRecordCount: initialCount,
+      recentTradeIdCount: MARKET_OBSERVATION_RECENT_TRADE_ID_LIMIT,
+      recentTradeIdLimit: MARKET_OBSERVATION_RECENT_TRADE_ID_LIMIT,
+      tradeBloomBitCount: MARKET_OBSERVATION_TRADE_BLOOM_BIT_COUNT,
+    });
+
+    await reopened.recordTrades([
+      createTrade({ observationId: 'indexed-trade-0', sourceSequence: 1, observedAt: 0 }),
+    ]);
+    expect(reopened.getStorageDiagnostics().tradeRecordCount).toBe(initialCount);
+
+    await first.recordTrades([
+      createTrade({
+        observationId: 'external-append',
+        sourceSequence: initialCount + 1,
+        observedAt: initialCount,
+      }),
+    ]);
+    await expect(
+      reopened.queryTrades({
+        simulationId: 'sim-market',
+        fromObservedAt: initialCount,
+      }),
+    ).resolves.toMatchObject([{ observationId: 'external-append' }]);
+    expect(reopened.getStorageDiagnostics().tradeRecordCount).toBe(initialCount + 1);
+  });
+
+  test('maintains the latest OHLC projection incrementally and fails closed on a partial row', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-market-observations-partial-'));
+    tempDirs.push(rootDir);
+    const repository = new FileMarketObservationRepository({ rootDir });
+    await repository.recordOhlcBars([
+      createOhlcBar({ barId: 'bar-incremental', closePrice: 10 }),
+      createOhlcBar({ barId: 'bar-incremental', closePrice: 12, tradeCount: 2 }),
+      createOhlcBar({ barId: 'bar-incremental', closePrice: 12, tradeCount: 2 }),
+    ]);
+    expect(repository.getStorageDiagnostics()).toMatchObject({
+      latestOhlcBarCount: 1,
+      ohlcRevisionCount: 2,
+    });
+    await expect(repository.queryOhlcBars({ simulationId: 'sim-market' })).resolves.toMatchObject([
+      { barId: 'bar-incremental', closePrice: 12, tradeCount: 2 },
+    ]);
+
+    appendFileSync(join(rootDir, 'market-trade-observations.jsonl'), '{"observationId":');
+    expect(() => repository.getStorageDiagnostics()).toThrow('incomplete trailing row');
+  });
+
+  test('fails closed when an external writer duplicates an authoritative trade ID', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-market-observations-duplicate-'));
+    tempDirs.push(rootDir);
+    const repository = new FileMarketObservationRepository({ rootDir });
+    const trade = createTrade({ observationId: 'externally-duplicated-trade' });
+    await repository.recordTrades([trade]);
+
+    appendFileSync(
+      join(rootDir, 'market-trade-observations.jsonl'),
+      `${JSON.stringify(trade)}\n`,
+    );
+
+    expect(() => repository.getStorageDiagnostics()).toThrow(
+      'duplicate observationId externally-duplicated-trade',
+    );
+    expect(() =>
+      new FileMarketObservationRepository({ rootDir }).getStorageDiagnostics(),
+    ).toThrow('duplicate observationId externally-duplicated-trade');
+  });
+
+  test('publishes storage limits as repository decisions rather than paper constants', () => {
+    expect(createMarketObservationStoragePolicyManifest()).toMatchObject({
+      policyVersion: 'market-observation-storage-v3',
+      tradeLedger: 'complete-append-only-jsonl',
+      tradeIdempotencyRule: 'bounded-recent-ids-plus-fixed-bloom-with-exact-cold-scan',
+      duplicateLedgerRowRule: 'fail-closed',
+      timeIndexRule: 'bounded-sparse-chunks-with-exact-range-or-full-cold-scan',
+      ohlcRule: 'append-only-revisions-with-incremental-latest-by-id-projection',
+      source: 'repository-design-not-paper-constant',
+    });
   });
 });
 
@@ -99,6 +259,7 @@ function createTrade(
   return {
     observationId: overrides.observationId,
     simulationId: overrides.simulationId ?? 'sim-market',
+    agentId: overrides.agentId ?? 'agent-a',
     commodityId: overrides.commodityId ?? 'Apple',
     sourceEventId: overrides.sourceEventId ?? `${overrides.observationId}:event`,
     sourceSequence: overrides.sourceSequence ?? 1,

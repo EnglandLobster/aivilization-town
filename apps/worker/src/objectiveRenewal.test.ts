@@ -1,6 +1,7 @@
 import {
   createBranchPlan,
   InMemoryBranchPlanRepository,
+  InMemoryBranchPlanProgressRepository,
   type StrategicPlanCompilerInput,
 } from '@aivilization/agent-runtime';
 import {
@@ -23,6 +24,7 @@ import { describe, expect, test } from 'vitest';
 import {
   createDefaultAutonomousObjective,
   createDefaultAutonomousObjectiveProposal,
+  createWorldDecisionContextFromProjection,
   renewMissingActiveObjectives,
 } from './index';
 
@@ -49,7 +51,7 @@ describe('worker objective renewal', () => {
         issuedAt: 100,
       }),
     ).toEqual({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       statement: 'Improve education to qualify for better town opportunities.',
       priority: 2,
@@ -57,6 +59,213 @@ describe('worker objective renewal', () => {
       affinityTags: ['study', 'education'],
       createdAt: 100,
       updatedAt: 100,
+    });
+  });
+
+  test('keeps autonomous objective IDs unique across zero-interval ticks sharing one timestamp', () => {
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+    const agent = projection.agents[agentA] ?? createAgent({ agentId: agentA });
+    const first = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+    const second = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [
+          {
+            objective: first,
+            completedAt: 100,
+            reason: 'plan-completed',
+            planId: first.id,
+          },
+        ],
+        scheduledIntentions: [],
+        updatedAt: 100,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+
+    expect([first.id, second.id]).toEqual([
+      'auto-objective-agent-a-100-1',
+      'auto-objective-agent-a-100-2',
+    ]);
+
+    const afterCompaction = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [
+          {
+            objective: second,
+            completedAt: 100,
+            reason: 'plan-completed',
+            planId: second.id,
+          },
+        ],
+        completedObjectiveCount: 100,
+        scheduledIntentions: [],
+        updatedAt: 100,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    });
+    expect(afterCompaction.id).toBe('auto-objective-agent-a-100-101');
+  });
+
+  test('balances education against direct costs, foregone income, and the minimum reserve', () => {
+    const policies = createEducationOpportunityCostPolicies();
+    const investProjection = createProjection([
+      createAgent({ agentId: agentA, educationScore: 12, balance: 100 }),
+    ]);
+    const investAgent = investProjection.agents[agentA] ?? createAgent({ agentId: agentA });
+    const investObjective = createDefaultAutonomousObjective({
+      agentId: agentA,
+      agent: investAgent,
+      projection: investProjection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection: investProjection,
+        agentId: agentA,
+        policies,
+      }),
+    });
+
+    expect(investObjective).toMatchObject({
+      statement:
+        'Balance education investment with immediate income to qualify for better town opportunities.',
+      affinityTags: ['study', 'education', 'work', 'income'],
+    });
+
+    const earnProjection = createProjection([
+      createAgent({ agentId: agentA, educationScore: 12, balance: 20 }),
+    ]);
+    const earnAgent = earnProjection.agents[agentA] ?? createAgent({ agentId: agentA });
+    const earnProposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: earnAgent,
+      projection: earnProjection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection: earnProjection,
+        agentId: agentA,
+        policies,
+      }),
+    });
+
+    expect(earnProposal.objective).toMatchObject({
+      statement: 'Earn enough money to stay economically stable.',
+      affinityTags: ['work', 'income'],
+    });
+    expect(earnProposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'income-stability',
+    });
+  });
+
+  test('creates deterministic buy/sell market objectives from live prices and inventory', () => {
+    const buyer = createAgent({ agentId: agentA, educationScore: 150, balance: 200 });
+    const buyProjection = createWorldProjection({
+      agents: [buyer],
+      marketPools: [
+        { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 },
+        { commodity: 'Book', commodityReserve: 100, currencyReserve: 1_000 },
+      ],
+    });
+    const buyProposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: buyer,
+      projection: buyProjection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection: buyProjection,
+        agentId: agentA,
+      }),
+    });
+
+    expect(buyProposal.objective.statement).toMatch(
+      /^Buy one (Apple|Book) through the town market/u,
+    );
+    expect(buyProposal.objective.affinityTags).toContain('trade');
+    expect(buyProposal.objective.affinityTags).toContain('market');
+    expect(buyProposal.objective.affinityTags).toContain('buy');
+    expect(buyProposal.decisionTrace.selectedCandidateId).toBe('market-participation-buy');
+
+    const seller = { ...buyer, inventory: { Book: 2 } };
+    const sellProjection = createWorldProjection({
+      agents: [seller],
+      marketPools: [
+        { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 },
+        { commodity: 'Book', commodityReserve: 100, currencyReserve: 1_000 },
+      ],
+    });
+    const sellProposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: seller,
+      projection: sellProjection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 200,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection: sellProjection,
+        agentId: agentA,
+      }),
+    });
+
+    expect(sellProposal.objective).toMatchObject({
+      statement: 'Sell one Book through the town market while preserving economic stability.',
+      affinityTags: ['trade', 'market', 'sell', 'Book'],
+    });
+    expect(sellProposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'market-participation-sell',
+      score: 12,
     });
   });
 
@@ -84,11 +293,11 @@ describe('worker objective renewal', () => {
     ).resolves.toEqual([
       {
         agentId: agentA,
-        objectiveId: 'auto-objective-agent-a-100',
-        planId: 'auto-objective-agent-a-100',
+        objectiveId: 'auto-objective-agent-a-100-1',
+        planId: 'auto-objective-agent-a-100-1',
         decisionTrace: {
           agentId: agentA,
-          objectiveId: 'auto-objective-agent-a-100',
+          objectiveId: 'auto-objective-agent-a-100-1',
           selectedCandidateId: 'education-growth',
           rationale: 'Education score is below the threshold for better town opportunities.',
           score: 40.88,
@@ -101,17 +310,17 @@ describe('worker objective renewal', () => {
     ]);
     await expect(intentionRepository.getOrCreate(agentA)).resolves.toMatchObject({
       activeObjective: {
-        id: 'auto-objective-agent-a-100',
+        id: 'auto-objective-agent-a-100-1',
         statement: 'Improve education to qualify for better town opportunities.',
       },
     });
     await expect(
       planRepository.require({
-        planId: 'auto-objective-agent-a-100',
+        planId: 'auto-objective-agent-a-100-1',
         agentId: agentA,
       }),
     ).resolves.toMatchObject({
-      planId: 'auto-objective-agent-a-100',
+      planId: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       plan: {
         objective: 'Improve education to qualify for better town opportunities.',
@@ -152,7 +361,7 @@ describe('worker objective renewal', () => {
     });
 
     expect(objective).toMatchObject({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       statement: 'Recover from recent setbacks before pursuing new growth.',
       priority: 3,
@@ -248,12 +457,12 @@ describe('worker objective renewal', () => {
     });
 
     expect(proposal.objective).toMatchObject({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-1',
       statement: 'Recover from recent setbacks before pursuing new growth.',
     });
     expect(proposal.decisionTrace).toEqual({
       agentId: agentA,
-      objectiveId: 'auto-objective-agent-a-100',
+      objectiveId: 'auto-objective-agent-a-100-1',
       selectedCandidateId: 'recent-setback-recovery',
       rationale: 'Recent failed memory suggests recovery before new growth.',
       score: 83.5,
@@ -299,7 +508,7 @@ describe('worker objective renewal', () => {
     });
 
     expect(objective).toMatchObject({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-1',
       agentId: agentA,
       statement: 'Maintain a creative routine aligned with long-term profile.',
       priority: 1,
@@ -346,12 +555,12 @@ describe('worker objective renewal', () => {
     });
 
     expect(proposal.objective).toMatchObject({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-1',
       statement: 'Maintain a creative routine aligned with long-term profile.',
     });
     expect(proposal.decisionTrace).toEqual({
       agentId: agentA,
-      objectiveId: 'auto-objective-agent-a-100',
+      objectiveId: 'auto-objective-agent-a-100-1',
       selectedCandidateId: 'profile-creative',
       rationale: 'Long-term profile suggests maintaining a creative routine.',
       score: 24,
@@ -359,6 +568,72 @@ describe('worker objective renewal', () => {
       profileEntryKeys: ['creative-routine'],
       profileEvidenceRecordIds: ['reflection-creative-1', 'reflection-creative-2'],
       issuedAt: 100,
+    });
+  });
+
+  test('turns constructive and adverse social identity into different autonomous goals', () => {
+    const projection = createProjection([
+      createAgent({ agentId: agentA, educationScore: 150, balance: 200 }),
+    ]);
+    const baseInput = {
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    } as const;
+    const constructive = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      longTermProfile: createProfile(agentA, {
+        values: [
+          {
+            key: 'community-cooperation',
+            statement: 'Values cooperative community routines.',
+            confidence: 0.9,
+            updatedAt: 80,
+            provenanceRecordIds: [asMemoryRecordId('cooperation-1')],
+          },
+        ],
+      }),
+    });
+    const adverse = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      longTermProfile: createProfile(agentA, {
+        personality: [
+          {
+            key: 'socially-wary',
+            statement: 'A guarded disposition after repeated betrayal.',
+            confidence: 0.9,
+            updatedAt: 80,
+            provenanceRecordIds: [asMemoryRecordId('betrayal-1')],
+          },
+        ],
+      }),
+    });
+
+    expect(constructive.objective).toMatchObject({
+      statement: 'Strengthen a trusted relationship through cooperative social contact.',
+      affinityTags: ['social', 'cooperate', 'relationship', 'community'],
+    });
+    expect(constructive.decisionTrace).toMatchObject({
+      selectedCandidateId: 'social-identity-cooperation',
+      profileEntryKeys: ['community-cooperation'],
+      profileEvidenceRecordIds: ['cooperation-1'],
+    });
+    expect(adverse.objective).toMatchObject({
+      statement: 'Observe the social setting and verify commitments before rebuilding trust.',
+      affinityTags: ['social', 'social-caution', 'observe', 'verify-commitment'],
+    });
+    expect(adverse.decisionTrace).toMatchObject({
+      selectedCandidateId: 'social-identity-caution',
+      profileEntryKeys: ['socially-wary'],
+      profileEvidenceRecordIds: ['betrayal-1'],
     });
   });
 
@@ -395,7 +670,7 @@ describe('worker objective renewal', () => {
     });
 
     expect(proposal.objective).toMatchObject({
-      id: 'auto-objective-agent-a-150',
+      id: 'auto-objective-agent-a-150-1',
       agentId: agentA,
       statement: 'Follow the current study routine: Attend the morning study routine at school.',
       priority: 1,
@@ -404,7 +679,7 @@ describe('worker objective renewal', () => {
     });
     expect(proposal.decisionTrace).toEqual({
       agentId: agentA,
-      objectiveId: 'auto-objective-agent-a-150',
+      objectiveId: 'auto-objective-agent-a-150-1',
       selectedCandidateId: 'scheduled-routine-study',
       rationale: 'Active scheduled intention daily-routine:agent-a:0:morning-study is in window.',
       score: 28,
@@ -458,7 +733,7 @@ describe('worker objective renewal', () => {
     });
 
     expect(objective).toMatchObject({
-      id: 'auto-objective-agent-a-100',
+      id: 'auto-objective-agent-a-100-2',
       agentId: agentA,
       statement: 'Earn enough money to stay economically stable.',
       priority: 2,
@@ -595,6 +870,37 @@ describe('worker objective renewal', () => {
       },
     ]);
     expect(traces).toEqual([result[0]?.decisionTrace]);
+  });
+
+  test('publishes initial progress with every newly active autonomous plan', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const projection = createProjection([createAgent({ agentId: agentA, educationScore: 12 })]);
+
+    const [renewed] = await renewMissingActiveObjectives({
+      projection,
+      intentionRepository,
+      longTermProfileRepository,
+      shortTermMemoryRepository,
+      planRepository,
+      planProgressRepository,
+      issuedAt: 100,
+    });
+
+    expect(renewed).toBeDefined();
+    await expect(
+      planProgressRepository.get({
+        planId: renewed!.planId,
+        agentId: renewed!.agentId,
+      }),
+    ).resolves.toMatchObject({
+      planId: renewed!.planId,
+      agentId: renewed!.agentId,
+      updatedAt: 100,
+    });
   });
 
   test('attaches traceable strategic compiler evidence to objective renewal traces', async () => {
@@ -914,6 +1220,17 @@ function createRulesPolicies(): WorldCommandPolicies {
       populationEducationScores: [0, 100],
       quotaByResidentialTier: [1, 1, 1, 1, 1],
     },
+  };
+}
+
+function createEducationOpportunityCostPolicies(): WorldCommandPolicies {
+  return {
+    satietyRecoveryByCommodity: {},
+    maxSatiety: 100,
+    wageCalculator: () => 250,
+    laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+    criticalThresholds: { energy: 1, health: 1 },
+    educationInvestment: { currencyCostPerHour: 20, inventoryCostsPerHour: {} },
   };
 }
 

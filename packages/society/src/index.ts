@@ -3,6 +3,7 @@ export * from './healthcare';
 export * from './occupation-catalog';
 export * from './occupation';
 export * from './physiology';
+export * from './recruitment';
 export * from './residential';
 export * from './social';
 export * from './wage';

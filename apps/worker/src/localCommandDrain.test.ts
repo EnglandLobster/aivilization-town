@@ -13,6 +13,7 @@ import {
   createLocalWorldRuntimeStorage,
   drainLocalRuntimeSteeringCommands,
   drainLocalRuntimeSteeringCommandsToWorld,
+  hydrateWorldProjectionFromEventStream,
   type WorkerSteeringCommand,
 } from './index';
 
@@ -80,6 +81,74 @@ function reactiveTradeCommand(input: {
 }
 
 describe('local runtime steering command drain', () => {
+  test('drains a registration command into an authoritative replayable world event', async () => {
+    const rootDir = createRootDir();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    appendCommands(storage.partition.commandStreamName, storage.commandStore, [
+      createCommandEnvelope({
+        id: 'register-agent-ada',
+        simulationId: 'sim-1',
+        actorId: 'agent-ada',
+        source: 'human',
+        type: 'RegisterAgent',
+        payload: {
+          agentId: 'agent-ada',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+        },
+        issuedAt: 90,
+      }),
+    ]);
+
+    const result = await drainLocalRuntimeSteeringCommandsToWorld({
+      storage,
+      consumerId: 'worker-main',
+      checkpointUpdatedAt: 1000,
+      projection: createWorldProjection({ agents: [], moneySupply: 500 }),
+      policies,
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+
+    expect(result.status).toBe('drained');
+    expect(result.results[0]?.steering).toMatchObject({
+      kind: 'agent-registration-dispatched',
+      registrationId: 'register-agent-ada',
+      agentId: 'agent-ada',
+      status: 'registered',
+    });
+    expect(result.worldDispatchResults[0]?.events).toMatchObject([
+      { type: 'AgentRegistered', payload: { creatorId: 'participant-7' } },
+    ]);
+    expect(result.projection.agents['agent-ada']?.registration?.displayName).toBe('Ada');
+    expect(result.projection.moneySupply).toBe(600);
+    await expect(
+      storage.steeringTraceRepository.query({ simulationId: 'sim-1' }),
+    ).resolves.toEqual([]);
+    expect(result.checkpoint).toMatchObject({ lastConsumedSequence: 1 });
+
+    const restarted = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const replayed = hydrateWorldProjectionFromEventStream({
+      initialProjection: createWorldProjection({ agents: [], moneySupply: 500 }),
+      eventStore: restarted.eventStore,
+      streamName: restarted.partition.eventStreamName,
+    });
+    expect(replayed.projection.agents['agent-ada']?.registration).toMatchObject({
+      creatorId: 'participant-7',
+      displayName: 'Ada',
+      provenance: 'post-bootstrap-command',
+    });
+    expect(replayed.projection.moneySupply).toBe(600);
+  });
+
   test('drains persisted steering commands into runtime repositories and checkpoints progress', async () => {
     const storage = createLocalWorldRuntimeStorage({
       rootDir: createRootDir(),
@@ -297,6 +366,8 @@ describe('local runtime steering command drain', () => {
       commandId: 'cmd-objective-study',
       resultKind: 'long-horizon-objective-set',
       objectiveId: 'objective-study',
+      objectiveStatement: 'Study until education score exceeds 100.',
+      objectiveAffinityTags: ['study', 'education'],
       planId: 'objective-study',
       shortTermMemoryRecordIds: ['cmd-objective-study:strategic-objective'],
     });
@@ -349,6 +420,7 @@ describe('local runtime steering command drain', () => {
     expect(result.results[0]?.steering.kind).toBe('reactive-command-routed');
     expect(result.results[0]?.dispatch?.events.map((event) => event.type)).toEqual([
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(result.worldDispatchResults).toHaveLength(1);
@@ -359,7 +431,8 @@ describe('local runtime steering command drain', () => {
         .map((event) => [event.sequence, event.type]),
     ).toEqual([
       [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.checkpoint).toMatchObject({
       lastConsumedSequence: 1,

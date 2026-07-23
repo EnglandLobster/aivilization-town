@@ -127,14 +127,14 @@ describe('local simulation backend registry', () => {
     expect(started.state).toMatchObject({
       status: 'completed',
       nextTickIndex: 2,
-      lastAppliedSequence: 3,
+      lastAppliedSequence: 4,
     });
 
     const eastProjection = await registry.api.getProjection({
       simulationId: 'sim-1',
       partitionKey: 'world-east',
     });
-    expect(eastProjection.lastAppliedSequence).toBe(3);
+    expect(eastProjection.lastAppliedSequence).toBe(4);
     expect(eastProjection.projection.agents['agent-2']?.educationScore).toBe(80);
 
     const mainProjection = await registry.api.getProjection({

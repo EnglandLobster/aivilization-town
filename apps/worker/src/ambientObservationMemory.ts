@@ -1,6 +1,48 @@
 import { createShortTermMemoryRecord, type ShortTermMemoryRecord } from '@aivilization/memory';
-import type { AgentId, CommandId, EventId, LocationId } from '@aivilization/sim-core';
+import {
+  createSeededRandom,
+  type AgentId,
+  type CommandId,
+  type EventId,
+  type LocationId,
+} from '@aivilization/sim-core';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
+
+export const CANONICAL_AMBIENT_OBSERVATION_MEMORY_POLICY_VERSION =
+  'paper-local-ambient-observation-v1';
+export const CANONICAL_AMBIENT_OBSERVATION_MAX_OBSERVERS_PER_EVENT = 4;
+export const CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES = [
+  'ConversationRecorded',
+  'SocialInteractionCompleted',
+  'CommodityProduced',
+  'WagePaid',
+  'EducationChanged',
+  'AgentLocationChanged',
+] as const satisfies readonly WorldEvent['type'][];
+
+export function createCanonicalAmbientObservationMemoryPolicyManifest() {
+  return {
+    policyVersion: CANONICAL_AMBIENT_OBSERVATION_MEMORY_POLICY_VERSION,
+    enabled: true as const,
+    visibleEventTypes: [...CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES],
+    maxObserversPerEvent: CANONICAL_AMBIENT_OBSERVATION_MAX_OBSERVERS_PER_EVENT,
+    observerSelectionRule: 'event-seeded-stable-ranking-among-co-located-non-actor-agents' as const,
+    marketContextRule:
+      'current-amm-state-from-world-projection-and-authoritative-trades-from-market-observation-ledger' as const,
+    marketTradeBystanderMemory: 'disabled-no-global-public-tape-fanout' as const,
+    paperBoundary:
+      'paper-stm-records-agent-execution-outcomes-and-significant-social-experience;-bystander-cap-is-repository-design' as const,
+  };
+}
+
+export function createCanonicalAmbientObservationMemoryRuntimeInput() {
+  const policy = createCanonicalAmbientObservationMemoryPolicyManifest();
+  return {
+    enabled: policy.enabled,
+    visibleEventTypes: [...policy.visibleEventTypes],
+    maxObserversPerEvent: policy.maxObserversPerEvent,
+  };
+}
 
 export type WorkerAmbientObservationMemoryResult = {
   readonly observedEventCount: number;
@@ -25,6 +67,7 @@ export function createAmbientObservationMemoryRecords(input: {
   readonly occurredAt: number;
   readonly importanceScore?: number;
   readonly maxObserversPerEvent?: number;
+  readonly visibleEventTypes?: readonly WorldEvent['type'][];
 }): WorkerAmbientObservationMemoryResult {
   assertNonEmpty(input.tickId, 'tickId');
   assertFinite(input.occurredAt, 'occurredAt');
@@ -40,7 +83,11 @@ export function createAmbientObservationMemoryRecords(input: {
 
   const visibleEvents = input.events
     .map((event) => toVisibleWorldEvent(event, input.projection))
-    .filter((event): event is VisibleWorldEvent => event !== undefined);
+    .filter((event): event is VisibleWorldEvent => event !== undefined)
+    .filter(
+      (event) =>
+        input.visibleEventTypes === undefined || input.visibleEventTypes.includes(event.type),
+    );
   const records = visibleEvents.flatMap((event) =>
     createObserverRecords({
       tickId: input.tickId,
@@ -70,11 +117,24 @@ function createObserverRecords(input: {
   readonly maxObserversPerEvent?: number;
 }): readonly ShortTermMemoryRecord[] {
   const actorAgentIds = new Set(input.event.actorAgentIds);
-  const observers = Object.values(input.projection.agents)
+  const candidates = Object.values(input.projection.agents)
     .filter((agent) => agent.locationId === input.event.locationId)
     .filter((agent) => !actorAgentIds.has(agent.agentId))
-    .sort((left, right) => left.agentId.localeCompare(right.agentId))
-    .slice(0, input.maxObserversPerEvent);
+    .sort((left, right) => left.agentId.localeCompare(right.agentId));
+  const observers =
+    input.maxObserversPerEvent === undefined
+      ? candidates
+      : candidates
+          .map((agent) => ({
+            agent,
+            rank: createSeededRandom(`${input.event.eventId}:${agent.agentId}`).nextFloat(),
+          }))
+          .sort(
+            (left, right) =>
+              left.rank - right.rank || left.agent.agentId.localeCompare(right.agent.agentId),
+          )
+          .slice(0, input.maxObserversPerEvent)
+          .map((ranked) => ranked.agent);
 
   return observers.map((observer) =>
     createShortTermMemoryRecord({
@@ -312,7 +372,9 @@ function formatInventory(inventory: Readonly<Record<string, number>>): string {
   if (entries.length === 0) {
     return 'nothing';
   }
-  return entries.map(([itemName, quantity]) => `${formatQuantity(quantity)} ${itemName}`).join(', ');
+  return entries
+    .map(([itemName, quantity]) => `${formatQuantity(quantity)} ${itemName}`)
+    .join(', ');
 }
 
 function stableUnique(values: readonly string[]): readonly string[] {

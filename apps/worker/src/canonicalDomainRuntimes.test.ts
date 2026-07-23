@@ -48,6 +48,7 @@ const policies: WorldCommandPolicies = {
   wageCalculator: () => 10,
   laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
   criticalThresholds: { energy: 1, health: 1 },
+  educationInvestment: { currencyCostPerHour: 20, inventoryCostsPerHour: {} },
   sleep: { energyRecoveryPerSecond: 1, maxEnergy: 100 },
   seeDoctor: { healthRecoveryPerSecond: 1, maxHealth: 100 },
   jobApplication: {
@@ -110,7 +111,7 @@ describe('canonical domain runtimes', () => {
       commandType: 'AgentStudy',
       payload: { durationSeconds: 900, educationRatePerSecond: 2 },
       priority: 10,
-      resourceEstimate: { actionSeconds: 900 },
+      resourceEstimate: { actionSeconds: 900, currencyCost: 5, inventoryCosts: {} },
     });
     expect(firstProposal(binding.microPlanners, 'sleep')).toMatchObject({
       id: 'canonical-sleep-step-d',
@@ -149,12 +150,23 @@ describe('canonical domain runtimes', () => {
           {
             speakerAgentId: agentA,
             utterance: 'Discuss town plans.',
-            intent: 'social-plan',
+            intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
             utterance: 'I will remember this conversation about town plans.',
-            intent: 'acknowledge-topic',
+            intent: 'invite-perspective',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'It connects to my current plans, and I want to understand your perspective on town plans.',
+            intent: 'share-goal-and-listen',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: "Let's keep each other informed as we learn more about town plans.",
+            intent: 'continue-relationship',
           },
         ],
       },
@@ -261,6 +273,29 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('derives an unconfigured trade side and commodity from the selected market objective', async () => {
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, inventory: { Book: 3 } }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+    const proposal = requirePlanner(binding.microPlanners, 'trade').propose(
+      createMicroPlannerInput({
+        selectedSubtask: {
+          branchId: 'lane-c',
+          subtaskId: 'step-c',
+          description: 'Sell one Book through the town market.',
+          score: 10,
+        },
+      }),
+    )[0];
+
+    expect(proposal).toMatchObject({
+      commandType: 'AgentTrade',
+      payload: { side: 'sell', commodityName: 'Book', quantity: 1 },
+      resourceEstimate: { inventoryCosts: { Book: 1 } },
+    });
+  });
+
   test('proposes movement to the domain location before study when the agent is elsewhere', async () => {
     const agent = createAgent({
       agentId: agentA,
@@ -308,9 +343,33 @@ describe('canonical domain runtimes', () => {
     expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
       id: 'canonical-study-step-a',
       commandType: 'AgentStudy',
-      payload: { durationSeconds: 1800, educationRatePerSecond: 1 },
+      payload: { durationSeconds: 1800, educationRatePerSecond: 1 / 60 },
       priority: 10,
     });
+  });
+
+  test('caps autonomous study duration at the tagged education milestone', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      educationScore: 0,
+    });
+    const context = createRuntimeContext({
+      agent,
+      activeObjective: {
+        ...createObjective(agentA),
+        statement: 'Study toward education score 13.',
+        affinityTags: ['study', 'education', 'education-target-13'],
+      },
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    const proposal = firstProposal(binding.microPlanners, 'study');
+    expect(proposal).toMatchObject({
+      commandType: 'AgentStudy',
+      payload: { durationSeconds: 780, educationRatePerSecond: 1 / 60 },
+      resourceEstimate: { actionSeconds: 780 },
+    });
+    expect(proposal?.resourceEstimate?.currencyCost).toBeCloseTo(13 / 3);
   });
 
   test('uses observed co-located agents before starting an unconfigured social conversation', async () => {
@@ -351,20 +410,110 @@ describe('canonical domain runtimes', () => {
       commandType: 'AgentStartConversation',
       payload: {
         targetAgentId: agentC,
-        topic: 'Attend planned activity.',
+        topic: 'employment opportunities and local application strategy',
         turns: [
           {
             speakerAgentId: agentA,
-            utterance: 'Socialized during planned activity.',
-            intent: 'social-plan',
+            utterance:
+              "I'd like to compare notes about employment opportunities and local application strategy.",
+            intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
-            utterance: 'I will remember this conversation about Attend planned activity.',
-            intent: 'acknowledge-topic',
+            utterance:
+              'What part of employment opportunities and local application strategy matters most to you right now?',
+            intent: 'invite-perspective',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'It connects to my current plans, and I want to understand your perspective on employment opportunities and local application strategy.',
+            intent: 'share-goal-and-listen',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance:
+              "Let's keep each other informed as we learn more about employment opportunities and local application strategy.",
+            intent: 'continue-relationship',
           },
         ],
       },
+    });
+  });
+
+  test('turns an explicit resource-help social objective into an authoritative peer transfer', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+      inventory: { Apple: 3 },
+    });
+    const context = createRuntimeContext({
+      agent,
+      activeObjective: {
+        ...createObjective(agentA),
+        statement: 'Give food to a neighbor who needs help.',
+        affinityTags: ['social', 'resource-help'],
+      },
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB, locationId: asLocationId('town-square') })],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentB],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'resource help',
+          },
+        ],
+        marketPools: [],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentGiveResource',
+      payload: {
+        targetAgentId: agentB,
+        commodityName: 'Apple',
+        quantity: 1,
+      },
+      resourceEstimate: { inventoryCosts: { Apple: 1 } },
+    });
+  });
+
+  test('turns adverse social identity objectives into observation before engagement', async () => {
+    const agent = createAgent({ agentId: agentA, locationId: asLocationId('town-square') });
+    const context = createRuntimeContext({
+      agent,
+      activeObjective: {
+        ...createObjective(agentA),
+        statement: 'Observe the social setting and verify commitments before rebuilding trust.',
+        affinityTags: ['social', 'social-caution', 'observe', 'verify-commitment'],
+      },
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB, locationId: asLocationId('town-square') })],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentB],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+          },
+        ],
+        marketPools: [],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentObserveLocation',
+      payload: { focus: 'Verify commitments and social context around agent-b.' },
     });
   });
 
@@ -372,6 +521,7 @@ describe('canonical domain runtimes', () => {
     const agent = createAgent({
       agentId: agentA,
       locationId: asLocationId('town-square'),
+      job: 'Cleaner',
     });
     const context = createRuntimeContext({
       agent,
@@ -436,15 +586,195 @@ describe('canonical domain runtimes', () => {
         turns: [
           {
             speakerAgentId: agentA,
-            utterance: 'Discuss community cooperation.',
-            intent: 'social-plan',
+            utterance: "I'd like to compare notes about community cooperation.",
+            intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
-            utterance: 'I will remember this conversation about community cooperation.',
-            intent: 'acknowledge-topic',
+            utterance: 'What part of community cooperation matters most to you right now?',
+            intent: 'invite-perspective',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'It connects to my current plans, and I want to understand your perspective on community cooperation.',
+            intent: 'share-goal-and-listen',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance:
+              "Let's keep each other informed as we learn more about community cooperation.",
+            intent: 'continue-relationship',
           },
         ],
+      },
+    });
+  });
+
+  test('ranks observed social targets by goal relevance and economic complementarity with traceable scores', async () => {
+    const actor = createAgent({
+      agentId: agentA,
+      job: null,
+      balance: 20,
+      educationScore: 10,
+      locationId: asLocationId('town-square'),
+    });
+    const context = createRuntimeContext({
+      agent: actor,
+      activeObjective: createStockClerkObjective(agentA),
+      projection: createProjection({
+        agents: [
+          actor,
+          createAgent({
+            agentId: agentB,
+            job: null,
+            educationScore: 0,
+            locationId: asLocationId('town-square'),
+          }),
+          createAgent({
+            agentId: agentC,
+            job: 'Stock Clerk',
+            educationScore: 110,
+            locationId: asLocationId('town-square'),
+          }),
+        ],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentB, agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'employment board',
+          },
+        ],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentC,
+        topic: 'employment opportunities and local application strategy',
+        planningContext: {
+          policyVersion: 'contextual-social-planning-v1',
+          targetSelection: {
+            selectedAgentId: agentC,
+            candidates: [
+              {
+                agentId: agentC,
+                score: {
+                  goalRelevance: 1.875,
+                  economicNeed: 1.5,
+                  worldContext: 0.5,
+                  total: 3.875,
+                },
+              },
+              {
+                agentId: agentB,
+                score: { goalRelevance: 0, economicNeed: 0, worldContext: 0.5, total: 0.5 },
+              },
+            ],
+            tieBreak: 'agent-id-ascending',
+          },
+          topicSelection: {
+            source: 'economic-need',
+            rationale: 'agent is currently unemployed',
+          },
+        },
+      },
+    });
+  });
+
+  test('uses extroverted personality evidence to prefer an observed novel contact', async () => {
+    const actor = createAgent({
+      agentId: agentA,
+      job: 'Cleaner',
+      locationId: asLocationId('town-square'),
+    });
+    const context = createRuntimeContext({
+      agent: actor,
+      longTermProfile: {
+        agentId: agentA,
+        beliefs: [],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [
+          {
+            key: 'extroverted',
+            statement: 'Agent is sociable and enjoys meeting new people.',
+            confidence: 0.9,
+            updatedAt: 90,
+            provenanceRecordIds: [asMemoryRecordId('memory-personality-extroverted-1')],
+          },
+        ],
+        socialRecords: [
+          {
+            key: 'agent-c',
+            statement: 'Agent C is already known.',
+            confidence: 0,
+            updatedAt: 80,
+            provenanceRecordIds: [asMemoryRecordId('memory-social-agent-c-known-1')],
+            relationDelta: 0,
+            attitudeDelta: 0,
+          },
+        ],
+      },
+      projection: createProjection({
+        agents: [
+          actor,
+          createAgent({
+            agentId: agentB,
+            job: null,
+            locationId: asLocationId('town-square'),
+          }),
+          createAgent({
+            agentId: agentC,
+            job: null,
+            locationId: asLocationId('town-square'),
+          }),
+        ],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentB, agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'community introductions',
+          },
+        ],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentStartConversation',
+      payload: {
+        targetAgentId: agentB,
+        planningContext: {
+          targetSelection: {
+            selectedAgentId: agentB,
+            candidates: [
+              { agentId: agentB, score: { personalityFit: 0.75, total: 1.25 } },
+              { agentId: agentC, score: { personalityFit: 0, total: 0.5 } },
+            ],
+          },
+        },
       },
     });
   });
@@ -776,13 +1106,14 @@ function createAgent(input: {
   readonly inventory?: WorldAgentState['inventory'];
   readonly residentialTier?: number;
   readonly educationScore?: number;
+  readonly balance?: number;
 }): WorldAgentState {
   return {
     agentId: input.agentId,
     locationId: input.locationId ?? null,
     physiology: { energy: 50, satiety: 50, health: 100 },
     educationScore: input.educationScore ?? 0,
-    balance: 1000,
+    balance: input.balance ?? 1000,
     residentialTier: input.residentialTier ?? 1,
     job: input.job ?? null,
     inventory: input.inventory ?? { Book: 3, Wood: 1 },

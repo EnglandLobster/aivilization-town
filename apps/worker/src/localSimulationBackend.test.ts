@@ -92,14 +92,14 @@ describe('local simulation backend composition', () => {
     expect(started.state).toMatchObject({
       status: 'completed',
       nextTickIndex: 2,
-      lastAppliedSequence: 3,
+      lastAppliedSequence: 4,
     });
 
     const afterStart = await backend.api.getProjection({
       simulationId: 'sim-1',
       partitionKey: 'world-main',
     });
-    expect(afterStart.lastAppliedSequence).toBe(3);
+    expect(afterStart.lastAppliedSequence).toBe(4);
     expect(afterStart.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(afterStart.projection.agents['agent-1']?.educationScore).toBe(70);
 
@@ -110,11 +110,11 @@ describe('local simulation backend composition', () => {
       limit: 2,
     });
     expect(eventFeed.streamName).toBe(storage.partition.eventStreamName);
-    expect(eventFeed.streamVersion).toBe(3);
+    expect(eventFeed.streamVersion).toBe(4);
     expect(eventFeed.nextAfterSequence).toBe(3);
     expect(eventFeed.events.map((event) => [event.sequence, event.type])).toEqual([
-      [2, 'ShortTermMemoryRecorded'],
-      [3, 'SimulationTimeAdvanced'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
     ]);
 
     const sync = await backend.api.getSync({
@@ -124,12 +124,12 @@ describe('local simulation backend composition', () => {
       limit: 1,
     });
     expect(sync.streamName).toBe(storage.partition.eventStreamName);
-    expect(sync.streamVersion).toBe(3);
-    expect(sync.projectionSequence).toBe(3);
+    expect(sync.streamVersion).toBe(4);
+    expect(sync.projectionSequence).toBe(4);
     expect(sync.projection.clock).toEqual({ now: 1000, tickDurationMs: 1000 });
     expect(sync.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(sync.events.map((event) => [event.sequence, event.type])).toEqual([
-      [2, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
     ]);
     expect(sync.nextAfterSequence).toBe(2);
     expect(sync.hasMoreEvents).toBe(true);
@@ -236,7 +236,7 @@ describe('local simulation backend composition', () => {
     expect(replayed.status).toBe('replayed');
     expect(replayed.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
     ]);
     expect(replayed.projection.clock).toEqual({ now: 0, tickDurationMs: 1000 });
     expect(replayed.projection.agents['agent-1']?.educationScore).toBe(70);

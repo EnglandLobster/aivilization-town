@@ -21,6 +21,10 @@ export type RuntimeSupervisorRunSessionRequest = {
   readonly traceId: string;
 };
 
+export type RuntimeSupervisorRunManifestRequest = {
+  readonly runManifestId: string;
+};
+
 export type RuntimeSupervisorRunSessionStopRequest = RuntimeSupervisorRunSessionRequest & {
   readonly requestedAt: SimulationTimestamp;
 };
@@ -41,12 +45,16 @@ export type RuntimeSupervisorControlPort<
   TOperationTrace,
   TCommand extends string = string,
   TRunSession = unknown,
+  TRunManifest = unknown,
 > = {
   readonly getStatus: () => MaybePromise<TStatus>;
   readonly startAll: (request: RuntimeSupervisorOperationRequest) => MaybePromise<TStartResult>;
   readonly pauseAll: (request: RuntimeSupervisorOperationRequest) => MaybePromise<TPauseResult>;
   readonly runCycles: (request: RuntimeSupervisorRunRequest) => MaybePromise<TRunResult>;
   readonly getRunSession: (traceId: string) => MaybePromise<TRunSession | undefined>;
+  readonly getResolvedRunManifest: (
+    runManifestId: string,
+  ) => MaybePromise<TRunManifest | undefined>;
   readonly requestRunSessionStop: (
     request: RuntimeSupervisorRunSessionStopRequest,
   ) => MaybePromise<TRunSession | undefined>;
@@ -64,6 +72,7 @@ export type RuntimeSupervisorApiService<
   TOperationTrace,
   TCommand extends string = string,
   TRunSession = unknown,
+  TRunManifest = unknown,
 > = {
   readonly getRuntimeStatus: () => Promise<TStatus>;
   readonly startRuntime: (request: RuntimeSupervisorOperationRequest) => Promise<TStartResult>;
@@ -72,6 +81,9 @@ export type RuntimeSupervisorApiService<
   readonly getRuntimeRunSession: (
     request: RuntimeSupervisorRunSessionRequest,
   ) => Promise<TRunSession | undefined>;
+  readonly getRuntimeResolvedRunManifest: (
+    request: RuntimeSupervisorRunManifestRequest,
+  ) => Promise<TRunManifest | undefined>;
   readonly stopRuntimeRunSession: (
     request: RuntimeSupervisorRunSessionStopRequest,
   ) => Promise<TRunSession | undefined>;
@@ -91,6 +103,7 @@ export function createRuntimeSupervisorApiService<
   TOperationTrace,
   TCommand extends string = string,
   TRunSession = unknown,
+  TRunManifest = unknown,
 >(input: {
   readonly control: RuntimeSupervisorControlPort<
     TStatus,
@@ -99,7 +112,8 @@ export function createRuntimeSupervisorApiService<
     TRunResult,
     TOperationTrace,
     TCommand,
-    TRunSession
+    TRunSession,
+    TRunManifest
   >;
 }): RuntimeSupervisorApiService<
   TStatus,
@@ -108,7 +122,8 @@ export function createRuntimeSupervisorApiService<
   TRunResult,
   TOperationTrace,
   TCommand,
-  TRunSession
+  TRunSession,
+  TRunManifest
 > {
   return {
     getRuntimeStatus: async () => input.control.getStatus(),
@@ -117,6 +132,8 @@ export function createRuntimeSupervisorApiService<
     runRuntime: async (request) => input.control.runCycles(normalizeRunRequest(request)),
     getRuntimeRunSession: async (request) =>
       input.control.getRunSession(normalizeTraceId(request.traceId)),
+    getRuntimeResolvedRunManifest: async (request) =>
+      input.control.getResolvedRunManifest(normalizeTraceId(request.runManifestId)),
     stopRuntimeRunSession: async (request) =>
       input.control.requestRunSessionStop(normalizeRunSessionStopRequest(request)),
     getRuntimeOperationTrace: async (request) =>

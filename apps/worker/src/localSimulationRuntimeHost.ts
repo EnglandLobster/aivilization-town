@@ -12,6 +12,14 @@ import {
   resolveLocalSimulationRuntimeManifest,
   type LocalSimulationRuntimeRegistryInput,
 } from './localSimulationRuntimeManifest';
+import {
+  createLocalSimulationSocietyDirectoryService,
+  type LocalSimulationSocietyDirectoryService,
+} from './localSimulationSocietyDirectory';
+import {
+  createLocalSimulationSocialInteractionService,
+  type LocalSimulationSocialInteractionService,
+} from './localSimulationSocialInteraction';
 
 export type LocalSimulationRuntimeHostInput = LocalSimulationRuntimeRegistryInput & {
   readonly bootstrappedAt: SimulationTimestamp;
@@ -29,6 +37,8 @@ export type LocalSimulationRuntimeHost = {
   readonly manifestId: string;
   readonly registry: LocalSimulationBackendRegistry;
   readonly partitions: readonly LocalSimulationRuntimeHostPartition[];
+  readonly societyDirectory: LocalSimulationSocietyDirectoryService;
+  readonly socialInteractions: LocalSimulationSocialInteractionService;
 };
 
 export async function bootstrapLocalSimulationRuntimeHostFromManifest(
@@ -58,6 +68,27 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       };
     }),
   );
+  const societyDirectory = createLocalSimulationSocietyDirectoryService({
+    manifestId: resolvedManifest.id,
+    partitions,
+  });
+  const socialInteractions = createLocalSimulationSocialInteractionService({
+    rootDir: input.rootDir,
+    partitions,
+    societyDirectory,
+    policies: input.policies,
+  });
+  await socialInteractions.recoverPending();
+  const directoryAwareAgentProvider =
+    input.agentProvider === undefined
+      ? undefined
+      : (providerInput: Parameters<NonNullable<typeof input.agentProvider>>[0]) =>
+          input.agentProvider?.({
+            ...providerInput,
+            societyDirectory: societyDirectory.getDirectory({
+              simulationId: providerInput.simulationId,
+            }),
+          }) ?? [];
   const registry = createLocalSimulationBackendRegistry({
     rootDir: input.rootDir,
     registrations: createLocalSimulationBackendRegistrationsFromResolvedManifest({
@@ -65,6 +96,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       policies: input.policies,
       localizedPlanners: input.localizedPlanners,
       steeringSimulator: input.steeringSimulator,
+      ...(input.strategicPlanCompiler === undefined
+        ? {}
+        : { strategicPlanCompiler: input.strategicPlanCompiler }),
       agents: input.agents,
       ...(input.pauseBeforeTick === undefined ? {} : { pauseBeforeTick: input.pauseBeforeTick }),
       ...(input.commandDrainLimit === undefined
@@ -78,7 +112,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       ...(input.ambientObservationMemory === undefined
         ? {}
         : { ambientObservationMemory: input.ambientObservationMemory }),
-      ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
+      ...(directoryAwareAgentProvider === undefined
+        ? {}
+        : { agentProvider: directoryAwareAgentProvider }),
       ...(input.validationSchedule === undefined
         ? {}
         : { validationSchedule: input.validationSchedule }),
@@ -93,5 +129,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     manifestId: resolvedManifest.id,
     registry,
     partitions,
+    societyDirectory,
+    socialInteractions,
   };
 }

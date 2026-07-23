@@ -2,11 +2,14 @@ import { describe, expect, test } from 'vitest';
 import {
   activities,
   aivilizationAblationScenarioPreset,
+  aivilizationEducationPolicyDefaults,
   aivilizationHealthcarePolicyDefaults,
+  aivilizationJobApplicationPolicyDefaults,
   aivilizationProductionPolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
+  aivilizationWagePolicyDefaults,
   commodities,
   createAivilizationAblationAgentSeeds,
   createAivilizationPopulationAgentSeeds,
@@ -106,9 +109,14 @@ describe('AIvilization source content', () => {
       healthDamage: 5,
       minHealth: 10,
     });
-    expect(aivilizationSurvivalTimePolicyDefaults.safetyNetSubsidy).toMatchObject({
-      minimumBalance: 50,
-      maxSubsidy: 25,
+    expect(aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet).toEqual({
+      policyVersion: 'physiological-safety-net-v1',
+      criticalThresholds: { satiety: 20, energy: 20, health: 20 },
+      persistenceDurationMs: 3_600_000,
+      grantCooldownMs: 21_600_000,
+      essentialInventoryTargets: { Apple: 2 },
+      source:
+        'AIvilization v0 Section 3.1.1 requires essential subsidies after persistent low physiology; physiological-safety-net-v1 thresholds, persistence, cooldown, and inventory targets are repository policy decisions because the paper does not specify them',
     });
     expect(aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs).toHaveLength(6);
     expect(aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs[0]).toMatchObject({
@@ -128,6 +136,48 @@ describe('AIvilization source content', () => {
       currencyCostPerSecond: 0.02,
       source:
         'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning',
+    });
+  });
+
+  test('separates paper education semantics from repository-defined investment rates', () => {
+    expect(aivilizationEducationPolicyDefaults.studyInvestment).toEqual({
+      policyVersion: 'education-investment-v1',
+      currencyCostPerHour: 20,
+      inventoryCostsPerHour: {},
+      source:
+        'AIvilization v0 Section 3.2.1 requires resource-consuming education; education-investment-v1 is a repository policy decision because the paper does not specify cost rates',
+    });
+  });
+
+  test('versions the underspecified canonical wage premium and shock policy', () => {
+    expect(aivilizationWagePolicyDefaults).toEqual({
+      policyVersion: 'wage-regime-v1',
+      knowledgePremiumPerEducationPoint: 0.001,
+      shortTermAdjustment: 0,
+      maxShortTermAdjustment: 0.1,
+      missingMarketPriceIndexStrategy: 'neutral',
+      source:
+        'AIvilization v0 Section 3.2.4 defines static and dynamic wage regimes; wage-regime-v1 is a repository policy decision because the paper does not specify Phi or the short-term shock process',
+    });
+  });
+
+  test('versions the paper-constrained but underspecified residential application quota', () => {
+    expect(aivilizationJobApplicationPolicyDefaults).toEqual({
+      applicationQuota: {
+        policyVersion: 'application-quota-v1',
+        quotaByResidentialTier: [1, 1, 2, 3, 4, 5],
+        source:
+          'AIvilization v0 Section 3.2.3 Equation 13 requires a non-negative, bounded, non-decreasing Nmax(R); application-quota-v1 is a repository policy decision because the paper does not specify tier values',
+      },
+      recruitmentCycle: {
+        policyVersion: 'recruitment-cycle-v1',
+        cycleDurationMs: 86_400_000,
+        defaultOccupationCapacity: 1,
+        occupationCapacityOverrides: {},
+        matchingStrategy: 'applicant-proposing-stable',
+        source:
+          'AIvilization v0 Section 3.2.3 requires recruitment cycles and competitive scarcity; recruitment-cycle-v1 is a repository policy decision because the paper does not specify cadence, capacity, ranking tie-breaks, or matching strategy',
+      },
     });
   });
 

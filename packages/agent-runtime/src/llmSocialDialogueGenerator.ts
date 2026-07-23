@@ -9,7 +9,12 @@ import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivili
 import { asAgentId } from '@aivilization/sim-core';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
 import {
+  SOCIAL_DIALOGUE_MAX_TURNS,
+  SOCIAL_DIALOGUE_MAX_UTTERANCE_LENGTH,
+  SOCIAL_DIALOGUE_MIN_TURNS,
+  SOCIAL_DIALOGUE_POLICY_VERSION,
   applySocialDialogueProposal,
+  createDeterministicSocialDialogueGenerationResult,
   toSocialDialogueTraceSubtask,
   type SocialDialogueGenerationResult,
   type SocialDialogueGenerationTrace,
@@ -101,6 +106,7 @@ export async function proposeSocialDialogueWithLlm(
       trace: mapAcceptedTrace({
         input,
         gateway,
+        topic: payload.topic,
         turnCount: payload.turns.length,
       }),
       gateway,
@@ -161,14 +167,19 @@ const socialDialogueToolContract = {
           rationale: { type: 'string', minLength: 1 },
           turns: {
             type: 'array',
-            minItems: 2,
+            minItems: SOCIAL_DIALOGUE_MIN_TURNS,
+            maxItems: SOCIAL_DIALOGUE_MAX_TURNS,
             items: {
               type: 'object',
               additionalProperties: false,
               required: ['speakerAgentId', 'utterance'],
               properties: {
                 speakerAgentId: { type: 'string', minLength: 1 },
-                utterance: { type: 'string', minLength: 1 },
+                utterance: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: SOCIAL_DIALOGUE_MAX_UTTERANCE_LENGTH,
+                },
                 intent: { type: 'string', minLength: 1 },
               },
             },
@@ -215,7 +226,7 @@ function createSocialDialogueMessages(
         constraints: [
           'Use only speakerAgentId values listed in allowedSpeakerAgentIds.',
           'The first turn must be spoken by agentId.',
-          'Both participants must speak at least once.',
+          `Produce ${SOCIAL_DIALOGUE_MIN_TURNS}-${SOCIAL_DIALOGUE_MAX_TURNS} turns with strict speaker alternation.`,
           'Do not invent inventory, balance, market prices, relationships, jobs, or prior events outside supplied context.',
           'Keep the dialogue compact for frequent simulation ticks.',
           'Do not change the target agent or command type.',
@@ -283,10 +294,11 @@ function createFallbackResult(input: {
   readonly failureReason: string;
   readonly message: string;
 }): LlmSocialDialogueFallbackResult {
+  const deterministic = createDeterministicSocialDialogueGenerationResult(input.input);
   return {
     status: 'fallback',
     source: 'deterministic-fallback',
-    payload: input.input.deterministicPayload,
+    payload: deterministic.payload,
     trace: mapFallbackTrace({
       input: input.input,
       gateway: input.failure,
@@ -300,6 +312,7 @@ function createFallbackResult(input: {
 function mapAcceptedTrace(input: {
   readonly input: LlmSocialDialogueGeneratorInput;
   readonly gateway: LlmStructuredSuccess<LlmSocialDialogueGenerationProposal>;
+  readonly topic: string;
   readonly turnCount: number;
 }): SocialDialogueGenerationTrace {
   const lastAttempt = input.gateway.attempts.at(-1);
@@ -309,6 +322,11 @@ function mapAcceptedTrace(input: {
     selectedSubtask: toSocialDialogueTraceSubtask(input.input.selectedSubtask),
     actionId: input.input.action.id,
     targetAgentId: input.input.deterministicPayload.targetAgentId,
+    topic: input.topic,
+    policyVersion: SOCIAL_DIALOGUE_POLICY_VERSION,
+    ...(input.input.deterministicPayload.planningContext === undefined
+      ? {}
+      : { planningContext: input.input.deterministicPayload.planningContext }),
     requestId: input.gateway.requestId,
     ...(lastAttempt === undefined ? {} : { providerId: lastAttempt.providerId }),
     ...(lastAttempt === undefined ? {} : { model: lastAttempt.model }),
@@ -346,6 +364,11 @@ function mapFallbackTrace(input: {
     selectedSubtask: toSocialDialogueTraceSubtask(input.input.selectedSubtask),
     actionId: input.input.action.id,
     targetAgentId: input.input.deterministicPayload.targetAgentId,
+    topic: input.input.deterministicPayload.topic,
+    policyVersion: SOCIAL_DIALOGUE_POLICY_VERSION,
+    ...(input.input.deterministicPayload.planningContext === undefined
+      ? {}
+      : { planningContext: input.input.deterministicPayload.planningContext }),
     requestId: input.gateway.requestId,
     ...(lastAttempt === undefined ? {} : { providerId: lastAttempt.providerId }),
     ...(lastAttempt === undefined ? {} : { model: lastAttempt.model }),

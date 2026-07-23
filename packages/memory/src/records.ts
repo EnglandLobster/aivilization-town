@@ -12,6 +12,19 @@ export type ShortTermMemoryKind = 'action' | 'observation' | 'social-interaction
 
 export type ShortTermMemoryStatus = 'succeeded' | 'failed' | 'repaired' | 'observed';
 
+export type SocialKnowledgeClaimStatus =
+  | 'asserted'
+  | 'disputed'
+  | 'corrected'
+  | 'suspected-misinformation';
+
+export type SocialKnowledgeClaim = {
+  readonly sourceAgentId: AgentId;
+  readonly topic: string;
+  readonly statement: string;
+  readonly status: SocialKnowledgeClaimStatus;
+};
+
 export type MemorySource = {
   readonly commandId?: CommandId;
   readonly eventIds: readonly EventId[];
@@ -34,6 +47,9 @@ export type MemoryConsolidationHint =
       readonly relationDelta: number;
       readonly attitudeDelta: number;
       readonly summary: string;
+      readonly outcomePolicyVersion?: string;
+      readonly outcomeSignals?: readonly string[];
+      readonly knowledgeClaims?: readonly SocialKnowledgeClaim[];
     };
 
 export type ShortTermMemoryRecord = {

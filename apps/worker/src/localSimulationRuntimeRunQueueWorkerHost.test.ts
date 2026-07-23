@@ -75,6 +75,31 @@ describe('local simulation runtime run queue worker host', () => {
     expect(host.getStatus()).toMatchObject({ running: false, inFlight: false });
     expect(cleared).toEqual([{ delayMs: 0 }]);
   });
+
+  test('returns idle instead of claiming concurrently through recovery and polling paths', async () => {
+    let resolveFirst!: (result: LocalSimulationRuntimeRunQueueWorkerRunResult) => void;
+    const firstResult = new Promise<LocalSimulationRuntimeRunQueueWorkerRunResult>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let callCount = 0;
+    const host = createLocalSimulationRuntimeRunQueueWorkerHost({
+      worker: {
+        runNext: () => {
+          callCount += 1;
+          return firstResult;
+        },
+      },
+      clock: createClock([100, 150]),
+      pollIntervalMs: 25,
+    });
+
+    const first = host.runOnce();
+    await expect(host.runOnce()).resolves.toEqual({ status: 'idle' });
+    expect(callCount).toBe(1);
+    resolveFirst({ status: 'completed', job: createJob('job-single-flight', 'completed') });
+    await expect(first).resolves.toMatchObject({ status: 'completed' });
+    expect(host.getStatus()).toMatchObject({ inFlight: false, completedJobCount: 1 });
+  });
 });
 
 function createWorker(

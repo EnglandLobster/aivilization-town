@@ -120,6 +120,28 @@ describe('objective renewal trace repositories', () => {
       }),
     ).resolves.toEqual([trace]);
   });
+
+  test('records definitely-new trace IDs without complete-ledger scans', async () => {
+    const repository = new FileObjectiveRenewalTraceRepository({ rootDir: createRootDir() });
+    for (let index = 0; index < 100; index += 1) {
+      await repository.record(
+        createTrace({
+          traceId: `trace-bounded-${index}`,
+          agentId: `agent-${index % 10}`,
+          objectiveId: `objective-${index}`,
+          issuedAt: index,
+        }),
+      );
+    }
+
+    expect(repository.getStorageDiagnostics()).toMatchObject({
+      completeRecordCount: 100,
+      recentRecordCount: 100,
+      definiteNegativeLookupCount: 100,
+      exactColdScanCount: 0,
+      completeQueryScanCount: 0,
+    });
+  });
 });
 
 function createRootDir(): string {

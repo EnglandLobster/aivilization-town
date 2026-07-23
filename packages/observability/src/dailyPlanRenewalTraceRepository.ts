@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BoundedTraceLedger, type BoundedTraceLedgerDiagnostics } from './boundedTraceLedger';
 import {
   cloneWorldDecisionContextTrace,
   type WorldDecisionContextTrace,
@@ -94,35 +94,36 @@ export class InMemoryDailyPlanRenewalTraceRepository implements DailyPlanRenewal
 }
 
 export class FileDailyPlanRenewalTraceRepository implements DailyPlanRenewalTraceRepository {
-  private readonly tracesPath: string;
+  private readonly traces: BoundedTraceLedger<DailyPlanRenewalTrace>;
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
-    this.tracesPath = join(input.rootDir, 'daily-plan-renewal-traces.jsonl');
-    ensureFile(this.tracesPath, input.rootDir);
+    this.traces = new BoundedTraceLedger({
+      path: join(input.rootDir, 'daily-plan-renewal-traces.jsonl'),
+      keyOf: (trace) => trace.traceId,
+      clone: cloneTrace,
+    });
   }
 
-  async record(trace: DailyPlanRenewalTrace): Promise<void> {
-    if ((await this.get(trace.traceId)) !== undefined) {
-      return;
-    }
-    appendJsonLines(this.tracesPath, [cloneTrace(trace)]);
+  record(trace: DailyPlanRenewalTrace): Promise<void> {
+    return Promise.resolve().then(() => {
+      this.traces.appendUnique(trace);
+    });
   }
 
   get(traceId: string): Promise<DailyPlanRenewalTrace | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const trace = readJsonLines<DailyPlanRenewalTrace>(this.tracesPath).find(
-        (candidate) => candidate.traceId === traceId,
-      );
-      return trace === undefined ? undefined : cloneTrace(trace);
+      return this.traces.get(traceId);
     });
   }
 
   query(query: DailyPlanRenewalTraceQuery): Promise<DailyPlanRenewalTrace[]> {
-    return Promise.resolve().then(() =>
-      queryTraces(readJsonLines<DailyPlanRenewalTrace>(this.tracesPath), query),
-    );
+    return Promise.resolve().then(() => queryTraces(this.traces.readAll(), query));
+  }
+
+  getStorageDiagnostics(): BoundedTraceLedgerDiagnostics {
+    return this.traces.diagnostics();
   }
 }
 
@@ -275,31 +276,6 @@ function assertValidQuery(query: DailyPlanRenewalTraceQuery): void {
   if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1)) {
     throw new Error('limit must be a positive integer');
   }
-}
-
-function ensureFile(filePath: string, rootDir: string): void {
-  mkdirSync(rootDir, { recursive: true });
-  if (!existsSync(filePath)) {
-    writeFileSync(filePath, '');
-  }
-}
-
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  if (values.length === 0) {
-    return;
-  }
-  appendFileSync(path, `${values.map((value) => JSON.stringify(value)).join('\n')}\n`);
-}
-
-function readJsonLines<TValue>(path: string): TValue[] {
-  const text = readFileSync(path, 'utf8');
-  if (text.trim().length === 0) {
-    return [];
-  }
-  return text
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

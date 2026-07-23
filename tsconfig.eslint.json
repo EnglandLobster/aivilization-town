@@ -9,6 +9,7 @@
     "eslint.config.js",
     "vitest.config.ts",
     "vitest.workspace-aliases.ts",
+    "scripts/**/*.mjs",
     "apps/**/*.ts",
     "packages/**/*.ts"
   ]

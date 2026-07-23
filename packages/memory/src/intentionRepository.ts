@@ -2,10 +2,10 @@ import type { AgentId } from '@aivilization/sim-core';
 import {
   completeLongHorizonObjective,
   createEmptyAgentIntentionState,
+  enforceAgentIntentionStateRetention,
   setLongHorizonObjective,
   upsertScheduledIntentions,
   type AgentIntentionState,
-  type CompletedLongHorizonObjective,
   type LongHorizonObjective,
   type LongHorizonObjectiveCompletionReason,
   type ScheduledIntention,
@@ -86,55 +86,5 @@ export class InMemoryAgentIntentionRepository implements AgentIntentionRepositor
 }
 
 function cloneState(state: AgentIntentionState): AgentIntentionState {
-  return {
-    agentId: state.agentId,
-    ...(state.activeObjective === undefined
-      ? {}
-      : { activeObjective: cloneObjective(state.activeObjective) }),
-    completedObjectives: (state.completedObjectives ?? []).map((completed) =>
-      cloneCompletedObjective(completed),
-    ),
-    scheduledIntentions: state.scheduledIntentions.map((intention) =>
-      cloneScheduledIntention(intention),
-    ),
-    updatedAt: state.updatedAt,
-  };
-}
-
-function cloneObjective(objective: LongHorizonObjective): LongHorizonObjective {
-  return {
-    ...objective,
-    affinityTags: [...objective.affinityTags],
-  };
-}
-
-function cloneCompletedObjective(completed: CompletedLongHorizonObjective): CompletedLongHorizonObjective {
-  return {
-    objective: cloneObjective(completed.objective),
-    completedAt: completed.completedAt,
-    reason: completed.reason,
-    ...(completed.planId === undefined ? {} : { planId: completed.planId }),
-  };
-}
-
-function cloneScheduledIntention(intention: ScheduledIntention): ScheduledIntention {
-  return {
-    id: intention.id,
-    agentId: intention.agentId,
-    ...(intention.objectiveId === undefined ? {} : { objectiveId: intention.objectiveId }),
-    ...(intention.branchId === undefined ? {} : { branchId: intention.branchId }),
-    ...(intention.subtaskId === undefined ? {} : { subtaskId: intention.subtaskId }),
-    ...(intention.sourcePlanId === undefined ? {} : { sourcePlanId: intention.sourcePlanId }),
-    description: intention.description,
-    priority: intention.priority,
-    startsAt: intention.startsAt,
-    endsAt: intention.endsAt,
-    status: intention.status,
-    affinityTags: [...intention.affinityTags],
-    ...(intention.provenanceRecordIds === undefined
-      ? {}
-      : { provenanceRecordIds: [...intention.provenanceRecordIds] }),
-    createdAt: intention.createdAt,
-    updatedAt: intention.updatedAt,
-  };
+  return enforceAgentIntentionStateRetention(state);
 }

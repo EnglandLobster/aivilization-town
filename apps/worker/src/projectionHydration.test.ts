@@ -7,6 +7,7 @@ import {
   createEventEnvelope,
   createSimulationPartition,
 } from '@aivilization/sim-core';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
 import { createWorldProjection, type WorldEvent, type WorldProjection } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -192,6 +193,68 @@ describe('worker projection hydration', () => {
     expect(result.projection.agents['agent-1']?.educationScore).toBe(90);
     expect(result.lastAppliedSequence).toBe(3);
     expect(result.streamVersion).toBe(3);
+  });
+
+  test('bounds legacy snapshot memory history before replay', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    eventStore.appendToStream({
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      events: [createTimeEvent(1)],
+    });
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    const legacyProjection: WorldProjection = {
+      ...createProjection({ now: 1_000 }),
+      memoryRecords: Array.from({ length: 300 }, (_, index) =>
+        createShortTermMemoryRecord({
+          id: `legacy-memory-${index}`,
+          agentId: asAgentId('agent-1'),
+          kind: 'action',
+          status: 'succeeded',
+          summary: `legacy memory ${index}`,
+          occurredAt: index,
+          importanceScore: 0.5,
+          source: { eventIds: [] },
+        }),
+      ),
+    };
+    const snapshot = snapshotStore.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 1,
+      createdAt: 100,
+      projection: legacyProjection,
+    });
+    checkpointStore.saveCheckpoint(
+      createProjectionCheckpoint({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        lastAppliedSequence: 1,
+        snapshot,
+      }),
+    );
+
+    const result = hydrateWorldProjectionFromEventStream({
+      initialProjection: createProjection(),
+      eventStore,
+      streamName: partition.eventStreamName,
+      checkpoint: {
+        checkpointStore,
+        snapshotStore,
+        lookup: {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+        },
+      },
+    });
+
+    expect(result.events).toEqual([]);
+    expect(result.projection.memoryRecords).toHaveLength(256);
+    expect(result.projection.memoryRecords[0]?.id).toBe('legacy-memory-44');
+    expect(result.projection.memoryRecords.at(-1)?.id).toBe('legacy-memory-299');
   });
 
   test('rejects a checkpoint whose snapshot blob is missing', () => {

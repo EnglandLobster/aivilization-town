@@ -1,6 +1,7 @@
 import type {
   ReactiveActionSimulator,
   ReactiveLocalizedPlanner,
+  StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import type { ScenarioMarketPoolSeed, ScenarioPreset } from '@aivilization/content';
 import type { CommandConsumerId, PartitionKey } from '@aivilization/sim-core';
@@ -26,6 +27,8 @@ import type {
 } from './tickRunner';
 import type { LocalRuntimeSteeringCommandDrainInput } from './localCommandDrain';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
+
+export const SCENARIO_TIME_SCALE_POLICY_VERSION = 'scenario-time-scale-v1';
 
 export type LocalSimulationRuntimeManifestDefaults = {
   readonly tickBatchSize: number;
@@ -78,6 +81,7 @@ export type LocalSimulationRuntimeWiringInput = {
   readonly policies: WorldCommandPolicySource;
   readonly localizedPlanners: readonly ReactiveLocalizedPlanner[];
   readonly steeringSimulator: ReactiveActionSimulator;
+  readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly agents: readonly WorkerTickAgentInput[];
   readonly pauseBeforeTick?: LocalWorldRuntimeLoopPausePredicate;
   readonly commandDrainLimit?: LocalRuntimeSteeringCommandDrainInput['limit'];
@@ -130,6 +134,9 @@ export function createLocalSimulationBackendRegistrationsFromManifest(
     policies: input.policies,
     localizedPlanners: input.localizedPlanners,
     steeringSimulator: input.steeringSimulator,
+    ...(input.strategicPlanCompiler === undefined
+      ? {}
+      : { strategicPlanCompiler: input.strategicPlanCompiler }),
     agents: input.agents,
     ...(input.pauseBeforeTick === undefined ? {} : { pauseBeforeTick: input.pauseBeforeTick }),
     ...(input.commandDrainLimit === undefined
@@ -172,12 +179,15 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
       policies: input.policies,
       localizedPlanners: input.localizedPlanners,
       steeringSimulator: input.steeringSimulator,
+      ...(input.strategicPlanCompiler === undefined
+        ? {}
+        : { strategicPlanCompiler: input.strategicPlanCompiler }),
       agents: input.agents,
       ...(input.pauseBeforeTick === undefined ? {} : { pauseBeforeTick: input.pauseBeforeTick }),
       ...(input.commandDrainLimit === undefined
         ? {}
         : { commandDrainLimit: input.commandDrainLimit }),
-      ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
+      timeDeltaMs: input.timeDeltaMs ?? resolveScenarioTimeDeltaMs(partition.preset),
       ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
       ...(input.marketObservations === undefined
         ? {}
@@ -222,6 +232,7 @@ function resolvePartitionManifest(
   const tickIntervalMs = partition.tickIntervalMs ?? manifest.defaults.tickIntervalMs;
   assertPositiveInteger(tickBatchSize, 'tickBatchSize');
   assertNonNegativeFinite(tickIntervalMs, 'tickIntervalMs');
+  resolveScenarioTimeDeltaMs(preset);
 
   return {
     simulationId: partition.simulationId,
@@ -236,6 +247,14 @@ function resolvePartitionManifest(
     ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
     ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
   };
+}
+
+export function resolveScenarioTimeDeltaMs(preset: ScenarioPreset): number {
+  assertPositiveFinite(preset.clock.tickDurationMs, 'scenario clock.tickDurationMs');
+  assertPositiveFinite(preset.timeScale, 'scenario timeScale');
+  const timeDeltaMs = preset.clock.tickDurationMs * preset.timeScale;
+  assertPositiveFinite(timeDeltaMs, 'scenario scaled timeDeltaMs');
+  return timeDeltaMs;
 }
 
 function createScenarioPresetLookup(
@@ -289,5 +308,11 @@ function assertPositiveInteger(value: number, name: string): void {
 function assertNonNegativeFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a non-negative finite number`);
+  }
+}
+
+function assertPositiveFinite(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive finite number`);
   }
 }

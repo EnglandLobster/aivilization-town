@@ -66,12 +66,24 @@ export type LocalSimulationRuntimeRunQueueClaimRequest = {
 
 export type LocalSimulationRuntimeRunQueueCompleteRequest = {
   readonly jobId: string;
+  readonly workerId: string;
+  readonly attemptNumber: number;
   readonly completedAt: SimulationTimestamp;
   readonly resultTraceId: string;
 };
 
+export type LocalSimulationRuntimeRunQueueRenewLeaseRequest = {
+  readonly jobId: string;
+  readonly workerId: string;
+  readonly attemptNumber: number;
+  readonly renewedAt: SimulationTimestamp;
+  readonly leaseDurationMs: number;
+};
+
 export type LocalSimulationRuntimeRunQueueFailRequest = {
   readonly jobId: string;
+  readonly workerId: string;
+  readonly attemptNumber: number;
   readonly failedAt: SimulationTimestamp;
   readonly maxAttempts?: number;
   readonly retryDelayMs?: number;
@@ -130,6 +142,9 @@ export type LocalSimulationRuntimeRunQueueRepository = {
   readonly complete: (
     request: LocalSimulationRuntimeRunQueueCompleteRequest,
   ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
+  readonly renewLease: (
+    request: LocalSimulationRuntimeRunQueueRenewLeaseRequest,
+  ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
   readonly fail: (
     request: LocalSimulationRuntimeRunQueueFailRequest,
   ) => Promise<LocalSimulationRuntimeRunQueueJob | undefined>;
@@ -167,6 +182,15 @@ export type LocalSimulationRuntimeRunQueueWorker = {
   readonly runNext: (
     request: LocalSimulationRuntimeRunQueueWorkerRunRequest,
   ) => Promise<LocalSimulationRuntimeRunQueueWorkerRunResult>;
+};
+
+export type LocalSimulationRuntimeRunQueueWorkerClock = {
+  readonly now: () => SimulationTimestamp;
+};
+
+export type LocalSimulationRuntimeRunQueueWorkerLeaseHeartbeatScheduler = {
+  readonly setInterval: (callback: () => void, intervalMs: number) => unknown;
+  readonly clearInterval: (handle: unknown) => void;
 };
 
 export class InMemoryLocalSimulationRuntimeRunQueueRepository implements LocalSimulationRuntimeRunQueueRepository {
@@ -208,12 +232,27 @@ export class InMemoryLocalSimulationRuntimeRunQueueRepository implements LocalSi
     return Promise.resolve().then(() => {
       assertCompleteRequest(request);
       const job = this.jobs.get(request.jobId);
-      if (job === undefined) {
+      if (job === undefined || !requestOwnsLease(job, request)) {
         return undefined;
       }
       const completed = createCompletedJob(job, request);
       this.jobs.set(completed.jobId, completed);
       return cloneJob(completed);
+    });
+  }
+
+  renewLease(
+    request: LocalSimulationRuntimeRunQueueRenewLeaseRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueJob | undefined> {
+    return Promise.resolve().then(() => {
+      assertRenewLeaseRequest(request);
+      const job = this.jobs.get(request.jobId);
+      if (job === undefined || !requestOwnsLease(job, request)) {
+        return undefined;
+      }
+      const renewed = createRenewedLeaseJob(job, request);
+      this.jobs.set(renewed.jobId, renewed);
+      return cloneJob(renewed);
     });
   }
 
@@ -223,7 +262,7 @@ export class InMemoryLocalSimulationRuntimeRunQueueRepository implements LocalSi
     return Promise.resolve().then(() => {
       assertFailRequest(request);
       const job = this.jobs.get(request.jobId);
-      if (job === undefined) {
+      if (job === undefined || !requestOwnsLease(job, request)) {
         return undefined;
       }
       const failed = createFailedJob(job, request);
@@ -319,12 +358,27 @@ export class FileLocalSimulationRuntimeRunQueueRepository implements LocalSimula
     return Promise.resolve().then(() => {
       assertCompleteRequest(request);
       const job = readLatestJob(this.queuePath, request.jobId);
-      if (job === undefined) {
+      if (job === undefined || !requestOwnsLease(job, request)) {
         return undefined;
       }
       const completed = createCompletedJob(job, request);
       appendJsonLines(this.queuePath, [completed]);
       return cloneJob(completed);
+    });
+  }
+
+  renewLease(
+    request: LocalSimulationRuntimeRunQueueRenewLeaseRequest,
+  ): Promise<LocalSimulationRuntimeRunQueueJob | undefined> {
+    return Promise.resolve().then(() => {
+      assertRenewLeaseRequest(request);
+      const job = readLatestJob(this.queuePath, request.jobId);
+      if (job === undefined || !requestOwnsLease(job, request)) {
+        return undefined;
+      }
+      const renewed = createRenewedLeaseJob(job, request);
+      appendJsonLines(this.queuePath, [renewed]);
+      return cloneJob(renewed);
     });
   }
 
@@ -334,7 +388,7 @@ export class FileLocalSimulationRuntimeRunQueueRepository implements LocalSimula
     return Promise.resolve().then(() => {
       assertFailRequest(request);
       const job = readLatestJob(this.queuePath, request.jobId);
-      if (job === undefined) {
+      if (job === undefined || !requestOwnsLease(job, request)) {
         return undefined;
       }
       const failed = createFailedJob(job, request);
@@ -392,6 +446,8 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
   readonly leaseDurationMs: number;
   readonly maxAttempts?: number;
   readonly retryDelayMs?: number;
+  readonly clock?: LocalSimulationRuntimeRunQueueWorkerClock;
+  readonly leaseHeartbeatScheduler?: LocalSimulationRuntimeRunQueueWorkerLeaseHeartbeatScheduler;
 }): LocalSimulationRuntimeRunQueueWorker {
   assertNonEmpty(input.workerId, 'workerId');
   assertPositiveFinite(input.leaseDurationMs, 'leaseDurationMs');
@@ -401,6 +457,11 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
   if (input.retryDelayMs !== undefined) {
     assertNonNegativeFinite(input.retryDelayMs, 'retryDelayMs');
   }
+  const clock = input.clock ?? { now: () => Date.now() };
+  const leaseHeartbeatScheduler = input.leaseHeartbeatScheduler ?? {
+    setInterval: (callback: () => void, intervalMs: number) => setInterval(callback, intervalMs),
+    clearInterval: (handle: unknown) => clearInterval(handle as ReturnType<typeof setInterval>),
+  };
 
   return {
     runNext: async (request) => {
@@ -413,30 +474,91 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
       if (claimed === undefined) {
         return { status: 'idle' };
       }
+      const attemptNumber = claimed.attemptCount ?? claimed.attempts?.length;
+      if (attemptNumber === undefined || attemptNumber < 1) {
+        throw new Error(`claimed run queue job is missing its attempt number: ${claimed.jobId}`);
+      }
+      const leaseIdentity = {
+        jobId: claimed.jobId,
+        workerId: input.workerId,
+        attemptNumber,
+      } as const;
+      let heartbeatActive = true;
+      let heartbeatError: unknown;
+      let heartbeatChain = Promise.resolve();
+      const heartbeatHandle = leaseHeartbeatScheduler.setInterval(
+        () => {
+          heartbeatChain = heartbeatChain.then(async () => {
+            if (!heartbeatActive || heartbeatError !== undefined) {
+              return;
+            }
+            try {
+              const renewedAt = Math.max(request.claimedAt, clock.now());
+              const renewed = await input.queueRepository.renewLease({
+                ...leaseIdentity,
+                renewedAt,
+                leaseDurationMs: input.leaseDurationMs,
+              });
+              if (renewed === undefined) {
+                heartbeatError = new Error(
+                  `run queue lease ownership was lost during execution: ${claimed.jobId}/${attemptNumber}`,
+                );
+              }
+            } catch (error) {
+              heartbeatError = error;
+            }
+          });
+        },
+        Math.max(1, Math.floor(input.leaseDurationMs / 3)),
+      );
+
+      let runResult: Awaited<ReturnType<LocalSimulationRuntimeSupervisor['runCycles']>> | undefined;
+      let runError: unknown;
       try {
-        const result = await input.supervisor.runCycles(claimed.runRequest);
-        const completed = await input.queueRepository.complete({
-          jobId: claimed.jobId,
-          completedAt: request.claimedAt,
-          resultTraceId: result.traceId,
-        });
-        if (completed === undefined) {
-          throw new Error(`claimed run queue job disappeared: ${claimed.jobId}`);
-        }
-        return { status: 'completed', job: completed };
+        runResult = await input.supervisor.runCycles(claimed.runRequest);
       } catch (error) {
+        runError = error;
+      } finally {
+        heartbeatActive = false;
+        leaseHeartbeatScheduler.clearInterval(heartbeatHandle);
+        await heartbeatChain;
+      }
+
+      const executionError = heartbeatError ?? runError;
+      if (executionError !== undefined) {
+        const failedAt = Math.max(request.claimedAt, clock.now());
+        assertNonNegativeFinite(failedAt, 'failedAt');
         const failed = await input.queueRepository.fail({
-          jobId: claimed.jobId,
-          failedAt: request.claimedAt,
+          ...leaseIdentity,
+          failedAt,
           maxAttempts: input.maxAttempts ?? 1,
           retryDelayMs: input.retryDelayMs ?? 0,
-          error: serializeQueueError(error),
+          error: serializeQueueError(executionError),
         });
         if (failed === undefined) {
-          throw new Error(`claimed run queue job disappeared: ${claimed.jobId}`);
+          throw new Error(
+            `run queue attempt lost ownership before failure could be recorded: ${claimed.jobId}/${attemptNumber}`,
+            { cause: executionError },
+          );
         }
         return { status: 'failed', job: failed };
       }
+      if (runResult === undefined) {
+        throw new Error(`run queue supervisor returned no result: ${claimed.jobId}`);
+      }
+      const completedAt = Math.max(request.claimedAt, clock.now());
+      assertNonNegativeFinite(completedAt, 'completedAt');
+      const completed = await input.queueRepository.complete({
+        ...leaseIdentity,
+        completedAt,
+        resultTraceId: runResult.traceId,
+      });
+      if (completed === undefined) {
+        throw new Error(
+          `run queue attempt lost ownership before completion: ${claimed.jobId}/${attemptNumber}`,
+        );
+      }
+      return { status: 'completed', job: completed };
     },
   };
 }
@@ -478,6 +600,30 @@ function createLeasedJob(
       },
     ],
   });
+}
+
+function createRenewedLeaseJob(
+  job: LocalSimulationRuntimeRunQueueJob,
+  request: LocalSimulationRuntimeRunQueueRenewLeaseRequest,
+): LocalSimulationRuntimeRunQueueJob {
+  const leaseExpiresAt = request.renewedAt + request.leaseDurationMs;
+  return cloneJob({
+    ...job,
+    leaseExpiresAt,
+    updatedAt: request.renewedAt,
+    attempts: annotateLatestAttempt(job.attempts ?? [], { leaseExpiresAt }),
+  });
+}
+
+function requestOwnsLease(
+  job: LocalSimulationRuntimeRunQueueJob,
+  request: { readonly workerId: string; readonly attemptNumber: number },
+): boolean {
+  return (
+    job.status === 'leased' &&
+    job.leaseOwnerId === request.workerId &&
+    (job.attemptCount ?? job.attempts?.length ?? 0) === request.attemptNumber
+  );
 }
 
 function createCompletedJob(
@@ -799,12 +945,24 @@ function assertClaimRequest(request: LocalSimulationRuntimeRunQueueClaimRequest)
 
 function assertCompleteRequest(request: LocalSimulationRuntimeRunQueueCompleteRequest): void {
   assertNonEmpty(request.jobId, 'jobId');
+  assertNonEmpty(request.workerId, 'workerId');
+  assertPositiveInteger(request.attemptNumber, 'attemptNumber');
   assertNonNegativeFinite(request.completedAt, 'completedAt');
   assertNonEmpty(request.resultTraceId, 'resultTraceId');
 }
 
+function assertRenewLeaseRequest(request: LocalSimulationRuntimeRunQueueRenewLeaseRequest): void {
+  assertNonEmpty(request.jobId, 'jobId');
+  assertNonEmpty(request.workerId, 'workerId');
+  assertPositiveInteger(request.attemptNumber, 'attemptNumber');
+  assertNonNegativeFinite(request.renewedAt, 'renewedAt');
+  assertPositiveFinite(request.leaseDurationMs, 'leaseDurationMs');
+}
+
 function assertFailRequest(request: LocalSimulationRuntimeRunQueueFailRequest): void {
   assertNonEmpty(request.jobId, 'jobId');
+  assertNonEmpty(request.workerId, 'workerId');
+  assertPositiveInteger(request.attemptNumber, 'attemptNumber');
   assertNonNegativeFinite(request.failedAt, 'failedAt');
   if (request.maxAttempts !== undefined) {
     assertPositiveInteger(request.maxAttempts, 'maxAttempts');

@@ -44,6 +44,16 @@ describe('LLM social dialogue generation seam', () => {
                     'The south stall was cheaper this morning; I can show you before it gets busy.',
                   intent: 'offer-help',
                 },
+                {
+                  speakerAgentId: 'agent-1',
+                  utterance: 'Could we compare the fish and grain stalls together?',
+                  intent: 'propose-comparison',
+                },
+                {
+                  speakerAgentId: 'agent-2',
+                  utterance: 'Yes, that will give us a better picture before either of us buys.',
+                  intent: 'confirm-comparison',
+                },
               ],
             },
           }),
@@ -74,8 +84,8 @@ describe('LLM social dialogue generation seam', () => {
       payload: {
         targetAgentId: 'agent-2',
         topic: 'sharing market price notes',
-        relationDelta: 0.09,
-        attitudeDelta: 0.04,
+        relationDelta: 0.05,
+        attitudeDelta: 0.02,
         turns: [
           {
             speakerAgentId: 'agent-1',
@@ -89,6 +99,16 @@ describe('LLM social dialogue generation seam', () => {
               'The south stall was cheaper this morning; I can show you before it gets busy.',
             intent: 'offer-help',
           },
+          {
+            speakerAgentId: 'agent-1',
+            utterance: 'Could we compare the fish and grain stalls together?',
+            intent: 'propose-comparison',
+          },
+          {
+            speakerAgentId: 'agent-2',
+            utterance: 'Yes, that will give us a better picture before either of us buys.',
+            intent: 'confirm-comparison',
+          },
         ],
       },
       trace: {
@@ -100,7 +120,9 @@ describe('LLM social dialogue generation seam', () => {
         selectedSubtask: { branchId: 'social', subtaskId: 'check-in' },
         actionId: 'social-check-in',
         targetAgentId: 'agent-2',
-        turnCount: 2,
+        topic: 'sharing market price notes',
+        policyVersion: 'bounded-social-dialogue-v1',
+        turnCount: 4,
         rationale:
           'The agent has Fish in inventory, observed expensive prices, and wants a useful neighbor exchange.',
         usage: {
@@ -183,7 +205,7 @@ describe('LLM social dialogue generation seam', () => {
         source: 'deterministic-fallback',
         requestId: 'social-dialogue-invalid-speaker',
         failureReason: 'schema-invalid',
-        turnCount: 2,
+        turnCount: 4,
       },
     });
   });
@@ -236,6 +258,8 @@ describe('LLM social dialogue generation seam', () => {
               turns: [
                 { speakerAgentId: 'agent-1', utterance: 'I will check Fish prices after work.' },
                 { speakerAgentId: 'agent-2', utterance: 'I can compare grain prices meanwhile.' },
+                { speakerAgentId: 'agent-1', utterance: 'Let us exchange notes this evening.' },
+                { speakerAgentId: 'agent-2', utterance: 'I will meet you here after the market.' },
               ],
             },
           }),
@@ -264,6 +288,8 @@ describe('LLM social dialogue generation seam', () => {
       turns: [
         { speakerAgentId: 'agent-1', utterance: 'I will check Fish prices after work.' },
         { speakerAgentId: 'agent-2', utterance: 'I can compare grain prices meanwhile.' },
+        { speakerAgentId: 'agent-1', utterance: 'Let us exchange notes this evening.' },
+        { speakerAgentId: 'agent-2', utterance: 'I will meet you here after the market.' },
       ],
     });
     expect(result.trace).toMatchObject({
@@ -297,6 +323,16 @@ const deterministicPayload: SocialDialoguePayload = {
       speakerAgentId: targetAgentId,
       utterance: 'I heard it was still manageable near the market.',
       intent: 'share-market-rumor',
+    },
+    {
+      speakerAgentId: agentId,
+      utterance: 'Could we compare notes after the afternoon market closes?',
+      intent: 'propose-follow-up',
+    },
+    {
+      speakerAgentId: targetAgentId,
+      utterance: 'Yes, I will write down the prices I see and meet you here.',
+      intent: 'confirm-follow-up',
     },
   ],
 };

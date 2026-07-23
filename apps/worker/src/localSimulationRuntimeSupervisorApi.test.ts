@@ -99,6 +99,10 @@ describe('local simulation runtime supervisor API adapter', () => {
         calls.push({ method: 'getRunSession', traceId });
         return Promise.resolve(traceId === runSession.traceId ? runSession : undefined);
       },
+      getResolvedRunManifest: (runManifestId) => {
+        calls.push({ method: 'getResolvedRunManifest', runManifestId });
+        return Promise.resolve(undefined);
+      },
       requestRunSessionStop: (request) => {
         calls.push({ method: 'requestRunSessionStop', request });
         return Promise.resolve(
@@ -132,6 +136,9 @@ describe('local simulation runtime supervisor API adapter', () => {
     ).resolves.toBe(runResult);
     await expect(api.getRuntimeRunSession({ traceId: 'op-run-200' })).resolves.toBe(runSession);
     await expect(
+      api.getRuntimeResolvedRunManifest({ runManifestId: 'resolved-run-manifest:sha256:abc' }),
+    ).resolves.toBeUndefined();
+    await expect(
       api.stopRuntimeRunSession({ traceId: 'op-run-200', requestedAt: 260 }),
     ).resolves.toBe(stoppedRunSession);
     await expect(api.getRuntimeOperationTrace({ traceId: 'op-start-100' })).resolves.toBe(trace);
@@ -147,6 +154,10 @@ describe('local simulation runtime supervisor API adapter', () => {
         request: { operationId: 'op-run-200', requestedAt: 200, cycleCount: 2 },
       },
       { method: 'getRunSession', traceId: 'op-run-200' },
+      {
+        method: 'getResolvedRunManifest',
+        runManifestId: 'resolved-run-manifest:sha256:abc',
+      },
       {
         method: 'requestRunSessionStop',
         request: { traceId: 'op-run-200', requestedAt: 260 },

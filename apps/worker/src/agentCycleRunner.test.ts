@@ -159,12 +159,13 @@ describe('worker agent cycle runner', () => {
       subtaskId: 'study',
     });
     expect(result.dispatchResult?.appendResult).toMatchObject({
-      streamVersion: 2,
+      streamVersion: 3,
       idempotentReplay: false,
     });
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     await expect(
@@ -181,7 +182,7 @@ describe('worker agent cycle runner', () => {
       candidateActions: ['study for one minute'],
       simulatorResult: { status: 'accepted' },
       emittedCommandIds: ['cycle-1-command-1'],
-      memoryWriteIds: ['cycle-1-command-1:memory:1'],
+      memoryWriteIds: ['cycle-1-command-1:memory:2'],
     });
     expect(result.trace.simulatorEvents).toEqual([
       {
@@ -1336,7 +1337,7 @@ describe('worker agent cycle runner', () => {
     const replay = await runWorkerAgentCycle(input);
 
     expect(replay.dispatchResult?.appendResult.idempotentReplay).toBe(true);
-    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(2);
+    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(3);
     await expect(
       repositories.shortTermMemoryRepository.retrieve({
         agentId,
@@ -2298,6 +2299,7 @@ describe('worker agent cycle runner', () => {
     });
     expect(result.events.map((event) => event.type)).toEqual([
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(result.projection.agents['agent-1']?.physiology.energy).toBe(100);

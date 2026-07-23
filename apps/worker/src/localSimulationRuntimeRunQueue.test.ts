@@ -95,6 +95,8 @@ describe('local simulation runtime run queue', () => {
     });
     await restartedRepository.complete({
       jobId: 'job-file-1',
+      workerId: 'worker-file',
+      attemptNumber: 1,
       completedAt: 180,
       resultTraceId: 'op-run-file-1',
     });
@@ -119,6 +121,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-file-retry',
+      workerId: 'worker-file',
+      attemptNumber: 1,
       failedAt: 160,
       maxAttempts: 2,
       retryDelayMs: 25,
@@ -167,6 +171,58 @@ describe('local simulation runtime run queue', () => {
     });
   });
 
+  test('renews an owned lease and fences stale attempts from terminal transitions', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue(createJobInput('job-fenced', 'op-fenced', 100));
+    await repository.claimNext({
+      workerId: 'worker-a',
+      claimedAt: 110,
+      leaseDurationMs: 30,
+    });
+
+    await expect(
+      repository.renewLease({
+        jobId: 'job-fenced',
+        workerId: 'worker-a',
+        attemptNumber: 1,
+        renewedAt: 130,
+        leaseDurationMs: 30,
+      }),
+    ).resolves.toMatchObject({ leaseExpiresAt: 160, attemptCount: 1 });
+    await expect(
+      repository.claimNext({ workerId: 'worker-b', claimedAt: 150, leaseDurationMs: 30 }),
+    ).resolves.toBeUndefined();
+    await repository.claimNext({ workerId: 'worker-b', claimedAt: 161, leaseDurationMs: 30 });
+
+    await expect(
+      repository.complete({
+        jobId: 'job-fenced',
+        workerId: 'worker-a',
+        attemptNumber: 1,
+        completedAt: 162,
+        resultTraceId: 'stale-result',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      repository.fail({
+        jobId: 'job-fenced',
+        workerId: 'worker-a',
+        attemptNumber: 1,
+        failedAt: 162,
+        error: { name: 'Error', message: 'stale failure' },
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      repository.complete({
+        jobId: 'job-fenced',
+        workerId: 'worker-b',
+        attemptNumber: 2,
+        completedAt: 170,
+        resultTraceId: 'current-result',
+      }),
+    ).resolves.toMatchObject({ status: 'completed', attemptCount: 2 });
+  });
+
   test('repositories can query dead-lettered jobs and replay one while preserving attempts', async () => {
     const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
     await repository.enqueue(createJobInput('job-dead-1', 'op-run-dead-1', 100));
@@ -178,6 +234,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-dead-1',
+      workerId: 'worker-a',
+      attemptNumber: 1,
       failedAt: 210,
       maxAttempts: 1,
       error: { name: 'Error', message: 'permanent failure 1' },
@@ -189,6 +247,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-dead-2',
+      workerId: 'worker-a',
+      attemptNumber: 1,
       failedAt: 230,
       maxAttempts: 1,
       error: { name: 'Error', message: 'permanent failure 2' },
@@ -258,6 +318,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-delayed',
+      workerId: 'worker-a',
+      attemptNumber: 1,
       failedAt: 120,
       maxAttempts: 2,
       retryDelayMs: 200,
@@ -272,6 +334,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-dead-stats',
+      workerId: 'worker-a',
+      attemptNumber: 1,
       failedAt: 170,
       maxAttempts: 1,
       error: { name: 'Error', message: 'permanent failure before replay' },
@@ -287,6 +351,8 @@ describe('local simulation runtime run queue', () => {
     });
     await repository.fail({
       jobId: 'job-dead-stats',
+      workerId: 'worker-a',
+      attemptNumber: 2,
       failedAt: 200,
       maxAttempts: 2,
       error: { name: 'Error', message: 'permanent failure after replay' },
@@ -341,6 +407,7 @@ describe('local simulation runtime run queue', () => {
       queueRepository: repository,
       supervisor,
       leaseDurationMs: 100,
+      clock: { now: () => 260 },
     });
 
     await expect(worker.runNext({ claimedAt: 200 })).resolves.toMatchObject({
@@ -362,9 +429,59 @@ describe('local simulation runtime run queue', () => {
     ]);
     await expect(repository.get('job-worker-1')).resolves.toMatchObject({
       status: 'completed',
-      completedAt: 200,
+      completedAt: 260,
       resultTraceId: 'op-run-worker-1',
     });
+  });
+
+  test('queue worker renews its lease while a long supervisor cycle is running', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue(createJobInput('job-heartbeat', 'op-heartbeat', 100));
+    let resolveRun!: (result: LocalSimulationRuntimeSupervisorRunCyclesResult) => void;
+    let reportStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reportStarted = resolve;
+    });
+    const run = new Promise<LocalSimulationRuntimeSupervisorRunCyclesResult>((resolve) => {
+      resolveRun = resolve;
+    });
+    let heartbeatCallback: (() => void) | undefined;
+    const cleared: unknown[] = [];
+    const clockValues = [120, 140];
+    const worker = createLocalSimulationRuntimeRunQueueWorker({
+      workerId: 'worker-heartbeat',
+      queueRepository: repository,
+      supervisor: createSupervisor({
+        runCycles: () => {
+          reportStarted();
+          return run;
+        },
+      }),
+      leaseDurationMs: 30,
+      clock: { now: () => clockValues.shift()! },
+      leaseHeartbeatScheduler: {
+        setInterval: (callback) => {
+          heartbeatCallback = callback;
+          return 'heartbeat-handle';
+        },
+        clearInterval: (handle) => {
+          cleared.push(handle);
+        },
+      },
+    });
+
+    const execution = worker.runNext({ claimedAt: 100 });
+    await started;
+    heartbeatCallback!();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await expect(repository.get('job-heartbeat')).resolves.toMatchObject({
+      status: 'leased',
+      leaseExpiresAt: 150,
+      attemptCount: 1,
+    });
+    resolveRun(createRunCyclesResult('op-heartbeat'));
+    await expect(execution).resolves.toMatchObject({ status: 'completed' });
+    expect(cleared).toEqual(['heartbeat-handle']);
   });
 
   test('queue worker retries a failed attempt after the retry delay and preserves attempt history', async () => {
@@ -387,6 +504,7 @@ describe('local simulation runtime run queue', () => {
       leaseDurationMs: 100,
       maxAttempts: 2,
       retryDelayMs: 25,
+      clock: { now: () => (attempt === 1 ? 210 : 250) },
     });
 
     await expect(worker.runNext({ claimedAt: 200 })).resolves.toMatchObject({
@@ -397,20 +515,20 @@ describe('local simulation runtime run queue', () => {
         attemptCount: 1,
         failedAttemptCount: 1,
         maxAttempts: 2,
-        nextAttemptAt: 225,
+        nextAttemptAt: 235,
         attempts: [
           {
             attemptNumber: 1,
             workerId: 'worker-1',
             startedAt: 200,
-            failedAt: 200,
+            failedAt: 210,
             error: { message: 'temporary runtime failure' },
           },
         ],
       },
     });
-    await expect(worker.runNext({ claimedAt: 224 })).resolves.toEqual({ status: 'idle' });
-    await expect(worker.runNext({ claimedAt: 225 })).resolves.toMatchObject({
+    await expect(worker.runNext({ claimedAt: 234 })).resolves.toEqual({ status: 'idle' });
+    await expect(worker.runNext({ claimedAt: 235 })).resolves.toMatchObject({
       status: 'completed',
       job: {
         jobId: 'job-worker-retry',
@@ -419,12 +537,12 @@ describe('local simulation runtime run queue', () => {
         failedAttemptCount: 1,
         resultTraceId: 'op-run-worker-retry',
         attempts: [
-          { attemptNumber: 1, failedAt: 200 },
+          { attemptNumber: 1, failedAt: 210 },
           {
             attemptNumber: 2,
             workerId: 'worker-1',
-            startedAt: 225,
-            completedAt: 225,
+            startedAt: 235,
+            completedAt: 250,
             resultTraceId: 'op-run-worker-retry',
           },
         ],
@@ -443,6 +561,7 @@ describe('local simulation runtime run queue', () => {
       queueRepository: repository,
       supervisor,
       leaseDurationMs: 100,
+      clock: { now: () => 260 },
     });
 
     await expect(worker.runNext({ claimedAt: 200 })).resolves.toMatchObject({
@@ -452,8 +571,8 @@ describe('local simulation runtime run queue', () => {
         status: 'dead-lettered',
         attemptCount: 1,
         failedAttemptCount: 1,
-        failedAt: 200,
-        deadLetteredAt: 200,
+        failedAt: 260,
+        deadLetteredAt: 260,
         error: {
           name: 'Error',
           message: 'runtime exploded',
@@ -463,7 +582,7 @@ describe('local simulation runtime run queue', () => {
             attemptNumber: 1,
             workerId: 'worker-1',
             startedAt: 200,
-            failedAt: 200,
+            failedAt: 260,
             error: { message: 'runtime exploded' },
           },
         ],
@@ -471,8 +590,8 @@ describe('local simulation runtime run queue', () => {
     });
     await expect(repository.get('job-worker-fail')).resolves.toMatchObject({
       status: 'dead-lettered',
-      failedAt: 200,
-      deadLetteredAt: 200,
+      failedAt: 260,
+      deadLetteredAt: 260,
       error: {
         name: 'Error',
         message: 'runtime exploded',
@@ -524,6 +643,7 @@ function createSupervisor(input: {
   return {
     getStatus: () => createStatus(),
     getRunSession: () => Promise.resolve(undefined),
+    getResolvedRunManifest: () => Promise.resolve(undefined),
     requestRunSessionStop: () => Promise.resolve(undefined),
     getOperationTrace: () => Promise.resolve(undefined),
     queryOperationTraces: () => Promise.resolve([]),

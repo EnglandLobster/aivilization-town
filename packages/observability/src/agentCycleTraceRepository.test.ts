@@ -1,10 +1,20 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateRawSync, gzipSync, inflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, test } from 'vitest';
 import {
   FileAgentCycleTraceRepository,
   InMemoryAgentCycleTraceRepository,
+  agentCycleTraceCompressedStorageContainsUtf8,
+  createAgentCycleTraceStoragePolicyManifest,
   createAgentCycleTrace,
   type AgentCycleTrace,
 } from './index';
@@ -24,6 +34,39 @@ function createRootDir(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-agent-cycle-traces-'));
   tmpRoots.push(root);
   return root;
+}
+
+function readCompactBatchIndexes(path: string): Record<string, unknown>[] {
+  const content = readFileSync(path);
+  const batches: Record<string, unknown>[] = [];
+  let position = 0;
+  while (position < content.byteLength) {
+    const compressedByteLength = content.readUInt32BE(position);
+    position += 4;
+    batches.push(
+      JSON.parse(
+        inflateRawSync(content.subarray(position, position + compressedByteLength)).toString(
+          'utf8',
+        ),
+      ) as Record<string, unknown>,
+    );
+    position += compressedByteLength;
+  }
+  return batches;
+}
+
+function writeCompactBatchIndexes(path: string, batches: readonly Record<string, unknown>[]): void {
+  writeFileSync(
+    path,
+    Buffer.concat(
+      batches.flatMap((batch) => {
+        const compressed = deflateRawSync(Buffer.from(JSON.stringify(batch), 'utf8'), { level: 6 });
+        const header = Buffer.allocUnsafe(4);
+        header.writeUInt32BE(compressed.byteLength, 0);
+        return [header, compressed];
+      }),
+    ),
+  );
 }
 
 function createWorldDecisionContextTrace(agentId: string) {
@@ -301,7 +344,7 @@ function createTrace(input: {
               outcome: 'repaired',
             },
           ],
-      }
+        }
       : {}),
     ...(input.replanningDecisionTrace === true
       ? {
@@ -571,8 +614,7 @@ describe('agent cycle trace repositories', () => {
         inventoryItemCount: number;
       }
     ).inventoryItemCount = 999;
-    (read!.socialDialogueGeneration![0] as unknown as { rationale: string }).rationale =
-      'mutated';
+    (read!.socialDialogueGeneration![0] as unknown as { rationale: string }).rationale = 'mutated';
     (
       read!.socialDialogueGeneration![0]!.worldDecisionContext as unknown as {
         marketSpotPriceCount: number;
@@ -724,6 +766,307 @@ describe('agent cycle trace repositories', () => {
     await expect(restarted.query({ simulationId: 'sim-1' })).resolves.toEqual([trace]);
     await expect(restarted.query({ simulationId: 'sim-1', limit: 0 })).rejects.toThrow(
       'limit must be positive',
+    );
+  });
+
+  test('stores complete trace batches as framed Brotli JSONL and reads them after restart', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    const traces = Array.from({ length: 40 }, (_, index) =>
+      createTrace({
+        traceId: `batch-trace-${index.toString().padStart(2, '0')}`,
+        agentId: `agent-${index.toString().padStart(2, '0')}`,
+        cycleStartedAt: 100 + index,
+        contextualPrioritization: true,
+        actionSequenceGeneration: true,
+        globalSynthesis: true,
+        replanningDecisionTrace: true,
+      }),
+    );
+    const uncompressedBytes = Buffer.byteLength(
+      `${traces.map((trace) => JSON.stringify(trace)).join('\n')}\n`,
+      'utf8',
+    );
+
+    await repository.recordMany([...traces, traces[0]!]);
+
+    const compressedPath = join(rootDir, 'agent-cycle-traces.jsonl.gz');
+    const batchIndexPath = join(rootDir, 'agent-cycle-trace-batches.deflate');
+    expect(existsSync(compressedPath)).toBe(true);
+    expect(readFileSync(join(rootDir, 'agent-cycle-traces.jsonl'), 'utf8')).toBe('');
+    expect(readFileSync(compressedPath).byteLength).toBeLessThan(uncompressedBytes / 2);
+    expect(readFileSync(join(rootDir, 'agent-cycle-trace-batches.jsonl'), 'utf8')).toBe('');
+    const batchIndexes = readCompactBatchIndexes(batchIndexPath);
+    expect(batchIndexes).toHaveLength(1);
+    expect(readFileSync(batchIndexPath).byteLength).toBeLessThan(
+      Buffer.byteLength(JSON.stringify(batchIndexes[0]), 'utf8') / 2,
+    );
+    const batchIndex = batchIndexes[0] as unknown as {
+      readonly indexSha256: string;
+    };
+    expect(batchIndex).toMatchObject({
+      schemaVersion: 'agent-cycle-trace-batch-index-v2',
+      compression: 'brotli-quality-6-length-prefixed-v1',
+      compressedOffset: 0,
+      traceCount: 40,
+      minimumCycleStartedAt: 100,
+      maximumCycleStartedAt: 139,
+    });
+    expect(batchIndex.indexSha256).toMatch(/^[a-f0-9]{64}$/u);
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(restarted.query({ simulationId: 'sim-1' })).resolves.toEqual(
+      [...traces].sort((left, right) => right.cycleStartedAt - left.cycleStartedAt),
+    );
+    expect(createAgentCycleTraceStoragePolicyManifest()).toMatchObject({
+      policyVersion: 'agent-cycle-trace-storage-v5',
+      payload: 'lossless-full-agent-cycle-traces',
+      writerFormat: 'legacy-gzip-prefix-plus-length-prefixed-brotli-jsonl-batches',
+      repositoryBatchBoundary: 'one-brotli-frame-per-record-many-call',
+      compressionQuality: 6,
+      sampling: 'none',
+      legacyReadPath: 'agent-cycle-traces.jsonl',
+      compressedWritePath: 'agent-cycle-traces.jsonl.gz',
+      mixedCodecCompatibility: 'v1-v4-gzip-index-rows-plus-v5-brotli-index-rows',
+      legacyBatchIndexPath: 'agent-cycle-trace-batches.jsonl',
+      compactBatchIndexPath: 'agent-cycle-trace-batches.deflate',
+      compactBatchIndexFormat: 'uint32be-length-prefixed-deflate-raw-json-v1',
+      indexCompatibilityRule:
+        'union-read-legacy-jsonl-and-compact-deflate-with-covered-range-deduplication',
+      recentBatchLimit: 1024,
+      deduplicationBloomBitCount: 1 << 24,
+      deduplicationBloomHashCount: 7,
+      runtimeIndexRule: 'bounded-recent-batches-plus-fixed-bloom-with-exact-cold-scan',
+      queryRule: 'serve-provably-complete-latest-window-else-filter-complete-index',
+      incompleteIndexRecovery: 'hash-and-index-complete-gzip-or-framed-brotli-tail-or-fail-closed',
+    });
+  });
+
+  test('union-reads the legacy JSONL batch index and compact append tail after upgrade', async () => {
+    const rootDir = createRootDir();
+    const first = createTrace({ traceId: 'legacy-index-trace', cycleStartedAt: 100 });
+    const second = createTrace({ traceId: 'compact-index-trace', cycleStartedAt: 200 });
+    const initial = new FileAgentCycleTraceRepository({ rootDir });
+    await initial.record(first);
+
+    const compactPath = join(rootDir, 'agent-cycle-trace-batches.deflate');
+    const [firstIndex] = readCompactBatchIndexes(compactPath);
+    expect(firstIndex).toBeDefined();
+    writeFileSync(
+      join(rootDir, 'agent-cycle-trace-batches.jsonl'),
+      `${JSON.stringify(firstIndex)}\n`,
+    );
+    writeFileSync(compactPath, '');
+
+    const upgraded = new FileAgentCycleTraceRepository({ rootDir });
+    await upgraded.record(second);
+
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(restarted.query({ simulationId: 'sim-1' })).resolves.toEqual([second, first]);
+    expect(readCompactBatchIndexes(compactPath)).toHaveLength(1);
+  });
+
+  test('bounds the runtime batch index while preserving exact cold get and deduplication', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({
+      rootDir,
+      recentBatchLimit: 2,
+      deduplicationBloomBitCount: 8,
+    });
+    const traces = Array.from({ length: 5 }, (_, index) =>
+      createTrace({ traceId: `bounded-trace-${index + 1}`, cycleStartedAt: (index + 1) * 100 }),
+    );
+    for (const trace of traces) {
+      await repository.record(trace);
+    }
+
+    expect(repository.getStorageDiagnostics()).toEqual({
+      indexedBatchCount: 5,
+      recentBatchCount: 2,
+      recentTraceIdCount: 2,
+      recentBatchLimit: 2,
+      deduplicationBloomBitCount: 8,
+      deduplicationBloomByteLength: 1,
+      maximumEvictedCycleStartedAt: 300,
+    });
+    await expect(repository.get('bounded-trace-1')).resolves.toEqual(traces[0]);
+    await expect(repository.query({ simulationId: 'sim-1', limit: 2 })).resolves.toEqual([
+      traces[4],
+      traces[3],
+    ]);
+
+    await repository.record({ ...traces[0]!, selectedBranch: 'duplicate-must-not-replace' });
+    expect(
+      readCompactBatchIndexes(join(rootDir, 'agent-cycle-trace-batches.deflate')),
+    ).toHaveLength(5);
+
+    const restarted = new FileAgentCycleTraceRepository({
+      rootDir,
+      recentBatchLimit: 2,
+      deduplicationBloomBitCount: 8,
+    });
+    expect(restarted.getStorageDiagnostics()).toMatchObject({
+      indexedBatchCount: 5,
+      recentBatchCount: 2,
+      recentTraceIdCount: 2,
+      maximumEvictedCycleStartedAt: 300,
+    });
+    await expect(restarted.query({ simulationId: 'sim-1' })).resolves.toEqual(
+      [...traces].reverse(),
+    );
+  });
+
+  test('recovers and hashes a complete compressed tail left without an index row', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    await repository.record(createTrace({ traceId: 'indexed-trace', cycleStartedAt: 100 }));
+    const orphanTrace = createTrace({ traceId: 'orphan-trace', cycleStartedAt: 200 });
+    appendFileSync(
+      join(rootDir, 'agent-cycle-traces.jsonl.gz'),
+      gzipSync(Buffer.from(`${JSON.stringify(orphanTrace)}\n`, 'utf8')),
+    );
+
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+
+    await expect(restarted.get('orphan-trace')).resolves.toEqual(orphanTrace);
+    const postRecoveryTrace = createTrace({
+      traceId: 'post-gzip-recovery-brotli-trace',
+      cycleStartedAt: 300,
+    });
+    await restarted.record(postRecoveryTrace);
+    await expect(restarted.query({ simulationId: 'sim-1' })).resolves.toEqual([
+      postRecoveryTrace,
+      orphanTrace,
+      expect.objectContaining({ traceId: 'indexed-trace' }),
+    ]);
+    const indexRows = readCompactBatchIndexes(
+      join(rootDir, 'agent-cycle-trace-batches.deflate'),
+    ) as { traceIds: string[]; compressedOffset: number }[];
+    expect(indexRows).toHaveLength(3);
+    expect(indexRows[1]).toMatchObject({ traceIds: ['orphan-trace'] });
+    expect(indexRows[1]!.compressedOffset).toBeGreaterThan(0);
+  });
+
+  test('recovers a complete framed Brotli tail and exposes integrity-aware identity scanning', async () => {
+    const rootDir = createRootDir();
+    const trace = createTrace({
+      traceId: 'orphan-brotli-trace',
+      agentId: 'participant-7',
+      cycleStartedAt: 100,
+    });
+    await new FileAgentCycleTraceRepository({ rootDir }).record(trace);
+    writeFileSync(join(rootDir, 'agent-cycle-trace-batches.deflate'), '');
+
+    const recovered = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(recovered.get(trace.traceId)).resolves.toEqual(trace);
+    expect(agentCycleTraceCompressedStorageContainsUtf8({ rootDir, target: 'participant-7' })).toBe(
+      true,
+    );
+    expect(agentCycleTraceCompressedStorageContainsUtf8({ rootDir, target: 'not-present' })).toBe(
+      false,
+    );
+  });
+
+  test('uses batch metadata for limited, agent-scoped, and time-scoped queries', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    const oldAgentOne = createTrace({
+      traceId: 'old-agent-one',
+      agentId: 'agent-1',
+      cycleStartedAt: 100,
+    });
+    const oldAgentTwo = createTrace({
+      traceId: 'old-agent-two',
+      agentId: 'agent-2',
+      cycleStartedAt: 100,
+    });
+    const newAgentOne = createTrace({
+      traceId: 'new-agent-one',
+      agentId: 'agent-1',
+      cycleStartedAt: 200,
+    });
+    await repository.recordMany([oldAgentOne, oldAgentTwo]);
+    await repository.recordMany([newAgentOne]);
+    await repository.record(
+      createTrace({
+        traceId: 'other-simulation',
+        simulationId: 'sim-2',
+        cycleStartedAt: 300,
+      }),
+    );
+
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(restarted.query({ simulationId: 'sim-1', limit: 1 })).resolves.toEqual([
+      newAgentOne,
+    ]);
+    await expect(restarted.query({ simulationId: 'sim-1', agentId: 'agent-2' })).resolves.toEqual([
+      oldAgentTwo,
+    ]);
+    await expect(
+      restarted.query({ simulationId: 'sim-1', fromCycleStartedAt: 150 }),
+    ).resolves.toEqual([newAgentOne]);
+  });
+
+  test('fails closed when hashed compressed-batch metadata is tampered', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    await repository.record(createTrace({ traceId: 'trace-before-index-corruption' }));
+    const batchIndexPath = join(rootDir, 'agent-cycle-trace-batches.deflate');
+    const [batchIndex] = readCompactBatchIndexes(batchIndexPath);
+    writeCompactBatchIndexes(batchIndexPath, [
+      { ...batchIndex, simulationIds: ['tampered-simulation'] },
+    ]);
+
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(restarted.query({ simulationId: 'sim-1' })).rejects.toThrow(
+      'compressed agent cycle trace index is invalid',
+    );
+  });
+
+  test('fails closed on an incomplete compact index frame', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    await repository.record(createTrace({ traceId: 'trace-before-frame-truncation' }));
+    appendFileSync(join(rootDir, 'agent-cycle-trace-batches.deflate'), Buffer.from([0, 1]));
+
+    const restarted = new FileAgentCycleTraceRepository({ rootDir });
+    await expect(restarted.query({ simulationId: 'sim-1' })).rejects.toThrow(
+      'compact agent cycle trace index has an incomplete frame header',
+    );
+  });
+
+  test('deduplicates across legacy and compressed stores while detecting external appends', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    const first = createTrace({ traceId: 'first', cycleStartedAt: 100 });
+    const legacy = createTrace({ traceId: 'legacy', cycleStartedAt: 200 });
+    const external = createTrace({ traceId: 'external', cycleStartedAt: 300 });
+
+    await repository.record(first);
+    writeFileSync(
+      join(rootDir, 'agent-cycle-traces.jsonl'),
+      `${JSON.stringify(legacy)}\n${JSON.stringify(external)}\n`,
+    );
+    await repository.recordMany([
+      { ...legacy, selectedBranch: 'duplicate-must-not-replace-legacy' },
+      createTrace({ traceId: 'second', cycleStartedAt: 400 }),
+    ]);
+
+    await expect(repository.query({ simulationId: 'sim-1' })).resolves.toMatchObject([
+      { traceId: 'second' },
+      { traceId: 'external' },
+      { traceId: 'legacy', selectedBranch: 'development' },
+      { traceId: 'first' },
+    ]);
+  });
+
+  test('fails closed when the compressed trace store is corrupt', async () => {
+    const rootDir = createRootDir();
+    const repository = new FileAgentCycleTraceRepository({ rootDir });
+    await repository.record(createTrace({ traceId: 'trace-before-corruption' }));
+    writeFileSync(join(rootDir, 'agent-cycle-traces.jsonl.gz'), 'not-a-gzip-member');
+
+    await expect(repository.query({ simulationId: 'sim-1' })).rejects.toThrow(
+      'compressed agent cycle trace',
     );
   });
 

@@ -1,5 +1,9 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { MemoryConsolidationHint, ShortTermMemoryRecord } from './records';
+import type {
+  MemoryConsolidationHint,
+  ShortTermMemoryRecord,
+  SocialKnowledgeClaim,
+} from './records';
 import type { LongTermMemoryPatch } from './profile';
 
 type PatternHint = Extract<MemoryConsolidationHint, { kind: 'habit' | 'caution' }>;
@@ -58,11 +62,19 @@ export function proposeSocialLongTermMemoryPatches(input: {
   readonly proposedAt: SimulationTimestamp;
 }): LongTermMemoryPatch[] {
   assertFiniteNumber(input.proposedAt, 'proposedAt');
-  return buildSocialPatches({
-    agentId: input.agentId,
-    records: filterAgentRecords(input),
-    proposedAt: input.proposedAt,
-  }).sort(comparePatches);
+  const records = filterAgentRecords(input);
+  return [
+    ...buildSocialPatches({
+      agentId: input.agentId,
+      records,
+      proposedAt: input.proposedAt,
+    }),
+    ...buildSocialKnowledgePatches({
+      agentId: input.agentId,
+      records,
+      proposedAt: input.proposedAt,
+    }),
+  ].sort(comparePatches);
 }
 
 function filterAgentRecords(input: {
@@ -138,6 +150,9 @@ function buildSocialPatches(input: {
     const latestHint = socialHintFor(records.at(-1));
     const relationDelta = sumSocialDelta(records, 'relationDelta');
     const attitudeDelta = sumSocialDelta(records, 'attitudeDelta');
+    const outcomeSignals = [
+      ...new Set(records.flatMap((record) => socialHintFor(record).outcomeSignals ?? [])),
+    ];
 
     return {
       id: `ltm-patch-${input.agentId}-social-${targetAgentId}-${input.proposedAt}`,
@@ -150,8 +165,65 @@ function buildSocialPatches(input: {
       proposedAt: input.proposedAt,
       relationDelta,
       attitudeDelta,
+      ...(outcomeSignals.length === 0 ? {} : { outcomeSignals }),
     };
   });
+}
+
+function buildSocialKnowledgePatches(input: {
+  readonly agentId: AgentId;
+  readonly records: readonly ShortTermMemoryRecord[];
+  readonly proposedAt: SimulationTimestamp;
+}): LongTermMemoryPatch[] {
+  const groups = new Map<
+    string,
+    { readonly claim: SocialKnowledgeClaim; readonly records: ShortTermMemoryRecord[] }
+  >();
+  for (const record of input.records) {
+    const hint = record.consolidationHint;
+    if (hint?.kind !== 'social') {
+      continue;
+    }
+    for (const claim of hint.knowledgeClaims ?? []) {
+      const key = `${claim.sourceAgentId}:${normalizeKnowledgeKey(claim.topic)}`;
+      const group = groups.get(key) ?? { claim, records: [] };
+      groups.set(key, { claim, records: [...group.records, record] });
+    }
+  }
+
+  return [...groups.entries()].map(([key, group]) => ({
+    id: `ltm-patch-${input.agentId}-belief-social-knowledge-${key}-${input.proposedAt}`,
+    agentId: input.agentId,
+    section: 'beliefs',
+    key: `social-knowledge:${key}`,
+    statement: formatSocialKnowledgeStatement(group.claim),
+    confidence: averageImportance(group.records),
+    provenanceRecordIds: [...new Set(group.records.map((record) => record.id))],
+    proposedAt: input.proposedAt,
+  }));
+}
+
+function formatSocialKnowledgeStatement(claim: SocialKnowledgeClaim): string {
+  const quotedStatement = JSON.stringify(claim.statement.trim());
+  switch (claim.status) {
+    case 'asserted':
+      return `${claim.sourceAgentId} asserted about ${claim.topic}: ${quotedStatement} (unverified).`;
+    case 'disputed':
+      return `${claim.sourceAgentId} disputed a claim about ${claim.topic}: ${quotedStatement}.`;
+    case 'corrected':
+      return `${claim.sourceAgentId} offered a correction about ${claim.topic}: ${quotedStatement} (requires verification).`;
+    case 'suspected-misinformation':
+      return `${claim.sourceAgentId} supplied suspected misinformation about ${claim.topic}: ${quotedStatement}.`;
+  }
+}
+
+function normalizeKnowledgeKey(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+  return normalized.length === 0 ? 'untitled-topic' : normalized;
 }
 
 function matchesPatternStatus(

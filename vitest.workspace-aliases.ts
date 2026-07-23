@@ -18,5 +18,6 @@ export const workspaceAliases = {
   '@aivilization/sim-core': fileURLToPath(new URL('packages/sim-core/src/index.ts', workspaceRoot)),
   '@aivilization/society': fileURLToPath(new URL('packages/society/src/index.ts', workspaceRoot)),
   '@aivilization/worker': fileURLToPath(new URL('apps/worker/src/index.ts', workspaceRoot)),
+  '@aivilization/web': fileURLToPath(new URL('apps/web/src/index.ts', workspaceRoot)),
   '@aivilization/world': fileURLToPath(new URL('packages/world/src/index.ts', workspaceRoot)),
 } as const;

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   completeLongHorizonObjective,
   createEmptyAgentIntentionState,
+  getCompletedObjectiveCount,
   selectActiveScheduledIntentions,
   setLongHorizonObjective,
   upsertScheduledIntentions,
@@ -138,6 +139,34 @@ describe('agent intention state', () => {
         reason: 'plan-completed',
       }),
     ).toThrow('active objective objective-study is required before completion');
+  });
+
+  test('retains recent completions while preserving the durable completion ordinal', () => {
+    const agentId = asAgentId('agent-1');
+    let state = createEmptyAgentIntentionState(agentId);
+    for (let index = 1; index <= 40; index += 1) {
+      const objective: LongHorizonObjective = {
+        id: `objective-${index}`,
+        agentId,
+        statement: `Complete objective ${index}.`,
+        priority: 1,
+        source: 'agent',
+        affinityTags: ['test'],
+        createdAt: index,
+        updatedAt: index,
+      };
+      state = completeLongHorizonObjective(setLongHorizonObjective(state, objective), {
+        objectiveId: objective.id,
+        completedAt: index,
+        reason: 'plan-completed',
+      });
+    }
+
+    expect(state.completedObjectives).toHaveLength(32);
+    expect(state.completedObjectives[0]?.objective.id).toBe('objective-9');
+    expect(state.completedObjectives.at(-1)?.objective.id).toBe('objective-40');
+    expect(state.completedObjectiveCount).toBe(40);
+    expect(getCompletedObjectiveCount(state)).toBe(40);
   });
 
   test('upserts and sorts scheduled intentions deterministically', () => {

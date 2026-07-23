@@ -5,7 +5,7 @@ import {
 } from '@aivilization/agent-runtime';
 import type { AgentIntentionRepository } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
-import type { WorldProjection } from '@aivilization/world';
+import { isAgentAvailableForWorldAction, type WorldProjection } from '@aivilization/world';
 
 export type CompletedActiveObjectiveResult = {
   readonly agentId: AgentId;
@@ -25,6 +25,9 @@ export async function completeFinishedActiveObjectives(input: {
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
     if (agent === undefined) {
+      continue;
+    }
+    if (!isAgentAvailableForWorldAction(input.projection, agent.agentId)) {
       continue;
     }
 

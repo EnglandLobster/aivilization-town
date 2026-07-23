@@ -151,34 +151,6 @@ export async function runCanonicalWorkerActivePlanTick(
       ? {}
       : { strategicPlanCompiler: input.strategicPlanCompiler }),
   });
-  const agents = await buildWorkerTickAgentsFromActivePlans({
-    projection,
-    intentionRepository: input.intentionRepository,
-    longTermProfileRepository: input.longTermProfileRepository,
-    planRepository: input.planRepository,
-    ...(input.planProgressRepository === undefined
-      ? {}
-      : { planProgressRepository: input.planProgressRepository }),
-    ...(input.agentMemoryRetrievalLimit === undefined
-      ? {}
-      : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
-    ...(input.agentMemoryRetrievalCandidateLimit === undefined
-      ? {}
-      : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
-    policies: input.policies,
-    resolveRuntime: createCanonicalWorkerRuntimeResolver({
-      simulationId: input.simulationId,
-      policies: input.policies,
-      issuedAt: input.issuedAt,
-      commandIdPrefix: `${input.tickId}-dry-run`,
-      ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
-      ...(input.additionalRegistrations === undefined
-        ? {}
-        : { additionalRegistrations: input.additionalRegistrations }),
-      ...(input.repair === undefined ? {} : { repair: input.repair }),
-    }),
-  });
-
   const result = await runWorkerSimulationTick({
     tickId: input.tickId,
     simulationId: input.simulationId,
@@ -194,7 +166,35 @@ export async function runCanonicalWorkerActivePlanTick(
     ...(input.planProgressRepository === undefined
       ? {}
       : { planProgressRepository: input.planProgressRepository }),
-    agents,
+    agents: [],
+    agentProvider: ({ projection: advancedProjection }) =>
+      buildWorkerTickAgentsFromActivePlans({
+        projection: advancedProjection,
+        intentionRepository: input.intentionRepository,
+        longTermProfileRepository: input.longTermProfileRepository,
+        planRepository: input.planRepository,
+        ...(input.planProgressRepository === undefined
+          ? {}
+          : { planProgressRepository: input.planProgressRepository }),
+        ...(input.agentMemoryRetrievalLimit === undefined
+          ? {}
+          : { memoryRetrievalLimit: input.agentMemoryRetrievalLimit }),
+        ...(input.agentMemoryRetrievalCandidateLimit === undefined
+          ? {}
+          : { memoryRetrievalCandidateLimit: input.agentMemoryRetrievalCandidateLimit }),
+        policies: input.policies,
+        resolveRuntime: createCanonicalWorkerRuntimeResolver({
+          simulationId: input.simulationId,
+          policies: input.policies,
+          issuedAt: input.issuedAt,
+          commandIdPrefix: `${input.tickId}-dry-run`,
+          ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
+          ...(input.additionalRegistrations === undefined
+            ? {}
+            : { additionalRegistrations: input.additionalRegistrations }),
+          ...(input.repair === undefined ? {} : { repair: input.repair }),
+        }),
+      }),
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
     ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
     ...(input.marketObservations === undefined

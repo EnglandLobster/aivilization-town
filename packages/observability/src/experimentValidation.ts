@@ -11,7 +11,21 @@ export type ExperimentValidationMetricId =
 
 export type ExperimentValidationStatus = 'pass' | 'watch' | 'fail';
 
-export type ExperimentValidationEvidenceValue = number | string;
+export interface ExperimentValidationEvidenceObject {
+  readonly [key: string]:
+    | number
+    | string
+    | boolean
+    | null
+    | ExperimentValidationEvidenceObject;
+}
+
+export type ExperimentValidationEvidenceValue =
+  | number
+  | string
+  | boolean
+  | null
+  | ExperimentValidationEvidenceObject;
 
 export type ExperimentValidationEvidence = Readonly<
   Record<string, ExperimentValidationEvidenceValue>
@@ -95,6 +109,31 @@ export type HeavyTailThresholds = {
 export type VolatilityClusteringThresholds = {
   readonly minimumLagOneAbsoluteReturnAutocorrelation?: number;
   readonly minimumReturnObservationCount?: number;
+  readonly ljungBoxLagCount?: number;
+  readonly maximumLjungBoxPValue?: number;
+};
+
+export const MARKET_STYLIZED_FACTS_POLICY_VERSION = 'market-stylized-facts-v1';
+
+export type CommodityPriceSeriesDiagnostics = {
+  readonly commodityId: string;
+  readonly observationCount: number;
+  readonly returnObservationCount: number;
+  readonly logPriceRange: number;
+  readonly maximumDrawdown: number;
+  readonly logReturnStandardDeviation: number;
+  readonly excessKurtosis: number;
+  readonly skewness: number;
+  readonly absoluteReturnAutocorrelations: readonly {
+    readonly lag: number;
+    readonly autocorrelation: number;
+  }[];
+  readonly ljungBox: {
+    readonly statistic: number;
+    readonly lagCount: number;
+    readonly degreesOfFreedom: number;
+    readonly pValue: number;
+  };
 };
 
 export type WealthStratificationThresholds = {
@@ -214,8 +253,12 @@ type PriceSeriesDiagnostics = {
   readonly maximumDrawdown: number;
   readonly minimumLogReturnStandardDeviation: number;
   readonly maximumExcessKurtosis: number;
+  readonly minimumExcessKurtosis: number;
   readonly maximumAbsoluteSkewness: number;
   readonly maximumLagOneAbsoluteReturnAutocorrelation: number;
+  readonly minimumLagOneAbsoluteReturnAutocorrelation: number;
+  readonly maximumLjungBoxPValue: number;
+  readonly commodityDiagnostics: readonly CommodityPriceSeriesDiagnostics[];
 };
 
 type PlannerComparison = {
@@ -313,6 +356,8 @@ const DEFAULT_THRESHOLDS = {
   volatilityClustering: {
     minimumLagOneAbsoluteReturnAutocorrelation: 0.05,
     minimumReturnObservationCount: 100,
+    ljungBoxLagCount: 10,
+    maximumLjungBoxPValue: 0.01,
   },
   wealthStratification: {
     minimumGiniCoefficient: 0.1,
@@ -359,7 +404,10 @@ export function createExperimentValidationReport(
 ): ExperimentValidationReport {
   const run = validateRunMetadata(input.run);
   const thresholds = mergeThresholds(input.thresholds);
-  const priceDiagnostics = calculatePriceSeriesDiagnostics(input.priceSeries);
+  const priceDiagnostics = calculatePriceSeriesDiagnostics(
+    input.priceSeries,
+    thresholds.volatilityClustering.ljungBoxLagCount,
+  );
   const wealthDiagnostics = calculateWealthDiagnostics(input.wealthSnapshot);
   const plannerDiagnostics = calculatePlannerDiagnostics(
     input.plannerRuns,
@@ -408,6 +456,39 @@ export function createExperimentValidationReport(
     metrics,
     findings: metrics.map((metric) => createFinding(metric)),
   };
+}
+
+export function createMarketStylizedFactsPolicyManifest() {
+  return {
+    policyVersion: MARKET_STYLIZED_FACTS_POLICY_VERSION,
+    priceTransform: 'log-return-of-ohlc-close',
+    distributionStatistics: ['skewness', 'excess-kurtosis'],
+    volatilityTransform: 'absolute-log-return',
+    autocorrelationLags: DEFAULT_THRESHOLDS.volatilityClustering.ljungBoxLagCount,
+    ljungBoxDegreesOfFreedomRule: 'tested-lag-count-no-fitted-model-parameters',
+    significanceLevel: DEFAULT_THRESHOLDS.volatilityClustering.maximumLjungBoxPValue,
+    minimumReturnObservationCount:
+      DEFAULT_THRESHOLDS.volatilityClustering.minimumReturnObservationCount,
+    aggregationRule: 'every-commodity-must-pass; no maximum-across-commodities shortcut',
+  } as const;
+}
+
+export function createCommodityPriceSeriesDiagnostics(input: {
+  readonly priceSeries: readonly PriceCloseObservation[];
+  readonly ljungBoxLagCount?: number;
+}): CommodityPriceSeriesDiagnostics[] {
+  const ljungBoxLagCount =
+    input.ljungBoxLagCount ?? DEFAULT_THRESHOLDS.volatilityClustering.ljungBoxLagCount;
+  assertPositiveInteger(ljungBoxLagCount, 'ljungBoxLagCount');
+  return calculatePriceSeriesDiagnostics(input.priceSeries, ljungBoxLagCount).commodityDiagnostics.map(
+    (diagnostics) => ({
+      ...diagnostics,
+      absoluteReturnAutocorrelations: diagnostics.absoluteReturnAutocorrelations.map((item) => ({
+        ...item,
+      })),
+      ljungBox: { ...diagnostics.ljungBox },
+    }),
+  );
 }
 
 export function evaluateExperimentValidationReportGate(
@@ -515,6 +596,7 @@ function mergeThresholds(thresholds: ExperimentValidationThresholds | undefined)
 
 function calculatePriceSeriesDiagnostics(
   priceSeries: readonly PriceCloseObservation[],
+  ljungBoxLagCount: number,
 ): PriceSeriesDiagnostics {
   if (priceSeries.length === 0) {
     throw new Error('priceSeries requires at least one close-price observation');
@@ -530,11 +612,15 @@ function calculatePriceSeriesDiagnostics(
     seriesByCommodity.set(observation.commodityId, existing);
   }
 
-  const commodityDiagnostics = [...seriesByCommodity.values()].map((series) =>
-    calculateSingleCommodityDiagnostics(
-      series.sort((left, right) => left.observedAt - right.observedAt),
-    ),
-  );
+  const commodityDiagnostics = [...seriesByCommodity.entries()]
+    .map(([commodityId, series]) =>
+      calculateSingleCommodityDiagnostics(
+        commodityId,
+        series.sort((left, right) => left.observedAt - right.observedAt),
+        ljungBoxLagCount,
+      ),
+    )
+    .sort((left, right) => left.commodityId.localeCompare(right.commodityId));
 
   return {
     commodityCount: commodityDiagnostics.length,
@@ -553,24 +639,34 @@ function calculatePriceSeriesDiagnostics(
     maximumExcessKurtosis: Math.max(
       ...commodityDiagnostics.map((diagnostics) => diagnostics.excessKurtosis),
     ),
+    minimumExcessKurtosis: Math.min(
+      ...commodityDiagnostics.map((diagnostics) => diagnostics.excessKurtosis),
+    ),
     maximumAbsoluteSkewness: Math.max(
       ...commodityDiagnostics.map((diagnostics) => Math.abs(diagnostics.skewness)),
     ),
     maximumLagOneAbsoluteReturnAutocorrelation: Math.max(
-      ...commodityDiagnostics.map((diagnostics) => diagnostics.lagOneAbsoluteReturnAutocorrelation),
+      ...commodityDiagnostics.map(
+        (diagnostics) => diagnostics.absoluteReturnAutocorrelations[0]?.autocorrelation ?? 0,
+      ),
     ),
+    minimumLagOneAbsoluteReturnAutocorrelation: Math.min(
+      ...commodityDiagnostics.map(
+        (diagnostics) => diagnostics.absoluteReturnAutocorrelations[0]?.autocorrelation ?? 0,
+      ),
+    ),
+    maximumLjungBoxPValue: Math.max(
+      ...commodityDiagnostics.map((diagnostics) => diagnostics.ljungBox.pValue),
+    ),
+    commodityDiagnostics,
   };
 }
 
-function calculateSingleCommodityDiagnostics(series: readonly PriceCloseObservation[]): {
-  readonly logPriceRange: number;
-  readonly drawdown: number;
-  readonly logReturnCount: number;
-  readonly logReturnStandardDeviation: number;
-  readonly excessKurtosis: number;
-  readonly skewness: number;
-  readonly lagOneAbsoluteReturnAutocorrelation: number;
-} {
+function calculateSingleCommodityDiagnostics(
+  commodityId: string,
+  series: readonly PriceCloseObservation[],
+  requestedLjungBoxLagCount: number,
+): CommodityPriceSeriesDiagnostics & { readonly drawdown: number; readonly logReturnCount: number } {
   if (series.length < 2) {
     throw new Error('priceSeries requires at least two close prices per commodity');
   }
@@ -578,17 +674,31 @@ function calculateSingleCommodityDiagnostics(series: readonly PriceCloseObservat
   const closePrices = series.map((observation) => observation.closePrice);
   const logPrices = closePrices.map((price) => Math.log(price));
   const logReturns = calculateLogReturns(closePrices);
+  const absoluteReturns = logReturns.map((value) => Math.abs(value));
+  const lagCount = Math.min(requestedLjungBoxLagCount, Math.max(0, absoluteReturns.length - 1));
+  const absoluteReturnAutocorrelations = Array.from({ length: lagCount }, (_, index) => {
+    const lag = index + 1;
+    return {
+      lag,
+      autocorrelation: calculateAutocorrelation(absoluteReturns, lag),
+    };
+  });
+  const ljungBox = calculateLjungBox(absoluteReturns, absoluteReturnAutocorrelations);
+  const drawdown = calculateMaximumDrawdown(closePrices);
 
   return {
+    commodityId,
+    observationCount: series.length,
+    returnObservationCount: logReturns.length,
     logPriceRange: Math.max(...logPrices) - Math.min(...logPrices),
-    drawdown: calculateMaximumDrawdown(closePrices),
+    maximumDrawdown: drawdown,
+    drawdown,
     logReturnCount: logReturns.length,
     logReturnStandardDeviation: Math.sqrt(calculateVariance(logReturns)),
     excessKurtosis: calculateExcessKurtosis(logReturns),
     skewness: calculateSkewness(logReturns),
-    lagOneAbsoluteReturnAutocorrelation: calculateLagOneAutocorrelation(
-      logReturns.map((value) => Math.abs(value)),
-    ),
+    absoluteReturnAutocorrelations,
+    ljungBox,
   };
 }
 
@@ -981,25 +1091,36 @@ function createHeavyTailMetric(
   thresholds: Required<HeavyTailThresholds>,
 ): ExperimentValidationMetric {
   validateHeavyTailThresholds(thresholds);
-  const status =
-    diagnostics.returnObservationCount >= thresholds.minimumReturnObservationCount &&
-    diagnostics.maximumExcessKurtosis >= thresholds.minimumExcessKurtosis
-      ? 'pass'
-      : 'watch';
+  const perCommodity = diagnostics.commodityDiagnostics.map((commodity) => ({
+    commodityId: commodity.commodityId,
+    returnObservationCount: commodity.returnObservationCount,
+    excessKurtosis: commodity.excessKurtosis,
+    skewness: commodity.skewness,
+    pass:
+      commodity.returnObservationCount >= thresholds.minimumReturnObservationCount &&
+      commodity.excessKurtosis >= thresholds.minimumExcessKurtosis,
+  }));
+  const status = perCommodity.every((commodity) => commodity.pass) ? 'pass' : 'watch';
 
   return {
     id: 'heavy-tail-returns',
     label: 'Heavy-tail returns',
     status,
-    value: diagnostics.maximumExcessKurtosis,
-    unit: 'maximum excess kurtosis',
+    value: diagnostics.minimumExcessKurtosis,
+    unit: 'minimum per-commodity excess kurtosis',
     evidence: {
       maximumExcessKurtosis: diagnostics.maximumExcessKurtosis,
+      minimumExcessKurtosis: diagnostics.minimumExcessKurtosis,
       maximumAbsoluteSkewness: diagnostics.maximumAbsoluteSkewness,
       commodityCount: diagnostics.commodityCount,
       observationCount: diagnostics.observationCount,
       returnObservationCount: diagnostics.returnObservationCount,
       minimumReturnObservationCount: thresholds.minimumReturnObservationCount,
+      passingCommodityCount: perCommodity.filter((commodity) => commodity.pass).length,
+      failingCommodityCount: perCommodity.filter((commodity) => !commodity.pass).length,
+      perCommodity: Object.fromEntries(
+        perCommodity.map((commodity) => [commodity.commodityId, commodity]),
+      ),
     },
   };
 }
@@ -1009,26 +1130,57 @@ function createVolatilityClusteringMetric(
   thresholds: Required<VolatilityClusteringThresholds>,
 ): ExperimentValidationMetric {
   validateVolatilityClusteringThresholds(thresholds);
-  const status =
-    diagnostics.returnObservationCount >= thresholds.minimumReturnObservationCount &&
-    diagnostics.maximumLagOneAbsoluteReturnAutocorrelation >=
-      thresholds.minimumLagOneAbsoluteReturnAutocorrelation
-      ? 'pass'
-      : 'watch';
+  const perCommodity = diagnostics.commodityDiagnostics.map((commodity) => {
+    const lagOneAbsoluteReturnAutocorrelation =
+      commodity.absoluteReturnAutocorrelations[0]?.autocorrelation ?? 0;
+    return {
+      commodityId: commodity.commodityId,
+      returnObservationCount: commodity.returnObservationCount,
+      lagOneAbsoluteReturnAutocorrelation,
+      absoluteReturnAutocorrelations: Object.fromEntries(
+        commodity.absoluteReturnAutocorrelations.map((item) => [
+          String(item.lag),
+          item.autocorrelation,
+        ]),
+      ),
+      ljungBoxStatistic: commodity.ljungBox.statistic,
+      ljungBoxLagCount: commodity.ljungBox.lagCount,
+      degreesOfFreedom: commodity.ljungBox.degreesOfFreedom,
+      pValue: commodity.ljungBox.pValue,
+      pass:
+        commodity.returnObservationCount >= thresholds.minimumReturnObservationCount &&
+        lagOneAbsoluteReturnAutocorrelation >=
+          thresholds.minimumLagOneAbsoluteReturnAutocorrelation &&
+        commodity.ljungBox.lagCount > 0 &&
+        commodity.ljungBox.pValue <= thresholds.maximumLjungBoxPValue,
+    };
+  });
+  const status = perCommodity.every((commodity) => commodity.pass) ? 'pass' : 'watch';
 
   return {
     id: 'volatility-clustering',
     label: 'Volatility clustering',
     status,
-    value: diagnostics.maximumLagOneAbsoluteReturnAutocorrelation,
-    unit: 'lag-1 absolute-return autocorrelation',
+    value: diagnostics.minimumLagOneAbsoluteReturnAutocorrelation,
+    unit: 'minimum per-commodity lag-1 absolute-return autocorrelation',
     evidence: {
       maximumLagOneAbsoluteReturnAutocorrelation:
         diagnostics.maximumLagOneAbsoluteReturnAutocorrelation,
+      minimumLagOneAbsoluteReturnAutocorrelation:
+        diagnostics.minimumLagOneAbsoluteReturnAutocorrelation,
+      maximumLjungBoxPValue: diagnostics.maximumLjungBoxPValue,
+      ljungBoxLagCount: thresholds.ljungBoxLagCount,
+      degreesOfFreedomRule: 'tested-lag-count-no-fitted-model-parameters',
+      maximumAcceptedPValue: thresholds.maximumLjungBoxPValue,
       commodityCount: diagnostics.commodityCount,
       observationCount: diagnostics.observationCount,
       returnObservationCount: diagnostics.returnObservationCount,
       minimumReturnObservationCount: thresholds.minimumReturnObservationCount,
+      passingCommodityCount: perCommodity.filter((commodity) => commodity.pass).length,
+      failingCommodityCount: perCommodity.filter((commodity) => !commodity.pass).length,
+      perCommodity: Object.fromEntries(
+        perCommodity.map((commodity) => [commodity.commodityId, commodity]),
+      ),
     },
   };
 }
@@ -1372,6 +1524,23 @@ function validateVolatilityClusteringThresholds(
     thresholds.minimumReturnObservationCount,
     'volatilityClustering minimumReturnObservationCount',
   );
+  assertPositiveInteger(
+    thresholds.ljungBoxLagCount,
+    'volatilityClustering ljungBoxLagCount',
+  );
+  assertUnitInterval(
+    thresholds.maximumLjungBoxPValue,
+    'volatilityClustering maximumLjungBoxPValue',
+  );
+  if (
+    !Number.isFinite(thresholds.minimumLagOneAbsoluteReturnAutocorrelation) ||
+    thresholds.minimumLagOneAbsoluteReturnAutocorrelation < -1 ||
+    thresholds.minimumLagOneAbsoluteReturnAutocorrelation > 1
+  ) {
+    throw new Error(
+      'volatilityClustering minimumLagOneAbsoluteReturnAutocorrelation must be between -1 and 1',
+    );
+  }
 }
 
 function validateSteeringMemoryThresholds(
@@ -1524,8 +1693,8 @@ function calculateExcessKurtosis(values: readonly number[]): number {
   return fourthMoment / variance ** 2 - 3;
 }
 
-function calculateLagOneAutocorrelation(values: readonly number[]): number {
-  if (values.length < 2) {
+function calculateAutocorrelation(values: readonly number[], lag: number): number {
+  if (values.length < 2 || lag <= 0 || lag >= values.length) {
     return 0;
   }
 
@@ -1536,10 +1705,131 @@ function calculateLagOneAutocorrelation(values: readonly number[]): number {
   }
 
   let numerator = 0;
-  for (let index = 1; index < values.length; index += 1) {
-    numerator += (values[index]! - mean) * (values[index - 1]! - mean);
+  for (let index = lag; index < values.length; index += 1) {
+    numerator += (values[index]! - mean) * (values[index - lag]! - mean);
   }
   return numerator / denominator;
+}
+
+function calculateLjungBox(
+  values: readonly number[],
+  autocorrelations: readonly { readonly lag: number; readonly autocorrelation: number }[],
+): CommodityPriceSeriesDiagnostics['ljungBox'] {
+  if (autocorrelations.length === 0) {
+    return { statistic: 0, lagCount: 0, degreesOfFreedom: 0, pValue: 1 };
+  }
+  const sampleCount = values.length;
+  const statistic =
+    sampleCount *
+    (sampleCount + 2) *
+    autocorrelations.reduce(
+      (sum, item) =>
+        sum + item.autocorrelation ** 2 / Math.max(1, sampleCount - item.lag),
+      0,
+    );
+  const degreesOfFreedom = autocorrelations.length;
+  return {
+    statistic,
+    lagCount: autocorrelations.length,
+    degreesOfFreedom,
+    pValue: calculateChiSquareSurvivalProbability(statistic, degreesOfFreedom),
+  };
+}
+
+function calculateChiSquareSurvivalProbability(
+  statistic: number,
+  degreesOfFreedom: number,
+): number {
+  if (degreesOfFreedom <= 0) {
+    return 1;
+  }
+  if (statistic <= 0) {
+    return 1;
+  }
+  return clampProbability(regularizedGammaQ(degreesOfFreedom / 2, statistic / 2));
+}
+
+function regularizedGammaQ(shape: number, value: number): number {
+  if (value < shape + 1) {
+    let term = 1 / shape;
+    let sum = term;
+    let shiftedShape = shape;
+    for (let iteration = 1; iteration <= 10_000; iteration += 1) {
+      shiftedShape += 1;
+      term *= value / shiftedShape;
+      sum += term;
+      if (Math.abs(term) <= Math.abs(sum) * 1e-14) {
+        break;
+      }
+    }
+    const regularizedGammaP =
+      sum * Math.exp(-value + shape * Math.log(value) - calculateLogGamma(shape));
+    return 1 - regularizedGammaP;
+  }
+
+  const minimum = 1e-300;
+  let b = value + 1 - shape;
+  let c = 1 / minimum;
+  let d = 1 / Math.max(minimum, b);
+  let fraction = d;
+  for (let iteration = 1; iteration <= 10_000; iteration += 1) {
+    const coefficient = -iteration * (iteration - shape);
+    b += 2;
+    d = coefficient * d + b;
+    if (Math.abs(d) < minimum) {
+      d = minimum;
+    }
+    c = b + coefficient / c;
+    if (Math.abs(c) < minimum) {
+      c = minimum;
+    }
+    d = 1 / d;
+    const delta = d * c;
+    fraction *= delta;
+    if (Math.abs(delta - 1) <= 1e-14) {
+      break;
+    }
+  }
+  return (
+    Math.exp(-value + shape * Math.log(value) - calculateLogGamma(shape)) * fraction
+  );
+}
+
+function calculateLogGamma(value: number): number {
+  const coefficients = [
+    0.9999999999998099,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.3234287776531,
+    -176.6150291621406,
+    12.5073432786869,
+    -0.13857109526572012,
+    9.984369578019572e-6,
+    1.5056327351493116e-7,
+  ];
+  if (value < 0.5) {
+    return (
+      Math.log(Math.PI) -
+      Math.log(Math.sin(Math.PI * value)) -
+      calculateLogGamma(1 - value)
+    );
+  }
+  const shifted = value - 1;
+  let series = coefficients[0]!;
+  for (let index = 1; index < coefficients.length; index += 1) {
+    series += coefficients[index]! / (shifted + index);
+  }
+  const scale = shifted + 7.5;
+  return (
+    0.5 * Math.log(2 * Math.PI) +
+    (shifted + 0.5) * Math.log(scale) -
+    scale +
+    Math.log(series)
+  );
+}
+
+function clampProbability(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function createTaskMetricKey(taskId: string, metricId: string): string {
@@ -1768,6 +2058,12 @@ function assertPositiveFinite(value: number, fieldName: string): void {
 function assertNonNegativeInteger(value: number, fieldName: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${fieldName} must be a non-negative integer`);
+  }
+}
+
+function assertPositiveInteger(value: number, fieldName: string): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${fieldName} must be a positive integer`);
   }
 }
 

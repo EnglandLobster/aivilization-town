@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import {
   createLocalSimulationRuntimeRecovery,
   InMemoryLocalSimulationRuntimeRunQueueRepository,
@@ -32,6 +32,8 @@ describe('local simulation runtime recovery', () => {
     });
     await repository.fail({
       jobId: 'job-dead-2',
+      workerId: 'worker-a',
+      attemptNumber: 2,
       failedAt: 180,
       maxAttempts: 2,
       error: { name: 'Error', message: 'failed after replay' },
@@ -79,6 +81,52 @@ describe('local simulation runtime recovery', () => {
         },
       },
     });
+  });
+
+  test('drains a dead letter replayed during the same recovery run', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue({
+      jobId: 'dead-letter-same-run',
+      manifestId: 'town-runtime',
+      enqueuedAt: 100,
+      runRequest: { requestedAt: 100, cycleCount: 1 },
+    });
+    await repository.claimNext({
+      workerId: 'fault-worker',
+      claimedAt: 100,
+      leaseDurationMs: 10,
+      manifestId: 'town-runtime',
+    });
+    await repository.fail({
+      jobId: 'dead-letter-same-run',
+      workerId: 'fault-worker',
+      attemptNumber: 1,
+      failedAt: 101,
+      maxAttempts: 1,
+      error: { name: 'InjectedFailure', message: 'drill' },
+    });
+    const drain = vi.fn().mockResolvedValue({
+      processedJobCount: 1,
+      completedJobCount: 1,
+      failedJobCount: 0,
+      idle: false,
+      results: [],
+    });
+    const recovery = createLocalSimulationRuntimeRecovery({
+      manifestId: 'town-runtime',
+      queueRepository: repository,
+      workerHost: { drain },
+      policy: {
+        maxDeadLetterReplaysPerRun: 1,
+        maxReplayCountPerJob: 1,
+        maxDrainJobsPerRun: 1,
+      },
+    });
+
+    const report = await recovery.recover({ observedAt: 200 });
+
+    expect(report.replayedDeadLetterJobs).toHaveLength(1);
+    expect(drain).toHaveBeenCalledWith({ maxJobs: 1 });
   });
 
   test('drains ready and expired queue work through the worker host', async () => {
@@ -169,6 +217,8 @@ async function createDeadLetter(
   });
   await repository.fail({
     jobId: input.jobId,
+    workerId: 'worker-a',
+    attemptNumber: 1,
     failedAt: input.failedAt,
     maxAttempts: 1,
     error: { name: 'Error', message: `failure for ${input.jobId}` },

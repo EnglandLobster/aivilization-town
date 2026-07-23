@@ -1,5 +1,10 @@
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  asLocationId,
+  createCommandEnvelope,
+  type CoreCommandType,
+} from '@aivilization/sim-core';
 import type { ResidentialPhysiologyCapPolicy } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -18,7 +23,10 @@ import {
   handleAgentSocializeCommand,
   handleAgentStudyCommand,
   handleAgentTradeCommand,
+  handleAgentGiveResourceCommand,
   handleAgentWorkCommand,
+  handleAdvanceSimulationTimeCommand,
+  handleRegisterAgentCommand,
 } from './index';
 
 const residentialPhysiologyCaps: ResidentialPhysiologyCapPolicy = {
@@ -29,6 +37,144 @@ const residentialPhysiologyCaps: ResidentialPhysiologyCapPolicy = {
 };
 
 describe('agent action command handlers', () => {
+  test('RegisterAgent creates a replayable attributed agent and updates money supply once', () => {
+    const projection = createWorldProjection({ agents: [], moneySupply: 500 });
+    const command = createCommandEnvelope({
+      id: 'register-agent-ada',
+      simulationId: 'sim-1',
+      actorId: 'agent-ada',
+      source: 'human',
+      type: 'RegisterAgent',
+      payload: {
+        agentId: 'agent-ada',
+        creatorId: 'participant-7',
+        displayName: 'Ada',
+      },
+      issuedAt: 90,
+    });
+
+    const events = handleRegisterAgentCommand({ command, projection, nextSequence: 1 });
+    expect(events).toMatchObject([
+      {
+        id: 'register-agent-ada:event:0',
+        commandId: 'register-agent-ada',
+        type: 'AgentRegistered',
+        payload: {
+          registrationId: 'register-agent-ada',
+          policyVersion: 'runtime-agent-registration-v3',
+          creatorId: 'participant-7',
+          source: 'human',
+          displayName: 'Ada',
+          agentId: 'agent-ada',
+          initialState: {
+            locationId: null,
+            physiology: { energy: 100, satiety: 100, health: 100 },
+            educationScore: 0,
+            balance: 100,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+          moneySupplyDelta: 100,
+        },
+      },
+    ]);
+
+    const replayed = events.reduce(applyWorldEvent, projection);
+    expect(replayed.moneySupply).toBe(600);
+    expect(replayed.agents['agent-ada']).toMatchObject({
+      agentId: 'agent-ada',
+      balance: 100,
+      registration: {
+        registrationId: 'register-agent-ada',
+        creatorId: 'participant-7',
+        displayName: 'Ada',
+        registeredAt: 90,
+        provenance: 'post-bootstrap-command',
+      },
+    });
+
+    const duplicate = handleRegisterAgentCommand({
+      command,
+      projection: replayed,
+      nextSequence: 2,
+    });
+    expect(duplicate[0]).toMatchObject({
+      type: 'AgentRegistrationRejected',
+      payload: { agentId: 'agent-ada', reason: 'agent-id-already-exists' },
+    });
+  });
+
+  test('RegisterAgent enforces the configured creator quota in authoritative world state', () => {
+    const initial = createWorldProjection({ agents: [] });
+    const firstCommand = createCommandEnvelope({
+      id: 'register-agent-first',
+      simulationId: 'sim-1',
+      actorId: 'agent-first',
+      source: 'human',
+      type: 'RegisterAgent',
+      payload: {
+        agentId: 'agent-first',
+        creatorId: 'participant-7',
+        displayName: 'First',
+      },
+      issuedAt: 90,
+    });
+    const projection = handleRegisterAgentCommand({
+      command: firstCommand,
+      projection: initial,
+      maxAgentsPerCreator: 1,
+      nextSequence: 1,
+    }).reduce(applyWorldEvent, initial);
+
+    const rejected = handleRegisterAgentCommand({
+      command: createCommandEnvelope({
+        id: 'register-agent-second',
+        simulationId: 'sim-1',
+        actorId: 'agent-second',
+        source: 'human',
+        type: 'RegisterAgent',
+        payload: {
+          agentId: 'agent-second',
+          creatorId: 'participant-7',
+          displayName: 'Second',
+        },
+        issuedAt: 100,
+      }),
+      projection,
+      maxAgentsPerCreator: 1,
+      nextSequence: 2,
+    });
+    expect(rejected[0]).toMatchObject({
+      type: 'AgentRegistrationRejected',
+      payload: {
+        policyVersion: 'runtime-agent-registration-v3',
+        creatorId: 'participant-7',
+        reason: 'creator-agent-quota-reached',
+      },
+    });
+
+    const otherCreator = handleRegisterAgentCommand({
+      command: createCommandEnvelope({
+        id: 'register-agent-other',
+        simulationId: 'sim-1',
+        actorId: 'agent-other',
+        source: 'human',
+        type: 'RegisterAgent',
+        payload: {
+          agentId: 'agent-other',
+          creatorId: 'participant-8',
+          displayName: 'Other',
+        },
+        issuedAt: 100,
+      }),
+      projection,
+      maxAgentsPerCreator: 1,
+      nextSequence: 2,
+    });
+    expect(otherCreator[0]?.type).toBe('AgentRegistered');
+  });
+
   test('AgentEat consumes inventory, restores satiety, and records STM', () => {
     const projection = createWorldProjection({
       agents: [
@@ -143,6 +289,7 @@ describe('agent action command handlers', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
@@ -180,17 +327,132 @@ describe('agent action command handlers', () => {
       nextSequence: 1,
     });
 
-    expect(events[1]).toMatchObject({
+    expect(events[2]).toMatchObject({
       type: 'ShortTermMemoryRecorded',
       payload: {
         record: {
           source: {
             commandId: 'command-study-provenance',
-            eventIds: ['command-study-provenance:event:0'],
+            eventIds: ['command-study-provenance:event:0', 'command-study-provenance:event:1'],
           },
         },
       },
     });
+  });
+
+  test('AgentStudy consumes configured education investment before increasing education', () => {
+    const projection = createWorldProjection({
+      moneySupply: 1_000,
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Books: 3 },
+        },
+      ],
+    });
+
+    const events = handleAgentStudyCommand({
+      command: createCommandEnvelope({
+        id: 'command-study-investment',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 1800, educationRatePerSecond: 0.5 },
+        issuedAt: 20,
+      }),
+      projection,
+      educationInvestment: {
+        currencyCostPerHour: 20,
+        inventoryCostsPerHour: { Books: 2 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'EducationInvestmentPaid',
+      'EducationChanged',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      durationSeconds: 1800,
+      currencyCost: 10,
+      previousBalance: 100,
+      nextBalance: 90,
+      consumedInventory: { Books: 1 },
+    });
+    expect(events[3]).toMatchObject({
+      payload: {
+        record: {
+          source: {
+            eventIds: [
+              'command-study-investment:event:0',
+              'command-study-investment:event:1',
+              'command-study-investment:event:2',
+            ],
+          },
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']).toMatchObject({
+      balance: 90,
+      inventory: { Books: 2 },
+      educationScore: 910,
+    });
+    expect(updated.moneySupply).toBe(990);
+  });
+
+  test('AgentStudy rejects unaffordable investment without changing resources or education', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 10,
+          balance: 5,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Books: 3 },
+        },
+      ],
+    });
+
+    const events = handleAgentStudyCommand({
+      command: createCommandEnvelope({
+        id: 'command-study-unaffordable',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 1800, educationRatePerSecond: 0.5 },
+        issuedAt: 20,
+      }),
+      projection,
+      educationInvestment: {
+        currencyCostPerHour: 20,
+        inventoryCostsPerHour: { Books: 2 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      commandType: 'AgentStudy',
+      reason: 'balance requires 10, available 5',
+    });
+    expect(events.reduce(applyWorldEvent, projection).agents['agent-1']).toEqual(
+      projection.agents['agent-1'],
+    );
   });
 
   test('invalid AgentEat emits rejection and failed STM without mutating inventory', () => {
@@ -276,6 +538,7 @@ describe('agent sleep command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
@@ -499,6 +762,7 @@ describe('agent sleep command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
   });
@@ -537,6 +801,7 @@ describe('agent see doctor command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
@@ -590,6 +855,7 @@ describe('agent see doctor command handling', () => {
     expect(events.map((event) => event.type)).toEqual([
       'MedicalTreatmentCharged',
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]).toMatchObject({
@@ -870,6 +1136,7 @@ describe('agent see doctor command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
@@ -922,6 +1189,7 @@ describe('agent see doctor command handling', () => {
     expect(events.map((event) => event.type)).toEqual([
       'MedicalTreatmentCharged',
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     const updated = events.reduce(applyWorldEvent, projection);
@@ -965,6 +1233,7 @@ describe('agent work command handling', () => {
     expect(events.map((event) => event.type)).toEqual([
       'WagePaid',
       'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({ agentId: 'agent-1', amount: 300 });
@@ -1014,6 +1283,7 @@ describe('agent work command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'EducationChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
   });
@@ -1095,6 +1365,7 @@ describe('agent produce command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'CommodityProduced',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
 
@@ -1465,6 +1736,72 @@ describe('agent trade command handling', () => {
     expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
   });
 
+  test('canonical trade activity commits exclusive simulation time before recording STM', () => {
+    const projection = createWorldProjection({
+      clock: { now: 7_000, tickDurationMs: 1_000 },
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-timed-trade',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 1 },
+        issuedAt: 60,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        tradeActivity: { durationSeconds: 300 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'TradeExecuted',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[1]).toMatchObject({
+      id: 'command-timed-trade:event:1',
+      type: 'AgentActivityTimeCommitted',
+      payload: {
+        activity: 'trade',
+        commandType: 'AgentTrade',
+        policyVersion: 'exclusive-agent-activity-time-v2',
+        startedAt: 7_000,
+        durationSeconds: 300,
+        availableAt: 307_000,
+      },
+    });
+    expect(events[2]).toMatchObject({ id: 'command-timed-trade:event:2' });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.activityTimeByAgent['agent-1']).toMatchObject({
+      activity: 'trade',
+      availableAt: 307_000,
+    });
+  });
+
   test('AgentTrade sell records effective price, spot movement, slippage, and invariant metadata', () => {
     const projection = createWorldProjection({
       agents: [
@@ -1643,7 +1980,18 @@ describe('agent job application command handling', () => {
 
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.jobApplications).toEqual([
-      { agentId: 'agent-1', occupationName: 'Cleaner', submittedAt: 70 },
+      {
+        applicationId: 'command-apply:application',
+        cycleNumber: 0,
+        agentId: 'agent-1',
+        occupationName: 'Cleaner',
+        residentialTier: 1,
+        educationScore: 0,
+        submittedAt: 70,
+        status: 'accepted',
+        resolvedAt: 70,
+        resolutionReason: 'legacy-immediate-assignment',
+      },
     ]);
     expect(updated.agents['agent-1']?.job).toBe('Cleaner');
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
@@ -1705,9 +2053,14 @@ describe('agent job application command handling', () => {
       ],
       jobApplications: [
         {
+          applicationId: 'existing-application',
+          cycleNumber: 0,
           agentId: asAgentId('agent-1'),
           occupationName: 'Cleaner',
+          residentialTier: 1,
+          educationScore: 0,
           submittedAt: 60,
+          status: 'pending',
         },
       ],
     });
@@ -2037,6 +2390,204 @@ describe('agent residential tier upgrade command handling', () => {
 });
 
 describe('agent movement command handling', () => {
+  test('AgentMoveTo follows the shortest route and commits congestion-adjusted travel time', () => {
+    const projection = createWorldProjection({
+      clock: { now: 10_000, tickDurationMs: 1_000 },
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('home'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          locationId: asLocationId('work'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('home'),
+          name: 'Home',
+          kind: 'residence',
+          activityAffinities: ['sleep'],
+          capacity: 10,
+          connections: [
+            { targetLocationId: asLocationId('square'), travelDurationSeconds: 100 },
+            { targetLocationId: asLocationId('work'), travelDurationSeconds: 400 },
+          ],
+        },
+        {
+          locationId: asLocationId('square'),
+          name: 'Square',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: 10,
+          connections: [
+            { targetLocationId: asLocationId('home'), travelDurationSeconds: 100 },
+            { targetLocationId: asLocationId('work'), travelDurationSeconds: 100 },
+          ],
+        },
+        {
+          locationId: asLocationId('work'),
+          name: 'Work',
+          kind: 'production',
+          activityAffinities: ['work'],
+          capacity: 2,
+          connections: [
+            { targetLocationId: asLocationId('home'), travelDurationSeconds: 400 },
+            { targetLocationId: asLocationId('square'), travelDurationSeconds: 100 },
+          ],
+        },
+      ],
+    });
+
+    const events = handleAgentMoveToCommand({
+      command: createCommandEnvelope({
+        id: 'command-route',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentMoveTo',
+        payload: { targetLocationId: 'work', reason: 'shift' },
+        issuedAt: 10_000,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'AgentTravelStarted',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({
+      routeLocationIds: ['home', 'square', 'work'],
+      baseTravelDurationSeconds: 200,
+      congestionMultiplier: 1.25,
+      travelDurationSeconds: 250,
+      spatialPolicyVersion: 'town-spatial-graph-v1',
+    });
+    expect(events[1]?.payload).toMatchObject({
+      activity: 'travel',
+      commandType: 'AgentMoveTo',
+      durationSeconds: 250,
+      availableAt: 260_000,
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.locationId).toBe(asLocationId('home'));
+    expect(updated.transitByAgent?.['agent-1']).toMatchObject({
+      fromLocationId: 'home',
+      toLocationId: 'work',
+      arrivesAt: 260_000,
+    });
+    expect(updated.activityTimeByAgent['agent-1']).toMatchObject({
+      activity: 'travel',
+      availableAt: 260_000,
+      settlementTiming: 'effects-at-completion',
+    });
+
+    const arrivalEvents = handleAdvanceSimulationTimeCommand({
+      command: createCommandEnvelope({
+        id: 'command-route-arrival',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 250_000 },
+        issuedAt: 10_000,
+      }),
+      projection: updated,
+      nextSequence: 4,
+    });
+    expect(arrivalEvents.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'AgentLocationChanged',
+    ]);
+    const arrived = arrivalEvents.reduce(applyWorldEvent, updated);
+    expect(arrived.agents['agent-1']?.locationId).toBe(asLocationId('work'));
+    expect(arrived.transitByAgent?.['agent-1']).toBeUndefined();
+  });
+
+  test('AgentMoveTo rejects full or unreachable destinations', () => {
+    const createProjection = (connected: boolean) =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-1'),
+            locationId: asLocationId('home'),
+            physiology: { energy: 100, satiety: 80, health: 100 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+          {
+            agentId: asAgentId('agent-2'),
+            locationId: asLocationId('target'),
+            physiology: { energy: 100, satiety: 80, health: 100 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+        locations: [
+          {
+            locationId: asLocationId('home'),
+            name: 'Home',
+            kind: 'residence',
+            activityAffinities: ['sleep'],
+            capacity: 10,
+            connections: connected
+              ? [{ targetLocationId: asLocationId('target'), travelDurationSeconds: 60 }]
+              : [],
+          },
+          {
+            locationId: asLocationId('target'),
+            name: 'Target',
+            kind: 'social',
+            activityAffinities: ['socialize'],
+            capacity: connected ? 1 : 2,
+            connections: connected
+              ? [{ targetLocationId: asLocationId('home'), travelDurationSeconds: 60 }]
+              : [],
+          },
+        ],
+      });
+    const move = (projection: ReturnType<typeof createProjection>) =>
+      handleAgentMoveToCommand({
+        command: createCommandEnvelope({
+          id: 'command-constrained-move',
+          simulationId: 'sim-1',
+          actorId: 'agent-1',
+          type: 'AgentMoveTo',
+          payload: { targetLocationId: 'target' },
+          issuedAt: 80,
+        }),
+        projection,
+        nextSequence: 1,
+      });
+
+    expect(move(createProjection(true))[0]?.payload).toMatchObject({
+      reason: 'target location target is at capacity 1',
+    });
+    expect(move(createProjection(false))[0]?.payload).toMatchObject({
+      reason: 'no route from home to target',
+    });
+  });
+
   test('AgentMoveTo updates agent location and records STM', () => {
     const projection = createWorldProjection({
       agents: [
@@ -2465,6 +3016,7 @@ describe('agent conversation command handling', () => {
             {
               speakerAgentId: 'agent-2',
               utterance: 'Yes, let us review after class.',
+              intent: 'share-information',
             },
           ],
         },
@@ -2500,6 +3052,7 @@ describe('agent conversation command handling', () => {
             turnIndex: 1,
             speakerAgentId: 'agent-2',
             utterance: 'Yes, let us review after class.',
+            intent: 'share-information',
           },
         ],
       },
@@ -2511,11 +3064,13 @@ describe('agent conversation command handling', () => {
         targetAgentId: 'agent-2',
         summary:
           'Conversation about homework: Do you want to study together? / Yes, let us review after class.',
-        relationDelta: 0.2,
-        attitudeDelta: 0.1,
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v1',
+        outcomeSignals: [],
         nextRelation: {
-          relationScore: 0.2,
-          attitudeScore: 0.1,
+          relationScore: 0,
+          attitudeScore: 0,
           relationLabel: 'acquaintance',
           interactionCount: 1,
         },
@@ -2526,8 +3081,10 @@ describe('agent conversation command handling', () => {
       payload: {
         sourceAgentId: 'agent-2',
         targetAgentId: 'agent-1',
-        relationDelta: 0.2,
-        attitudeDelta: 0.1,
+        relationDelta: 0.06,
+        attitudeDelta: 0.06,
+        outcomePolicyVersion: 'conversation-outcome-v1',
+        outcomeSignals: ['cooperation'],
       },
     });
     expect(events[3]).toMatchObject({
@@ -2544,6 +3101,20 @@ describe('agent conversation command handling', () => {
             ],
           },
           tags: ['conversation', 'homework', 'agent-2', 'school'],
+          consolidationHint: {
+            relationDelta: 0,
+            attitudeDelta: 0,
+            outcomePolicyVersion: 'conversation-outcome-v1',
+            outcomeSignals: [],
+            knowledgeClaims: [
+              {
+                sourceAgentId: 'agent-2',
+                topic: 'homework',
+                statement: 'Yes, let us review after class.',
+                status: 'asserted',
+              },
+            ],
+          },
         },
       },
     });
@@ -2560,7 +3131,14 @@ describe('agent conversation command handling', () => {
               'command-conversation:event:2',
             ],
           },
-          tags: ['conversation', 'homework', 'agent-1', 'school'],
+          tags: ['conversation', 'homework', 'agent-1', 'school', 'cooperation'],
+          consolidationHint: {
+            relationDelta: 0.06,
+            attitudeDelta: 0.06,
+            outcomePolicyVersion: 'conversation-outcome-v1',
+            outcomeSignals: ['cooperation'],
+            knowledgeClaims: [],
+          },
         },
       },
     });
@@ -2575,16 +3153,163 @@ describe('agent conversation command handling', () => {
       recordedAt: 90,
     });
     expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
-      relationScore: 0.2,
-      attitudeScore: 0.1,
+      relationScore: 0,
+      attitudeScore: 0,
       interactionCount: 1,
     });
     expect(updated.socialRelations['agent-2->agent-1']).toMatchObject({
-      relationScore: 0.2,
-      attitudeScore: 0.1,
+      relationScore: 0.06,
+      attitudeScore: 0.06,
       interactionCount: 1,
     });
     expect(updated.memoryRecords.map((record) => record.agentId)).toEqual(['agent-1', 'agent-2']);
+  });
+
+  test('credits follow-through only when the transcript history contains an open commitment', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const locationId = asLocationId('town-square');
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: agent1,
+          locationId,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: agent2,
+          locationId,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId,
+          name: 'Town Square',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: null,
+        },
+      ],
+    });
+    const ungroundedEvents = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-unverified-follow-through',
+        simulationId: 'sim-1',
+        actorId: agent1,
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: agent2,
+          topic: 'market errand',
+          relationDelta: 1,
+          attitudeDelta: 1,
+          turns: [
+            {
+              speakerAgentId: agent1,
+              utterance: 'I followed through on the errand.',
+              intent: 'fulfill-commitment',
+            },
+            { speakerAgentId: agent2, utterance: 'I heard you.' },
+          ],
+        },
+        issuedAt: 1,
+      }),
+      projection: initial,
+      nextSequence: 1,
+    });
+    expect(ungroundedEvents[2]).toMatchObject({
+      payload: { relationDelta: 0, attitudeDelta: 0, outcomeSignals: [] },
+    });
+
+    const promiseEvents = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-make-commitment',
+        simulationId: 'sim-1',
+        actorId: agent1,
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: agent2,
+          topic: 'market errand',
+          relationDelta: 1,
+          attitudeDelta: 1,
+          turns: [
+            {
+              speakerAgentId: agent1,
+              utterance: 'I promise to bring the market prices tomorrow.',
+              intent: 'make-commitment',
+            },
+            { speakerAgentId: agent2, utterance: 'I will wait for the report.' },
+          ],
+        },
+        issuedAt: 2,
+      }),
+      projection: initial,
+      nextSequence: 10,
+    });
+    const afterPromise = promiseEvents.reduce(applyWorldEvent, initial);
+    expect(afterPromise.socialCommitments).toEqual({
+      'conversation-command-make-commitment:0': {
+        commitmentId: 'conversation-command-make-commitment:0',
+        promisorAgentId: agent1,
+        beneficiaryAgentId: agent2,
+        topic: 'market errand',
+        statement: 'I promise to bring the market prices tomorrow.',
+        status: 'open',
+        createdAt: 2,
+      },
+    });
+    const fulfilledEvents = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-verified-follow-through',
+        simulationId: 'sim-1',
+        actorId: agent1,
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: agent2,
+          topic: 'market errand',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: agent1,
+              utterance: 'I returned with the promised market prices.',
+              intent: 'fulfill-commitment',
+            },
+            { speakerAgentId: agent2, utterance: 'Thank you for following through.' },
+          ],
+        },
+        issuedAt: 3,
+      }),
+      projection: afterPromise,
+      nextSequence: 20,
+    });
+    expect(fulfilledEvents[2]).toMatchObject({
+      payload: {
+        sourceAgentId: agent2,
+        targetAgentId: agent1,
+        relationDelta: 0.12,
+        attitudeDelta: 0.1,
+        outcomeSignals: ['fulfilled-commitment'],
+      },
+    });
+    const afterFulfillment = fulfilledEvents.reduce(applyWorldEvent, afterPromise);
+    expect(
+      afterFulfillment.socialCommitments['conversation-command-make-commitment:0'],
+    ).toMatchObject({
+      status: 'fulfilled',
+      resolvedAt: 3,
+      resolutionConversationId: 'conversation-command-verified-follow-through',
+    });
   });
 
   test('AgentStartConversation rejects turns spoken by non-participants', () => {
@@ -2735,6 +3460,90 @@ describe('agent conversation command handling', () => {
       'ShortTermMemoryRecorded',
       'ShortTermMemoryRecorded',
     ]);
+  });
+});
+
+describe('peer resource transfer command handling', () => {
+  test('atomically transfers inventory and grounds recipient trust in the replayed transfer', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const locationId = asLocationId('town-square');
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: agent1,
+          locationId,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: { Apple: 5 },
+        },
+        {
+          agentId: agent2,
+          locationId,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      locations: [
+        {
+          locationId,
+          name: 'Town Square',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: null,
+        },
+      ],
+    });
+    const events = handleAgentGiveResourceCommand({
+      command: createCommandEnvelope({
+        id: 'command-give-resource',
+        simulationId: 'sim-1',
+        actorId: agent1,
+        type: 'AgentGiveResource',
+        payload: {
+          targetAgentId: agent2,
+          commodityName: 'Apple',
+          quantity: 3,
+          note: 'For dinner.',
+        },
+        issuedAt: 10,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ResourceTransferred',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[1]).toMatchObject({
+      payload: {
+        sourceAgentId: agent2,
+        targetAgentId: agent1,
+        relationDelta: 0.07,
+        attitudeDelta: 0.09,
+        outcomePolicyVersion: 'resource-transfer-social-outcome-v1',
+        outcomeSignals: ['resource-help-received'],
+      },
+    });
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents[agent1]?.inventory).toEqual({ Apple: 2 });
+    expect(updated.agents[agent2]?.inventory).toEqual({ Apple: 3 });
+    expect(updated.socialRelations['agent-2->agent-1']).toMatchObject({
+      relationScore: 0.07,
+      attitudeScore: 0.09,
+    });
+    expect(updated.socialRelations['agent-1->agent-2']).toBeUndefined();
+    expect(updated.memoryRecords.map((record) => record.agentId)).toEqual([agent1, agent2]);
   });
 });
 
@@ -3081,6 +3890,171 @@ describe('agent social command handling', () => {
 
     expect(events.map((event) => event.type)).toEqual([
       'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+});
+
+describe('exclusive agent activity time allocation', () => {
+  test('blocks all competing actions until the committed simulation-time boundary', () => {
+    const policies = {
+      satietyRecoveryByCommodity: { Bread: 15 },
+      maxSatiety: 100,
+      wageCalculator: () => 300,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 1, health: 1 },
+      sleep: { energyRecoveryPerSecond: 1, maxEnergy: 100 },
+      seeDoctor: { healthRecoveryPerSecond: 1, maxHealth: 100 },
+    } as const;
+    let projection = createWorldProjection({
+      clock: { now: 1_000, tickDurationMs: 1_000 },
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 80, satiety: 80, health: 80 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 1 },
+        },
+        {
+          agentId: asAgentId('agent-2'),
+          physiology: { energy: 80, satiety: 80, health: 80 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Bread: 1 },
+        },
+      ],
+    });
+
+    const studyEvents = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-commit-study-time',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 2, educationRatePerSecond: 1 },
+        issuedAt: 10,
+      }),
+      projection,
+      policies,
+      nextSequence: 1,
+    });
+    projection = studyEvents.reduce(applyWorldEvent, projection);
+
+    expect(projection.activityTimeByAgent['agent-1']).toMatchObject({
+      activity: 'education',
+      commandType: 'AgentStudy',
+      policyVersion: 'exclusive-agent-activity-time-v2',
+      settlementTiming: 'effects-at-commit',
+      startedAt: 1_000,
+      durationSeconds: 2,
+      availableAt: 3_000,
+      committedAt: 10,
+    });
+
+    const competingCommands: readonly {
+      readonly id: string;
+      readonly type: CoreCommandType;
+      readonly payload: unknown;
+    }[] = [
+      {
+        id: 'command-busy-work',
+        type: 'AgentWork' as const,
+        payload: { occupationName: 'Cleaner', laborSeconds: 1 },
+      },
+      {
+        id: 'command-busy-produce',
+        type: 'AgentProduce' as const,
+        payload: { commodityName: 'Apple', quantity: 1, availableLaborSeconds: 1 },
+      },
+      {
+        id: 'command-busy-eat',
+        type: 'AgentEat' as const,
+        payload: { commodityName: 'Bread', quantity: 1 },
+      },
+      {
+        id: 'command-busy-sleep',
+        type: 'AgentSleep' as const,
+        payload: { durationSeconds: 1 },
+      },
+      {
+        id: 'command-busy-doctor',
+        type: 'AgentSeeDoctor' as const,
+        payload: { durationSeconds: 1 },
+      },
+    ];
+    for (const command of competingCommands) {
+      const events = dispatchWorldCommand({
+        command: createCommandEnvelope({
+          ...command,
+          simulationId: 'sim-1',
+          actorId: 'agent-1',
+          issuedAt: 11,
+        }),
+        projection,
+        policies,
+        nextSequence: 10,
+      });
+      expect(events[0]).toMatchObject({
+        type: 'ActionRejected',
+        payload: {
+          commandType: command.type,
+          reason: 'agent is busy with education until simulation time 3000 (now 1000)',
+        },
+      });
+    }
+
+    const otherAgentEvents = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-other-agent-eat',
+        simulationId: 'sim-1',
+        actorId: 'agent-2',
+        type: 'AgentEat',
+        payload: { commodityName: 'Bread', quantity: 1 },
+        issuedAt: 11,
+      }),
+      projection,
+      policies,
+      nextSequence: 20,
+    });
+    expect(otherAgentEvents[0]?.type).toBe('InventoryChanged');
+
+    const advanceEvents = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-reach-activity-boundary',
+        simulationId: 'sim-1',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 2_000 },
+        issuedAt: 12,
+      }),
+      projection,
+      policies,
+      nextSequence: 30,
+    });
+    projection = advanceEvents.reduce(applyWorldEvent, projection);
+    expect(projection.clock.now).toBe(3_000);
+
+    const workEvents = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-work-at-boundary',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 1 },
+        issuedAt: 13,
+      }),
+      projection,
+      policies,
+      nextSequence: 40,
+    });
+    expect(workEvents.map((event) => event.type)).toEqual([
+      'WagePaid',
+      'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
   });

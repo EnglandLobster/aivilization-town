@@ -112,9 +112,7 @@ describe('local world runtime step', () => {
       updatedAt: 200,
     });
     expect(result.tick.events.map((event) => [event.sequence, event.type])).toEqual([
-      [3, 'SimulationTimeAdvanced'],
-      [4, 'EducationChanged'],
-      [5, 'ShortTermMemoryRecorded'],
+      [4, 'SimulationTimeAdvanced'],
     ]);
     expect(
       storage.eventStore
@@ -122,16 +120,16 @@ describe('local world runtime step', () => {
         .map((event) => [event.sequence, event.type]),
     ).toEqual([
       [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
-      [3, 'SimulationTimeAdvanced'],
-      [4, 'EducationChanged'],
-      [5, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
+      [4, 'SimulationTimeAdvanced'],
     ]);
-    expect(result.projection.agents['agent-1']?.educationScore).toBe(100);
+    expect(result.tick.skippedBusyAgentIds).toEqual([agentOne]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.tick.checkpoint).toMatchObject({
       simulationId: 'sim-1',
       partitionKey: 'world-main',
-      lastAppliedSequence: 5,
+      lastAppliedSequence: 4,
     });
     expect(
       storage.checkpointStore.getLatestCheckpoint({
@@ -168,6 +166,7 @@ describe('local world runtime step', () => {
       ],
     });
     const providerObservedEducation: number[] = [];
+    const providerObservedClock: number[] = [];
 
     const result = await runLocalWorldRuntimeStep({
       storage,
@@ -182,6 +181,7 @@ describe('local world runtime step', () => {
       agents: [],
       agentProvider: ({ projection }) => {
         providerObservedEducation.push(projection.agents['agent-1']?.educationScore ?? -1);
+        providerObservedClock.push(projection.clock.now);
         return [
           {
             agentId: agentOne,
@@ -203,10 +203,12 @@ describe('local world runtime step', () => {
     });
 
     expect(providerObservedEducation).toEqual([70]);
+    expect(providerObservedClock).toEqual([1_000]);
     if (result.status !== 'ticked') {
       throw new Error('expected ticked result');
     }
-    expect(result.projection.agents['agent-1']?.educationScore).toBe(100);
+    expect(result.tick.skippedBusyAgentIds).toEqual([agentOne]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
   });
 
   test('materializes full replans through local runtime steps', async () => {
@@ -350,6 +352,7 @@ describe('local world runtime step', () => {
         commodityId: 'Apple',
         sourceSequence: 2,
         side: 'buy',
+        observedAt: 1000,
       },
     ]);
 
@@ -367,8 +370,8 @@ describe('local world runtime step', () => {
       {
         simulationId: 'sim-1',
         commodityId: 'Apple',
-        intervalStartedAt: 0,
-        intervalEndedAt: 1000,
+        intervalStartedAt: 1000,
+        intervalEndedAt: 2000,
         tradeCount: 1,
       },
     ]);

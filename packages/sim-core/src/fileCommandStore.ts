@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AppendOnlyJsonLinesFile } from './appendOnlyJsonLinesFile';
 import type { CommandEnvelope } from './command';
 import {
   assignCommandSequences,
@@ -20,12 +21,27 @@ type StoredCommandIdempotencyRecord<TCommand extends CommandEnvelope> = {
   readonly streamVersion: number;
 };
 
-export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope>
-  implements CommandStore<TCommand>
-{
+export class FileCommandStore<
+  TCommand extends CommandEnvelope = CommandEnvelope,
+> implements CommandStore<TCommand> {
   private readonly rootDir: string;
   private readonly streamsDir: string;
   private readonly idempotencyPath: string;
+  private readonly idempotencyFile: AppendOnlyJsonLinesFile<
+    StoredCommandIdempotencyRecord<TCommand>
+  >;
+  private readonly streamFiles = new Map<
+    CommandStreamName,
+    AppendOnlyJsonLinesFile<CommandRecord<TCommand>>
+  >();
+  private indexedIdempotencyRecords:
+    | readonly StoredCommandIdempotencyRecord<TCommand>[]
+    | undefined;
+  private indexedIdempotencyRecordCount = 0;
+  private readonly idempotencyRecordByKey = new Map<
+    string,
+    StoredCommandIdempotencyRecord<TCommand>
+  >();
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
@@ -33,6 +49,7 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
     this.streamsDir = join(input.rootDir, 'streams');
     this.idempotencyPath = join(input.rootDir, 'idempotency.jsonl');
     this.ensureStorage();
+    this.idempotencyFile = new AppendOnlyJsonLinesFile(this.idempotencyPath);
   }
 
   appendToStream(
@@ -55,7 +72,7 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
     }
 
     const appendedCommands = assignCommandSequences(request.commands, currentVersion);
-    appendJsonLines(this.streamPath(request.streamName), appendedCommands);
+    this.streamFile(request.streamName).append(appendedCommands);
     const streamVersion = currentVersion + appendedCommands.length;
     const result = {
       appendedCommands,
@@ -64,7 +81,7 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
     };
 
     if (request.idempotencyKey !== undefined) {
-      appendJsonLines(this.idempotencyPath, [
+      this.idempotencyFile.append([
         {
           idempotencyKey: request.idempotencyKey,
           streamName: request.streamName,
@@ -106,9 +123,7 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
       return undefined;
     }
 
-    const existing = this.readIdempotencyRecords().find(
-      (record) => record.idempotencyKey === request.idempotencyKey,
-    );
+    const existing = this.getIdempotencyRecord(request.idempotencyKey);
     if (existing === undefined) {
       return undefined;
     }
@@ -132,11 +147,40 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
   }
 
   private readAllRecords(streamName: CommandStreamName): readonly CommandRecord<TCommand>[] {
-    return readJsonLines<CommandRecord<TCommand>>(this.streamPath(streamName));
+    return this.streamFile(streamName).read();
   }
 
-  private readIdempotencyRecords(): readonly StoredCommandIdempotencyRecord<TCommand>[] {
-    return readJsonLines<StoredCommandIdempotencyRecord<TCommand>>(this.idempotencyPath);
+  private getIdempotencyRecord(
+    idempotencyKey: string,
+  ): StoredCommandIdempotencyRecord<TCommand> | undefined {
+    const records = this.idempotencyFile.read();
+    if (records !== this.indexedIdempotencyRecords) {
+      this.idempotencyRecordByKey.clear();
+      this.indexedIdempotencyRecordCount = 0;
+      this.indexedIdempotencyRecords = records;
+    }
+    for (let index = this.indexedIdempotencyRecordCount; index < records.length; index += 1) {
+      const record = records[index];
+      if (record !== undefined && !this.idempotencyRecordByKey.has(record.idempotencyKey)) {
+        this.idempotencyRecordByKey.set(record.idempotencyKey, record);
+      }
+    }
+    this.indexedIdempotencyRecordCount = records.length;
+    return this.idempotencyRecordByKey.get(idempotencyKey);
+  }
+
+  private streamFile(
+    streamName: CommandStreamName,
+  ): AppendOnlyJsonLinesFile<CommandRecord<TCommand>> {
+    const existing = this.streamFiles.get(streamName);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const created = new AppendOnlyJsonLinesFile<CommandRecord<TCommand>>(
+      this.streamPath(streamName),
+    );
+    this.streamFiles.set(streamName, created);
+    return created;
   }
 
   private streamPath(streamName: CommandStreamName): string {
@@ -150,22 +194,6 @@ export class FileCommandStore<TCommand extends CommandEnvelope = CommandEnvelope
       writeFileSync(this.idempotencyPath, '');
     }
   }
-}
-
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  const payload = values.map((value) => JSON.stringify(value)).join('\n');
-  appendFileSync(path, `${payload}\n`);
-}
-
-function readJsonLines<TValue>(path: string): readonly TValue[] {
-  if (!existsSync(path)) {
-    return [];
-  }
-  const content = readFileSync(path, 'utf8').trim();
-  if (content.length === 0) {
-    return [];
-  }
-  return content.split('\n').map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

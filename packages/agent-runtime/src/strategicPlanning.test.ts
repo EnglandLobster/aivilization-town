@@ -3,7 +3,11 @@ import { asAgentId } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   compileStrategicObjectiveToBranchPlan,
+  compileStrategicObjectiveWithoutBranch,
   compileStrategicObjectiveWithoutObjectiveDecomposition,
+  createBranchPlan,
+  createPaperPlannerAblationPolicyManifest,
+  createPaperPlannerVariantCompiler,
 } from './index';
 
 const agentId = asAgentId('agent-1');
@@ -107,6 +111,64 @@ describe('strategic objective planning', () => {
     });
   });
 
+  test('does not treat an ambiguous career tier token as a residential objective', () => {
+    const statement = "Produce Beef to supply the town's tier 2 progression economy.";
+    const plan = compileStrategicObjectiveToBranchPlan({
+      objective: {
+        id: 'objective-progression-supply',
+        agentId,
+        statement,
+        priority: 2,
+        source: 'agent',
+        affinityTags: ['production', 'produce', 'supply', 'Beef'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(plan.branches.map((branch) => branch.id)).toEqual(['production']);
+  });
+
+  test('treats explicit domain affinity as authoritative for autonomous objectives', () => {
+    const cases = [
+      {
+        id: 'objective-education-investment',
+        statement:
+          'Study toward education score 13 for the next occupation and residential milestone.',
+        affinityTags: ['study', 'education', 'learn', 'education-target-13'],
+        branchIds: ['development'],
+      },
+      {
+        id: 'objective-profitable-production',
+        statement: 'Produce Apple for profitable market supply.',
+        affinityTags: ['production', 'produce', 'market', 'Apple'],
+        branchIds: ['production'],
+      },
+    ] as const;
+
+    for (const candidate of cases) {
+      const plan = compileStrategicObjectiveToBranchPlan({
+        objective: {
+          id: candidate.id,
+          agentId,
+          statement: candidate.statement,
+          priority: 2,
+          source: 'agent',
+          affinityTags: candidate.affinityTags,
+          planningDomains: candidate.branchIds.map((branchId) =>
+            branchId === 'development' ? 'study' : branchId,
+          ),
+          createdAt: 100,
+          updatedAt: 100,
+        },
+        issuedAt: 100,
+      });
+
+      expect(plan.branches.map((branch) => branch.id)).toEqual(candidate.branchIds);
+    }
+  });
+
   test('uses long-term profile values to construct delayed-investment branches for production objectives', () => {
     const statement = 'Craft Chip for the electronics market.';
     const plan = compileStrategicObjectiveToBranchPlan({
@@ -187,6 +249,8 @@ describe('strategic objective planning', () => {
     expect(result.planningTrace).toEqual({
       status: 'deterministic',
       source: 'deterministic',
+      plannerVariant: 'without-objective-decomposition',
+      ablationPolicyVersion: 'paper-planner-ablation-v1',
       message: 'Planner ablation without objective decomposition',
     });
     expect(result.plan.objective).toBe(statement);
@@ -221,6 +285,127 @@ describe('strategic objective planning', () => {
         branch.subtasks.flatMap((subtask) => subtask.dependsOnSubtaskIds ?? []),
       ),
     ).toEqual([]);
+  });
+
+  test('compiles Without-Branch into exactly one reasoning branch while preserving structured subtasks', () => {
+    const result = compileStrategicObjectiveWithoutBranch({
+      objective: {
+        id: 'objective-without-branch',
+        agentId,
+        statement: 'Study, earn money, craft Chip, trade resources, and maintain health.',
+        priority: 3,
+        source: 'system',
+        affinityTags: ['study', 'work', 'production', 'trade', 'health'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(result.planningTrace).toEqual({
+      status: 'deterministic',
+      source: 'deterministic',
+      plannerVariant: 'without-branch',
+      ablationPolicyVersion: 'paper-planner-ablation-v1',
+      message: 'Planner ablation without branch decomposition',
+    });
+    expect(result.plan.branches).toHaveLength(1);
+    expect(result.plan.branches[0]).toMatchObject({
+      id: 'without-branch',
+      objective:
+        'Single reasoning branch for: Study, earn money, craft Chip, trade resources, and maintain health.',
+    });
+    expect(result.plan.branches[0]?.subtasks.map((subtask) => subtask.id)).toEqual([
+      'study',
+      'see-doctor',
+      'apply-for-work',
+      'produce-target',
+      'trade-for-resources',
+    ]);
+  });
+
+  test('applies structural variants after the same configured base compiler and preserves its provider trace', async () => {
+    const baseCompiler = createPaperPlannerVariantCompiler({
+      variant: 'without-branch',
+      baseCompiler: ({ objective }) => ({
+        plan: createBranchPlan({
+          objective: objective.statement,
+          branches: [
+            {
+              id: 'development',
+              objective: 'Develop',
+              subtasks: [{ id: 'study', description: 'Study', basePriority: 2 }],
+            },
+            {
+              id: 'production',
+              objective: 'Produce',
+              subtasks: [{ id: 'produce', description: 'Produce', basePriority: 3 }],
+            },
+          ],
+        }),
+        planningTrace: {
+          status: 'accepted',
+          source: 'llm',
+          providerId: 'same-provider',
+          model: 'same-model',
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+            totalTokens: 30,
+            estimatedCostMicros: 40,
+          },
+        },
+      }),
+    });
+    const result = await baseCompiler({
+      objective: {
+        id: 'controlled-objective',
+        agentId,
+        statement: 'Study and produce.',
+        priority: 2,
+        source: 'system',
+        affinityTags: ['study', 'production'],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+      issuedAt: 100,
+    });
+
+    expect(result).toMatchObject({
+      plan: {
+        branches: [
+          {
+            id: 'without-branch',
+            subtasks: [{ id: 'study' }, { id: 'produce' }],
+          },
+        ],
+      },
+      planningTrace: {
+        status: 'accepted',
+        source: 'llm',
+        providerId: 'same-provider',
+        model: 'same-model',
+        plannerVariant: 'without-branch',
+        ablationPolicyVersion: 'paper-planner-ablation-v1',
+        usage: { totalTokens: 30 },
+      },
+    });
+    expect(createPaperPlannerAblationPolicyManifest('without-branch')).toMatchObject({
+      policyVersion: 'paper-planner-ablation-v1',
+      activeVariant: 'without-branch',
+      controlledBaseCompilerRule:
+        'apply-structural-ablation-after-the-same-configured-strategic-compiler',
+      variants: {
+        'without-branch': {
+          branchDecomposition: 'removed-single-reasoning-branch',
+          objectiveDecomposition: 'preserved-structured-subtasks',
+        },
+        'without-objective-decomposition': {
+          branchDecomposition: 'preserved-parallel-reasoning-branches',
+          objectiveDecomposition: 'removed-direct-action-generation',
+        },
+      },
+    });
   });
 
   test('compiles health recovery objectives into see-doctor branches', () => {

@@ -63,14 +63,24 @@ export type ScenarioResidentialUpkeepPolicyConfig = {
   readonly costs: readonly ScenarioResidentialUpkeepCostConfig[];
 };
 
-export type ScenarioSafetyNetSubsidyPolicyConfig = {
-  readonly minimumBalance: number;
-  readonly maxSubsidy: number;
+export type ScenarioPhysiologicalSafetyNetPolicyConfig = {
+  readonly policyVersion: string;
+  readonly criticalThresholds: ScenarioPhysiologySeed;
+  readonly persistenceDurationMs: number;
+  readonly grantCooldownMs: number;
+  readonly essentialInventoryTargets: ScenarioInventorySeed;
   readonly source: string;
 };
 
 export type ScenarioMedicalTreatmentCostConfig = {
   readonly currencyCostPerSecond: number;
+  readonly source: string;
+};
+
+export type ScenarioEducationInvestmentPolicyConfig = {
+  readonly policyVersion: string;
+  readonly currencyCostPerHour: number;
+  readonly inventoryCostsPerHour: ScenarioInventorySeed;
   readonly source: string;
 };
 
@@ -97,11 +107,44 @@ export type ScenarioSurvivalTimePolicyDefaults = {
   readonly sleepDeprivation: ScenarioSleepDeprivationPolicyConfig;
   readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
   readonly residentialUpkeep: ScenarioResidentialUpkeepPolicyConfig;
-  readonly safetyNetSubsidy: ScenarioSafetyNetSubsidyPolicyConfig;
+  readonly physiologicalSafetyNet: ScenarioPhysiologicalSafetyNetPolicyConfig;
 };
 
 export type ScenarioHealthcarePolicyDefaults = {
   readonly seeDoctorTreatmentCost: ScenarioMedicalTreatmentCostConfig;
+};
+
+export type ScenarioEducationPolicyDefaults = {
+  readonly studyInvestment: ScenarioEducationInvestmentPolicyConfig;
+};
+
+export type ScenarioWagePolicyDefaults = {
+  readonly policyVersion: string;
+  readonly knowledgePremiumPerEducationPoint: number;
+  readonly shortTermAdjustment: number;
+  readonly maxShortTermAdjustment: number;
+  readonly missingMarketPriceIndexStrategy: 'neutral';
+  readonly source: string;
+};
+
+export type ScenarioApplicationQuotaPolicyConfig = {
+  readonly policyVersion: string;
+  readonly quotaByResidentialTier: readonly number[];
+  readonly source: string;
+};
+
+export type ScenarioRecruitmentCyclePolicyConfig = {
+  readonly policyVersion: string;
+  readonly cycleDurationMs: number;
+  readonly defaultOccupationCapacity: number;
+  readonly occupationCapacityOverrides: Readonly<Record<string, number>>;
+  readonly matchingStrategy: 'applicant-proposing-stable';
+  readonly source: string;
+};
+
+export type ScenarioJobApplicationPolicyDefaults = {
+  readonly applicationQuota: ScenarioApplicationQuotaPolicyConfig;
+  readonly recruitmentCycle: ScenarioRecruitmentCyclePolicyConfig;
 };
 
 export type ScenarioProductionPolicyDefaults = {
@@ -214,8 +257,18 @@ const residentialPhysiologyCapSource =
   'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps';
 const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
+const physiologicalSafetyNetPolicySource =
+  'AIvilization v0 Section 3.1.1 requires essential subsidies after persistent low physiology; physiological-safety-net-v1 thresholds, persistence, cooldown, and inventory targets are repository policy decisions because the paper does not specify them';
 const healthcarePolicySource =
   'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning';
+const educationInvestmentPolicySource =
+  'AIvilization v0 Section 3.2.1 requires resource-consuming education; education-investment-v1 is a repository policy decision because the paper does not specify cost rates';
+const wagePolicySource =
+  'AIvilization v0 Section 3.2.4 defines static and dynamic wage regimes; wage-regime-v1 is a repository policy decision because the paper does not specify Phi or the short-term shock process';
+const jobApplicationPolicySource =
+  'AIvilization v0 Section 3.2.3 Equation 13 requires a non-negative, bounded, non-decreasing Nmax(R); application-quota-v1 is a repository policy decision because the paper does not specify tier values';
+const recruitmentCyclePolicySource =
+  'AIvilization v0 Section 3.2.3 requires recruitment cycles and competitive scarcity; recruitment-cycle-v1 is a repository policy decision because the paper does not specify cadence, capacity, ranking tie-breaks, or matching strategy';
 const productionPolicySource =
   'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
 
@@ -319,10 +372,13 @@ export const aivilizationSurvivalTimePolicyDefaults = {
       { residentialTier: 6, currencyCostPerHour: 320, source: survivalTimePolicySource },
     ],
   },
-  safetyNetSubsidy: {
-    minimumBalance: 50,
-    maxSubsidy: 25,
-    source: survivalTimePolicySource,
+  physiologicalSafetyNet: {
+    policyVersion: 'physiological-safety-net-v1',
+    criticalThresholds: { satiety: 20, energy: 20, health: 20 },
+    persistenceDurationMs: 3_600_000,
+    grantCooldownMs: 21_600_000,
+    essentialInventoryTargets: { Apple: 2 },
+    source: physiologicalSafetyNetPolicySource,
   },
 } as const satisfies ScenarioSurvivalTimePolicyDefaults;
 
@@ -332,6 +388,40 @@ export const aivilizationHealthcarePolicyDefaults = {
     source: healthcarePolicySource,
   },
 } as const satisfies ScenarioHealthcarePolicyDefaults;
+
+export const aivilizationEducationPolicyDefaults = {
+  studyInvestment: {
+    policyVersion: 'education-investment-v1',
+    currencyCostPerHour: 20,
+    inventoryCostsPerHour: {},
+    source: educationInvestmentPolicySource,
+  },
+} as const satisfies ScenarioEducationPolicyDefaults;
+
+export const aivilizationWagePolicyDefaults = {
+  policyVersion: 'wage-regime-v1',
+  knowledgePremiumPerEducationPoint: 0.001,
+  shortTermAdjustment: 0,
+  maxShortTermAdjustment: 0.1,
+  missingMarketPriceIndexStrategy: 'neutral',
+  source: wagePolicySource,
+} as const satisfies ScenarioWagePolicyDefaults;
+
+export const aivilizationJobApplicationPolicyDefaults = {
+  applicationQuota: {
+    policyVersion: 'application-quota-v1',
+    quotaByResidentialTier: [1, 1, 2, 3, 4, 5],
+    source: jobApplicationPolicySource,
+  },
+  recruitmentCycle: {
+    policyVersion: 'recruitment-cycle-v1',
+    cycleDurationMs: 86_400_000,
+    defaultOccupationCapacity: 1,
+    occupationCapacityOverrides: {},
+    matchingStrategy: 'applicant-proposing-stable',
+    source: recruitmentCyclePolicySource,
+  },
+} as const satisfies ScenarioJobApplicationPolicyDefaults;
 
 export const aivilizationProductionPolicyDefaults = {
   productionEfficiency: {

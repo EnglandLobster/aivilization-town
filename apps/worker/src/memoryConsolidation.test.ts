@@ -1,4 +1,6 @@
 import {
+  FileLongTermProfileRepository,
+  FileShortTermMemoryRepository,
   InMemoryLongTermProfileRepository,
   InMemoryShortTermMemoryRepository,
   asMemoryRecordId,
@@ -7,6 +9,11 @@ import {
   type MemorySynthesisWorldDecisionContext,
   type SocialModelSynthesizer,
 } from '@aivilization/memory';
+import {
+  createBranchPlan,
+  runAgentPlanningCycle,
+  type DomainMicroPlanner,
+} from '@aivilization/agent-runtime';
 import { InMemorySocialReflectionObservationRepository } from '@aivilization/observability';
 import { asAgentId, asSimulationId } from '@aivilization/sim-core';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -16,6 +23,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   FileMemoryConsolidationCursorStore,
   InMemoryMemoryConsolidationCursorStore,
+  createCanonicalMemoryConsolidationSchedule,
   runWorkerMemoryConsolidation,
   runWorkerMemoryConsolidationBatch,
   runWorkerMemoryConsolidationSchedule,
@@ -483,6 +491,151 @@ describe('worker memory consolidation', () => {
     ]);
   });
 
+  test('evolves durable identity across immediate social-reflection cycles and changes later planning', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'memory-identity-loop-'));
+    tempRoots.push(rootDir);
+    const schedule = createCanonicalMemoryConsolidationSchedule();
+    const plan = createBranchPlan({
+      objective: 'balance income with community participation',
+      branches: [
+        {
+          id: 'income',
+          objective: 'earn income',
+          subtasks: [{ id: 'work', description: 'work a shift', basePriority: 1.5 }],
+        },
+        {
+          id: 'community',
+          objective: 'participate in the community',
+          subtasks: [
+            {
+              id: 'socialize',
+              description: 'talk with a community member',
+              basePriority: 0.5,
+              profileAffinityTags: ['community-cooperation'],
+            },
+          ],
+        },
+      ],
+    });
+    const emptyProfile = await new FileLongTermProfileRepository({ rootDir }).getOrCreate(agentId);
+
+    const beforeConsolidation = runAgentPlanningCycle({
+      simulationId,
+      agentId,
+      issuedAt: 10,
+      plan,
+      signals: [],
+      longTermProfile: emptyProfile,
+      microPlanners: createIdentityLoopMicroPlanners(),
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+    expect(beforeConsolidation.selectedSubtask.subtaskId).toBe('work');
+
+    const socialMemories = [
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Talked with agent-2 about community routines.',
+        importanceScore: 0.8,
+      }),
+      createSocialInteractionMemory({
+        index: 2,
+        targetAgentId: thirdAgentId,
+        summary: 'Shared plans with agent-3 after a town meeting.',
+        importanceScore: 0.6,
+      }),
+      createSocialInteractionMemory({
+        index: 3,
+        targetAgentId: otherAgentId,
+        summary: 'Coordinated another community task with agent-2.',
+        importanceScore: 0.7,
+      }),
+    ];
+
+    let finalScheduleResult: Awaited<ReturnType<typeof runWorkerMemoryConsolidationSchedule>>;
+    for (const [index, record] of socialMemories.entries()) {
+      const shortTermMemoryRepository = new FileShortTermMemoryRepository({ rootDir });
+      await shortTermMemoryRepository.append(record);
+      finalScheduleResult = await runWorkerMemoryConsolidationSchedule({
+        agentIds: [agentId],
+        shortTermMemoryRepository,
+        longTermProfileRepository: new FileLongTermProfileRepository({ rootDir }),
+        cursorStore: new FileMemoryConsolidationCursorStore({ rootDir }),
+        proposedAt: 100 + index,
+        ...schedule,
+      });
+      expect(finalScheduleResult.results).toHaveLength(1);
+      expect(finalScheduleResult.skipped).toEqual([]);
+      expect(finalScheduleResult.cursors[0]?.lastProcessedOccurredAt).toBe(index + 1);
+    }
+
+    expect(
+      finalScheduleResult!.results[0]?.reflectiveInsights.map((insight) => insight.kind),
+    ).toEqual(['mood', 'personality', 'value']);
+    const restartedProfileRepository = new FileLongTermProfileRepository({ rootDir });
+    const evolvedProfile = await restartedProfileRepository.getOrCreate(agentId);
+    expect(evolvedProfile.socialRecords.map((entry) => entry.key)).toEqual([
+      otherAgentId,
+      thirdAgentId,
+    ]);
+    expect(evolvedProfile.mood.map((entry) => entry.key)).toEqual(['cooperative-composure']);
+    expect(evolvedProfile.personality.map((entry) => entry.key)).toEqual(['sociable']);
+    expect(evolvedProfile.values).toEqual([
+      expect.objectContaining({
+        key: 'community-cooperation',
+        confidence: 0.7,
+        provenanceRecordIds: ['social-agent-2-1', 'social-agent-2-3', 'social-agent-3-2'],
+      }),
+    ]);
+
+    const afterConsolidation = runAgentPlanningCycle({
+      simulationId,
+      agentId,
+      issuedAt: 200,
+      plan,
+      signals: [],
+      longTermProfile: evolvedProfile,
+      microPlanners: createIdentityLoopMicroPlanners(),
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+    });
+    expect(afterConsolidation.selectedSubtask).toMatchObject({
+      branchId: 'community',
+      subtaskId: 'socialize',
+      score: 1.9,
+    });
+    expect(afterConsolidation.selectionEvidence).toEqual({
+      selectedSubtaskId: 'socialize',
+      intentionInfluenceScore: 0,
+      memoryInfluenceScore: 0,
+      profileInfluenceScore: 1.4,
+      memoryEvidenceRecordIds: [],
+      profileEntryKeys: ['community-cooperation'],
+      profileEvidenceRecordIds: ['social-agent-2-1', 'social-agent-2-3', 'social-agent-3-2'],
+    });
+    expect(afterConsolidation.commandDrafts[0]?.type).toBe('AgentSocialize');
+
+    const stableProfile = structuredClone(evolvedProfile);
+    const idleResult = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository: new FileShortTermMemoryRepository({ rootDir }),
+      longTermProfileRepository: restartedProfileRepository,
+      cursorStore: new FileMemoryConsolidationCursorStore({ rootDir }),
+      proposedAt: 300,
+      ...schedule,
+    });
+    expect(idleResult.results).toEqual([]);
+    expect(idleResult.skipped).toEqual([
+      {
+        agentId,
+        reason: 'importance-threshold-not-met',
+        pendingRecordCount: 0,
+        pendingImportanceScore: 0,
+        minimumImportanceScore: 1.8,
+      },
+    ]);
+    await expect(restartedProfileRepository.getOrCreate(agentId)).resolves.toEqual(stableProfile);
+  });
+
   test('returns immediate social reflection artifacts for single social interactions', async () => {
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();
@@ -516,7 +669,14 @@ describe('worker memory consolidation', () => {
         confidence: 0.8,
         evidenceRecordIds: ['social-agent-2-1'],
         generatedAt: 2000,
-        tags: ['social', 'post-interaction-reflection', 'agent-2', 'conversation', 'community'],
+        tags: [
+          'social',
+          'post-interaction-reflection',
+          'agent-2',
+          'social-outcome-positive',
+          'conversation',
+          'community',
+        ],
       },
     ]);
     expect(result.reflectiveInsights).toEqual([]);
@@ -630,6 +790,7 @@ describe('worker memory consolidation', () => {
     expect(first.cursors).toEqual([
       {
         agentId,
+        lastProcessedAppendSequence: 3,
         lastProcessedOccurredAt: 3,
         updatedAt: 1000,
       },
@@ -674,8 +835,121 @@ describe('worker memory consolidation', () => {
     expect(third.cursors).toEqual([
       {
         agentId,
+        lastProcessedAppendSequence: 6,
         lastProcessedOccurredAt: 6,
         updatedAt: 3000,
+      },
+    ]);
+  });
+
+  test('consumes every same-timestamp record across bounded append-sequence batches', async () => {
+    const rootDir = createTempRoot();
+    let shortTermMemoryRepository = new FileShortTermMemoryRepository({ rootDir });
+    let longTermProfileRepository = new FileLongTermProfileRepository({ rootDir });
+    let cursorStore = new FileMemoryConsolidationCursorStore({ rootDir });
+    await shortTermMemoryRepository.appendMany(
+      Array.from({ length: 60 }, (_, index) => createCollidingStudyMemory(index + 1, 100)),
+    );
+
+    const first = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 32,
+      minPatternCount: 100,
+      proposedAt: 1000,
+    });
+
+    shortTermMemoryRepository = new FileShortTermMemoryRepository({ rootDir });
+    longTermProfileRepository = new FileLongTermProfileRepository({ rootDir });
+    cursorStore = new FileMemoryConsolidationCursorStore({ rootDir });
+    const second = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 32,
+      minPatternCount: 100,
+      proposedAt: 2000,
+    });
+
+    shortTermMemoryRepository = new FileShortTermMemoryRepository({ rootDir });
+    longTermProfileRepository = new FileLongTermProfileRepository({ rootDir });
+    cursorStore = new FileMemoryConsolidationCursorStore({ rootDir });
+    const third = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 32,
+      minPatternCount: 100,
+      proposedAt: 3000,
+    });
+
+    expect(first.results[0]?.records.map((record) => record.id)).toEqual(
+      Array.from({ length: 32 }, (_, index) => `colliding-study-${index + 1}`),
+    );
+    expect(first.cursors).toEqual([
+      {
+        agentId,
+        lastProcessedAppendSequence: 32,
+        lastProcessedOccurredAt: 100,
+        updatedAt: 1000,
+      },
+    ]);
+    expect(second.results[0]?.records.map((record) => record.id)).toEqual(
+      Array.from({ length: 28 }, (_, index) => `colliding-study-${index + 33}`),
+    );
+    expect(second.cursors).toEqual([
+      {
+        agentId,
+        lastProcessedAppendSequence: 60,
+        lastProcessedOccurredAt: 100,
+        updatedAt: 2000,
+      },
+    ]);
+    expect(third.results[0]?.records).toEqual([]);
+    expect(third.cursors).toEqual([]);
+  });
+
+  test('upgrades a legacy timestamp cursor by replaying its boundary inclusively', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    await shortTermMemoryRepository.appendMany([
+      createCollidingStudyMemory(1, 99),
+      createCollidingStudyMemory(2, 100),
+      createCollidingStudyMemory(3, 100),
+      createCollidingStudyMemory(4, 101),
+    ]);
+    await cursorStore.saveCursor({
+      agentId,
+      lastProcessedOccurredAt: 100,
+      updatedAt: 900,
+    });
+
+    const result = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 32,
+      minPatternCount: 100,
+      proposedAt: 1000,
+    });
+
+    expect(result.results[0]?.records.map((record) => record.id)).toEqual([
+      'colliding-study-2',
+      'colliding-study-3',
+      'colliding-study-4',
+    ]);
+    expect(result.cursors).toEqual([
+      {
+        agentId,
+        lastProcessedAppendSequence: 4,
+        lastProcessedOccurredAt: 101,
+        updatedAt: 1000,
       },
     ]);
   });
@@ -843,6 +1117,7 @@ describe('worker memory consolidation', () => {
     expect(atThreshold.cursors).toEqual([
       {
         agentId,
+        lastProcessedAppendSequence: 3,
         lastProcessedOccurredAt: 3,
         updatedAt: 2000,
       },
@@ -850,6 +1125,49 @@ describe('worker memory consolidation', () => {
     await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toMatchObject({
       habits: [{ key: 'study-routine' }],
     });
+  });
+
+  test('reflects a completed social interaction immediately below the importance threshold', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const cursorStore = new InMemoryMemoryConsolidationCursorStore();
+    await shortTermMemoryRepository.append(
+      createSocialInteractionMemory({
+        index: 1,
+        targetAgentId: otherAgentId,
+        summary: 'Shared food after work.',
+        importanceScore: 0.8,
+      }),
+    );
+
+    const result = await runWorkerMemoryConsolidationSchedule({
+      agentIds: [agentId],
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      cursorStore,
+      retrievalLimit: 10,
+      minPatternCount: 3,
+      proposedAt: 2000,
+      reflectionTrigger: { minimumImportanceScore: 1.8 },
+    });
+
+    expect(result.skipped).toEqual([]);
+    expect(result.patchCount).toBeGreaterThan(0);
+    expect(result.results[0]?.socialReflections).toEqual([
+      expect.objectContaining({
+        agentId,
+        targetAgentId: otherAgentId,
+        evidenceRecordIds: ['social-agent-2-1'],
+      }),
+    ]);
+    expect(result.cursors).toEqual([
+      {
+        agentId,
+        lastProcessedAppendSequence: 1,
+        lastProcessedOccurredAt: 1,
+        updatedAt: 2000,
+      },
+    ]);
   });
 
   test('records scheduled social reflection observations through the observability sink', async () => {
@@ -906,7 +1224,14 @@ describe('worker memory consolidation', () => {
         confidence: 0.8,
         evidenceRecordIds: ['social-agent-2-1'],
         generatedAt: 2000,
-        tags: ['social', 'post-interaction-reflection', 'agent-2', 'conversation', 'community'],
+        tags: [
+          'social',
+          'post-interaction-reflection',
+          'agent-2',
+          'social-outcome-positive',
+          'conversation',
+          'community',
+        ],
         source: 'memory-consolidation',
       },
     ]);
@@ -934,6 +1259,40 @@ describe('worker memory consolidation', () => {
     });
   });
 });
+
+function createIdentityLoopMicroPlanners(): readonly DomainMicroPlanner[] {
+  return [
+    {
+      domain: 'work',
+      supports: ({ subtaskId }) => subtaskId === 'work',
+      propose: () => [
+        {
+          id: 'identity-loop-work',
+          description: 'work as Cleaner',
+          commandType: 'AgentWork',
+          payload: { occupationName: 'Cleaner', laborSeconds: 60 },
+        },
+      ],
+    },
+    {
+      domain: 'social',
+      supports: ({ subtaskId }) => subtaskId === 'socialize',
+      propose: () => [
+        {
+          id: 'identity-loop-socialize',
+          description: 'talk with agent-2 about the community',
+          commandType: 'AgentSocialize',
+          payload: {
+            targetAgentId: otherAgentId,
+            summary: 'Discussed community plans.',
+            relationDelta: 1,
+            attitudeDelta: 1,
+          },
+        },
+      ],
+    },
+  ];
+}
 
 function createTempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'aivilization-memory-cursor-'));
@@ -976,6 +1335,20 @@ function createLowImportanceStudyMemory(index: number) {
     importanceScore: 0.4,
     source: { eventIds: [] },
     tags: ['study', 'education'],
+  });
+}
+
+function createCollidingStudyMemory(index: number, occurredAt: number) {
+  return createShortTermMemoryRecord({
+    id: `colliding-study-${index}`,
+    agentId,
+    kind: 'action',
+    status: 'succeeded',
+    summary: 'Completed a study action in a shared tick.',
+    occurredAt,
+    importanceScore: 0.6,
+    source: { eventIds: [] },
+    tags: ['study'],
   });
 }
 

@@ -11,6 +11,7 @@ import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
 import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
 import type { AgentProfileApiService } from './agentProfileApi';
 import type { AgentCycleTraceApiService } from './agentCycleTraceApi';
+import type { BranchPlanApiService } from './branchPlanApi';
 import type { DailyPlanRenewalTraceApiService } from './dailyPlanRenewalTraceApi';
 import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
 import type { SteeringTraceApiService } from './steeringTraceApi';
@@ -208,6 +209,11 @@ type TestAgentProfile = {
   readonly personality: readonly string[];
 };
 
+type TestBranchPlan = {
+  readonly planId: string;
+  readonly agentId: string;
+};
+
 type TestObjectiveRenewalTrace = {
   readonly traceId: string;
   readonly agentId: string;
@@ -395,6 +401,25 @@ describe('town HTTP API router', () => {
     await expect(
       handler({
         method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/agents',
+        body: {
+          agentId: 'agent-created-1',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+          expectedVersion: 6,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 202,
+      body: {
+        command: { type: 'RegisterAgent' },
+        result: { accepted: true },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
         path: '/simulations/sim-1/partitions/world-main/objectives',
         body: {
           agentId: 'agent-1',
@@ -523,6 +548,18 @@ describe('town HTTP API router', () => {
         },
       },
       {
+        method: 'submitAgentRegistration',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-created-1',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+          expectedVersion: 6,
+        },
+      },
+      {
         method: 'submitLongHorizonObjective',
         request: {
           simulationId: 'sim-1',
@@ -639,6 +676,64 @@ describe('town HTTP API router', () => {
           simulationId: 'sim-1',
           partitionKey: 'world-main',
           agentId: 'agent-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes partition-scoped branch plan queries to the optional plan service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      branchPlans: createBranchPlanService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/branch-plans',
+        query: {
+          planId: 'plan-1',
+          agentId: 'agent-1',
+          fromCreatedAt: '100',
+          toCreatedAt: '200',
+          fromUpdatedAt: '300',
+          toUpdatedAt: '400',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ planId: 'plan-1', agentId: 'agent-1' }],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/branch-plans',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    expect(calls).toEqual([
+      {
+        method: 'queryBranchPlans',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          planId: 'plan-1',
+          agentId: 'agent-1',
+          fromCreatedAt: 100,
+          toCreatedAt: 200,
+          fromUpdatedAt: 300,
+          toUpdatedAt: 400,
+          limit: 2,
         },
       },
     ]);
@@ -1085,6 +1180,28 @@ describe('town HTTP API router', () => {
     await expect(
       handler({
         method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/agents',
+        body: {
+          agentId: 'bad agent id',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: {
+          code: 'bad_request',
+          message:
+            'agentId must start with an alphanumeric character and contain only letters, numbers, ., _, :, or -',
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
         path: '/runtime/start',
         body: { operationId: 'op-start-100', requestedAt: 100 },
       }),
@@ -1116,6 +1233,16 @@ describe('town HTTP API router', () => {
         status: 'completed',
         completedCycleCount: 2,
       },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-manifests/resolved-run-manifest%3Asha256%3Aabc',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { runManifestId: 'resolved-run-manifest:sha256:abc' },
     });
     await expect(
       handler({
@@ -1172,6 +1299,10 @@ describe('town HTTP API router', () => {
       { method: 'startRuntime', request: { operationId: 'op-start-100', requestedAt: 100 } },
       { method: 'getRuntimeOperationTrace', request: { traceId: 'op-start-100' } },
       { method: 'getRuntimeRunSession', request: { traceId: 'op-run-200' } },
+      {
+        method: 'getRuntimeResolvedRunManifest',
+        request: { runManifestId: 'resolved-run-manifest:sha256:abc' },
+      },
       {
         method: 'stopRuntimeRunSession',
         request: { traceId: 'op-run-200', requestedAt: 260 },
@@ -1889,6 +2020,21 @@ function createSimulationService(
         },
       ] satisfies TestMarketOhlcBar[]);
     },
+    submitAgentRegistration: (request) => {
+      calls.push({ method: 'submitAgentRegistration', request });
+      return Promise.resolve({
+        command: createCommandEnvelope({
+          id: 'command-register-agent',
+          simulationId: request.simulationId,
+          actorId: request.agentId,
+          source: 'human',
+          type: 'RegisterAgent',
+          payload: {},
+          issuedAt: request.issuedAt,
+        }),
+        result: { accepted: true },
+      });
+    },
     submitLongHorizonObjective: (request) => {
       calls.push({ method: 'submitLongHorizonObjective', request });
       return Promise.resolve({
@@ -1987,6 +2133,10 @@ function createRuntimeSupervisorService(
         status: 'completed',
         completedCycleCount: 2,
       });
+    },
+    getRuntimeResolvedRunManifest: (request) => {
+      calls.push({ method: 'getRuntimeResolvedRunManifest', request });
+      return Promise.resolve({ runManifestId: request.runManifestId });
     },
     stopRuntimeRunSession: (request) => {
       calls.push({ method: 'stopRuntimeRunSession', request });
@@ -2236,6 +2386,20 @@ function createAgentProfileService(calls: unknown[]): AgentProfileApiService<Tes
           agentId: request.agentId ?? 'agent-1',
           values: ['cooperation'],
           personality: ['sociable'],
+        },
+      ]);
+    },
+  };
+}
+
+function createBranchPlanService(calls: unknown[]): BranchPlanApiService<TestBranchPlan> {
+  return {
+    queryBranchPlans: (request) => {
+      calls.push({ method: 'queryBranchPlans', request });
+      return Promise.resolve([
+        {
+          planId: request.planId ?? 'plan-1',
+          agentId: request.agentId ?? 'agent-1',
         },
       ]);
     },

@@ -110,9 +110,16 @@ export function createLocalSimulationRuntimeRecovery(input: {
           ? {}
           : { deadLetterReplayMaxAttempts: input.policy.deadLetterReplayMaxAttempts }),
       });
+      const statsAfterReplay =
+        replayedDeadLetterJobs.length === 0
+          ? statsBeforeRecovery
+          : await input.queueRepository.getStats({
+              observedAt: request.observedAt,
+              manifestId: input.manifestId,
+            });
       const drainResult = await drainRecoverableJobs({
         workerHost: input.workerHost,
-        stats: statsBeforeRecovery,
+        stats: statsAfterReplay,
         maxDrainJobsPerRun,
       });
       const statsAfterRecovery = await input.queueRepository.getStats({
@@ -121,7 +128,9 @@ export function createLocalSimulationRuntimeRecovery(input: {
       });
       return {
         status:
-          replayedDeadLetterJobs.length > 0 || drainResult !== undefined ? 'recovered' : 'idle',
+          replayedDeadLetterJobs.length > 0 || (drainResult?.processedJobCount ?? 0) > 0
+            ? 'recovered'
+            : 'idle',
         observedAt: request.observedAt,
         statsBeforeRecovery,
         replayedDeadLetterJobs,

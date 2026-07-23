@@ -4,11 +4,7 @@ import {
   resolveOccupation,
   type KnowledgePremiumFunction,
 } from '@aivilization/society';
-import type {
-  WorldCommandPolicies,
-  WorldMarketPriceIndexState,
-  WorldProjection,
-} from '@aivilization/world';
+import type { WorldCommandPolicies, WorldProjection } from '@aivilization/world';
 import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
 
 export type ProjectionBackedWagePolicyInput = {
@@ -16,6 +12,7 @@ export type ProjectionBackedWagePolicyInput = {
   readonly knowledgePremium: KnowledgePremiumFunction;
   readonly shortTermAdjustment?: number;
   readonly maxShortTermAdjustment?: number;
+  readonly missingMarketPriceIndexStrategy?: 'error' | 'neutral';
 };
 
 export type ProjectionBackedWorldCommandPoliciesInput = ProjectionBackedWagePolicyInput & {
@@ -30,7 +27,10 @@ export type ProjectionBackedWorldCommandPolicySourceInput = Omit<
 export function createProjectionBackedWageCalculator(
   input: ProjectionBackedWagePolicyInput,
 ): (occupationName: string) => number {
-  const latestPriceIndex = resolveLatestMarketPriceIndex(input.projection);
+  const overallPriceChangeRatio = resolveLatestOverallPriceChangeRatio(
+    input.projection,
+    input.missingMarketPriceIndexStrategy ?? 'error',
+  );
   const populationEducationScores = extractPopulationEducationScores(input.projection);
 
   const shortTermAdjustment = input.shortTermAdjustment ?? 0;
@@ -41,14 +41,14 @@ export function createProjectionBackedWageCalculator(
     if (occupation.jobTier <= 3) {
       return calculateStaticWage({
         occupationName,
-        overallPriceChangeRatio: latestPriceIndex.overall,
+        overallPriceChangeRatio,
       });
     }
 
     return calculateDynamicWage({
       occupationName,
       populationEducationScores,
-      overallPriceChangeRatio: latestPriceIndex.overall,
+      overallPriceChangeRatio,
       shortTermAdjustment,
       maxShortTermAdjustment,
       knowledgePremium: input.knowledgePremium,
@@ -70,6 +70,9 @@ export function createProjectionBackedWorldCommandPolicies(
       ...(input.maxShortTermAdjustment === undefined
         ? {}
         : { maxShortTermAdjustment: input.maxShortTermAdjustment }),
+      ...(input.missingMarketPriceIndexStrategy === undefined
+        ? {}
+        : { missingMarketPriceIndexStrategy: input.missingMarketPriceIndexStrategy }),
     }),
     ...(input.basePolicies.jobApplication === undefined
       ? {}
@@ -96,6 +99,9 @@ export function createProjectionBackedWorldCommandPolicySource(
       ...(input.maxShortTermAdjustment === undefined
         ? {}
         : { maxShortTermAdjustment: input.maxShortTermAdjustment }),
+      ...(input.missingMarketPriceIndexStrategy === undefined
+        ? {}
+        : { missingMarketPriceIndexStrategy: input.missingMarketPriceIndexStrategy }),
     });
 }
 
@@ -108,11 +114,15 @@ function extractPopulationEducationScores(projection: WorldProjection): readonly
   return scores;
 }
 
-function resolveLatestMarketPriceIndex(
+function resolveLatestOverallPriceChangeRatio(
   projection: WorldProjection,
-): WorldMarketPriceIndexState {
+  missingMarketPriceIndexStrategy: 'error' | 'neutral',
+): number {
   const firstIndex = projection.marketPriceIndices[0];
   if (firstIndex === undefined) {
+    if (missingMarketPriceIndexStrategy === 'neutral') {
+      return 1;
+    }
     throw new Error('projection-backed wage policy requires at least one market price index');
   }
 
@@ -123,5 +133,5 @@ function resolveLatestMarketPriceIndex(
     throw new Error('latest market price index overall must be positive');
   }
 
-  return latestIndex;
+  return latestIndex.overall;
 }

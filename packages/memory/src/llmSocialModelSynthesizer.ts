@@ -112,6 +112,7 @@ export async function proposeSocialModelWithLlm(
     const accepted = applySocialModelProposal({
       input,
       proposal: gateway.value,
+      deterministicSocialModel,
     });
     return {
       status: 'accepted',
@@ -290,17 +291,25 @@ function serializeSocialRecord(record: ShortTermMemoryRecord): Readonly<Record<s
 function applySocialModelProposal(input: {
   readonly input: SocialModelSynthesizerInput;
   readonly proposal: LlmSocialModelSynthesisProposal;
+  readonly deterministicSocialModel: SocialModelSynthesisResult;
 }): Pick<SocialModelSynthesisResult, 'patches' | 'socialReflections'> {
   const records = selectSameAgentSocialRecords(input.input);
   const evidenceById = new Map(records.map((record) => [record.id, record]));
-  const patches = input.proposal.socialRecords.map((proposal) =>
-    createPatchFromProposal({
+  const deterministicSocialPatches = new Map(
+    input.deterministicSocialModel.patches
+      .filter((patch) => patch.section === 'socialRecords')
+      .map((patch) => [patch.key, patch]),
+  );
+  const patches = input.proposal.socialRecords.map((proposal) => {
+    const patch = createPatchFromProposal({
       agentId: input.input.agentId,
       generatedAt: input.input.generatedAt,
       proposal,
       evidenceById,
-    }),
-  );
+    });
+    const groundedSignals = deterministicSocialPatches.get(patch.key)?.outcomeSignals;
+    return groundedSignals === undefined ? patch : { ...patch, outcomeSignals: groundedSignals };
+  });
   const socialReflections = input.proposal.socialReflections.map((proposal, index) =>
     createReflectionFromProposal({
       agentId: input.input.agentId,
@@ -311,8 +320,11 @@ function applySocialModelProposal(input: {
     }),
   );
 
+  const sourceGroundedKnowledgePatches = input.deterministicSocialModel.patches.filter(
+    (patch) => patch.section === 'beliefs' && patch.key.startsWith('social-knowledge:'),
+  );
   return {
-    patches: patches.sort(comparePatches),
+    patches: [...patches, ...sourceGroundedKnowledgePatches].sort(comparePatches),
     socialReflections: socialReflections.sort(compareReflections),
   };
 }

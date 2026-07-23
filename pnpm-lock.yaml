@@ -41,6 +41,9 @@ importers:
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
+      jose:
+        specifier: ^6.2.4
+        version: 6.2.4
 
   apps/server:
     dependencies:
@@ -65,6 +68,9 @@ importers:
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../../packages/sim-core
+      '@aivilization/web':
+        specifier: workspace:*
+        version: link:../web
       '@aivilization/worker':
         specifier: workspace:*
         version: link:../worker
@@ -74,15 +80,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@aivilization/content':
-        specifier: workspace:*
-        version: link:../../packages/content
       '@aivilization/observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@aivilization/sim-core':
-        specifier: workspace:*
-        version: link:../../packages/sim-core
 
   apps/worker:
     dependencies:
@@ -898,6 +898,9 @@ packages:
 
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
+
+  jose@6.2.4:
+    resolution: {integrity: sha512-N8acGzVsQy6M/fjFcxtysNc4Q379TcM5dM/qKkNtsHFji88yANnXTr7BLeP75iPnFwBfQzM/jg2BZ9+HZrHCZA==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -1937,6 +1940,8 @@ snapshots:
       is-extglob: 2.1.1
 
   isexe@2.0.0: {}
+
+  jose@6.2.4: {}
 
   joycon@3.1.1: {}
 

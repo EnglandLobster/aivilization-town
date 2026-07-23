@@ -1,7 +1,9 @@
-import type { AgentId } from '@aivilization/sim-core';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { IncrementalJsonLinesProjection, type AgentId } from '@aivilization/sim-core';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { createBranchPlanProgress, type BranchPlanProgress } from './planProgress';
+import { BRANCH_PLAN_PROGRESS_HOT_RECORDS_PER_AGENT } from './planningStoragePolicy';
 
 export type BranchPlanProgressRepository = {
   readonly get: (input: {
@@ -19,9 +21,10 @@ export type BranchPlanProgressRepository = {
 export class InMemoryBranchPlanProgressRepository implements BranchPlanProgressRepository {
   private readonly progressByKey = new Map<string, BranchPlanProgress>();
 
-  get(input: { readonly planId: string; readonly agentId: AgentId }): Promise<
-    BranchPlanProgress | undefined
-  > {
+  get(input: {
+    readonly planId: string;
+    readonly agentId: AgentId;
+  }): Promise<BranchPlanProgress | undefined> {
     const existing = this.progressByKey.get(progressKey(input.planId, input.agentId));
     return Promise.resolve(existing === undefined ? undefined : cloneProgress(existing));
   }
@@ -50,16 +53,38 @@ export class InMemoryBranchPlanProgressRepository implements BranchPlanProgressR
 
 export class FileBranchPlanProgressRepository implements BranchPlanProgressRepository {
   private readonly progressPath: string;
+  private readonly progressFile: IncrementalJsonLinesProjection<BranchPlanProgress>;
+  private readonly hotProgressByAgent = new Map<AgentId, Map<string, BranchPlanProgress>>();
+  private readonly compactionMaximumBytes: number | undefined;
+  private suppressedDuplicateSaveCount = 0;
+  private compactionCount = 0;
+  private compactionReclaimedBytes = 0;
 
-  constructor(input: { readonly rootDir: string }) {
+  constructor(input: {
+    readonly rootDir: string;
+    readonly singleWriterCompactionMaximumBytes?: number;
+  }) {
     assertNonEmpty(input.rootDir, 'rootDir');
+    if (input.singleWriterCompactionMaximumBytes !== undefined) {
+      assertPositiveSafeInteger(
+        input.singleWriterCompactionMaximumBytes,
+        'singleWriterCompactionMaximumBytes',
+      );
+    }
+    this.compactionMaximumBytes = input.singleWriterCompactionMaximumBytes;
     this.progressPath = join(input.rootDir, 'branch-plan-progress.jsonl');
     ensureFile(this.progressPath, input.rootDir);
+    this.progressFile = new IncrementalJsonLinesProjection({
+      path: this.progressPath,
+      resetProjection: () => this.hotProgressByAgent.clear(),
+      project: (progress) => this.projectHotProgress(progress),
+    });
   }
 
-  get(input: { readonly planId: string; readonly agentId: AgentId }): Promise<
-    BranchPlanProgress | undefined
-  > {
+  get(input: {
+    readonly planId: string;
+    readonly agentId: AgentId;
+  }): Promise<BranchPlanProgress | undefined> {
     const existing = this.getLatestProgress(input.planId, input.agentId);
     return Promise.resolve(existing === undefined ? undefined : cloneProgress(existing));
   }
@@ -79,15 +104,97 @@ export class FileBranchPlanProgressRepository implements BranchPlanProgressRepos
     return progress;
   }
 
-  save(progress: BranchPlanProgress): Promise<void> {
-    appendJsonLines(this.progressPath, [cloneProgress(progress)]);
-    return Promise.resolve();
+  async save(progress: BranchPlanProgress): Promise<void> {
+    const cloned = cloneProgress(progress);
+    const existing = await this.get({ planId: cloned.planId, agentId: cloned.agentId });
+    if (existing !== undefined && isDeepStrictEqual(existing, cloned)) {
+      this.suppressedDuplicateSaveCount += 1;
+      return;
+    }
+    this.progressFile.append([cloned]);
+    this.compactIfNeeded();
   }
 
   private getLatestProgress(planId: string, agentId: AgentId): BranchPlanProgress | undefined {
-    return readJsonLines<BranchPlanProgress>(this.progressPath)
-      .filter((progress) => progress.planId === planId && progress.agentId === agentId)
-      .at(-1);
+    this.progressFile.refresh();
+    const key = progressKey(planId, agentId);
+    const hotProgress = this.hotProgressByAgent.get(agentId)?.get(key);
+    if (hotProgress !== undefined) {
+      return hotProgress;
+    }
+
+    let latest: BranchPlanProgress | undefined;
+    this.progressFile.scanCommitted((candidate) => {
+      if (progressKey(candidate.planId, candidate.agentId) === key) {
+        latest = candidate;
+      }
+    });
+    return latest;
+  }
+
+  getStorageDiagnostics(): {
+    readonly completeRecordCount: number;
+    readonly hotAgentCount: number;
+    readonly hotRecordCount: number;
+    readonly hotRecordsPerAgent: number;
+    readonly committedBytes: number;
+    readonly fileBytes: number;
+    readonly hasIncompleteTrailingRow: boolean;
+    readonly suppressedDuplicateSaveCount: number;
+    readonly compactionCount: number;
+    readonly compactionReclaimedBytes: number;
+  } {
+    const file = this.progressFile.diagnostics();
+    return {
+      ...file,
+      hotAgentCount: this.hotProgressByAgent.size,
+      hotRecordCount: [...this.hotProgressByAgent.values()].reduce(
+        (total, records) => total + records.size,
+        0,
+      ),
+      hotRecordsPerAgent: BRANCH_PLAN_PROGRESS_HOT_RECORDS_PER_AGENT,
+      suppressedDuplicateSaveCount: this.suppressedDuplicateSaveCount,
+      compactionCount: this.compactionCount,
+      compactionReclaimedBytes: this.compactionReclaimedBytes,
+    };
+  }
+
+  private compactIfNeeded(): void {
+    if (
+      this.compactionMaximumBytes === undefined ||
+      this.progressFile.diagnostics().fileBytes <= this.compactionMaximumBytes
+    ) {
+      return;
+    }
+    const latestByKey = new Map<string, BranchPlanProgress>();
+    this.progressFile.scanCommitted((progress) => {
+      latestByKey.set(progressKey(progress.planId, progress.agentId), progress);
+    });
+    const replacement = [...latestByKey.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, progress]) => cloneProgress(progress));
+    const result = this.progressFile.replaceCommittedForSingleWriter(replacement);
+    this.compactionCount += 1;
+    this.compactionReclaimedBytes += Math.max(0, result.previousBytes - result.currentBytes);
+  }
+
+  private projectHotProgress(progress: BranchPlanProgress): void {
+    const cloned = cloneProgress(progress);
+    const key = progressKey(cloned.planId, cloned.agentId);
+    let records = this.hotProgressByAgent.get(cloned.agentId);
+    if (records === undefined) {
+      records = new Map();
+      this.hotProgressByAgent.set(cloned.agentId, records);
+    }
+    records.delete(key);
+    records.set(key, cloned);
+    while (records.size > BRANCH_PLAN_PROGRESS_HOT_RECORDS_PER_AGENT) {
+      const oldestKey = records.keys().next().value;
+      if (oldestKey === undefined) {
+        break;
+      }
+      records.delete(oldestKey);
+    }
   }
 }
 
@@ -117,27 +224,14 @@ function ensureFile(filePath: string, rootDir: string): void {
   }
 }
 
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  if (values.length === 0) {
-    return;
-  }
-  const payload = values.map((value) => JSON.stringify(value)).join('\n');
-  appendFileSync(path, `${payload}\n`);
-}
-
-function readJsonLines<TValue>(path: string): readonly TValue[] {
-  if (!existsSync(path)) {
-    return [];
-  }
-  const content = readFileSync(path, 'utf8').trim();
-  if (content.length === 0) {
-    return [];
-  }
-  return content.split('\n').map((line) => JSON.parse(line) as TValue);
-}
-
 function assertNonEmpty(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
+  }
+}
+
+function assertPositiveSafeInteger(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive safe integer`);
   }
 }

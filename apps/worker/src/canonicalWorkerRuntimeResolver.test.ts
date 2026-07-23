@@ -99,15 +99,22 @@ describe('canonical worker runtime resolver', () => {
           summary: 'study',
           counterfactualStep: 1,
           projectionEventCountBefore: 0,
-          projectionEventCountAfter: 2,
+          projectionEventCountAfter: 3,
+        },
+        {
+          type: 'AgentActivityTimeCommitted',
+          sequence: 2,
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 3,
         },
         {
           type: 'ShortTermMemoryRecorded',
-          sequence: 2,
+          sequence: 3,
           summary: 'Studied for 1800 seconds.',
           counterfactualStep: 1,
           projectionEventCountBefore: 0,
-          projectionEventCountAfter: 2,
+          projectionEventCountAfter: 3,
         },
       ],
     });
@@ -260,15 +267,22 @@ describe('canonical worker runtime resolver', () => {
           summary: 'sleep',
           counterfactualStep: 1,
           projectionEventCountBefore: 0,
-          projectionEventCountAfter: 2,
+          projectionEventCountAfter: 3,
+        },
+        {
+          type: 'AgentActivityTimeCommitted',
+          sequence: 11,
+          counterfactualStep: 1,
+          projectionEventCountBefore: 0,
+          projectionEventCountAfter: 3,
         },
         {
           type: 'ShortTermMemoryRecorded',
-          sequence: 11,
+          sequence: 12,
           summary: 'Slept for 10 seconds.',
           counterfactualStep: 1,
           projectionEventCountBefore: 0,
-          projectionEventCountAfter: 2,
+          projectionEventCountAfter: 3,
         },
       ],
     });
@@ -362,6 +376,54 @@ describe('canonical worker runtime resolver', () => {
       ],
     });
     expect(projection.agents[agentA]?.inventory).toEqual({ Apple: 1 });
+  });
+
+  test('world dry-run simulator rejects counterfactual actions that double-spend committed time', () => {
+    const simulate = createWorldCommandDryRunSimulator({
+      simulationId,
+      agentId: agentA,
+      projection: createProjection(),
+      policies,
+      issuedAt: 500,
+      nextSequence: 10,
+      commandIdPrefix: 'test-exclusive-time',
+    });
+    const study: AtomicActionProposal = {
+      id: 'study-for-ten-seconds',
+      description: 'study for ten seconds',
+      commandType: 'AgentStudy',
+      payload: { durationSeconds: 10, educationRatePerSecond: 1 },
+    };
+    const eat: AtomicActionProposal = {
+      id: 'eat-during-study',
+      description: 'eat while study time is still committed',
+      commandType: 'AgentEat',
+      payload: { commodityName: 'Apple', quantity: 1 },
+    };
+
+    expect(simulate({ action: study, selectedSubtask: selectedSubtask() })).toMatchObject({
+      status: 'accepted',
+      action: study,
+    });
+    expect(simulate({ action: eat, selectedSubtask: selectedSubtask() })).toMatchObject({
+      status: 'rejected',
+      action: eat,
+      reason: 'agent is busy with education until simulation time 10000 (now 0)',
+      traceEvents: [
+        {
+          type: 'ActionRejected',
+          counterfactualStep: 2,
+          projectionEventCountBefore: 3,
+          projectionEventCountAfter: 3,
+        },
+        {
+          type: 'ShortTermMemoryRecorded',
+          counterfactualStep: 2,
+          projectionEventCountBefore: 3,
+          projectionEventCountAfter: 3,
+        },
+      ],
+    });
   });
 
   test('returns undefined when no canonical or additional registration matches', async () => {

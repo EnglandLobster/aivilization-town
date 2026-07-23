@@ -3,6 +3,7 @@ import {
   normalizeStrategicPlanCompilerOutput,
   runReactiveSteeringRoute,
   type BranchPlanRecord,
+  type BranchPlanProgressRepository,
   type BranchPlanRepository,
   type CommandDraft,
   type ReactiveActionSimulator,
@@ -28,8 +29,18 @@ import type {
   CommandSource,
   CoreCommandType,
 } from '@aivilization/sim-core';
+import { publishPlanningSession } from './planningSessionPublication';
 
 export type WorkerSteeringResult =
+  | {
+      readonly kind: 'agent-registration-dispatched';
+      readonly agentId: AgentId;
+      readonly registrationId: string;
+      readonly status: 'registered' | 'rejected';
+      readonly reason?: string;
+      readonly commandDrafts: readonly [];
+      readonly shortTermMemoryRecords: readonly [];
+    }
   | {
       readonly kind: 'long-horizon-objective-set';
       readonly intentionState: AgentIntentionState;
@@ -54,6 +65,7 @@ export async function handleWorkerSteeringCommand(input: {
   readonly longTermProfileRepository?: LongTermProfileRepository;
   readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly planRepository?: BranchPlanRepository;
+  readonly planProgressRepository?: BranchPlanProgressRepository;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly localizedPlanners: readonly ReactiveLocalizedPlanner[];
   readonly simulate: ReactiveActionSimulator;
@@ -64,6 +76,8 @@ export async function handleWorkerSteeringCommand(input: {
   const persistShortTermMemoryRecords = input.persistShortTermMemoryRecords ?? true;
 
   switch (input.command.type) {
+    case 'RegisterAgent':
+      throw new Error('RegisterAgent requires the world-aware runtime command drain');
     case 'SetLongHorizonObjective': {
       const objective = parseSetLongHorizonObjectivePayload({
         payload: input.command.payload,
@@ -72,7 +86,6 @@ export async function handleWorkerSteeringCommand(input: {
         source: input.command.source,
         issuedAt: input.command.issuedAt,
       });
-      const intentionState = await input.intentionRepository.setObjective(agentId, objective);
       const strategicMemoryRecord = createStrategicSteeringMemoryRecord({
         command: input.command,
         objective,
@@ -94,7 +107,7 @@ export async function handleWorkerSteeringCommand(input: {
         longTermProfileRepository === undefined
           ? undefined
           : await longTermProfileRepository.applyPatches(agentId, longTermMemoryPatches);
-      const planRecord = await createAndSaveStrategicPlanRecord({
+      const planRecord = await createStrategicPlanRecord({
         objective,
         issuedAt: input.command.issuedAt,
         ...(longTermProfile === undefined ? {} : { longTermProfile }),
@@ -103,9 +116,20 @@ export async function handleWorkerSteeringCommand(input: {
           ? {}
           : { strategicPlanCompiler: input.strategicPlanCompiler }),
       });
+      const publication = await publishPlanningSession({
+        objective,
+        publishedAt: input.command.issuedAt,
+        intentionRepository: input.intentionRepository,
+        ...(planRecord === undefined || input.planRepository === undefined
+          ? {}
+          : { planRecord, planRepository: input.planRepository }),
+        ...(planRecord === undefined || input.planProgressRepository === undefined
+          ? {}
+          : { planProgressRepository: input.planProgressRepository }),
+      });
       return {
         kind: 'long-horizon-objective-set',
-        intentionState,
+        intentionState: publication.intentionState,
         ...(planRecord === undefined ? {} : { planRecord }),
         commandDrafts: [],
         shortTermMemoryRecords: [strategicMemoryRecord],
@@ -142,7 +166,7 @@ export async function handleWorkerSteeringCommand(input: {
   }
 }
 
-async function createAndSaveStrategicPlanRecord(input: {
+async function createStrategicPlanRecord(input: {
   readonly objective: LongHorizonObjective;
   readonly issuedAt: number;
   readonly longTermProfile?: LongTermAgentProfile;
@@ -169,7 +193,6 @@ async function createAndSaveStrategicPlanRecord(input: {
     createdAt: input.issuedAt,
     updatedAt: input.issuedAt,
   };
-  await input.planRepository.save(planRecord);
   return planRecord;
 }
 

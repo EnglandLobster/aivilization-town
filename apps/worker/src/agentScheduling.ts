@@ -24,8 +24,14 @@ import type {
   LongTermProfileRepository,
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
-import type { WorldAgentState, WorldProjection } from '@aivilization/world';
+import {
+  isAgentAvailableForWorldAction,
+  type WorldAgentState,
+  type WorldProjection,
+} from '@aivilization/world';
 import { summarizeObservedAgentState } from './agentStateSummary';
+import type { EducationOpportunityCostConfig } from './educationOpportunityCost';
+import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
 import { resolveMemoryRetrievalCandidateLimit } from './memoryContextSelection';
 import type { WorkerTickAgentInput } from './tickRunner';
 import {
@@ -68,6 +74,8 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly memoryRetrievalLimit?: number;
   readonly memoryRetrievalCandidateLimit?: number;
   readonly policies?: WorldCommandPolicySource;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
+  readonly societyDirectory?: LocalSimulationSocietyDirectory;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
   validateMemoryRetrievalBudget(input);
@@ -83,6 +91,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   for (const agentId of Object.keys(input.projection.agents).sort()) {
     const agent = input.projection.agents[agentId];
     if (agent === undefined) {
+      continue;
+    }
+    if (!isAgentAvailableForWorldAction(input.projection, agent.agentId)) {
       continue;
     }
 
@@ -118,6 +129,10 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       projection: input.projection,
       agentId: agent.agentId,
       ...(worldDecisionPolicies === undefined ? {} : { policies: worldDecisionPolicies }),
+      ...(input.educationOpportunityCost === undefined
+        ? {}
+        : { educationOpportunityCost: input.educationOpportunityCost }),
+      ...(input.societyDirectory === undefined ? {} : { societyDirectory: input.societyDirectory }),
     });
     const runtime = await input.resolveRuntime({
       agentId: agent.agentId,
@@ -137,6 +152,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       observedStateSummary: summarizeObservedAgentState(agent),
       worldDecisionContext,
       planId: activeObjective.id,
+      ...(progress === undefined ? {} : { progress }),
       signals: activeObjective.affinityTags.map((tag) => ({
         key: tag,
         weight: activeObjective.priority,

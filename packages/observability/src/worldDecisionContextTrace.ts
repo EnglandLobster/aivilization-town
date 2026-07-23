@@ -13,6 +13,9 @@ export type WorldDecisionContextTrace = {
   readonly hasEconomicState?: boolean;
   readonly hasMarketPrices?: boolean;
   readonly completeEconomicContext?: boolean;
+  readonly hasEducationOpportunityCost?: boolean;
+  readonly educationInvestmentDirectlyAffordable?: boolean;
+  readonly educationInvestmentPreservesMinimumBalanceReserve?: boolean;
 };
 
 export function cloneWorldDecisionContextTrace(

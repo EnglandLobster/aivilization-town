@@ -34,6 +34,13 @@ describe('scenario projection adapter', () => {
     });
     expect(projection.marketPools['Gold Apple']).toBeUndefined();
     expect(projection.moneySupply).toBe(0);
+    expect(projection.locations.school?.capacity).toBe(40);
+    expect(projection.locations.school?.mapPosition).toMatchObject({ x: 0.82, y: 0.22 });
+    expect(projection.locations.school?.source).toContain('AIvilization');
+    expect(projection.locations.school?.connections).toContainEqual({
+      targetLocationId: 'residential-block',
+      travelDurationSeconds: 360,
+    });
   });
 
   test('defaults initial money supply to circulating agent balances unless overridden', () => {

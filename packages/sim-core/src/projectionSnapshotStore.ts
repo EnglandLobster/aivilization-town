@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { PartitionKey } from './partition';
@@ -25,11 +32,16 @@ export class FileProjectionSnapshotStore<
 > implements ProjectionSnapshotStore<TProjection> {
   private readonly rootDir: string;
   private readonly snapshotRootDir: string;
+  private readonly maximumSnapshotsPerPartition: number | undefined;
 
-  constructor(input: { readonly rootDir: string }) {
+  constructor(input: { readonly rootDir: string; readonly maximumSnapshotsPerPartition?: number }) {
     assertNonEmpty(input.rootDir, 'rootDir');
+    if (input.maximumSnapshotsPerPartition !== undefined) {
+      assertPositiveInteger(input.maximumSnapshotsPerPartition, 'maximumSnapshotsPerPartition');
+    }
     this.rootDir = resolve(input.rootDir);
     this.snapshotRootDir = join(this.rootDir, SNAPSHOT_ROOT_DIR_NAME);
+    this.maximumSnapshotsPerPartition = input.maximumSnapshotsPerPartition;
     mkdirSync(this.snapshotRootDir, { recursive: true });
   }
 
@@ -48,6 +60,7 @@ export class FileProjectionSnapshotStore<
       snapshotPath,
       `${JSON.stringify({ reference, projection: input.projection }, null, 2)}\n`,
     );
+    this.pruneSupersededSnapshots(dirname(snapshotPath), input.sequence);
 
     return reference;
   }
@@ -91,6 +104,34 @@ export class FileProjectionSnapshotStore<
 
     return snapshotPath;
   }
+
+  private pruneSupersededSnapshots(partitionSnapshotDir: string, savedSequence: number): void {
+    if (this.maximumSnapshotsPerPartition === undefined) {
+      return;
+    }
+
+    const candidates = readdirSync(partitionSnapshotDir)
+      .map((filename) => ({ filename, sequence: parseSnapshotSequence(filename) }))
+      .filter(
+        (candidate): candidate is { readonly filename: string; readonly sequence: number } =>
+          candidate.sequence !== undefined,
+      )
+      .sort((left, right) => right.sequence - left.sequence);
+    const savedFilename = `${savedSequence}.json`;
+    const retained = new Set([
+      savedFilename,
+      ...candidates
+        .filter((candidate) => candidate.filename !== savedFilename)
+        .slice(0, this.maximumSnapshotsPerPartition - 1)
+        .map((candidate) => candidate.filename),
+    ]);
+
+    for (const candidate of candidates) {
+      if (!retained.has(candidate.filename)) {
+        unlinkSync(join(partitionSnapshotDir, candidate.filename));
+      }
+    }
+  }
 }
 
 type StoredProjectionSnapshot<TProjection> = {
@@ -131,8 +172,22 @@ function encodePathSegment(value: string): string {
   return encodeURIComponent(value);
 }
 
+function parseSnapshotSequence(filename: string): number | undefined {
+  if (!filename.endsWith('.json')) {
+    return undefined;
+  }
+  const sequence = Number(filename.slice(0, -'.json'.length));
+  return Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : undefined;
+}
+
 function assertNonEmpty(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${name} must not be empty`);
+  }
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive safe integer`);
   }
 }

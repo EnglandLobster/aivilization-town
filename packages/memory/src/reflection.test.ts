@@ -4,6 +4,7 @@ import {
   applyReflectiveInsightProposal,
   convertReflectiveInsightsToLongTermMemoryPatches,
   asMemoryRecordId,
+  createEmptyLongTermAgentProfile,
   createDeterministicReflectiveInsightSynthesizer,
   createShortTermMemoryRecord,
   proposeReflectiveInsights,
@@ -126,7 +127,7 @@ describe('reflective memory insights', () => {
     ).toEqual(['caution:work-energy-risk', 'habit:study-routine']);
   });
 
-  test('synthesizes repeated successful social memories into a social habit insight', () => {
+  test('does not infer positive identity from unscored social memories', () => {
     const records = [
       createMemory({
         id: 'social-1',
@@ -149,20 +150,7 @@ describe('reflective memory insights', () => {
         minEvidenceCount: 2,
         generatedAt: 400,
       }),
-    ).toEqual([
-      {
-        id: 'reflection-agent-1-habit-social-agent-2-400',
-        agentId,
-        kind: 'habit',
-        topicKey: 'social-agent-2',
-        statement:
-          'Repeated successful social interactions with agent-2 suggest a stable social routine.',
-        confidence: 0.7,
-        evidenceRecordIds: ['social-1', 'social-2'],
-        generatedAt: 400,
-        tags: ['social', 'agent-2', 'routine'],
-      },
-    ]);
+    ).toEqual([]);
   });
 
   test('synthesizes repeated successful social interactions into value and personality insights', () => {
@@ -229,6 +217,97 @@ describe('reflective memory insights', () => {
         tags: ['social', 'community', 'cooperation', 'value'],
       },
     ]);
+  });
+
+  test('synthesizes repeated harmful interactions into wary identity and trust cautions', () => {
+    const records = [
+      createSocialInteractionMemory({
+        id: 'betrayal-agent-2-1',
+        targetAgentId: asAgentId('agent-2'),
+        summary: 'Agent-2 broke a promise.',
+        occurredAt: 1,
+        relationDelta: -0.3,
+        attitudeDelta: -0.24,
+      }),
+      createSocialInteractionMemory({
+        id: 'deception-agent-3-2',
+        targetAgentId: asAgentId('agent-3'),
+        summary: 'Agent-3 supplied false information.',
+        occurredAt: 2,
+        relationDelta: -0.2,
+        attitudeDelta: -0.25,
+      }),
+    ];
+
+    expect(
+      proposeReflectiveInsights({
+        agentId,
+        records,
+        minEvidenceCount: 2,
+        generatedAt: 550,
+      }).map((insight) => `${insight.kind}:${insight.topicKey}`),
+    ).toEqual([
+      'mood:guarded-vigilance',
+      'personality:socially-wary',
+      'value:verified-reciprocity',
+    ]);
+  });
+
+  test('integrates prior social-record provenance when immediate reflections span cycles', () => {
+    const agent2 = asAgentId('agent-2');
+    const agent3 = asAgentId('agent-3');
+    const profile = {
+      ...createEmptyLongTermAgentProfile(agentId),
+      socialRecords: [
+        {
+          key: agent2,
+          statement: 'A positive conversation with agent-2.',
+          confidence: 0.8,
+          updatedAt: 100,
+          provenanceRecordIds: [asMemoryRecordId('social-agent-2-1')],
+          relationDelta: 1,
+          attitudeDelta: 1,
+        },
+        {
+          key: agent3,
+          statement: 'A positive conversation with agent-3.',
+          confidence: 0.6,
+          updatedAt: 200,
+          provenanceRecordIds: [asMemoryRecordId('social-agent-3-2')],
+          relationDelta: 1,
+          attitudeDelta: 1,
+        },
+      ],
+    };
+    const currentRecord = createSocialInteractionMemory({
+      id: 'social-agent-2-3',
+      targetAgentId: agent2,
+      summary: 'Shared plans with agent-2 after another town meeting.',
+      occurredAt: 3,
+      importanceScore: 0.7,
+    });
+
+    const insights = proposeReflectiveInsights({
+      agentId,
+      records: [currentRecord],
+      minEvidenceCount: 3,
+      generatedAt: 700,
+      longTermProfile: profile,
+    });
+
+    expect(insights.map((insight) => `${insight.kind}:${insight.topicKey}`)).toEqual([
+      'mood:cooperative-composure',
+      'personality:sociable',
+      'value:community-cooperation',
+    ]);
+    expect(insights).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          confidence: 0.7,
+          evidenceRecordIds: ['social-agent-2-1', 'social-agent-3-2', 'social-agent-2-3'],
+        }),
+      ]),
+    );
   });
 
   test('keeps one-target social interactions scoped to a social habit insight', () => {
@@ -641,6 +720,8 @@ function createSocialInteractionMemory(input: {
   readonly summary: string;
   readonly occurredAt: number;
   readonly importanceScore?: number;
+  readonly relationDelta?: number;
+  readonly attitudeDelta?: number;
 }) {
   return createShortTermMemoryRecord({
     id: input.id,
@@ -655,8 +736,8 @@ function createSocialInteractionMemory(input: {
     consolidationHint: {
       kind: 'social',
       targetAgentId: input.targetAgentId,
-      relationDelta: 1,
-      attitudeDelta: 1,
+      relationDelta: input.relationDelta ?? 1,
+      attitudeDelta: input.attitudeDelta ?? 1,
       summary: input.summary,
     },
   });

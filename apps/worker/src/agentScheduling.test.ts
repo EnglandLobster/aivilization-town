@@ -17,8 +17,13 @@ import {
   InMemoryLongTermProfileRepository,
   type LongTermAgentProfile,
 } from '@aivilization/memory';
-import { asAgentId } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
+import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
+import {
+  applyWorldEvent,
+  createWorldProjection,
+  type AgentActivityTimeCommittedPayload,
+  type WorldCommandPolicies,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import { buildWorkerTickAgentsFromActivePlans } from './index';
 
@@ -279,6 +284,91 @@ describe('worker agent scheduling', () => {
     });
 
     expect(agents).toEqual([]);
+  });
+
+  test('does not schedule a busy agent before its simulation-time commitment elapses', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const objective = createObjective({
+      id: 'objective-trade',
+      agentId: agentA,
+      statement: 'Trade on a bounded cadence.',
+      priority: 2,
+      affinityTags: ['trade'],
+    });
+    await intentionRepository.setObjective(agentA, objective);
+    await planRepository.save(createPlanRecord({ planId: objective.id, agentId: agentA }));
+    const initial = createWorldProjection({
+      clock: { now: 1_000, tickDurationMs: 1_000 },
+      agents: [createProjectedAgent({ agentId: agentA })],
+    });
+    const busy = applyWorldEvent(
+      initial,
+      createEventEnvelope({
+        id: 'event-trade-time',
+        simulationId: 'sim-1',
+        commandId: 'command-trade',
+        type: 'AgentActivityTimeCommitted',
+        payload: {
+          agentId: agentA,
+          activity: 'trade',
+          commandType: 'AgentTrade',
+          policyVersion: 'exclusive-agent-activity-time-v2',
+          settlementTiming: 'effects-at-commit',
+          startedAt: 1_000,
+          durationSeconds: 300,
+          availableAt: 301_000,
+        } satisfies AgentActivityTimeCommittedPayload,
+        occurredAt: 100,
+        sequence: 1,
+      }),
+    );
+
+    await expect(
+      buildWorkerTickAgentsFromActivePlans({
+        projection: busy,
+        intentionRepository,
+        planRepository,
+        resolveRuntime: () => {
+          throw new Error('runtime should not be resolved for a busy agent');
+        },
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  test('carries the already-loaded progress snapshot into the tick input', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const planRepository = new InMemoryBranchPlanRepository();
+    const planProgressRepository = new InMemoryBranchPlanProgressRepository();
+    const projection = createWorldProjection({
+      agents: [createProjectedAgent({ agentId: agentA })],
+    });
+    const objective = createObjective({
+      id: 'objective-progress-snapshot',
+      agentId: agentA,
+      statement: 'Reuse one progress read.',
+      priority: 3,
+      affinityTags: ['study'],
+    });
+    const progress = createBranchPlanProgress({
+      planId: objective.id,
+      agentId: agentA,
+      createdAt: 100,
+    });
+    await intentionRepository.setObjective(agentA, objective);
+    await planRepository.save(createPlanRecord({ planId: objective.id, agentId: agentA }));
+    await planProgressRepository.save(progress);
+
+    const agents = await buildWorkerTickAgentsFromActivePlans({
+      projection,
+      intentionRepository,
+      planRepository,
+      planProgressRepository,
+      resolveRuntime: () => createRuntimeBinding('study'),
+    });
+
+    expect(agents).toHaveLength(1);
+    expect(agents[0]?.progress).toEqual(progress);
   });
 
   test('attaches configured memory retrieval budgets to scheduled tick agents', async () => {

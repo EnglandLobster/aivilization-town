@@ -20,6 +20,7 @@ export type LongTermMemoryPatch = {
   readonly proposedAt: SimulationTimestamp;
   readonly relationDelta?: number;
   readonly attitudeDelta?: number;
+  readonly outcomeSignals?: readonly string[];
 };
 
 export type LongTermProfileEntry = {
@@ -30,6 +31,7 @@ export type LongTermProfileEntry = {
   readonly provenanceRecordIds: readonly MemoryRecordId[];
   readonly relationDelta?: number;
   readonly attitudeDelta?: number;
+  readonly outcomeSignals?: readonly string[];
 };
 
 export type LongTermAgentProfile = {
@@ -99,6 +101,13 @@ function createEntryFromPatch(
     ),
     ...(patch.relationDelta === undefined ? {} : { relationDelta: patch.relationDelta }),
     ...(patch.attitudeDelta === undefined ? {} : { attitudeDelta: patch.attitudeDelta }),
+    ...(patch.outcomeSignals === undefined
+      ? {}
+      : {
+          outcomeSignals: [
+            ...new Set([...(existing?.outcomeSignals ?? []), ...patch.outcomeSignals]),
+          ],
+        }),
   };
 }
 

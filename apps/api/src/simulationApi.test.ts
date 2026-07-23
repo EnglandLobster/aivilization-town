@@ -11,6 +11,47 @@ import {
 } from './index';
 
 describe('simulation API control service', () => {
+  test('submits human agent registrations as versioned command envelopes', async () => {
+    const service = createSimulationApiService({
+      projectionQueries: { getProjection: () => Promise.resolve({ agents: 0 }) },
+      eventFeeds: createEventFeedPort(),
+      sync: createSyncPort(),
+      validationReports: createValidationReportsPort(),
+      marketObservations: createMarketObservationsPort(),
+      steeringCommands: {
+        submit: (command, context) => Promise.resolve({ command, context }),
+      },
+      lifecycle: createLifecyclePort(),
+    });
+
+    const result = await service.submitAgentRegistration({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      agentId: 'agent-created-1',
+      creatorId: 'participant-7',
+      displayName: 'Ada',
+      issuedAt: 90,
+      expectedVersion: 4,
+    });
+
+    expect(result.command).toMatchObject({
+      id: 'api-register-sim-1-agent-created-1',
+      actorId: 'agent-created-1',
+      source: 'human',
+      type: 'RegisterAgent',
+      payload: {
+        agentId: 'agent-created-1',
+        creatorId: 'participant-7',
+        displayName: 'Ada',
+      },
+      issuedAt: 90,
+      expectedVersion: 4,
+    });
+    expect(result.result).toMatchObject({
+      context: { simulationId: 'sim-1', partitionKey: 'world-main' },
+    });
+  });
+
   test('submits human long-horizon objectives as command envelopes', async () => {
     const submitted: unknown[] = [];
     const contexts: unknown[] = [];
@@ -63,6 +104,44 @@ describe('simulation API control service', () => {
     });
     expect(submitted).toEqual([result.command]);
     expect(contexts).toEqual([{ simulationId: 'sim-1', partitionKey: 'world-main' }]);
+  });
+
+  test('rejects invalid objective affinity tags before appending a command', async () => {
+    const submitted: unknown[] = [];
+    const service = createSimulationApiService({
+      projectionQueries: { getProjection: () => Promise.resolve({ agents: 0 }) },
+      eventFeeds: createEventFeedPort(),
+      sync: createSyncPort(),
+      validationReports: createValidationReportsPort(),
+      marketObservations: createMarketObservationsPort(),
+      steeringCommands: {
+        submit: (command) => {
+          submitted.push(command);
+          return Promise.resolve({ accepted: true });
+        },
+      },
+      lifecycle: createLifecyclePort(),
+    });
+    const baseRequest = {
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      agentId: 'agent-1',
+      objectiveId: 'objective-study',
+      statement: 'Study before working.',
+      priority: 2,
+      issuedAt: 100,
+    } as const;
+
+    await expect(
+      service.submitLongHorizonObjective({ ...baseRequest, affinityTags: [] }),
+    ).rejects.toThrow('affinityTags must contain at least one value');
+    await expect(
+      service.submitLongHorizonObjective({
+        ...baseRequest,
+        affinityTags: ['education', 'education'],
+      }),
+    ).rejects.toThrow('affinityTags must not contain duplicate values');
+    expect(submitted).toEqual([]);
   });
 
   test('submits human reactive commands as command envelopes', async () => {

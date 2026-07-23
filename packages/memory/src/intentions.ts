@@ -12,11 +12,14 @@ export type LongHorizonObjective = {
   readonly priority: number;
   readonly source: LongHorizonObjectiveSource;
   readonly affinityTags: readonly string[];
+  readonly planningDomains?: readonly string[];
   readonly createdAt: SimulationTimestamp;
   readonly updatedAt: SimulationTimestamp;
 };
 
-export type LongHorizonObjectiveCompletionReason = 'plan-completed';
+export type LongHorizonObjectiveCompletionReason =
+  | 'plan-completed'
+  | 'superseded-by-major-context-shift';
 
 export type CompletedLongHorizonObjective = {
   readonly objective: LongHorizonObjective;
@@ -47,9 +50,45 @@ export type AgentIntentionState = {
   readonly agentId: AgentId;
   readonly activeObjective?: LongHorizonObjective;
   readonly completedObjectives: readonly CompletedLongHorizonObjective[];
+  /** Total durable completion ordinal; omitted while it equals the retained list length. */
+  readonly completedObjectiveCount?: number;
   readonly scheduledIntentions: readonly ScheduledIntention[];
   readonly updatedAt: SimulationTimestamp;
 };
+
+export const AGENT_INTENTION_COMPLETED_OBJECTIVE_RETENTION_LIMIT = 32;
+
+export function getCompletedObjectiveCount(state: AgentIntentionState): number {
+  const count = state.completedObjectiveCount ?? state.completedObjectives.length;
+  if (!Number.isSafeInteger(count) || count < state.completedObjectives.length) {
+    throw new Error(
+      'completedObjectiveCount must be a non-negative safe integer at least as large as retained completions',
+    );
+  }
+  return count;
+}
+
+export function enforceAgentIntentionStateRetention(
+  state: AgentIntentionState,
+): AgentIntentionState {
+  const completedObjectiveCount = getCompletedObjectiveCount(state);
+  const completedObjectives = state.completedObjectives
+    .map((completed) => cloneCompletedObjective(completed))
+    .sort(compareCompletedObjectives)
+    .slice(-AGENT_INTENTION_COMPLETED_OBJECTIVE_RETENTION_LIMIT);
+  return {
+    agentId: state.agentId,
+    ...(state.activeObjective === undefined
+      ? {}
+      : { activeObjective: cloneObjective(state.activeObjective) }),
+    completedObjectives,
+    ...(completedObjectiveCount === completedObjectives.length ? {} : { completedObjectiveCount }),
+    scheduledIntentions: state.scheduledIntentions.map((intention) =>
+      cloneScheduledIntention(intention),
+    ),
+    updatedAt: state.updatedAt,
+  };
+}
 
 export function createEmptyAgentIntentionState(agentId: AgentId): AgentIntentionState {
   return {
@@ -66,17 +105,21 @@ export function setLongHorizonObjective(
 ): AgentIntentionState {
   assertSameAgent(state.agentId, objective.agentId, 'objective');
   assertObjective(objective);
+  const retained = enforceAgentIntentionStateRetention(state);
 
   return {
     agentId: state.agentId,
     activeObjective: cloneObjective(objective),
-    completedObjectives: state.completedObjectives.map((completed) =>
+    completedObjectives: retained.completedObjectives.map((completed) =>
       cloneCompletedObjective(completed),
     ),
-    scheduledIntentions: state.scheduledIntentions.map((intention) =>
+    ...(retained.completedObjectiveCount === undefined
+      ? {}
+      : { completedObjectiveCount: retained.completedObjectiveCount }),
+    scheduledIntentions: retained.scheduledIntentions.map((intention) =>
       cloneScheduledIntention(intention),
     ),
-    updatedAt: Math.max(state.updatedAt, objective.updatedAt),
+    updatedAt: Math.max(retained.updatedAt, objective.updatedAt),
   };
 }
 
@@ -84,12 +127,13 @@ export function upsertScheduledIntentions(
   state: AgentIntentionState,
   scheduledIntentions: readonly ScheduledIntention[],
 ): AgentIntentionState {
+  const retained = enforceAgentIntentionStateRetention(state);
   const intentionsById = new Map<string, ScheduledIntention>();
-  for (const intention of state.scheduledIntentions) {
+  for (const intention of retained.scheduledIntentions) {
     intentionsById.set(intention.id, cloneScheduledIntention(intention));
   }
 
-  let updatedAt = state.updatedAt;
+  let updatedAt = retained.updatedAt;
   for (const intention of scheduledIntentions) {
     assertSameAgent(state.agentId, intention.agentId, 'scheduled intention');
     assertScheduledIntention(intention);
@@ -99,12 +143,15 @@ export function upsertScheduledIntentions(
 
   return {
     agentId: state.agentId,
-    ...(state.activeObjective === undefined
+    ...(retained.activeObjective === undefined
       ? {}
-      : { activeObjective: cloneObjective(state.activeObjective) }),
-    completedObjectives: state.completedObjectives.map((completed) =>
+      : { activeObjective: cloneObjective(retained.activeObjective) }),
+    completedObjectives: retained.completedObjectives.map((completed) =>
       cloneCompletedObjective(completed),
     ),
+    ...(retained.completedObjectiveCount === undefined
+      ? {}
+      : { completedObjectiveCount: retained.completedObjectiveCount }),
     scheduledIntentions: [...intentionsById.values()].sort(compareScheduledIntentions),
     updatedAt,
   };
@@ -138,10 +185,15 @@ export function completeLongHorizonObjective(
     reason: input.reason,
     ...(input.planId === undefined ? {} : { planId: input.planId }),
   });
+  const completedObjectiveCount = getCompletedObjectiveCount(state) + 1;
+  const completedObjectives = [...completedByObjectiveId.values()]
+    .sort(compareCompletedObjectives)
+    .slice(-AGENT_INTENTION_COMPLETED_OBJECTIVE_RETENTION_LIMIT);
 
   return {
     agentId: state.agentId,
-    completedObjectives: [...completedByObjectiveId.values()].sort(compareCompletedObjectives),
+    completedObjectives,
+    ...(completedObjectiveCount === completedObjectives.length ? {} : { completedObjectiveCount }),
     scheduledIntentions: state.scheduledIntentions
       .map((intention) =>
         intention.objectiveId === input.objectiveId && !isTerminalScheduledIntention(intention)
@@ -187,6 +239,9 @@ function assertObjective(objective: LongHorizonObjective): void {
   assertFiniteNumber(objective.createdAt, `objective ${objective.id} createdAt`);
   assertFiniteNumber(objective.updatedAt, `objective ${objective.id} updatedAt`);
   assertAffinityTags(objective.affinityTags, `objective ${objective.id}`);
+  for (const domain of objective.planningDomains ?? []) {
+    assertNonEmpty(domain, `objective ${objective.id} planning domain`);
+  }
 }
 
 function assertScheduledIntention(intention: ScheduledIntention): void {
@@ -272,10 +327,15 @@ function cloneObjective(objective: LongHorizonObjective): LongHorizonObjective {
   return {
     ...objective,
     affinityTags: [...objective.affinityTags],
+    ...(objective.planningDomains === undefined
+      ? {}
+      : { planningDomains: [...objective.planningDomains] }),
   };
 }
 
-function cloneCompletedObjective(completed: CompletedLongHorizonObjective): CompletedLongHorizonObjective {
+function cloneCompletedObjective(
+  completed: CompletedLongHorizonObjective,
+): CompletedLongHorizonObjective {
   return {
     objective: cloneObjective(completed.objective),
     completedAt: completed.completedAt,

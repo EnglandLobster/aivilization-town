@@ -7,7 +7,11 @@ import {
   type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
 } from '@aivilization/economy';
-import { createShortTermMemoryRecord } from '@aivilization/memory';
+import {
+  createShortTermMemoryRecord,
+  type SocialKnowledgeClaim,
+  type SocialKnowledgeClaimStatus,
+} from '@aivilization/memory';
 import {
   asConversationId,
   asEventId,
@@ -29,24 +33,36 @@ import {
   applySocialInteraction,
   calculateStochasticIllnessProbabilityPercent,
   calculateApplicationQuota,
+  calculateCompletedRecruitmentCycleNumbers,
+  calculateRecruitmentCycleNumber,
   createDirectedSocialRelationKey,
+  classifySocialCommitmentIntent,
   evaluateMedicalTreatmentCost,
+  evaluateEducationInvestment,
+  evaluateConversationSocialOutcomes,
+  evaluateResourceTransferSocialOutcome,
+  evaluatePhysiologicalSafetyNet,
   evaluateResidentialUpkeep,
   evaluateResidentialTierUpgrade,
   evaluateOccupationApplication,
   evaluateSafetyNetSubsidy,
   isIncapacitated,
   resolveResidentialPhysiologyCap,
+  resolveRecruitmentCycle,
   type MedicalTreatmentCostPolicy,
+  type EducationInvestmentPolicy,
+  type PhysiologicalSafetyNetPolicy,
   type ResidentialPhysiologyCapPolicy,
   type ResidentialUpkeepPolicy,
   type ResidentialTierUpgradePolicy,
+  type RecruitmentCyclePolicy,
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
   type StochasticIllnessPolicy,
 } from '@aivilization/society';
 import {
   assertAdvanceSimulationTimePayload,
+  assertRegisterAgentPayload,
   assertAgentApplyJobPayload,
   assertAgentEatPayload,
   assertAgentMoveToPayload,
@@ -59,12 +75,28 @@ import {
   assertAgentSocializePayload,
   assertAgentStudyPayload,
   assertAgentTradePayload,
+  assertAgentGiveResourcePayload,
   assertAgentWorkPayload,
 } from './commands';
-import type { WorldEvent } from './events';
+import {
+  EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
+  RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
+  RUNTIME_AGENT_REGISTRATION_INITIAL_PHYSIOLOGY,
+  RUNTIME_AGENT_REGISTRATION_INITIAL_RESIDENTIAL_TIER,
+  RUNTIME_AGENT_REGISTRATION_MAX_POPULATION,
+  RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+  type AgentActivityTimeCommittedPayload,
+  type AgentActivityKind,
+  type WorldEvent,
+} from './events';
 import type { WorldAgentState, WorldProjection } from './projection';
+import { resolveSpatialRoute, TOWN_SPATIAL_GRAPH_POLICY_VERSION } from './spatial';
 
 export type WorldCommandPolicies = {
+  readonly randomSeed?: string;
+  readonly agentRegistration?: {
+    readonly maxAgentsPerCreator?: number;
+  };
   readonly satietyRecoveryByCommodity: Readonly<Record<string, number>>;
   readonly maxSatiety: number;
   readonly wageCalculator: (occupationName: string) => number;
@@ -76,10 +108,14 @@ export type WorldCommandPolicies = {
     readonly energy: number;
     readonly health: number;
   };
+  readonly educationInvestment?: EducationInvestmentPolicy;
   readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   readonly production?: {
     readonly recipeOverrides?: readonly ProductionRecipeOverride[];
     readonly efficiency?: ProductionEfficiencyPolicy;
+  };
+  readonly tradeActivity?: {
+    readonly durationSeconds: number;
   };
   readonly sleep?: {
     readonly energyRecoveryPerSecond: number;
@@ -93,10 +129,13 @@ export type WorldCommandPolicies = {
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
+  /** Optional legacy balance-floor transfer; canonical AIvilization uses physiologicalSafetyNet. */
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
+  readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
+    readonly recruitmentCycle?: RecruitmentCyclePolicy;
   };
   readonly residentialTierUpgrade?: ResidentialTierUpgradePolicy;
 };
@@ -107,11 +146,32 @@ export function dispatchWorldCommand(input: {
   readonly policies: WorldCommandPolicies;
   readonly nextSequence: number;
 }): WorldEvent[] {
+  if (input.command.type.startsWith('Agent')) {
+    const busyRejection = rejectBusyAgentCommand(input);
+    if (busyRejection !== undefined) {
+      return busyRejection;
+    }
+  }
+
   switch (input.command.type) {
+    case 'RegisterAgent':
+      return handleRegisterAgentCommand({
+        command: input.command as CommandEnvelope<'RegisterAgent', unknown>,
+        projection: input.projection,
+        ...(input.policies.agentRegistration?.maxAgentsPerCreator === undefined
+          ? {}
+          : {
+              maxAgentsPerCreator: input.policies.agentRegistration.maxAgentsPerCreator,
+            }),
+        nextSequence: input.nextSequence,
+      });
     case 'AdvanceSimulationTime':
       return handleAdvanceSimulationTimeCommand({
         command: input.command as CommandEnvelope<'AdvanceSimulationTime', unknown>,
         projection: input.projection,
+        ...(input.policies.randomSeed === undefined
+          ? {}
+          : { randomSeed: input.policies.randomSeed }),
         ...(input.policies.sleepDeprivation === undefined
           ? {}
           : { sleepDeprivation: input.policies.sleepDeprivation }),
@@ -124,6 +184,12 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.safetyNetSubsidy === undefined
           ? {}
           : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),
+        ...(input.policies.physiologicalSafetyNet === undefined
+          ? {}
+          : { physiologicalSafetyNet: input.policies.physiologicalSafetyNet }),
+        ...(input.policies.jobApplication?.recruitmentCycle === undefined
+          ? {}
+          : { recruitmentCycle: input.policies.jobApplication.recruitmentCycle }),
         nextSequence: input.nextSequence,
       });
     case 'AgentEat':
@@ -159,6 +225,9 @@ export function dispatchWorldCommand(input: {
       return handleAgentStudyCommand({
         command: input.command as CommandEnvelope<'AgentStudy', unknown>,
         projection: input.projection,
+        ...(input.policies.educationInvestment === undefined
+          ? {}
+          : { educationInvestment: input.policies.educationInvestment }),
         nextSequence: input.nextSequence,
       });
     case 'AgentSleep':
@@ -205,6 +274,9 @@ export function dispatchWorldCommand(input: {
       return handleAgentProduceCommand({
         command: input.command as CommandEnvelope<'AgentProduce', unknown>,
         projection: input.projection,
+        ...(input.policies.randomSeed === undefined
+          ? {}
+          : { randomSeed: input.policies.randomSeed }),
         ...(input.policies.production?.recipeOverrides === undefined
           ? {}
           : { recipeOverrides: input.policies.production.recipeOverrides }),
@@ -218,6 +290,15 @@ export function dispatchWorldCommand(input: {
       return handleAgentTradeCommand({
         command: input.command as CommandEnvelope<'AgentTrade', unknown>,
         projection: input.projection,
+        ...(input.policies.tradeActivity === undefined
+          ? {}
+          : { activityDurationSeconds: input.policies.tradeActivity.durationSeconds }),
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentGiveResource':
+      return handleAgentGiveResourceCommand({
+        command: input.command as CommandEnvelope<'AgentGiveResource', unknown>,
+        projection: input.projection,
         nextSequence: input.nextSequence,
       });
     case 'AgentApplyJob':
@@ -229,6 +310,9 @@ export function dispatchWorldCommand(input: {
         projection: input.projection,
         populationEducationScores: input.policies.jobApplication.populationEducationScores,
         quotaByResidentialTier: input.policies.jobApplication.quotaByResidentialTier,
+        ...(input.policies.jobApplication.recruitmentCycle === undefined
+          ? {}
+          : { recruitmentCycle: input.policies.jobApplication.recruitmentCycle }),
         nextSequence: input.nextSequence,
       });
     case 'AgentUpgradeResidentialTier':
@@ -256,13 +340,153 @@ export function dispatchWorldCommand(input: {
   }
 }
 
+export function handleRegisterAgentCommand(input: {
+  readonly command: CommandEnvelope<'RegisterAgent', unknown>;
+  readonly projection: WorldProjection;
+  readonly maxAgentsPerCreator?: number;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  if (
+    input.maxAgentsPerCreator !== undefined &&
+    (!Number.isInteger(input.maxAgentsPerCreator) || input.maxAgentsPerCreator < 1)
+  ) {
+    throw new Error('maxAgentsPerCreator must be a positive integer');
+  }
+  const parsed = parsePayload(() => assertRegisterAgentPayload(input.command.payload));
+  if (parsed.status === 'invalid') {
+    if (input.command.actorId === undefined) {
+      throw new Error(
+        `RegisterAgent requires actorId when its payload is invalid: ${parsed.reason}`,
+      );
+    }
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: 'unresolved',
+        source: input.command.source,
+        displayName: input.command.actorId,
+        agentId: input.command.actorId,
+        reason: 'invalid-registration-payload',
+        detail: parsed.reason,
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
+  const payload = parsed.payload;
+  if (input.command.actorId !== payload.agentId) {
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: payload.creatorId,
+        source: input.command.source,
+        displayName: payload.displayName,
+        agentId: payload.agentId,
+        reason: 'invalid-registration-payload',
+        detail: 'command actorId must equal payload agentId',
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
+  if (input.projection.agents[payload.agentId] !== undefined) {
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: payload.creatorId,
+        source: input.command.source,
+        displayName: payload.displayName,
+        agentId: payload.agentId,
+        reason: 'agent-id-already-exists',
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
+  if (Object.keys(input.projection.agents).length >= RUNTIME_AGENT_REGISTRATION_MAX_POPULATION) {
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: payload.creatorId,
+        source: input.command.source,
+        displayName: payload.displayName,
+        agentId: payload.agentId,
+        reason: 'population-capacity-reached',
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
+  if (
+    input.maxAgentsPerCreator !== undefined &&
+    countAgentsOwnedBy(input.projection, payload.creatorId) >= input.maxAgentsPerCreator
+  ) {
+    return [
+      makeEvent(input, 0, 'AgentRegistrationRejected', {
+        registrationId: input.command.id,
+        policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+        creatorId: payload.creatorId,
+        source: input.command.source,
+        displayName: payload.displayName,
+        agentId: payload.agentId,
+        reason: 'creator-agent-quota-reached',
+        detail: `creator ${payload.creatorId} reached the ${input.maxAgentsPerCreator}-agent quota`,
+        ...copyHumanAttribution(input.command),
+      }),
+    ];
+  }
+
+  return [
+    makeEvent(input, 0, 'AgentRegistered', {
+      registrationId: input.command.id,
+      policyVersion: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
+      creatorId: payload.creatorId,
+      source: input.command.source,
+      displayName: payload.displayName,
+      agentId: payload.agentId,
+      initialState: {
+        locationId: null,
+        physiology: { ...RUNTIME_AGENT_REGISTRATION_INITIAL_PHYSIOLOGY },
+        educationScore: 0,
+        balance: RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
+        residentialTier: RUNTIME_AGENT_REGISTRATION_INITIAL_RESIDENTIAL_TIER,
+        job: null,
+        inventory: {},
+      },
+      moneySupplyDelta: RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
+      ...copyHumanAttribution(input.command),
+    }),
+  ];
+}
+
+function countAgentsOwnedBy(projection: WorldProjection, creatorId: string): number {
+  return Object.values(projection.agents).reduce(
+    (count, agent) => count + (agent.registration?.creatorId === creatorId ? 1 : 0),
+    0,
+  );
+}
+
+function copyHumanAttribution(command: CommandEnvelope) {
+  return command.humanAttribution === undefined
+    ? {}
+    : {
+        humanAttribution: {
+          ...command.humanAttribution,
+          principalRoles: [...command.humanAttribution.principalRoles],
+        },
+      };
+}
+
 export function handleAdvanceSimulationTimeCommand(input: {
   readonly command: CommandEnvelope<'AdvanceSimulationTime', unknown>;
   readonly projection: WorldProjection;
+  readonly randomSeed?: string;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
+  readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
+  readonly recruitmentCycle?: RecruitmentCyclePolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
@@ -275,12 +499,15 @@ export function handleAdvanceSimulationTimeCommand(input: {
       deltaMs: payload.deltaMs,
     }),
   ];
+  appendCompletedTravelArrivals({ input, events, nextSimulationTime: next.now });
 
   if (
     input.sleepDeprivation === undefined &&
     input.stochasticIllness === undefined &&
     input.residentialUpkeep === undefined &&
-    input.safetyNetSubsidy === undefined
+    input.safetyNetSubsidy === undefined &&
+    input.physiologicalSafetyNet === undefined &&
+    input.recruitmentCycle === undefined
   ) {
     return events;
   }
@@ -389,7 +616,238 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }
   }
 
+  if (input.physiologicalSafetyNet !== undefined) {
+    appendPhysiologicalSafetyNetEvents({
+      input,
+      events,
+      agents,
+      physiologyByAgent,
+      previousSimulationTime: previous.now,
+      currentSimulationTime: next.now,
+      policy: input.physiologicalSafetyNet,
+    });
+  }
+
+  if (input.recruitmentCycle !== undefined) {
+    appendRecruitmentCycleEvents({
+      input,
+      events,
+      previousSimulationTime: previous.now,
+      nextSimulationTime: next.now,
+      policy: input.recruitmentCycle,
+    });
+  }
+
   return events;
+}
+
+function appendPhysiologicalSafetyNetEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly agents: readonly WorldAgentState[];
+  readonly physiologyByAgent: ReadonlyMap<AgentId, WorldAgentState['physiology']>;
+  readonly previousSimulationTime: number;
+  readonly currentSimulationTime: number;
+  readonly policy: PhysiologicalSafetyNetPolicy;
+}): void {
+  for (const agent of input.agents) {
+    const previousDistressState =
+      input.input.projection.physiologicalDistressByAgent?.[agent.agentId];
+    const decision = evaluatePhysiologicalSafetyNet({
+      previousPhysiology: agent.physiology,
+      currentPhysiology: getCurrentPhysiology(input.physiologyByAgent, agent),
+      inventory: agent.inventory,
+      ...(previousDistressState === undefined ? {} : { previousDistressState }),
+      previousSimulationTime: input.previousSimulationTime,
+      currentSimulationTime: input.currentSimulationTime,
+      policy: input.policy,
+    });
+    const sourceEventOffsets: number[] = [];
+
+    if (decision.transition === 'started' || decision.transition === 'updated') {
+      if (decision.distressState === null) {
+        throw new Error('active physiological distress transition requires state');
+      }
+      const distressOffset = input.events.length;
+      input.events.push(
+        makeEvent(input.input, distressOffset, 'PhysiologicalDistressChanged', {
+          agentId: agent.agentId,
+          status: 'active',
+          state: decision.distressState,
+          evaluatedAt: input.currentSimulationTime,
+          reason: decision.transition,
+        }),
+      );
+      sourceEventOffsets.push(distressOffset);
+    } else if (decision.transition === 'cleared') {
+      if (previousDistressState === undefined) {
+        throw new Error('cleared physiological distress transition requires previous state');
+      }
+      input.events.push(
+        makeEvent(input.input, input.events.length, 'PhysiologicalDistressChanged', {
+          agentId: agent.agentId,
+          status: 'cleared',
+          previousState: previousDistressState,
+          evaluatedAt: input.currentSimulationTime,
+          reason: 'recovered',
+        }),
+      );
+    }
+
+    if (decision.grant === null) {
+      continue;
+    }
+    const grantOffset = input.events.length;
+    input.events.push(
+      makeEvent(input.input, grantOffset, 'SafetyNetGranted', {
+        agentId: agent.agentId,
+        policyVersion: input.policy.policyVersion,
+        grantedAt: decision.grant.grantedAt,
+        distressDurationMs: decision.grant.distressDurationMs,
+        lowAxes: decision.grant.lowAxes,
+        inventory: decision.grant.inventory,
+        reason: 'persistent-physiological-distress',
+      }),
+    );
+    sourceEventOffsets.push(grantOffset);
+    input.events.push(
+      makeMemoryEvent(input.input, input.events.length, {
+        agentId: agent.agentId,
+        summary: `Received safety-net essentials after ${decision.grant.distressDurationMs} ms of physiological distress: ${createInventorySummary(decision.grant.inventory)}.`,
+        status: 'succeeded',
+        sourceEventOffsets,
+        tags: [
+          'safety-net',
+          'physiological-distress',
+          ...decision.grant.lowAxes.map((axis) => `low-${axis}`),
+        ],
+        consolidationHint: {
+          kind: 'caution',
+          patternKey: `safety-net:${decision.grant.lowAxes.join('+')}`,
+          statement: `Persistent low ${decision.grant.lowAxes.join(', ')} can trigger essential welfare support.`,
+        },
+      }),
+    );
+  }
+}
+
+function createInventorySummary(inventory: Readonly<Record<string, number>>): string {
+  return Object.entries(inventory)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([itemName, quantity]) => `${quantity} ${itemName}`)
+    .join(', ');
+}
+
+function appendRecruitmentCycleEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+  readonly policy: RecruitmentCyclePolicy;
+}): void {
+  const cycleNumbers = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: input.policy.cycleDurationMs,
+  });
+  const jobByAgent = new Map(
+    Object.values(input.input.projection.agents).map(
+      (agent) => [agent.agentId, agent.job] as const,
+    ),
+  );
+
+  for (const cycleNumber of cycleNumbers) {
+    const applications = input.input.projection.jobApplications
+      .filter(
+        (application) =>
+          application.cycleNumber === cycleNumber && application.status === 'pending',
+      )
+      .map((application) => ({
+        applicationId: application.applicationId,
+        agentId: application.agentId,
+        occupationName: application.occupationName,
+        educationScore: application.educationScore,
+        residentialTier: application.residentialTier,
+        submittedAt: application.submittedAt,
+      }));
+    const decision = resolveRecruitmentCycle({ applications, policy: input.policy });
+    const acceptedByApplicationId = new Map(
+      decision.acceptedApplications.map((application) => [application.applicationId, application]),
+    );
+
+    for (const resolution of decision.resolutions) {
+      const resolutionOffset = input.events.length;
+      input.events.push(
+        makeEvent(input.input, resolutionOffset, 'JobApplicationResolved', {
+          applicationId: resolution.applicationId,
+          cycleNumber,
+          agentId: resolution.agentId as AgentId,
+          occupationName: resolution.occupationName,
+          status: resolution.status,
+          reason: resolution.reason,
+        }),
+      );
+
+      const sourceEventOffsets = [resolutionOffset];
+      const accepted = acceptedByApplicationId.get(resolution.applicationId);
+      if (accepted !== undefined) {
+        const assignmentOffset = input.events.length;
+        input.events.push(
+          makeEvent(input.input, assignmentOffset, 'JobAssigned', {
+            applicationId: accepted.applicationId,
+            cycleNumber,
+            agentId: accepted.agentId as AgentId,
+            occupationName: accepted.occupationName,
+            previousJob: jobByAgent.get(accepted.agentId as AgentId) ?? null,
+          }),
+        );
+        sourceEventOffsets.push(assignmentOffset);
+        jobByAgent.set(accepted.agentId as AgentId, accepted.occupationName);
+      }
+
+      input.events.push(
+        makeMemoryEvent(input.input, input.events.length, {
+          agentId: resolution.agentId as AgentId,
+          summary:
+            resolution.status === 'accepted'
+              ? `Recruitment cycle ${cycleNumber} accepted the application for ${resolution.occupationName}.`
+              : `Recruitment cycle ${cycleNumber} rejected the application for ${resolution.occupationName}: ${resolution.reason}.`,
+          status: resolution.status === 'accepted' ? 'succeeded' : 'failed',
+          sourceEventOffsets,
+          tags: [
+            'recruitment-cycle',
+            `recruitment-cycle:${cycleNumber}`,
+            resolution.occupationName,
+            resolution.status,
+          ],
+          consolidationHint:
+            resolution.status === 'accepted'
+              ? {
+                  kind: 'habit',
+                  patternKey: `recruitment-accepted:${resolution.occupationName}`,
+                  statement: `Competes successfully for ${resolution.occupationName}.`,
+                }
+              : {
+                  kind: 'caution',
+                  patternKey: `recruitment-rejected:${resolution.occupationName}:${resolution.reason}`,
+                  statement: `${resolution.occupationName} applications can be rejected because ${resolution.reason}.`,
+                },
+        }),
+      );
+    }
+
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'RecruitmentCycleCompleted', {
+        cycleNumber,
+        cycleStartedAt: cycleNumber * input.policy.cycleDurationMs,
+        cycleEndedAt: (cycleNumber + 1) * input.policy.cycleDurationMs,
+        policyVersion: input.policy.policyVersion,
+        applicationCount: decision.resolutions.length,
+        acceptedCount: decision.acceptedApplications.length,
+        rejectedCount: decision.resolutions.length - decision.acceptedApplications.length,
+      }),
+    );
+  }
 }
 
 export function handleAgentEatCommand(input: {
@@ -490,24 +948,108 @@ export function handleAgentMoveToCommand(input: {
     return rejectCommand(input, 'AgentMoveTo', `agent already at ${payload.targetLocationId}`);
   }
 
-  return [
-    makeEvent(input, 0, 'AgentLocationChanged', {
-      agentId: agent.agentId,
-      previousLocationId: agent.locationId,
-      nextLocationId: payload.targetLocationId,
-      reason: payload.reason ?? 'move',
-    }),
-    makeMemoryEvent(input, 1, {
-      summary: `Moved to ${targetLocation.name}.`,
+  const destinationOccupancy = Object.values(input.projection.agents).filter(
+    (candidate) => candidate.locationId === payload.targetLocationId,
+  ).length;
+  const destinationReservations = Object.values(input.projection.transitByAgent ?? {}).filter(
+    (transit) => transit.toLocationId === payload.targetLocationId,
+  ).length;
+  const destinationCapacityUsage = destinationOccupancy + destinationReservations;
+  if (targetLocation.capacity !== null && destinationCapacityUsage >= targetLocation.capacity) {
+    return rejectCommand(
+      input,
+      'AgentMoveTo',
+      `target location ${payload.targetLocationId} is at capacity ${targetLocation.capacity}`,
+    );
+  }
+  const route = resolveSpatialRoute({
+    locations: input.projection.locations,
+    fromLocationId: agent.locationId,
+    toLocationId: payload.targetLocationId,
+    destinationOccupancy: destinationCapacityUsage,
+  });
+  if (route === null) {
+    return rejectCommand(
+      input,
+      'AgentMoveTo',
+      `no route from ${agent.locationId ?? 'unplaced'} to ${payload.targetLocationId}`,
+    );
+  }
+  const usesSpatialGraph =
+    targetLocation.connections !== undefined ||
+    (agent.locationId !== null &&
+      input.projection.locations[agent.locationId]?.connections !== undefined);
+
+  const events: WorldEvent[] = [];
+  if (usesSpatialGraph && route.travelDurationSeconds > 0 && agent.locationId !== null) {
+    events.push(
+      makeEvent(input, events.length, 'AgentTravelStarted', {
+        agentId: agent.agentId,
+        fromLocationId: agent.locationId,
+        toLocationId: payload.targetLocationId,
+        routeLocationIds: route.locationIds,
+        spatialPolicyVersion: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
+        baseTravelDurationSeconds: route.baseTravelDurationSeconds,
+        congestionMultiplier: route.congestionMultiplier,
+        travelDurationSeconds: route.travelDurationSeconds,
+        departedAt: input.projection.clock.now,
+        arrivesAt: input.projection.clock.now + route.travelDurationSeconds * 1000,
+        reason: payload.reason ?? 'move',
+      }),
+    );
+  } else {
+    events.push(
+      makeEvent(input, events.length, 'AgentLocationChanged', {
+        agentId: agent.agentId,
+        previousLocationId: agent.locationId,
+        nextLocationId: payload.targetLocationId,
+        reason: payload.reason ?? 'move',
+        ...(usesSpatialGraph
+          ? {
+              spatialPolicyVersion: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
+              routeLocationIds: route.locationIds,
+              baseTravelDurationSeconds: route.baseTravelDurationSeconds,
+              congestionMultiplier: route.congestionMultiplier,
+              travelDurationSeconds: route.travelDurationSeconds,
+            }
+          : {}),
+      }),
+    );
+  }
+  if (route.travelDurationSeconds > 0) {
+    events.push(
+      makeAgentActivityTimeCommittedEvent(input, events.length, {
+        agentId: agent.agentId,
+        activity: 'travel',
+        commandType: 'AgentMoveTo',
+        durationSeconds: route.travelDurationSeconds,
+        settlementTiming: 'effects-at-completion',
+      }),
+    );
+  }
+  events.push(
+    makeMemoryEvent(input, events.length, {
+      summary:
+        route.travelDurationSeconds === 0
+          ? `Moved to ${targetLocation.name}.`
+          : `Started traveling to ${targetLocation.name}; arrival is due in ${route.travelDurationSeconds} seconds via ${route.locationIds.join(' -> ')}.`,
       status: 'succeeded',
-      tags: ['move', payload.targetLocationId, targetLocation.kind],
+      tags: [
+        'move',
+        payload.targetLocationId,
+        targetLocation.kind,
+        ...(usesSpatialGraph ? [TOWN_SPATIAL_GRAPH_POLICY_VERSION] : []),
+      ],
       consolidationHint: {
         kind: 'habit',
         patternKey: `move:${payload.targetLocationId}`,
-        statement: `Moves to ${targetLocation.name} when the current plan requires ${targetLocation.kind} activities.`,
+        statement: usesSpatialGraph
+          ? `Travels to ${targetLocation.name} when the current plan requires ${targetLocation.kind} activities; the route costs ${route.travelDurationSeconds} seconds under current congestion.`
+          : `Moves to ${targetLocation.name} when the current plan requires ${targetLocation.kind} activities.`,
       },
     }),
-  ];
+  );
+  return events;
 }
 
 export function handleAgentObserveLocationCommand(input: {
@@ -645,13 +1187,33 @@ export function handleAgentStartConversationCommand(input: {
     ...(turn.intent === undefined ? {} : { intent: turn.intent }),
   }));
   const summary = formatConversationSummary(payload.topic, turns);
+  const outcomeTurns = verifyConversationCommitmentSignals({
+    projection: input.projection,
+    participantAgentIds,
+    topic: payload.topic,
+    turns,
+  });
+  const socialOutcomes = evaluateConversationSocialOutcomes({
+    initiatorAgentId: agent.agentId,
+    targetAgentId: targetAgent.agentId,
+    turns: outcomeTurns,
+  });
+  const knowledgeClaims = extractSocialKnowledgeClaims(payload.topic, turns);
+  const sourceKnowledgeClaims = knowledgeClaims.filter(
+    (claim) => claim.sourceAgentId === targetAgent.agentId,
+  );
+  const targetKnowledgeClaims = knowledgeClaims.filter(
+    (claim) => claim.sourceAgentId === agent.agentId,
+  );
   const sourceRelation = planSocialInteractionEvent({
     projection: input.projection,
     sourceAgentId: agent.agentId,
     targetAgentId: targetAgent.agentId,
     summary,
-    relationDelta: payload.relationDelta,
-    attitudeDelta: payload.attitudeDelta,
+    relationDelta: socialOutcomes.initiatorToTarget.relationDelta,
+    attitudeDelta: socialOutcomes.initiatorToTarget.attitudeDelta,
+    outcomePolicyVersion: socialOutcomes.policyVersion,
+    outcomeSignals: socialOutcomes.initiatorToTarget.signals,
   });
   if (sourceRelation.status === 'invalid') {
     return rejectCommand(input, 'AgentStartConversation', sourceRelation.reason);
@@ -661,8 +1223,10 @@ export function handleAgentStartConversationCommand(input: {
     sourceAgentId: targetAgent.agentId,
     targetAgentId: agent.agentId,
     summary,
-    relationDelta: payload.relationDelta,
-    attitudeDelta: payload.attitudeDelta,
+    relationDelta: socialOutcomes.targetToInitiator.relationDelta,
+    attitudeDelta: socialOutcomes.targetToInitiator.attitudeDelta,
+    outcomePolicyVersion: socialOutcomes.policyVersion,
+    outcomeSignals: socialOutcomes.targetToInitiator.signals,
   });
   if (targetRelation.status === 'invalid') {
     return rejectCommand(input, 'AgentStartConversation', targetRelation.reason);
@@ -685,13 +1249,22 @@ export function handleAgentStartConversationCommand(input: {
       summary,
       status: 'succeeded',
       sourceEventOffsets: [0, 1, 2],
-      tags: stableUnique(['conversation', payload.topic, targetAgent.agentId, location.locationId]),
+      tags: stableUnique([
+        'conversation',
+        payload.topic,
+        targetAgent.agentId,
+        location.locationId,
+        ...socialOutcomes.initiatorToTarget.signals,
+      ]),
       consolidationHint: {
         kind: 'social',
         targetAgentId: targetAgent.agentId,
-        relationDelta: payload.relationDelta,
-        attitudeDelta: payload.attitudeDelta,
+        relationDelta: socialOutcomes.initiatorToTarget.relationDelta,
+        attitudeDelta: socialOutcomes.initiatorToTarget.attitudeDelta,
         summary,
+        outcomePolicyVersion: socialOutcomes.policyVersion,
+        outcomeSignals: socialOutcomes.initiatorToTarget.signals,
+        knowledgeClaims: sourceKnowledgeClaims,
       },
     }),
     makeMemoryEvent(input, 4, {
@@ -700,13 +1273,129 @@ export function handleAgentStartConversationCommand(input: {
       summary,
       status: 'succeeded',
       sourceEventOffsets: [0, 1, 2],
-      tags: stableUnique(['conversation', payload.topic, agent.agentId, location.locationId]),
+      tags: stableUnique([
+        'conversation',
+        payload.topic,
+        agent.agentId,
+        location.locationId,
+        ...socialOutcomes.targetToInitiator.signals,
+      ]),
       consolidationHint: {
         kind: 'social',
         targetAgentId: agent.agentId,
-        relationDelta: payload.relationDelta,
-        attitudeDelta: payload.attitudeDelta,
+        relationDelta: socialOutcomes.targetToInitiator.relationDelta,
+        attitudeDelta: socialOutcomes.targetToInitiator.attitudeDelta,
         summary,
+        outcomePolicyVersion: socialOutcomes.policyVersion,
+        outcomeSignals: socialOutcomes.targetToInitiator.signals,
+        knowledgeClaims: targetKnowledgeClaims,
+      },
+    }),
+  ];
+}
+
+export function handleAgentGiveResourceCommand(input: {
+  readonly command: CommandEnvelope<'AgentGiveResource', unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const sourceAgent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() => assertAgentGiveResourcePayload(input.command.payload));
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentGiveResource', payloadResult.reason);
+  }
+  const payload = payloadResult.payload;
+  const targetAgent = input.projection.agents[payload.targetAgentId];
+  if (targetAgent === undefined) {
+    return rejectCommand(
+      input,
+      'AgentGiveResource',
+      `unknown target agent ${payload.targetAgentId}`,
+    );
+  }
+  if (sourceAgent.agentId === targetAgent.agentId) {
+    return rejectCommand(input, 'AgentGiveResource', 'resource transfer target must differ');
+  }
+  if (
+    sourceAgent.locationId === null ||
+    targetAgent.locationId === null ||
+    sourceAgent.locationId !== targetAgent.locationId
+  ) {
+    return rejectCommand(
+      input,
+      'AgentGiveResource',
+      'resource transfer participants must be co-located at a known location',
+    );
+  }
+  const availableQuantity = getInventoryQuantity(sourceAgent.inventory, payload.commodityName);
+  if (availableQuantity < payload.quantity) {
+    return rejectCommand(
+      input,
+      'AgentGiveResource',
+      `insufficient ${payload.commodityName}: required ${payload.quantity}, available ${availableQuantity}`,
+    );
+  }
+
+  const socialOutcome = evaluateResourceTransferSocialOutcome({
+    recipientAgentId: targetAgent.agentId,
+    providerAgentId: sourceAgent.agentId,
+    quantity: payload.quantity,
+  });
+  const summary = `${sourceAgent.agentId} gave ${payload.quantity} ${payload.commodityName} to ${targetAgent.agentId}${
+    payload.note === undefined ? '.' : `: ${payload.note}`
+  }`;
+  const recipientRelation = planSocialInteractionEvent({
+    projection: input.projection,
+    sourceAgentId: targetAgent.agentId,
+    targetAgentId: sourceAgent.agentId,
+    summary,
+    relationDelta: socialOutcome.relationDelta,
+    attitudeDelta: socialOutcome.attitudeDelta,
+    outcomePolicyVersion: socialOutcome.policyVersion,
+    outcomeSignals: socialOutcome.signals,
+  });
+  if (recipientRelation.status === 'invalid') {
+    return rejectCommand(input, 'AgentGiveResource', recipientRelation.reason);
+  }
+
+  return [
+    makeEvent(input, 0, 'ResourceTransferred', {
+      sourceAgentId: sourceAgent.agentId,
+      targetAgentId: targetAgent.agentId,
+      commodityName: payload.commodityName,
+      quantity: payload.quantity,
+      ...(payload.note === undefined ? {} : { note: payload.note }),
+    }),
+    makeEvent(input, 1, 'SocialInteractionCompleted', recipientRelation.payload),
+    makeMemoryEvent(input, 2, {
+      agentId: sourceAgent.agentId,
+      kind: 'action',
+      summary,
+      status: 'succeeded',
+      sourceEventOffsets: [0, 1],
+      tags: ['resource-transfer', 'provided-help', payload.commodityName, targetAgent.agentId],
+    }),
+    makeMemoryEvent(input, 3, {
+      agentId: targetAgent.agentId,
+      kind: 'social-interaction',
+      summary,
+      status: 'succeeded',
+      sourceEventOffsets: [0, 1],
+      tags: [
+        'resource-transfer',
+        'received-help',
+        payload.commodityName,
+        sourceAgent.agentId,
+        ...socialOutcome.signals,
+      ],
+      consolidationHint: {
+        kind: 'social',
+        targetAgentId: sourceAgent.agentId,
+        relationDelta: socialOutcome.relationDelta,
+        attitudeDelta: socialOutcome.attitudeDelta,
+        summary,
+        outcomePolicyVersion: socialOutcome.policyVersion,
+        outcomeSignals: socialOutcome.signals,
       },
     }),
   ];
@@ -715,6 +1404,7 @@ export function handleAgentStartConversationCommand(input: {
 export function handleAgentStudyCommand(input: {
   readonly command: CommandEnvelope<'AgentStudy', unknown>;
   readonly projection: WorldProjection;
+  readonly educationInvestment?: EducationInvestmentPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -723,21 +1413,67 @@ export function handleAgentStudyCommand(input: {
     return rejectCommand(input, 'AgentStudy', payloadResult.reason);
   }
 
+  const investment =
+    input.educationInvestment === undefined
+      ? undefined
+      : evaluateEducationInvestment({
+          agent: {
+            balance: agent.balance,
+            inventory: agent.inventory,
+          },
+          studyDurationSeconds: payloadResult.payload.durationSeconds,
+          policy: input.educationInvestment,
+        });
+  if (investment?.status === 'rejected') {
+    return rejectCommand(input, 'AgentStudy', investment.detail);
+  }
+
   const nextEducationScore = accumulateEducation({
     currentEducationScore: agent.educationScore,
     educationRatePerSecond: payloadResult.payload.educationRatePerSecond,
     studyDurationSeconds: payloadResult.payload.durationSeconds,
   });
 
-  return [
-    makeEvent(input, 0, 'EducationChanged', {
+  const events: WorldEvent[] = [];
+  if (investment !== undefined) {
+    events.push(
+      makeEvent(input, events.length, 'EducationInvestmentPaid', {
+        agentId: agent.agentId,
+        durationSeconds: payloadResult.payload.durationSeconds,
+        currencyCost: investment.currencyCost,
+        previousBalance: investment.previousBalance,
+        nextBalance: investment.nextBalance,
+        consumedInventory: investment.consumedInventory,
+        reason: 'study-investment',
+      }),
+    );
+  }
+  events.push(
+    makeEvent(input, events.length, 'EducationChanged', {
       agentId: agent.agentId,
       previousEducationScore: agent.educationScore,
       nextEducationScore,
       reason: 'study',
     }),
-    makeMemoryEvent(input, 1, {
-      summary: `Studied for ${payloadResult.payload.durationSeconds} seconds.`,
+  );
+  events.push(
+    makeAgentActivityTimeCommittedEvent(input, events.length, {
+      agentId: agent.agentId,
+      activity: 'education',
+      commandType: 'AgentStudy',
+      durationSeconds: payloadResult.payload.durationSeconds,
+    }),
+  );
+  events.push(
+    makeMemoryEvent(input, events.length, {
+      summary:
+        investment === undefined
+          ? `Studied for ${payloadResult.payload.durationSeconds} seconds.`
+          : createStudyInvestmentSummary({
+              durationSeconds: payloadResult.payload.durationSeconds,
+              currencyCost: investment.currencyCost,
+              consumedInventory: investment.consumedInventory,
+            }),
       status: 'succeeded',
       tags: ['study'],
       consolidationHint: {
@@ -746,7 +1482,24 @@ export function handleAgentStudyCommand(input: {
         statement: 'Studies to improve education score.',
       },
     }),
-  ];
+  );
+  return events;
+}
+
+function createStudyInvestmentSummary(input: {
+  readonly durationSeconds: number;
+  readonly currencyCost: number;
+  readonly consumedInventory: Readonly<Record<string, number>>;
+}): string {
+  const resourceSummary = Object.entries(input.consumedInventory)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([itemName, quantity]) => `${quantity} ${itemName}`)
+    .join(', ');
+  const investmentSummary = [
+    `${input.currencyCost} currency`,
+    ...(resourceSummary.length === 0 ? [] : [resourceSummary]),
+  ].join(' and ');
+  return `Studied for ${input.durationSeconds} seconds by investing ${investmentSummary}.`;
 }
 
 export function handleAgentSleepCommand(input: {
@@ -791,7 +1544,13 @@ export function handleAgentSleepCommand(input: {
       next: physiologyResult.payload,
       reason: 'sleep',
     }),
-    makeMemoryEvent(input, 1, {
+    makeAgentActivityTimeCommittedEvent(input, 1, {
+      agentId: agent.agentId,
+      activity: 'sleep',
+      commandType: 'AgentSleep',
+      durationSeconds: payloadResult.payload.durationSeconds,
+    }),
+    makeMemoryEvent(input, 2, {
       summary: `Slept for ${payloadResult.payload.durationSeconds} seconds.`,
       status: 'succeeded',
       tags: ['sleep'],
@@ -869,6 +1628,14 @@ export function handleAgentSeeDoctorCommand(input: {
       previous: agent.physiology,
       next: physiologyResult.payload,
       reason: 'see-doctor',
+    }),
+  );
+  events.push(
+    makeAgentActivityTimeCommittedEvent(input, events.length, {
+      agentId: agent.agentId,
+      activity: 'healthcare',
+      commandType: 'AgentSeeDoctor',
+      durationSeconds: payloadResult.payload.durationSeconds,
     }),
   );
   events.push(
@@ -950,7 +1717,13 @@ export function handleAgentWorkCommand(input: {
       next: nextPhysiology,
       reason: 'work',
     }),
-    makeMemoryEvent(input, 2, {
+    makeAgentActivityTimeCommittedEvent(input, 2, {
+      agentId: agent.agentId,
+      activity: 'labor',
+      commandType: 'AgentWork',
+      durationSeconds: payload.laborSeconds,
+    }),
+    makeMemoryEvent(input, 3, {
       summary: `Worked as ${payload.occupationName} for ${payload.laborSeconds} seconds.`,
       status: 'succeeded',
       tags: ['work', payload.occupationName],
@@ -966,6 +1739,7 @@ export function handleAgentWorkCommand(input: {
 export function handleAgentProduceCommand(input: {
   readonly command: CommandEnvelope<'AgentProduce', unknown>;
   readonly projection: WorldProjection;
+  readonly randomSeed?: string;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   readonly productionEfficiency?: ProductionEfficiencyPolicy;
   readonly criticalThresholds?: {
@@ -1032,7 +1806,13 @@ export function handleAgentProduceCommand(input: {
         ? {}
         : { productionEfficiency: productionPlan.productionEfficiency }),
     }),
-    makeMemoryEvent(input, 1, {
+    makeAgentActivityTimeCommittedEvent(input, 1, {
+      agentId: agent.agentId,
+      activity: 'production',
+      commandType: 'AgentProduce',
+      durationSeconds: productionPlan.laborSeconds,
+    }),
+    makeMemoryEvent(input, 2, {
       summary: `Produced ${payload.quantity} ${payload.commodityName}.`,
       status: 'succeeded',
       tags: ['produce', payload.commodityName],
@@ -1048,6 +1828,7 @@ export function handleAgentProduceCommand(input: {
 export function handleAgentTradeCommand(input: {
   readonly command: CommandEnvelope<'AgentTrade', unknown>;
   readonly projection: WorldProjection;
+  readonly activityDurationSeconds?: number;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -1083,6 +1864,7 @@ export function handleAgentTradeCommand(input: {
       payload.quantity,
       currencyRequired,
       tradeResult.payload,
+      input.activityDurationSeconds,
     );
   }
 
@@ -1107,6 +1889,7 @@ export function handleAgentTradeCommand(input: {
     payload.quantity,
     -tradeResult.payload.currencyDelta,
     tradeResult.payload,
+    input.activityDurationSeconds,
   );
 }
 
@@ -1115,6 +1898,7 @@ export function handleAgentApplyJobCommand(input: {
   readonly projection: WorldProjection;
   readonly populationEducationScores: readonly number[];
   readonly quotaByResidentialTier: readonly number[];
+  readonly recruitmentCycle?: RecruitmentCyclePolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -1133,9 +1917,19 @@ export function handleAgentApplyJobCommand(input: {
     return rejectCommand(input, 'AgentApplyJob', quotaResult.reason);
   }
 
-  const usedApplications = input.projection.jobApplications.filter(
-    (application) => application.agentId === agent.agentId,
-  ).length;
+  const cycleNumber =
+    input.recruitmentCycle === undefined
+      ? 0
+      : calculateRecruitmentCycleNumber({
+          simulationTime: input.projection.clock.now,
+          cycleDurationMs: input.recruitmentCycle.cycleDurationMs,
+        });
+  const applicationsInQuotaWindow = input.projection.jobApplications.filter(
+    (application) =>
+      application.agentId === agent.agentId &&
+      (input.recruitmentCycle === undefined || application.cycleNumber === cycleNumber),
+  );
+  const usedApplications = applicationsInQuotaWindow.length;
   if (usedApplications >= quotaResult.payload) {
     return rejectCommand(
       input,
@@ -1145,6 +1939,18 @@ export function handleAgentApplyJobCommand(input: {
   }
 
   const payload = payloadResult.payload;
+  if (
+    input.recruitmentCycle !== undefined &&
+    applicationsInQuotaWindow.some(
+      (application) => application.occupationName === payload.occupationName,
+    )
+  ) {
+    return rejectCommand(
+      input,
+      'AgentApplyJob',
+      `duplicate application for ${payload.occupationName} in recruitment cycle ${cycleNumber}`,
+    );
+  }
   const applicationResult = parsePayload(() =>
     evaluateOccupationApplication({
       occupationName: payload.occupationName,
@@ -1179,16 +1985,39 @@ export function handleAgentApplyJobCommand(input: {
       }),
     );
   const baseOffset = prerequisiteEvents.length;
+  const applicationId = `${input.command.id}:application`;
+  const submittedEvent = makeEvent(input, baseOffset, 'JobApplicationSubmitted', {
+    applicationId,
+    cycleNumber,
+    agentId: agent.agentId,
+    occupationName: payload.occupationName,
+    residentialTier: agent.residentialTier,
+    educationScore: agent.educationScore,
+  });
+
+  if (input.recruitmentCycle !== undefined) {
+    return [
+      ...prerequisiteEvents,
+      submittedEvent,
+      makeMemoryEvent(input, baseOffset + 1, {
+        summary: `Submitted an application for ${payload.occupationName} in recruitment cycle ${cycleNumber}.`,
+        status: 'succeeded',
+        tags: ['apply-job', payload.occupationName, `recruitment-cycle:${cycleNumber}`],
+        consolidationHint: {
+          kind: 'habit',
+          patternKey: `apply-job:${payload.occupationName}`,
+          statement: `Applies for ${payload.occupationName} when qualified.`,
+        },
+      }),
+    ];
+  }
 
   return [
     ...prerequisiteEvents,
-    makeEvent(input, baseOffset, 'JobApplicationSubmitted', {
-      agentId: agent.agentId,
-      occupationName: payload.occupationName,
-      residentialTier: agent.residentialTier,
-      educationScore: agent.educationScore,
-    }),
+    submittedEvent,
     makeEvent(input, baseOffset + 1, 'JobAssigned', {
+      applicationId,
+      cycleNumber,
       agentId: agent.agentId,
       occupationName: payload.occupationName,
       previousJob: agent.job,
@@ -1338,6 +2167,8 @@ function planSocialInteractionEvent(input: {
   readonly summary: string;
   readonly relationDelta: number;
   readonly attitudeDelta: number;
+  readonly outcomePolicyVersion?: string;
+  readonly outcomeSignals?: readonly string[];
 }):
   | {
       readonly status: 'valid';
@@ -1380,6 +2211,10 @@ function planSocialInteractionEvent(input: {
       summary: input.summary.trim(),
       relationDelta: input.relationDelta,
       attitudeDelta: input.attitudeDelta,
+      ...(input.outcomePolicyVersion === undefined
+        ? {}
+        : { outcomePolicyVersion: input.outcomePolicyVersion }),
+      ...(input.outcomeSignals === undefined ? {} : { outcomeSignals: [...input.outcomeSignals] }),
       nextRelation: relationResult.payload,
     },
   };
@@ -1390,6 +2225,114 @@ function formatConversationSummary(
   turns: readonly { readonly utterance: string }[],
 ): string {
   return `Conversation about ${topic}: ${turns.map((turn) => turn.utterance).join(' / ')}`;
+}
+
+function extractSocialKnowledgeClaims(
+  topic: string,
+  turns: readonly {
+    readonly speakerAgentId: AgentId;
+    readonly utterance: string;
+    readonly intent?: string;
+  }[],
+): readonly SocialKnowledgeClaim[] {
+  return turns.flatMap((turn) => {
+    const status = resolveKnowledgeClaimStatus(turn.intent);
+    return status === undefined
+      ? []
+      : [
+          {
+            sourceAgentId: turn.speakerAgentId,
+            topic,
+            statement: turn.utterance,
+            status,
+          },
+        ];
+  });
+}
+
+function verifyConversationCommitmentSignals(input: {
+  readonly projection: WorldProjection;
+  readonly participantAgentIds: readonly [AgentId, AgentId];
+  readonly topic: string;
+  readonly turns: readonly {
+    readonly turnIndex: number;
+    readonly speakerAgentId: AgentId;
+    readonly utterance: string;
+    readonly intent?: string;
+  }[];
+}) {
+  const openCommitmentByPromisor = new Map<AgentId, boolean>();
+  for (const promisorAgentId of input.participantAgentIds) {
+    openCommitmentByPromisor.set(
+      promisorAgentId,
+      hasOpenConversationCommitment({
+        projection: input.projection,
+        participantAgentIds: input.participantAgentIds,
+        topic: input.topic,
+        promisorAgentId,
+      }),
+    );
+  }
+
+  return input.turns.map((turn) => {
+    const intent = normalizeSocialIntent(turn.intent);
+    const requiresOpenCommitment = isCommitmentResolutionIntent(intent);
+    const hasOpenCommitment = openCommitmentByPromisor.get(turn.speakerAgentId) ?? false;
+    if (requiresOpenCommitment && !hasOpenCommitment) {
+      return { ...turn, intent: 'unverified-social-claim' };
+    }
+    if (requiresOpenCommitment) {
+      openCommitmentByPromisor.set(turn.speakerAgentId, false);
+    }
+    return turn;
+  });
+}
+
+function hasOpenConversationCommitment(input: {
+  readonly projection: WorldProjection;
+  readonly participantAgentIds: readonly [AgentId, AgentId];
+  readonly topic: string;
+  readonly promisorAgentId: AgentId;
+}): boolean {
+  return Object.values(input.projection.socialCommitments).some(
+    (commitment) =>
+      commitment.status === 'open' &&
+      commitment.promisorAgentId === input.promisorAgentId &&
+      commitment.topic === input.topic &&
+      input.participantAgentIds.includes(commitment.beneficiaryAgentId),
+  );
+}
+
+function normalizeSocialIntent(intent: string | undefined): string {
+  return intent?.trim().toLowerCase().replaceAll('_', '-') ?? '';
+}
+
+function isCommitmentResolutionIntent(intent: string): boolean {
+  const commitmentIntent = classifySocialCommitmentIntent(intent);
+  return commitmentIntent === 'fulfilled' || commitmentIntent === 'breached';
+}
+
+function resolveKnowledgeClaimStatus(
+  intent: string | undefined,
+): SocialKnowledgeClaimStatus | undefined {
+  const normalized = intent?.trim().toLowerCase().replaceAll('_', '-') ?? '';
+  if (containsAnySignal(normalized, ['misinform', 'deceive', 'lie'])) {
+    return 'suspected-misinformation';
+  }
+  if (containsAnySignal(normalized, ['correct-information', 'correct-claim'])) {
+    return 'corrected';
+  }
+  if (containsAnySignal(normalized, ['dispute-information', 'dispute-claim'])) {
+    return 'disputed';
+  }
+  if (containsAnySignal(normalized, ['share-information', 'assert-claim', 'report-fact'])) {
+    return 'asserted';
+  }
+  return undefined;
+}
+
+function containsAnySignal(value: string, signals: readonly string[]): boolean {
+  return signals.some((signal) => value.includes(signal));
 }
 
 function validateKnownCoLocation(
@@ -1417,8 +2360,10 @@ function createTradeEvents(
   commodityQuantity: number,
   currencyQuantity: number,
   tradeResult: AmmTradeResult,
+  activityDurationSeconds: number | undefined,
 ): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
+  const memoryOffset = activityDurationSeconds === undefined ? 1 : 2;
 
   return [
     makeEvent(input, 0, 'TradeExecuted', {
@@ -1436,7 +2381,17 @@ function createTradeEvents(
       invariantBefore: tradeResult.invariantBefore,
       invariantAfter: tradeResult.invariantAfter,
     }),
-    makeMemoryEvent(input, 1, {
+    ...(activityDurationSeconds === undefined
+      ? []
+      : [
+          makeAgentActivityTimeCommittedEvent(input, 1, {
+            agentId: agent.agentId,
+            activity: 'trade',
+            commandType: 'AgentTrade',
+            durationSeconds: activityDurationSeconds,
+          }),
+        ]),
+    makeMemoryEvent(input, memoryOffset, {
       summary: `${side === 'buy' ? 'Bought' : 'Sold'} ${commodityQuantity} ${commodityName}.`,
       status: 'succeeded',
       tags: ['trade', side, commodityName],
@@ -1499,6 +2454,23 @@ function rejectCommand(
       },
     }),
   ];
+}
+
+function rejectBusyAgentCommand(input: {
+  readonly command: CommandEnvelope<CoreCommandType, unknown>;
+  readonly projection: WorldProjection;
+  readonly nextSequence: number;
+}): WorldEvent[] | undefined {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const activeActivity = input.projection.activityTimeByAgent[agent.agentId];
+  if (activeActivity === undefined || input.projection.clock.now >= activeActivity.availableAt) {
+    return undefined;
+  }
+  return rejectCommand(
+    input,
+    input.command.type,
+    `agent is busy with ${activeActivity.activity} until simulation time ${activeActivity.availableAt} (now ${input.projection.clock.now})`,
+  );
 }
 
 function makeMemoryEvent(
@@ -1648,6 +2620,7 @@ function createStochasticIllnessSeed(input: {
 }): string {
   return [
     'stochastic-illness',
+    ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
     input.input.command.simulationId,
     input.input.command.id,
     input.input.projection.clock.now,
@@ -1663,6 +2636,7 @@ function createProductionRewardSeed(input: {
 }): string {
   return [
     'production-reward',
+    ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
     input.input.command.simulationId,
     input.input.command.id,
     input.input.projection.clock.now,
@@ -1690,4 +2664,64 @@ function makeEvent<TType extends WorldEvent['type']>(
     occurredAt: input.command.issuedAt,
     sequence: input.nextSequence + offset,
   }) as unknown as Extract<WorldEvent, { readonly type: TType }>;
+}
+
+function makeAgentActivityTimeCommittedEvent(
+  input: {
+    readonly command: CommandEnvelope<CoreCommandType, unknown>;
+    readonly projection: WorldProjection;
+    readonly nextSequence: number;
+  },
+  offset: number,
+  activity: {
+    readonly agentId: AgentId;
+    readonly activity: AgentActivityKind;
+    readonly commandType: CoreCommandType;
+    readonly durationSeconds: number;
+    readonly settlementTiming?: AgentActivityTimeCommittedPayload['settlementTiming'];
+  },
+): Extract<WorldEvent, { readonly type: 'AgentActivityTimeCommitted' }> {
+  if (!Number.isFinite(activity.durationSeconds) || activity.durationSeconds < 0) {
+    throw new Error('agent activity durationSeconds must be non-negative finite');
+  }
+  const availableAt = input.projection.clock.now + activity.durationSeconds * 1000;
+  if (!Number.isFinite(availableAt)) {
+    throw new Error('agent activity availableAt must be finite');
+  }
+  return makeEvent(input, offset, 'AgentActivityTimeCommitted', {
+    ...activity,
+    policyVersion: EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
+    settlementTiming: activity.settlementTiming ?? 'effects-at-commit',
+    startedAt: input.projection.clock.now,
+    availableAt,
+  });
+}
+
+function appendCompletedTravelArrivals(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly nextSimulationTime: number;
+}): void {
+  const completed = Object.values(input.input.projection.transitByAgent ?? {})
+    .filter((transit) => transit.arrivesAt <= input.nextSimulationTime)
+    .sort((left, right) =>
+      left.arrivesAt === right.arrivesAt
+        ? left.agentId.localeCompare(right.agentId)
+        : left.arrivesAt - right.arrivesAt,
+    );
+  for (const transit of completed) {
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'AgentLocationChanged', {
+        agentId: transit.agentId,
+        previousLocationId: transit.fromLocationId,
+        nextLocationId: transit.toLocationId,
+        reason: 'travel-arrival',
+        spatialPolicyVersion: transit.spatialPolicyVersion,
+        routeLocationIds: transit.routeLocationIds,
+        baseTravelDurationSeconds: transit.baseTravelDurationSeconds,
+        congestionMultiplier: transit.congestionMultiplier,
+        travelDurationSeconds: transit.travelDurationSeconds,
+      }),
+    );
+  }
 }

@@ -5,6 +5,7 @@ import { createBranchPlan, type PrioritizedSubtask } from './planner';
 import {
   applySocialDialogueProposal,
   createDeterministicSocialDialogueGenerationResult,
+  createSocialDialoguePolicyManifest,
   type SocialDialoguePayload,
 } from './socialDialogueGeneration';
 
@@ -42,6 +43,16 @@ const deterministicPayload: SocialDialoguePayload = {
       utterance: 'I heard it was still manageable near the market.',
       intent: 'share-market-rumor',
     },
+    {
+      speakerAgentId: agentId,
+      utterance: 'Could we compare notes after the afternoon market closes?',
+      intent: 'propose-follow-up',
+    },
+    {
+      speakerAgentId: targetAgentId,
+      utterance: 'Yes, I will write down the prices I see and meet you here.',
+      intent: 'confirm-follow-up',
+    },
   ],
 };
 const action: AtomicActionProposal<'AgentStartConversation', SocialDialoguePayload> = {
@@ -73,8 +84,10 @@ describe('social dialogue generation contract', () => {
         selectedSubtask: { branchId: 'social', subtaskId: 'check-in' },
         actionId: 'social-check-in',
         targetAgentId: 'agent-2',
-        turnCount: 2,
-        rationale: 'deterministic social dialogue fallback payload',
+        topic: 'neighborhood food prices',
+        policyVersion: 'bounded-social-dialogue-v1',
+        turnCount: 4,
+        rationale: 'bounded-social-dialogue-v1; deterministic bounded dialogue',
       },
     });
   });
@@ -105,6 +118,11 @@ describe('social dialogue generation contract', () => {
             utterance: 'Great, we can share notes before dinner.',
             intent: 'confirm-plan',
           },
+          {
+            speakerAgentId: targetAgentId,
+            utterance: 'Agreed, I will bring the prices I record.',
+            intent: 'accept-plan',
+          },
         ],
       },
     });
@@ -112,8 +130,8 @@ describe('social dialogue generation contract', () => {
     expect(result).toEqual({
       targetAgentId,
       topic: 'splitting market errands',
-      relationDelta: 0.08,
-      attitudeDelta: 0.04,
+      relationDelta: 0.05,
+      attitudeDelta: 0.02,
       turns: [
         {
           speakerAgentId: agentId,
@@ -129,6 +147,11 @@ describe('social dialogue generation contract', () => {
           speakerAgentId: agentId,
           utterance: 'Great, we can share notes before dinner.',
           intent: 'confirm-plan',
+        },
+        {
+          speakerAgentId: targetAgentId,
+          utterance: 'Agreed, I will bring the prices I record.',
+          intent: 'accept-plan',
         },
       ],
     });
@@ -147,6 +170,11 @@ describe('social dialogue generation contract', () => {
           {
             speakerAgentId: targetAgentId,
             utterance: 'Yes, I will tell you what I find near the stalls.',
+          },
+          { speakerAgentId: agentId, utterance: 'I will record the fish prices I see.' },
+          {
+            speakerAgentId: targetAgentId,
+            utterance: 'Then I will record the grain prices for comparison.',
           },
         ],
       },
@@ -168,6 +196,8 @@ describe('social dialogue generation contract', () => {
           turns: [
             { speakerAgentId: agentId, utterance: 'Hello.' },
             { speakerAgentId: asAgentId('agent-3'), utterance: 'I should not be here.' },
+            { speakerAgentId: agentId, utterance: 'This is still invalid.' },
+            { speakerAgentId: targetAgentId, utterance: 'This will not be reached.' },
           ],
         },
       }),
@@ -186,13 +216,15 @@ describe('social dialogue generation contract', () => {
           turns: [
             { speakerAgentId: targetAgentId, utterance: 'I started this unexpectedly.' },
             { speakerAgentId: agentId, utterance: 'This should not pass.' },
+            { speakerAgentId: targetAgentId, utterance: 'Nor should this.' },
+            { speakerAgentId: agentId, utterance: 'The contract remains invalid.' },
           ],
         },
       }),
     ).toThrow('social dialogue first turn must be spoken by agent-1');
   });
 
-  test('rejects dialogue where one participant never speaks', () => {
+  test('rejects dialogue without strict speaker alternation', () => {
     expect(() =>
       applySocialDialogueProposal({
         agentId,
@@ -204,10 +236,12 @@ describe('social dialogue generation contract', () => {
           turns: [
             { speakerAgentId: agentId, utterance: 'I will talk once.' },
             { speakerAgentId: agentId, utterance: 'I will talk twice.' },
+            { speakerAgentId: agentId, utterance: 'I will talk three times.' },
+            { speakerAgentId: agentId, utterance: 'I will talk four times.' },
           ],
         },
       }),
-    ).toThrow('social dialogue must include at least one turn from agent-2');
+    ).toThrow('social dialogue turns[1] must alternate speakers');
   });
 
   test('rejects empty topics, empty utterances, and non-finite deltas', () => {
@@ -238,6 +272,8 @@ describe('social dialogue generation contract', () => {
           turns: [
             { speakerAgentId: agentId, utterance: 'Hello.' },
             { speakerAgentId: targetAgentId, utterance: '   ' },
+            { speakerAgentId: agentId, utterance: 'This would be the third turn.' },
+            { speakerAgentId: targetAgentId, utterance: 'This would be the fourth turn.' },
           ],
         },
       }),
@@ -259,5 +295,52 @@ describe('social dialogue generation contract', () => {
         },
       }),
     ).toThrow('social dialogue relationDelta must be a finite number');
+  });
+
+  test('publishes and enforces the bounded dialogue policy', () => {
+    expect(createSocialDialoguePolicyManifest()).toEqual({
+      policyVersion: 'bounded-social-dialogue-v1',
+      minimumTurns: 4,
+      maximumTurns: 8,
+      maximumUtteranceLength: 500,
+      speakerRule: 'acting-agent-starts-and-speakers-strictly-alternate',
+      participantRule: 'exactly-acting-and-target-agent',
+      outcomeAuthority: 'world-evaluates-transcript-proposal-deltas-are-compatibility-only',
+      failureRule: 'versioned-deterministic-bounded-dialogue-fallback',
+    });
+
+    expect(() =>
+      applySocialDialogueProposal({
+        agentId,
+        action,
+        deterministicPayload,
+        proposal: {
+          topic: 'too many turns',
+          rationale: 'The policy caps frequent-tick dialogue size.',
+          turns: Array.from({ length: 10 }, (_, index) => ({
+            speakerAgentId: index % 2 === 0 ? agentId : targetAgentId,
+            utterance: `Turn ${index + 1}`,
+          })),
+        },
+      }),
+    ).toThrow('social dialogue turns must contain at most 8 entries');
+
+    expect(() =>
+      applySocialDialogueProposal({
+        agentId,
+        action,
+        deterministicPayload,
+        proposal: {
+          topic: 'overlong turn',
+          rationale: 'The policy caps each utterance.',
+          turns: [
+            { speakerAgentId: agentId, utterance: 'x'.repeat(501) },
+            { speakerAgentId: targetAgentId, utterance: 'Second.' },
+            { speakerAgentId: agentId, utterance: 'Third.' },
+            { speakerAgentId: targetAgentId, utterance: 'Fourth.' },
+          ],
+        },
+      }),
+    ).toThrow('social dialogue turns[0].utterance must contain at most 500 characters');
   });
 });

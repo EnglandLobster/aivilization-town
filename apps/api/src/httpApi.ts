@@ -29,6 +29,7 @@ import type {
   AgentCycleTraceLookupRequest,
   AgentCycleTraceQueryRequest,
 } from './agentCycleTraceApi';
+import type { BranchPlanApiService, BranchPlanQueryRequest } from './branchPlanApi';
 import type {
   RuntimeSupervisorApiService,
   RuntimeSupervisorOperationTraceQuery,
@@ -63,9 +64,17 @@ import type {
   SimulationEventFeedRequest,
   SimulationLifecycleRequest,
   SimulationSyncRequest,
+  SubmitAgentRegistrationRequest,
   SubmitLongHorizonObjectiveRequest,
   SubmitReactiveCommandRequest,
 } from './simulationApi';
+import type { HumanCommandAttribution } from '@aivilization/sim-core';
+import type { TownAuthenticatedPrincipal } from './httpAuthentication';
+import type { SocietyDirectoryApiService } from './societyDirectoryApi';
+import type {
+  SocietyInteractionApiService,
+  SocietyInteractionConversationRequest,
+} from './societyInteractionApi';
 
 export type TownHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -74,6 +83,7 @@ export type TownHttpApiRequest = {
   readonly path: string;
   readonly query?: Readonly<Record<string, string | readonly string[] | undefined>>;
   readonly body?: unknown;
+  readonly principal?: TownAuthenticatedPrincipal;
 };
 
 export type TownHttpApiResponse = {
@@ -138,11 +148,14 @@ export type TownHttpApiServices<
   readonly runtimeDaemon?: RuntimeDaemonApiService<TRuntimeDaemonStatus>;
   readonly runtimeProfileRunReports?: RuntimeProfileRunReportApiService<unknown>;
   readonly agentProfiles?: AgentProfileApiService<unknown>;
+  readonly branchPlans?: BranchPlanApiService<unknown>;
   readonly agentCycleTraces?: AgentCycleTraceApiService<unknown>;
   readonly objectiveRenewalTraces?: ObjectiveRenewalTraceApiService<unknown>;
   readonly dailyPlanRenewalTraces?: DailyPlanRenewalTraceApiService<unknown>;
   readonly steeringTraces?: SteeringTraceApiService<unknown>;
   readonly socialReflectionObservations?: SocialReflectionObservationApiService<unknown>;
+  readonly societyDirectory?: SocietyDirectoryApiService<unknown, unknown>;
+  readonly societyInteractions?: SocietyInteractionApiService<unknown>;
 };
 
 type SimulationRoute = {
@@ -274,11 +287,47 @@ async function routeTownHttpRequest<
   request: TownHttpApiRequest,
 ): Promise<TownHttpApiResponse> {
   const segments = splitPath(request.path);
+  const societyRoute = matchSocietyDirectoryRoute(segments);
+  if (societyRoute !== undefined) {
+    if (societyRoute.action === 'interactions') {
+      if (services.societyInteractions === undefined) {
+        throw new TownHttpApiError(404, 'not_found', 'route not found');
+      }
+      assertMethod(request, 'POST');
+      return jsonResponse(
+        202,
+        await services.societyInteractions.executeSocietyConversation(
+          createSocietyConversationRequest(societyRoute.simulationId, request.body),
+        ),
+      );
+    }
+    if (services.societyDirectory === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    if (societyRoute.agentId === undefined) {
+      return jsonResponse(
+        200,
+        await services.societyDirectory.getSocietyDirectory({
+          simulationId: societyRoute.simulationId,
+        }),
+      );
+    }
+    const agent = await services.societyDirectory.getSocietyAgent({
+      simulationId: societyRoute.simulationId,
+      agentId: societyRoute.agentId,
+    });
+    if (agent === undefined) {
+      throw new TownHttpApiError(404, 'society_agent_not_found', 'society agent not found');
+    }
+    return jsonResponse(200, agent);
+  }
   const simulationRoute = matchSimulationRoute(segments);
   if (simulationRoute !== undefined) {
     return routeSimulationRequest(
       services.simulation,
       services.agentProfiles,
+      services.branchPlans,
       services.agentCycleTraces,
       services.objectiveRenewalTraces,
       services.dailyPlanRenewalTraces,
@@ -304,6 +353,74 @@ async function routeTownHttpRequest<
   throw new TownHttpApiError(404, 'not_found', 'route not found');
 }
 
+function matchSocietyDirectoryRoute(
+  segments: readonly string[],
+):
+  | { readonly simulationId: string; readonly action: 'agents'; readonly agentId?: string }
+  | { readonly simulationId: string; readonly action: 'interactions' }
+  | undefined {
+  if (
+    segments.length === 4 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'society' &&
+    segments[3] === 'interactions'
+  ) {
+    const simulationId = segments[1];
+    return simulationId === undefined
+      ? undefined
+      : { simulationId: decodePathPart(simulationId), action: 'interactions' };
+  }
+  if (
+    (segments.length !== 4 && segments.length !== 5) ||
+    segments[0] !== 'simulations' ||
+    segments[2] !== 'society' ||
+    segments[3] !== 'agents'
+  ) {
+    return undefined;
+  }
+  const simulationId = segments[1];
+  if (simulationId === undefined) return undefined;
+  const agentId = segments[4];
+  return {
+    simulationId: decodePathPart(simulationId),
+    action: 'agents',
+    ...(agentId === undefined ? {} : { agentId: decodePathPart(agentId) }),
+  };
+}
+
+function createSocietyConversationRequest(
+  simulationId: string,
+  body: unknown,
+): SocietyInteractionConversationRequest {
+  const record = requireRecordBody(body);
+  const turns = record['turns'];
+  if (!Array.isArray(turns) || turns.length === 0) {
+    throw new TownHttpApiError(400, 'bad_request', 'turns must be a non-empty array');
+  }
+  return {
+    simulationId,
+    operationId: requireBoundedString(record, 'operationId', 256),
+    initiatorAgentId: requireBoundedString(record, 'initiatorAgentId', 128),
+    targetAgentId: requireBoundedString(record, 'targetAgentId', 128),
+    topic: requireBoundedString(record, 'topic', 512),
+    turns: turns.map((turn, index) => {
+      const turnRecord = requireRecordBody(turn);
+      const intent = turnRecord['intent'];
+      if (intent !== undefined && typeof intent !== 'string') {
+        throw new TownHttpApiError(400, 'bad_request', `turns[${index}].intent must be a string`);
+      }
+      return {
+        speakerAgentId: requireBoundedString(turnRecord, 'speakerAgentId', 128),
+        utterance: requireBoundedString(turnRecord, 'utterance', 4_096),
+        ...(intent === undefined
+          ? {}
+          : { intent: requireBoundedString(turnRecord, 'intent', 256) }),
+      };
+    }),
+    issuedAt: requireNumber(record, 'issuedAt'),
+  };
+}
+
 async function routeSimulationRequest<
   TProjection,
   TSteeringResult,
@@ -321,6 +438,7 @@ async function routeSimulationRequest<
     TExperimentValidationReport
   >,
   agentProfiles: AgentProfileApiService<unknown> | undefined,
+  branchPlans: BranchPlanApiService<unknown> | undefined,
   agentCycleTraces: AgentCycleTraceApiService<unknown> | undefined,
   objectiveRenewalTraces: ObjectiveRenewalTraceApiService<unknown> | undefined,
   dailyPlanRenewalTraces: DailyPlanRenewalTraceApiService<unknown> | undefined,
@@ -397,6 +515,16 @@ async function routeSimulationRequest<
     return jsonResponse(
       200,
       await agentProfiles.queryAgentProfiles(createAgentProfileQueryRequest(route, request.query)),
+    );
+  }
+  if (route.action === 'branch-plans') {
+    if (branchPlans === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    assertMethod(request, 'GET');
+    return jsonResponse(
+      200,
+      await branchPlans.queryBranchPlans(createBranchPlanQueryRequest(route, request.query)),
     );
   }
   if (route.action === 'agent-cycle-traces') {
@@ -497,6 +625,12 @@ async function routeSimulationRequest<
   }
   assertMethod(request, 'POST');
 
+  if (route.action === 'agents') {
+    return jsonResponse(
+      202,
+      await simulation.submitAgentRegistration(createAgentRegistrationRequest(route, request.body)),
+    );
+  }
   if (route.action === 'objectives') {
     return jsonResponse(
       202,
@@ -536,6 +670,49 @@ async function routeSimulationRequest<
     );
   }
   throw new TownHttpApiError(404, 'not_found', 'route not found');
+}
+
+function createAgentRegistrationRequest(
+  route: SimulationRoute,
+  body: unknown,
+): SubmitAgentRegistrationRequest {
+  const record = requireRecordBody(body);
+  const agentId = requireBoundedString(record, 'agentId', 128);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(agentId)) {
+    throw new TownHttpApiError(
+      400,
+      'bad_request',
+      'agentId must start with an alphanumeric character and contain only letters, numbers, ., _, :, or -',
+    );
+  }
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    agentId,
+    creatorId: requireBoundedString(record, 'creatorId', 128),
+    displayName: requireBoundedString(record, 'displayName', 160),
+    issuedAt: requireNumber(record, 'issuedAt'),
+    ...optionalString(record, 'commandId'),
+    ...optionalString(record, 'idempotencyKey'),
+    ...optionalNumber(record, 'expectedVersion'),
+    ...optionalHumanAttribution(record),
+  };
+}
+
+function requireBoundedString(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+  maximumLength: number,
+): string {
+  const value = requireString(record, field).trim();
+  if (value.length > maximumLength) {
+    throw new TownHttpApiError(
+      400,
+      'bad_request',
+      `${field} must not exceed ${maximumLength} characters`,
+    );
+  }
+  return value;
 }
 
 async function routeRuntimeRequest<
@@ -790,6 +967,19 @@ async function routeRuntimeRequest<
       await runtimeSupervisor.getRuntimeRunSession({ traceId: decodePathPart(traceId) }),
     );
   }
+  if (segments.length === 3 && segments[1] === 'run-manifests') {
+    assertMethod(request, 'GET');
+    const runManifestId = segments[2];
+    if (runManifestId === undefined) {
+      throw new TownHttpApiError(404, 'not_found', 'route not found');
+    }
+    return jsonResponse(
+      200,
+      await runtimeSupervisor.getRuntimeResolvedRunManifest({
+        runManifestId: decodePathPart(runManifestId),
+      }),
+    );
+  }
   if (segments.length === 3 && segments[1] === 'operation-traces') {
     assertMethod(request, 'GET');
     const traceId = segments[2];
@@ -989,11 +1179,12 @@ function createLongHorizonObjectiveRequest(
     objectiveId: requireString(record, 'objectiveId'),
     statement: requireString(record, 'statement'),
     priority: requireNumber(record, 'priority'),
-    affinityTags: requireStringArray(record, 'affinityTags'),
+    affinityTags: requireNonEmptyUniqueStringArray(record, 'affinityTags'),
     issuedAt: requireNumber(record, 'issuedAt'),
     ...optionalString(record, 'commandId'),
     ...optionalString(record, 'idempotencyKey'),
     ...optionalNumber(record, 'expectedVersion'),
+    ...optionalHumanAttribution(record),
   };
 }
 
@@ -1013,6 +1204,23 @@ function createReactiveCommandRequest(
     ...optionalString(record, 'commandId'),
     ...optionalString(record, 'idempotencyKey'),
     ...optionalNumber(record, 'expectedVersion'),
+    ...optionalHumanAttribution(record),
+  };
+}
+
+function optionalHumanAttribution(record: Readonly<Record<string, unknown>>): {
+  readonly humanAttribution?: HumanCommandAttribution;
+} {
+  const value = record['humanAttribution'];
+  if (value === undefined) return {};
+  const attribution = requireRecordBody(value);
+  return {
+    humanAttribution: {
+      principalSubjectId: requireString(attribution, 'principalSubjectId'),
+      principalRoles: requireNonEmptyUniqueStringArray(attribution, 'principalRoles'),
+      accessPolicyVersion: requireString(attribution, 'accessPolicyVersion'),
+      consentPolicyVersion: requireString(attribution, 'consentPolicyVersion'),
+    },
   };
 }
 
@@ -1022,6 +1230,7 @@ function createLifecycleRequest(route: SimulationRoute, body: unknown): Simulati
     simulationId: route.simulationId,
     partitionKey: route.partitionKey,
     requestedAt: requireNumber(record, 'requestedAt'),
+    ...optionalString(record, 'operationId'),
     ...optionalString(record, 'scenarioPresetId'),
     ...optionalNumber(record, 'fromSequence'),
     ...optionalNumber(record, 'toSequence'),
@@ -1147,6 +1356,26 @@ function createAgentProfileQueryRequest(
     simulationId: route.simulationId,
     partitionKey: route.partitionKey,
     ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryInteger(query, 'limit', {
+      min: 1,
+      description: 'a positive integer',
+    }),
+  };
+}
+
+function createBranchPlanQueryRequest(
+  route: SimulationRoute,
+  query: TownHttpApiRequest['query'],
+): BranchPlanQueryRequest {
+  return {
+    simulationId: route.simulationId,
+    partitionKey: route.partitionKey,
+    ...optionalQueryString(query, 'planId'),
+    ...optionalQueryString(query, 'agentId'),
+    ...optionalQueryNumber(query, 'fromCreatedAt'),
+    ...optionalQueryNumber(query, 'toCreatedAt'),
+    ...optionalQueryNumber(query, 'fromUpdatedAt'),
+    ...optionalQueryNumber(query, 'toUpdatedAt'),
     ...optionalQueryInteger(query, 'limit', {
       min: 1,
       description: 'a positive integer',
@@ -1532,6 +1761,21 @@ function requireStringArray(
     throw new TownHttpApiError(400, 'bad_request', `${field} must be an array of strings`);
   }
   return value;
+}
+
+function requireNonEmptyUniqueStringArray(
+  record: Readonly<Record<string, unknown>>,
+  field: string,
+): readonly string[] {
+  const values = requireStringArray(record, field);
+  if (values.length === 0) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must contain at least one value`);
+  }
+  const normalized = values.map((value) => value.trim());
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TownHttpApiError(400, 'bad_request', `${field} must not contain duplicate values`);
+  }
+  return normalized;
 }
 
 function optionalString(

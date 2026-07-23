@@ -8,7 +8,11 @@ import {
 } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
-import { createAmbientObservationMemoryRecords } from './ambientObservationMemory';
+import {
+  createAmbientObservationMemoryRecords,
+  createCanonicalAmbientObservationMemoryPolicyManifest,
+  createCanonicalAmbientObservationMemoryRuntimeInput,
+} from './ambientObservationMemory';
 
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
@@ -158,6 +162,117 @@ describe('ambient observation memory', () => {
       recordCount: 0,
       records: [],
     });
+  });
+
+  test('canonical policy excludes public trade-tape fanout but keeps local experience', () => {
+    const runtimePolicy = createCanonicalAmbientObservationMemoryRuntimeInput();
+    const projection = createProjection({ agentOneLocation: market, agentThreeLocation: townSquare });
+    const events = [
+      createEventEnvelope({
+        id: 'event-trade-excluded',
+        simulationId: 'sim-1',
+        type: 'TradeExecuted',
+        occurredAt: 400,
+        sequence: 1,
+        payload: {
+          agentId: agentOne,
+          side: 'buy' as const,
+          commodityName: 'Apple',
+          commodityQuantity: 1,
+          currencyQuantity: 10,
+          poolAfter: {
+            commodity: 'Apple',
+            commodityReserve: 99,
+            currencyReserve: 1_010,
+          },
+          moneySupplyDelta: 0,
+        },
+      }) satisfies WorldEvent,
+      createEventEnvelope({
+        id: 'event-arrival-visible',
+        simulationId: 'sim-1',
+        type: 'AgentLocationChanged',
+        occurredAt: 400,
+        sequence: 2,
+        payload: {
+          agentId: agentTwo,
+          previousLocationId: market,
+          nextLocationId: townSquare,
+          reason: 'socialize',
+        },
+      }) satisfies WorldEvent,
+    ];
+
+    const result = createAmbientObservationMemoryRecords({
+      tickId: 'tick-canonical-filter',
+      events,
+      projection,
+      occurredAt: 425,
+      ...runtimePolicy,
+    });
+
+    expect(result.observedEventCount).toBe(1);
+    expect(result.records.some((record) => record.tags.includes('TradeExecuted'))).toBe(false);
+    expect(result.records.some((record) => record.tags.includes('AgentLocationChanged'))).toBe(
+      true,
+    );
+    expect(createCanonicalAmbientObservationMemoryPolicyManifest()).toMatchObject({
+      policyVersion: 'paper-local-ambient-observation-v1',
+      maxObserversPerEvent: 4,
+      marketTradeBystanderMemory: 'disabled-no-global-public-tape-fanout',
+    });
+  });
+
+  test('selects a deterministic bounded observer cohort instead of the first agent ids', () => {
+    const agents = Array.from({ length: 9 }, (_, index) =>
+      createAgent(asAgentId(`agent-${index + 1}`), townSquare),
+    );
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: townSquare,
+          name: 'Town Square',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: null,
+        },
+      ],
+      agents,
+    });
+    const event = createEventEnvelope({
+      id: 'event-bounded-arrival',
+      simulationId: 'sim-1',
+      type: 'AgentLocationChanged',
+      occurredAt: 500,
+      sequence: 1,
+      payload: {
+        agentId: asAgentId('agent-1'),
+        previousLocationId: null,
+        nextLocationId: townSquare,
+        reason: 'socialize',
+      },
+    }) satisfies WorldEvent;
+    const input = {
+      tickId: 'tick-bounded-observers',
+      events: [event],
+      projection,
+      occurredAt: 525,
+      maxObserversPerEvent: 4,
+    };
+
+    const first = createAmbientObservationMemoryRecords(input);
+    const repeated = createAmbientObservationMemoryRecords(input);
+
+    expect(first.records).toHaveLength(4);
+    expect(repeated.records.map((record) => record.agentId)).toEqual(
+      first.records.map((record) => record.agentId),
+    );
+    expect(first.records.map((record) => record.agentId)).not.toEqual([
+      'agent-2',
+      'agent-3',
+      'agent-4',
+      'agent-5',
+    ]);
   });
 });
 

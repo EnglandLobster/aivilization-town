@@ -215,7 +215,6 @@ describe('LLM global synthesis seam', () => {
     expect(result).toMatchObject({
       status: 'fallback',
       source: 'deterministic-fallback',
-      actions,
       trace: {
         status: 'fallback',
         source: 'deterministic-fallback',
@@ -223,6 +222,8 @@ describe('LLM global synthesis seam', () => {
         failureReason: 'schema-invalid',
       },
     });
+    expect(result.actions.map((action) => action.id)).toEqual(actions.map((action) => action.id));
+    expect(result.trace.choices?.[0]?.rationale).toContain('global-action-synthesis-v1');
   });
 
   test('falls back when an LLM ranking omits an existing candidate action', async () => {
@@ -265,7 +266,8 @@ describe('LLM global synthesis seam', () => {
     });
 
     expect(result.status).toBe('fallback');
-    expect(result.actions).toEqual(actions);
+    expect(result.actions.map((action) => action.id)).toEqual(actions.map((action) => action.id));
+    expect(result.actions[0]?.priority).not.toBe(actions[0]?.priority);
     expect(result.trace).toMatchObject({
       status: 'fallback',
       source: 'deterministic-fallback',

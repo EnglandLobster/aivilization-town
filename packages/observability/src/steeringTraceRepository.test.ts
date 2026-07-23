@@ -78,6 +78,7 @@ describe('steering trace repositories', () => {
     expect(firstRead).toEqual(trace);
     expect(firstRead).not.toBe(secondRead);
     expect(firstRead?.shortTermMemoryRecordIds).not.toBe(secondRead?.shortTermMemoryRecordIds);
+    expect(firstRead?.objectiveAffinityTags).not.toBe(secondRead?.objectiveAffinityTags);
     expect(firstRead?.strategicPlan?.attempts).not.toBe(secondRead?.strategicPlan?.attempts);
   });
 
@@ -108,6 +109,8 @@ function createTrace(input: {
     agentId: 'agent-1',
     resultKind: 'long-horizon-objective-set',
     objectiveId: 'objective-study',
+    objectiveStatement: 'Study until education score exceeds 100.',
+    objectiveAffinityTags: ['study', 'education'],
     planId: 'objective-study',
     candidateActionCount: 0,
     commandDraftCount: 0,

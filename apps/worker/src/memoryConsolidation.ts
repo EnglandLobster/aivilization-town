@@ -13,6 +13,7 @@ import {
   type SocialInteractionReflectionRecord,
   type SocialModelSynthesizer,
   type SocialModelSynthesisTrace,
+  type SequencedShortTermMemoryRecord,
   type ShortTermMemoryOrder,
   type ShortTermMemoryRecord,
   type ShortTermMemoryRepository,
@@ -86,12 +87,14 @@ export type WorkerMemoryConsolidationSkippedResult = {
 
 export type MemoryConsolidationCursor = {
   readonly agentId: AgentId;
+  readonly lastProcessedAppendSequence?: number;
   readonly lastProcessedOccurredAt: SimulationTimestamp;
   readonly updatedAt: SimulationTimestamp;
 };
 
 export type MemoryConsolidationCursorStore = {
   getCursor(agentId: AgentId): Promise<MemoryConsolidationCursor | undefined>;
+  getCursors(agentIds: readonly AgentId[]): Promise<(MemoryConsolidationCursor | undefined)[]>;
   saveCursor(cursor: MemoryConsolidationCursor): Promise<MemoryConsolidationCursor>;
 };
 
@@ -101,6 +104,15 @@ export class InMemoryMemoryConsolidationCursorStore implements MemoryConsolidati
   getCursor(agentId: AgentId): Promise<MemoryConsolidationCursor | undefined> {
     const cursor = this.cursors.get(agentId);
     return Promise.resolve(cursor === undefined ? undefined : cloneCursor(cursor));
+  }
+
+  getCursors(agentIds: readonly AgentId[]): Promise<(MemoryConsolidationCursor | undefined)[]> {
+    return Promise.resolve(
+      agentIds.map((agentId) => {
+        const cursor = this.cursors.get(agentId);
+        return cursor === undefined ? undefined : cloneCursor(cursor);
+      }),
+    );
   }
 
   saveCursor(cursor: MemoryConsolidationCursor): Promise<MemoryConsolidationCursor> {
@@ -120,10 +132,23 @@ export class FileMemoryConsolidationCursorStore implements MemoryConsolidationCu
   }
 
   getCursor(agentId: AgentId): Promise<MemoryConsolidationCursor | undefined> {
-    const cursor = readJsonLines<MemoryConsolidationCursor>(this.cursorsPath)
-      .filter((candidate) => candidate.agentId === agentId)
-      .at(-1);
-    return Promise.resolve(cursor === undefined ? undefined : cloneCursor(cursor));
+    return this.getCursors([agentId]).then((cursors) => cursors[0]);
+  }
+
+  getCursors(agentIds: readonly AgentId[]): Promise<(MemoryConsolidationCursor | undefined)[]> {
+    const requestedAgentIds = new Set(agentIds);
+    const latestByAgent = new Map<AgentId, MemoryConsolidationCursor>();
+    for (const cursor of readJsonLines<MemoryConsolidationCursor>(this.cursorsPath)) {
+      if (requestedAgentIds.has(cursor.agentId)) {
+        latestByAgent.set(cursor.agentId, cursor);
+      }
+    }
+    return Promise.resolve(
+      agentIds.map((agentId) => {
+        const cursor = latestByAgent.get(agentId);
+        return cursor === undefined ? undefined : cloneCursor(cursor);
+      }),
+    );
   }
 
   saveCursor(cursor: MemoryConsolidationCursor): Promise<MemoryConsolidationCursor> {
@@ -297,14 +322,25 @@ export async function runWorkerMemoryConsolidationSchedule(
     );
   }
 
-  for (const agentId of agentIds) {
-    const cursor = await input.cursorStore.getCursor(agentId);
-    const pendingRecords = await input.shortTermMemoryRepository.retrieve({
-      agentId,
-      limit: input.retrievalLimit,
-      orderBy: 'oldest-first',
-      ...(cursor === undefined ? {} : { occurredAfter: cursor.lastProcessedOccurredAt }),
-    });
+  const existingCursors = await input.cursorStore.getCursors(agentIds);
+  const pendingRecordWindows = await input.shortTermMemoryRepository.retrieveLedgerMany(
+    agentIds.map((agentId, index) => {
+      const cursor = existingCursors[index];
+      return {
+        agentId,
+        limit: input.retrievalLimit,
+        ...(cursor?.lastProcessedAppendSequence === undefined
+          ? cursor === undefined
+            ? {}
+            : { occurredAtOrAfter: cursor.lastProcessedOccurredAt }
+          : { appendedAfterSequence: cursor.lastProcessedAppendSequence }),
+      };
+    }),
+  );
+
+  for (const [index, agentId] of agentIds.entries()) {
+    const pendingEntries = pendingRecordWindows[index]?.entries ?? [];
+    const pendingRecords = pendingEntries.map((entry) => entry.record);
     const skip = evaluateReflectionTrigger({
       agentId,
       records: pendingRecords,
@@ -332,7 +368,7 @@ export async function runWorkerMemoryConsolidationSchedule(
     });
     results.push(result);
 
-    const nextCursor = createCursorFromRecords(agentId, result.records, input.proposedAt);
+    const nextCursor = createCursorFromEntries(agentId, pendingEntries, input.proposedAt);
     if (nextCursor !== undefined) {
       cursors.push(await input.cursorStore.saveCursor(nextCursor));
     }
@@ -392,6 +428,12 @@ function evaluateReflectionTrigger(input: {
     return undefined;
   }
 
+  // Section 2.2.1 requires every completed social interaction to enter post-interaction
+  // reflection immediately; those records must not wait for the general importance budget.
+  if (input.records.some(isImmediateSocialReflectionRecord)) {
+    return undefined;
+  }
+
   const pendingImportanceScore = sumImportance(input.records);
   if (pendingImportanceScore >= input.reflectionTrigger.minimumImportanceScore) {
     return undefined;
@@ -406,6 +448,14 @@ function evaluateReflectionTrigger(input: {
   };
 }
 
+function isImmediateSocialReflectionRecord(record: ShortTermMemoryRecord): boolean {
+  return (
+    record.kind === 'social-interaction' &&
+    record.status === 'succeeded' &&
+    record.consolidationHint?.kind === 'social'
+  );
+}
+
 function sumImportance(records: readonly ShortTermMemoryRecord[]): number {
   return Number(records.reduce((total, record) => total + record.importanceScore, 0).toFixed(6));
 }
@@ -414,22 +464,19 @@ function dedupeAgentIds(agentIds: readonly AgentId[]): readonly AgentId[] {
   return [...new Set(agentIds)];
 }
 
-function createCursorFromRecords(
+function createCursorFromEntries(
   agentId: AgentId,
-  records: readonly ShortTermMemoryRecord[],
+  entries: readonly SequencedShortTermMemoryRecord[],
   updatedAt: SimulationTimestamp,
 ): MemoryConsolidationCursor | undefined {
-  const lastProcessedOccurredAt = records.reduce<SimulationTimestamp | undefined>(
-    (latest, record) =>
-      latest === undefined || record.occurredAt > latest ? record.occurredAt : latest,
-    undefined,
-  );
-  if (lastProcessedOccurredAt === undefined) {
+  const last = entries.at(-1);
+  if (last === undefined) {
     return undefined;
   }
   return {
     agentId,
-    lastProcessedOccurredAt,
+    lastProcessedAppendSequence: last.appendSequence,
+    lastProcessedOccurredAt: last.record.occurredAt,
     updatedAt,
   };
 }
@@ -437,6 +484,9 @@ function createCursorFromRecords(
 function cloneCursor(cursor: MemoryConsolidationCursor): MemoryConsolidationCursor {
   return {
     agentId: cursor.agentId,
+    ...(cursor.lastProcessedAppendSequence === undefined
+      ? {}
+      : { lastProcessedAppendSequence: cursor.lastProcessedAppendSequence }),
     lastProcessedOccurredAt: cursor.lastProcessedOccurredAt,
     updatedAt: cursor.updatedAt,
   };

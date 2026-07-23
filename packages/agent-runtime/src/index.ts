@@ -21,6 +21,7 @@ export * from './memoryInfluence';
 export * from './planner';
 export * from './planProgress';
 export * from './planProgressRepository';
+export * from './planningStoragePolicy';
 export * from './profileInfluence';
 export * from './reactionEvaluation';
 export * from './reactiveSteering';

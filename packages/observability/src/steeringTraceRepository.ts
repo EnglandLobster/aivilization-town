@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { HumanCommandAttribution } from '@aivilization/sim-core';
+import { BoundedTraceLedger, type BoundedTraceLedgerDiagnostics } from './boundedTraceLedger';
 import {
   cloneWorldDecisionContextTrace,
   type WorldDecisionContextTrace,
@@ -24,6 +25,8 @@ export type SteeringStrategicPlanAttemptTrace = {
 export type SteeringStrategicPlanTrace = {
   readonly status: 'accepted' | 'fallback' | 'deterministic';
   readonly source: 'llm' | 'deterministic-fallback' | 'deterministic';
+  readonly plannerVariant?: 'default' | 'without-branch' | 'without-objective-decomposition';
+  readonly ablationPolicyVersion?: 'paper-planner-ablation-v1';
   readonly requestId?: string;
   readonly providerId?: string;
   readonly model?: string;
@@ -44,9 +47,12 @@ export type SteeringTrace = {
   readonly commandId: string;
   readonly commandType: string;
   readonly source: string;
+  readonly humanAttribution?: HumanCommandAttribution;
   readonly agentId: string;
   readonly resultKind: SteeringTraceResultKind;
   readonly objectiveId?: string;
+  readonly objectiveStatement?: string;
+  readonly objectiveAffinityTags?: readonly string[];
   readonly planId?: string;
   readonly reactiveCommandId?: string;
   readonly selectedPlannerDomain?: string;
@@ -104,35 +110,36 @@ export class InMemorySteeringTraceRepository implements SteeringTraceRepository 
 }
 
 export class FileSteeringTraceRepository implements SteeringTraceRepository {
-  private readonly tracesPath: string;
+  private readonly traces: BoundedTraceLedger<SteeringTrace>;
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
-    this.tracesPath = join(input.rootDir, 'steering-traces.jsonl');
-    ensureFile(this.tracesPath, input.rootDir);
+    this.traces = new BoundedTraceLedger({
+      path: join(input.rootDir, 'steering-traces.jsonl'),
+      keyOf: (trace) => trace.traceId,
+      clone: cloneTrace,
+    });
   }
 
-  async record(trace: SteeringTrace): Promise<void> {
-    if ((await this.get(trace.traceId)) !== undefined) {
-      return;
-    }
-    appendJsonLines(this.tracesPath, [cloneTrace(trace)]);
+  record(trace: SteeringTrace): Promise<void> {
+    return Promise.resolve().then(() => {
+      this.traces.appendUnique(trace);
+    });
   }
 
   get(traceId: string): Promise<SteeringTrace | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const trace = readJsonLines<SteeringTrace>(this.tracesPath).find(
-        (candidate) => candidate.traceId === traceId,
-      );
-      return trace === undefined ? undefined : cloneTrace(trace);
+      return this.traces.get(traceId);
     });
   }
 
   query(query: SteeringTraceQuery): Promise<SteeringTrace[]> {
-    return Promise.resolve().then(() =>
-      queryTraces(readJsonLines<SteeringTrace>(this.tracesPath), query),
-    );
+    return Promise.resolve().then(() => queryTraces(this.traces.readAll(), query));
+  }
+
+  getStorageDiagnostics(): BoundedTraceLedgerDiagnostics {
+    return this.traces.diagnostics();
   }
 }
 
@@ -169,9 +176,23 @@ function cloneTrace(trace: SteeringTrace): SteeringTrace {
     commandId: trace.commandId,
     commandType: trace.commandType,
     source: trace.source,
+    ...(trace.humanAttribution === undefined
+      ? {}
+      : {
+          humanAttribution: {
+            ...trace.humanAttribution,
+            principalRoles: [...trace.humanAttribution.principalRoles],
+          },
+        }),
     agentId: trace.agentId,
     resultKind: trace.resultKind,
     ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
+    ...(trace.objectiveStatement === undefined
+      ? {}
+      : { objectiveStatement: trace.objectiveStatement }),
+    ...(trace.objectiveAffinityTags === undefined
+      ? {}
+      : { objectiveAffinityTags: [...trace.objectiveAffinityTags] }),
     ...(trace.planId === undefined ? {} : { planId: trace.planId }),
     ...(trace.reactiveCommandId === undefined
       ? {}
@@ -194,6 +215,10 @@ function cloneStrategicPlan(trace: SteeringStrategicPlanTrace): SteeringStrategi
   return {
     status: trace.status,
     source: trace.source,
+    ...(trace.plannerVariant === undefined ? {} : { plannerVariant: trace.plannerVariant }),
+    ...(trace.ablationPolicyVersion === undefined
+      ? {}
+      : { ablationPolicyVersion: trace.ablationPolicyVersion }),
     ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
     ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
     ...(trace.model === undefined ? {} : { model: trace.model }),
@@ -250,8 +275,33 @@ function assertValidTrace(trace: SteeringTrace): void {
   assertNonEmpty(trace.commandId, 'commandId');
   assertNonEmpty(trace.commandType, 'commandType');
   assertNonEmpty(trace.source, 'source');
+  if (trace.humanAttribution !== undefined) {
+    assertNonEmpty(
+      trace.humanAttribution.principalSubjectId,
+      'humanAttribution principalSubjectId',
+    );
+    assertNonEmpty(
+      trace.humanAttribution.accessPolicyVersion,
+      'humanAttribution accessPolicyVersion',
+    );
+    assertNonEmpty(
+      trace.humanAttribution.consentPolicyVersion,
+      'humanAttribution consentPolicyVersion',
+    );
+    if (trace.humanAttribution.principalRoles.length === 0) {
+      throw new Error('humanAttribution principalRoles must not be empty');
+    }
+  }
   assertNonEmpty(trace.agentId, 'agentId');
   assertResultKind(trace.resultKind);
+  if (trace.objectiveStatement !== undefined) {
+    assertNonEmpty(trace.objectiveStatement, 'objectiveStatement');
+  }
+  if (trace.objectiveAffinityTags !== undefined) {
+    for (const tag of trace.objectiveAffinityTags) {
+      assertNonEmpty(tag, 'objectiveAffinityTag');
+    }
+  }
   assertNonNegativeInteger(trace.candidateActionCount, 'candidateActionCount');
   assertNonNegativeInteger(trace.commandDraftCount, 'commandDraftCount');
   assertFinite(trace.issuedAt, 'issuedAt');
@@ -296,31 +346,6 @@ function assertResultKind(value: string): asserts value is SteeringTraceResultKi
   if (value !== 'long-horizon-objective-set' && value !== 'reactive-command-routed') {
     throw new Error('resultKind must be a known steering result kind');
   }
-}
-
-function ensureFile(filePath: string, rootDir: string): void {
-  mkdirSync(rootDir, { recursive: true });
-  if (!existsSync(filePath)) {
-    writeFileSync(filePath, '');
-  }
-}
-
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  if (values.length === 0) {
-    return;
-  }
-  appendFileSync(path, `${values.map((value) => JSON.stringify(value)).join('\n')}\n`);
-}
-
-function readJsonLines<TValue>(path: string): TValue[] {
-  const text = readFileSync(path, 'utf8');
-  if (text.trim().length === 0) {
-    return [];
-  }
-  return text
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as TValue);
 }
 
 function assertNonEmpty(value: string, name: string): void {

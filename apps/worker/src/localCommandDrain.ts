@@ -13,6 +13,8 @@ import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
+  dispatchWorldCommandToEventStream,
+  type DispatchWorldCommandToEventStreamResult,
 } from './commandDispatch';
 import {
   consumeWorkerCommandStreamWithCheckpoint,
@@ -68,13 +70,17 @@ export function drainLocalRuntimeSteeringCommands(
 
 export type LocalRuntimeSteeringCommandWorldDrainRecordResult = {
   readonly steering: WorkerSteeringResult;
-  readonly dispatch?: DispatchCommandDraftsToEventStreamResult;
+  readonly dispatch?: RuntimeCommandWorldDispatchResult;
 };
+
+export type RuntimeCommandWorldDispatchResult =
+  | DispatchCommandDraftsToEventStreamResult
+  | DispatchWorldCommandToEventStreamResult;
 
 export type LocalRuntimeSteeringCommandWorldDrainResult =
   CheckpointedWorkerCommandStreamConsumptionResult<LocalRuntimeSteeringCommandWorldDrainRecordResult> & {
     readonly projection: WorldProjection;
-    readonly worldDispatchResults: readonly DispatchCommandDraftsToEventStreamResult[];
+    readonly worldDispatchResults: readonly RuntimeCommandWorldDispatchResult[];
   };
 
 export function drainLocalRuntimeSteeringCommandsToWorld(
@@ -84,7 +90,7 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
   },
 ): Promise<LocalRuntimeSteeringCommandWorldDrainResult> {
   let projection = input.projection;
-  const worldDispatchResults: DispatchCommandDraftsToEventStreamResult[] = [];
+  const worldDispatchResults: RuntimeCommandWorldDispatchResult[] = [];
 
   return consumeWorkerCommandStreamWithCheckpoint({
     commandStore: input.storage.commandStore,
@@ -94,6 +100,42 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
     checkpointUpdatedAt: input.checkpointUpdatedAt,
     ...(input.limit === undefined ? {} : { limit: input.limit }),
     handle: async ({ record, command }) => {
+      if (command.type === 'RegisterAgent') {
+        const dispatch = dispatchWorldCommandToEventStream({
+          command,
+          projection,
+          policies: input.policies,
+          eventStore: input.storage.eventStore,
+          streamName: input.storage.partition.eventStreamName,
+          appendIdempotencyKey: createAgentRegistrationAppendIdempotencyKey({
+            consumerId: input.consumerId,
+            sequence: record.sequence,
+            commandId: command.id,
+          }),
+        });
+        projection = dispatch.projection;
+        worldDispatchResults.push(dispatch);
+        const registrationEvent = dispatch.events[0];
+        if (
+          registrationEvent === undefined ||
+          (registrationEvent.type !== 'AgentRegistered' &&
+            registrationEvent.type !== 'AgentRegistrationRejected')
+        ) {
+          throw new Error(`RegisterAgent ${command.id} did not produce a registration event`);
+        }
+        const steering: WorkerSteeringResult = {
+          kind: 'agent-registration-dispatched',
+          agentId: registrationEvent.payload.agentId,
+          registrationId: registrationEvent.payload.registrationId,
+          status: registrationEvent.type === 'AgentRegistered' ? 'registered' : 'rejected',
+          ...(registrationEvent.type === 'AgentRegistrationRejected'
+            ? { reason: registrationEvent.payload.reason }
+            : {}),
+          commandDrafts: [],
+          shortTermMemoryRecords: [],
+        };
+        return { steering, dispatch };
+      }
       const steering = await handleWorkerSteeringCommand({
         command,
         ...input.storage.repositories,
@@ -230,6 +272,14 @@ function createSteeringWorldAppendIdempotencyKey(input: {
   return `steering-world:${input.consumerId}:${input.sequence}:${input.commandId}`;
 }
 
+function createAgentRegistrationAppendIdempotencyKey(input: {
+  readonly consumerId: CommandConsumerId;
+  readonly sequence: number;
+  readonly commandId: string;
+}): string {
+  return `agent-registration-world:${input.consumerId}:${input.sequence}:${input.commandId}`;
+}
+
 function createSteeringWorldCommandIdPrefix(input: {
   readonly sequence: number;
   readonly commandId: string;
@@ -254,6 +304,9 @@ function createSteeringTrace(input: {
   readonly steering: WorkerSteeringResult;
   readonly recordedAt: number;
 }): SteeringTrace {
+  if (input.steering.kind === 'agent-registration-dispatched') {
+    throw new Error('agent registration is audited by its world event, not a steering trace');
+  }
   const base = {
     traceId: `${input.command.simulationId}:${input.storage.partition.partitionKey}:${input.sequence}:${input.command.id}`,
     simulationId: input.command.simulationId,
@@ -261,6 +314,9 @@ function createSteeringTrace(input: {
     commandId: input.command.id,
     commandType: input.command.type,
     source: input.command.source,
+    ...(input.command.humanAttribution === undefined
+      ? {}
+      : { humanAttribution: input.command.humanAttribution }),
     agentId: requireActorId(input.command),
     resultKind: input.steering.kind,
     commandDraftCount: input.steering.commandDrafts.length,
@@ -270,10 +326,16 @@ function createSteeringTrace(input: {
   };
 
   if (input.steering.kind === 'long-horizon-objective-set') {
-    const objectiveId = input.steering.intentionState.activeObjective?.id;
+    const objective = input.steering.intentionState.activeObjective;
     return {
       ...base,
-      ...(objectiveId === undefined ? {} : { objectiveId }),
+      ...(objective === undefined
+        ? {}
+        : {
+            objectiveId: objective.id,
+            objectiveStatement: objective.statement,
+            objectiveAffinityTags: [...objective.affinityTags],
+          }),
       ...(input.steering.planRecord === undefined
         ? {}
         : {
@@ -302,6 +364,10 @@ function mapStrategicPlanTrace(trace: StrategicPlanCompilationTrace): SteeringSt
   return {
     status: trace.status,
     source: trace.source,
+    ...(trace.plannerVariant === undefined ? {} : { plannerVariant: trace.plannerVariant }),
+    ...(trace.ablationPolicyVersion === undefined
+      ? {}
+      : { ablationPolicyVersion: trace.ablationPolicyVersion }),
     ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
     ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
     ...(trace.model === undefined ? {} : { model: trace.model }),

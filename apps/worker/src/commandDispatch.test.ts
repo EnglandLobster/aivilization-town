@@ -143,13 +143,14 @@ describe('worker command dispatch seam', () => {
     expect(result.commands.map((command) => command.id)).toEqual(['draft-command-1']);
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [10, 'EducationChanged'],
-      [11, 'ShortTermMemoryRecorded'],
+      [11, 'AgentActivityTimeCommitted'],
+      [12, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
     expect(result.projection.memoryRecords).toHaveLength(1);
   });
 
-  test('advances event sequence across multiple drafts without collisions', () => {
+  test('advances event sequence and rejects a second draft that double-spends activity time', () => {
     const projection = createWorldProjection({
       agents: [
         {
@@ -188,9 +189,15 @@ describe('worker command dispatch seam', () => {
       'draft-command-1',
       'draft-command-2',
     ]);
-    expect(result.events.map((event) => event.sequence)).toEqual([5, 6, 7, 8]);
+    expect(result.events.map((event) => event.sequence)).toEqual([5, 6, 7, 8, 9]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
-    expect(result.projection.agents['agent-1']?.physiology.energy).toBe(60);
+    expect(result.projection.agents['agent-1']?.physiology.energy).toBe(50);
+    expect(result.projection.rejectedActions).toEqual([
+      expect.objectContaining({
+        commandType: 'AgentSleep',
+        reason: 'agent is busy with education until simulation time 120000 (now 0)',
+      }),
+    ]);
   });
 
   test('resolves dynamic policies against the projection updated by previous drafts', () => {
@@ -252,17 +259,19 @@ describe('worker command dispatch seam', () => {
 
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, 'EducationChanged'],
-      [2, 'ShortTermMemoryRecorded'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
     ]);
     expect(result.appendResult).toMatchObject({
-      streamVersion: 2,
+      streamVersion: 3,
       idempotentReplay: false,
     });
     expect(result.appendResult.appendedEvents).toEqual(result.events);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
     expect(eventStore.readStream(partition.eventStreamName).map((event) => event.id)).toEqual([
       'draft-command-1:event:0',
       'draft-command-1:event:1',
+      'draft-command-1:event:2',
     ]);
     expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
   });
@@ -337,9 +346,9 @@ describe('worker command dispatch seam', () => {
       commandIdPrefix: 'sleep-command',
     });
 
-    expect(result.events.map((event) => event.sequence)).toEqual([3, 4]);
-    expect(result.appendResult.streamVersion).toBe(4);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+    expect(result.events.map((event) => event.sequence)).toEqual([4, 5, 6]);
+    expect(result.appendResult.streamVersion).toBe(6);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(6);
   });
 
   test('replays duplicate append requests idempotently without duplicating world events', () => {
@@ -359,8 +368,8 @@ describe('worker command dispatch seam', () => {
     const replay = dispatchCommandDraftsToWorldEventStream(input);
 
     expect(replay.appendResult.idempotentReplay).toBe(true);
-    expect(replay.appendResult.streamVersion).toBe(2);
-    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(2);
+    expect(replay.appendResult.streamVersion).toBe(3);
+    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(3);
     expect(replay.projection.agents['agent-1']?.educationScore).toBe(70);
   });
 
@@ -388,7 +397,7 @@ describe('worker command dispatch seam', () => {
         appendIdempotencyKey: 'agent-cycle-stale',
         commandIdPrefix: 'stale-command',
       }),
-    ).toThrow('expected stream version 0 but current version is 2');
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(2);
+    ).toThrow('expected stream version 0 but current version is 3');
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
   });
 });

@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BoundedTraceLedger, type BoundedTraceLedgerDiagnostics } from './boundedTraceLedger';
 import {
   cloneWorldDecisionContextTrace,
   type WorldDecisionContextTrace,
@@ -85,9 +85,7 @@ export type ReactionEvaluationTraceRepository = {
   readonly query: (query: ReactionEvaluationTraceQuery) => Promise<ReactionEvaluationTrace[]>;
 };
 
-export class InMemoryReactionEvaluationTraceRepository
-  implements ReactionEvaluationTraceRepository
-{
+export class InMemoryReactionEvaluationTraceRepository implements ReactionEvaluationTraceRepository {
   private readonly tracesById = new Map<string, ReactionEvaluationTrace>();
 
   record(trace: ReactionEvaluationTrace): Promise<void> {
@@ -113,35 +111,36 @@ export class InMemoryReactionEvaluationTraceRepository
 }
 
 export class FileReactionEvaluationTraceRepository implements ReactionEvaluationTraceRepository {
-  private readonly tracesPath: string;
+  private readonly traces: BoundedTraceLedger<ReactionEvaluationTrace>;
 
   constructor(input: { readonly rootDir: string }) {
     assertNonEmpty(input.rootDir, 'rootDir');
-    this.tracesPath = join(input.rootDir, 'reaction-evaluation-traces.jsonl');
-    ensureFile(this.tracesPath, input.rootDir);
+    this.traces = new BoundedTraceLedger({
+      path: join(input.rootDir, 'reaction-evaluation-traces.jsonl'),
+      keyOf: (trace) => trace.traceId,
+      clone: cloneTrace,
+    });
   }
 
-  async record(trace: ReactionEvaluationTrace): Promise<void> {
-    if ((await this.get(trace.traceId)) !== undefined) {
-      return;
-    }
-    appendJsonLines(this.tracesPath, [cloneTrace(trace)]);
+  record(trace: ReactionEvaluationTrace): Promise<void> {
+    return Promise.resolve().then(() => {
+      this.traces.appendUnique(trace);
+    });
   }
 
   get(traceId: string): Promise<ReactionEvaluationTrace | undefined> {
     return Promise.resolve().then(() => {
       assertNonEmpty(traceId, 'traceId');
-      const trace = readJsonLines<ReactionEvaluationTrace>(this.tracesPath).find(
-        (candidate) => candidate.traceId === traceId,
-      );
-      return trace === undefined ? undefined : cloneTrace(trace);
+      return this.traces.get(traceId);
     });
   }
 
   query(query: ReactionEvaluationTraceQuery): Promise<ReactionEvaluationTrace[]> {
-    return Promise.resolve().then(() =>
-      queryTraces(readJsonLines<ReactionEvaluationTrace>(this.tracesPath), query),
-    );
+    return Promise.resolve().then(() => queryTraces(this.traces.readAll(), query));
+  }
+
+  getStorageDiagnostics(): BoundedTraceLedgerDiagnostics {
+    return this.traces.diagnostics();
   }
 }
 
@@ -190,9 +189,7 @@ function cloneTrace(trace: ReactionEvaluationTrace): ReactionEvaluationTrace {
   };
 }
 
-function cloneDecision(
-  decision: ReactionEvaluationDecisionTrace,
-): ReactionEvaluationDecisionTrace {
+function cloneDecision(decision: ReactionEvaluationDecisionTrace): ReactionEvaluationDecisionTrace {
   if (decision.kind === 'ignore') {
     return {
       kind: 'ignore',
@@ -384,31 +381,6 @@ function assertValidQuery(query: ReactionEvaluationTraceQuery): void {
   if (query.limit !== undefined && (!Number.isInteger(query.limit) || query.limit < 1)) {
     throw new Error('limit must be a positive integer');
   }
-}
-
-function ensureFile(filePath: string, rootDir: string): void {
-  mkdirSync(rootDir, { recursive: true });
-  if (!existsSync(filePath)) {
-    writeFileSync(filePath, '');
-  }
-}
-
-function appendJsonLines(path: string, values: readonly unknown[]): void {
-  if (values.length === 0) {
-    return;
-  }
-  appendFileSync(path, `${values.map((value) => JSON.stringify(value)).join('\n')}\n`);
-}
-
-function readJsonLines<TValue>(path: string): TValue[] {
-  const text = readFileSync(path, 'utf8');
-  if (text.trim().length === 0) {
-    return [];
-  }
-  return text
-    .split('\n')
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line) as TValue);
 }
 
 function assertConfidence(value: number): void {

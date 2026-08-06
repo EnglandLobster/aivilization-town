@@ -11,6 +11,8 @@
     daemonStatus: undefined,
     partition: undefined,
     projectionEnvelope: undefined,
+    societyDirectory: undefined,
+    societyProjection: undefined,
     validationReports: [],
     trades: [],
     ohlcBars: [],
@@ -42,9 +44,9 @@
 
   const viewDescriptions = {
     overview:
-      'Follow runtime health, scientific evidence, and the active partition from one place.',
-    town: 'Inspect every Agent as a situated participant in the shared town and labor system.',
-    market: 'Read liquidity, prices, trades, and aggregate observations as one economic record.',
+      'Follow runtime health, scientific evidence, and the whole simulation from one place.',
+    town: 'Inspect every Agent as a situated participant in the simulation-wide town and labor system.',
+    market: 'Read liquidity, prices, trades, and whether market settlement is unified or still partitioned.',
     cognition: 'Trace plans, memory, and decision evidence for a selected Agent.',
     steering: 'Submit authorized commands and verify their durable effect on the simulation.',
   };
@@ -270,6 +272,24 @@
 
   function selectAgent(agentId, options) {
     if (!agentId) return;
+    const societyAgent = asArray(state.societyDirectory?.agents).find(
+      (candidate) => candidate.agentId === agentId,
+    );
+    if (
+      societyAgent &&
+      (societyAgent.ownerPartitionKey !== state.partition?.partitionKey ||
+        state.societyDirectory.simulationId !== state.partition?.simulationId)
+    ) {
+      state.partition = {
+        simulationId: state.societyDirectory.simulationId,
+        partitionKey: societyAgent.ownerPartitionKey,
+      };
+      state.selectedAgentId = agentId;
+      state.profile = undefined;
+      closeEventStream();
+      void refreshAll({ discover: false });
+      return;
+    }
     const nextLocationId = projection()?.agents?.[agentId]?.locationId;
     const agentChanged = agentId !== state.selectedAgentId;
     const locationChanged = nextLocationId && nextLocationId !== state.selectedLocationId;
@@ -368,8 +388,11 @@
 
   async function loadPartitionData() {
     const base = partitionBase();
+    const societyBase = `/simulations/${encodeURIComponent(state.partition.simulationId)}/society`;
     const tasks = {
       projectionEnvelope: loadOptional(`${base}/projection`, undefined),
+      societyDirectory: loadOptional(`${societyBase}/agents`, undefined),
+      societyProjection: loadOptional(`${societyBase}/projection`, undefined),
       validationReports: loadOptional(`${base}/validation-reports?limit=20`, []),
       trades: loadOptional(`${base}/market-observations/trades?limit=50`, []),
       ohlcBars: loadOptional(`${base}/market-observations/ohlc-bars?limit=50`, []),
@@ -460,6 +483,36 @@
     return state.projectionEnvelope?.projection;
   }
 
+  function townProjection() {
+    const society = state.societyProjection;
+    const directory = state.societyDirectory;
+    if (!society || !directory) return projection();
+    const locations = Object.fromEntries(
+      asArray(society.locations).map((entry) => [entry.location?.locationId, entry.location]),
+    );
+    const agents = Object.fromEntries(
+      asArray(directory.agents).map((agent) => [
+        agent.agentId,
+        {
+          agentId: agent.agentId,
+          locationId: agent.publicState?.locationId || null,
+          job: agent.publicState?.job || null,
+          residentialTier: agent.publicState?.residentialTier || 0,
+          educationScore: agent.publicState?.educationScore || 0,
+          registration: agent.publicState?.displayName
+            ? { displayName: agent.publicState.displayName }
+            : undefined,
+        },
+      ]),
+    );
+    const transitByAgent = Object.fromEntries(
+      asArray(directory.agents)
+        .filter((agent) => agent.publicState?.transit)
+        .map((agent) => [agent.agentId, { agentId: agent.agentId, ...agent.publicState.transit }]),
+    );
+    return { locations, agents, transitByAgent };
+  }
+
   function renderAll() {
     renderAccess();
     syncAgentSelectors();
@@ -475,6 +528,7 @@
     const daemon = state.daemonStatus || {};
     const runtime = state.runtimeStatus || {};
     const world = projection() || {};
+    const society = state.societyProjection;
     const queueStats = daemon.components?.runQueue?.stats || {};
     const partition = runtime.partitions?.find(
       (candidate) =>
@@ -494,9 +548,25 @@
         `tick ${formatNumber(world.clock?.tickDurationMs, 0)} ms`,
       ),
       metric(
-        'Population',
-        formatNumber(Object.keys(world.agents || {}).length, 0),
-        'manifest-seeded agents',
+        society ? 'Town population' : 'Partition population',
+        formatNumber(society?.population?.totalAgentCount ?? Object.keys(world.agents || {}).length, 0),
+        society
+          ? `${formatNumber(asArray(society.population?.owners).length, 0)} owner partitions`
+          : 'society projection unavailable',
+      ),
+      metric(
+        'Market scope',
+        society?.market?.status === 'consistent-replica'
+          ? 'Shared replica'
+          : society?.market?.status === 'partitioned'
+            ? 'Partitioned'
+            : 'Not observed',
+        society?.market?.status === 'partitioned'
+          ? 'Prices are not yet a simulation-wide authority'
+          : society?.market?.status === 'consistent-replica'
+            ? 'All visible partition replicas agree at this boundary'
+            : 'load the society projection to verify',
+        society?.market?.status === 'partitioned' ? 'attention' : 'healthy',
       ),
       metric(
         'Ready queue',
@@ -531,7 +601,7 @@
   }
 
   function renderTownMap() {
-    const world = projection() || {};
+    const world = townProjection() || {};
     const agents = Object.values(world.agents || {});
     const locations = Object.values(world.locations || {}).filter(
       (location) => location.mapPosition || townMapLayout[location.locationId],
@@ -547,7 +617,9 @@
       button.setAttribute('aria-pressed', String(active));
     });
     elements.townMap.dataset.layer = state.townLayer;
-    elements.townAgentTotal.textContent = `${formatNumber(agents.length, 0)} Agents`;
+    elements.townAgentTotal.textContent = `${formatNumber(agents.length, 0)} Agents${
+      state.societyProjection ? ' · simulation-wide' : ''
+    }`;
 
     if (!locations.length) {
       elements.townMapOverlay.innerHTML = empty('No semantic locations found.');
@@ -817,7 +889,7 @@
   }
 
   function renderLocations() {
-    const world = projection() || {};
+    const world = townProjection() || {};
     const locations = Object.values(world.locations || {});
     if (!locations.length) {
       elements.locationsGrid.innerHTML = empty('No locations found.');

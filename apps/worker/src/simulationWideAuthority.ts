@@ -85,6 +85,20 @@ export type SimulationWideTransferRequest = SimulationWideAuthorityLease & {
   readonly reason: string;
 };
 
+export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: string;
+  readonly targetLocationId: string;
+  readonly reason?: string;
+  /**
+   * The partition that will own the Agent after the move commits. Layer 1 of
+   * the move handoff keeps this equal to the current owner (pure spatial
+   * settlement); the cross-owner handoff resolves it from manifest-declared
+   * location affinity.
+   */
+  readonly destinationPartitionKey?: PartitionKey;
+};
+
 export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
   readonly operationId: string;
   readonly partitionKey: PartitionKey;
@@ -123,6 +137,23 @@ export type SimulationWideAuthorityOperation =
       readonly events: readonly WorldEvent[];
     }
   | {
+      /**
+       * A canonical move settled against the ONE simulation-wide spatial view,
+       * so capacity and route checks count every Agent in the town regardless
+       * of partition ownership. While travel is in flight the operation stays
+       * pending and completes on the next time advance; the arrival events are
+       * delivered to the owning partition then.
+       */
+      readonly kind: 'move';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly ownerPartitionKey: PartitionKey;
+      readonly destinationPartitionKey: PartitionKey;
+      readonly agentId: AgentId;
+      readonly status: 'in-transit' | 'completed';
+      readonly events: readonly WorldEvent[];
+    }
+  | {
       readonly kind: 'time-advanced';
       readonly operationId: string;
       readonly fencingToken: number;
@@ -132,6 +163,12 @@ export type SimulationWideAuthorityOperation =
         readonly operationId: string;
         readonly agentId: AgentId;
         readonly sourcePartitionKey: PartitionKey;
+        readonly destinationPartitionKey: PartitionKey;
+      }[];
+      readonly completedMoves: readonly {
+        readonly operationId: string;
+        readonly agentId: AgentId;
+        readonly ownerPartitionKey: PartitionKey;
         readonly destinationPartitionKey: PartitionKey;
       }[];
     }
@@ -208,6 +245,16 @@ export type SimulationWideAuthoritySnapshot = {
       }
     >
   >;
+  readonly pendingMoves?: Readonly<
+    Record<
+      string,
+      {
+        readonly operationId: string;
+        readonly ownerPartitionKey: PartitionKey;
+        readonly destinationPartitionKey: PartitionKey;
+      }
+    >
+  >;
   readonly materializerCursors: Readonly<Record<string, SimulationWideAuthorityInboxCursor>>;
   readonly operations: Readonly<
     Record<
@@ -231,6 +278,9 @@ export type SimulationWideAuthorityService = {
   readonly transferAgent: (
     request: SimulationWideTransferRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'transfer' };
+  readonly settleMove: (
+    request: SimulationWideMoveRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'move' };
   readonly syncPartitionAgentLocations: (
     request: SimulationWideLocationSyncRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'location-sync' };
@@ -562,6 +612,91 @@ export function createSimulationWideAuthority(input: {
         },
       });
     },
+    settleMove(request) {
+      const agentId = asAgentId(request.agentId);
+      const targetLocationId = asLocationId(request.targetLocationId);
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'move',
+          agentId,
+          targetLocationId,
+          reason: request.reason,
+          destinationPartitionKey: request.destinationPartitionKey,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const ownerPartitionKey = requireOwner(state, agentId);
+          const destinationPartitionKey =
+            request.destinationPartitionKey ?? ownerPartitionKey;
+          if (!state.partitionKeys.includes(destinationPartitionKey)) {
+            throw new Error(`unknown destination partition ${destinationPartitionKey}`);
+          }
+          const policies = resolveWorldCommandPolicies({
+            policies: input.policies,
+            projection: state.projection,
+          });
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-move-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: agentId,
+              source: 'agent-runtime',
+              type: 'AgentMoveTo',
+              payload: {
+                targetLocationId,
+                ...(request.reason === undefined ? {} : { reason: request.reason }),
+              },
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new Error(`simulation-wide move rejected: ${rejection.payload.reason}`);
+          }
+          const projection = events.reduce(applyWorldEvent, state.projection);
+          const arrived = events.some((event) => event.type === 'AgentLocationChanged');
+          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'move' }> = {
+            kind: 'move',
+            operationId: request.operationId,
+            fencingToken,
+            ownerPartitionKey,
+            destinationPartitionKey,
+            agentId,
+            status: arrived ? 'completed' : 'in-transit',
+            events,
+          };
+          return {
+            state: {
+              ...state,
+              projection,
+              // Owner only flips once travel commits; until then the source
+              // partition keeps executing the Agent.
+              ownerPartitionKeyByAgentId:
+                arrived && destinationPartitionKey !== ownerPartitionKey
+                  ? { ...state.ownerPartitionKeyByAgentId, [agentId]: destinationPartitionKey }
+                  : state.ownerPartitionKeyByAgentId,
+              ...(arrived
+                ? {}
+                : {
+                    pendingMoves: {
+                      ...(state.pendingMoves ?? {}),
+                      [agentId]: {
+                        operationId: request.operationId,
+                        ownerPartitionKey,
+                        destinationPartitionKey,
+                      },
+                    },
+                  }),
+            },
+            operation,
+          };
+        },
+      });
+    },
     syncPartitionAgentLocations(request) {
       const partitionKey = request.partitionKey;
       const agentLocations = [...request.agentLocations].sort((left, right) =>
@@ -655,22 +790,41 @@ export function createSimulationWideAuthority(input: {
             .map((event) => event.payload.agentId);
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const pendingTransfers = { ...state.pendingTransfers };
+          const pendingMoves = { ...(state.pendingMoves ?? {}) };
           const completedTransfers: {
             operationId: string;
             agentId: AgentId;
             sourcePartitionKey: PartitionKey;
             destinationPartitionKey: PartitionKey;
           }[] = [];
+          const completedMoves: {
+            operationId: string;
+            agentId: AgentId;
+            ownerPartitionKey: PartitionKey;
+            destinationPartitionKey: PartitionKey;
+          }[] = [];
           for (const agentId of movedAgentIds) {
             const pending = pendingTransfers[agentId];
-            if (pending === undefined) continue;
-            delete pendingTransfers[agentId];
-            owners[agentId] = pending.destinationPartitionKey;
-            completedTransfers.push({
-              operationId: pending.operationId,
+            if (pending !== undefined) {
+              delete pendingTransfers[agentId];
+              owners[agentId] = pending.destinationPartitionKey;
+              completedTransfers.push({
+                operationId: pending.operationId,
+                agentId: asAgentId(agentId),
+                sourcePartitionKey: pending.sourcePartitionKey,
+                destinationPartitionKey: pending.destinationPartitionKey,
+              });
+              continue;
+            }
+            const pendingMove = pendingMoves[agentId];
+            if (pendingMove === undefined) continue;
+            delete pendingMoves[agentId];
+            owners[agentId] = pendingMove.destinationPartitionKey;
+            completedMoves.push({
+              operationId: pendingMove.operationId,
               agentId: asAgentId(agentId),
-              sourcePartitionKey: pending.sourcePartitionKey,
-              destinationPartitionKey: pending.destinationPartitionKey,
+              ownerPartitionKey: pendingMove.ownerPartitionKey,
+              destinationPartitionKey: pendingMove.destinationPartitionKey,
             });
           }
           const primary: Extract<SimulationWideAuthorityOperation, { readonly kind: 'time-advanced' }> = {
@@ -680,6 +834,7 @@ export function createSimulationWideAuthority(input: {
             status: 'completed',
             events,
             completedTransfers,
+            completedMoves,
           };
           return {
             state: {
@@ -687,6 +842,7 @@ export function createSimulationWideAuthority(input: {
               projection,
               ownerPartitionKeyByAgentId: owners,
               pendingTransfers,
+              pendingMoves,
             },
             operation: primary,
           };
@@ -889,18 +1045,35 @@ function createInboxDeliveries(
           operationKind: operation.kind,
           events: operation.events,
         }));
-    case 'time-advanced':
-      return operation.completedTransfers.flatMap((transfer) =>
-        [transfer.sourcePartitionKey, transfer.destinationPartitionKey]
-          .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
-          .map((partitionKey) => ({
-            operationId: operation.operationId,
-            fencingToken: operation.fencingToken,
-            partitionKey,
-            operationKind: operation.kind,
-            events: operation.events,
-          })),
-      );
+    case 'move':
+      return [operation.ownerPartitionKey, operation.destinationPartitionKey]
+        .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
+        .map((partitionKey) => ({
+          operationId: operation.operationId,
+          fencingToken: operation.fencingToken,
+          partitionKey,
+          operationKind: operation.kind,
+          events: operation.events,
+        }));
+    case 'time-advanced': {
+      const transferPartitions = operation.completedTransfers.flatMap((transfer) => [
+        transfer.sourcePartitionKey,
+        transfer.destinationPartitionKey,
+      ]);
+      const movePartitions = operation.completedMoves.flatMap((move) => [
+        move.ownerPartitionKey,
+        move.destinationPartitionKey,
+      ]);
+      return [...transferPartitions, ...movePartitions]
+        .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
+        .map((partitionKey) => ({
+          operationId: operation.operationId,
+          fencingToken: operation.fencingToken,
+          partitionKey,
+          operationKind: operation.kind,
+          events: operation.events,
+        }));
+    }
     case 'inbox-materialized':
       return [];
     case 'location-sync':

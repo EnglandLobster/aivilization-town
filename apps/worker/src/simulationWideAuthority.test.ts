@@ -131,6 +131,159 @@ describe('simulation-wide authority', () => {
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
   });
 
+  test('settles a same-owner move against the global spatial view and delivers it to the owner', () => {
+    const authority = createAuthority();
+
+    const move = authority.settleMove({
+      operationId: 'move-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+      reason: 'walk to market',
+    });
+    const snapshot = authority.getSnapshot();
+
+    expect(move.status).toBe('completed');
+    expect(move.ownerPartitionKey).toBe(partitionA);
+    expect(move.destinationPartitionKey).toBe(partitionA);
+    // Same-owner move: ownership never changes.
+    expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    expect(snapshot.projection.agents[agentA]?.locationId).toBe(asLocationId('market'));
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'materializer-a' }).deliveries,
+    ).toMatchObject([{ operationId: 'move-1', operationKind: 'move', partitionKey: partitionA }]);
+  });
+
+  test('keeps an in-transit move pending and delivers the arrival on the next time advance', () => {
+    const authority = createAuthority(undefined, true);
+
+    const departure = authority.settleMove({
+      operationId: 'move-with-travel',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+      reason: 'walk to market',
+    });
+    expect(departure.status).toBe('in-transit');
+    // Departure events reach the owner immediately; arrival is still pending.
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'materializer-a' }).deliveries,
+    ).toMatchObject([{ operationId: 'move-with-travel', operationKind: 'move' }]);
+
+    const arrival = authority.advanceTime({
+      operationId: 'advance-move',
+      workerId: 'worker-a',
+      observedAt: 10_001,
+      durationMs: 100,
+      deltaMs: 10_000,
+    })[0];
+    expect(arrival).toMatchObject({
+      kind: 'time-advanced',
+      completedMoves: [
+        {
+          operationId: 'move-with-travel',
+          agentId: agentA,
+          ownerPartitionKey: partitionA,
+          destinationPartitionKey: partitionA,
+        },
+      ],
+    });
+    // The arrival (carried by the time-advanced operation) is delivered to the
+    // owning partition, fixing the pre-move arrival-event loss.
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'materializer-a' }).deliveries,
+    ).toMatchObject([
+      { operationId: 'move-with-travel', operationKind: 'move' },
+      { operationId: 'advance-move', operationKind: 'time-advanced' },
+    ]);
+    expect(authority.getSnapshot().projection.agents[agentA]?.locationId).toBe(
+      asLocationId('market'),
+    );
+  });
+
+  test('rejects a move that would exceed the globally observed location capacity', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-cap-'));
+    const authority = createSimulationWideAuthority({
+      rootDir,
+      policies: createAivilizationWorldCommandPolicies('authority-cap-test'),
+      seed: {
+        manifestId: 'manifest-1',
+        simulationId,
+        partitionKeys: [partitionA, partitionB],
+        owners: [
+          { agentId: agentA, partitionKey: partitionA },
+          { agentId: agentB, partitionKey: partitionB },
+        ],
+        projection: createWorldProjection({
+          clock: { now: 0, tickDurationMs: 1_000 },
+          locations: [
+            {
+              locationId: asLocationId('town-square'),
+              name: 'Town square',
+              kind: 'social',
+              activityAffinities: ['social'],
+              capacity: 20,
+              connections: [
+                { targetLocationId: asLocationId('tiny-room'), travelDurationSeconds: 1 },
+              ],
+            },
+            {
+              locationId: asLocationId('tiny-room'),
+              name: 'Tiny room',
+              kind: 'social',
+              activityAffinities: ['social'],
+              capacity: 1,
+              connections: [
+                { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 1 },
+              ],
+            },
+          ],
+          agents: [
+            {
+              agentId: agentA,
+              locationId: asLocationId('town-square'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 500,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            },
+            {
+              agentId: agentB,
+              // agent-b already occupies the one-seat room; its presence is
+              // only visible in the global projection, not in partition A's.
+              locationId: asLocationId('tiny-room'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 500,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            },
+          ],
+          marketPools: [{ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000 }],
+          moneySupply: 1_000,
+        }),
+      },
+    });
+
+    expect(() =>
+      authority.settleMove({
+        operationId: 'move-over-capacity',
+        workerId: 'worker-a',
+        observedAt: 1,
+        durationMs: 100,
+        agentId: agentA,
+        targetLocationId: 'tiny-room',
+      }),
+    ).toThrow(/at capacity/);
+  });
+
   test('keeps the global projection fresh through partition location syncs', () => {
     const authority = createAuthority(undefined, true, {
       agentALocationId: 'market',

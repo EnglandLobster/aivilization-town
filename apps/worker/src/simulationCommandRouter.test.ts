@@ -123,6 +123,62 @@ describe('simulation command router', () => {
       { operationKind: 'conversation', partitionKey: partitionB },
     ]);
   });
+  test('routes a move draft through authority settlement instead of the partition stream', () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentMoveTo',
+          payload: { targetLocationId: asLocationId('school'), reason: 'attend class' },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-1:agent-a',
+      commandIdPrefix: 'tick-1:agent-a',
+    });
+
+    // The move settled globally: settlement events carry the location change
+    // and the authority records a completed same-owner move operation.
+    expect(result.events.some((event) => event.type === 'AgentLocationChanged')).toBe(true);
+    expect(authority.getSnapshot().projection.agents[agentA]?.locationId).toBe(
+      asLocationId('school'),
+    );
+    const moveOperations = Object.values(authority.getSnapshot().operations)
+      .map((entry) => entry.operation)
+      .filter((operation) => operation.kind === 'move');
+    expect(moveOperations).toMatchObject([
+      { status: 'completed', ownerPartitionKey: partitionA, destinationPartitionKey: partitionA },
+    ]);
+    // Settlement events reach the owner through the inbox, not a direct append.
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'm-a' }).deliveries,
+    ).toMatchObject([{ operationKind: 'move', partitionKey: partitionA }]);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(0);
+  });
 });
 
 function createRouterAuthority(seedLocations: {

@@ -131,6 +131,97 @@ describe('simulation-wide authority', () => {
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
   });
 
+  test('keeps the global projection fresh through partition location syncs', () => {
+    const authority = createAuthority(undefined, true, {
+      agentALocationId: 'market',
+      agentBLocationId: 'market',
+    });
+
+    // Seed locations differ from the owner partitions' durable reality: both
+    // Agents actually stand in the town square after local movement.
+    const sync = authority.syncPartitionAgentLocations({
+      operationId: 'sync-a-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+    });
+    const syncB = authority.syncPartitionAgentLocations({
+      operationId: 'sync-b-1',
+      workerId: 'worker-b',
+      observedAt: 1,
+      durationMs: 100,
+      partitionKey: partitionB,
+      agentLocations: [{ agentId: agentB, locationId: 'town-square' }],
+    });
+
+    expect(sync.updatedAgentIds).toEqual([agentA]);
+    expect(syncB.updatedAgentIds).toEqual([agentB]);
+    const snapshot = authority.getSnapshot();
+    expect(snapshot.projection.agents[agentA]?.locationId).toBe(asLocationId('town-square'));
+    expect(snapshot.projection.agents[agentB]?.locationId).toBe(asLocationId('town-square'));
+
+    // Without the sync the conversation below would settle against the stale
+    // seed view (both Agents at market); with it the co-location check passes
+    // against the reported reality.
+    const conversation = authority.settleConversation({
+      operationId: 'conversation-after-sync',
+      workerId: 'worker-a',
+      observedAt: 2,
+      durationMs: 100,
+      initiatorAgentId: agentA,
+      targetAgentId: agentB,
+      topic: 'town square routines',
+      turns: [
+        { speakerAgentId: agentA, utterance: 'Good to see you here.', intent: 'cooperate' },
+        { speakerAgentId: agentB, utterance: 'Likewise.', intent: 'cooperate' },
+      ],
+    });
+    expect(conversation.status).toBe('completed');
+
+    // Location syncs are projection upkeep: they never enter any inbox.
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'materializer-a' }).deliveries,
+    ).toMatchObject([{ operationId: 'conversation-after-sync', operationKind: 'conversation' }]);
+  });
+
+  test('rejects a location sync for Agents owned by another partition and replays idempotently', () => {
+    const authority = createAuthority();
+
+    expect(() =>
+      authority.syncPartitionAgentLocations({
+        operationId: 'sync-wrong-owner',
+        workerId: 'worker-a',
+        observedAt: 1,
+        durationMs: 100,
+        partitionKey: partitionA,
+        agentLocations: [{ agentId: agentB, locationId: 'market' }],
+      }),
+    ).toThrow(/must come from owner partition/);
+
+    const first = authority.syncPartitionAgentLocations({
+      operationId: 'sync-a-idempotent',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'market' }],
+    });
+    const revisionAfterFirst = authority.getSnapshot().revision;
+    const replay = authority.syncPartitionAgentLocations({
+      operationId: 'sync-a-idempotent',
+      workerId: 'worker-a',
+      observedAt: 99,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'market' }],
+    });
+
+    expect(replay).toEqual(first);
+    expect(authority.getSnapshot().revision).toBe(revisionAfterFirst);
+  });
+
   test('exposes a replayable partition inbox and advances its cursor exactly once', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-inbox-'));
     const authority = createAuthority(rootDir);
@@ -252,6 +343,10 @@ describe('simulation-wide authority', () => {
 function createAuthority(
   rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-')),
   usesTravelRoute = false,
+  seedLocationOverrides: {
+    readonly agentALocationId?: string;
+    readonly agentBLocationId?: string;
+  } = {},
 ) {
   return createSimulationWideAuthority({
     rootDir,
@@ -299,7 +394,7 @@ function createAuthority(
         agents: [
           {
             agentId: agentA,
-            locationId: asLocationId('town-square'),
+            locationId: asLocationId(seedLocationOverrides.agentALocationId ?? 'town-square'),
             physiology: { energy: 100, satiety: 100, health: 100 },
             educationScore: 0,
             balance: 500,
@@ -309,7 +404,7 @@ function createAuthority(
           },
           {
             agentId: agentB,
-            locationId: asLocationId('town-square'),
+            locationId: asLocationId(seedLocationOverrides.agentBLocationId ?? 'town-square'),
             physiology: { energy: 100, satiety: 100, health: 100 },
             educationScore: 0,
             balance: 500,

@@ -5,6 +5,7 @@ import {
   type DomainMicroPlanner,
   type DomainMicroPlannerInput,
   type PrioritizedSubtask,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import {
   asMemoryRecordId,
@@ -439,6 +440,125 @@ describe('canonical domain runtimes', () => {
         ],
       },
     });
+  });
+
+  test('selects a society-directory co-located Agent owned by another partition', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+    });
+    const remoteAgentId = asAgentId('agent-remote');
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent],
+        locations: [townSquare()],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+      worldDecisionContext: createSocietyDecisionContextForTest({
+        agent,
+        societyAgents: [
+          {
+            agentId: agentA,
+            ownerPartitionKey: 'world-main',
+            locationId: asLocationId('town-square'),
+          },
+          {
+            agentId: remoteAgentId,
+            ownerPartitionKey: 'world-harbor',
+            locationId: asLocationId('town-square'),
+            job: 'Farmer',
+          },
+          {
+            agentId: asAgentId('agent-far'),
+            ownerPartitionKey: 'world-harbor',
+            locationId: asLocationId('market'),
+          },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentStartConversation',
+      payload: {
+        targetAgentId: remoteAgentId,
+        turns: [
+          { speakerAgentId: agentA },
+          { speakerAgentId: remoteAgentId },
+          { speakerAgentId: agentA },
+          { speakerAgentId: remoteAgentId },
+        ],
+        planningContext: {
+          policyVersion: 'contextual-social-planning-v1',
+          targetSelection: {
+            selectedAgentId: remoteAgentId,
+            candidates: [{ agentId: remoteAgentId }],
+          },
+        },
+      },
+    });
+  });
+
+  test('keeps an observed local candidate ahead of a directory-only candidate', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+    });
+    const remoteAgentId = asAgentId('agent-remote');
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentC, locationId: asLocationId('town-square') })],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'community routines',
+          },
+        ],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+      worldDecisionContext: createSocietyDecisionContextForTest({
+        agent,
+        societyAgents: [
+          {
+            agentId: remoteAgentId,
+            ownerPartitionKey: 'world-harbor',
+            locationId: asLocationId('town-square'),
+          },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+    const proposal = firstProposal(binding.microPlanners, 'social');
+    if (proposal === undefined) {
+      throw new Error('expected a social proposal');
+    }
+
+    expect(proposal).toMatchObject({
+      commandType: 'AgentStartConversation',
+      payload: { targetAgentId: agentC },
+    });
+    const payload = proposal.payload as {
+      readonly planningContext: {
+        readonly targetSelection: {
+          readonly candidates: readonly { readonly agentId: AgentId }[];
+        };
+      };
+    };
+    expect(payload.planningContext.targetSelection.candidates.map((candidate) => candidate.agentId)).toEqual(
+      expect.arrayContaining([agentC, remoteAgentId]),
+    );
   });
 
   test('turns an explicit resource-help social objective into an authoritative peer transfer', async () => {
@@ -1037,6 +1157,7 @@ type WorkerResolverTestContext = {
   readonly activeObjective: LongHorizonObjective;
   readonly planRecord: BranchPlanRecord;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
 };
 
 function createRuntimeContext(input: {
@@ -1045,6 +1166,7 @@ function createRuntimeContext(input: {
   readonly activeObjective?: LongHorizonObjective;
   readonly planRecord?: BranchPlanRecord;
   readonly longTermProfile?: LongTermAgentProfile;
+  readonly worldDecisionContext?: WorldDecisionContext;
 }): WorkerResolverTestContext {
   const projection =
     input.projection ??
@@ -1063,6 +1185,48 @@ function createRuntimeContext(input: {
     activeObjective: input.activeObjective ?? createObjective(input.agent.agentId),
     planRecord: input.planRecord ?? createPlanRecord(input.agent.agentId),
     ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+    ...(input.worldDecisionContext === undefined
+      ? {}
+      : { worldDecisionContext: input.worldDecisionContext }),
+  };
+}
+
+function createSocietyDecisionContextForTest(input: {
+  readonly agent: WorldAgentState;
+  readonly societyAgents: readonly {
+    readonly agentId: AgentId;
+    readonly ownerPartitionKey: string;
+    readonly locationId: LocationId | null;
+    readonly job?: string | null;
+    readonly educationScore?: number;
+  }[];
+}): WorldDecisionContext {
+  return {
+    agent: {
+      agentId: input.agent.agentId,
+      locationId: input.agent.locationId,
+      physiology: { ...input.agent.physiology },
+      educationScore: input.agent.educationScore,
+      balance: input.agent.balance,
+      residentialTier: input.agent.residentialTier,
+      job: input.agent.job,
+      inventory: { ...input.agent.inventory },
+    },
+    market: { spotPrices: [] },
+    society: {
+      directoryId: `local-simulation-society-directory:sha256:${'d'.repeat(64)}`,
+      simulationId: 'sim-1',
+      partitionBoundaries: [],
+      agents: input.societyAgents.map((entry) => ({
+        agentId: entry.agentId,
+        ownerPartitionKey: entry.ownerPartitionKey,
+        ownerLastAppliedSequence: 0,
+        locationId: entry.locationId,
+        job: entry.job ?? null,
+        residentialTier: 1,
+        educationScore: entry.educationScore ?? 0,
+      })),
+    },
   };
 }
 

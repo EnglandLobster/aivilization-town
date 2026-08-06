@@ -6,6 +6,7 @@ import {
   type CoreCommandType,
   type EventStore,
   type EventStreamName,
+  type PartitionKey,
 } from '@aivilization/sim-core';
 import {
   applyWorldEvent,
@@ -57,9 +58,36 @@ export type SimulationCommandRouter = {
 export function createSimulationCommandRouter(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly lease: () => SimulationWideAuthorityLease;
+  readonly partitionKey: PartitionKey;
 }): SimulationCommandRouter {
+  // Partition-local moves never settle through the authority, so its global
+  // projection would otherwise keep bootstrap-era locations forever and
+  // co-location checks would settle against stale facts. Before routing any
+  // drafts we report this partition's current Agent locations; the fingerprint
+  // skip keeps unchanged reports out of the authority journal entirely.
+  let lastSyncedLocationsFingerprint: string | undefined;
+  const syncPartitionLocations = (projection: WorldProjection): void => {
+    const agentLocations = Object.values(projection.agents)
+      .map((agent) => ({ agentId: agent.agentId, locationId: agent.locationId }))
+      .sort((left, right) => left.agentId.localeCompare(right.agentId));
+    const fingerprint = JSON.stringify(agentLocations);
+    if (fingerprint === lastSyncedLocationsFingerprint) {
+      return;
+    }
+    const lease = input.lease();
+    input.authority.syncPartitionAgentLocations({
+      operationId: `location-sync:${input.partitionKey}:${fingerprint}`,
+      workerId: lease.workerId,
+      observedAt: lease.observedAt,
+      durationMs: lease.durationMs,
+      partitionKey: input.partitionKey,
+      agentLocations,
+    });
+    lastSyncedLocationsFingerprint = fingerprint;
+  };
   return {
     routeCommandDrafts: (routeInput) => {
+      syncPartitionLocations(routeInput.projection);
       const globalDrafts = routeInput.commandDrafts.filter((draft) =>
         GLOBAL_COMMAND_TYPES.has(draft.type),
       );

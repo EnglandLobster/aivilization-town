@@ -11,6 +11,7 @@ import {
 import {
   applyWorldEvent,
   dispatchWorldCommand,
+  type AgentMoveToPayload,
   type AgentStartConversationPayload,
   type AgentTradePayload,
   type WorldEvent,
@@ -32,14 +33,16 @@ import type {
 /**
  * The command types the authority canonically owns. Trade and conversation are
  * settled against the global AMM / social graph because their meaning spans
- * partitions. Move is intentionally excluded in this step: cross-owner movement
- * requires the owner-transfer runtime handoff (Agent storage migration and
- * replay materialization) that is delivered in a later step, so moves still
- * append to the partition stream until that handoff exists.
+ * partitions; movement is settled against the one simulation-wide spatial view
+ * so capacity and route checks count every Agent in the town. Cross-owner
+ * ownership flips additionally require the owner-transfer runtime handoff
+ * (Agent storage migration and replay materialization); until that lands the
+ * router settles moves as same-owner spatial changes.
  */
 const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandType>([
   'AgentTrade',
   'AgentStartConversation',
+  'AgentMoveTo',
 ]);
 
 export type SimulationCommandRouter = {
@@ -233,6 +236,19 @@ function settleGlobalDraft(input: {
         targetAgentId: payload.targetAgentId,
         topic: payload.topic,
         turns: payload.turns,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (draft.type === 'AgentMoveTo') {
+      const payload = draft.payload as AgentMoveToPayload;
+      const operation = authority.settleMove({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        targetLocationId: payload.targetLocationId,
+        ...(payload.reason === undefined ? {} : { reason: payload.reason }),
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
     }

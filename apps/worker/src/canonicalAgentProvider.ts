@@ -64,7 +64,7 @@ export function createCanonicalLocalRuntimeAgentProvider(
   const strategicPlanCompiler =
     input.strategicPlanCompiler ?? compileStrategicObjectiveToBranchPlan;
 
-  return async ({ storage, projection, issuedAt, societyDirectory }) => {
+  return async ({ storage, projection, issuedAt, societyDirectory, marketOverride }) => {
     await completeFinishedActiveObjectives({
       projection,
       intentionRepository: storage.intentionRepository,
@@ -134,6 +134,7 @@ export function createCanonicalLocalRuntimeAgentProvider(
         : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
       policies: input.policies,
       educationOpportunityCost,
+      ...(marketOverride === undefined ? {} : { marketOverride }),
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,
         policies: input.policies,

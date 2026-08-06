@@ -9,6 +9,7 @@ import {
   createRuntimeProfileRunReportApiService,
   createSocialReflectionObservationApiService,
   createSocietyDirectoryApiService,
+  createSocietyProjectionApiService,
   createSocietyInteractionApiService,
   createTownHttpApiHandler,
   createTownNodeHttpServer,
@@ -99,6 +100,7 @@ export type LocalRuntimeTownApi = {
     typeof createSocialReflectionObservationApiService
   >;
   readonly societyDirectoryApi: ReturnType<typeof createSocietyDirectoryApiService>;
+  readonly societyProjectionApi: ReturnType<typeof createSocietyProjectionApiService>;
   readonly societyInteractionsApi: ReturnType<typeof createSocietyInteractionApiService>;
   readonly participantAccessPolicy: TownParticipantAccessPolicy;
   readonly participantAccess: LocalRuntimeTownParticipantAccessRuntime;
@@ -323,6 +325,9 @@ export async function createLocalRuntimeTownApi(
   const societyDirectoryApi = createSocietyDirectoryApiService({
     directory: host.societyDirectory,
   });
+  const societyProjectionApi = createSocietyProjectionApiService({
+    projections: host.societyProjection,
+  });
   const societyInteractionsApi = createSocietyInteractionApiService({
     interactions: {
       executeConversation: (request) =>
@@ -347,6 +352,7 @@ export async function createLocalRuntimeTownApi(
     steeringTraces: steeringTracesApi,
     socialReflectionObservations: socialReflectionObservationsApi,
     societyDirectory: societyDirectoryApi,
+    societyProjection: societyProjectionApi,
     societyInteractions: societyInteractionsApi,
     runtimeSupervisor: runtimeSupervisorApi,
     runtimeRunQueue: runtimeOrchestration.runtimeRunQueueApi,
@@ -399,6 +405,7 @@ export async function createLocalRuntimeTownApi(
     steeringTracesApi,
     socialReflectionObservationsApi,
     societyDirectoryApi,
+    societyProjectionApi,
     societyInteractionsApi,
     participantAccessPolicy: participantAccess.policy,
     participantAccess,

@@ -94,6 +94,31 @@ describe('local runtime town HTTP gateway', () => {
       publicState: { educationScore: 20, locationId: 'main-square' },
     });
     await expect(
+      fetchJson(`${server.baseUrl}/simulations/sim-1/society/projection`),
+    ).resolves.toMatchObject({
+      schemaVersion: 'local-simulation-society-projection-v1',
+      simulationId: 'sim-1',
+      population: {
+        totalAgentCount: 2,
+        owners: [
+          { partitionKey: 'world-east', agentCount: 1 },
+          { partitionKey: 'world-main', agentCount: 1 },
+        ],
+      },
+      locations: [
+        {
+          location: { locationId: 'main-square' },
+          occupantAgentIds: ['agent-1', 'agent-2'],
+          occupancy: 2,
+        },
+      ],
+      migrations: [
+        { agentId: 'agent-1', ownerPartitionKey: 'world-main', locationId: 'main-square' },
+        { agentId: 'agent-2', ownerPartitionKey: 'world-east', locationId: 'main-square' },
+      ],
+      market: { status: 'consistent-replica', pools: [] },
+    });
+    await expect(
       fetchJson(`${server.baseUrl}/simulations/sim-1/society/agents/missing-agent`),
     ).rejects.toThrow('404');
 

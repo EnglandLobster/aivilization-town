@@ -25,11 +25,58 @@ import type {
   WorldMarketPriceIndexState,
   WorldProjection,
 } from '@aivilization/world';
+import { DEFAULT_MARKET_REGION_ID } from '@aivilization/world';
+import type { AmmPool } from '@aivilization/economy';
 import {
   createEducationOpportunityCostRule,
   type EducationOpportunityCostConfig,
 } from './educationOpportunityCost';
 import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
+
+/**
+ * A read-only override for the market prices an agent plans against. When the
+ * simulation-wide authority owns the unified AMM, the partition projection's
+ * `marketPools` only reflect this partition's own trades, so planning must read
+ * the authoritative global pools instead. This is deliberately just the pool map
+ * (not a full projection): it feeds spot-price reads only and never replaces the
+ * projection that is dispatched against or persisted to the checkpoint.
+ */
+export type WorldDecisionMarketOverride = {
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
+};
+
+/**
+ * Resolve the market pools an agent should plan against. The source is the
+ * override when provided (authoritative global pools), otherwise the partition
+ * projection's own pools. When any source pool carries a regionId, the agent
+ * only sees the pools of the region it currently stands in — so regional price
+ * divergence is visible locally but an agent must physically move to compare or
+ * exploit a foreign region's prices. When no pool is region-tagged every pool
+ * belongs to the single default region and the full map is returned unchanged.
+ */
+function resolveAgentMarketPools(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly override?: Readonly<Record<string, AmmPool>>;
+}): Readonly<Record<string, AmmPool>> {
+  const source = input.override ?? input.projection.marketPools;
+  const hasRegionalPools = Object.values(source).some((pool) => pool.regionId !== undefined);
+  if (!hasRegionalPools) {
+    return source;
+  }
+  const location =
+    input.agent.locationId === null
+      ? undefined
+      : input.projection.locations[input.agent.locationId];
+  const agentRegionId = location?.regionId ?? DEFAULT_MARKET_REGION_ID;
+  const filtered: Record<string, AmmPool> = {};
+  for (const [poolKey, pool] of Object.entries(source)) {
+    if ((pool.regionId ?? DEFAULT_MARKET_REGION_ID) === agentRegionId) {
+      filtered[poolKey] = pool;
+    }
+  }
+  return filtered;
+}
 
 export function createWorldDecisionContextFromProjection(input: {
   readonly projection: WorldProjection;
@@ -37,12 +84,20 @@ export function createWorldDecisionContextFromProjection(input: {
   readonly policies?: WorldCommandPolicies;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
   readonly societyDirectory?: LocalSimulationSocietyDirectory;
+  readonly marketOverride?: WorldDecisionMarketOverride;
 }): WorldDecisionContext {
   const agent = input.projection.agents[input.agentId];
   if (agent === undefined) {
     throw new Error(`cannot create world decision context for unknown agent ${input.agentId}`);
   }
 
+  const marketPools = resolveAgentMarketPools({
+    projection: input.projection,
+    agent,
+    ...(input.marketOverride === undefined
+      ? {}
+      : { override: input.marketOverride.marketPools }),
+  });
   const latestPriceIndex = resolveLatestPriceIndex(input.projection.marketPriceIndices);
   const rules =
     input.policies === undefined
@@ -51,6 +106,7 @@ export function createWorldDecisionContextFromProjection(input: {
           projection: input.projection,
           agent,
           policies: input.policies,
+          marketPools,
           ...(input.educationOpportunityCost === undefined
             ? {}
             : { educationOpportunityCost: input.educationOpportunityCost }),
@@ -67,7 +123,7 @@ export function createWorldDecisionContextFromProjection(input: {
       inventory: copyPositiveSortedRecord(agent.inventory),
     },
     market: {
-      spotPrices: Object.values(input.projection.marketPools)
+      spotPrices: Object.values(marketPools)
         .map((pool) => ({
           commodity: pool.commodity,
           spotPrice: getSpotPrice(pool),
@@ -141,6 +197,7 @@ function createWorldDecisionRulesContext(input: {
   readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
 }): WorldDecisionRulesContext {
   return {
@@ -324,6 +381,7 @@ function createProductionRules(input: {
   readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
 }): readonly WorldDecisionProductionRule[] {
   return commodities
     .flatMap((commodity): readonly WorldDecisionProductionRule[] => {
@@ -369,10 +427,10 @@ function createProductionRules(input: {
         },
         productionEfficiencyRejected: productionEfficiencyDecision?.status === 'rejected',
       });
-      const outputSpotPrice = resolveCommoditySpotPrice(input.projection, commodity.name);
+      const outputSpotPrice = resolveCommoditySpotPrice(input.marketPools, commodity.name);
       const inputSpotCost = Object.entries(definition.recipe.inputs).reduce(
         (total, [inputCommodity, quantity]) => {
-          const spotPrice = resolveCommoditySpotPrice(input.projection, inputCommodity);
+          const spotPrice = resolveCommoditySpotPrice(input.marketPools, inputCommodity);
           return spotPrice === undefined ? Number.NaN : total + spotPrice * quantity;
         },
         0,
@@ -407,10 +465,10 @@ function createProductionRules(input: {
 }
 
 function resolveCommoditySpotPrice(
-  projection: WorldProjection,
+  marketPools: Readonly<Record<string, AmmPool>>,
   commodity: string,
 ): number | undefined {
-  const pool = projection.marketPools[commodity];
+  const pool = marketPools[commodity];
   return pool === undefined ? undefined : getSpotPrice(pool);
 }
 

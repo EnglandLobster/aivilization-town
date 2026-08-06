@@ -57,6 +57,7 @@ import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
 } from './commandDispatch';
+import type { SimulationCommandRouter } from './simulationCommandRouter';
 import {
   resolveMemoryRetrievalCandidateLimit,
   selectRelevantShortTermMemoryContext,
@@ -69,7 +70,10 @@ import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
-import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import {
+  createWorldDecisionContextFromProjection,
+  type WorldDecisionMarketOverride,
+} from './worldDecisionContext';
 
 export type WorkerAgentCycleTraceSink = {
   readonly record: (trace: AgentCycleTrace) => void | Promise<void>;
@@ -148,6 +152,8 @@ export async function runWorkerAgentCycle(
       readonly resetProgress?: boolean;
     };
     readonly expectedVersion?: number;
+    readonly commandRouter?: SimulationCommandRouter;
+    readonly marketOverride?: WorldDecisionMarketOverride;
     readonly traceSink?: WorkerAgentCycleTraceSink;
   } & WorkerAgentCyclePlanInput,
 ): Promise<WorkerAgentCycleResult> {
@@ -191,6 +197,7 @@ export async function runWorkerAgentCycle(
       projection: input.projection,
       agentId: input.agentId,
       policies: worldDecisionPolicies,
+      ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
     });
   const cycleInput = {
     simulationId: input.simulationId,
@@ -249,18 +256,31 @@ export async function runWorkerAgentCycle(
   const dispatchResult =
     cycleResult.commandDrafts.length === 0
       ? undefined
-      : dispatchCommandDraftsToWorldEventStream({
-          commandDrafts: cycleResult.commandDrafts,
-          projection: input.projection,
-          policies: input.policies,
-          eventStore: input.eventStore,
-          streamName: input.streamName,
-          appendIdempotencyKey: input.appendIdempotencyKey,
-          commandIdPrefix: input.commandIdPrefix,
-          ...(input.expectedVersion === undefined
-            ? {}
-            : { expectedVersion: input.expectedVersion }),
-        });
+      : input.commandRouter === undefined
+        ? dispatchCommandDraftsToWorldEventStream({
+            commandDrafts: cycleResult.commandDrafts,
+            projection: input.projection,
+            policies: input.policies,
+            eventStore: input.eventStore,
+            streamName: input.streamName,
+            appendIdempotencyKey: input.appendIdempotencyKey,
+            commandIdPrefix: input.commandIdPrefix,
+            ...(input.expectedVersion === undefined
+              ? {}
+              : { expectedVersion: input.expectedVersion }),
+          })
+        : input.commandRouter.routeCommandDrafts({
+            commandDrafts: cycleResult.commandDrafts,
+            projection: input.projection,
+            policies: input.policies,
+            eventStore: input.eventStore,
+            streamName: input.streamName,
+            appendIdempotencyKey: input.appendIdempotencyKey,
+            commandIdPrefix: input.commandIdPrefix,
+            ...(input.expectedVersion === undefined
+              ? {}
+              : { expectedVersion: input.expectedVersion }),
+          });
   const shortTermMemoryRecords =
     dispatchResult === undefined || dispatchResult.appendResult.idempotentReplay
       ? []

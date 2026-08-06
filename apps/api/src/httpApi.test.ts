@@ -1932,6 +1932,40 @@ describe('town HTTP API router', () => {
     });
     expect(calls).toEqual([]);
   });
+
+  test('reports social interactions as authority-managed when the authority disabled the legacy path', async () => {
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService([]),
+      runtimeSupervisor: createRuntimeSupervisorService([]),
+      runtimeRunQueue: createRuntimeRunQueueService([]),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService([]),
+      societyInteractions: {
+        executeSocietyConversation: () =>
+          Promise.reject(
+            new Error(
+              'social interactions are managed by the simulation-wide authority; use the canonical tick instead',
+            ),
+          ),
+      },
+    });
+
+    const response = await handler({
+      method: 'POST',
+      path: '/simulations/sim-1/society/interactions',
+      body: {
+        operationId: 'op-1',
+        initiatorAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        topic: 'cooperation',
+        turns: [{ speakerAgentId: 'agent-1', utterance: 'hi' }],
+        issuedAt: 100,
+      },
+    });
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      error: { code: 'social_interactions_managed_by_authority' },
+    });
+  });
 });
 
 function createSimulationService(

@@ -110,6 +110,10 @@ describe('local runtime town executable composition', () => {
       plannerVariant: 'default',
       sourceRevision,
       llmMode: 'deterministic',
+      simulationWideAuthorityEnabled: true,
+      simulationWideAuthorityWorkerId: 'local-runtime-town:127.0.0.1:3000',
+      simulationWideAuthorityLeaseDurationMs: 30_000,
+      regionalMarketsEnabled: false,
     });
   });
 
@@ -175,6 +179,10 @@ describe('local runtime town executable composition', () => {
         maxAgentsPerParticipant: 7,
         credentials: participantAccessCredentialRecords.map(createTownStaticBearerCredentialDigest),
       },
+      simulationWideAuthorityEnabled: true,
+      simulationWideAuthorityWorkerId: 'local-runtime-town:0.0.0.0:4310',
+      simulationWideAuthorityLeaseDurationMs: 30_000,
+      regionalMarketsEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -202,6 +210,68 @@ describe('local runtime town executable composition', () => {
     expect(serializedManifest).toContain('participant-data-lifecycle-v1');
     expect(serializedManifest).toContain('runtime-agent-registration-v3');
     expect(serializedManifest).toContain('"maximumAgentsPerCreator":7');
+  });
+
+  test('enables the simulation-wide authority by default and honors an explicit opt-out', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: the unified authority is the settlement path with no flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).simulationWideAuthorityEnabled,
+    ).toBe(true);
+
+    // Explicit opt-out via env selects the legacy per-partition path.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_SIMULATION_WIDE_AUTHORITY: '0' },
+      }).simulationWideAuthorityEnabled,
+    ).toBe(false);
+
+    // Explicit opt-out via CLI flag also wins over the default.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--simulation-wide-authority', 'off'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).simulationWideAuthorityEnabled,
+    ).toBe(false);
+  });
+
+  test('regional markets are off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: regional markets are disabled, preserving the legacy single pool.
+    expect(
+      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).regionalMarketsEnabled,
+    ).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--regional-markets', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).regionalMarketsEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_REGIONAL_MARKETS: '1' },
+      }).regionalMarketsEnabled,
+    ).toBe(true);
   });
 
   test('fails closed for non-loopback open access and validates authenticated credentials', () => {

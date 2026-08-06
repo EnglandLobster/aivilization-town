@@ -98,7 +98,18 @@ export function createLocalSimulationSocialInteractionService(input: {
   readonly partitions: readonly LocalSimulationRuntimeHostPartition[];
   readonly societyDirectory: LocalSimulationSocietyDirectoryService;
   readonly policies: WorldCommandPolicySource;
+  /**
+   * When true, the legacy cross-partition conversation transaction is
+   * intentionally disabled because the simulation-wide authority has taken over
+   * as the single settlement point for social interaction. This prevents the
+   * two paths from concurrently owning the same interaction kind (see HANDOFF
+   * risk #3). Pending operations are still recovered on demand.
+   */
+  readonly disabled?: boolean;
 }): LocalSimulationSocialInteractionService {
+  if (input.disabled === true) {
+    return createDisabledSocialInteractionService();
+  }
   const journalPath = createJournalPath(input.rootDir);
   const journal = new AppendOnlyJsonLinesFile<SocialInteractionJournalRecord>(journalPath);
   const partitionByKey = new Map(
@@ -536,6 +547,19 @@ function createPartitionLookupKey(simulationId: string, partitionKey: PartitionK
 
 function createPartitionAppendIdempotencyKey(operationId: string, partitionKey: PartitionKey) {
   return `cross-partition-social:${operationId}:${partitionKey}`;
+}
+
+function createDisabledSocialInteractionService(): LocalSimulationSocialInteractionService {
+  const disabledError = (): Promise<never> =>
+    Promise.reject(
+      new Error(
+        'social interactions are managed by the simulation-wide authority; use the canonical tick instead',
+      ),
+    );
+  return {
+    executeConversation: () => disabledError(),
+    recoverPending: () => Promise.resolve([]),
+  };
 }
 
 function validateConversationRequest(

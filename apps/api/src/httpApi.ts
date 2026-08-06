@@ -71,6 +71,7 @@ import type {
 import type { HumanCommandAttribution } from '@aivilization/sim-core';
 import type { TownAuthenticatedPrincipal } from './httpAuthentication';
 import type { SocietyDirectoryApiService } from './societyDirectoryApi';
+import type { SocietyProjectionApiService } from './societyProjectionApi';
 import type {
   SocietyInteractionApiService,
   SocietyInteractionConversationRequest,
@@ -155,6 +156,7 @@ export type TownHttpApiServices<
   readonly steeringTraces?: SteeringTraceApiService<unknown>;
   readonly socialReflectionObservations?: SocialReflectionObservationApiService<unknown>;
   readonly societyDirectory?: SocietyDirectoryApiService<unknown, unknown>;
+  readonly societyProjection?: SocietyProjectionApiService<unknown>;
   readonly societyInteractions?: SocietyInteractionApiService<unknown>;
 };
 
@@ -289,17 +291,47 @@ async function routeTownHttpRequest<
   const segments = splitPath(request.path);
   const societyRoute = matchSocietyDirectoryRoute(segments);
   if (societyRoute !== undefined) {
+    if (societyRoute.action === 'projection') {
+      if (services.societyProjection === undefined) {
+        throw new TownHttpApiError(404, 'not_found', 'route not found');
+      }
+      assertMethod(request, 'GET');
+      return jsonResponse(
+        200,
+        await services.societyProjection.getSocietyProjection({
+          simulationId: societyRoute.simulationId,
+        }),
+      );
+    }
     if (societyRoute.action === 'interactions') {
       if (services.societyInteractions === undefined) {
         throw new TownHttpApiError(404, 'not_found', 'route not found');
       }
       assertMethod(request, 'POST');
-      return jsonResponse(
-        202,
-        await services.societyInteractions.executeSocietyConversation(
-          createSocietyConversationRequest(societyRoute.simulationId, request.body),
-        ),
-      );
+      try {
+        return jsonResponse(
+          202,
+          await services.societyInteractions.executeSocietyConversation(
+            createSocietyConversationRequest(societyRoute.simulationId, request.body),
+          ),
+        );
+      } catch (error) {
+        // When the simulation-wide authority has taken over social interaction
+        // settlement, the legacy cross-partition transaction is disabled and
+        // rejects here. Surface that as a distinct status so callers know to use
+        // the canonical tick instead of retrying the legacy endpoint.
+        if (
+          error instanceof Error &&
+          error.message.includes('simulation-wide authority')
+        ) {
+          throw new TownHttpApiError(
+            409,
+            'social_interactions_managed_by_authority',
+            'social interactions are settled by the simulation-wide authority; use the canonical tick to produce conversations',
+          );
+        }
+        throw error;
+      }
     }
     if (services.societyDirectory === undefined) {
       throw new TownHttpApiError(404, 'not_found', 'route not found');
@@ -357,8 +389,20 @@ function matchSocietyDirectoryRoute(
   segments: readonly string[],
 ):
   | { readonly simulationId: string; readonly action: 'agents'; readonly agentId?: string }
+  | { readonly simulationId: string; readonly action: 'projection' }
   | { readonly simulationId: string; readonly action: 'interactions' }
   | undefined {
+  if (
+    segments.length === 4 &&
+    segments[0] === 'simulations' &&
+    segments[2] === 'society' &&
+    segments[3] === 'projection'
+  ) {
+    const simulationId = segments[1];
+    return simulationId === undefined
+      ? undefined
+      : { simulationId: decodePathPart(simulationId), action: 'projection' };
+  }
   if (
     segments.length === 4 &&
     segments[0] === 'simulations' &&

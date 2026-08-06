@@ -23,6 +23,23 @@ import {
 import type { WorkerExperimentValidationPriceBinning } from './experimentValidationRunner';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
+import type { WorldDecisionMarketOverride } from './worldDecisionContext';
+import type { SimulationCommandRouter } from './simulationCommandRouter';
+import type { SimulationWideAuthorityMaterializerLease } from './simulationWideAuthorityMaterializer';
+
+export type LocalWorldRuntimePreTickMaterializeHook = (input: {
+  readonly projection: WorldProjection;
+  readonly issuedAt: number;
+}) => Promise<{
+  readonly projection: WorldProjection;
+  /**
+   * The authoritative unified market sampled once for this tick. When present,
+   * agents plan and the price index is derived against these global pools rather
+   * than the partition projection's own (which only reflects this partition's
+   * trades). It is a read-only overlay and is never persisted to the checkpoint.
+   */
+  readonly marketOverride?: WorldDecisionMarketOverride;
+}>;
 
 export type LocalWorldRuntimeAgentProviderInput = {
   readonly storage: LocalWorldRuntimeStorage;
@@ -30,6 +47,7 @@ export type LocalWorldRuntimeAgentProviderInput = {
   readonly issuedAt: number;
   readonly projection: WorldProjection;
   readonly societyDirectory?: LocalSimulationSocietyDirectory;
+  readonly marketOverride?: WorldDecisionMarketOverride;
 };
 
 export type LocalWorldRuntimeAgentProvider = (
@@ -70,6 +88,9 @@ export type LocalWorldRuntimeStepInput = {
   readonly marketMetrics?: WorkerTickMarketMetricsInput;
   readonly marketObservations?: LocalWorldRuntimeMarketObservationsInput;
   readonly ambientObservationMemory?: WorkerTickAmbientObservationMemoryInput;
+  readonly commandRouter?: SimulationCommandRouter;
+  readonly preTickMaterialize?: LocalWorldRuntimePreTickMaterializeHook;
+  readonly materializerLease?: SimulationWideAuthorityMaterializerLease;
 };
 
 export type LocalWorldRuntimeStepResult =
@@ -102,11 +123,20 @@ export async function runLocalWorldRuntimeStep(
       },
     },
   });
+  const materialized =
+    input.preTickMaterialize === undefined
+      ? { projection: hydrated.projection }
+      : await input.preTickMaterialize({
+          projection: hydrated.projection,
+          issuedAt: input.issuedAt,
+        });
+  const marketOverride =
+    'marketOverride' in materialized ? materialized.marketOverride : undefined;
   const commandDrain = await drainLocalRuntimeSteeringCommandsToWorld({
     storage: input.storage,
     consumerId: input.commandConsumerId,
     checkpointUpdatedAt: input.commandCheckpointUpdatedAt ?? input.issuedAt,
-    projection: hydrated.projection,
+    projection: materialized.projection,
     policies: input.policies,
     localizedPlanners: input.localizedPlanners,
     simulate: input.steeringSimulator,
@@ -154,14 +184,25 @@ export async function runLocalWorldRuntimeStep(
               simulationId: input.simulationId,
               issuedAt: input.issuedAt,
               projection,
+              ...(marketOverride === undefined ? {} : { marketOverride }),
             }) ?? [],
         }),
     ...input.storage.repositories,
     ...(input.timeDeltaMs === undefined ? {} : { timeDeltaMs: input.timeDeltaMs }),
-    ...(input.marketMetrics === undefined ? {} : { marketMetrics: input.marketMetrics }),
+    ...(input.marketMetrics === undefined
+      ? {}
+      : {
+          marketMetrics: {
+            ...input.marketMetrics,
+            ...(marketOverride === undefined
+              ? {}
+              : { currentMarketOverride: marketOverride }),
+          },
+        }),
     ...createTickMarketObservationsInput(input),
     ...createTickAmbientObservationMemoryInput(input),
     ...createTickFullReplanMaterializationInput(input),
+    ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
   });
 
   return {

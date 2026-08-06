@@ -30,6 +30,20 @@ export type LocalSimulationBackendRegistration = Omit<LocalSimulationBackendInpu
 export type LocalSimulationBackendRegistryInput = {
   readonly rootDir: string;
   readonly registrations: readonly LocalSimulationBackendRegistration[];
+  /**
+   * Optional hook that augments a backend's lifecycle input at construction
+   * time with partition-scoped simulation-wide-authority wiring (command
+   * router, pre-tick materializer hook, lease). It is invoked once per backend
+   * the first time it is looked up. Returning undefined leaves the backend
+   * unchanged, which is the default authority-disabled behavior.
+   */
+  readonly resolveBackendAugment?: (lookup: LocalSimulationBackendLookup) =>
+    | {
+        readonly commandRouter?: LocalSimulationBackendRegistration['commandRouter'];
+        readonly preTickMaterialize?: LocalSimulationBackendRegistration['preTickMaterialize'];
+        readonly materializerLease?: LocalSimulationBackendRegistration['materializerLease'];
+      }
+    | undefined;
 };
 
 export type LocalSimulationBackendRegistry = {
@@ -81,6 +95,7 @@ export function createLocalSimulationBackendRegistry(
       throw new Error(`local simulation backend is not registered: ${formatBackendLookup(lookup)}`);
     }
 
+    const augment = input.resolveBackendAugment?.(lookup);
     const backend = createLocalSimulationBackend({
       ...registration,
       storage: createLocalWorldRuntimeStorage({
@@ -88,6 +103,11 @@ export function createLocalSimulationBackendRegistry(
         simulationId: registration.simulationId,
         partitionKey: registration.partitionKey,
       }),
+      ...(augment === undefined
+        ? {}
+        : Object.fromEntries(
+            Object.entries(augment).filter(([, value]) => value !== undefined),
+          )),
     });
     backends.set(key, backend);
     return backend;

@@ -58,6 +58,7 @@ import {
   type WorkerAgentCycleTraceSink,
 } from './agentCycleRunner';
 import { dispatchWorldCommandToEventStream } from './commandDispatch';
+import type { SimulationCommandRouter } from './simulationCommandRouter';
 import type { WorkerExperimentValidationPriceBinning } from './experimentValidationRunner';
 import {
   recordWorkerMarketObservations,
@@ -77,7 +78,10 @@ import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
-import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import {
+  createWorldDecisionContextFromProjection,
+  type WorldDecisionMarketOverride,
+} from './worldDecisionContext';
 
 const DEFAULT_AMBIENT_REACTION_MEMORY_CONTEXT_LIMIT = 8;
 
@@ -151,6 +155,14 @@ export type WorkerTickMarketMetricsInput = {
   readonly baselineProjection: WorldProjection;
   readonly baselineAt: SimulationTimestamp;
   readonly appendIdempotencyKey?: string;
+  /**
+   * When the unified authority owns the market, the price index values are
+   * derived from these authoritative global pools instead of the partition
+   * projection's own. The MarketPriceIndexRecorded event still appends to and
+   * applies against the partition stream; only the computed values change.
+   */
+  readonly currentMarketOverride?: WorldDecisionMarketOverride;
+  readonly baselineMarketOverride?: WorldDecisionMarketOverride;
 };
 
 export type WorkerTickMarketObservationsInput = {
@@ -203,6 +215,8 @@ type WorkerTickBaseInput = {
   readonly replayExistingAgentAppends?: boolean;
   readonly checkpointing?: WorkerTickProjectionCheckpointingInput;
   readonly traceSink?: WorkerAgentCycleTraceSink;
+  readonly commandRouter?: SimulationCommandRouter;
+  readonly marketOverride?: WorldDecisionMarketOverride;
 };
 
 type WorkerTickProjectionInput =
@@ -351,6 +365,8 @@ export async function runWorkerSimulationTick(
           ? {}
           : { materializeFullReplan: input.materializeFullReplan }),
         expectedVersion,
+        ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
+        ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
         ...(input.traceSink === undefined || batchedTraceSink !== undefined
           ? {}
           : { traceSink: input.traceSink }),
@@ -391,6 +407,12 @@ export async function runWorkerSimulationTick(
     const marketMetricsResult = recordMarketPriceIndexToEventStream({
       baselineProjection: input.marketMetrics.baselineProjection,
       currentProjection: projection,
+      ...(input.marketMetrics.baselineMarketOverride === undefined
+        ? {}
+        : { baselineMarketOverride: input.marketMetrics.baselineMarketOverride }),
+      ...(input.marketMetrics.currentMarketOverride === undefined
+        ? {}
+        : { currentMarketOverride: input.marketMetrics.currentMarketOverride }),
       simulationId: input.simulationId,
       baselineAt: input.marketMetrics.baselineAt,
       issuedAt: input.issuedAt,

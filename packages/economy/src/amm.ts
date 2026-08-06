@@ -2,6 +2,14 @@ export type AmmPool = {
   readonly commodity: string;
   readonly commodityReserve: number;
   readonly currencyReserve: number;
+  /**
+   * Optional regional market this pool belongs to. When the regional-markets
+   * switch is enabled, each region keeps an independent AMM pool per commodity
+   * so prices can diverge across the town; when disabled (the default) this is
+   * undefined and the pool is the single global market pool. The AMM math is
+   * agnostic to this field — it is an addressing concern, not a pricing one.
+   */
+  readonly regionId?: string;
 };
 
 export type AmmTradeResult = {
@@ -50,6 +58,7 @@ export function buyFromPool(pool: AmmPool, commodityAmount: number): AmmTradeRes
     commodity: pool.commodity,
     commodityReserve: commodityReserveAfter,
     currencyReserve: currencyReserveAfter,
+    ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
   });
   const effectivePrice = currencyPaid / commodityAmount;
   const spotPriceAfter = getSpotPrice(poolAfter);
@@ -81,6 +90,7 @@ export function sellToPool(pool: AmmPool, commodityAmount: number): AmmTradeResu
     commodity: pool.commodity,
     commodityReserve: commodityReserveAfter,
     currencyReserve: currencyReserveAfter,
+    ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
   });
   const effectivePrice = currencyPaidOut / commodityAmount;
   const spotPriceAfter = getSpotPrice(poolAfter);

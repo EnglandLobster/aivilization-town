@@ -234,6 +234,12 @@ export type TradeExecutedPayload = {
   readonly slippageRatio?: number;
   readonly invariantBefore?: number;
   readonly invariantAfter?: number;
+  /**
+   * Regional market this trade settled against. Only present when the
+   * regional-markets switch is enabled; omitted keeps the legacy event shape
+   * replayable against the single global pool.
+   */
+  readonly regionId?: string;
 };
 
 export type ResourceTransferredPayload = {

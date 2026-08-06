@@ -180,6 +180,13 @@ export type ScenarioMarketPoolSeed = {
   readonly commodityReserve: number;
   readonly currencyReserve: number;
   readonly source: string;
+  /**
+   * Optional regional market this seed belongs to. When the regional-markets
+   * switch is enabled, each region gets its own AMM pool per commodity so prices
+   * can diverge across the town. Omitted means the global/single-region pool and
+   * preserves the legacy seed shape.
+   */
+  readonly regionId?: string;
 };
 
 export type AivilizationScenarioDefaults = {
@@ -245,6 +252,11 @@ export type CreateCommodityMarketPoolSeedsInput = {
   readonly commodityReserve: number;
   readonly currencyReserve: number;
   readonly source?: string;
+  /**
+   * Optional region to tag every produced seed with. Omitted keeps the legacy
+   * single-region seed shape. Used only when the regional-markets switch is on.
+   */
+  readonly regionId?: string;
 };
 
 const profileExampleSource = 'AIvilization v0 Appendix A Table 6';
@@ -494,6 +506,7 @@ export function createCommodityMarketPoolSeeds(
       commodityReserve: input.commodityReserve,
       currencyReserve: input.currencyReserve,
       source,
+      ...(input.regionId === undefined ? {} : { regionId: input.regionId }),
     }));
 }
 

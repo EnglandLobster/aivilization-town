@@ -35,6 +35,13 @@ export type TownLocationConfig = {
     readonly targetLocationId: LocationId;
     readonly travelDurationSeconds: number;
   }[];
+  /**
+   * Optional regional market this location belongs to (lowercase kebab-case,
+   * e.g. "downtown" / "harbor"). When the regional-markets switch is enabled,
+   * locations in the same region share one AMM pool per commodity. Omitted maps
+   * to the default single region.
+   */
+  readonly regionId?: string;
   readonly source: string;
 };
 
@@ -49,6 +56,7 @@ export const townLocations = [
     activityAffinities: ['socialize', 'trade'],
     capacity: 70,
     mapPosition: { x: 0.16, y: 0.22, width: 0.28, height: 0.35 },
+    regionId: 'downtown',
     connections: [
       { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 360 },
       { targetLocationId: asLocationId('clinic'), travelDurationSeconds: 420 },
@@ -63,6 +71,7 @@ export const townLocations = [
     activityAffinities: ['sleep', 'socialize'],
     capacity: 100,
     mapPosition: { x: 0.5, y: 0.22, width: 0.28, height: 0.37 },
+    regionId: 'downtown',
     connections: [
       { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 360 },
       { targetLocationId: asLocationId('school'), travelDurationSeconds: 360 },
@@ -77,6 +86,7 @@ export const townLocations = [
     activityAffinities: ['study', 'socialize'],
     capacity: 40,
     mapPosition: { x: 0.82, y: 0.22, width: 0.28, height: 0.38 },
+    regionId: 'downtown',
     connections: [
       { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 360 },
       { targetLocationId: asLocationId('workshop'), travelDurationSeconds: 420 },
@@ -90,6 +100,7 @@ export const townLocations = [
     activityAffinities: ['health', 'socialize'],
     capacity: 20,
     mapPosition: { x: 0.14, y: 0.66, width: 0.25, height: 0.39 },
+    regionId: 'downtown',
     connections: [
       { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 420 },
       { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 300 },
@@ -103,6 +114,7 @@ export const townLocations = [
     activityAffinities: ['eat', 'socialize', 'trade'],
     capacity: 30,
     mapPosition: { x: 0.4, y: 0.68, width: 0.26, height: 0.41 },
+    regionId: 'downtown',
     connections: [
       { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 300 },
       { targetLocationId: asLocationId('residential-block'), travelDurationSeconds: 420 },
@@ -118,6 +130,7 @@ export const townLocations = [
     activityAffinities: ['trade', 'socialize'],
     capacity: 45,
     mapPosition: { x: 0.63, y: 0.68, width: 0.25, height: 0.4 },
+    regionId: 'harbor',
     connections: [
       { targetLocationId: asLocationId('restaurant'), travelDurationSeconds: 240 },
       { targetLocationId: asLocationId('workshop'), travelDurationSeconds: 300 },
@@ -131,6 +144,7 @@ export const townLocations = [
     activityAffinities: ['work', 'produce', 'trade'],
     capacity: 45,
     mapPosition: { x: 0.86, y: 0.68, width: 0.25, height: 0.4 },
+    regionId: 'harbor',
     connections: [
       { targetLocationId: asLocationId('school'), travelDurationSeconds: 420 },
       { targetLocationId: asLocationId('market'), travelDurationSeconds: 300 },

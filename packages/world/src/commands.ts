@@ -62,6 +62,13 @@ export type AgentTradePayload = {
   readonly side: 'buy' | 'sell';
   readonly commodityName: string;
   readonly quantity: number;
+  /**
+   * Optional regional market the trade targets. When the regional-markets
+   * switch is enabled this selects which regional AMM pool the trade settles
+   * against; omitted resolves to the default (single) region. The handler also
+   * gates the trade on regional co-location when regional markets are on.
+   */
+  readonly regionId?: string;
 };
 
 export type AgentGiveResourcePayload = {
@@ -278,6 +285,7 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
   const side = payload['side'];
   const commodityName = payload['commodityName'];
   const quantity = payload['quantity'];
+  const regionId = payload['regionId'];
   if (side !== 'buy' && side !== 'sell') {
     throw new Error('AgentTrade side must be buy or sell');
   }
@@ -285,11 +293,20 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
     throw new Error('AgentTrade commodityName must not be empty');
   }
   assertPositiveFinite(quantity, 'AgentTrade quantity');
+  if (regionId !== undefined) {
+    if (typeof regionId !== 'string' || regionId.trim().length === 0) {
+      throw new Error('AgentTrade regionId must not be empty');
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(regionId)) {
+      throw new Error('AgentTrade regionId must be lowercase kebab-case');
+    }
+  }
 
   return {
     side,
     commodityName,
     quantity,
+    ...(regionId === undefined ? {} : { regionId }),
   };
 }
 

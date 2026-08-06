@@ -13,6 +13,7 @@ import {
 } from '@aivilization/society';
 import type { WorldEvent } from './events';
 import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './events';
+import { resolveMarketPoolKey } from './regionalMarkets';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -65,6 +66,14 @@ export type WorldLocationState = {
     readonly targetLocationId: LocationId;
     readonly travelDurationSeconds: number;
   }[];
+  /**
+   * Optional regional market this location belongs to. When the regional-markets
+   * switch is enabled, locations sharing a regionId trade against one shared AMM
+   * pool per commodity, and prices can diverge across regions. Omitted/undefined
+   * maps to {@link DEFAULT_MARKET_REGION_ID} so legacy single-market scenarios are
+   * unchanged.
+   */
+  readonly regionId?: string;
 };
 
 export type WorldLocationStateInput = WorldLocationState;
@@ -272,10 +281,11 @@ export function createWorldProjection(input: {
 
   const marketPools: Record<string, AmmPool> = {};
   for (const pool of input.marketPools ?? []) {
-    if (marketPools[pool.commodity] !== undefined) {
-      throw new Error(`duplicate AMM pool ${pool.commodity}`);
+    const poolKey = resolveMarketPoolKey({ regionId: pool.regionId, commodity: pool.commodity });
+    if (marketPools[poolKey] !== undefined) {
+      throw new Error(`duplicate AMM pool ${poolKey}`);
     }
-    marketPools[pool.commodity] = { ...pool };
+    marketPools[poolKey] = { ...pool };
   }
 
   const socialRelations: Record<string, SocialRelationState> = {};
@@ -448,7 +458,10 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           ...projection,
           marketPools: {
             ...projection.marketPools,
-            [event.payload.commodityName]: event.payload.poolAfter,
+            [resolveMarketPoolKey({
+              regionId: event.payload.regionId,
+              commodity: event.payload.commodityName,
+            })]: event.payload.poolAfter,
           },
           moneySupply: projection.moneySupply + event.payload.moneySupplyDelta,
         },

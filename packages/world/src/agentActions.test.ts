@@ -1933,6 +1933,207 @@ describe('agent trade command handling', () => {
       reason: 'insufficient Apple: required 1, available 0',
     });
   });
+
+  test('regional markets disabled by default: trade ignores region and uses global pool', () => {
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: asLocationId('downtown-market'),
+          name: 'Downtown Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'downtown',
+        },
+        {
+          locationId: asLocationId('harbor-market'),
+          name: 'Harbor Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'harbor',
+        },
+      ],
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('downtown-market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    // regionalMarketsEnabled omitted -> legacy behavior, regionId in payload ignored
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade-default',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 1, regionId: 'harbor' },
+        issuedAt: 60,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'TradeExecuted',
+      'ShortTermMemoryRecorded',
+    ]);
+    if (events[0]?.type !== 'TradeExecuted') {
+      throw new Error('expected trade to succeed under legacy global pool');
+    }
+    // regionId must NOT appear on the event when regional markets are off
+    expect(events[0].payload.regionId).toBeUndefined();
+    const updated = events.reduce(applyWorldEvent, projection);
+    // settled against the single global pool keyed by bare commodity
+    expect(updated.marketPools['Apple']?.commodityReserve).toBe(99);
+  });
+
+  test('regional markets enabled: agent trades against its current region pool', () => {
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: asLocationId('downtown-market'),
+          name: 'Downtown Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'downtown',
+        },
+        {
+          locationId: asLocationId('harbor-market'),
+          name: 'Harbor Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'harbor',
+        },
+      ],
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('downtown-market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      // downtown pool has spot 10 (1000/100), harbor pool has spot 4 (200/50)
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000, regionId: 'downtown' }),
+        createAmmPool({ commodity: 'Apple', commodityReserve: 50, currencyReserve: 200, regionId: 'harbor' }),
+      ],
+      moneySupply: 1200,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade-regional',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        // no explicit regionId -> resolves to agent's current region (downtown)
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 1 },
+        issuedAt: 60,
+      }),
+      projection,
+      regionalMarketsEnabled: true,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'TradeExecuted',
+      'ShortTermMemoryRecorded',
+    ]);
+    if (events[0]?.type !== 'TradeExecuted') {
+      throw new Error('expected regional trade to succeed');
+    }
+    expect(events[0].payload.regionId).toBe('downtown');
+    // settled against downtown pool (spot ~10), not harbor pool (spot 4)
+    expect(events[0].payload.spotPriceBefore).toBeCloseTo(10);
+    const updated = events.reduce(applyWorldEvent, projection);
+    // downtown composite-key pool mutated, harbor pool untouched
+    expect(updated.marketPools['downtown::Apple']?.commodityReserve).toBe(99);
+    expect(updated.marketPools['harbor::Apple']?.commodityReserve).toBe(50);
+  });
+
+  test('regional markets enabled: co-location gate rejects cross-region trade', () => {
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: asLocationId('downtown-market'),
+          name: 'Downtown Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'downtown',
+        },
+        {
+          locationId: asLocationId('harbor-market'),
+          name: 'Harbor Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: 10,
+          regionId: 'harbor',
+        },
+      ],
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          locationId: asLocationId('downtown-market'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 1000,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 50, currencyReserve: 200, regionId: 'harbor' }),
+      ],
+      moneySupply: 200,
+    });
+
+    // agent is in downtown but explicitly requests the (cheaper) harbor pool
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade-cross-region',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'buy', commodityName: 'Apple', quantity: 1, regionId: 'harbor' },
+        issuedAt: 60,
+      }),
+      projection,
+      regionalMarketsEnabled: true,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[0]?.payload).toMatchObject({ commandType: 'AgentTrade' });
+    if (events[0]?.type !== 'ActionRejected') {
+      throw new Error('expected ActionRejected for cross-region trade');
+    }
+    expect(String(events[0].payload.reason)).toContain('trade-requires-regional-co-location');
+  });
 });
 
 describe('agent job application command handling', () => {

@@ -90,6 +90,7 @@ import {
   type WorldEvent,
 } from './events';
 import type { WorldAgentState, WorldProjection } from './projection';
+import { resolveAgentRegion, resolveMarketPool } from './regionalMarkets';
 import { resolveSpatialRoute, TOWN_SPATIAL_GRAPH_POLICY_VERSION } from './spatial';
 
 export type WorldCommandPolicies = {
@@ -116,6 +117,16 @@ export type WorldCommandPolicies = {
   };
   readonly tradeActivity?: {
     readonly durationSeconds: number;
+  };
+  /**
+   * Optional regional-markets configuration. When enabled, each trade settles
+   * against the AMM pool of the region the agent currently stands in, and the
+   * handler gates the trade on regional co-location (an agent must be located in
+   * the region whose pool it trades against). Disabled/omitted keeps the legacy
+   * single-global-pool behavior byte-for-byte.
+   */
+  readonly regionalMarkets?: {
+    readonly enabled: boolean;
   };
   readonly sleep?: {
     readonly energyRecoveryPerSecond: number;
@@ -293,6 +304,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.tradeActivity === undefined
           ? {}
           : { activityDurationSeconds: input.policies.tradeActivity.durationSeconds }),
+        ...(input.policies.regionalMarkets === undefined
+          ? {}
+          : { regionalMarketsEnabled: input.policies.regionalMarkets.enabled }),
         nextSequence: input.nextSequence,
       });
     case 'AgentGiveResource':
@@ -1829,6 +1843,7 @@ export function handleAgentTradeCommand(input: {
   readonly command: CommandEnvelope<'AgentTrade', unknown>;
   readonly projection: WorldProjection;
   readonly activityDurationSeconds?: number;
+  readonly regionalMarketsEnabled?: boolean;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -1838,9 +1853,51 @@ export function handleAgentTradeCommand(input: {
   }
 
   const payload = payloadResult.payload;
-  const pool = input.projection.marketPools[payload.commodityName];
+  const regionalMarketsEnabled = input.regionalMarketsEnabled === true;
+
+  // Resolve which regional pool the trade settles against. When regional
+  // markets are disabled this always resolves to the default region, so the
+  // pool key is the bare commodity name — identical to the legacy global lookup.
+  const agentRegionId = resolveAgentRegion({
+    projection: input.projection,
+    agentLocationId: agent.locationId,
+  });
+  const requestedRegionId = regionalMarketsEnabled
+    ? (payload.regionId ?? agentRegionId)
+    : undefined;
+
+  if (regionalMarketsEnabled) {
+    // Co-location gate: an agent may only trade against the region it currently
+    // stands in. This is the friction that makes regional price divergence
+    // durable — exploiting a cheaper foreign region requires physically moving
+    // there first. It mirrors the existing co-location gate used by conversation
+    // and resource transfer. A locationless agent is treated as standing in the
+    // default region and may still trade there.
+    if (
+      agent.locationId !== null &&
+      payload.regionId !== undefined &&
+      payload.regionId !== agentRegionId
+    ) {
+      return rejectCommand(
+        input,
+        'AgentTrade',
+        `trade-requires-regional-co-location: agent in region ${agentRegionId}, requested ${payload.regionId}`,
+      );
+    }
+  }
+
+  const pool = resolveMarketPool(input.projection, {
+    regionId: requestedRegionId,
+    commodity: payload.commodityName,
+  });
   if (pool === undefined) {
-    return rejectCommand(input, 'AgentTrade', `missing AMM pool for ${payload.commodityName}`);
+    const regionHint =
+      regionalMarketsEnabled && requestedRegionId !== undefined ? ` in region ${requestedRegionId}` : '';
+    return rejectCommand(
+      input,
+      'AgentTrade',
+      `missing AMM pool for ${payload.commodityName}${regionHint}`,
+    );
   }
 
   if (payload.side === 'buy') {
@@ -1865,6 +1922,7 @@ export function handleAgentTradeCommand(input: {
       currencyRequired,
       tradeResult.payload,
       input.activityDurationSeconds,
+      requestedRegionId,
     );
   }
 
@@ -1890,6 +1948,7 @@ export function handleAgentTradeCommand(input: {
     -tradeResult.payload.currencyDelta,
     tradeResult.payload,
     input.activityDurationSeconds,
+    requestedRegionId,
   );
 }
 
@@ -2361,6 +2420,7 @@ function createTradeEvents(
   currencyQuantity: number,
   tradeResult: AmmTradeResult,
   activityDurationSeconds: number | undefined,
+  regionId: string | undefined,
 ): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
   const memoryOffset = activityDurationSeconds === undefined ? 1 : 2;
@@ -2380,6 +2440,7 @@ function createTradeEvents(
       slippageRatio: tradeResult.slippageRatio,
       invariantBefore: tradeResult.invariantBefore,
       invariantAfter: tradeResult.invariantAfter,
+      ...(regionId === undefined ? {} : { regionId }),
     }),
     ...(activityDurationSeconds === undefined
       ? []

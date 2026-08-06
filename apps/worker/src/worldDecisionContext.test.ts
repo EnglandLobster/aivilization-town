@@ -181,6 +181,42 @@ describe('worker world decision context', () => {
     });
   });
 
+  test('reads spot prices from the authoritative market override when provided', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      // The partition projection's own pool has drifted after this partition's
+      // own trades: spot price 5 (500 / 100).
+      marketPools: [
+        createAmmPool({ commodity: 'Fish', commodityReserve: 100, currencyReserve: 500 }),
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      // The unified authority pool is deeper and prices Fish at 10 (2000 / 200).
+      marketOverride: {
+        marketPools: {
+          Fish: { commodity: 'Fish', commodityReserve: 200, currencyReserve: 2_000 },
+        },
+      },
+    });
+
+    // The agent plans against the authoritative global price, not the stale
+    // partition pool.
+    expect(context.market.spotPrices).toEqual([{ commodity: 'Fish', spotPrice: 10 }]);
+  });
+
   test('captures occupation and production rules from command policies', () => {
     const projection = createWorldProjection({
       agents: [
@@ -423,5 +459,58 @@ describe('worker world decision context', () => {
         policies,
       }).rules?.residentialUpgrade,
     ).toMatchObject({ eligible: true, missingInventory: {}, rejectionReasons: [] });
+  });
+
+  test('region-aware override exposes only the agent region pools when pools are region-tagged', () => {
+    const downtownMarket = asLocationId('downtown-market');
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: downtownMarket,
+          name: 'Downtown Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: null,
+          regionId: 'downtown',
+        },
+      ],
+      agents: [
+        {
+          agentId,
+          locationId: downtownMarket,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      // The authority holds two regional Fish pools: downtown spot 10, harbor
+      // spot 4. An agent standing downtown must only see the downtown price.
+      marketOverride: {
+        marketPools: {
+          'downtown::Fish': {
+            commodity: 'Fish',
+            commodityReserve: 200,
+            currencyReserve: 2_000,
+            regionId: 'downtown',
+          },
+          'harbor::Fish': {
+            commodity: 'Fish',
+            commodityReserve: 200,
+            currencyReserve: 800,
+            regionId: 'harbor',
+          },
+        },
+      },
+    });
+
+    expect(context.market.spotPrices).toEqual([{ commodity: 'Fish', spotPrice: 10 }]);
   });
 });

@@ -21,6 +21,7 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
       source: location.source,
       ...(location.mapPosition === undefined ? {} : { mapPosition: location.mapPosition }),
       ...(location.connections === undefined ? {} : { connections: location.connections }),
+      ...(location.regionId === undefined ? {} : { regionId: location.regionId }),
     })),
     agents: input.preset.agentSeeds.map((agent) => ({
       agentId: agent.agentId,
@@ -36,6 +37,7 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
       commodity: pool.commodity,
       commodityReserve: pool.commodityReserve,
       currencyReserve: pool.currencyReserve,
+      ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
     })),
     moneySupply: input.moneySupply ?? calculateCirculatingMoneySupply(input.preset),
   });

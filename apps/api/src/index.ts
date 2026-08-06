@@ -19,6 +19,7 @@ export * from './serverSentEvents';
 export * from './simulationApi';
 export * from './simulationSyncSse';
 export * from './societyDirectoryApi';
+export * from './societyProjectionApi';
 export * from './societyInteractionApi';
 export * from './socialReflectionObservationApi';
 export * from './steeringTraceApi';

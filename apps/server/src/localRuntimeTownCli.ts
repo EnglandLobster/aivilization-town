@@ -76,6 +76,10 @@ export type LocalRuntimeTownCliConfig = {
   readonly llmMode: LocalRuntimeTownLlmMode;
   readonly llm?: LocalRuntimeTownLlmConfig;
   readonly participantAccess?: LocalRuntimeTownParticipantAccessConfig;
+  readonly simulationWideAuthorityEnabled: boolean;
+  readonly simulationWideAuthorityWorkerId: string;
+  readonly simulationWideAuthorityLeaseDurationMs: number;
+  readonly regionalMarketsEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -151,6 +155,31 @@ export function resolveLocalRuntimeTownCliConfig(
   );
   const llm = llmMode === 'provider' ? resolveProviderLlmConfig(env) : undefined;
   const participantAccess = resolveParticipantAccessConfig({ env, host });
+  // The simulation-wide authority (one unified society and market) is the
+  // default settlement path. It is only disabled when explicitly turned off, so
+  // the legacy per-partition path stays reachable for local mechanism work.
+  const simulationWideAuthorityEnabled = parseBooleanFlagWithDefault(
+    options.simulationWideAuthority ?? env.AIVILIZATION_SIMULATION_WIDE_AUTHORITY,
+    true,
+  );
+  const simulationWideAuthorityWorkerId = requireNonEmpty(
+    options.simulationWideAuthorityWorkerId ??
+      env.AIVILIZATION_SIMULATION_WIDE_AUTHORITY_WORKER_ID ??
+      `local-runtime-town:${host}:${port}`,
+    'simulationWideAuthorityWorkerId',
+  );
+  const simulationWideAuthorityLeaseDurationMs = parsePositiveIntegerOption(
+    options.simulationWideAuthorityLeaseDurationMs ??
+      env.AIVILIZATION_SIMULATION_WIDE_AUTHORITY_LEASE_MS,
+    30_000,
+  );
+  // Regional markets keep per-region AMM pools with divergent prices under one
+  // settlement authority. Disabled by default so the legacy single-global-pool
+  // behavior is unchanged; enable explicitly for a multi-region town.
+  const regionalMarketsEnabled = parseBooleanFlagWithDefault(
+    options.regionalMarkets ?? env.AIVILIZATION_REGIONAL_MARKETS,
+    false,
+  );
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -165,6 +194,10 @@ export function resolveLocalRuntimeTownCliConfig(
     llmMode,
     ...(llm === undefined ? {} : { llm }),
     ...(participantAccess.mode === 'open' ? {} : { participantAccess }),
+    simulationWideAuthorityEnabled,
+    simulationWideAuthorityWorkerId,
+    simulationWideAuthorityLeaseDurationMs,
+    regionalMarketsEnabled,
   };
 }
 
@@ -222,6 +255,18 @@ export function createCanonicalLocalRuntimeTownServerInput(
       ? {}
       : { participantAccess: config.participantAccess }),
     ...(config.llm === undefined ? {} : { llm: config.llm }),
+    ...(config.simulationWideAuthorityEnabled
+      ? {
+          simulationWideAuthority: {
+            enabled: true as const,
+            workerId: config.simulationWideAuthorityWorkerId,
+            leaseDurationMs: config.simulationWideAuthorityLeaseDurationMs,
+            ...(config.regionalMarketsEnabled
+              ? { regionalMarkets: true as const }
+              : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -331,8 +376,16 @@ export function createLocalRuntimeTownCliHelp(): string {
     '  --port <port>        HTTP bind port (default: 3000)',
     '  --seed <seed>        Reproducibility seed (default: composition version + profile)',
     '  --llm-mode <mode>    provider | deterministic (default: provider)',
+    '  --simulation-wide-authority <on|off>  Unified society + market authority (default: on)',
+    '  --regional-markets <on|off>  Per-region AMM pools with divergent prices (default: off)',
     '  --help               Show this help',
     '',
+    'The simulation-wide authority (one unified AMM and social graph) is the default',
+    'settlement path. Pass --simulation-wide-authority off or',
+    'AIVILIZATION_SIMULATION_WIDE_AUTHORITY=0 to use the legacy per-partition path.',
+    'Regional markets are a repository-specific extension (not a paper mechanism): pass',
+    '--regional-markets on or AIVILIZATION_REGIONAL_MARKETS=1 to keep per-region AMM pools',
+    'with divergent prices under one settlement authority. Disabled by default.',
     'Provider mode requires AIVILIZATION_LLM_ENDPOINT and AIVILIZATION_LLM_MODEL.',
     'Provider mode also requires AIVILIZATION_LLM_INPUT_TOKEN_COST_MICROS and',
     'AIVILIZATION_LLM_OUTPUT_TOKEN_COST_MICROS so cost accounting cannot silently report zero.',
@@ -361,6 +414,10 @@ type ParsedOptions = {
   readonly llmMode?: string;
   readonly plannerVariant?: string;
   readonly paperAblationTask?: string;
+  readonly simulationWideAuthority?: string;
+  readonly simulationWideAuthorityWorkerId?: string;
+  readonly simulationWideAuthorityLeaseDurationMs?: string;
+  readonly regionalMarkets?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {
@@ -374,6 +431,10 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
     '--llm-mode': 'llmMode',
     '--planner-variant': 'plannerVariant',
     '--paper-ablation-task': 'paperAblationTask',
+    '--simulation-wide-authority': 'simulationWideAuthority',
+    '--simulation-wide-authority-worker-id': 'simulationWideAuthorityWorkerId',
+    '--simulation-wide-authority-lease-ms': 'simulationWideAuthorityLeaseDurationMs',
+    '--regional-markets': 'regionalMarkets',
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -626,6 +687,33 @@ function parsePort(value: string): number {
     throw new Error('port must be an integer between 0 and 65535');
   }
   return port;
+}
+
+function parseBooleanFlag(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off', ''].includes(normalized)) return false;
+  throw new Error(`simulation-wide authority flag must be a boolean, received ${value}`);
+}
+
+/**
+ * Like parseBooleanFlag, but an unset flag resolves to the supplied default
+ * instead of false. An explicitly provided value (including `off`/`0`/`false`)
+ * always wins, so a default-on flag can still be turned off from the CLI or env.
+ */
+function parseBooleanFlagWithDefault(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  return parseBooleanFlag(value);
+}
+
+function parsePositiveIntegerOption(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error('simulation-wide authority lease duration must be a positive integer');
+  }
+  return parsed;
 }
 
 function parseOptionalPositiveInteger(value: string | undefined, name: string): number | undefined {

@@ -1,6 +1,7 @@
 import {
   calculatePriceIndices,
   getSpotPrice,
+  type AmmPool,
   type CommodityPriceSnapshot,
 } from '@aivilization/economy';
 import {
@@ -17,9 +18,21 @@ import {
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
 
+/**
+ * A read-only pool override lets the price index be derived from the unified
+ * authority pools while the MarketPriceIndexRecorded event is still appended to
+ * and applied against the partition stream. Without an override the index reads
+ * the projection's own pools, preserving legacy single-partition behavior.
+ */
+export type MarketPriceIndexPoolOverride = {
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
+};
+
 export type MarketPriceIndexSnapshotInput = {
   readonly baselineProjection: WorldProjection;
   readonly currentProjection: WorldProjection;
+  readonly baselineMarketOverride?: MarketPriceIndexPoolOverride;
+  readonly currentMarketOverride?: MarketPriceIndexPoolOverride;
 };
 
 export type RecordMarketPriceIndexInput = MarketPriceIndexSnapshotInput & {
@@ -41,11 +54,38 @@ export type RecordMarketPriceIndexResult = {
 export function createMarketPriceSnapshotsFromProjections(
   input: MarketPriceIndexSnapshotInput,
 ): CommodityPriceSnapshot[] {
-  const currentPools = Object.values(input.currentProjection.marketPools).sort((left, right) =>
+  const currentPools = input.currentMarketOverride?.marketPools ?? input.currentProjection.marketPools;
+  const baselinePools =
+    input.baselineMarketOverride?.marketPools ?? input.baselineProjection.marketPools;
+  const sortedCurrentPools = Object.values(currentPools).sort((left, right) =>
     left.commodity.localeCompare(right.commodity),
   );
-  const snapshots = currentPools.map((currentPool) => {
-    const baselinePool = input.baselineProjection.marketPools[currentPool.commodity];
+  // When regional markets are in use, several pools may share a commodity (one
+  // per region). The price index is a single town-wide series, so each commodity
+  // is represented by exactly one snapshot. We prefer the default (untagged)
+  // region pool when present, otherwise the first pool for that commodity. This
+  // keeps the legacy index shape replayable and avoids a duplicate-commodity
+  // index; per-region price indices are a future extension.
+  const seenCommodities = new Set<string>();
+  const dedupedCurrentPools = sortedCurrentPools.filter((pool) => {
+    if (seenCommodities.has(pool.commodity)) {
+      return false;
+    }
+    seenCommodities.add(pool.commodity);
+    return true;
+  });
+  const snapshots = dedupedCurrentPools.map((currentPool) => {
+    // Baseline lookup first tries the bare commodity key (legacy), then falls
+    // back to matching by regionId so a region-tagged current pool finds its
+    // region-tagged baseline.
+    let baselinePool = baselinePools[currentPool.commodity];
+    if (baselinePool === undefined && currentPool.regionId !== undefined) {
+      baselinePool = Object.values(baselinePools).find(
+        (candidate) =>
+          candidate.commodity === currentPool.commodity &&
+          candidate.regionId === currentPool.regionId,
+      );
+    }
     if (baselinePool === undefined) {
       throw new Error(`missing baseline AMM pool for ${currentPool.commodity}`);
     }

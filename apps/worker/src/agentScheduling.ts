@@ -38,7 +38,10 @@ import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
-import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import {
+  createWorldDecisionContextFromProjection,
+  type WorldDecisionMarketOverride,
+} from './worldDecisionContext';
 
 export type WorkerAgentRuntimeBinding = {
   readonly microPlanners: readonly DomainMicroPlanner[];
@@ -76,6 +79,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly policies?: WorldCommandPolicySource;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
   readonly societyDirectory?: LocalSimulationSocietyDirectory;
+  readonly marketOverride?: WorldDecisionMarketOverride;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
 }): Promise<readonly WorkerTickAgentInput[]> {
   validateMemoryRetrievalBudget(input);
@@ -133,6 +137,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
         ? {}
         : { educationOpportunityCost: input.educationOpportunityCost }),
       ...(input.societyDirectory === undefined ? {} : { societyDirectory: input.societyDirectory }),
+      ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
     });
     const runtime = await input.resolveRuntime({
       agentId: agent.agentId,

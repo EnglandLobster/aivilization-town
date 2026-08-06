@@ -85,6 +85,15 @@ export type SimulationWideTransferRequest = SimulationWideAuthorityLease & {
   readonly reason: string;
 };
 
+export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly partitionKey: PartitionKey;
+  readonly agentLocations: readonly {
+    readonly agentId: string;
+    readonly locationId: string | null;
+  }[];
+};
+
 export type SimulationWideAuthorityOperation =
   | {
       readonly kind: 'trade';
@@ -128,6 +137,23 @@ export type SimulationWideAuthorityOperation =
     }
   | {
       /**
+       * An owner partition reporting the current locations of its own Agents.
+       * Partition-local moves never flow through settlement, so without this
+       * report the authority projection's locations would go stale and global
+       * co-location checks (conversation, regional trade) would settle against
+       * outdated facts. The sync produces no world events and no inbox
+       * deliveries: it is projection upkeep, kept in the ledger for audit.
+       */
+      readonly kind: 'location-sync';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly partitionKey: PartitionKey;
+      readonly updatedAgentIds: readonly AgentId[];
+      readonly status: 'completed';
+      readonly events: readonly [];
+    }
+  | {
+      /**
        * A durable acknowledgement that one partition materialized all of its
        * inbox deliveries through a fencing token. Keeping this in the same
        * ledger as the authoritative operation makes a replayed worker prove
@@ -147,7 +173,10 @@ export type SimulationWideAuthorityInboxDelivery = {
   readonly operationId: string;
   readonly fencingToken: number;
   readonly partitionKey: PartitionKey;
-  readonly operationKind: Exclude<SimulationWideAuthorityOperation['kind'], 'inbox-materialized'>;
+  readonly operationKind: Exclude<
+    SimulationWideAuthorityOperation['kind'],
+    'inbox-materialized' | 'location-sync'
+  >;
   readonly events: readonly WorldEvent[];
 };
 
@@ -202,6 +231,9 @@ export type SimulationWideAuthorityService = {
   readonly transferAgent: (
     request: SimulationWideTransferRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'transfer' };
+  readonly syncPartitionAgentLocations: (
+    request: SimulationWideLocationSyncRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'location-sync' };
   readonly advanceTime: (input: SimulationWideAuthorityLease & { readonly operationId: string; readonly deltaMs: number }) => readonly SimulationWideAuthorityOperation[];
   /**
    * Read the per-partition inbox without moving its cursor. Consumers must
@@ -530,6 +562,67 @@ export function createSimulationWideAuthority(input: {
         },
       });
     },
+    syncPartitionAgentLocations(request) {
+      const partitionKey = request.partitionKey;
+      const agentLocations = [...request.agentLocations].sort((left, right) =>
+        left.agentId.localeCompare(right.agentId),
+      );
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'location-sync',
+          partitionKey,
+          agentLocations,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          assertKnownPartition(state, partitionKey);
+          const agents = { ...state.projection.agents };
+          const updatedAgentIds: AgentId[] = [];
+          for (const entry of agentLocations) {
+            const agentId = asAgentId(entry.agentId);
+            const owner = state.ownerPartitionKeyByAgentId[agentId];
+            if (owner === undefined) {
+              throw new Error(`unknown simulation-wide Agent ${agentId}`);
+            }
+            if (owner !== partitionKey) {
+              throw new Error(
+                `location sync for ${agentId} must come from owner partition ${owner}, not ${partitionKey}`,
+              );
+            }
+            const agent = agents[agentId];
+            if (agent === undefined) {
+              throw new Error(`unknown simulation-wide Agent ${agentId}`);
+            }
+            const locationId = entry.locationId === null ? null : asLocationId(entry.locationId);
+            if (agent.locationId === locationId) {
+              continue;
+            }
+            agents[agentId] = { ...agent, locationId };
+            updatedAgentIds.push(agentId);
+          }
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'location-sync' }
+          > = {
+            kind: 'location-sync',
+            operationId: request.operationId,
+            fencingToken,
+            partitionKey,
+            updatedAgentIds,
+            status: 'completed',
+            events: [],
+          };
+          return {
+            state: {
+              ...state,
+              projection: { ...state.projection, agents },
+            },
+            operation,
+          };
+        },
+      });
+    },
     advanceTime(request) {
       const operation = mutate({
         operationId: request.operationId,
@@ -809,6 +902,8 @@ function createInboxDeliveries(
           })),
       );
     case 'inbox-materialized':
+      return [];
+    case 'location-sync':
       return [];
   }
 }

@@ -161,7 +161,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       materializers.set(partition.partitionKey, materializer);
       routers.set(
         partition.partitionKey,
-        createSimulationCommandRouter({ authority, lease }),
+        createSimulationCommandRouter({ authority, lease, partitionKey: partition.partitionKey }),
       );
     }
   }

@@ -34,9 +34,12 @@ export function resolveCanonicalSocialPlan(input: {
   readonly configuredTopic?: string;
 }): CanonicalSocialPlan | undefined {
   const observedTargetAgentIds = resolveObservedSocialTargetAgentIds(input.context);
+  const directoryTargetAgentIds = resolveDirectoryCoLocatedAgentIds(input.context);
   const targetAgentIds =
     input.configuredTargetAgentId === undefined
-      ? observedTargetAgentIds
+      ? [...new Set([...observedTargetAgentIds, ...directoryTargetAgentIds])].sort((left, right) =>
+          left.localeCompare(right),
+        )
       : [input.configuredTargetAgentId];
   const candidates = targetAgentIds
     .map((agentId) =>
@@ -113,7 +116,7 @@ export function createCanonicalSocialDialogueTurns(input: {
 export function createSocialPlanningPolicyManifest() {
   return {
     policyVersion: SOCIAL_PLANNING_POLICY_VERSION,
-    targetCandidateRule: 'latest-observed-co-located-agents',
+    targetCandidateRule: 'latest-observed-or-society-directory-co-located-agents',
     targetWeights: { ...targetWeights },
     lowBalanceThreshold: LOW_BALANCE_THRESHOLD,
     educationGapNormalization: EDUCATION_GAP_NORMALIZATION,
@@ -128,13 +131,48 @@ type ScoredTargetCandidate = {
   readonly score: SocialTargetScoreBreakdown;
 };
 
+/**
+ * The scoring-relevant view of a social candidate. Local candidates come from
+ * this partition's projection with full physiology; society-directory
+ * candidates (possibly owned by another partition) only expose their public
+ * state, so their physiology is unknown and scored conservatively as
+ * unavailable rather than fabricated.
+ */
+type SocialCandidateView = {
+  readonly agentId: AgentId;
+  readonly job: string | null;
+  readonly educationScore: number;
+  readonly physiology?: WorldAgentState['physiology'];
+};
+
+function resolveSocialCandidateView(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly agentId: AgentId;
+}): SocialCandidateView | undefined {
+  const localCandidate = input.context.projection.agents[input.agentId];
+  if (localCandidate !== undefined) {
+    return localCandidate;
+  }
+  const directoryCandidate = input.context.worldDecisionContext?.society?.agents.find(
+    (candidate) => candidate.agentId === input.agentId,
+  );
+  if (directoryCandidate === undefined) {
+    return undefined;
+  }
+  return {
+    agentId: directoryCandidate.agentId,
+    job: directoryCandidate.job,
+    educationScore: directoryCandidate.educationScore,
+  };
+}
+
 function scoreTargetCandidate(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly selectedSubtask: PrioritizedSubtask;
   readonly agentId: AgentId;
   readonly observed: boolean;
 }): ScoredTargetCandidate | undefined {
-  const candidate = input.context.projection.agents[input.agentId];
+  const candidate = resolveSocialCandidateView(input);
   if (candidate === undefined || candidate.agentId === input.context.agentId) {
     return undefined;
   }
@@ -181,7 +219,7 @@ function scoreTargetCandidate(input: {
 function scoreGoalRelevance(
   context: WorkerDomainRuntimeFactoryInput,
   selectedSubtask: PrioritizedSubtask,
-  candidate: WorldAgentState,
+  candidate: SocialCandidateView,
 ): number {
   const goalTokens = tokenize(
     `${context.activeObjective.statement} ${context.activeObjective.affinityTags.join(' ')} ${selectedSubtask.description}`,
@@ -204,7 +242,10 @@ function scoreGoalRelevance(
   return Math.min(1.5, score);
 }
 
-function scoreEconomicComplementarity(actor: WorldAgentState, candidate: WorldAgentState): number {
+function scoreEconomicComplementarity(
+  actor: WorldAgentState,
+  candidate: SocialCandidateView,
+): number {
   let score = 0;
   if (actor.job === null && candidate.job !== null) {
     score += 1;
@@ -240,8 +281,9 @@ function scorePersonalityFit(
   return 0;
 }
 
-function scoreWorldContext(candidate: WorldAgentState, observed: boolean): number {
+function scoreWorldContext(candidate: SocialCandidateView, observed: boolean): number {
   const available =
+    candidate.physiology !== undefined &&
     candidate.physiology.energy > 0 &&
     candidate.physiology.satiety > 0 &&
     candidate.physiology.health > 0;
@@ -366,6 +408,29 @@ function resolveObservedSocialTargetAgentIds(
   return latestObservation.observedAgentIds
     .filter((candidate) => candidate !== context.agentId)
     .filter((candidate) => context.projection.agents[candidate]?.locationId === locationId)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * Simulation-level social seam: the society directory lists every Agent in the
+ * town together with its publicly known location, regardless of which
+ * partition owns it. Co-located directory entries are therefore legitimate
+ * conversation candidates even when they are invisible in this partition's own
+ * projection — authority settlement later verifies the same co-location
+ * against the authoritative global state.
+ */
+function resolveDirectoryCoLocatedAgentIds(
+  context: WorkerDomainRuntimeFactoryInput,
+): readonly AgentId[] {
+  const locationId = context.agent.locationId;
+  const society = context.worldDecisionContext?.society;
+  if (locationId === null || society === undefined) {
+    return [];
+  }
+  return society.agents
+    .filter((candidate) => candidate.agentId !== context.agentId)
+    .filter((candidate) => candidate.locationId === locationId)
+    .map((candidate) => candidate.agentId)
     .sort((left, right) => left.localeCompare(right));
 }
 

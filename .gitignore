@@ -13,3 +13,5 @@ coverage/
 tmp/
 data/local/
 .aivilization/
+.qoder/
+.zcode/

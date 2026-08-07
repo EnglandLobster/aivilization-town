@@ -42,7 +42,9 @@ export type CoreEventType =
   | 'PlannerBranchUpdated'
   | 'ActionRejected'
   | 'ActionRepaired'
-  | 'SimulationTimeAdvanced';
+  | 'SimulationTimeAdvanced'
+  | 'AgentOwnershipDeparted'
+  | 'AgentOwnershipArrived';
 
 export type EventEnvelope<TType extends string = CoreEventType, TPayload = unknown> = {
   readonly id: EventId;

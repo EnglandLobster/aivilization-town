@@ -6,6 +6,32 @@ import { asAgentId, asLocationId, asSimulationId, type PartitionKey } from '@aiv
 import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import { createSimulationWideAuthority } from './simulationWideAuthority';
+import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
+
+function createTestCognitiveSnapshot(agentId: typeof agentA): AgentCognitiveSnapshot {
+  return {
+    schemaVersion: 'agent-cognitive-snapshot-v1',
+    agentId,
+    sourcePartitionKey: partitionA,
+    capturedAt: 1,
+    shortTermMemory: [],
+    longTermProfile: {
+      agentId,
+      beliefs: [],
+      habits: [],
+      mood: [],
+      values: [],
+      personality: [],
+      socialRecords: [],
+    },
+    intention: {
+      agentId,
+      completedObjectives: [],
+      scheduledIntentions: [],
+      updatedAt: 0,
+    },
+  };
+}
 
 const partitionA = 'partition-a' as PartitionKey;
 const partitionB = 'partition-b' as PartitionKey;
@@ -203,6 +229,154 @@ describe('simulation-wide authority', () => {
     expect(authority.getSnapshot().projection.agents[agentA]?.locationId).toBe(
       asLocationId('market'),
     );
+  });
+
+  test('settles an immediate cross-owner move with paired ownership events and snapshot delivery', () => {
+    const authority = createAuthority();
+    const snapshot = createTestCognitiveSnapshot(agentA);
+
+    const move = authority.settleMove({
+      operationId: 'move-cross-owner',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+      destinationPartitionKey: partitionB,
+      cognitiveSnapshot: snapshot,
+    });
+    const authoritySnapshot = authority.getSnapshot();
+
+    // Immediate arrival flips ownership at settlement.
+    expect(move.status).toBe('completed');
+    expect(authoritySnapshot.ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+
+    // The source consumes settlement events plus its departure; the agent is
+    // gone from its view.
+    const sourceDeliveries = authority.readInbox({
+      partitionKey: partitionA,
+      consumerId: 'materializer-a',
+    }).deliveries;
+    expect(sourceDeliveries).toMatchObject([{ operationKind: 'move', partitionKey: partitionA }]);
+    expect(
+      sourceDeliveries[0]!.events.some((event) => event.type === 'AgentOwnershipDeparted'),
+    ).toBe(true);
+
+    // The destination receives the arrival carrying the authoritative world
+    // state plus the cognitive snapshot for hydration.
+    const destinationDeliveries = authority.readInbox({
+      partitionKey: partitionB,
+      consumerId: 'materializer-b',
+    }).deliveries;
+    expect(destinationDeliveries).toMatchObject([
+      { operationKind: 'move', partitionKey: partitionB },
+    ]);
+    expect(destinationDeliveries[0]!.cognitiveSnapshot).toEqual(snapshot);
+    const arrivalEvent = destinationDeliveries[0]!.events.find(
+      (event) => event.type === 'AgentOwnershipArrived',
+    );
+    expect(arrivalEvent).toBeDefined();
+    if (arrivalEvent?.type === 'AgentOwnershipArrived') {
+      expect(arrivalEvent.payload.fromPartitionKey).toBe(partitionA);
+      expect(arrivalEvent.payload.agentState.locationId).toBe(asLocationId('market'));
+    }
+  });
+
+  test('completes an in-transit cross-owner move on time advance and hands over ownership', () => {
+    const authority = createAuthority(undefined, true);
+    const snapshot = createTestCognitiveSnapshot(agentA);
+
+    const departure = authority.settleMove({
+      operationId: 'move-cross-owner-travel',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+      destinationPartitionKey: partitionB,
+      cognitiveSnapshot: snapshot,
+    });
+    expect(departure.status).toBe('in-transit');
+    // Owner stays with the source while travel is in flight.
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    // The destination receives nothing until travel commits.
+    expect(
+      authority.readInbox({ partitionKey: partitionB, consumerId: 'materializer-b' }).deliveries,
+    ).toEqual([]);
+
+    const advance = authority.advanceTime({
+      operationId: 'advance-cross-owner-move',
+      workerId: 'worker-a',
+      observedAt: 10_001,
+      durationMs: 100,
+      deltaMs: 10_000,
+    })[0];
+    expect(advance).toMatchObject({
+      kind: 'time-advanced',
+      completedMoves: [
+        {
+          operationId: 'move-cross-owner-travel',
+          ownerPartitionKey: partitionA,
+          destinationPartitionKey: partitionB,
+        },
+      ],
+    });
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+
+    // Completion delivers the departure to the source and the arrival plus
+    // snapshot to the destination — never the full advance event set.
+    const sourceAfter = authority.readInbox({
+      partitionKey: partitionA,
+      consumerId: 'materializer-a',
+    }).deliveries;
+    expect(sourceAfter).toMatchObject([
+      { operationKind: 'move' },
+      { operationKind: 'time-advanced' },
+    ]);
+    expect(
+      sourceAfter[1]!.events.every(
+        (event) => event.type === 'AgentOwnershipDeparted',
+      ),
+    ).toBe(true);
+    const destinationAfter = authority.readInbox({
+      partitionKey: partitionB,
+      consumerId: 'materializer-b',
+    }).deliveries;
+    expect(destinationAfter).toMatchObject([{ operationKind: 'time-advanced' }]);
+    expect(destinationAfter[0]!.cognitiveSnapshot).toEqual(snapshot);
+    expect(
+      destinationAfter[0]!.events.every(
+        (event) => event.type === 'AgentOwnershipArrived',
+      ),
+    ).toBe(true);
+  });
+
+  test('guards the cognitive snapshot contract on cross-owner and same-owner moves', () => {
+    const authority = createAuthority();
+
+    expect(() =>
+      authority.settleMove({
+        operationId: 'move-cross-owner-no-snapshot',
+        workerId: 'worker-a',
+        observedAt: 1,
+        durationMs: 100,
+        agentId: agentA,
+        targetLocationId: 'market',
+        destinationPartitionKey: partitionB,
+      }),
+    ).toThrow(/requires a cognitive snapshot/);
+
+    expect(() =>
+      authority.settleMove({
+        operationId: 'move-same-owner-with-snapshot',
+        workerId: 'worker-a',
+        observedAt: 1,
+        durationMs: 100,
+        agentId: agentA,
+        targetLocationId: 'market',
+        cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
+      }),
+    ).toThrow(/must not carry a cognitive snapshot/);
   });
 
   test('rejects a move that would exceed the globally observed location capacity', () => {

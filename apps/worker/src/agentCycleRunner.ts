@@ -269,7 +269,7 @@ export async function runWorkerAgentCycle(
               ? {}
               : { expectedVersion: input.expectedVersion }),
           })
-        : input.commandRouter.routeCommandDrafts({
+        : await input.commandRouter.routeCommandDrafts({
             commandDrafts: cycleResult.commandDrafts,
             projection: input.projection,
             policies: input.policies,

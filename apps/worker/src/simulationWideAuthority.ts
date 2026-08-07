@@ -13,6 +13,7 @@ import {
   asAgentId,
   asLocationId,
   createCommandEnvelope,
+  createEventEnvelope,
   type AgentId,
   type PartitionKey,
   type SimulationId,
@@ -30,6 +31,7 @@ import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
+import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 /**
  * A file-backed, simulation-wide authority used when one society is executed
@@ -91,12 +93,17 @@ export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
   readonly targetLocationId: string;
   readonly reason?: string;
   /**
-   * The partition that will own the Agent after the move commits. Layer 1 of
-   * the move handoff keeps this equal to the current owner (pure spatial
-   * settlement); the cross-owner handoff resolves it from manifest-declared
-   * location affinity.
+   * The partition that will own the Agent after the move commits. Resolved
+   * from manifest-declared location affinity; omitted (or equal to the current
+   * owner) keeps the move a same-owner spatial change.
    */
   readonly destinationPartitionKey?: PartitionKey;
+  /**
+   * Required exactly when the move crosses owners: the durable cognitive state
+   * captured by the source partition. The authority holds it until the
+   * destination partition hydrates it on arrival.
+   */
+  readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
 };
 
 export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
@@ -152,6 +159,15 @@ export type SimulationWideAuthorityOperation =
       readonly agentId: AgentId;
       readonly status: 'in-transit' | 'completed';
       readonly events: readonly WorldEvent[];
+      /**
+       * Cross-owner moves deliver partition-specific event sets: the source
+       * consumes its departure set, the destination its arrival set (empty
+       * until travel commits). Same-owner moves leave both absent and deliver
+       * `events` to the owner as before.
+       */
+      readonly departureEvents?: readonly WorldEvent[];
+      readonly arrivalEvents?: readonly WorldEvent[];
+      readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
     }
   | {
       readonly kind: 'time-advanced';
@@ -170,6 +186,9 @@ export type SimulationWideAuthorityOperation =
         readonly agentId: AgentId;
         readonly ownerPartitionKey: PartitionKey;
         readonly destinationPartitionKey: PartitionKey;
+        readonly departureEvents: readonly WorldEvent[];
+        readonly arrivalEvents: readonly WorldEvent[];
+        readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
       }[];
     }
   | {
@@ -215,6 +234,8 @@ export type SimulationWideAuthorityInboxDelivery = {
     'inbox-materialized' | 'location-sync'
   >;
   readonly events: readonly WorldEvent[];
+  /** Present only on arrival deliveries addressed to a transfer destination. */
+  readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
 };
 
 export type SimulationWideAuthorityInboxCursor = {
@@ -252,6 +273,7 @@ export type SimulationWideAuthoritySnapshot = {
         readonly operationId: string;
         readonly ownerPartitionKey: PartitionKey;
         readonly destinationPartitionKey: PartitionKey;
+        readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
       }
     >
   >;
@@ -659,6 +681,30 @@ export function createSimulationWideAuthority(input: {
           }
           const projection = events.reduce(applyWorldEvent, state.projection);
           const arrived = events.some((event) => event.type === 'AgentLocationChanged');
+          const crossOwner = destinationPartitionKey !== ownerPartitionKey;
+          if (crossOwner && request.cognitiveSnapshot === undefined) {
+            throw new Error(
+              `cross-owner move for ${agentId} requires a cognitive snapshot`,
+            );
+          }
+          if (!crossOwner && request.cognitiveSnapshot !== undefined) {
+            throw new Error(
+              `same-owner move for ${agentId} must not carry a cognitive snapshot`,
+            );
+          }
+          // Cross-owner completion emits paired ownership events: the source
+          // stream stops tracking the Agent, the destination stream begins.
+          const transferEvents = crossOwner
+            ? createOwnershipTransferEvents({
+                operationId: request.operationId,
+                simulationId: state.simulationId,
+                agentId,
+                fromPartitionKey: ownerPartitionKey,
+                toPartitionKey: destinationPartitionKey,
+                agentState: projection.agents[agentId],
+                occurredAt: request.observedAt,
+              })
+            : undefined;
           const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'move' }> = {
             kind: 'move',
             operationId: request.operationId,
@@ -667,7 +713,24 @@ export function createSimulationWideAuthority(input: {
             destinationPartitionKey,
             agentId,
             status: arrived ? 'completed' : 'in-transit',
-            events,
+            // `events` is what the routing partition folds into its working
+            // view: for a cross-owner move that is the source-side set
+            // (settlement plus departure on immediate arrival) — the arrival
+            // set belongs to the destination and never enters the source view.
+            events: crossOwner
+              ? arrived && transferEvents !== undefined
+                ? [...events, transferEvents.departure]
+                : events
+              : events,
+            ...(crossOwner && transferEvents !== undefined
+              ? {
+                  departureEvents: arrived ? [...events, transferEvents.departure] : events,
+                  arrivalEvents: arrived ? [transferEvents.arrival] : [],
+                }
+              : {}),
+            ...(request.cognitiveSnapshot === undefined
+              ? {}
+              : { cognitiveSnapshot: request.cognitiveSnapshot }),
           };
           return {
             state: {
@@ -676,7 +739,7 @@ export function createSimulationWideAuthority(input: {
               // Owner only flips once travel commits; until then the source
               // partition keeps executing the Agent.
               ownerPartitionKeyByAgentId:
-                arrived && destinationPartitionKey !== ownerPartitionKey
+                arrived && crossOwner
                   ? { ...state.ownerPartitionKeyByAgentId, [agentId]: destinationPartitionKey }
                   : state.ownerPartitionKeyByAgentId,
               ...(arrived
@@ -688,6 +751,9 @@ export function createSimulationWideAuthority(input: {
                         operationId: request.operationId,
                         ownerPartitionKey,
                         destinationPartitionKey,
+                        ...(request.cognitiveSnapshot === undefined
+                          ? {}
+                          : { cognitiveSnapshot: request.cognitiveSnapshot }),
                       },
                     },
                   }),
@@ -802,6 +868,9 @@ export function createSimulationWideAuthority(input: {
             agentId: AgentId;
             ownerPartitionKey: PartitionKey;
             destinationPartitionKey: PartitionKey;
+            departureEvents: readonly WorldEvent[];
+            arrivalEvents: readonly WorldEvent[];
+            cognitiveSnapshot?: AgentCognitiveSnapshot;
           }[] = [];
           for (const agentId of movedAgentIds) {
             const pending = pendingTransfers[agentId];
@@ -820,11 +889,41 @@ export function createSimulationWideAuthority(input: {
             if (pendingMove === undefined) continue;
             delete pendingMoves[agentId];
             owners[agentId] = pendingMove.destinationPartitionKey;
+            const moveCrossOwner =
+              pendingMove.destinationPartitionKey !== pendingMove.ownerPartitionKey;
+            // Cross-owner completion publishes the paired ownership events; a
+            // same-owner move only delivers this agent's arrival event — never
+            // the full advance set, whose clock/physiology effects the owner
+            // partition has already applied through its own local advance.
+            const completionEvents = moveCrossOwner
+              ? createOwnershipTransferEvents({
+                  operationId: pendingMove.operationId,
+                  simulationId: state.simulationId,
+                  agentId: asAgentId(agentId),
+                  fromPartitionKey: pendingMove.ownerPartitionKey,
+                  toPartitionKey: pendingMove.destinationPartitionKey,
+                  agentState: projection.agents[agentId],
+                  occurredAt: request.observedAt,
+                })
+              : undefined;
             completedMoves.push({
               operationId: pendingMove.operationId,
               agentId: asAgentId(agentId),
               ownerPartitionKey: pendingMove.ownerPartitionKey,
               destinationPartitionKey: pendingMove.destinationPartitionKey,
+              departureEvents:
+                completionEvents === undefined ? [] : [completionEvents.departure],
+              arrivalEvents:
+                completionEvents === undefined
+                  ? events.filter(
+                      (event) =>
+                        event.type === 'AgentLocationChanged' &&
+                        event.payload.agentId === agentId,
+                    )
+                  : [completionEvents.arrival],
+              ...(pendingMove.cognitiveSnapshot === undefined
+                ? {}
+                : { cognitiveSnapshot: pendingMove.cognitiveSnapshot }),
             });
           }
           const primary: Extract<SimulationWideAuthorityOperation, { readonly kind: 'time-advanced' }> = {
@@ -1045,34 +1144,87 @@ function createInboxDeliveries(
           operationKind: operation.kind,
           events: operation.events,
         }));
-    case 'move':
-      return [operation.ownerPartitionKey, operation.destinationPartitionKey]
-        .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
-        .map((partitionKey) => ({
+    case 'move': {
+      if (operation.departureEvents === undefined || operation.arrivalEvents === undefined) {
+        // Same-owner move: one delivery of the settlement events to the owner.
+        return [
+          {
+            operationId: operation.operationId,
+            fencingToken: operation.fencingToken,
+            partitionKey: operation.ownerPartitionKey,
+            operationKind: operation.kind,
+            events: operation.events,
+          },
+        ];
+      }
+      const deliveries: SimulationWideAuthorityInboxDelivery[] = [];
+      if (operation.departureEvents.length > 0) {
+        deliveries.push({
           operationId: operation.operationId,
           fencingToken: operation.fencingToken,
-          partitionKey,
+          partitionKey: operation.ownerPartitionKey,
           operationKind: operation.kind,
-          events: operation.events,
-        }));
+          events: operation.departureEvents,
+        });
+      }
+      if (operation.arrivalEvents.length > 0) {
+        deliveries.push({
+          operationId: operation.operationId,
+          fencingToken: operation.fencingToken,
+          partitionKey: operation.destinationPartitionKey,
+          operationKind: operation.kind,
+          events: operation.arrivalEvents,
+          ...(operation.cognitiveSnapshot === undefined
+            ? {}
+            : { cognitiveSnapshot: operation.cognitiveSnapshot }),
+        });
+      }
+      return deliveries;
+    }
     case 'time-advanced': {
-      const transferPartitions = operation.completedTransfers.flatMap((transfer) => [
-        transfer.sourcePartitionKey,
-        transfer.destinationPartitionKey,
-      ]);
-      const movePartitions = operation.completedMoves.flatMap((move) => [
-        move.ownerPartitionKey,
-        move.destinationPartitionKey,
-      ]);
-      return [...transferPartitions, ...movePartitions]
-        .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
-        .map((partitionKey) => ({
-          operationId: operation.operationId,
-          fencingToken: operation.fencingToken,
-          partitionKey,
-          operationKind: operation.kind,
-          events: operation.events,
-        }));
+      // Transfers keep the legacy semantics: the full advance event set goes to
+      // every involved partition. Completed moves instead deliver only their
+      // per-move departure/arrival sets, so an owner partition never applies a
+      // second clock advance for time it already advanced locally.
+      const byPartition = new Map<
+        PartitionKey,
+        { events: WorldEvent[]; cognitiveSnapshot?: AgentCognitiveSnapshot }
+      >();
+      const addEvents = (
+        partitionKey: PartitionKey,
+        events: readonly WorldEvent[],
+        cognitiveSnapshot?: AgentCognitiveSnapshot,
+      ): void => {
+        if (events.length === 0 && cognitiveSnapshot === undefined) return;
+        const entry = byPartition.get(partitionKey) ?? { events: [] };
+        entry.events.push(...events);
+        if (cognitiveSnapshot !== undefined) {
+          entry.cognitiveSnapshot = cognitiveSnapshot;
+        }
+        byPartition.set(partitionKey, entry);
+      };
+      for (const transfer of operation.completedTransfers) {
+        addEvents(transfer.sourcePartitionKey, operation.events);
+        addEvents(transfer.destinationPartitionKey, operation.events);
+      }
+      for (const move of operation.completedMoves) {
+        addEvents(move.ownerPartitionKey, move.departureEvents);
+        addEvents(
+          move.destinationPartitionKey,
+          move.arrivalEvents,
+          move.cognitiveSnapshot,
+        );
+      }
+      return [...byPartition.entries()].map(([partitionKey, entry]) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: entry.events,
+        ...(entry.cognitiveSnapshot === undefined
+          ? {}
+          : { cognitiveSnapshot: entry.cognitiveSnapshot }),
+      }));
     }
     case 'inbox-materialized':
       return [];
@@ -1083,6 +1235,63 @@ function createInboxDeliveries(
 
 function createCursorKey(partitionKey: PartitionKey, consumerId: string): string {
   return `${partitionKey}:${consumerId}`;
+}
+
+/**
+ * Build the paired ownership events for a cross-owner move completion. The
+ * materializer interprets them per stream: the departure event ends the Agent's
+ * presence in the source partition's projection, the arrival event begins it in
+ * the destination with the authoritative world state captured at settlement.
+ * Sequences are placeholders: each materializer resequences deliveries into its
+ * own stream before appending.
+ */
+function createOwnershipTransferEvents(input: {
+  readonly operationId: string;
+  readonly simulationId: SimulationId;
+  readonly agentId: AgentId;
+  readonly fromPartitionKey: PartitionKey;
+  readonly toPartitionKey: PartitionKey;
+  readonly agentState: WorldProjection['agents'][string] | undefined;
+  readonly occurredAt: number;
+}): { readonly departure: WorldEvent; readonly arrival: WorldEvent } {
+  if (input.agentState === undefined) {
+    throw new Error(`cannot transfer unknown Agent ${input.agentId}`);
+  }
+  const state = input.agentState;
+  const departure = createEventEnvelope({
+    id: `simulation-wide-departure-${input.operationId}`,
+    simulationId: input.simulationId,
+    type: 'AgentOwnershipDeparted',
+    payload: {
+      agentId: input.agentId,
+      toPartitionKey: input.toPartitionKey,
+      transferOperationId: input.operationId,
+    },
+    occurredAt: input.occurredAt,
+    sequence: 1,
+  }) as WorldEvent;
+  const arrival = createEventEnvelope({
+    id: `simulation-wide-arrival-${input.operationId}`,
+    simulationId: input.simulationId,
+    type: 'AgentOwnershipArrived',
+    payload: {
+      agentId: input.agentId,
+      fromPartitionKey: input.fromPartitionKey,
+      transferOperationId: input.operationId,
+      agentState: {
+        locationId: state.locationId,
+        physiology: { ...state.physiology },
+        educationScore: state.educationScore,
+        balance: state.balance,
+        residentialTier: state.residentialTier,
+        job: state.job,
+        inventory: { ...state.inventory },
+      },
+    },
+    occurredAt: input.occurredAt,
+    sequence: 1,
+  }) as WorldEvent;
+  return { departure, arrival };
 }
 
 function assertConsumerId(consumerId: string): void {

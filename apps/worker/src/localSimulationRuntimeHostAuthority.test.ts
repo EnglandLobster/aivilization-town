@@ -75,6 +75,36 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     ).rejects.toThrow('simulation-wide authority');
   });
 
+  test('fails bootstrap closed when two partitions claim the same location affinity', async () => {
+    const rootDir = createRootDir();
+    const manifest = createManifest();
+    const conflicted: LocalSimulationRuntimeManifest = {
+      ...manifest,
+      partitions: manifest.partitions.map((partition) => ({
+        ...partition,
+        ownedLocationIds: ['main-square'],
+      })),
+    };
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir,
+        bootstrappedAt: 100,
+        manifest: conflicted,
+        scenarioPresets: createScenarioPresets(),
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        simulationWideAuthority: {
+          enabled: true,
+          workerId: 'authority-worker',
+          leaseDurationMs: 30_000,
+        },
+      }),
+    ).rejects.toThrow(/affinity must be unambiguous/);
+  });
+
   test('settles a trade through the authority and materializes it onto the owner partition', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

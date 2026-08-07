@@ -1,4 +1,4 @@
-import { type AgentId, type PartitionKey, type SimulationTimestamp } from '@aivilization/sim-core';
+import { type AgentId, asAgentId, type PartitionKey, type SimulationTimestamp } from '@aivilization/sim-core';
 import type { AmmPool } from '@aivilization/economy';
 import type { WorldProjection } from '@aivilization/world';
 import {
@@ -13,6 +13,7 @@ import {
   createLocalSimulationBackendRegistrationsFromResolvedManifest,
   resolveLocalSimulationRuntimeManifest,
   type LocalSimulationRuntimeRegistryInput,
+  type ResolvedLocalSimulationRuntimeManifest,
 } from './localSimulationRuntimeManifest';
 import {
   createLocalSimulationSocietyDirectoryService,
@@ -40,6 +41,7 @@ import {
   createSimulationCommandRouter,
   type SimulationCommandRouter,
 } from './simulationCommandRouter';
+import { captureAgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 export type LocalSimulationRuntimeHostInput = LocalSimulationRuntimeRegistryInput & {
   readonly bootstrappedAt: SimulationTimestamp;
@@ -149,6 +151,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       observedAt: input.bootstrappedAt,
       durationMs: activeAuthorityOptions.leaseDurationMs,
     });
+    const resolveLocationOwner = createLocationAffinityResolver(resolvedManifest);
     for (const partition of partitions) {
       const materializer = createSimulationWideAuthorityMaterializer({
         authority,
@@ -159,9 +162,22 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       });
       await materializer.recover(lease());
       materializers.set(partition.partitionKey, materializer);
+      const partitionStorage = partition.bootstrap.storage;
       routers.set(
         partition.partitionKey,
-        createSimulationCommandRouter({ authority, lease, partitionKey: partition.partitionKey }),
+        createSimulationCommandRouter({
+          authority,
+          lease,
+          partitionKey: partition.partitionKey,
+          resolveLocationOwner,
+          captureCognitiveSnapshot: ({ agentId, capturedAt }) =>
+            captureAgentCognitiveSnapshot({
+              storage: partitionStorage,
+              agentId: asAgentId(agentId),
+              sourcePartitionKey: partition.partitionKey,
+              capturedAt,
+            }),
+        }),
       );
     }
   }
@@ -234,6 +250,21 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
             return {
               commandRouter: router,
               preTickMaterialize: async ({ projection }: { readonly projection: WorldProjection }) => {
+                // Keep the authority clock level with the partition clocks so
+                // in-transit travel settled globally completes on schedule and
+                // its arrival deliveries are ready to materialize. Partitions
+                // advance in lockstep; the deterministic target-keyed
+                // operationId makes the second partition's call a no-op replay.
+                const authorityClockNow = authority!.getSnapshot().projection.clock.now;
+                if (authorityClockNow < projection.clock.now) {
+                  authority!.advanceTime({
+                    operationId: `advance-time-to:${projection.clock.now}`,
+                    workerId: materializeLease!.workerId,
+                    observedAt: materializeLease!.observedAt,
+                    durationMs: materializeLease!.durationMs,
+                    deltaMs: projection.clock.now - authorityClockNow,
+                  });
+                }
                 const result = await materialize({ lease: materializeLease! });
                 // The materializer's projection reflects the partition stream
                 // after consuming the inbox. The step passes its own hydrated
@@ -269,6 +300,30 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     ...(authority === undefined ? {} : { authority }),
     materializers,
   };
+}
+
+/**
+ * Build the location-affinity resolver from manifest declarations. Affinity is
+ * explicit and conflict-free by construction: a location claimed by two
+ * partitions fails bootstrap closed, and unclaimed locations resolve to
+ * undefined so movers keep their current owner.
+ */
+function createLocationAffinityResolver(
+  resolvedManifest: ResolvedLocalSimulationRuntimeManifest,
+): (locationId: string) => PartitionKey | undefined {
+  const ownerByLocation = new Map<string, PartitionKey>();
+  for (const partition of resolvedManifest.partitions) {
+    for (const locationId of partition.ownedLocationIds ?? []) {
+      const existing = ownerByLocation.get(locationId);
+      if (existing !== undefined && existing !== partition.partitionKey) {
+        throw new Error(
+          `location ${locationId} is claimed by both ${existing} and ${partition.partitionKey}; affinity must be unambiguous`,
+        );
+      }
+      ownerByLocation.set(locationId, partition.partitionKey);
+    }
+  }
+  return (locationId) => ownerByLocation.get(locationId);
 }
 
 function createAuthoritySeed(input: {

@@ -13,6 +13,7 @@ import {
 } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
+import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 import { createSimulationCommandRouter } from './simulationCommandRouter';
 import { createSimulationWideAuthority } from './simulationWideAuthority';
 
@@ -24,7 +25,7 @@ const agentB = asAgentId('agent-b');
 const lease = { workerId: 'router-worker', observedAt: 1, durationMs: 30_000 };
 
 describe('simulation command router', () => {
-  test('syncs the partition location view into the authority before settlement', () => {
+  test('syncs the partition location view into the authority before settlement', async () => {
     // Seed says agent-a stands at the market, but its owner partition's durable
     // reality (the routed projection) is the town square. Routing any draft
     // must report that reality before global settlement can run.
@@ -43,7 +44,7 @@ describe('simulation command router', () => {
       partitionKey: partitionA,
     });
 
-    router.routeCommandDrafts({
+    await router.routeCommandDrafts({
       commandDrafts: [createStudyDraft(agentA)],
       projection: createPartitionProjection({
         agentId: agentA,
@@ -61,7 +62,7 @@ describe('simulation command router', () => {
     );
     // Unchanged location views are not journaled again on the next route.
     const operationCount = Object.keys(authority.getSnapshot().operations).length;
-    router.routeCommandDrafts({
+    await router.routeCommandDrafts({
       commandDrafts: [createStudyDraft(agentA)],
       projection: createPartitionProjection({
         agentId: agentA,
@@ -76,7 +77,7 @@ describe('simulation command router', () => {
     expect(Object.keys(authority.getSnapshot().operations).length).toBe(operationCount);
   });
 
-  test('settles a cross-owner conversation once the initiator sync makes co-location true', () => {
+  test('settles a cross-owner conversation once the initiator sync makes co-location true', async () => {
     // Seed reality: agent-a is at the town square, agent-b at the market.
     // agent-b's owner partition has since moved it locally to the town square;
     // only the partition location sync can teach the authority that fact.
@@ -95,7 +96,7 @@ describe('simulation command router', () => {
       partitionKey: partitionB,
     });
 
-    const result = routerB.routeCommandDrafts({
+    const result = await routerB.routeCommandDrafts({
       commandDrafts: [createConversationDraft(agentB, agentA)],
       projection: createPartitionProjection({
         agentId: agentB,
@@ -123,7 +124,7 @@ describe('simulation command router', () => {
       { operationKind: 'conversation', partitionKey: partitionB },
     ]);
   });
-  test('routes a move draft through authority settlement instead of the partition stream', () => {
+  test('routes a move draft through authority settlement instead of the partition stream', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',
       agentBLocationId: 'market',
@@ -139,7 +140,7 @@ describe('simulation command router', () => {
       partitionKey: partitionA,
     });
 
-    const result = router.routeCommandDrafts({
+    const result = await router.routeCommandDrafts({
       commandDrafts: [
         {
           simulationId: asSimulationId('sim-1'),
@@ -178,6 +179,101 @@ describe('simulation command router', () => {
       authority.readInbox({ partitionKey: partitionA, consumerId: 'm-a' }).deliveries,
     ).toMatchObject([{ operationKind: 'move', partitionKey: partitionA }]);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(0);
+  });
+  test('routes a cross-owner move resolved by location affinity with a captured snapshot', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const capturedSnapshots: { agentId: string; capturedAt: number }[] = [];
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+      // Affinity: the school belongs to partition-b; everything else keeps the
+      // mover's current owner.
+      resolveLocationOwner: (locationId) =>
+        locationId === 'school' ? partitionB : undefined,
+      captureCognitiveSnapshot: ({ agentId, capturedAt }) => {
+        capturedSnapshots.push({ agentId, capturedAt });
+        return Promise.resolve({
+          schemaVersion: 'agent-cognitive-snapshot-v1',
+          agentId: asAgentId(agentId),
+          sourcePartitionKey: partitionA,
+          capturedAt,
+          shortTermMemory: [],
+          longTermProfile: {
+            agentId: asAgentId(agentId),
+            beliefs: [],
+            habits: [],
+            mood: [],
+            values: [],
+            personality: [],
+            socialRecords: [],
+          },
+          intention: {
+            agentId: asAgentId(agentId),
+            completedObjectives: [],
+            scheduledIntentions: [],
+            updatedAt: 0,
+          },
+        } satisfies AgentCognitiveSnapshot);
+      },
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentMoveTo',
+          payload: { targetLocationId: asLocationId('school'), reason: 'attend class' },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-1:agent-a',
+      commandIdPrefix: 'tick-1:agent-a',
+    });
+
+    // Affinity resolved the destination, the snapshot was captured once, and
+    // ownership flipped on immediate arrival.
+    expect(capturedSnapshots).toEqual([{ agentId: agentA, capturedAt: lease.observedAt }]);
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+
+    // The destination's delivery carries the arrival event and the snapshot.
+    const destinationDeliveries = authority.readInbox({
+      partitionKey: partitionB,
+      consumerId: 'm-b',
+    }).deliveries;
+    expect(destinationDeliveries).toMatchObject([
+      { operationKind: 'move', partitionKey: partitionB },
+    ]);
+    expect(destinationDeliveries[0]!.cognitiveSnapshot?.agentId).toBe(agentA);
+    expect(
+      destinationDeliveries[0]!.events.some((event) => event.type === 'AgentOwnershipArrived'),
+    ).toBe(true);
+
+    // The source's own delivery includes its departure.
+    const sourceDeliveries = authority.readInbox({
+      partitionKey: partitionA,
+      consumerId: 'm-a',
+    }).deliveries;
+    expect(
+      sourceDeliveries[0]!.events.some((event) => event.type === 'AgentOwnershipDeparted'),
+    ).toBe(true);
   });
 });
 

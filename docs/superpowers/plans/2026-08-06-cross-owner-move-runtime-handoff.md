@@ -121,8 +121,20 @@ objective/memory 继续规划,西区不再调度;重启后状态一致。
 
 ## 实施顺序
 
-1. 第 1 层(1a→1b→1c),每步 `pnpm check`。
-2. 第 2 层(2a→2c→2b→2d),集成测试收尾。
-3. 第 3 层文档。
+1. 第 1 层(1a→1b→1c),每步 `pnpm check`。✅ 已完成(提交 7681393;1c 并入第 2 层)
+2. 第 2 层(2a→2c→2b→2d),集成测试收尾。✅ 已完成:world 事件
+   AgentOwnershipDeparted/Arrived、agentCognitiveSnapshot 模块、settleMove 跨
+   owner 语义、router affinity+快照捕获、materializer 到达水合、host 时钟同步
+   与 affinity 冲突 fail-closed;214 test files / 1242 tests 通过
+3. 第 3 层文档。✅ 矩阵已更新
+
+补充实现说明(原计划之外的必要决策):
+- **authority 时钟同步**:canonical 运行时原先从不调用 authority.advanceTime,
+  现由 host 的 preTickMaterialize 在每分区 tick 前把 authority 时钟推进到分区
+  时钟(operationId 按目标时刻派生,锁步分区二次调用为幂等 no-op),否则旅行
+  到达永远无法完成。
+- **到达投递过滤**:time-advanced 对 completedMoves 只投递该 move 的
+  departure/arrival 事件,绝不投递全量推进事件——避免 owner 分区二次推进时钟
+  (transfer 旧语义保持不变)。
 
 不 commit 策略沿用主线:完成后按层拆分提交。

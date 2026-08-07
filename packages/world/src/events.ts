@@ -400,6 +400,41 @@ export type SimulationTimeAdvancedPayload = {
   readonly deltaMs: number;
 };
 
+/**
+ * An Agent whose durable ownership moved to another execution partition. In the
+ * departing partition's stream this event ends the Agent's local presence: the
+ * projection stops tracking it, while the durable cognitive history stays for
+ * audit and replay. Emitted by simulation-wide authority settlement, never by a
+ * partition-local command.
+ */
+export type AgentOwnershipDepartedPayload = {
+  readonly agentId: AgentId;
+  readonly toPartitionKey: string;
+  readonly transferOperationId: string;
+};
+
+/**
+ * An Agent whose durable ownership arrived from another execution partition,
+ * carrying its authoritative world state at transfer time. In the receiving
+ * partition's stream this event begins the Agent's local presence; the matching
+ * cognitive state (memory, profile, objectives, plans) is hydrated by the
+ * runtime materializer from the authority-held snapshot.
+ */
+export type AgentOwnershipArrivedPayload = {
+  readonly agentId: AgentId;
+  readonly fromPartitionKey: string;
+  readonly transferOperationId: string;
+  readonly agentState: {
+    readonly locationId: LocationId | null;
+    readonly physiology: PhysiologicalState;
+    readonly educationScore: number;
+    readonly balance: number;
+    readonly residentialTier: number;
+    readonly job: string | null;
+    readonly inventory: Inventory;
+  };
+};
+
 export type WorldEventPayloadByType = {
   readonly AgentRegistered: AgentRegisteredPayload;
   readonly AgentRegistrationRejected: AgentRegistrationRejectedPayload;
@@ -431,6 +466,8 @@ export type WorldEventPayloadByType = {
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;
+  readonly AgentOwnershipDeparted: AgentOwnershipDepartedPayload;
+  readonly AgentOwnershipArrived: AgentOwnershipArrivedPayload;
 };
 
 export type WorldEventType = keyof WorldEventPayloadByType;

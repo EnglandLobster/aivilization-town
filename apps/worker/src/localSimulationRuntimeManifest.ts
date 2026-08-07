@@ -46,6 +46,13 @@ export type LocalSimulationRuntimePartitionManifest = {
   readonly commandConsumerId?: CommandConsumerId;
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly moneySupply?: number;
+  /**
+   * Explicit location affinity: Agents moving to one of these locations become
+   * owned by this partition once the move commits. Partitions are a repository
+   * scaling device the paper does not define, so affinity must be declared
+   * here and is never inferred; conflicting claims fail bootstrap closed.
+   */
+  readonly ownedLocationIds?: readonly string[];
 };
 
 export type LocalSimulationRuntimeManifest = {
@@ -70,6 +77,7 @@ export type ResolvedLocalSimulationRuntimePartition = {
   readonly commandConsumerId: CommandConsumerId;
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly moneySupply?: number;
+  readonly ownedLocationIds?: readonly string[];
 };
 
 export type ResolvedLocalSimulationRuntimeManifest = {
@@ -246,6 +254,9 @@ function resolvePartitionManifest(
       partition.commandConsumerId ?? createDefaultCommandConsumerId(manifest.defaults, partition),
     ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
     ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+    ...(partition.ownedLocationIds === undefined
+      ? {}
+      : { ownedLocationIds: [...partition.ownedLocationIds] }),
   };
 }
 

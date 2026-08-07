@@ -770,6 +770,47 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...projection,
         rejectedActions: [...projection.rejectedActions, event.payload],
       };
+    case 'AgentOwnershipDeparted': {
+      const agent = projection.agents[event.payload.agentId];
+      if (agent === undefined) {
+        throw new Error(
+          `cannot replay ownership departure for unknown agent ${event.payload.agentId}`,
+        );
+      }
+      const agents = { ...projection.agents };
+      delete agents[event.payload.agentId];
+      const transitByAgent = { ...(projection.transitByAgent ?? {}) };
+      delete transitByAgent[event.payload.agentId];
+      return {
+        ...projection,
+        agents,
+        transitByAgent,
+      };
+    }
+    case 'AgentOwnershipArrived': {
+      if (projection.agents[event.payload.agentId] !== undefined) {
+        throw new Error(
+          `cannot replay duplicate ownership arrival for agent ${event.payload.agentId}`,
+        );
+      }
+      const state = event.payload.agentState;
+      return {
+        ...projection,
+        agents: {
+          ...projection.agents,
+          [event.payload.agentId]: {
+            agentId: event.payload.agentId,
+            locationId: state.locationId,
+            physiology: { ...state.physiology },
+            educationScore: state.educationScore,
+            balance: state.balance,
+            residentialTier: state.residentialTier,
+            job: state.job,
+            inventory: { ...state.inventory },
+          },
+        },
+      };
+    }
   }
 }
 

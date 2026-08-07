@@ -5,6 +5,7 @@ import {
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { applyWorldEvent } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
+import { hydrateAgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import type {
   SimulationWideAuthorityInboxCursor,
@@ -108,6 +109,17 @@ export function createSimulationWideAuthorityMaterializer(input: {
       if (!appendResult.idempotentReplay) {
         await ensurePartitionMemoryMaterialized(appendResult.appendedEvents);
         projection = appendResult.appendedEvents.reduce(applyWorldEvent, projection);
+        // Arrival deliveries for cross-owner transfers carry the Agent's durable
+        // cognitive state. Hydrate it alongside the arrival event so the very
+        // next tick can plan with the migrated objectives, plans, and memory.
+        // Hydration is first-write-wins and idempotent, so a recovered replay of
+        // the same delivery never clobbers state the agent has since produced.
+        if (delivery.cognitiveSnapshot !== undefined) {
+          await hydrateAgentCognitiveSnapshot({
+            storage: input.storage,
+            snapshot: delivery.cognitiveSnapshot,
+          });
+        }
       }
       streamVersion = appendResult.streamVersion;
       materializedOperationIds.push(delivery.operationId);

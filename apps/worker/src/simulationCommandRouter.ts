@@ -29,6 +29,7 @@ import type {
   SimulationWideAuthorityLease,
   SimulationWideAuthorityService,
 } from './simulationWideAuthority';
+import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 /**
  * The command types the authority canonically owns. Trade and conversation are
@@ -55,13 +56,28 @@ export type SimulationCommandRouter = {
     readonly appendIdempotencyKey: string;
     readonly commandIdPrefix: string;
     readonly expectedVersion?: number;
-  }) => DispatchCommandDraftsToEventStreamResult;
+  }) => Promise<DispatchCommandDraftsToEventStreamResult>;
 };
 
 export function createSimulationCommandRouter(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly lease: () => SimulationWideAuthorityLease;
   readonly partitionKey: PartitionKey;
+  /**
+   * Manifest-declared location affinity: which partition will own an Agent
+   * standing at a location. Unaffiliated (or multiply-affiliated) locations
+   * resolve to undefined and keep the mover's current owner.
+   */
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  /**
+   * Captures the moving Agent's durable cognitive state from this partition's
+   * storage. Only invoked for moves whose affinity resolves to a different
+   * owner partition.
+   */
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
 }): SimulationCommandRouter {
   // Partition-local moves never settle through the authority, so its global
   // projection would otherwise keep bootstrap-era locations forever and
@@ -89,7 +105,7 @@ export function createSimulationCommandRouter(input: {
     lastSyncedLocationsFingerprint = fingerprint;
   };
   return {
-    routeCommandDrafts: (routeInput) => {
+    routeCommandDrafts: async (routeInput) => {
       syncPartitionLocations(routeInput.projection);
       const globalDrafts = routeInput.commandDrafts.filter((draft) =>
         GLOBAL_COMMAND_TYPES.has(draft.type),
@@ -101,6 +117,12 @@ export function createSimulationCommandRouter(input: {
         routeInput,
         authority: input.authority,
         lease: input.lease(),
+        ...(input.resolveLocationOwner === undefined
+          ? {}
+          : { resolveLocationOwner: input.resolveLocationOwner }),
+        ...(input.captureCognitiveSnapshot === undefined
+          ? {}
+          : { captureCognitiveSnapshot: input.captureCognitiveSnapshot }),
       });
     },
   };
@@ -112,11 +134,16 @@ type RoutedSettlement = {
   readonly settled: boolean;
 };
 
-function routeMixedDrafts(input: {
+async function routeMixedDrafts(input: {
   readonly routeInput: Parameters<SimulationCommandRouter['routeCommandDrafts']>[0];
   readonly authority: SimulationWideAuthorityService;
   readonly lease: SimulationWideAuthorityLease;
-}): DispatchCommandDraftsToEventStreamResult {
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
+}): Promise<DispatchCommandDraftsToEventStreamResult> {
   const { routeInput, authority, lease } = input;
   const expectedVersion =
     routeInput.expectedVersion ?? routeInput.eventStore.getStreamVersion(routeInput.streamName);
@@ -131,7 +158,7 @@ function routeMixedDrafts(input: {
     if (!GLOBAL_COMMAND_TYPES.has(draft.type)) {
       continue;
     }
-    const settlement = settleGlobalDraft({
+    const settlement = await settleGlobalDraft({
       draft,
       authority,
       lease,
@@ -139,6 +166,12 @@ function routeMixedDrafts(input: {
       projection: workingProjection,
       policies: routeInput.policies,
       nextSequence,
+      ...(input.resolveLocationOwner === undefined
+        ? {}
+        : { resolveLocationOwner: input.resolveLocationOwner }),
+      ...(input.captureCognitiveSnapshot === undefined
+        ? {}
+        : { captureCognitiveSnapshot: input.captureCognitiveSnapshot }),
     });
     settlements.push(settlement);
     if (settlement.events.length > 0) {
@@ -202,7 +235,7 @@ function routeMixedDrafts(input: {
   };
 }
 
-function settleGlobalDraft(input: {
+async function settleGlobalDraft(input: {
   readonly draft: CommandDraft;
   readonly authority: SimulationWideAuthorityService;
   readonly lease: SimulationWideAuthorityLease;
@@ -210,7 +243,12 @@ function settleGlobalDraft(input: {
   readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicySource;
   readonly nextSequence: number;
-}): RoutedSettlement {
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
+}): Promise<RoutedSettlement> {
   const { draft, authority, lease, commandIdPrefix, projection, policies, nextSequence } = input;
   const operationId = `${commandIdPrefix}:${draft.type}:${draft.actorId}:${draft.issuedAt}`;
   try {
@@ -241,6 +279,22 @@ function settleGlobalDraft(input: {
     }
     if (draft.type === 'AgentMoveTo') {
       const payload = draft.payload as AgentMoveToPayload;
+      // Destination ownership comes from manifest-declared location affinity;
+      // anything unaffiliated keeps the mover's current owner.
+      const currentOwner =
+        authority.getSnapshot().ownerPartitionKeyByAgentId[draft.actorId];
+      const affinityOwner = input.resolveLocationOwner?.(payload.targetLocationId);
+      const destinationPartitionKey =
+        affinityOwner === undefined || affinityOwner === currentOwner
+          ? undefined
+          : affinityOwner;
+      const cognitiveSnapshot =
+        destinationPartitionKey === undefined || input.captureCognitiveSnapshot === undefined
+          ? undefined
+          : await input.captureCognitiveSnapshot({
+              agentId: draft.actorId,
+              capturedAt: lease.observedAt,
+            });
       const operation = authority.settleMove({
         operationId,
         workerId: lease.workerId,
@@ -249,6 +303,10 @@ function settleGlobalDraft(input: {
         agentId: draft.actorId,
         targetLocationId: payload.targetLocationId,
         ...(payload.reason === undefined ? {} : { reason: payload.reason }),
+        ...(destinationPartitionKey === undefined
+          ? {}
+          : { destinationPartitionKey }),
+        ...(cognitiveSnapshot === undefined ? {} : { cognitiveSnapshot }),
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
     }

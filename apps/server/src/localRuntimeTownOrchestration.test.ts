@@ -207,6 +207,46 @@ describe('local runtime town orchestration', () => {
             processedJobCount: 0,
           },
         },
+        authority: { enabled: false },
+      },
+    });
+  });
+
+  test('reports the simulation-wide authority ledger position in daemon status', async () => {
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir: createRootDir(),
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const supervisor = createLocalSimulationRuntimeSupervisor({ host });
+    const orchestration = createLocalRuntimeTownOrchestration({
+      host,
+      supervisor,
+      clock: { now: () => 600 },
+    });
+
+    await expect(orchestration.runtimeDaemonApi.getRuntimeDaemonStatus()).resolves.toMatchObject({
+      health: 'healthy',
+      components: {
+        authority: {
+          enabled: true,
+          health: 'healthy',
+          revision: 0,
+          latestFencingToken: 0,
+          pendingTransferCount: 0,
+          pendingMoveCount: 0,
+          partitionKeys: ['world-main'],
+        },
       },
     });
   });

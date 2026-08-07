@@ -329,7 +329,7 @@ export type SimulationWideAuthorityService = {
   readonly recover: (lease: SimulationWideAuthorityLease) => readonly string[];
 };
 
-type AuthorityJournalRecord =
+type AuthorityJournalRecordBody =
   | {
       readonly schemaVersion: typeof SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION;
       readonly recordType: 'intent';
@@ -345,6 +345,29 @@ type AuthorityJournalRecord =
       readonly revision: number;
       readonly recordedAt: number;
     };
+
+/**
+ * Every journal record carries a hash chain anchored at a fixed genesis hash:
+ * a record's chainHash is the SHA-256 of the previous record's chainHash and
+ * the record's canonical body. Any truncation, rewrite, or insertion into the
+ * audit journal breaks the chain from that point on, and authority bootstrap
+ * verifies the chain fail-closed before accepting further operations.
+ */
+export const SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH = sha256Hex(
+  `${SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION}:journal-genesis`,
+);
+
+type AuthorityJournalRecord = AuthorityJournalRecordBody & {
+  readonly chainHash: string;
+};
+
+/**
+ * A parsed journal row. `chainHash` stays optional at the parse boundary so a
+ * pre-chain legacy journal is readable and fails VERIFICATION (not parsing).
+ */
+type ParsedAuthorityJournalRecord = AuthorityJournalRecordBody & {
+  readonly chainHash?: string;
+};
 
 type MutationResult<TOperation extends SimulationWideAuthorityOperation> = {
   readonly state: SimulationWideAuthoritySnapshot;
@@ -379,6 +402,26 @@ export function createSimulationWideAuthority(input: {
     );
   }
 
+  // The audit journal is a hash chain. Before the first append this instance
+  // makes, the existing chain is verified fail-closed: a tampered or truncated
+  // history refuses further settlement instead of silently extending a broken
+  // chain.
+  let journalChainHash: string | undefined;
+  const appendChainedJournal = (record: AuthorityJournalRecordBody): void => {
+    if (journalChainHash === undefined) {
+      const verification = verifyJournalChainRecords(readJournal(journalPath));
+      if (!verification.valid) {
+        throw new Error(
+          `simulation-wide authority journal chain is broken at record ${verification.firstBrokenRecordIndex}`,
+        );
+      }
+      journalChainHash = verification.latestChainHash;
+    }
+    const chainHash = computeJournalChainHash(journalChainHash, record);
+    appendFileSync(journalPath, `${JSON.stringify({ ...record, chainHash })}\n`);
+    journalChainHash = chainHash;
+  };
+
   // Resolve the world command policies for a given projection, threading the
   // regional-markets flag through so the AgentTrade handler gates trades on
   // regional co-location when regional markets are enabled.
@@ -407,7 +450,7 @@ export function createSimulationWideAuthority(input: {
         return clone(existing.operation) as TOperation;
       }
       const fencingToken = state.latestFencingToken + 1;
-      appendJournal(journalPath, {
+      appendChainedJournal({
         schemaVersion: SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION,
         recordType: 'intent',
         operationId: inputMutation.operationId,
@@ -429,7 +472,7 @@ export function createSimulationWideAuthority(input: {
         },
       };
       writeAtomically(statePath, `${JSON.stringify(nextState, null, 2)}\n`);
-      appendJournal(journalPath, {
+      appendChainedJournal({
         schemaVersion: SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION,
         recordType: 'completed',
         operationId: inputMutation.operationId,
@@ -1039,7 +1082,7 @@ export function createSimulationWideAuthority(input: {
         const repaired: string[] = [];
         for (const [operationId, value] of Object.entries(state.operations)) {
           if (completed.has(operationId)) continue;
-          appendJournal(journalPath, {
+          appendChainedJournal({
             schemaVersion: SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION,
             recordType: 'completed',
             operationId,
@@ -1388,8 +1431,78 @@ function validateLease(lease: SimulationWideAuthorityLease): void {
   }
 }
 
-function appendJournal(path: string, record: AuthorityJournalRecord): void {
-  appendFileSync(path, `${JSON.stringify(record)}\n`);
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function computeJournalChainHash(
+  previousChainHash: string,
+  body: AuthorityJournalRecordBody,
+): string {
+  return sha256Hex(`${previousChainHash}:${stableStringify(body)}`);
+}
+
+function verifyJournalChainRecords(
+  records: readonly ParsedAuthorityJournalRecord[],
+): {
+  readonly valid: boolean;
+  readonly firstBrokenRecordIndex?: number;
+  readonly latestChainHash: string;
+} {
+  let expectedChainHash = SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH;
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]!;
+    const { chainHash, ...body } = record;
+    const recomputed = computeJournalChainHash(expectedChainHash, body);
+    if (chainHash === undefined || chainHash !== recomputed) {
+      return {
+        valid: false,
+        firstBrokenRecordIndex: index,
+        latestChainHash: expectedChainHash,
+      };
+    }
+    expectedChainHash = chainHash;
+  }
+  return { valid: true, latestChainHash: expectedChainHash };
+}
+
+/**
+ * Independently verify the authority's audit journal hash chain. Reads the
+ * durable journal for the given authority and recomputes every chain link
+ * from the genesis hash, so a caller can prove the operation history is
+ * complete and untampered without trusting the live authority instance.
+ */
+export function verifySimulationWideAuthorityJournal(input: {
+  readonly rootDir: string;
+  readonly simulationId: SimulationId | string;
+}): {
+  readonly recordCount: number;
+  readonly valid: boolean;
+  readonly firstBrokenRecordIndex?: number;
+  readonly latestChainHash: string;
+  readonly reason?: string;
+} {
+  const path = join(authorityDirectory(input.rootDir, input.simulationId), 'operations.jsonl');
+  let records: readonly ParsedAuthorityJournalRecord[];
+  try {
+    records = readJournal(path);
+  } catch (error) {
+    return {
+      recordCount: 0,
+      valid: false,
+      latestChainHash: SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const verification = verifyJournalChainRecords(records);
+  return {
+    recordCount: records.length,
+    valid: verification.valid,
+    latestChainHash: verification.latestChainHash,
+    ...(verification.firstBrokenRecordIndex === undefined
+      ? {}
+      : { firstBrokenRecordIndex: verification.firstBrokenRecordIndex }),
+  };
 }
 
 function readJournal(path: string): readonly AuthorityJournalRecord[] {

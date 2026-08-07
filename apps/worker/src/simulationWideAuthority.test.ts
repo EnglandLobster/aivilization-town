@@ -5,7 +5,11 @@ import { describe, expect, test } from 'vitest';
 import { asAgentId, asLocationId, asSimulationId, type PartitionKey } from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
-import { createSimulationWideAuthority } from './simulationWideAuthority';
+import {
+  SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH,
+  createSimulationWideAuthority,
+  verifySimulationWideAuthorityJournal,
+} from './simulationWideAuthority';
 import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 function createTestCognitiveSnapshot(agentId: typeof agentA): AgentCognitiveSnapshot {
@@ -456,6 +460,65 @@ describe('simulation-wide authority', () => {
         targetLocationId: 'tiny-room',
       }),
     ).toThrow(/at capacity/);
+  });
+
+  test('writes the audit journal as a verifiable hash chain and fails closed on tamper', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-chain-'));
+    const authority = createAuthority(rootDir);
+    authority.settleTrade({
+      operationId: 'trade-chain-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    authority.settleTrade({
+      operationId: 'trade-chain-2',
+      workerId: 'worker-a',
+      observedAt: 2,
+      durationMs: 100,
+      agentId: agentB,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+
+    const verification = verifySimulationWideAuthorityJournal({ rootDir, simulationId });
+    expect(verification.valid).toBe(true);
+    expect(verification.recordCount).toBeGreaterThanOrEqual(4);
+    expect(verification.latestChainHash).not.toBe(
+      SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH,
+    );
+
+    // Tamper with the first record body; the recomputed chain must break at it.
+    const journalPath = join(
+      rootDir,
+      'simulation-wide-authority',
+      encodeURIComponent('unified-town'),
+      'operations.jsonl',
+    );
+    const lines = readFileSync(journalPath, 'utf8').trimEnd().split('\n');
+    const firstLine = JSON.parse(lines[0]!) as { recordedAt: number };
+    firstLine.recordedAt = firstLine.recordedAt + 1;
+    lines[0] = JSON.stringify(firstLine);
+    writeFileSync(journalPath, `${lines.join('\n')}\n`);
+
+    const tampered = verifySimulationWideAuthorityJournal({ rootDir, simulationId });
+    expect(tampered.valid).toBe(false);
+    expect(tampered.firstBrokenRecordIndex).toBe(0);
+
+    // A fresh authority over the tampered journal refuses further settlement
+    // instead of silently extending a broken chain.
+    const restarted = createAuthority(rootDir);
+    expect(() =>
+      restarted.settleTrade({
+        operationId: 'trade-chain-3',
+        workerId: 'worker-a',
+        observedAt: 3,
+        durationMs: 100,
+        agentId: agentA,
+        trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+      }),
+    ).toThrow(/journal chain is broken/);
   });
 
   test('keeps the global projection fresh through partition location syncs', () => {

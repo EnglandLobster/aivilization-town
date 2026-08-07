@@ -96,6 +96,26 @@ export type LocalRuntimeTownDaemonHostComponentStatus<TStatus> = {
   readonly status: TStatus;
 };
 
+/**
+ * Deployment-level health contract for the simulation-wide authority. A
+ * disabled authority is reported explicitly rather than omitted; when enabled
+ * the component exposes the authoritative ledger position so separate worker
+ * processes (and operators) can verify they observe ONE shared ledger.
+ */
+export type LocalRuntimeTownDaemonAuthorityComponentStatus =
+  | { readonly enabled: false }
+  | {
+      readonly enabled: true;
+      readonly health: LocalRuntimeTownDaemonHealth;
+      readonly simulationId?: string;
+      readonly revision?: number;
+      readonly latestFencingToken?: number;
+      readonly simulationTime?: number;
+      readonly pendingTransferCount?: number;
+      readonly pendingMoveCount?: number;
+      readonly partitionKeys?: readonly string[];
+    };
+
 export type LocalRuntimeTownDaemonStatus = {
   readonly manifestId: string;
   readonly observedAt: SimulationTimestamp;
@@ -105,6 +125,7 @@ export type LocalRuntimeTownDaemonStatus = {
     readonly supervisor: LocalRuntimeTownDaemonSupervisorComponentStatus;
     readonly runQueue: LocalRuntimeTownDaemonRunQueueComponentStatus;
     readonly worker: LocalRuntimeTownDaemonHostComponentStatus<LocalSimulationRuntimeRunQueueWorkerHostStatus>;
+    readonly authority: LocalRuntimeTownDaemonAuthorityComponentStatus;
     readonly scheduler?: LocalRuntimeTownDaemonHostComponentStatus<LocalSimulationRuntimeSchedulerHostStatus>;
     readonly recovery?: LocalRuntimeTownDaemonHostComponentStatus<LocalSimulationRuntimeRecoveryHostStatus>;
   };
@@ -332,11 +353,13 @@ async function getLocalRuntimeTownDaemonStatus(
           desiredRunning: orchestration.profile.runtimeRecovery?.autoStart ?? false,
           status: orchestration.runQueueRecoveryHost.getStatus(),
         });
+  const authorityComponent = createAuthorityComponent(orchestration.host);
   const baseHealth = combineHealth(
     [
       supervisorComponent.health,
       runQueueComponent.health,
       workerComponent.health,
+      ...(authorityComponent.enabled === true ? [authorityComponent.health] : []),
       schedulerComponent?.health,
       recoveryComponent?.health,
     ].filter((value): value is LocalRuntimeTownDaemonHealth => value !== undefined),
@@ -359,10 +382,37 @@ async function getLocalRuntimeTownDaemonStatus(
       supervisor: supervisorComponent,
       runQueue: runQueueComponent,
       worker: workerComponent,
+      authority: authorityComponent,
       ...(schedulerComponent === undefined ? {} : { scheduler: schedulerComponent }),
       ...(recoveryComponent === undefined ? {} : { recovery: recoveryComponent }),
     },
   };
+}
+
+function createAuthorityComponent(
+  host: LocalSimulationRuntimeHost,
+): LocalRuntimeTownDaemonAuthorityComponentStatus {
+  if (host.authorityEnabled !== true || host.authority === undefined) {
+    return { enabled: false };
+  }
+  try {
+    const snapshot = host.authority.getSnapshot();
+    return {
+      enabled: true,
+      health: 'healthy',
+      simulationId: snapshot.simulationId,
+      revision: snapshot.revision,
+      latestFencingToken: snapshot.latestFencingToken,
+      simulationTime: snapshot.projection.clock.now,
+      pendingTransferCount: Object.keys(snapshot.pendingTransfers).length,
+      pendingMoveCount: Object.keys(snapshot.pendingMoves ?? {}).length,
+      partitionKeys: [...snapshot.partitionKeys],
+    };
+  } catch {
+    // The authority is configured but its durable ledger cannot be read: the
+    // deployment must treat settlement as unavailable until this recovers.
+    return { enabled: true, health: 'attention' };
+  }
 }
 
 async function createProductionSloReport(input: {

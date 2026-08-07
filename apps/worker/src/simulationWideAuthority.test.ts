@@ -521,6 +521,52 @@ describe('simulation-wide authority', () => {
     ).toThrow(/journal chain is broken/);
   });
 
+  test('a successor authority instance continues the same durable ledger', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-succession-'));
+    const first = createAuthority(rootDir);
+    const firstTrade = first.settleTrade({
+      operationId: 'trade-succession-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    const fencingTokenAfterFirst = first.getSnapshot().latestFencingToken;
+    const revisionAfterFirst = first.getSnapshot().revision;
+
+    // A second instance over the same durable root is the deployment shape for
+    // a restarted or separately-launched worker process: it must observe ONE
+    // shared ledger, replay idempotently, and continue monotonically.
+    const second = createAuthority(rootDir);
+    expect(second.getSnapshot().revision).toBe(revisionAfterFirst);
+
+    const replay = second.settleTrade({
+      operationId: 'trade-succession-1',
+      workerId: 'worker-b',
+      observedAt: 2,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    expect(replay).toEqual(firstTrade);
+    expect(second.getSnapshot().revision).toBe(revisionAfterFirst);
+
+    second.settleTrade({
+      operationId: 'trade-succession-2',
+      workerId: 'worker-b',
+      observedAt: 3,
+      durationMs: 100,
+      agentId: agentB,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    const after = second.getSnapshot();
+    expect(after.latestFencingToken).toBeGreaterThan(fencingTokenAfterFirst);
+    expect(after.revision).toBe(revisionAfterFirst + 1);
+    expect(after.projection.marketPools['Fish']?.commodityReserve).toBe(98);
+    expect(verifySimulationWideAuthorityJournal({ rootDir, simulationId }).valid).toBe(true);
+  });
+
   test('keeps the global projection fresh through partition location syncs', () => {
     const authority = createAuthority(undefined, true, {
       agentALocationId: 'market',

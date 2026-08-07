@@ -53,6 +53,8 @@ export type SimulationWideAuthorityMaterializerResult = {
   readonly idempotent: boolean;
 };
 
+export const SHORT_TERM_MEMORY_MATERIALIZATION_DEDUP_LIMIT = 4_096;
+
 export function createSimulationWideAuthorityMaterializer(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly storage: LocalWorldRuntimeStorage;
@@ -107,8 +109,8 @@ export function createSimulationWideAuthorityMaterializer(input: {
         events: resequenced,
       });
       if (!appendResult.idempotentReplay) {
-        await ensurePartitionMemoryMaterialized(appendResult.appendedEvents);
         projection = appendResult.appendedEvents.reduce(applyWorldEvent, projection);
+        await ensurePartitionMemoryMaterialized(appendResult.appendedEvents, projection);
         // Arrival deliveries for cross-owner transfers carry the Agent's durable
         // cognitive state. Hydrate it alongside the arrival event so the very
         // next tick can plan with the migrated objectives, plans, and memory.
@@ -194,14 +196,30 @@ export function createSimulationWideAuthorityMaterializer(input: {
     });
   }
 
-  async function ensurePartitionMemoryMaterialized(events: readonly WorldEvent[]): Promise<void> {
-    const records = events.flatMap((event) =>
-      event.type === 'ShortTermMemoryRecorded' ? [event.payload.record] : [],
-    );
+  /**
+   * Owner-scoped idempotent memory materialization. A global settlement (for
+   * example a cross-owner conversation) emits memory records for every
+   * participant, but each partition's durable memory belongs to the Agents it
+   * owns: records are only written for Agents present in this partition's
+   * projection AFTER applying the delivery, and duplicate record ids are
+   * skipped rather than appended twice. Replayed recoveries therefore never
+   * depend on "recover before tick" ordering to stay duplicate-free.
+   * Mechanism-stage bound: deduplication scans the most recent
+   * SHORT_TERM_MEMORY_MATERIALIZATION_DEDUP_LIMIT records per Agent.
+   */
+  async function ensurePartitionMemoryMaterialized(
+    events: readonly WorldEvent[],
+    projectionAfter: WorldProjection,
+  ): Promise<void> {
+    const records = events
+      .flatMap((event) =>
+        event.type === 'ShortTermMemoryRecorded' ? [event.payload.record] : [],
+      )
+      .filter((record) => projectionAfter.agents[record.agentId] !== undefined);
     for (const record of records) {
       const recent = await input.storage.shortTermMemoryRepository.retrieve({
         agentId: record.agentId,
-        limit: 64,
+        limit: SHORT_TERM_MEMORY_MATERIALIZATION_DEDUP_LIMIT,
       });
       const existing = recent.find((candidate) => candidate.id === record.id);
       if (existing !== undefined) {

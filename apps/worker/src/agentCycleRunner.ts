@@ -284,7 +284,7 @@ export async function runWorkerAgentCycle(
   const shortTermMemoryRecords =
     dispatchResult === undefined || dispatchResult.appendResult.idempotentReplay
       ? []
-      : extractShortTermMemoryRecords(dispatchResult.events);
+      : extractShortTermMemoryRecords(dispatchResult.events, input.projection);
   if (shortTermMemoryRecords.length > 0) {
     await input.shortTermMemoryRepository.appendMany(shortTermMemoryRecords);
   }
@@ -371,9 +371,7 @@ export async function runWorkerAgentCycle(
     ),
     emittedCommandIds: dispatchResult?.commands.map((command) => command.id) ?? [],
     memoryContextIds: shortTermMemoryContext.map((record) => record.id),
-    memoryWriteIds: extractShortTermMemoryRecords(dispatchResult?.events ?? []).map(
-      (record) => record.id,
-    ),
+    memoryWriteIds: shortTermMemoryRecords.map((record) => record.id),
   });
   await input.traceSink?.record(trace);
 
@@ -966,11 +964,22 @@ async function resolvePlanProgress(input: {
   });
 }
 
+/**
+ * Extracts the memory records this partition durably owns from dispatched
+ * events. Global settlements routed through the authority can emit records for
+ * Agents owned by other partitions (for example the remote participant of a
+ * cross-owner conversation); those records materialize through the owner
+ * partition's inbox instead and must never enter this partition's memory.
+ */
 function extractShortTermMemoryRecords(
   events: readonly WorldEvent[],
+  projection: WorldProjection,
 ): readonly ShortTermMemoryRecord[] {
   return events.flatMap((event) =>
-    event.type === 'ShortTermMemoryRecorded' ? [event.payload.record] : [],
+    event.type === 'ShortTermMemoryRecorded' &&
+    projection.agents[event.payload.record.agentId] !== undefined
+      ? [event.payload.record]
+      : [],
   );
 }
 

@@ -351,6 +351,77 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     }
   });
 
+  test('materializes settlement memory only for the agents each partition owns', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const authority = host.authority!;
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+
+    // The settled conversation emits a short-term memory record for BOTH
+    // participants, and the identical event set is delivered to both inboxes.
+    authority.settleConversation({
+      operationId: 'conversation-memory-scope',
+      initiatorAgentId: agentOne,
+      targetAgentId: agentTwo,
+      topic: 'memory ownership',
+      turns: [
+        { speakerAgentId: agentOne, utterance: 'Who remembers what?', intent: 'cooperate' },
+        { speakerAgentId: agentTwo, utterance: 'Each owner does.', intent: 'cooperate' },
+      ],
+      ...lease,
+    });
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    await host.materializers.get('world-east')!.materializeInbox({ lease });
+
+    const mainMemory = await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
+      { agentId: agentOne, limit: 64 },
+    );
+    const mainRemoteMemory =
+      await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentTwo,
+        limit: 64,
+      });
+    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
+      { agentId: agentTwo, limit: 64 },
+    );
+    const eastRemoteMemory =
+      await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        limit: 64,
+      });
+
+    // Every partition keeps exactly its own Agent's record; the remote
+    // participant's record never crosses the ownership boundary.
+    expect(mainMemory).toHaveLength(1);
+    expect(mainRemoteMemory).toHaveLength(0);
+    expect(eastMemory).toHaveLength(1);
+    expect(eastRemoteMemory).toHaveLength(0);
+
+    // Replaying the materializer stays duplicate-free without relying on
+    // recover-before-tick ordering.
+    await host.materializers.get('world-main')!.recover(lease);
+    expect(
+      await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        limit: 64,
+      }),
+    ).toHaveLength(1);
+  });
+
   test('rolls forward already-materialized deliveries as idempotent no-ops on recover', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

@@ -556,18 +556,36 @@
       ),
       metric(
         'Market scope',
-        society?.market?.status === 'consistent-replica'
-          ? 'Shared replica'
-          : society?.market?.status === 'partitioned'
-            ? 'Partitioned'
-            : 'Not observed',
-        society?.market?.status === 'partitioned'
-          ? 'Prices are not yet a simulation-wide authority'
-          : society?.market?.status === 'consistent-replica'
-            ? 'All visible partition replicas agree at this boundary'
-            : 'load the society projection to verify',
+        society?.market?.status === 'unified-authority'
+          ? 'Unified authority'
+          : society?.market?.status === 'regional-authority'
+            ? 'Regional authority'
+            : society?.market?.status === 'consistent-replica'
+              ? 'Shared replica'
+              : society?.market?.status === 'partitioned'
+                ? 'Partitioned'
+                : 'Not observed',
+        society?.market?.status === 'unified-authority'
+          ? 'One global pool settled by the simulation-wide authority'
+          : society?.market?.status === 'regional-authority'
+            ? 'One authority, per-region pools with divergent prices'
+            : society?.market?.status === 'partitioned'
+              ? 'Prices are not yet a simulation-wide authority'
+              : society?.market?.status === 'consistent-replica'
+                ? 'All visible partition replicas agree at this boundary'
+                : 'load the society projection to verify',
         society?.market?.status === 'partitioned' ? 'attention' : 'healthy',
       ),
+      ...(society?.authority
+        ? [
+            metric(
+              'Authority ledger',
+              `rev ${formatNumber(society.authority.revision, 0)}`,
+              `fencing token ${formatNumber(society.authority.latestFencingToken, 0)} · ${formatSimulationTime(society.authority.simulationTime)}`,
+              'healthy',
+            ),
+          ]
+        : []),
       metric(
         'Ready queue',
         formatNumber(queueStats.readyQueueCount || 0, 0),
@@ -916,10 +934,31 @@
 
   function renderMarket() {
     const world = projection() || {};
-    const pools = Object.values(world.marketPools || {});
+    const society = state.societyProjection;
+    // Under the simulation-wide authority the partition projection's pools
+    // only reflect this partition's own trades. Prefer the authoritative pool
+    // view (unified or per-region) so the market page shows settlement truth.
+    const marketStatus = society?.market?.status;
+    const authorityPools =
+      marketStatus === 'unified-authority'
+        ? asArray(society.market.pools)
+        : marketStatus === 'regional-authority'
+          ? asArray(society.market.regions).flatMap((region) => asArray(region.pools))
+          : undefined;
+    const pools = authorityPools ?? Object.values(world.marketPools || {});
+    const moneySupply =
+      authorityPools !== undefined ? society.market.moneySupply : world.moneySupply;
     const latestIndex = asArray(world.marketPriceIndices).at(-1);
     elements.marketMetrics.innerHTML = [
-      metric('Money supply', formatNumber(world.moneySupply, 2), 'simulation currency'),
+      metric(
+        'Money supply',
+        formatNumber(moneySupply, 2),
+        authorityPools !== undefined
+          ? marketStatus === 'regional-authority'
+            ? 'town total · regional authority pools'
+            : 'town total · unified authority pool'
+          : 'partition currency',
+      ),
       metric('AMM pools', pools.length, `${state.trades.length} recent trades`),
       metric(
         'Overall index',

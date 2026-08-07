@@ -251,6 +251,52 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     expect(projection.market.moneySupply).toBe(2_000);
   });
 
+  test('sources society-level facts from the authority snapshot before partitions materialize', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+
+    host.authority!.settleConversation({
+      operationId: 'conversation-society-view',
+      initiatorAgentId: agentOne,
+      targetAgentId: agentTwo,
+      topic: 'settlement truth',
+      turns: [
+        { speakerAgentId: agentOne, utterance: 'Are we settled?', intent: 'cooperate' },
+        { speakerAgentId: agentTwo, utterance: 'Yes.', intent: 'cooperate' },
+      ],
+      ...lease,
+    });
+
+    // Nothing has been materialized yet: the partition snapshots know no
+    // conversation. The society view must still report the authoritative
+    // social graph, market, and ledger position rather than the lagging merge.
+    const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(projection.socialRelations).toHaveLength(2);
+    expect(projection.market.status).toBe('unified-authority');
+    expect(projection.authority).toMatchObject({ revision: 1, latestFencingToken: 1 });
+
+    // Per-partition boundaries remain honest materialization positions (still
+    // at their bootstrap checkpoint while the inbox is unconsumed).
+    expect(projection.partitionBoundaries.map((boundary) => boundary.streamVersion)).toEqual([
+      0, 0,
+    ]);
+  });
+
   test('materializes a cross-owner conversation onto both owner partitions', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

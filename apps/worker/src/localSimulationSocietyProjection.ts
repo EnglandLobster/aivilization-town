@@ -33,6 +33,17 @@ export type LocalSimulationSocietyProjection = {
   }[];
   readonly socialRelations: readonly SocialRelationState[];
   /**
+   * Present exactly when the simulation-wide authority is the source of the
+   * society-level facts above: the authoritative ledger position this view was
+   * read from. Per-Agent cognition (plans, memory, traces) intentionally stays
+   * with the owner partition endpoints and is never mixed into this view.
+   */
+  readonly authority?: {
+    readonly revision: number;
+    readonly latestFencingToken: number;
+    readonly simulationTime: number;
+  };
+  /**
    * This is a simulation-wide current migration view, not an inferred route
    * history. It is sourced from the owner directory so consumers can tell an
    * Agent in transit from an Agent that has completed an owner transfer.
@@ -94,9 +105,21 @@ export type LocalSimulationSocietyProjection = {
 };
 
 /**
- * A read-only view of the unified authority market. When provided to the
- * society projection service, the market is reported as `unified-authority`
- * from these global pools rather than compared across per-partition replicas.
+ * A read-only view of the simulation-wide authority. When provided, the
+ * society-level facts (market, spatial view, social graph) are read from this
+ * authoritative snapshot instead of merged from per-partition checkpoints,
+ * which can lag the authority while inbox deliveries are still materializing.
+ */
+export type LocalSimulationSocietyAuthoritySource = () => {
+  readonly projection: WorldProjection;
+  readonly revision: number;
+  readonly latestFencingToken: number;
+};
+
+/**
+ * A read-only view of the unified authority market. Kept for callers that only
+ * need the market overlay; the fuller {@link LocalSimulationSocietyAuthoritySource}
+ * sources the whole society view.
  */
 export type LocalSimulationSocietyAuthorityMarketSource = () => {
   readonly marketPools: Readonly<Record<string, AmmPool>>;
@@ -110,6 +133,7 @@ export type LocalSimulationSocietyProjectionService = {
 export function createLocalSimulationSocietyProjectionService(input: {
   readonly partitions: readonly LocalSimulationRuntimeHostPartition[];
   readonly societyDirectory: LocalSimulationSocietyDirectoryService;
+  readonly authoritySource?: LocalSimulationSocietyAuthoritySource;
   readonly authorityMarketSource?: LocalSimulationSocietyAuthorityMarketSource;
 }): LocalSimulationSocietyProjectionService {
   return {
@@ -127,7 +151,15 @@ export function createLocalSimulationSocietyProjectionService(input: {
           partitionKey: partition.partitionKey,
         })!.lastAppliedSequence,
       }));
-      const locations = mergeLocations(materialized.map((entry) => entry.projection));
+      // With the authority enabled the society-level facts come from ONE
+      // authoritative snapshot. Merging partition checkpoints instead would
+      // fail closed whenever inbox materialization lags between partitions;
+      // the authority view is exactly the settlement truth by construction.
+      const authorityView = input.authoritySource?.();
+      const locations =
+        authorityView === undefined
+          ? mergeLocations(materialized.map((entry) => entry.projection))
+          : authorityView.projection.locations;
       const occupants = new Map<string, string[]>();
       for (const agent of directory.agents) {
         if (agent.publicState.locationId === null) continue;
@@ -141,7 +173,12 @@ export function createLocalSimulationSocietyProjectionService(input: {
           return { location, occupantAgentIds, occupancy: occupantAgentIds.length };
         })
         .sort((left, right) => left.location.locationId.localeCompare(right.location.locationId));
-      const socialRelations = mergeSocialRelations(materialized.map((entry) => entry.projection));
+      const socialRelations =
+        authorityView === undefined
+          ? mergeSocialRelations(materialized.map((entry) => entry.projection))
+          : Object.entries(authorityView.projection.socialRelations)
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([, relation]) => structuredClone(relation));
       const migrations = directory.agents.map((agent) => ({
         agentId: agent.agentId,
         ownerPartitionKey: agent.ownerPartitionKey,
@@ -151,9 +188,14 @@ export function createLocalSimulationSocietyProjectionService(input: {
           : { transit: { ...agent.publicState.transit } }),
       }));
       const market =
-        input.authorityMarketSource === undefined
-          ? describeMarket(materialized)
-          : describeUnifiedAuthorityMarket(input.authorityMarketSource());
+        authorityView !== undefined
+          ? describeUnifiedAuthorityMarket({
+              marketPools: authorityView.projection.marketPools,
+              moneySupply: authorityView.projection.moneySupply,
+            })
+          : input.authorityMarketSource === undefined
+            ? describeMarket(materialized)
+            : describeUnifiedAuthorityMarket(input.authorityMarketSource());
       const projectionWithoutId: Omit<LocalSimulationSocietyProjection, 'projectionId'> = {
         schemaVersion: LOCAL_SIMULATION_SOCIETY_PROJECTION_SCHEMA_VERSION,
         simulationId: directory.simulationId,
@@ -175,6 +217,15 @@ export function createLocalSimulationSocietyProjectionService(input: {
         socialRelations,
         migrations,
         market,
+        ...(authorityView === undefined
+          ? {}
+          : {
+              authority: {
+                revision: authorityView.revision,
+                latestFencingToken: authorityView.latestFencingToken,
+                simulationTime: authorityView.projection.clock.now,
+              },
+            }),
       };
       return {
         ...projectionWithoutId,

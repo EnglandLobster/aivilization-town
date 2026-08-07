@@ -189,9 +189,13 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     ...(authority === undefined
       ? {}
       : {
-          authorityMarketSource: () => {
-            const projection = authority.getSnapshot().projection;
-            return { marketPools: projection.marketPools, moneySupply: projection.moneySupply };
+          authoritySource: () => {
+            const snapshot = authority.getSnapshot();
+            return {
+              projection: snapshot.projection,
+              revision: snapshot.revision,
+              latestFencingToken: snapshot.latestFencingToken,
+            };
           },
         }),
   });

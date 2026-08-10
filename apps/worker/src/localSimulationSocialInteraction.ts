@@ -102,8 +102,8 @@ export function createLocalSimulationSocialInteractionService(input: {
    * When true, the legacy cross-partition conversation transaction is
    * intentionally disabled because the simulation-wide authority has taken over
    * as the single settlement point for social interaction. This prevents the
-   * two paths from concurrently owning the same interaction kind (see HANDOFF
-   * risk #3). Pending operations are still recovered on demand.
+   * two paths from concurrently owning the same interaction kind.
+   * Pending operations are still recovered on demand.
    */
   readonly disabled?: boolean;
 }): LocalSimulationSocialInteractionService {

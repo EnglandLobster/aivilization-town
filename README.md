@@ -8,7 +8,9 @@ The canonical runtime currently integrates hierarchical agent planning, simulati
 selection and repair, dual-process memory, adaptive profiles, human steering, physiological survival,
 education and occupation gates, production chains, AMM trading, market observation, durable replay,
 and experiment provenance. The current implementation boundary and unfinished paper-alignment work
-are summarized in [`HANDOFF.md`](HANDOFF.md).
+are summarized in [`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md), and the
+public roadmap toward a living, Cities: Skylines-class AI town lives in
+[`docs/CITY_MECHANISM_GAP_ANALYSIS.md`](docs/CITY_MECHANISM_GAP_ANALYSIS.md).
 
 This repository is intentionally independent from the two older reference projects in the parent
 directory:
@@ -379,8 +381,11 @@ immutable JSON tables and SVG figures.
 
 ## Project documents
 
-- [`HANDOFF.md`](HANDOFF.md): current implementation boundary, verification evidence, known risks,
-  and unfinished paper-alignment work.
+- [`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md): current implementation
+  boundary, evidence classes, and unfinished paper-alignment work.
+- [`docs/CITY_MECHANISM_GAP_ANALYSIS.md`](docs/CITY_MECHANISM_GAP_ANALYSIS.md): public roadmap —
+  eight layers of city-simulation gaps versus Cities: Skylines, ordered by ROI, with the
+  evidence-boundary rules that govern extensions.
 - [`docs/SCIENTIFIC_LIMITATIONS.md`](docs/SCIENTIFIC_LIMITATIONS.md): scientific evidence, causality,
   compute, and scaling boundaries.
 - [`docs/OPERATIONS_SLOS.md`](docs/OPERATIONS_SLOS.md): production SLI/SLO semantics, alert thresholds,
@@ -392,3 +397,14 @@ immutable JSON tables and SVG figures.
 - `docs/superpowers/specs/2026-06-23-aivilization-town-design.md`: original product design.
 - `docs/superpowers/plans/2026-06-23-architecture-skeleton.md`: historical initial implementation plan,
   not the current project-state report.
+
+## Contributing
+
+Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the ground rules
+(paper-aligned defaults, evidence honesty, determinism/replay/idempotency gates), the development
+setup, and where to start. Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md); releases
+are semver tags cut from `main`.
+
+## License
+
+[Apache-2.0](LICENSE) © the AIvilization Town contributors.

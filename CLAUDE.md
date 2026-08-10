@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-AIvilization Town is a ground-up, executable reconstruction of the mechanisms in the *AIvilization v0*
+AIvilization Town is a ground-up, executable reconstruction of the mechanisms in the _AIvilization v0_
 paper (large-scale artificial social simulation with a unified agent architecture). It is a simulation
 **backend**, not a game or a skeleton. Two sibling directories are references only, not dependencies:
 `../a16z-ai-town` (visual/real-time reference) and `../generative_agents` (paper-era agent reference).
@@ -107,26 +107,29 @@ The unit of execution is a **tick** (`tickRunner.ts`) that runs per-agent cognit
 event stream. A `LocalSimulationRuntimeHost` composes storage, projections, the agent provider, scheduler,
 run queue, and recovery. `localScenarioBootstrap` + profiles seed a simulation.
 
-### Partitions and the simulation-wide authority migration (in progress)
+### Partitions and the simulation-wide authority
 
-The single largest architectural fact to know: a **partition** is currently both the scaling boundary
-**and** the semantic boundary for people, relationships, space, and market. Making the town "one unified
-society" is an active migration, described in detail in `HANDOFF.md` and tracked in
-`docs/PAPER_ALIGNMENT_MATRIX.md`.
+The single largest architectural fact to know: a **partition** is the scaling boundary, but the town
+settles as **one unified society** through the simulation-wide authority. The claim boundary and
+remaining deployment/empirical gates are tracked in `docs/PAPER_ALIGNMENT_MATRIX.md`.
 
 - `simulation-wide-authority-v1` (`simulationWideAuthority.ts`) is a file-backed, lease-fenced global
-  ledger that can settle AMM trades, cross-owner conversations, and ownership transfer with idempotent
-  operation IDs and per-partition inbox cursors. It is **off by default**
-  (`AIVILIZATION_SIMULATION_WIDE_AUTHORITY=1` to enable).
-- When enabled, `simulationCommandRouter.ts` routes trade/conversation drafts to the authority (settled via
-  a per-partition idempotent `simulationWideAuthorityMaterializer.ts`), while produce/sleep/study/work stay
-  partition-local. Moves and time-advance still write directly to the partition.
-- Known incomplete work (do not assume otherwise): unified AMM pool merging across partitions, cross-owner
-  move runtime handoff, and autonomous planner selection of remote agents. `HANDOFF.md` lists the intended
-  next-step order.
+  ledger that settles AMM trades, cross-owner conversations, and ownership transfer with idempotent
+  operation IDs and per-partition inbox cursors. It is **on by default**
+  (`--simulation-wide-authority off` opts out to the legacy per-partition path).
+- When enabled, `simulationCommandRouter.ts` routes trade/conversation/move drafts to the authority
+  (settled via a per-partition idempotent `simulationWideAuthorityMaterializer.ts`), while
+  produce/sleep/study/work stay partition-local. The authority journal is a genesis-anchored SHA-256
+  hash chain verified fail-closed before further settlement.
+- Cross-owner movement uses the runtime handoff: `agent-cognitive-snapshot-v1`, paired
+  `AgentOwnershipDeparted`/`AgentOwnershipArrived` events, and idempotent destination hydration.
+- Remaining gates (do not assume otherwise): multi-process deployment verification of the handoff
+  (the verified path is the single-process file-backed authority), journal compaction/archival, and
+  the mature-run empirical evidence tracked in the matrix.
 
-When touching cross-partition, authority, materializer, or recovery code, read `HANDOFF.md` first — it
-documents which paths are wired, which are stubbed, and the fail-closed contracts that must not regress.
+When touching cross-partition, authority, materializer, or recovery code, read
+`docs/PAPER_ALIGNMENT_MATRIX.md` first — it documents which paths are verified, which are in
+migration, and the fail-closed contracts that must not regress.
 
 ## Conventions
 

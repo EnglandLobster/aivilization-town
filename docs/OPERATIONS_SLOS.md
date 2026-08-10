@@ -68,4 +68,4 @@ First response should preserve evidence before mutation:
 Deployment procedures, destructive recovery approval, checkpoint restore drills, dead-letter replay
 drills, and data migration compatibility are documented in
 [`DEPLOYMENT_AND_RECOVERY.md`](DEPLOYMENT_AND_RECOVERY.md). The current implementation boundary is
-summarized in [`../HANDOFF.md`](../HANDOFF.md).
+summarized in [`PAPER_ALIGNMENT_MATRIX.md`](PAPER_ALIGNMENT_MATRIX.md).

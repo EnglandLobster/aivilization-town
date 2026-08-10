@@ -1,0 +1,403 @@
+import type { CommandDraft } from '@aivilization/agent-runtime';
+import { createAmmPool } from '@aivilization/economy';
+import {
+  InMemoryEventStore,
+  asAgentId,
+  asSimulationId,
+  createCommandEnvelope,
+  createSimulationPartition,
+} from '@aivilization/sim-core';
+import {
+  createWorldProjection,
+  type WorldCommandPolicies,
+  type WorldEvent,
+  type WorldProjection,
+} from '@aivilization/world';
+import { describe, expect, test } from 'vitest';
+import {
+  createCommandEnvelopeFromDraft,
+  createProjectionBackedWorldCommandPolicies,
+  dispatchCommandDraftsToWorld,
+  dispatchCommandDraftsToWorldEventStream,
+  dispatchWorldCommandToEventStream,
+} from './index';
+
+const policies: WorldCommandPolicies = {
+  satietyRecoveryByCommodity: { Bread: 15 },
+  maxSatiety: 100,
+  wageCalculator: () => 10,
+  laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+  criticalThresholds: { energy: 1, health: 1 },
+  sleep: { energyRecoveryPerSecond: 1, maxEnergy: 100 },
+  jobApplication: {
+    populationEducationScores: [0],
+    quotaByResidentialTier: [1, 1, 1, 1, 1],
+  },
+};
+
+const partition = createSimulationPartition({
+  simulationId: 'sim-1',
+  partitionKey: 'world-main',
+});
+
+function createStudyDraft(): CommandDraft {
+  return {
+    simulationId: asSimulationId('sim-1'),
+    actorId: asAgentId('agent-1'),
+    source: 'agent-runtime',
+    type: 'AgentStudy',
+    payload: { durationSeconds: 120, educationRatePerSecond: 0.5 },
+    issuedAt: 100,
+  };
+}
+
+function createAgentProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: asAgentId('agent-1'),
+        physiology: { energy: 50, satiety: 80, health: 100 },
+        educationScore: 10,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+  });
+}
+
+function createDoctorProjectionWithPriceIndex() {
+  const educationScores = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450];
+
+  return createWorldProjection({
+    agents: educationScores.map((educationScore, index) => ({
+      agentId: asAgentId(`agent-${index + 1}`),
+      physiology: { energy: 90, satiety: 80, health: 100 },
+      educationScore,
+      balance: 100,
+      residentialTier: 5,
+      job: index === 7 ? 'Doctor' : null,
+      inventory: {},
+    })),
+    marketPriceIndices: [
+      {
+        baselineAt: 0,
+        recordedAt: 200,
+        food: 4,
+        nonFood: 2,
+        overall: 3,
+        foodCount: 1,
+        nonFoodCount: 1,
+        ratios: { Bread: 4, Book: 2 },
+      },
+    ],
+  });
+}
+
+describe('worker command dispatch seam', () => {
+  test('creates deterministic command envelopes from command drafts', () => {
+    const envelope = createCommandEnvelopeFromDraft({
+      draft: createStudyDraft(),
+      commandId: 'draft-command-1',
+      idempotencyKey: 'idem-draft-command-1',
+      expectedVersion: 7,
+    });
+
+    expect(envelope).toEqual({
+      id: 'draft-command-1',
+      simulationId: 'sim-1',
+      idempotencyKey: 'idem-draft-command-1',
+      actorId: 'agent-1',
+      source: 'agent-runtime',
+      type: 'AgentStudy',
+      payload: { durationSeconds: 120, educationRatePerSecond: 0.5 },
+      issuedAt: 100,
+      expectedVersion: 7,
+    });
+  });
+
+  test('dispatches command drafts through world handlers and applies emitted events', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const result = dispatchCommandDraftsToWorld({
+      commandDrafts: [createStudyDraft()],
+      projection,
+      policies,
+      startingSequence: 10,
+      commandIdPrefix: 'draft-command',
+    });
+
+    expect(result.commands.map((command) => command.id)).toEqual(['draft-command-1']);
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [10, 'EducationChanged'],
+      [11, 'AgentActivityTimeCommitted'],
+      [12, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(result.projection.memoryRecords).toHaveLength(1);
+  });
+
+  test('advances event sequence and rejects a second draft that double-spends activity time', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+
+    const sleepDraft: CommandDraft = {
+      simulationId: asSimulationId('sim-1'),
+      actorId: asAgentId('agent-1'),
+      source: 'agent-runtime',
+      type: 'AgentSleep',
+      payload: { durationSeconds: 10 },
+      issuedAt: 110,
+    };
+
+    const result = dispatchCommandDraftsToWorld({
+      commandDrafts: [createStudyDraft(), sleepDraft],
+      projection,
+      policies,
+      startingSequence: 5,
+      commandIdPrefix: 'draft-command',
+    });
+
+    expect(result.commands.map((command) => command.id)).toEqual([
+      'draft-command-1',
+      'draft-command-2',
+    ]);
+    expect(result.events.map((event) => event.sequence)).toEqual([5, 6, 7, 8, 9]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+    expect(result.projection.agents['agent-1']?.physiology.energy).toBe(50);
+    expect(result.projection.rejectedActions).toEqual([
+      expect.objectContaining({
+        commandType: 'AgentSleep',
+        reason: 'agent is busy with education until simulation time 120000 (now 0)',
+      }),
+    ]);
+  });
+
+  test('resolves dynamic policies against the projection updated by previous drafts', () => {
+    const projection = createDoctorProjectionWithPriceIndex();
+    const dynamicPolicies = (currentProjection: WorldProjection) =>
+      createProjectionBackedWorldCommandPolicies({
+        basePolicies: policies,
+        projection: currentProjection,
+        knowledgePremium: (effectiveKnowledgeThreshold) => 1 + effectiveKnowledgeThreshold / 1000,
+      });
+
+    const result = dispatchCommandDraftsToWorld({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: asAgentId('agent-1'),
+          source: 'agent-runtime',
+          type: 'AgentStudy',
+          payload: { durationSeconds: 1000, educationRatePerSecond: 1 },
+          issuedAt: 100,
+        },
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: asAgentId('agent-8'),
+          source: 'agent-runtime',
+          type: 'AgentWork',
+          payload: { occupationName: 'Doctor', laborSeconds: 3600 },
+          issuedAt: 110,
+        },
+      ],
+      projection,
+      policies: dynamicPolicies,
+      startingSequence: 1,
+      commandIdPrefix: 'dynamic-policy-command',
+    });
+
+    const wagePaid = result.events.find((event) => event.type === 'WagePaid');
+    if (wagePaid?.type !== 'WagePaid') {
+      throw new Error('expected WagePaid event');
+    }
+
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(1000);
+    expect(wagePaid.payload.amount).toBeCloseTo(1801.8);
+  });
+
+  test('appends dispatched world events to the target event stream before applying projection updates', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+
+    const result = dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: [createStudyDraft()],
+      projection: createAgentProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'agent-cycle-1',
+      commandIdPrefix: 'draft-command',
+    });
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'EducationChanged'],
+      [2, 'AgentActivityTimeCommitted'],
+      [3, 'ShortTermMemoryRecorded'],
+    ]);
+    expect(result.appendResult).toMatchObject({
+      streamVersion: 3,
+      idempotentReplay: false,
+    });
+    expect(result.appendResult.appendedEvents).toEqual(result.events);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
+    expect(eventStore.readStream(partition.eventStreamName).map((event) => event.id)).toEqual([
+      'draft-command-1:event:0',
+      'draft-command-1:event:1',
+      'draft-command-1:event:2',
+    ]);
+    expect(result.projection.agents['agent-1']?.educationScore).toBe(70);
+  });
+
+  test('appends pre-built system world commands to the target event stream idempotently', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const projection = createWorldProjection({
+      agents: [],
+      clock: { now: 1000, tickDurationMs: 250 },
+    });
+    const input = {
+      command: createCommandEnvelope({
+        id: 'advance-time',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 250 },
+        issuedAt: 1000,
+      }),
+      projection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'time-append',
+    } satisfies Parameters<typeof dispatchWorldCommandToEventStream>[0];
+
+    const result = dispatchWorldCommandToEventStream(input);
+    const replay = dispatchWorldCommandToEventStream(input);
+
+    expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
+      [1, 'SimulationTimeAdvanced'],
+    ]);
+    expect(result.projection.clock).toEqual({ now: 1250, tickDurationMs: 250 });
+    expect(result.appendResult).toMatchObject({
+      streamVersion: 1,
+      idempotentReplay: false,
+    });
+    expect(replay.appendResult.idempotentReplay).toBe(true);
+    expect(replay.projection.clock).toEqual({ now: 1250, tickDurationMs: 250 });
+    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(1);
+  });
+
+  test('derives event sequence numbers from the current event stream version when expectedVersion is omitted', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: [createStudyDraft()],
+      projection: createAgentProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'agent-cycle-1',
+      commandIdPrefix: 'draft-command',
+    });
+
+    const sleepDraft: CommandDraft = {
+      simulationId: asSimulationId('sim-1'),
+      actorId: asAgentId('agent-1'),
+      source: 'agent-runtime',
+      type: 'AgentSleep',
+      payload: { durationSeconds: 10 },
+      issuedAt: 110,
+    };
+    const result = dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: [sleepDraft],
+      projection: createAgentProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'agent-cycle-2',
+      commandIdPrefix: 'sleep-command',
+    });
+
+    expect(result.events.map((event) => event.sequence)).toEqual([4, 5, 6]);
+    expect(result.appendResult.streamVersion).toBe(6);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(6);
+  });
+
+  test('replays duplicate append requests idempotently without duplicating world events', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const input = {
+      commandDrafts: [createStudyDraft()],
+      projection: createAgentProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'agent-cycle-1',
+      commandIdPrefix: 'draft-command',
+    } satisfies Parameters<typeof dispatchCommandDraftsToWorldEventStream>[0];
+
+    dispatchCommandDraftsToWorldEventStream(input);
+    const replay = dispatchCommandDraftsToWorldEventStream(input);
+
+    expect(replay.appendResult.idempotentReplay).toBe(true);
+    expect(replay.appendResult.streamVersion).toBe(3);
+    expect(eventStore.readStream(partition.eventStreamName)).toHaveLength(3);
+    expect(replay.projection.agents['agent-1']?.educationScore).toBe(70);
+  });
+
+  test('does not apply projection updates when event stream append fails optimistic concurrency', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: [createStudyDraft()],
+      projection: createAgentProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'agent-cycle-1',
+      commandIdPrefix: 'draft-command',
+    });
+
+    expect(() =>
+      dispatchCommandDraftsToWorldEventStream({
+        commandDrafts: [createStudyDraft()],
+        projection: createAgentProjection(),
+        policies,
+        eventStore,
+        streamName: partition.eventStreamName,
+        expectedVersion: 0,
+        appendIdempotencyKey: 'agent-cycle-stale',
+        commandIdPrefix: 'stale-command',
+      }),
+    ).toThrow('expected stream version 0 but current version is 3');
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(3);
+  });
+});

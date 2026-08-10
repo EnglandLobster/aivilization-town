@@ -1,0 +1,315 @@
+import { describe, expect, test } from 'vitest';
+import {
+  applyEnergyRecovery,
+  applyHealthRecovery,
+  applyLaborPhysiologyCost,
+  applySleepDeprivationHealthDecay,
+  applyStochasticIllnessHealthDecay,
+  calculateStochasticIllnessProbabilityPercent,
+  isIncapacitated,
+  resolveResidentialPhysiologyCap,
+  type ResidentialPhysiologyCapPolicy,
+} from './index';
+
+const residentialPhysiologyCapPolicy: ResidentialPhysiologyCapPolicy = {
+  caps: [
+    { residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 },
+    { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+  ],
+};
+
+describe('physiology', () => {
+  test('applies per-hour labor costs to energy and satiety', () => {
+    expect(
+      applyLaborPhysiologyCost({
+        energy: 100,
+        satiety: 80,
+        health: 90,
+        laborSeconds: 5400,
+        energyCostPerHour: 12,
+        satietyCostPerHour: 8,
+      }),
+    ).toEqual({
+      energy: 82,
+      satiety: 68,
+      health: 90,
+    });
+  });
+
+  test('does not reduce physiology below zero', () => {
+    expect(
+      applyLaborPhysiologyCost({
+        energy: 5,
+        satiety: 3,
+        health: 90,
+        laborSeconds: 3600,
+        energyCostPerHour: 12,
+        satietyCostPerHour: 8,
+      }),
+    ).toEqual({
+      energy: 0,
+      satiety: 0,
+      health: 90,
+    });
+  });
+
+  test('marks agents incapacitated below energy or health thresholds', () => {
+    expect(
+      isIncapacitated({
+        energy: 19,
+        health: 90,
+        energyCriticalThreshold: 20,
+        healthCriticalThreshold: 30,
+      }),
+    ).toBe(true);
+    expect(
+      isIncapacitated({
+        energy: 40,
+        health: 29,
+        energyCriticalThreshold: 20,
+        healthCriticalThreshold: 30,
+      }),
+    ).toBe(true);
+    expect(
+      isIncapacitated({
+        energy: 40,
+        health: 90,
+        energyCriticalThreshold: 20,
+        healthCriticalThreshold: 30,
+      }),
+    ).toBe(false);
+  });
+
+  test('recovers energy over time without exceeding the configured maximum', () => {
+    expect(
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 1800,
+        energyRecoveryPerSecond: 0.05,
+        maxEnergy: 100,
+      }),
+    ).toEqual({
+      energy: 100,
+      satiety: 70,
+      health: 90,
+    });
+  });
+
+  test('rejects invalid energy recovery policies', () => {
+    expect(() =>
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 10,
+        energyRecoveryPerSecond: -1,
+        maxEnergy: 100,
+      }),
+    ).toThrow(/energyRecoveryPerSecond must be non-negative/);
+
+    expect(() =>
+      applyEnergyRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 10,
+        energyRecoveryPerSecond: 1,
+        maxEnergy: 0,
+      }),
+    ).toThrow(/maxEnergy must be positive/);
+  });
+
+  test('recovers health over time without exceeding the configured maximum', () => {
+    expect(
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 1800,
+        healthRecoveryPerSecond: 0.05,
+        maxHealth: 100,
+      }),
+    ).toEqual({
+      energy: 40,
+      satiety: 70,
+      health: 100,
+    });
+  });
+
+  test('decays health during low-energy sleep deprivation without crossing the floor', () => {
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 10,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 10,
+      satiety: 70,
+      health: 60,
+    });
+
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 30,
+        satiety: 70,
+        health: 90,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 30,
+      satiety: 70,
+      health: 90,
+    });
+
+    expect(
+      applySleepDeprivationHealthDecay({
+        energy: 0,
+        satiety: 70,
+        health: 15,
+        durationSeconds: 60,
+        energyThreshold: 20,
+        healthDecayPerSecond: 0.5,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 0,
+      satiety: 70,
+      health: 10,
+    });
+  });
+
+  test('scales stochastic illness probability by elapsed time with a 100 percent cap', () => {
+    expect(
+      calculateStochasticIllnessProbabilityPercent({
+        illnessProbabilityPercentPerHour: 30,
+        durationSeconds: 1800,
+      }),
+    ).toBe(15);
+
+    expect(
+      calculateStochasticIllnessProbabilityPercent({
+        illnessProbabilityPercentPerHour: 80,
+        durationSeconds: 7200,
+      }),
+    ).toBe(100);
+  });
+
+  test('decays health when stochastic illness occurs without crossing the floor', () => {
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 90,
+        illnessOccurs: true,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
+      satiety: 70,
+      health: 78,
+    });
+
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 90,
+        illnessOccurs: false,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
+      satiety: 70,
+      health: 90,
+    });
+
+    expect(
+      applyStochasticIllnessHealthDecay({
+        energy: 80,
+        satiety: 70,
+        health: 15,
+        illnessOccurs: true,
+        healthDamage: 12,
+        minHealth: 10,
+      }),
+    ).toEqual({
+      energy: 80,
+      satiety: 70,
+      health: 10,
+    });
+  });
+
+  test('rejects invalid health recovery policies', () => {
+    expect(() =>
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 10,
+        healthRecoveryPerSecond: -1,
+        maxHealth: 100,
+      }),
+    ).toThrow(/healthRecoveryPerSecond must be non-negative/);
+
+    expect(() =>
+      applyHealthRecovery({
+        energy: 40,
+        satiety: 70,
+        health: 30,
+        durationSeconds: 10,
+        healthRecoveryPerSecond: 1,
+        maxHealth: 0,
+      }),
+    ).toThrow(/maxHealth must be positive/);
+  });
+
+  test('resolves residential-tier physiology caps', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 2,
+        policy: residentialPhysiologyCapPolicy,
+      }),
+    ).toEqual({
+      status: 'accepted',
+      cap: { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
+    });
+  });
+
+  test('rejects missing residential-tier physiology caps', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 3,
+        policy: residentialPhysiologyCapPolicy,
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'cap-missing',
+      detail: 'missing physiology cap for residential tier 3',
+    });
+  });
+
+  test('rejects invalid residential-tier physiology cap policies', () => {
+    expect(
+      resolveResidentialPhysiologyCap({
+        residentialTier: 1,
+        policy: { caps: [{ residentialTier: 1, maxEnergy: -1, maxSatiety: 70, maxHealth: 90 }] },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'maxEnergy must be positive',
+    });
+  });
+});

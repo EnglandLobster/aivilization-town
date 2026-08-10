@@ -1,0 +1,2582 @@
+import { describe, expect, test } from 'vitest';
+import { createCommandEnvelope } from '@aivilization/sim-core';
+import { createTownHttpApiHandler } from './index';
+import type { SimulationApiService } from './simulationApi';
+import type { RuntimeSupervisorApiService } from './runtimeSupervisorApi';
+import type { RuntimeDaemonApiService } from './runtimeDaemonApi';
+import type { RuntimeRunQueueApiService } from './runtimeRunQueueApi';
+import type { RuntimeRunQueueWorkerApiService } from './runtimeRunQueueWorkerApi';
+import type { RuntimeRecoveryApiService } from './runtimeRecoveryApi';
+import type { RuntimeSchedulerApiService } from './runtimeSchedulerApi';
+import type { RuntimeProfileRunReportApiService } from './runtimeProfileRunReportApi';
+import type { AgentProfileApiService } from './agentProfileApi';
+import type { AgentCycleTraceApiService } from './agentCycleTraceApi';
+import type { BranchPlanApiService } from './branchPlanApi';
+import type { DailyPlanRenewalTraceApiService } from './dailyPlanRenewalTraceApi';
+import type { ObjectiveRenewalTraceApiService } from './objectiveRenewalTraceApi';
+import type { SteeringTraceApiService } from './steeringTraceApi';
+import type { SocialReflectionObservationApiService } from './socialReflectionObservationApi';
+
+type TestProjection = {
+  readonly agents: number;
+};
+
+type TestSteeringResult = {
+  readonly accepted: boolean;
+};
+
+type TestLifecycleResult = {
+  readonly status: string;
+  readonly requestedAt: number;
+};
+
+type TestEventFeed = {
+  readonly streamVersion: number;
+  readonly nextAfterSequence: number;
+  readonly events: readonly {
+    readonly sequence: number;
+    readonly type: string;
+  }[];
+};
+
+type TestSyncEnvelope = {
+  readonly streamVersion: number;
+  readonly projectionSequence: number;
+  readonly nextAfterSequence: number;
+  readonly hasMoreEvents: boolean;
+  readonly projection: TestProjection;
+  readonly events: readonly {
+    readonly sequence: number;
+    readonly type: string;
+  }[];
+};
+
+type TestValidationReport = {
+  readonly run: {
+    readonly runId: string;
+  };
+};
+
+type TestMarketTradeObservation = {
+  readonly observationId: string;
+  readonly simulationId: string;
+  readonly commodityId: string;
+  readonly sourceEventId: string;
+  readonly sourceSequence: number;
+  readonly side: 'buy' | 'sell';
+  readonly observedAt: number;
+  readonly price: number;
+  readonly commodityQuantity: number;
+  readonly currencyQuantity: number;
+};
+
+type TestMarketOhlcBar = {
+  readonly barId: string;
+  readonly simulationId: string;
+  readonly commodityId: string;
+  readonly intervalStartedAt: number;
+  readonly intervalEndedAt: number;
+  readonly openPrice: number;
+  readonly highPrice: number;
+  readonly lowPrice: number;
+  readonly closePrice: number;
+  readonly tradeCount: number;
+  readonly commodityVolume: number;
+  readonly currencyVolume: number;
+};
+
+type TestRuntimeStatus = {
+  readonly manifestId: string;
+};
+
+type TestRuntimeCommandResult = {
+  readonly traceId: string;
+  readonly requestedAt: number;
+  readonly completedCycleCount?: number;
+};
+
+type TestRuntimeRunSession = {
+  readonly traceId: string;
+  readonly status: 'running' | 'completed' | 'stopped';
+  readonly completedCycleCount: number;
+  readonly stopRequestedAt?: number;
+};
+
+type TestRuntimeTrace = {
+  readonly traceId: string;
+  readonly command: 'start-all' | 'pause-all' | 'run-cycles';
+};
+
+type TestRuntimeRunQueueJob = {
+  readonly jobId: string;
+  readonly status: 'queued' | 'dead-lettered';
+  readonly enqueuedAt: number;
+  readonly deadLetteredAt?: number;
+  readonly replayCount?: number;
+  readonly runRequest: {
+    readonly operationId?: string;
+    readonly requestedAt: number;
+    readonly cycleCount: number;
+    readonly cycleIntervalMs?: number;
+    readonly stopOnAttention?: boolean;
+  };
+};
+
+type TestRuntimeRunQueueStats = {
+  readonly observedAt: number;
+  readonly manifestId?: string;
+  readonly totalJobCount: number;
+  readonly statusCounts: {
+    readonly queued: number;
+    readonly leased: number;
+    readonly completed: number;
+    readonly failed: number;
+    readonly 'dead-lettered': number;
+  };
+  readonly readyQueueCount: number;
+  readonly delayedQueueCount: number;
+  readonly activeLeaseCount: number;
+  readonly expiredLeaseCount: number;
+  readonly failedAttemptCount: number;
+  readonly replayCount: number;
+};
+
+type TestRuntimeRunQueueWorkerStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly processedJobCount: number;
+};
+
+type TestRuntimeRunQueueWorkerDrainResult = {
+  readonly processedJobCount: number;
+  readonly completedJobCount: number;
+  readonly failedJobCount: number;
+  readonly idle: boolean;
+};
+
+type TestRuntimeSchedulerStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly attemptedScheduleCount: number;
+};
+
+type TestRuntimeSchedulerDecision =
+  | {
+      readonly status: 'enqueued';
+      readonly job: {
+        readonly jobId: string;
+        readonly status: 'queued';
+      };
+    }
+  | {
+      readonly status: 'skipped';
+      readonly reason: 'pending-job-limit-reached';
+    };
+
+type TestRuntimeRecoveryStatus = {
+  readonly running: boolean;
+  readonly inFlight: boolean;
+  readonly attemptedRecoveryCount: number;
+};
+
+type TestRuntimeRecoveryReport = {
+  readonly status: 'idle' | 'recovered';
+  readonly observedAt: number;
+};
+
+type TestRuntimeDaemonStatus = {
+  readonly manifestId: string;
+  readonly health: 'healthy' | 'degraded' | 'attention';
+  readonly components: {
+    readonly supervisor: {
+      readonly health: 'healthy' | 'attention';
+    };
+    readonly runQueue: {
+      readonly health: 'healthy' | 'degraded' | 'attention';
+    };
+  };
+};
+
+type TestRuntimeProfileRunReport = {
+  readonly runId: string;
+  readonly profileId: string;
+  readonly generatedAt: number;
+};
+
+type TestAgentProfile = {
+  readonly agentId: string;
+  readonly values: readonly string[];
+  readonly personality: readonly string[];
+};
+
+type TestBranchPlan = {
+  readonly planId: string;
+  readonly agentId: string;
+};
+
+type TestObjectiveRenewalTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly objectiveId: string;
+};
+
+type TestDailyPlanRenewalTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly dailyPlanId: string;
+};
+
+type TestSteeringTrace = {
+  readonly traceId: string;
+  readonly commandId: string;
+  readonly agentId: string;
+  readonly resultKind: string;
+};
+
+type TestAgentCycleTrace = {
+  readonly traceId: string;
+  readonly agentId: string;
+  readonly simulatorEvents: readonly {
+    readonly actionId: string;
+    readonly attempt: 'original' | 'repair';
+    readonly status: 'accepted' | 'rejected';
+    readonly reason?: string;
+    readonly events: readonly {
+      readonly type: string;
+      readonly sequence?: number;
+      readonly summary?: string;
+    }[];
+  }[];
+};
+
+type TestSocialReflectionObservation = {
+  readonly observationId: string;
+  readonly agentId: string;
+  readonly targetAgentId: string;
+  readonly generatedAt: number;
+};
+
+describe('town HTTP API router', () => {
+  test('routes projection, steering, and lifecycle requests to the simulation service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/projection',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { agents: 80 },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { afterSequence: '2', limit: '3' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        streamVersion: 5,
+        nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { afterSequence: '2', limit: '3' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        streamVersion: 5,
+        projectionSequence: 5,
+        nextAfterSequence: 5,
+        hasMoreEvents: false,
+        projection: { agents: 80 },
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports',
+        query: { fromGeneratedAt: '100', toGeneratedAt: '200', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ run: { runId: 'validation-2' } }],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports/validation-2',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { run: { runId: 'validation-2' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/trades',
+        query: {
+          commodityId: 'Apple',
+          fromObservedAt: '100',
+          toObservedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          observationId: 'trade-1',
+          simulationId: 'sim-1',
+          commodityId: 'Apple',
+          sourceEventId: 'event-trade-1',
+          sourceSequence: 2,
+          side: 'buy',
+          observedAt: 100,
+          price: 11,
+          commodityQuantity: 1,
+          currencyQuantity: 11,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/ohlc-bars',
+        query: {
+          commodityId: 'Apple',
+          fromIntervalStartedAt: '100',
+          toIntervalStartedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          barId: 'bar-1',
+          simulationId: 'sim-1',
+          commodityId: 'Apple',
+          intervalStartedAt: 100,
+          intervalEndedAt: 200,
+          openPrice: 10,
+          highPrice: 12,
+          lowPrice: 9,
+          closePrice: 11,
+          tradeCount: 3,
+          commodityVolume: 4,
+          currencyVolume: 44,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/agents',
+        body: {
+          agentId: 'agent-created-1',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+          expectedVersion: 6,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 202,
+      body: {
+        command: { type: 'RegisterAgent' },
+        result: { accepted: true },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/objectives',
+        body: {
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          statement: 'Study until education improves.',
+          priority: 3,
+          affinityTags: ['study'],
+          issuedAt: 100,
+          expectedVersion: 7,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 202,
+      body: {
+        command: {
+          type: 'SetLongHorizonObjective',
+        },
+        result: { accepted: true },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/reactive-commands',
+        body: {
+          agentId: 'agent-1',
+          reactiveCommandId: 'reactive-buy-food',
+          summary: 'buy food now',
+          tags: ['food'],
+          issuedAt: 120,
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 202,
+      body: {
+        command: {
+          type: 'IssueReactiveCommand',
+        },
+        result: { accepted: true },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/start',
+        body: { requestedAt: 150, scenarioPresetId: 'default-100' },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'started', requestedAt: 150 },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/replay',
+        body: { requestedAt: 200, fromSequence: 10, toSequence: 20 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'replaying', requestedAt: 200 },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'getProjection',
+        request: { simulationId: 'sim-1', partitionKey: 'world-main' },
+      },
+      {
+        method: 'getEvents',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          afterSequence: 2,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSync',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          afterSequence: 2,
+          limit: 3,
+        },
+      },
+      {
+        method: 'queryExperimentValidationReports',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'getExperimentValidationReport',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          runId: 'validation-2',
+        },
+      },
+      {
+        method: 'queryMarketTradeObservations',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          commodityId: 'Apple',
+          fromObservedAt: 100,
+          toObservedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'queryMarketOhlcBars',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          commodityId: 'Apple',
+          fromIntervalStartedAt: 100,
+          toIntervalStartedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'submitAgentRegistration',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-created-1',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+          expectedVersion: 6,
+        },
+      },
+      {
+        method: 'submitLongHorizonObjective',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          statement: 'Study until education improves.',
+          priority: 3,
+          affinityTags: ['study'],
+          issuedAt: 100,
+          expectedVersion: 7,
+        },
+      },
+      {
+        method: 'submitReactiveCommand',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          reactiveCommandId: 'reactive-buy-food',
+          summary: 'buy food now',
+          tags: ['food'],
+          issuedAt: 120,
+        },
+      },
+      {
+        method: 'startSimulation',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          requestedAt: 150,
+          scenarioPresetId: 'default-100',
+        },
+      },
+      {
+        method: 'replaySimulation',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          requestedAt: 200,
+          fromSequence: 10,
+          toSequence: 20,
+        },
+      },
+    ]);
+  });
+
+  test('routes agent profile requests to the optional profile service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      agentProfiles: createAgentProfileService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles',
+        query: { agentId: 'agent-1', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          agentId: 'agent-1',
+          values: ['cooperation'],
+          personality: ['sociable'],
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles/agent-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        agentId: 'agent-1',
+        values: ['cooperation'],
+        personality: ['sociable'],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-profiles',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryAgentProfiles',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          limit: 2,
+        },
+      },
+      {
+        method: 'getAgentProfile',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes partition-scoped branch plan queries to the optional plan service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      branchPlans: createBranchPlanService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/branch-plans',
+        query: {
+          planId: 'plan-1',
+          agentId: 'agent-1',
+          fromCreatedAt: '100',
+          toCreatedAt: '200',
+          fromUpdatedAt: '300',
+          toUpdatedAt: '400',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ planId: 'plan-1', agentId: 'agent-1' }],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/branch-plans',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    expect(calls).toEqual([
+      {
+        method: 'queryBranchPlans',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          planId: 'plan-1',
+          agentId: 'agent-1',
+          fromCreatedAt: 100,
+          toCreatedAt: 200,
+          fromUpdatedAt: 300,
+          toUpdatedAt: 400,
+          limit: 2,
+        },
+      },
+    ]);
+  });
+
+  test('routes objective renewal trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      objectiveRenewalTraces: createObjectiveRenewalTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/objective-renewal-traces',
+        query: {
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'trace-1',
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/objective-renewal-traces/trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'trace-1',
+        agentId: 'agent-1',
+        objectiveId: 'objective-1',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryObjectiveRenewalTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          agentId: 'agent-1',
+          objectiveId: 'objective-1',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getObjectiveRenewalTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes daily plan renewal trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      dailyPlanRenewalTraces: createDailyPlanRenewalTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces',
+        query: {
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/daily-plan-renewal-traces/daily-plan-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'daily-plan-trace-1',
+        agentId: 'agent-1',
+        dailyPlanId: 'daily-plan:agent-1:0',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryDailyPlanRenewalTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'daily-plan-trace-1',
+          agentId: 'agent-1',
+          dailyPlanId: 'daily-plan:agent-1:0',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getDailyPlanRenewalTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'daily-plan-trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes steering trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      steeringTraces: createSteeringTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/steering-traces',
+        query: {
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          resultKind: 'long-horizon-objective-set',
+          fromIssuedAt: '100',
+          toIssuedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          resultKind: 'long-horizon-objective-set',
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/steering-traces/steering-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'steering-trace-1',
+        commandId: 'cmd-objective-study',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'querySteeringTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'steering-trace-1',
+          commandId: 'cmd-objective-study',
+          agentId: 'agent-1',
+          objectiveId: 'objective-study',
+          resultKind: 'long-horizon-objective-set',
+          fromIssuedAt: 100,
+          toIssuedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSteeringTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'steering-trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes agent cycle trace requests to the optional trace service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      agentCycleTraces: createAgentCycleTraceService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces',
+        query: {
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          fromCycleStartedAt: '100',
+          toCycleStartedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          simulatorEvents: [
+            {
+              actionId: 'eat-1',
+              attempt: 'original',
+              status: 'rejected',
+              reason: 'insufficient Apple',
+              events: [
+                {
+                  type: 'ActionRejected',
+                  sequence: 10,
+                  summary: 'insufficient Apple',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces/cycle-trace-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'cycle-trace-1',
+        agentId: 'agent-1',
+        simulatorEvents: [
+          {
+            actionId: 'eat-1',
+            attempt: 'original',
+            status: 'rejected',
+            reason: 'insufficient Apple',
+            events: [
+              {
+                type: 'ActionRejected',
+                sequence: 10,
+                summary: 'insufficient Apple',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/agent-cycle-traces',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryAgentCycleTraces',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'cycle-trace-1',
+          agentId: 'agent-1',
+          fromCycleStartedAt: 100,
+          toCycleStartedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getAgentCycleTrace',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          traceId: 'cycle-trace-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes social reflection observation requests to the optional observation service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      socialReflectionObservations: createSocialReflectionObservationService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations',
+        query: {
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          fromGeneratedAt: '100',
+          toGeneratedAt: '200',
+          limit: '3',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          generatedAt: 100,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations/observation-1',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        observationId: 'observation-1',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        generatedAt: 100,
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/social-reflection-observations',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'querySocialReflectionObservations',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          observationId: 'observation-1',
+          agentId: 'agent-1',
+          targetAgentId: 'agent-2',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 3,
+        },
+      },
+      {
+        method: 'getSocialReflectionObservation',
+        request: {
+          simulationId: 'sim-1',
+          partitionKey: 'world-main',
+          observationId: 'observation-1',
+        },
+      },
+    ]);
+  });
+
+  test('routes runtime supervisor requests to the runtime service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { manifestId: 'town-runtime' },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/simulations/sim-1/partitions/world-main/agents',
+        body: {
+          agentId: 'bad agent id',
+          creatorId: 'participant-7',
+          displayName: 'Ada',
+          issuedAt: 90,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: {
+          code: 'bad_request',
+          message:
+            'agentId must start with an alphanumeric character and contain only letters, numbers, ., _, :, or -',
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/start',
+        body: { operationId: 'op-start-100', requestedAt: 100 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { traceId: 'op-start-100', requestedAt: 100 },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/operation-traces/op-start-100',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { traceId: 'op-start-100', command: 'start-all' },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-sessions/op-run-200',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'op-run-200',
+        status: 'completed',
+        completedCycleCount: 2,
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-manifests/resolved-run-manifest%3Asha256%3Aabc',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { runManifestId: 'resolved-run-manifest:sha256:abc' },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-sessions/op-run-200/stop',
+        body: { requestedAt: 260 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        traceId: 'op-run-200',
+        status: 'running',
+        completedCycleCount: 2,
+        stopRequestedAt: 260,
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run',
+        body: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { traceId: 'op-run-200', requestedAt: 200, completedCycleCount: 2 },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/operation-traces',
+        query: {
+          manifestId: 'town-runtime',
+          command: 'start-all',
+          fromRequestedAt: '50',
+          toRequestedAt: '150',
+          limit: '5',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [{ traceId: 'op-start-100', command: 'start-all' }],
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeStatus' },
+      { method: 'startRuntime', request: { operationId: 'op-start-100', requestedAt: 100 } },
+      { method: 'getRuntimeOperationTrace', request: { traceId: 'op-start-100' } },
+      { method: 'getRuntimeRunSession', request: { traceId: 'op-run-200' } },
+      {
+        method: 'getRuntimeResolvedRunManifest',
+        request: { runManifestId: 'resolved-run-manifest:sha256:abc' },
+      },
+      {
+        method: 'stopRuntimeRunSession',
+        request: { traceId: 'op-run-200', requestedAt: 260 },
+      },
+      {
+        method: 'runRuntime',
+        request: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+        },
+      },
+      {
+        method: 'queryRuntimeOperationTraces',
+        query: {
+          manifestId: 'town-runtime',
+          command: 'start-all',
+          fromRequestedAt: 50,
+          toRequestedAt: 150,
+          limit: 5,
+        },
+      },
+    ]);
+  });
+
+  test('routes async runtime run jobs to the queue service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: {
+          jobId: 'job-run-200',
+          operationId: 'op-run-200',
+          enqueuedAt: 190,
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-run-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/job-run-200',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-run-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs',
+        query: { status: 'dead-lettered', manifestId: 'town-runtime', limit: '2' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          jobId: 'job-dead-200',
+          status: 'dead-lettered',
+          enqueuedAt: 190,
+          deadLetteredAt: 250,
+          runRequest: {
+            operationId: 'op-run-200',
+            requestedAt: 200,
+            cycleCount: 2,
+          },
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/stats',
+        query: { observedAt: '260', manifestId: 'town-runtime' },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        observedAt: 260,
+        manifestId: 'town-runtime',
+        totalJobCount: 4,
+        statusCounts: {
+          queued: 2,
+          leased: 1,
+          completed: 0,
+          failed: 0,
+          'dead-lettered': 1,
+        },
+        readyQueueCount: 1,
+        delayedQueueCount: 1,
+        activeLeaseCount: 0,
+        expiredLeaseCount: 1,
+        failedAttemptCount: 3,
+        replayCount: 1,
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs/job-dead-200/replay',
+        body: { replayedAt: 300, maxAttempts: 3 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        jobId: 'job-dead-200',
+        status: 'queued',
+        enqueuedAt: 190,
+        replayCount: 1,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+        },
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'enqueueRuntimeRun',
+        request: {
+          jobId: 'job-run-200',
+          operationId: 'op-run-200',
+          enqueuedAt: 190,
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      },
+      {
+        method: 'getRuntimeRunJob',
+        request: { jobId: 'job-run-200' },
+      },
+      {
+        method: 'queryRuntimeRunJobs',
+        request: { status: 'dead-lettered', manifestId: 'town-runtime', limit: 2 },
+      },
+      {
+        method: 'getRuntimeRunQueueStats',
+        request: { observedAt: 260, manifestId: 'town-runtime' },
+      },
+      {
+        method: 'replayRuntimeRunJob',
+        request: { jobId: 'job-dead-200', replayedAt: 300, maxAttempts: 3 },
+      },
+    ]);
+  });
+
+  test('routes runtime run queue worker control requests to the worker service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(
+      handler({ method: 'GET', path: '/runtime/run-queue-worker/status' }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, processedJobCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/run-queue-worker/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, processedJobCount: 0 },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-queue-worker/drain',
+        body: { maxJobs: 2 },
+      }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        processedJobCount: 2,
+        completedJobCount: 2,
+        failedJobCount: 0,
+        idle: false,
+      },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/run-queue-worker/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, processedJobCount: 2 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeRunQueueWorkerStatus' },
+      { method: 'startRuntimeRunQueueWorker' },
+      { method: 'drainRuntimeRunQueueWorker', request: { maxJobs: 2 } },
+      { method: 'stopRuntimeRunQueueWorker' },
+    ]);
+  });
+
+  test('routes runtime scheduler control requests to the optional scheduler service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeScheduler: createRuntimeSchedulerService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/scheduler/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedScheduleCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, attemptedScheduleCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/run-once', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'enqueued', job: { jobId: 'job-scheduled-1', status: 'queued' } },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/scheduler/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedScheduleCount: 1 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeSchedulerStatus' },
+      { method: 'startRuntimeScheduler' },
+      { method: 'runRuntimeSchedulerOnce' },
+      { method: 'stopRuntimeScheduler' },
+    ]);
+  });
+
+  test('routes runtime recovery control requests to the optional recovery service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeRecovery: createRuntimeRecoveryService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/recovery/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedRecoveryCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/start', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: true, inFlight: false, attemptedRecoveryCount: 0 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/run-once', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { status: 'recovered', observedAt: 250 },
+    });
+    await expect(
+      handler({ method: 'POST', path: '/runtime/recovery/stop', body: {} }),
+    ).resolves.toEqual({
+      status: 202,
+      headers: { 'content-type': 'application/json' },
+      body: { running: false, inFlight: false, attemptedRecoveryCount: 1 },
+    });
+
+    expect(calls).toEqual([
+      { method: 'getRuntimeRecoveryStatus' },
+      { method: 'startRuntimeRecovery' },
+      { method: 'runRuntimeRecoveryOnce' },
+      { method: 'stopRuntimeRecovery' },
+    ]);
+  });
+
+  test('routes runtime daemon health requests to the optional daemon service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeDaemon: createRuntimeDaemonService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/runtime/daemon/status' })).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        manifestId: 'town-runtime',
+        health: 'degraded',
+        components: {
+          supervisor: { health: 'healthy' },
+          runQueue: { health: 'degraded' },
+        },
+      },
+    });
+
+    expect(calls).toEqual([{ method: 'getRuntimeDaemonStatus' }]);
+  });
+
+  test('routes runtime profile run report requests to the optional report service', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+      runtimeProfileRunReports: createRuntimeProfileRunReportService(calls),
+    });
+
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports',
+        query: {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          fromGeneratedAt: '100',
+          toGeneratedAt: '200',
+          limit: '2',
+        },
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: [
+        {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          generatedAt: 200,
+        },
+      ],
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports/aivilization-smoke-25%3Aprofile-run%3A100',
+      }),
+    ).resolves.toEqual({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        runId: 'aivilization-smoke-25:profile-run:100',
+        profileId: 'smoke-25',
+        generatedAt: 200,
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/profile-run-reports',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+
+    expect(calls).toEqual([
+      {
+        method: 'queryRuntimeProfileRunReports',
+        request: {
+          runId: 'aivilization-smoke-25:profile-run:100',
+          profileId: 'smoke-25',
+          fromGeneratedAt: 100,
+          toGeneratedAt: 200,
+          limit: 2,
+        },
+      },
+      {
+        method: 'getRuntimeProfileRunReport',
+        request: { runId: 'aivilization-smoke-25:profile-run:100' },
+      },
+    ]);
+  });
+
+  test('returns structured errors for unknown routes, wrong methods, and invalid bodies', async () => {
+    const calls: unknown[] = [];
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService(calls),
+      runtimeSupervisor: createRuntimeSupervisorService(calls),
+      runtimeRunQueue: createRuntimeRunQueueService(calls),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService(calls),
+    });
+
+    await expect(handler({ method: 'GET', path: '/missing' })).resolves.toEqual({
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'not_found', message: 'route not found' } },
+    });
+    await expect(handler({ method: 'DELETE', path: '/runtime/status' })).resolves.toEqual({
+      status: 405,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'method_not_allowed', message: 'method not allowed' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/start',
+        body: { requestedAt: 'later' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'requestedAt must be a number' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run',
+        body: { requestedAt: 100, cycleCount: 0 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'cycleCount must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: { enqueuedAt: 90, requestedAt: 100, cycleCount: 1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'jobId must be a non-empty string' } },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs',
+        body: { jobId: 'job-run-invalid', enqueuedAt: -1, requestedAt: 100, cycleCount: 1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: {
+          code: 'bad_request',
+          message: 'enqueuedAt must be a non-negative finite number',
+        },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-queue-worker/drain',
+        body: { maxJobs: 0 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'maxJobs must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs',
+        query: { status: 'missing' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'status must be a known run queue job status' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/runtime/run-jobs/stats',
+        query: { observedAt: '-1' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'observedAt must be a non-negative finite number' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'POST',
+        path: '/runtime/run-jobs/job-dead/replay',
+        body: { replayedAt: -1 },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'replayedAt must be a non-negative finite number' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { afterSequence: '1.5' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'afterSequence must be a non-negative integer' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/events',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { afterSequence: '-1' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: {
+        error: { code: 'bad_request', message: 'afterSequence must be a non-negative integer' },
+      },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/sync',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/validation-reports',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    await expect(
+      handler({
+        method: 'GET',
+        path: '/simulations/sim-1/partitions/world-main/market-observations/trades',
+        query: { limit: '0' },
+      }),
+    ).resolves.toEqual({
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+      body: { error: { code: 'bad_request', message: 'limit must be a positive integer' } },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  test('reports social interactions as authority-managed when the authority disabled the legacy path', async () => {
+    const handler = createTownHttpApiHandler({
+      simulation: createSimulationService([]),
+      runtimeSupervisor: createRuntimeSupervisorService([]),
+      runtimeRunQueue: createRuntimeRunQueueService([]),
+      runtimeRunQueueWorker: createRuntimeRunQueueWorkerService([]),
+      societyInteractions: {
+        executeSocietyConversation: () =>
+          Promise.reject(
+            new Error(
+              'social interactions are managed by the simulation-wide authority; use the canonical tick instead',
+            ),
+          ),
+      },
+    });
+
+    const response = await handler({
+      method: 'POST',
+      path: '/simulations/sim-1/society/interactions',
+      body: {
+        operationId: 'op-1',
+        initiatorAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        topic: 'cooperation',
+        turns: [{ speakerAgentId: 'agent-1', utterance: 'hi' }],
+        issuedAt: 100,
+      },
+    });
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      error: { code: 'social_interactions_managed_by_authority' },
+    });
+  });
+});
+
+function createSimulationService(
+  calls: unknown[],
+): SimulationApiService<
+  TestProjection,
+  TestSteeringResult,
+  TestLifecycleResult,
+  TestEventFeed,
+  TestSyncEnvelope,
+  TestValidationReport
+> {
+  return {
+    getProjection: (request) => {
+      calls.push({ method: 'getProjection', request });
+      return Promise.resolve({ agents: 80 });
+    },
+    getEvents: (request) => {
+      calls.push({ method: 'getEvents', request });
+      return Promise.resolve({
+        streamVersion: 5,
+        nextAfterSequence: 5,
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      });
+    },
+    getSync: (request) => {
+      calls.push({ method: 'getSync', request });
+      return Promise.resolve({
+        streamVersion: 5,
+        projectionSequence: 5,
+        nextAfterSequence: 5,
+        hasMoreEvents: false,
+        projection: { agents: 80 },
+        events: [
+          { sequence: 3, type: 'SimulationTimeAdvanced' },
+          { sequence: 4, type: 'EducationChanged' },
+          { sequence: 5, type: 'ShortTermMemoryRecorded' },
+        ],
+      });
+    },
+    queryExperimentValidationReports: (request) => {
+      calls.push({ method: 'queryExperimentValidationReports', request });
+      return Promise.resolve([{ run: { runId: request.runId ?? 'validation-2' } }]);
+    },
+    getExperimentValidationReport: (request) => {
+      calls.push({ method: 'getExperimentValidationReport', request });
+      return Promise.resolve({ run: { runId: request.runId } });
+    },
+    queryMarketTradeObservations: (request) => {
+      calls.push({ method: 'queryMarketTradeObservations', request });
+      return Promise.resolve([
+        {
+          observationId: 'trade-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          sourceEventId: 'event-trade-1',
+          sourceSequence: 2,
+          side: 'buy',
+          observedAt: request.fromObservedAt ?? 100,
+          price: 11,
+          commodityQuantity: 1,
+          currencyQuantity: 11,
+        },
+      ] satisfies TestMarketTradeObservation[]);
+    },
+    queryMarketOhlcBars: (request) => {
+      calls.push({ method: 'queryMarketOhlcBars', request });
+      return Promise.resolve([
+        {
+          barId: 'bar-1',
+          simulationId: request.simulationId,
+          commodityId: request.commodityId ?? 'Apple',
+          intervalStartedAt: request.fromIntervalStartedAt ?? 100,
+          intervalEndedAt: 200,
+          openPrice: 10,
+          highPrice: 12,
+          lowPrice: 9,
+          closePrice: 11,
+          tradeCount: 3,
+          commodityVolume: 4,
+          currencyVolume: 44,
+        },
+      ] satisfies TestMarketOhlcBar[]);
+    },
+    submitAgentRegistration: (request) => {
+      calls.push({ method: 'submitAgentRegistration', request });
+      return Promise.resolve({
+        command: createCommandEnvelope({
+          id: 'command-register-agent',
+          simulationId: request.simulationId,
+          actorId: request.agentId,
+          source: 'human',
+          type: 'RegisterAgent',
+          payload: {},
+          issuedAt: request.issuedAt,
+        }),
+        result: { accepted: true },
+      });
+    },
+    submitLongHorizonObjective: (request) => {
+      calls.push({ method: 'submitLongHorizonObjective', request });
+      return Promise.resolve({
+        command: createCommandEnvelope({
+          id: 'command-objective',
+          simulationId: request.simulationId,
+          actorId: request.agentId,
+          source: 'human',
+          type: 'SetLongHorizonObjective',
+          payload: {},
+          issuedAt: request.issuedAt,
+        }),
+        result: { accepted: true },
+      });
+    },
+    submitReactiveCommand: (request) => {
+      calls.push({ method: 'submitReactiveCommand', request });
+      return Promise.resolve({
+        command: createCommandEnvelope({
+          id: 'command-reactive',
+          simulationId: request.simulationId,
+          actorId: request.agentId,
+          source: 'human',
+          type: 'IssueReactiveCommand',
+          payload: {},
+          issuedAt: request.issuedAt,
+        }),
+        result: { accepted: true },
+      });
+    },
+    startSimulation: (request) => {
+      calls.push({ method: 'startSimulation', request });
+      return Promise.resolve({ status: 'started', requestedAt: request.requestedAt });
+    },
+    pauseSimulation: (request) => {
+      calls.push({ method: 'pauseSimulation', request });
+      return Promise.resolve({ status: 'paused', requestedAt: request.requestedAt });
+    },
+    resetSimulation: (request) => {
+      calls.push({ method: 'resetSimulation', request });
+      return Promise.resolve({ status: 'reset', requestedAt: request.requestedAt });
+    },
+    replaySimulation: (request) => {
+      calls.push({ method: 'replaySimulation', request });
+      return Promise.resolve({ status: 'replaying', requestedAt: request.requestedAt });
+    },
+  };
+}
+
+function createRuntimeSupervisorService(
+  calls: unknown[],
+): RuntimeSupervisorApiService<
+  TestRuntimeStatus,
+  TestRuntimeCommandResult,
+  TestRuntimeCommandResult,
+  TestRuntimeCommandResult,
+  TestRuntimeTrace,
+  'start-all' | 'pause-all' | 'run-cycles',
+  TestRuntimeRunSession
+> {
+  return {
+    getRuntimeStatus: () => {
+      calls.push({ method: 'getRuntimeStatus' });
+      return Promise.resolve({ manifestId: 'town-runtime' });
+    },
+    startRuntime: (request) => {
+      calls.push({ method: 'startRuntime', request });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-start',
+        requestedAt: request.requestedAt,
+      });
+    },
+    pauseRuntime: (request) => {
+      calls.push({ method: 'pauseRuntime', request });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-pause',
+        requestedAt: request.requestedAt,
+      });
+    },
+    runRuntime: (request) => {
+      calls.push({ method: 'runRuntime', request });
+      return Promise.resolve({
+        traceId: request.operationId ?? 'generated-run',
+        requestedAt: request.requestedAt,
+        completedCycleCount: request.cycleCount,
+      });
+    },
+    getRuntimeOperationTrace: (request) => {
+      calls.push({ method: 'getRuntimeOperationTrace', request });
+      return Promise.resolve({ traceId: request.traceId, command: 'start-all' });
+    },
+    getRuntimeRunSession: (request) => {
+      calls.push({ method: 'getRuntimeRunSession', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        status: 'completed',
+        completedCycleCount: 2,
+      });
+    },
+    getRuntimeResolvedRunManifest: (request) => {
+      calls.push({ method: 'getRuntimeResolvedRunManifest', request });
+      return Promise.resolve({ runManifestId: request.runManifestId });
+    },
+    stopRuntimeRunSession: (request) => {
+      calls.push({ method: 'stopRuntimeRunSession', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        status: 'running',
+        completedCycleCount: 2,
+        stopRequestedAt: request.requestedAt,
+      });
+    },
+    queryRuntimeOperationTraces: (query) => {
+      calls.push({ method: 'queryRuntimeOperationTraces', query });
+      return Promise.resolve([{ traceId: 'op-start-100', command: 'start-all' }]);
+    },
+  };
+}
+
+function createRuntimeRunQueueService(
+  calls: unknown[],
+): RuntimeRunQueueApiService<TestRuntimeRunQueueJob, TestRuntimeRunQueueStats> {
+  return {
+    enqueueRuntimeRun: (request) => {
+      calls.push({ method: 'enqueueRuntimeRun', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: request.enqueuedAt,
+        runRequest: {
+          ...(request.operationId === undefined ? {} : { operationId: request.operationId }),
+          requestedAt: request.requestedAt,
+          cycleCount: request.cycleCount,
+          ...(request.cycleIntervalMs === undefined
+            ? {}
+            : { cycleIntervalMs: request.cycleIntervalMs }),
+          ...(request.stopOnAttention === undefined
+            ? {}
+            : { stopOnAttention: request.stopOnAttention }),
+        },
+      });
+    },
+    getRuntimeRunJob: (request) => {
+      calls.push({ method: 'getRuntimeRunJob', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: 190,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+          cycleIntervalMs: 50,
+          stopOnAttention: true,
+        },
+      });
+    },
+    queryRuntimeRunJobs: (request) => {
+      calls.push({ method: 'queryRuntimeRunJobs', request });
+      return Promise.resolve([
+        {
+          jobId: 'job-dead-200',
+          status: 'dead-lettered',
+          enqueuedAt: 190,
+          deadLetteredAt: 250,
+          runRequest: {
+            operationId: 'op-run-200',
+            requestedAt: 200,
+            cycleCount: 2,
+          },
+        },
+      ]);
+    },
+    getRuntimeRunQueueStats: (request) => {
+      calls.push({ method: 'getRuntimeRunQueueStats', request });
+      return Promise.resolve({
+        observedAt: request.observedAt,
+        ...(request.manifestId === undefined ? {} : { manifestId: request.manifestId }),
+        totalJobCount: 4,
+        statusCounts: {
+          queued: 2,
+          leased: 1,
+          completed: 0,
+          failed: 0,
+          'dead-lettered': 1,
+        },
+        readyQueueCount: 1,
+        delayedQueueCount: 1,
+        activeLeaseCount: 0,
+        expiredLeaseCount: 1,
+        failedAttemptCount: 3,
+        replayCount: 1,
+      });
+    },
+    replayRuntimeRunJob: (request) => {
+      calls.push({ method: 'replayRuntimeRunJob', request });
+      return Promise.resolve({
+        jobId: request.jobId,
+        status: 'queued',
+        enqueuedAt: 190,
+        replayCount: 1,
+        runRequest: {
+          operationId: 'op-run-200',
+          requestedAt: 200,
+          cycleCount: 2,
+        },
+      });
+    },
+  };
+}
+
+function createRuntimeRunQueueWorkerService(
+  calls: unknown[],
+): RuntimeRunQueueWorkerApiService<
+  TestRuntimeRunQueueWorkerStatus,
+  TestRuntimeRunQueueWorkerDrainResult
+> {
+  return {
+    getRuntimeRunQueueWorkerStatus: () => {
+      calls.push({ method: 'getRuntimeRunQueueWorkerStatus' });
+      return Promise.resolve({ running: false, inFlight: false, processedJobCount: 0 });
+    },
+    startRuntimeRunQueueWorker: () => {
+      calls.push({ method: 'startRuntimeRunQueueWorker' });
+      return Promise.resolve({ running: true, inFlight: false, processedJobCount: 0 });
+    },
+    stopRuntimeRunQueueWorker: () => {
+      calls.push({ method: 'stopRuntimeRunQueueWorker' });
+      return Promise.resolve({ running: false, inFlight: false, processedJobCount: 2 });
+    },
+    drainRuntimeRunQueueWorker: (request) => {
+      calls.push({ method: 'drainRuntimeRunQueueWorker', request });
+      return Promise.resolve({
+        processedJobCount: request.maxJobs ?? 1,
+        completedJobCount: request.maxJobs ?? 1,
+        failedJobCount: 0,
+        idle: false,
+      });
+    },
+  };
+}
+
+function createRuntimeSchedulerService(
+  calls: unknown[],
+): RuntimeSchedulerApiService<TestRuntimeSchedulerStatus, TestRuntimeSchedulerDecision> {
+  return {
+    getRuntimeSchedulerStatus: () => {
+      calls.push({ method: 'getRuntimeSchedulerStatus' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedScheduleCount: 0 });
+    },
+    startRuntimeScheduler: () => {
+      calls.push({ method: 'startRuntimeScheduler' });
+      return Promise.resolve({ running: true, inFlight: false, attemptedScheduleCount: 0 });
+    },
+    stopRuntimeScheduler: () => {
+      calls.push({ method: 'stopRuntimeScheduler' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedScheduleCount: 1 });
+    },
+    runRuntimeSchedulerOnce: () => {
+      calls.push({ method: 'runRuntimeSchedulerOnce' });
+      return Promise.resolve({
+        status: 'enqueued',
+        job: { jobId: 'job-scheduled-1', status: 'queued' },
+      });
+    },
+  };
+}
+
+function createRuntimeRecoveryService(
+  calls: unknown[],
+): RuntimeRecoveryApiService<TestRuntimeRecoveryStatus, TestRuntimeRecoveryReport> {
+  return {
+    getRuntimeRecoveryStatus: () => {
+      calls.push({ method: 'getRuntimeRecoveryStatus' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedRecoveryCount: 0 });
+    },
+    startRuntimeRecovery: () => {
+      calls.push({ method: 'startRuntimeRecovery' });
+      return Promise.resolve({ running: true, inFlight: false, attemptedRecoveryCount: 0 });
+    },
+    stopRuntimeRecovery: () => {
+      calls.push({ method: 'stopRuntimeRecovery' });
+      return Promise.resolve({ running: false, inFlight: false, attemptedRecoveryCount: 1 });
+    },
+    runRuntimeRecoveryOnce: () => {
+      calls.push({ method: 'runRuntimeRecoveryOnce' });
+      return Promise.resolve({ status: 'recovered', observedAt: 250 });
+    },
+  };
+}
+
+function createRuntimeDaemonService(
+  calls: unknown[],
+): RuntimeDaemonApiService<TestRuntimeDaemonStatus> {
+  return {
+    getRuntimeDaemonStatus: () => {
+      calls.push({ method: 'getRuntimeDaemonStatus' });
+      return Promise.resolve({
+        manifestId: 'town-runtime',
+        health: 'degraded',
+        components: {
+          supervisor: { health: 'healthy' },
+          runQueue: { health: 'degraded' },
+        },
+      });
+    },
+  };
+}
+
+function createRuntimeProfileRunReportService(
+  calls: unknown[],
+): RuntimeProfileRunReportApiService<TestRuntimeProfileRunReport> {
+  return {
+    getRuntimeProfileRunReport: (request) => {
+      calls.push({ method: 'getRuntimeProfileRunReport', request });
+      return Promise.resolve({
+        runId: request.runId,
+        profileId: 'smoke-25',
+        generatedAt: 200,
+      });
+    },
+    queryRuntimeProfileRunReports: (request) => {
+      calls.push({ method: 'queryRuntimeProfileRunReports', request });
+      return Promise.resolve([
+        {
+          runId: request.runId ?? 'aivilization-smoke-25:profile-run:100',
+          profileId: request.profileId ?? 'smoke-25',
+          generatedAt: 200,
+        },
+      ]);
+    },
+  };
+}
+
+function createAgentProfileService(calls: unknown[]): AgentProfileApiService<TestAgentProfile> {
+  return {
+    getAgentProfile: (request) => {
+      calls.push({ method: 'getAgentProfile', request });
+      return Promise.resolve({
+        agentId: request.agentId,
+        values: ['cooperation'],
+        personality: ['sociable'],
+      });
+    },
+    queryAgentProfiles: (request) => {
+      calls.push({ method: 'queryAgentProfiles', request });
+      return Promise.resolve([
+        {
+          agentId: request.agentId ?? 'agent-1',
+          values: ['cooperation'],
+          personality: ['sociable'],
+        },
+      ]);
+    },
+  };
+}
+
+function createBranchPlanService(calls: unknown[]): BranchPlanApiService<TestBranchPlan> {
+  return {
+    queryBranchPlans: (request) => {
+      calls.push({ method: 'queryBranchPlans', request });
+      return Promise.resolve([
+        {
+          planId: request.planId ?? 'plan-1',
+          agentId: request.agentId ?? 'agent-1',
+        },
+      ]);
+    },
+  };
+}
+
+function createObjectiveRenewalTraceService(
+  calls: unknown[],
+): ObjectiveRenewalTraceApiService<TestObjectiveRenewalTrace> {
+  return {
+    getObjectiveRenewalTrace: (request) => {
+      calls.push({ method: 'getObjectiveRenewalTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        agentId: 'agent-1',
+        objectiveId: 'objective-1',
+      });
+    },
+    queryObjectiveRenewalTraces: (request) => {
+      calls.push({ method: 'queryObjectiveRenewalTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'trace-1',
+          agentId: request.agentId ?? 'agent-1',
+          objectiveId: request.objectiveId ?? 'objective-1',
+        },
+      ]);
+    },
+  };
+}
+
+function createDailyPlanRenewalTraceService(
+  calls: unknown[],
+): DailyPlanRenewalTraceApiService<TestDailyPlanRenewalTrace> {
+  return {
+    getDailyPlanRenewalTrace: (request) => {
+      calls.push({ method: 'getDailyPlanRenewalTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        agentId: 'agent-1',
+        dailyPlanId: 'daily-plan:agent-1:0',
+      });
+    },
+    queryDailyPlanRenewalTraces: (request) => {
+      calls.push({ method: 'queryDailyPlanRenewalTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'daily-plan-trace-1',
+          agentId: request.agentId ?? 'agent-1',
+          dailyPlanId: request.dailyPlanId ?? 'daily-plan:agent-1:0',
+        },
+      ]);
+    },
+  };
+}
+
+function createSteeringTraceService(calls: unknown[]): SteeringTraceApiService<TestSteeringTrace> {
+  return {
+    getSteeringTrace: (request) => {
+      calls.push({ method: 'getSteeringTrace', request });
+      return Promise.resolve({
+        traceId: request.traceId,
+        commandId: 'cmd-objective-study',
+        agentId: 'agent-1',
+        resultKind: 'long-horizon-objective-set',
+      });
+    },
+    querySteeringTraces: (request) => {
+      calls.push({ method: 'querySteeringTraces', request });
+      return Promise.resolve([
+        {
+          traceId: request.traceId ?? 'steering-trace-1',
+          commandId: request.commandId ?? 'cmd-objective-study',
+          agentId: request.agentId ?? 'agent-1',
+          resultKind: request.resultKind ?? 'long-horizon-objective-set',
+        },
+      ]);
+    },
+  };
+}
+
+function createAgentCycleTraceService(
+  calls: unknown[],
+): AgentCycleTraceApiService<TestAgentCycleTrace> {
+  return {
+    getAgentCycleTrace: (request) => {
+      calls.push({ method: 'getAgentCycleTrace', request });
+      return Promise.resolve(createTestAgentCycleTrace(request.traceId, 'agent-1'));
+    },
+    queryAgentCycleTraces: (request) => {
+      calls.push({ method: 'queryAgentCycleTraces', request });
+      return Promise.resolve([
+        createTestAgentCycleTrace(request.traceId ?? 'cycle-trace-1', request.agentId ?? 'agent-1'),
+      ]);
+    },
+  };
+}
+
+function createSocialReflectionObservationService(
+  calls: unknown[],
+): SocialReflectionObservationApiService<TestSocialReflectionObservation> {
+  return {
+    getSocialReflectionObservation: (request) => {
+      calls.push({ method: 'getSocialReflectionObservation', request });
+      return Promise.resolve({
+        observationId: request.observationId,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        generatedAt: 100,
+      });
+    },
+    querySocialReflectionObservations: (request) => {
+      calls.push({ method: 'querySocialReflectionObservations', request });
+      return Promise.resolve([
+        {
+          observationId: request.observationId ?? 'observation-1',
+          agentId: request.agentId ?? 'agent-1',
+          targetAgentId: request.targetAgentId ?? 'agent-2',
+          generatedAt: request.fromGeneratedAt ?? 100,
+        },
+      ]);
+    },
+  };
+}
+
+function createTestAgentCycleTrace(traceId: string, agentId: string): TestAgentCycleTrace {
+  return {
+    traceId,
+    agentId,
+    simulatorEvents: [
+      {
+        actionId: 'eat-1',
+        attempt: 'original',
+        status: 'rejected',
+        reason: 'insufficient Apple',
+        events: [
+          {
+            type: 'ActionRejected',
+            sequence: 10,
+            summary: 'insufficient Apple',
+          },
+        ],
+      },
+    ],
+  };
+}

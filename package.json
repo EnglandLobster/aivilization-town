@@ -1,0 +1,28 @@
+{
+  "name": "aivilization-town",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --sort build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "drill:runtime-recovery": "pnpm --filter @aivilization/server recovery-drill",
+    "migrate:runtime-data-v1-to-v2": "pnpm --filter @aivilization/server migrate-data-v1-to-v2",
+    "regrade:runtime-resource-envelope": "node --enable-source-maps apps/server/dist/localRuntimeTownResourceEnvelopeCliMain.js",
+    "test": "vitest run",
+    "typecheck": "pnpm -r --sort typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.30.0",
+    "prettier": "^3.5.3",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^3.2.4"
+  },
+  "packageManager": "pnpm@10.12.4"
+}

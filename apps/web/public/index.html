@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Live operations and research cockpit for Aivilization Town."
+    />
+    <title>Aivilization Observatory</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230f62fe'/%3E%3Cpath d='M9 24 15.3 8h2.2L24 24h-3l-1.5-4H13l-1.5 4H9Zm5-7h4.5l-2.2-6-2.3 6Z' fill='white'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/ui/app.css" />
+    <script src="/ui/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="topbar">
+      <div class="brand" aria-label="Aivilization Observatory">
+        <span class="brand-mark" aria-hidden="true">A·</span>
+        <div class="brand-copy">
+          <strong>Aivilization</strong>
+          <span>Research observatory</span>
+        </div>
+      </div>
+      <div class="topbar-context">
+        <span class="environment-label">local research runtime</span>
+        <span id="connection-status" class="status-badge status-neutral">
+          <span class="status-dot" aria-hidden="true"></span>
+          Connecting
+        </span>
+        <span id="last-updated" class="muted">No observation yet</span>
+        <button
+          id="theme-toggle"
+          class="icon-button"
+          type="button"
+          aria-label="Switch color theme"
+          title="Switch color theme"
+        >
+          <span aria-hidden="true">◐</span><span class="theme-label">Theme</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" aria-label="Observatory navigation">
+        <nav class="nav-tabs" role="tablist" aria-orientation="horizontal">
+          <button
+            class="nav-tab is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-overview"
+            data-view="overview"
+          >
+            <span aria-hidden="true">01</span><span>Mission control</span>
+          </button>
+          <button
+            class="nav-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-town"
+            data-view="town"
+          >
+            <span aria-hidden="true">02</span><span>Population</span>
+          </button>
+          <button
+            class="nav-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-market"
+            data-view="market"
+          >
+            <span aria-hidden="true">03</span><span>Economy</span>
+          </button>
+          <button
+            class="nav-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-cognition"
+            data-view="cognition"
+          >
+            <span aria-hidden="true">04</span><span>Cognition</span>
+          </button>
+          <button
+            class="nav-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-steering"
+            data-view="steering"
+          >
+            <span aria-hidden="true">05</span><span>Interventions</span>
+          </button>
+        </nav>
+        <div class="sidebar-note">
+          <span class="sidebar-note-index" aria-hidden="true">↳</span>
+          <div>
+            <span class="eyebrow">Evidence model</span>
+            <strong>Replayable by construction</strong>
+          </div>
+        </div>
+      </aside>
+
+      <main id="main-content" class="main-content" tabindex="-1">
+        <section class="context-bar" aria-label="Active simulation context">
+          <div class="context-copy">
+            <span class="eyebrow">Live simulation workspace</span>
+            <h1 id="view-title">Mission control</h1>
+            <p id="view-description">
+              Follow runtime health, scientific evidence, and the active partition from one place.
+            </p>
+          </div>
+          <div class="context-controls">
+            <label class="field compact-field">
+              <span>Partition</span>
+              <select id="partition-select" aria-label="Select simulation partition" disabled>
+                <option>Discovering…</option>
+              </select>
+            </label>
+            <label class="field compact-field">
+              <span>Refresh</span>
+              <select id="refresh-interval" aria-label="Automatic refresh interval">
+                <option value="0">Manual</option>
+                <option value="2000">2 seconds</option>
+                <option value="5000" selected>5 seconds</option>
+                <option value="15000">15 seconds</option>
+              </select>
+            </label>
+            <button id="refresh-button" class="button button-secondary" type="button">
+              Refresh now
+            </button>
+          </div>
+        </section>
+
+        <div id="global-alert" class="alert" role="status" aria-live="polite" hidden></div>
+
+        <section
+          id="panel-overview"
+          class="view-panel is-active"
+          role="tabpanel"
+          data-panel="overview"
+        >
+          <div id="overview-metrics" class="metric-grid skeleton-grid" aria-label="Runtime summary">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          <div class="split-grid split-2-1">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Production guardrails</span>
+                  <h2>SLO evidence</h2>
+                </div>
+                <span id="slo-summary" class="status-badge status-neutral">Waiting</span>
+              </div>
+              <div id="slo-table" class="table-wrap">
+                <div class="empty-state">Runtime health has not loaded.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Control plane</span>
+                  <h2>Operate runtime</h2>
+                </div>
+              </div>
+              <form id="runtime-form" class="stack-form">
+                <label class="field"
+                  ><span>Cycle count</span
+                  ><input name="cycleCount" type="number" min="1" max="1000" value="1" required
+                /></label>
+                <div class="button-row">
+                  <button class="button button-primary" type="submit" data-runtime-action="run">
+                    Run cycles
+                  </button>
+                  <button class="button button-secondary" type="button" data-runtime-action="start">
+                    Start all
+                  </button>
+                  <button
+                    class="button button-danger-ghost"
+                    type="button"
+                    data-runtime-action="pause"
+                  >
+                    Pause all
+                  </button>
+                </div>
+                <p class="help-text">
+                  Commands are persisted through the runtime supervisor and reflected in operation
+                  traces.
+                </p>
+              </form>
+              <div id="runtime-action-result" class="action-result" aria-live="polite"></div>
+            </article>
+          </div>
+          <div class="split-grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Topology</span>
+                  <h2>Partitions</h2>
+                </div>
+              </div>
+              <div id="partition-table" class="table-wrap">
+                <div class="empty-state">No partition status.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Scientific evidence</span>
+                  <h2>Validation runs</h2>
+                </div>
+              </div>
+              <div id="validation-list" class="record-list">
+                <div class="empty-state">No validation reports in this partition.</div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-town" class="view-panel" role="tabpanel" data-panel="town" hidden>
+          <section class="town-map-command-bar" aria-label="Town map controls">
+            <div>
+              <span class="eyebrow">Semantic town layout · not geographic</span>
+              <h2>Town map</h2>
+              <p>
+                Buildings show current occupancy. Select a place to inspect its residents and
+                activity.
+              </p>
+            </div>
+            <div class="town-map-controls">
+              <div class="segmented-control" role="group" aria-label="Town map data layer">
+                <button
+                  class="segment-button"
+                  type="button"
+                  data-town-layer="population"
+                  aria-pressed="true"
+                >
+                  Population
+                </button>
+                <button
+                  class="segment-button"
+                  type="button"
+                  data-town-layer="activity"
+                  aria-pressed="false"
+                >
+                  Activity
+                </button>
+              </div>
+              <div id="town-agent-total" class="town-agent-total" aria-live="polite">0 Agents</div>
+            </div>
+          </section>
+
+          <div class="town-map-layout">
+            <article class="town-map-card" aria-labelledby="town-map-title">
+              <h3 id="town-map-title" class="sr-only">Interactive semantic town map</h3>
+              <div class="town-map-scroll" tabindex="0" aria-label="Scrollable town map">
+                <div id="town-map" class="town-map" data-layer="population">
+                  <img
+                    class="town-map-image"
+                    src="/ui/assets/town-map.png"
+                    alt="Pixel-art semantic town with a square, residence, school, clinic, restaurant, market and workshop"
+                    width="1672"
+                    height="941"
+                  />
+                  <div id="town-map-overlay" class="town-map-overlay"></div>
+                </div>
+              </div>
+              <div class="town-map-footer">
+                <div class="town-map-legend" aria-label="Town map legend">
+                  <span
+                    ><i class="legend-swatch legend-occupancy" aria-hidden="true"></i>Live
+                    count</span
+                  >
+                  <span
+                    ><i class="legend-swatch legend-selected" aria-hidden="true"></i>Selected
+                    place</span
+                  >
+                </div>
+                <span>Placement is an interface layout; it does not encode distance.</span>
+              </div>
+            </article>
+            <aside class="town-location-inspector" aria-label="Selected location details">
+              <div id="town-location-inspector">
+                <div class="empty-state">Select a building to inspect current residents.</div>
+              </div>
+            </aside>
+          </div>
+
+          <div class="split-grid split-agents town-directory">
+            <article class="card agent-browser">
+              <div class="card-header responsive-header">
+                <div>
+                  <span class="eyebrow">Canonical population</span>
+                  <h2>Agents</h2>
+                </div>
+                <label class="search-field"
+                  ><span class="sr-only">Search agents</span
+                  ><input
+                    id="agent-search"
+                    type="search"
+                    placeholder="Search agent, job, location"
+                    autocomplete="off"
+                /></label>
+              </div>
+              <div id="agent-table" class="table-wrap tall-table">
+                <div class="empty-state">No agents found.</div>
+              </div>
+            </article>
+            <aside class="card detail-card" aria-label="Selected agent details">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Selected agent</span>
+                  <h2 id="agent-detail-title">None</h2>
+                </div>
+              </div>
+              <div id="agent-detail" class="detail-body">
+                <div class="empty-state">
+                  Select an agent to inspect physiology, inventory and current activity.
+                </div>
+              </div>
+            </aside>
+          </div>
+          <article class="card location-registry">
+            <div class="card-header">
+              <div>
+                <span class="eyebrow">Spatial layer</span>
+                <h2>Locations & occupancy</h2>
+              </div>
+            </div>
+            <div id="locations-grid" class="location-grid">
+              <div class="empty-state">No locations found.</div>
+            </div>
+          </article>
+        </section>
+
+        <section id="panel-market" class="view-panel" role="tabpanel" data-panel="market" hidden>
+          <div id="market-metrics" class="metric-grid"></div>
+          <div class="split-grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Automated market maker</span>
+                  <h2>Liquidity pools</h2>
+                </div>
+              </div>
+              <div id="pool-table" class="table-wrap">
+                <div class="empty-state">No pools in this partition.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Cost of living</span>
+                  <h2>Price indices</h2>
+                </div>
+              </div>
+              <div id="price-index-list" class="index-list">
+                <div class="empty-state">No index observations.</div>
+              </div>
+            </article>
+          </div>
+          <div class="split-grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Executed exchange</span>
+                  <h2>Recent trades</h2>
+                </div>
+              </div>
+              <div id="trade-table" class="table-wrap">
+                <div class="empty-state">No trades recorded.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Aggregated evidence</span>
+                  <h2>OHLC bars</h2>
+                </div>
+              </div>
+              <div id="ohlc-table" class="table-wrap">
+                <div class="empty-state">No OHLC bars recorded.</div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="panel-cognition"
+          class="view-panel"
+          role="tabpanel"
+          data-panel="cognition"
+          hidden
+        >
+          <section class="selection-strip" aria-label="Cognition inspection target">
+            <div>
+              <span class="eyebrow">Inspection target</span
+              ><strong id="cognition-agent-label">No agent selected</strong>
+            </div>
+            <label class="field compact-field"
+              ><span>Agent</span
+              ><select id="cognition-agent-select">
+                <option value="">Select an agent</option>
+              </select></label
+            >
+          </section>
+          <div class="split-grid split-plan">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Hierarchical planning</span>
+                  <h2>Active branch plans</h2>
+                </div>
+                <span id="plan-count" class="count-badge">0</span>
+              </div>
+              <div id="plan-tree" class="plan-tree">
+                <div class="empty-state">Select an agent to load durable plans.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Long-term memory</span>
+                  <h2>Agent profile</h2>
+                </div>
+              </div>
+              <div id="profile-detail" class="profile-detail">
+                <div class="empty-state">Select an agent to inspect profile memory.</div>
+              </div>
+            </article>
+          </div>
+          <article class="card">
+            <div class="card-header responsive-header">
+              <div>
+                <span class="eyebrow">Planner observability</span>
+                <h2>Cycle traces</h2>
+              </div>
+              <div class="legend">
+                <span><i class="legend-dot accepted"></i>accepted</span
+                ><span><i class="legend-dot fallback"></i>fallback</span
+                ><span><i class="legend-dot deterministic"></i>deterministic</span>
+              </div>
+            </div>
+            <div id="cycle-traces" class="trace-list">
+              <div class="empty-state">No cycle traces for this agent.</div>
+            </div>
+          </article>
+          <div class="split-grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Objective horizon</span>
+                  <h2>Objective renewal</h2>
+                </div>
+              </div>
+              <div id="objective-traces" class="record-list">
+                <div class="empty-state">No objective renewal traces.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Daily horizon</span>
+                  <h2>Daily plan renewal</h2>
+                </div>
+              </div>
+              <div id="daily-traces" class="record-list">
+                <div class="empty-state">No daily plan renewal traces.</div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="panel-steering"
+          class="view-panel"
+          role="tabpanel"
+          data-panel="steering"
+          hidden
+        >
+          <div class="notice notice-info">
+            <div aria-hidden="true">i</div>
+            <div>
+              <strong>Steering is command-based.</strong>
+              <p>
+                Registration, long-horizon objectives and reactive commands are durable inputs. A
+                registration becomes visible after the runtime drains the next command batch.
+              </p>
+            </div>
+          </div>
+          <article class="card">
+            <div class="card-header responsive-header">
+              <div>
+                <span class="eyebrow">Participant boundary</span>
+                <h2>Access & ownership</h2>
+              </div>
+              <span id="access-status" class="status-badge status-neutral">Discovering</span>
+            </div>
+            <div id="access-detail" class="detail-body">
+              <p class="muted">Reading the runtime access policy.</p>
+            </div>
+            <form id="access-token-form" class="stack-form" hidden>
+              <label class="field"
+                ><span>Bearer access token</span
+                ><input
+                  name="token"
+                  type="password"
+                  minlength="32"
+                  autocomplete="current-password"
+                  placeholder="Provisioned outside the runtime manifest"
+              /></label>
+              <label class="field consent-field">
+                <span>Participant data consent</span>
+                <span class="checkbox-row">
+                  <input name="consent" type="checkbox" required />
+                  I agree that my identity, Agent ownership and steering commands are retained with
+                  replayable research traces under the policy version shown by the server.
+                </span>
+              </label>
+              <div class="button-row">
+                <button class="button button-primary" type="submit">Use token</button>
+                <button id="clear-access-token" class="button button-secondary" type="button">
+                  Clear token
+                </button>
+              </div>
+              <p class="help-text">
+                The token remains in this browser tab only. The server keeps token digests in memory
+                and never writes credentials to run manifests or simulation state.
+              </p>
+            </form>
+            <div id="access-result" class="action-result" aria-live="polite"></div>
+          </article>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <span class="eyebrow">Post-bootstrap lifecycle</span>
+                <h2>Create autonomous agent</h2>
+              </div>
+            </div>
+            <form id="agent-registration-form" class="stack-form">
+              <div class="field-row">
+                <label class="field"
+                  ><span>Agent ID</span><input name="agentId" required autocomplete="off"
+                /></label>
+                <label class="field"
+                  ><span>Display name</span><input name="displayName" required autocomplete="off"
+                /></label>
+              </div>
+              <label id="creator-attribution-field" class="field"
+                ><span>Creator attribution</span
+                ><input name="creatorId" value="local-participant" required autocomplete="off"
+              /></label>
+              <p class="help-text">
+                In authenticated mode the server derives creator identity from the principal and
+                ignores client-side attribution. Open mode keeps this field as a local provenance
+                label.
+              </p>
+              <button class="button button-primary" type="submit">Queue agent creation</button>
+            </form>
+            <div id="agent-registration-result" class="action-result" aria-live="polite"></div>
+          </article>
+          <div class="split-grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Strategic intervention</span>
+                  <h2>Set long-horizon objective</h2>
+                </div>
+              </div>
+              <form id="objective-form" class="stack-form">
+                <label class="field"
+                  ><span>Agent</span
+                  ><select name="agentId" required>
+                    <option value="">Select an agent</option>
+                  </select></label
+                >
+                <label class="field"
+                  ><span>Objective ID</span><input name="objectiveId" required autocomplete="off"
+                /></label>
+                <label class="field"
+                  ><span>Statement</span
+                  ><textarea
+                    name="statement"
+                    rows="3"
+                    required
+                    placeholder="Describe the durable outcome, not a single atomic action."
+                  ></textarea>
+                </label>
+                <div class="field-row">
+                  <label class="field"
+                    ><span>Priority</span
+                    ><input name="priority" type="number" step="0.1" value="10" required
+                  /></label>
+                  <label class="field"
+                    ><span>Affinity tags</span
+                    ><input
+                      name="affinityTags"
+                      value="general"
+                      placeholder="education, work"
+                      autocomplete="off"
+                      required
+                  /></label>
+                </div>
+                <button class="button button-primary" type="submit">Submit objective</button>
+              </form>
+              <div id="objective-result" class="action-result" aria-live="polite"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Immediate intervention</span>
+                  <h2>Route reactive command</h2>
+                </div>
+              </div>
+              <form id="reactive-form" class="stack-form">
+                <label class="field"
+                  ><span>Agent</span
+                  ><select name="agentId" required>
+                    <option value="">Select an agent</option>
+                  </select></label
+                >
+                <label class="field"
+                  ><span>Reactive command ID</span
+                  ><input name="reactiveCommandId" required autocomplete="off"
+                /></label>
+                <label class="field"
+                  ><span>Summary</span
+                  ><textarea
+                    name="summary"
+                    rows="3"
+                    required
+                    placeholder="Describe the immediate correction or local intent."
+                  ></textarea>
+                </label>
+                <label class="field"
+                  ><span>Tags</span
+                  ><input name="tags" placeholder="safety, urgent" autocomplete="off"
+                /></label>
+                <button class="button button-primary" type="submit">Route command</button>
+              </form>
+              <div id="reactive-result" class="action-result" aria-live="polite"></div>
+            </article>
+          </div>
+          <div class="split-grid split-2-1">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Execution evidence</span>
+                  <h2>Steering trace feedback</h2>
+                </div>
+                <button id="refresh-steering" class="button button-tertiary" type="button">
+                  Refresh traces
+                </button>
+              </div>
+              <div id="steering-traces" class="trace-list">
+                <div class="empty-state">No steering traces recorded.</div>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <span class="eyebrow">Deterministic recovery</span>
+                  <h2>Replay event range</h2>
+                </div>
+              </div>
+              <form id="replay-form" class="stack-form">
+                <label class="field"
+                  ><span>From sequence</span
+                  ><input name="fromSequence" type="number" min="0" value="0" required
+                /></label>
+                <label class="field"
+                  ><span>To sequence (optional)</span
+                  ><input name="toSequence" type="number" min="0"
+                /></label>
+                <button class="button button-secondary" type="submit">Replay simulation</button>
+                <p class="help-text">
+                  Rebuilds projection state from the durable event stream. It does not create new
+                  agents.
+                </p>
+              </form>
+              <div id="replay-result" class="action-result" aria-live="polite"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

@@ -5,6 +5,7 @@ import {
   createTraceableLlmReactiveCorrector,
   createTraceableLlmReplanningDecider,
   createTraceableLlmSocialDialogueGenerator,
+  createTraceableLlmSocialSignalExtractor,
   createTraceableLlmStrategicPlanCompiler,
   createTraceableLlmSubtaskPrioritizer,
   type ActionSequenceGenerator,
@@ -13,6 +14,7 @@ import {
   type ReactiveCorrector,
   type ReplanningDecider,
   type SocialDialogueGenerator,
+  type SocialSignalExtractor,
   type StrategicPlanCompiler,
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
@@ -47,6 +49,7 @@ export const LOCAL_RUNTIME_TOWN_LLM_STAGE_NAMES = [
   'reactive-correction',
   'adaptive-replanning',
   'social-dialogue',
+  'social-signal-extraction',
   'ambient-reaction',
   'memory-reflection',
   'social-model-synthesis',
@@ -60,6 +63,7 @@ export type LocalRuntimeTownLlmStageName =
   | 'reactive-correction'
   | 'adaptive-replanning'
   | 'social-dialogue'
+  | 'social-signal-extraction'
   | 'ambient-reaction'
   | 'memory-reflection'
   | 'social-model-synthesis';
@@ -104,6 +108,7 @@ export type LocalRuntimeTownLlmRuntime = {
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
   readonly reactionEvaluator?: ReactionEvaluator;
   readonly reflectiveInsightSynthesizer?: ReflectiveInsightSynthesizer;
   readonly socialModelSynthesizer?: SocialModelSynthesizer;
@@ -139,6 +144,7 @@ export function createLocalRuntimeTownLlmRuntime(
   const reactiveCorrection = resolveStageSettings(config, provider, 'reactive-correction');
   const adaptiveReplanning = resolveStageSettings(config, provider, 'adaptive-replanning');
   const socialDialogue = resolveStageSettings(config, provider, 'social-dialogue');
+  const socialSignalExtraction = resolveStageSettings(config, provider, 'social-signal-extraction');
   const ambientReaction = resolveStageSettings(config, provider, 'ambient-reaction');
   const memoryReflection = resolveStageSettings(config, provider, 'memory-reflection');
   const socialModelSynthesis = resolveStageSettings(config, provider, 'social-model-synthesis');
@@ -230,6 +236,19 @@ export function createLocalRuntimeTownLlmRuntime(
               createRequestId(requestIdPrefix, 'social-dialogue', [
                 input.agentId,
                 input.action.id,
+                input.issuedAt,
+              ]),
+          }),
+        }),
+    ...(socialSignalExtraction === undefined
+      ? {}
+      : {
+          socialSignalExtractor: createTraceableLlmSocialSignalExtractor({
+            ...socialSignalExtraction,
+            requestId: (input) =>
+              createRequestId(requestIdPrefix, 'social-signal-extraction', [
+                input.agentId,
+                input.targetAgentId,
                 input.issuedAt,
               ]),
           }),
@@ -371,6 +390,10 @@ export function attachLocalRuntimeTownLlmAgentStages(input: {
     input.runtime.socialDialogueGenerator === undefined
       ? {}
       : { socialDialogueGenerator: input.runtime.socialDialogueGenerator }),
+    ...(input.agent.socialSignalExtractor !== undefined ||
+    input.runtime.socialSignalExtractor === undefined
+      ? {}
+      : { socialSignalExtractor: input.runtime.socialSignalExtractor }),
   };
 }
 

@@ -14,6 +14,7 @@ import {
   type ReactiveCorrector,
   type ReplanningDecider,
   type SocialDialogueGenerator,
+  type SocialSignalExtractor,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
@@ -51,6 +52,7 @@ export type WorkerAgentRuntimeBinding = {
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
@@ -181,6 +183,9 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       ...(runtime.socialDialogueGenerator === undefined
         ? {}
         : { socialDialogueGenerator: runtime.socialDialogueGenerator }),
+      ...(runtime.socialSignalExtractor === undefined
+        ? {}
+        : { socialSignalExtractor: runtime.socialSignalExtractor }),
       ...(runtime.globalSynthesizer === undefined
         ? {}
         : { globalSynthesizer: runtime.globalSynthesizer }),

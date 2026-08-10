@@ -40,6 +40,8 @@ import {
   evaluateMedicalTreatmentCost,
   evaluateEducationInvestment,
   evaluateConversationSocialOutcomes,
+  evaluateConversationSocialOutcomesFromSignals,
+  evaluateConversationSocialOutcomesFromSignalSeverities,
   evaluateResourceTransferSocialOutcome,
   evaluatePhysiologicalSafetyNet,
   evaluateResidentialUpkeep,
@@ -47,6 +49,7 @@ import {
   evaluateOccupationApplication,
   evaluateSafetyNetSubsidy,
   isIncapacitated,
+  isSocialSignalName,
   resolveResidentialPhysiologyCap,
   resolveRecruitmentCycle,
   type MedicalTreatmentCostPolicy,
@@ -72,12 +75,12 @@ import {
   assertAgentSeeDoctorPayload,
   assertAgentUpgradeResidentialTierPayload,
   assertAgentSleepPayload,
-  assertAgentSocializePayload,
   assertAgentStudyPayload,
   assertAgentTradePayload,
   assertAgentGiveResourcePayload,
   assertAgentWorkPayload,
 } from './commands';
+import type { AgentStartConversationPayload } from './commands';
 import {
   EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
   RUNTIME_AGENT_REGISTRATION_INITIAL_BALANCE,
@@ -341,12 +344,6 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentUpgradeResidentialTier', unknown>,
         projection: input.projection,
         policy: input.policies.residentialTierUpgrade,
-        nextSequence: input.nextSequence,
-      });
-    case 'AgentSocialize':
-      return handleAgentSocializeCommand({
-        command: input.command as CommandEnvelope<'AgentSocialize', unknown>,
-        projection: input.projection,
         nextSequence: input.nextSequence,
       });
     default:
@@ -1207,11 +1204,33 @@ export function handleAgentStartConversationCommand(input: {
     topic: payload.topic,
     turns,
   });
-  const socialOutcomes = evaluateConversationSocialOutcomes({
-    initiatorAgentId: agent.agentId,
-    targetAgentId: targetAgent.agentId,
-    turns: outcomeTurns,
+  const suppliedTurnSignals = resolveSuppliedConversationTurnSignals({
+    turnSignals: payload.turnSignals,
+    turnCount: turns.length,
   });
+  const socialOutcomes =
+    suppliedTurnSignals === undefined
+      ? evaluateConversationSocialOutcomes({
+          initiatorAgentId: agent.agentId,
+          targetAgentId: targetAgent.agentId,
+          turns: outcomeTurns,
+        })
+      : hasSuppliedSignalSeverities(suppliedTurnSignals)
+        ? evaluateConversationSocialOutcomesFromSignalSeverities({
+            initiatorAgentId: agent.agentId,
+            targetAgentId: targetAgent.agentId,
+            turns: outcomeTurns,
+            turnSignals: suppliedTurnSignals,
+          })
+        : evaluateConversationSocialOutcomesFromSignals({
+            initiatorAgentId: agent.agentId,
+            targetAgentId: targetAgent.agentId,
+            turns: outcomeTurns,
+            turnSignals: suppliedTurnSignals.map((entry) => ({
+              turnIndex: entry.turnIndex,
+              signals: entry.signals.map((signal) => signal.signal),
+            })),
+          });
   const knowledgeClaims = extractSocialKnowledgeClaims(payload.topic, turns);
   const sourceKnowledgeClaims = knowledgeClaims.filter(
     (claim) => claim.sourceAgentId === targetAgent.agentId,
@@ -1228,6 +1247,9 @@ export function handleAgentStartConversationCommand(input: {
     attitudeDelta: socialOutcomes.initiatorToTarget.attitudeDelta,
     outcomePolicyVersion: socialOutcomes.policyVersion,
     outcomeSignals: socialOutcomes.initiatorToTarget.signals,
+    ...(socialOutcomes.initiatorToTarget.signalSeverities === undefined
+      ? {}
+      : { outcomeSignalSeverities: socialOutcomes.initiatorToTarget.signalSeverities }),
   });
   if (sourceRelation.status === 'invalid') {
     return rejectCommand(input, 'AgentStartConversation', sourceRelation.reason);
@@ -1241,6 +1263,9 @@ export function handleAgentStartConversationCommand(input: {
     attitudeDelta: socialOutcomes.targetToInitiator.attitudeDelta,
     outcomePolicyVersion: socialOutcomes.policyVersion,
     outcomeSignals: socialOutcomes.targetToInitiator.signals,
+    ...(socialOutcomes.targetToInitiator.signalSeverities === undefined
+      ? {}
+      : { outcomeSignalSeverities: socialOutcomes.targetToInitiator.signalSeverities }),
   });
   if (targetRelation.status === 'invalid') {
     return rejectCommand(input, 'AgentStartConversation', targetRelation.reason);
@@ -1278,6 +1303,9 @@ export function handleAgentStartConversationCommand(input: {
         summary,
         outcomePolicyVersion: socialOutcomes.policyVersion,
         outcomeSignals: socialOutcomes.initiatorToTarget.signals,
+        ...(socialOutcomes.initiatorToTarget.signalSeverities === undefined
+          ? {}
+          : { outcomeSignalSeverities: socialOutcomes.initiatorToTarget.signalSeverities }),
         knowledgeClaims: sourceKnowledgeClaims,
       },
     }),
@@ -1302,6 +1330,9 @@ export function handleAgentStartConversationCommand(input: {
         summary,
         outcomePolicyVersion: socialOutcomes.policyVersion,
         outcomeSignals: socialOutcomes.targetToInitiator.signals,
+        ...(socialOutcomes.targetToInitiator.signalSeverities === undefined
+          ? {}
+          : { outcomeSignalSeverities: socialOutcomes.targetToInitiator.signalSeverities }),
         knowledgeClaims: targetKnowledgeClaims,
       },
     }),
@@ -2147,78 +2178,6 @@ export function handleAgentUpgradeResidentialTierCommand(input: {
   ];
 }
 
-export function handleAgentSocializeCommand(input: {
-  readonly command: CommandEnvelope<'AgentSocialize', unknown>;
-  readonly projection: WorldProjection;
-  readonly nextSequence: number;
-}): WorldEvent[] {
-  const agent = resolveCommandAgent(input.projection, input.command);
-  const payloadResult = parsePayload(() => assertAgentSocializePayload(input.command.payload));
-  if (payloadResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentSocialize', payloadResult.reason);
-  }
-
-  const payload = payloadResult.payload;
-  const targetAgent = input.projection.agents[payload.targetAgentId];
-  if (targetAgent === undefined) {
-    return rejectCommand(input, 'AgentSocialize', `unknown target agent ${payload.targetAgentId}`);
-  }
-
-  const coLocationFailure = validateKnownCoLocation(agent, targetAgent);
-  if (coLocationFailure !== undefined) {
-    return rejectCommand(input, 'AgentSocialize', coLocationFailure);
-  }
-
-  const relationKeyResult = parsePayload(() =>
-    createDirectedSocialRelationKey({
-      sourceAgentId: agent.agentId,
-      targetAgentId: payload.targetAgentId,
-    }),
-  );
-  if (relationKeyResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentSocialize', relationKeyResult.reason);
-  }
-
-  const currentRelation = input.projection.socialRelations[relationKeyResult.payload];
-  const relationResult = parsePayload(() =>
-    applySocialInteraction({
-      sourceAgentId: agent.agentId,
-      targetAgentId: payload.targetAgentId,
-      ...(currentRelation === undefined ? {} : { current: currentRelation }),
-      relationDelta: payload.relationDelta,
-      attitudeDelta: payload.attitudeDelta,
-      summary: payload.summary,
-    }),
-  );
-  if (relationResult.status === 'invalid') {
-    return rejectCommand(input, 'AgentSocialize', relationResult.reason);
-  }
-
-  return [
-    makeEvent(input, 0, 'SocialInteractionCompleted', {
-      sourceAgentId: agent.agentId,
-      targetAgentId: payload.targetAgentId,
-      summary: payload.summary.trim(),
-      relationDelta: payload.relationDelta,
-      attitudeDelta: payload.attitudeDelta,
-      nextRelation: relationResult.payload,
-    }),
-    makeMemoryEvent(input, 1, {
-      kind: 'social-interaction',
-      summary: payload.summary,
-      status: 'succeeded',
-      tags: ['socialize', payload.targetAgentId],
-      consolidationHint: {
-        kind: 'social',
-        targetAgentId: payload.targetAgentId,
-        relationDelta: payload.relationDelta,
-        attitudeDelta: payload.attitudeDelta,
-        summary: payload.summary.trim(),
-      },
-    }),
-  ];
-}
-
 function planSocialInteractionEvent(input: {
   readonly projection: WorldProjection;
   readonly sourceAgentId: AgentId;
@@ -2228,6 +2187,10 @@ function planSocialInteractionEvent(input: {
   readonly attitudeDelta: number;
   readonly outcomePolicyVersion?: string;
   readonly outcomeSignals?: readonly string[];
+  readonly outcomeSignalSeverities?: readonly {
+    readonly signal: string;
+    readonly severity: number;
+  }[];
 }):
   | {
       readonly status: 'valid';
@@ -2274,6 +2237,11 @@ function planSocialInteractionEvent(input: {
         ? {}
         : { outcomePolicyVersion: input.outcomePolicyVersion }),
       ...(input.outcomeSignals === undefined ? {} : { outcomeSignals: [...input.outcomeSignals] }),
+      ...(input.outcomeSignalSeverities === undefined
+        ? {}
+        : {
+            outcomeSignalSeverities: input.outcomeSignalSeverities.map((entry) => ({ ...entry })),
+          }),
       nextRelation: relationResult.payload,
     },
   };
@@ -2284,6 +2252,40 @@ function formatConversationSummary(
   turns: readonly { readonly utterance: string }[],
 ): string {
   return `Conversation about ${topic}: ${turns.map((turn) => turn.utterance).join(' / ')}`;
+}
+
+/**
+ * Supplied per-turn signals are authoritative only when every entry references an in-range turn,
+ * every signal name belongs to the social signal taxonomy, and every supplied severity stays within
+ * [0, 1]; otherwise the field is ignored and the deterministic keyword adjudicator remains the
+ * fallback.
+ */
+function resolveSuppliedConversationTurnSignals(input: {
+  readonly turnSignals: AgentStartConversationPayload['turnSignals'];
+  readonly turnCount: number;
+}): AgentStartConversationPayload['turnSignals'] {
+  if (input.turnSignals === undefined) {
+    return undefined;
+  }
+  const usable = input.turnSignals.every(
+    (entry) =>
+      entry.turnIndex < input.turnCount &&
+      entry.signals.every(
+        (signal) =>
+          isSocialSignalName(signal.signal) &&
+          (signal.severity === undefined ||
+            (signal.severity >= 0 && signal.severity <= 1)),
+      ),
+  );
+  return usable ? input.turnSignals : undefined;
+}
+
+function hasSuppliedSignalSeverities(
+  turnSignals: NonNullable<AgentStartConversationPayload['turnSignals']>,
+): boolean {
+  return turnSignals.some((entry) =>
+    entry.signals.some((signal) => signal.severity !== undefined),
+  );
 }
 
 function extractSocialKnowledgeClaims(
@@ -2392,20 +2394,6 @@ function resolveKnowledgeClaimStatus(
 
 function containsAnySignal(value: string, signals: readonly string[]): boolean {
   return signals.some((signal) => value.includes(signal));
-}
-
-function validateKnownCoLocation(
-  sourceAgent: WorldAgentState,
-  targetAgent: WorldAgentState,
-): string | undefined {
-  if (sourceAgent.locationId === null || targetAgent.locationId === null) {
-    return undefined;
-  }
-  if (sourceAgent.locationId === targetAgent.locationId) {
-    return undefined;
-  }
-
-  return `target agent ${targetAgent.agentId} is at ${targetAgent.locationId}, not co-located with ${sourceAgent.agentId} at ${sourceAgent.locationId}`;
 }
 
 function createTradeEvents(

@@ -68,6 +68,11 @@ import {
   type SocialDialogueGenerator,
   type SocialDialoguePayload,
 } from './socialDialogueGeneration';
+import {
+  createDeterministicSocialSignalExtractionTrace,
+  type SocialSignalExtractionTrace,
+  type SocialSignalExtractor,
+} from './socialSignalExtraction';
 
 export type DomainMicroPlanner = {
   readonly domain: string;
@@ -126,6 +131,7 @@ export type AgentCycleResult = {
   readonly prioritizationTrace?: SubtaskPrioritizationTrace;
   readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
   readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
+  readonly socialSignalExtractionTraces?: readonly SocialSignalExtractionTrace[];
   readonly globalSynthesisTrace?: GlobalSynthesisTrace;
   readonly actionRepairTraces?: readonly ActionRepairTrace[];
   readonly selectionEvidence: AgentCycleSelectionEvidence;
@@ -187,6 +193,7 @@ export type AgentPlanningCycleWithPrioritizationInput = AgentPlanningCycleInput 
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
@@ -238,6 +245,7 @@ export async function runAgentPlanningCycleWithPrioritization(
 
   return input.actionSequenceGenerator === undefined &&
     input.socialDialogueGenerator === undefined &&
+    input.socialSignalExtractor === undefined &&
     input.globalSynthesizer === undefined &&
     input.reactiveCorrector === undefined &&
     input.replanningDecider === undefined
@@ -250,6 +258,9 @@ export async function runAgentPlanningCycleWithPrioritization(
         ...(input.socialDialogueGenerator === undefined
           ? {}
           : { socialDialogueGenerator: input.socialDialogueGenerator }),
+        ...(input.socialSignalExtractor === undefined
+          ? {}
+          : { socialSignalExtractor: input.socialSignalExtractor }),
         ...(input.globalSynthesizer === undefined
           ? {}
           : { globalSynthesizer: input.globalSynthesizer }),
@@ -332,6 +343,7 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
   input: CycleCandidateInput & {
     readonly actionSequenceGenerator?: ActionSequenceGenerator;
     readonly socialDialogueGenerator?: SocialDialogueGenerator;
+    readonly socialSignalExtractor?: SocialSignalExtractor;
     readonly globalSynthesizer?: GlobalActionSynthesizer;
     readonly reactiveCorrector?: ReactiveCorrector;
     readonly replanningDecider?: ReplanningDecider;
@@ -372,8 +384,8 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
           actionSequenceGenerator: input.actionSequenceGenerator,
         });
   const socialDialogue =
-    input.socialDialogueGenerator === undefined
-      ? { proposedActions: generated.proposedActions, traces: undefined }
+    input.socialDialogueGenerator === undefined && input.socialSignalExtractor === undefined
+      ? { proposedActions: generated.proposedActions, traces: undefined, signalTraces: undefined }
       : await applySocialDialogueGenerationToActions({
           agentId: input.agentId,
           issuedAt: input.issuedAt,
@@ -396,7 +408,12 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
           proposedActions: generated.proposedActions,
           selectedSubtask: prepared.selectedSubtask,
           selectedSubtasksByKey: prepared.synthesisSubtasksByKey,
-          socialDialogueGenerator: input.socialDialogueGenerator,
+          ...(input.socialDialogueGenerator === undefined
+            ? {}
+            : { socialDialogueGenerator: input.socialDialogueGenerator }),
+          ...(input.socialSignalExtractor === undefined
+            ? {}
+            : { socialSignalExtractor: input.socialSignalExtractor }),
         });
 
   if (input.globalSynthesizer !== undefined) {
@@ -436,6 +453,9 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
       ...(socialDialogue.traces === undefined
         ? {}
         : { socialDialogueGenerationTraces: socialDialogue.traces }),
+      ...(socialDialogue.signalTraces === undefined
+        ? {}
+        : { socialSignalExtractionTraces: socialDialogue.signalTraces }),
     };
 
     return input.reactiveCorrector === undefined
@@ -462,6 +482,9 @@ async function runAgentPlanningCycleFromCandidatesWithAsyncStages(
     ...(socialDialogue.traces === undefined
       ? {}
       : { socialDialogueGenerationTraces: socialDialogue.traces }),
+    ...(socialDialogue.signalTraces === undefined
+      ? {}
+      : { socialSignalExtractionTraces: socialDialogue.signalTraces }),
   };
 
   return input.reactiveCorrector === undefined
@@ -518,6 +541,7 @@ function runAgentPlanningCycleFromProposedActions(
       readonly proposedActions: readonly AtomicActionProposal[];
       readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
       readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
+      readonly socialSignalExtractionTraces?: readonly SocialSignalExtractionTrace[];
       readonly globalSynthesisTrace?: GlobalSynthesisTrace;
     },
 ): AgentCycleResult {
@@ -546,6 +570,7 @@ function runAgentPlanningCycleFromProposedActions(
       prioritizationTrace: input.prioritizationTrace,
       actionSequenceTraces: input.actionSequenceTraces,
       socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+      socialSignalExtractionTraces: input.socialSignalExtractionTraces,
       globalSynthesisTrace: input.globalSynthesisTrace,
       selectionEvidence: input.selectionEvidence,
       subtaskCandidates: input.subtaskCandidates,
@@ -601,6 +626,7 @@ function runAgentPlanningCycleFromProposedActions(
     prioritizationTrace: input.prioritizationTrace,
     actionSequenceTraces: input.actionSequenceTraces,
     socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+    socialSignalExtractionTraces: input.socialSignalExtractionTraces,
     globalSynthesisTrace: input.globalSynthesisTrace,
     selectionEvidence: input.selectionEvidence,
     subtaskCandidates: input.subtaskCandidates,
@@ -617,6 +643,7 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
       readonly proposedActions: readonly AtomicActionProposal[];
       readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
       readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
+      readonly socialSignalExtractionTraces?: readonly SocialSignalExtractionTrace[];
       readonly globalSynthesisTrace?: GlobalSynthesisTrace;
       readonly replanningDecider: ReplanningDecider;
     },
@@ -657,6 +684,7 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
       prioritizationTrace: input.prioritizationTrace,
       actionSequenceTraces: input.actionSequenceTraces,
       socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+      socialSignalExtractionTraces: input.socialSignalExtractionTraces,
       globalSynthesisTrace: input.globalSynthesisTrace,
       selectionEvidence: input.selectionEvidence,
       subtaskCandidates: input.subtaskCandidates,
@@ -723,6 +751,7 @@ async function runAgentPlanningCycleFromProposedActionsWithAsyncReplanning(
     prioritizationTrace: input.prioritizationTrace,
     actionSequenceTraces: input.actionSequenceTraces,
     socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+    socialSignalExtractionTraces: input.socialSignalExtractionTraces,
     globalSynthesisTrace: input.globalSynthesisTrace,
     selectionEvidence: input.selectionEvidence,
     subtaskCandidates: input.subtaskCandidates,
@@ -739,6 +768,7 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
       readonly proposedActions: readonly AtomicActionProposal[];
       readonly actionSequenceTraces?: readonly ActionSequenceGenerationTrace[];
       readonly socialDialogueGenerationTraces?: readonly SocialDialogueGenerationTrace[];
+      readonly socialSignalExtractionTraces?: readonly SocialSignalExtractionTrace[];
       readonly globalSynthesisTrace?: GlobalSynthesisTrace;
       readonly reactiveCorrector: ReactiveCorrector;
       readonly replanningDecider?: ReplanningDecider;
@@ -782,6 +812,7 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
       prioritizationTrace: input.prioritizationTrace,
       actionSequenceTraces: input.actionSequenceTraces,
       socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+      socialSignalExtractionTraces: input.socialSignalExtractionTraces,
       globalSynthesisTrace: input.globalSynthesisTrace,
       selectionEvidence: input.selectionEvidence,
       subtaskCandidates: input.subtaskCandidates,
@@ -879,6 +910,7 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
     prioritizationTrace: input.prioritizationTrace,
     actionSequenceTraces: input.actionSequenceTraces,
     socialDialogueGenerationTraces: input.socialDialogueGenerationTraces,
+    socialSignalExtractionTraces: input.socialSignalExtractionTraces,
     globalSynthesisTrace: input.globalSynthesisTrace,
     ...(actionRepairTraces.length === 0 ? {} : { actionRepairTraces }),
     selectionEvidence: input.selectionEvidence,
@@ -908,6 +940,7 @@ type FinalizeAgentCycleResultInput = {
   readonly prioritizationTrace: SubtaskPrioritizationTrace | undefined;
   readonly actionSequenceTraces: readonly ActionSequenceGenerationTrace[] | undefined;
   readonly socialDialogueGenerationTraces: readonly SocialDialogueGenerationTrace[] | undefined;
+  readonly socialSignalExtractionTraces: readonly SocialSignalExtractionTrace[] | undefined;
   readonly globalSynthesisTrace: GlobalSynthesisTrace | undefined;
   readonly actionRepairTraces?: readonly ActionRepairTrace[];
   readonly selectionEvidence: AgentCycleSelectionEvidence;
@@ -1039,6 +1072,9 @@ function buildAgentCycleResult(input: {
     ...(input.input.socialDialogueGenerationTraces === undefined
       ? {}
       : { socialDialogueGenerationTraces: input.input.socialDialogueGenerationTraces }),
+    ...(input.input.socialSignalExtractionTraces === undefined
+      ? {}
+      : { socialSignalExtractionTraces: input.input.socialSignalExtractionTraces }),
     ...(input.input.globalSynthesisTrace === undefined
       ? {}
       : { globalSynthesisTrace: input.input.globalSynthesisTrace }),
@@ -1463,13 +1499,16 @@ async function applySocialDialogueGenerationToActions(input: {
   readonly proposedActions: readonly AtomicActionProposal[];
   readonly selectedSubtask: PrioritizedSubtask;
   readonly selectedSubtasksByKey: ReadonlyMap<string, PrioritizedSubtask>;
-  readonly socialDialogueGenerator: SocialDialogueGenerator;
+  readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
 }): Promise<{
   readonly proposedActions: readonly AtomicActionProposal[];
   readonly traces?: readonly SocialDialogueGenerationTrace[];
+  readonly signalTraces?: readonly SocialSignalExtractionTrace[];
 }> {
   const proposedActions: AtomicActionProposal[] = [];
   const traces: SocialDialogueGenerationTrace[] = [];
+  const signalTraces: SocialSignalExtractionTrace[] = [];
 
   for (const action of input.proposedActions) {
     const deterministicPayload =
@@ -1486,43 +1525,66 @@ async function applySocialDialogueGenerationToActions(input: {
       fallback: input.selectedSubtask,
       selectedSubtasksByKey: input.selectedSubtasksByKey,
     });
-    const socialAction: AtomicActionProposal<'AgentStartConversation', SocialDialoguePayload> = {
-      ...action,
-      commandType: 'AgentStartConversation',
-      payload: deterministicPayload,
-    };
-    const result = await input.socialDialogueGenerator({
+    let payload = deterministicPayload;
+    if (input.socialDialogueGenerator !== undefined) {
+      const socialAction: AtomicActionProposal<'AgentStartConversation', SocialDialoguePayload> = {
+        ...action,
+        commandType: 'AgentStartConversation',
+        payload: deterministicPayload,
+      };
+      const result = await input.socialDialogueGenerator({
+        agentId: input.agentId,
+        issuedAt: input.issuedAt,
+        plan: input.plan,
+        selectedSubtask,
+        action: socialAction,
+        deterministicPayload,
+        signals: input.signals,
+        ...(input.observedStateSummary === undefined
+          ? {}
+          : { observedStateSummary: input.observedStateSummary }),
+        ...(input.progress === undefined ? {} : { progress: input.progress }),
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+        ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
+        ...(input.worldDecisionContext === undefined
+          ? {}
+          : { worldDecisionContext: input.worldDecisionContext }),
+      });
+
+      traces.push(result.trace);
+      payload = result.payload;
+    }
+
+    const extractionInput = {
       agentId: input.agentId,
       issuedAt: input.issuedAt,
-      plan: input.plan,
-      selectedSubtask,
-      action: socialAction,
-      deterministicPayload,
-      signals: input.signals,
-      ...(input.observedStateSummary === undefined
-        ? {}
-        : { observedStateSummary: input.observedStateSummary }),
-      ...(input.progress === undefined ? {} : { progress: input.progress }),
-      ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
-      ...(input.shortTermMemoryContext === undefined
-        ? {}
-        : { shortTermMemoryContext: input.shortTermMemoryContext }),
-      ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-      ...(input.worldDecisionContext === undefined
-        ? {}
-        : { worldDecisionContext: input.worldDecisionContext }),
-    });
+      targetAgentId: payload.targetAgentId,
+      topic: payload.topic,
+      turns: payload.turns,
+    };
+    if (input.socialSignalExtractor === undefined) {
+      signalTraces.push(createDeterministicSocialSignalExtractionTrace(extractionInput));
+    } else {
+      const extraction = await input.socialSignalExtractor(extractionInput);
+      signalTraces.push(extraction.trace);
+      if (extraction.turnSignals !== undefined) {
+        payload = { ...payload, turnSignals: extraction.turnSignals };
+      }
+    }
 
-    traces.push(result.trace);
     proposedActions.push({
       ...action,
-      payload: result.payload,
+      payload,
     });
   }
 
   return {
     proposedActions,
     ...(traces.length === 0 ? {} : { traces }),
+    ...(signalTraces.length === 0 ? {} : { signalTraces }),
   };
 }
 

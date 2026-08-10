@@ -274,6 +274,38 @@ describe('local runtime town executable composition', () => {
     ).toBe(true);
   });
 
+  test('LLM social signal extraction is on by default and disabled by env opt-out', () => {
+    const base = {
+      argv: [] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {
+        AIVILIZATION_LLM_ENDPOINT: 'https://llm.example.test/v1/chat/completions',
+        AIVILIZATION_LLM_MODEL: 'paper-town-model',
+        AIVILIZATION_LLM_INPUT_TOKEN_COST_MICROS: '0.003',
+        AIVILIZATION_LLM_OUTPUT_TOKEN_COST_MICROS: '0.009',
+      },
+    };
+
+    // Default: the extraction stage stays enabled with no extra stage config.
+    expect(resolveLocalRuntimeTownCliConfig(base).llm?.stages).toBeUndefined();
+
+    // Explicit opt-out disables only the social-signal-extraction stage.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { ...base.env, AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION: 'off' },
+      }).llm?.stages,
+    ).toEqual({ 'social-signal-extraction': false });
+
+    expect(() =>
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { ...base.env, AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION: 'maybe' },
+      }),
+    ).toThrow('AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION must be "on" or "off"');
+  });
+
   test('fails closed for non-loopback open access and validates authenticated credentials', () => {
     expect(() =>
       resolveLocalRuntimeTownCliConfig({

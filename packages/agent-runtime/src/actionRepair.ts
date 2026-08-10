@@ -31,7 +31,6 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentProduce',
   'AgentSeeDoctor',
   'AgentSleep',
-  'AgentSocialize',
   'AgentStartConversation',
   'AgentStudy',
   'AgentTrade',

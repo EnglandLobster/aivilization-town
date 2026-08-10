@@ -141,6 +141,10 @@ export async function createLocalRuntimeTownApi(
           llmRuntime?.socialDialogueGenerator === undefined
             ? {}
             : { socialDialogueGenerator: llmRuntime.socialDialogueGenerator }),
+          ...(canonicalAgentConfig?.socialSignalExtractor !== undefined ||
+          llmRuntime?.socialSignalExtractor === undefined
+            ? {}
+            : { socialSignalExtractor: llmRuntime.socialSignalExtractor }),
         }));
   const agentProvider =
     configuredAgentProvider === undefined || llmRuntime === undefined

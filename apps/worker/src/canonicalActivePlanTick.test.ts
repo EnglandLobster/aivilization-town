@@ -469,6 +469,18 @@ describe('canonical active-plan worker tick', () => {
           },
           {
             speakerAgentId: agentB,
+            utterance:
+              "I can help you find steadier ground; let's work together on community routines.",
+            intent: 'offer-help',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'Thank you — I will share with you every lead I find about community routines.',
+            intent: 'reciprocate-support',
+          },
+          {
+            speakerAgentId: agentB,
             utterance: "Let's keep each other informed as we learn more about community routines.",
             intent: 'continue-relationship',
           },
@@ -492,13 +504,13 @@ describe('canonical active-plan worker tick', () => {
       recordedAt: 100,
     });
     expect(result.projection.socialRelations['agent-a->agent-b']).toMatchObject({
-      relationScore: 0.06,
-      attitudeScore: 0.08,
+      relationScore: 0.12,
+      attitudeScore: 0.14,
       interactionCount: 1,
     });
     expect(result.projection.socialRelations['agent-b->agent-a']).toMatchObject({
-      relationScore: 0.04,
-      attitudeScore: 0.06,
+      relationScore: 0.1,
+      attitudeScore: 0.12,
       interactionCount: 1,
     });
     expect(result.projection.memoryRecords.map((record) => record.agentId)).toEqual([
@@ -729,25 +741,37 @@ describe('canonical active-plan worker tick', () => {
           {
             speakerAgentId: agentA,
             utterance:
-              "I'd like to compare notes about employment opportunities and local application strategy.",
+              'Could we compare notes about employment opportunities and local application strategy today?',
             intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
             utterance:
-              'What part of employment opportunities and local application strategy matters most to you right now?',
+              'Gladly — your perspective on employment opportunities and local application strategy would help me too.',
             intent: 'invite-perspective',
           },
           {
             speakerAgentId: agentA,
             utterance:
-              'It connects to my current plans, and I want to understand your perspective on employment opportunities and local application strategy.',
+              'Here is how employment opportunities and local application strategy fits my plans, but I would rather listen to you first.',
             intent: 'share-goal-and-listen',
           },
           {
             speakerAgentId: agentC,
             utterance:
-              "Let's keep each other informed as we learn more about employment opportunities and local application strategy.",
+              "I can help you find steadier ground; let's work together on employment opportunities and local application strategy.",
+            intent: 'offer-help',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'Thank you — I will share with you every lead I find about employment opportunities and local application strategy.',
+            intent: 'reciprocate-support',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance:
+              "Let's stay in touch as employment opportunities and local application strategy develops.",
             intent: 'continue-relationship',
           },
         ],

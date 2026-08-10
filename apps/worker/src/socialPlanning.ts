@@ -6,6 +6,7 @@ import type {
 } from '@aivilization/agent-runtime';
 import type { LongTermProfileEntry } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
+import type { SocialRelationKey } from '@aivilization/society';
 import type { WorldAgentState } from '@aivilization/world';
 import type { WorkerDomainRuntimeFactoryInput } from './domainRuntimeRegistry';
 
@@ -80,37 +81,170 @@ export function resolveCanonicalSocialPlan(input: {
   };
 }
 
+type CanonicalSocialDialogueVariant = {
+  readonly opening: (topic: string) => string;
+  readonly response: (topic: string) => string;
+  readonly goalShare: (topic: string) => string;
+  readonly continuation: (topic: string) => string;
+};
+
+/**
+ * Phrasing variants all keep the signal-bearing fragments (compare notes, your perspective,
+ * listen to you, keep each other informed / stay in touch) so the deterministic keyword
+ * adjudicator keeps driving relation evolution when no LLM is involved. The variant is picked by
+ * a deterministic hash of the participant pair and topic to avoid a town-wide monotone script.
+ */
+const CANONICAL_SOCIAL_DIALOGUE_VARIANTS: readonly CanonicalSocialDialogueVariant[] = [
+  {
+    opening: (topic) => `I'd like to compare notes about ${topic}.`,
+    response: (topic) => `What part of ${topic} matters most to you right now? I want to hear your perspective.`,
+    goalShare: (topic) =>
+      `It connects to my current plans, and I want to understand your perspective on ${topic}.`,
+    continuation: (topic) => `Let's keep each other informed as we learn more about ${topic}.`,
+  },
+  {
+    opening: (topic) => `Could we compare notes about ${topic} today?`,
+    response: (topic) => `Gladly — your perspective on ${topic} would help me too.`,
+    goalShare: (topic) => `Here is how ${topic} fits my plans, but I would rather listen to you first.`,
+    continuation: (topic) => `Let's stay in touch as ${topic} develops.`,
+  },
+  {
+    opening: (topic) => `I hoped we could compare notes about ${topic}.`,
+    response: (topic) => `Of course — I am curious about your perspective on ${topic}.`,
+    goalShare: (topic) => `My plans touch ${topic}, and I want to listen to you before I decide.`,
+    continuation: (topic) => `We should keep each other informed about ${topic}.`,
+  },
+] as const;
+
+type CanonicalSocialDialogueArc = 'repair' | 'economic-need' | 'cooperation';
+
 export function createCanonicalSocialDialogueTurns(input: {
   readonly agentId: AgentId;
   readonly targetAgentId: AgentId;
   readonly topic: string;
   readonly openingUtterance?: string;
   readonly responseUtterance?: string;
+  readonly context?: WorkerDomainRuntimeFactoryInput;
 }): readonly SocialDialogueTurnProposal[] {
   const topic = formatTopicForSentence(input.topic);
+  const variant = selectSocialDialogueVariant({
+    agentId: input.agentId,
+    targetAgentId: input.targetAgentId,
+    topic,
+  });
+  const arc = resolveSocialDialogueArc(input);
   return [
     {
       speakerAgentId: input.agentId,
-      utterance: input.openingUtterance ?? `I'd like to compare notes about ${topic}.`,
+      utterance: input.openingUtterance ?? variant.opening(topic),
       intent: 'open-contextual-topic',
     },
     {
       speakerAgentId: input.targetAgentId,
-      utterance:
-        input.responseUtterance ?? `What part of ${topic} matters most to you right now?`,
+      utterance: input.responseUtterance ?? variant.response(topic),
       intent: 'invite-perspective',
     },
     {
       speakerAgentId: input.agentId,
-      utterance: `It connects to my current plans, and I want to understand your perspective on ${topic}.`,
+      utterance: variant.goalShare(topic),
       intent: 'share-goal-and-listen',
     },
+    ...createSocialDialogueArcTurns({
+      arc,
+      topic,
+      agentId: input.agentId,
+      targetAgentId: input.targetAgentId,
+    }),
     {
       speakerAgentId: input.targetAgentId,
-      utterance: `Let's keep each other informed as we learn more about ${topic}.`,
+      utterance: variant.continuation(topic),
       intent: 'continue-relationship',
     },
   ];
+}
+
+function resolveSocialDialogueArc(input: {
+  readonly agentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly context?: WorkerDomainRuntimeFactoryInput;
+}): CanonicalSocialDialogueArc {
+  const context = input.context;
+  if (context === undefined) {
+    return 'cooperation';
+  }
+  const relationKey: SocialRelationKey = `${input.agentId}->${input.targetAgentId}`;
+  const relation = context.projection.socialRelations[relationKey];
+  if (
+    relation !== undefined &&
+    (relation.relationLabel === 'hostile' || relation.relationLabel === 'strained')
+  ) {
+    return 'repair';
+  }
+  if (context.agent.job === null || context.agent.balance < LOW_BALANCE_THRESHOLD) {
+    return 'economic-need';
+  }
+  return 'cooperation';
+}
+
+function createSocialDialogueArcTurns(input: {
+  readonly arc: CanonicalSocialDialogueArc;
+  readonly topic: string;
+  readonly agentId: AgentId;
+  readonly targetAgentId: AgentId;
+}): readonly SocialDialogueTurnProposal[] {
+  switch (input.arc) {
+    case 'repair':
+      return [
+        {
+          speakerAgentId: input.targetAgentId,
+          utterance: 'Things have been tense between us, so I appreciate you bringing this up.',
+          intent: 'acknowledge-strain',
+        },
+        {
+          speakerAgentId: input.agentId,
+          utterance: 'I apologize for my part in it, and I want to make amends between us.',
+          intent: 'apologize-make-amends',
+        },
+      ];
+    case 'economic-need':
+      return [
+        {
+          speakerAgentId: input.targetAgentId,
+          utterance: `I can help you find steadier ground; let's work together on ${input.topic}.`,
+          intent: 'offer-help',
+        },
+        {
+          speakerAgentId: input.agentId,
+          utterance: `Thank you — I will share with you every lead I find about ${input.topic}.`,
+          intent: 'reciprocate-support',
+        },
+      ];
+    case 'cooperation':
+      return [
+        {
+          speakerAgentId: input.targetAgentId,
+          utterance: `Let's work together on ${input.topic}.`,
+          intent: 'cooperate',
+        },
+        {
+          speakerAgentId: input.agentId,
+          utterance: `I can help with what I know, and I will share with you whatever I learn about ${input.topic}.`,
+          intent: 'coordinate',
+        },
+      ];
+  }
+}
+
+function selectSocialDialogueVariant(input: {
+  readonly agentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly topic: string;
+}): CanonicalSocialDialogueVariant {
+  let hash = 2_166_136_261;
+  for (const character of `${input.agentId}|${input.targetAgentId}|${input.topic}`) {
+    hash = Math.imul(hash ^ character.codePointAt(0)!, 16_777_619) >>> 0;
+  }
+  return CANONICAL_SOCIAL_DIALOGUE_VARIANTS[hash % CANONICAL_SOCIAL_DIALOGUE_VARIANTS.length]!;
 }
 
 export function createSocialPlanningPolicyManifest() {

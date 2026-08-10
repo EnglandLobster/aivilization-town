@@ -11,6 +11,7 @@ import type {
   ReactiveCorrector,
   ReplanningDecider,
   SocialDialogueGenerator,
+  SocialSignalExtractor,
   SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import {
@@ -62,6 +63,7 @@ export type CanonicalWorkerRuntimeResolverConfig = {
   readonly subtaskPrioritizer?: SubtaskPrioritizer;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
@@ -139,6 +141,9 @@ export function createCanonicalWorkerRuntimeResolver(
       ...(config.socialDialogueGenerator === undefined
         ? {}
         : { socialDialogueGenerator: config.socialDialogueGenerator }),
+      ...(config.socialSignalExtractor === undefined
+        ? {}
+        : { socialSignalExtractor: config.socialSignalExtractor }),
       ...(config.globalSynthesizer === undefined
         ? {}
         : { globalSynthesizer: config.globalSynthesizer }),

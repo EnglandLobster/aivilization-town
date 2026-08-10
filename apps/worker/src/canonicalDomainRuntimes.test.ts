@@ -13,6 +13,7 @@ import {
   type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
+import type { SocialRelationState } from '@aivilization/society';
 import {
   createWorldProjection,
   type WorldAgentState,
@@ -160,13 +161,23 @@ describe('canonical domain runtimes', () => {
           },
           {
             speakerAgentId: agentA,
-            utterance:
-              'It connects to my current plans, and I want to understand your perspective on town plans.',
+            utterance: 'Here is how town plans fits my plans, but I would rather listen to you first.',
             intent: 'share-goal-and-listen',
           },
           {
             speakerAgentId: agentC,
-            utterance: "Let's keep each other informed as we learn more about town plans.",
+            utterance: "Let's work together on town plans.",
+            intent: 'cooperate',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'I can help with what I know, and I will share with you whatever I learn about town plans.',
+            intent: 'coordinate',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: "Let's stay in touch as town plans develops.",
             intent: 'continue-relationship',
           },
         ],
@@ -416,25 +427,37 @@ describe('canonical domain runtimes', () => {
           {
             speakerAgentId: agentA,
             utterance:
-              "I'd like to compare notes about employment opportunities and local application strategy.",
+              'Could we compare notes about employment opportunities and local application strategy today?',
             intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
             utterance:
-              'What part of employment opportunities and local application strategy matters most to you right now?',
+              'Gladly — your perspective on employment opportunities and local application strategy would help me too.',
             intent: 'invite-perspective',
           },
           {
             speakerAgentId: agentA,
             utterance:
-              'It connects to my current plans, and I want to understand your perspective on employment opportunities and local application strategy.',
+              'Here is how employment opportunities and local application strategy fits my plans, but I would rather listen to you first.',
             intent: 'share-goal-and-listen',
           },
           {
             speakerAgentId: agentC,
             utterance:
-              "Let's keep each other informed as we learn more about employment opportunities and local application strategy.",
+              "I can help you find steadier ground; let's work together on employment opportunities and local application strategy.",
+            intent: 'offer-help',
+          },
+          {
+            speakerAgentId: agentA,
+            utterance:
+              'Thank you — I will share with you every lead I find about employment opportunities and local application strategy.',
+            intent: 'reciprocate-support',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance:
+              "Let's stay in touch as employment opportunities and local application strategy develops.",
             intent: 'continue-relationship',
           },
         ],
@@ -486,6 +509,8 @@ describe('canonical domain runtimes', () => {
       payload: {
         targetAgentId: remoteAgentId,
         turns: [
+          { speakerAgentId: agentA },
+          { speakerAgentId: remoteAgentId },
           { speakerAgentId: agentA },
           { speakerAgentId: remoteAgentId },
           { speakerAgentId: agentA },
@@ -706,29 +731,108 @@ describe('canonical domain runtimes', () => {
         turns: [
           {
             speakerAgentId: agentA,
-            utterance: "I'd like to compare notes about community cooperation.",
+            utterance: 'I hoped we could compare notes about community cooperation.',
             intent: 'open-contextual-topic',
           },
           {
             speakerAgentId: agentC,
-            utterance: 'What part of community cooperation matters most to you right now?',
+            utterance: 'Of course — I am curious about your perspective on community cooperation.',
             intent: 'invite-perspective',
           },
           {
             speakerAgentId: agentA,
             utterance:
-              'It connects to my current plans, and I want to understand your perspective on community cooperation.',
+              'My plans touch community cooperation, and I want to listen to you before I decide.',
             intent: 'share-goal-and-listen',
           },
           {
             speakerAgentId: agentC,
+            utterance: "Let's work together on community cooperation.",
+            intent: 'cooperate',
+          },
+          {
+            speakerAgentId: agentA,
             utterance:
-              "Let's keep each other informed as we learn more about community cooperation.",
+              'I can help with what I know, and I will share with you whatever I learn about community cooperation.',
+            intent: 'coordinate',
+          },
+          {
+            speakerAgentId: agentC,
+            utterance: 'We should keep each other informed about community cooperation.',
             intent: 'continue-relationship',
           },
         ],
       },
     });
+  });
+
+  test('steers the deterministic dialogue toward repair when the existing relation is strained', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+      job: 'Cleaner',
+    });
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [
+          agent,
+          createAgent({ agentId: agentC, locationId: asLocationId('town-square'), job: 'Cook' }),
+        ],
+        locations: [townSquare()],
+        locationObservations: [
+          {
+            agentId: agentA,
+            locationId: asLocationId('town-square'),
+            locationName: 'Town Square',
+            observedAgentIds: [agentC],
+            activityAffinities: ['socialize'],
+            observedAt: 100,
+            focus: 'community routines',
+          },
+        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
+        socialRelations: [
+          {
+            sourceAgentId: agentA,
+            targetAgentId: agentC,
+            relationScore: -0.2,
+            attitudeScore: -0.1,
+            relationLabel: 'strained',
+            interactionCount: 2,
+            lastInteractionSummary: 'Argued about stall prices last week.',
+          },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    const proposal = firstProposal(binding.microPlanners, 'social');
+    if (proposal === undefined) {
+      throw new Error('expected a canonical social proposal');
+    }
+    expect(proposal.commandType).toBe('AgentStartConversation');
+    const turns = (
+      proposal.payload as {
+        readonly turns: readonly {
+          readonly speakerAgentId: AgentId;
+          readonly utterance: string;
+          readonly intent?: string;
+        }[];
+      }
+    ).turns;
+    expect(turns).toHaveLength(6);
+    expect(turns[3]).toMatchObject({
+      speakerAgentId: agentC,
+      intent: 'acknowledge-strain',
+      utterance: 'Things have been tense between us, so I appreciate you bringing this up.',
+    });
+    expect(turns[4]).toMatchObject({
+      speakerAgentId: agentA,
+      intent: 'apologize-make-amends',
+      utterance: 'I apologize for my part in it, and I want to make amends between us.',
+    });
+    expect(turns[5]?.speakerAgentId).toBe(agentC);
   });
 
   test('ranks observed social targets by goal relevance and economic complementarity with traceable scores', async () => {
@@ -1252,6 +1356,7 @@ function createProjection(input: {
     readonly currencyReserve: number;
   }[];
   readonly locationObservations?: readonly WorldLocationObservationState[];
+  readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
   return createWorldProjection({
     agents: input.agents,
@@ -1259,6 +1364,7 @@ function createProjection(input: {
     ...(input.locationObservations === undefined
       ? {}
       : { locationObservations: input.locationObservations }),
+    ...(input.socialRelations === undefined ? {} : { socialRelations: input.socialRelations }),
     marketPools: input.marketPools,
   });
 }

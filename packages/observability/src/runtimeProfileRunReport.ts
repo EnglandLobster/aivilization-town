@@ -46,6 +46,7 @@ export type RuntimeProfileAgentCycleLlmStageName =
   | 'contextualPrioritization'
   | 'actionSequenceGeneration'
   | 'socialDialogueGeneration'
+  | 'socialSignalExtraction'
   | 'globalSynthesis'
   | 'reactiveCorrection'
   | 'replanningDecision';
@@ -843,6 +844,7 @@ const AGENT_CYCLE_LLM_STAGE_NAMES = [
   'contextualPrioritization',
   'actionSequenceGeneration',
   'socialDialogueGeneration',
+  'socialSignalExtraction',
   'globalSynthesis',
   'reactiveCorrection',
   'replanningDecision',
@@ -976,6 +978,11 @@ function createLlmStageDiagnostics(
       diagnostics,
       stageName: 'socialDialogueGeneration',
       stageTraces: trace.socialDialogueGeneration ?? [],
+    });
+    recordStageTrace({
+      diagnostics,
+      stageName: 'socialSignalExtraction',
+      stageTraces: trace.socialSignalExtraction ?? [],
     });
     recordStageTrace({
       diagnostics,

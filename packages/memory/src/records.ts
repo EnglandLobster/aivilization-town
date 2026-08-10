@@ -49,6 +49,10 @@ export type MemoryConsolidationHint =
       readonly summary: string;
       readonly outcomePolicyVersion?: string;
       readonly outcomeSignals?: readonly string[];
+      readonly outcomeSignalSeverities?: readonly {
+        readonly signal: string;
+        readonly severity: number;
+      }[];
       readonly knowledgeClaims?: readonly SocialKnowledgeClaim[];
     };
 

@@ -8,6 +8,7 @@ import {
   type GlobalActionSynthesizer,
   type ReactiveCorrector,
   type SocialDialogueGenerator,
+  type SocialSignalExtractor,
   type SubtaskPrioritizer,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
@@ -1032,6 +1033,146 @@ describe('worker tick runner', () => {
         requestId: 'social-dialogue-tick-agent-1',
         turnCount: 2,
         rationale: 'Generate a concrete two-party party planning exchange.',
+      },
+    ]);
+    // No signal extractor is configured: the keyword adjudication path is recorded.
+    expect(result.traces[0]?.socialSignalExtraction).toEqual([
+      {
+        status: 'deterministic',
+        source: 'deterministic',
+        policyVersion: 'llm-social-signal-extraction-v2',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-3',
+        topic: 'LLM coordinated Valentine party planning',
+        turnCount: 2,
+        extractedSignalCount: 0,
+      },
+    ]);
+  });
+
+  test('passes tick agent social signal extractor into command payloads and cycle traces', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const socialSignalExtractor: SocialSignalExtractor = (input) =>
+      Promise.resolve({
+        turnSignals: [
+          { turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.75 }] },
+        ],
+        trace: {
+          status: 'accepted',
+          source: 'llm',
+          policyVersion: 'llm-social-signal-extraction-v2',
+          agentId: input.agentId,
+          targetAgentId: input.targetAgentId,
+          topic: input.topic,
+          turnCount: input.turns.length,
+          extractedSignalCount: 1,
+          requestId: 'social-signals-tick-agent-1',
+          providerId: 'scripted-social-signals',
+          model: 'signal-model',
+        },
+      });
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-social-signals',
+      simulationId,
+      issuedAt: 911,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      projection: createCoLocatedConversationProjection(),
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 socializing at school',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          socialSignalExtractor,
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.dispatchResult?.commands[0]?.payload).toMatchObject({
+      turnSignals: [{ turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.75 }] }],
+    });
+    expect(result.traces[0]?.socialSignalExtraction).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        policyVersion: 'llm-social-signal-extraction-v2',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-3',
+        topic: 'Valentine party',
+        turnCount: 2,
+        extractedSignalCount: 1,
+        requestId: 'social-signals-tick-agent-1',
+        providerId: 'scripted-social-signals',
+        model: 'signal-model',
+      },
+    ]);
+  });
+
+  test('maps social signal extraction no-proposal traces to the fallback stage state', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const socialSignalExtractor: SocialSignalExtractor = (input) =>
+      Promise.resolve({
+        trace: {
+          status: 'no-proposal',
+          source: 'deterministic-fallback',
+          policyVersion: 'llm-social-signal-extraction-v2',
+          agentId: input.agentId,
+          targetAgentId: input.targetAgentId,
+          topic: input.topic,
+          turnCount: input.turns.length,
+          extractedSignalCount: 0,
+          requestId: 'social-signals-tick-no-proposal',
+          failureReason: 'provider-error',
+          message: 'signal provider offline',
+        },
+      });
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-social-signals-fallback',
+      simulationId,
+      issuedAt: 912,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      projection: createCoLocatedConversationProjection(),
+      agents: [
+        {
+          agentId: agentOne,
+          observedStateSummary: 'agent-1 socializing at school',
+          plan: createSocialPlan(),
+          signals: [],
+          microPlanners: [createConversationPlanner()],
+          socialSignalExtractor,
+          simulate: ({ action }) => ({ status: 'accepted', action }),
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(result.agentResults[0]?.dispatchResult?.commands[0]?.payload).not.toHaveProperty(
+      'turnSignals',
+    );
+    expect(result.traces[0]?.socialSignalExtraction).toEqual([
+      {
+        status: 'fallback',
+        source: 'deterministic-fallback',
+        policyVersion: 'llm-social-signal-extraction-v2',
+        agentId: 'agent-1',
+        targetAgentId: 'agent-3',
+        topic: 'Valentine party',
+        turnCount: 2,
+        extractedSignalCount: 0,
+        requestId: 'social-signals-tick-no-proposal',
+        failureReason: 'provider-error',
+        message: 'signal provider offline',
       },
     ]);
   });

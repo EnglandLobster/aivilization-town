@@ -519,6 +519,7 @@ export function createSocialDomainRuntimeRegistration(
                 agentId: context.agentId,
                 targetAgentId: socialPlan.targetAgentId,
                 topic: socialPlan.topic,
+                context,
                 ...(config.openingUtterance === undefined
                   ? {}
                   : { openingUtterance: config.openingUtterance }),

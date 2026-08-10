@@ -20,7 +20,6 @@ import {
   handleAgentSeeDoctorCommand,
   handleAgentUpgradeResidentialTierCommand,
   handleAgentSleepCommand,
-  handleAgentSocializeCommand,
   handleAgentStudyCommand,
   handleAgentTradeCommand,
   handleAgentGiveResourceCommand,
@@ -3662,6 +3661,399 @@ describe('agent conversation command handling', () => {
       'ShortTermMemoryRecorded',
     ]);
   });
+
+  test('AgentStartConversation adopts supplied turn signals and records conversation-outcome-v2', () => {
+    const projection = createConversationTestProjection();
+
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-supplied-signals',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'the broken delivery promise',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Did you bring the grain you promised last week?',
+              intent: 'ask-about-promise',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: "I just can't keep my word to you, sorry.",
+              intent: 'confess-failure',
+            },
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'That leaves me without seed for the season.',
+              intent: 'explain-impact',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: 'I know, and I have no excuse to offer.',
+              intent: 'accept-blame',
+            },
+          ],
+          turnSignals: [{ turnIndex: 1, signals: [{ signal: 'betrayal' }] }],
+        },
+        issuedAt: 90,
+      }),
+      projection,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'ConversationRecorded',
+      'SocialInteractionCompleted',
+      'SocialInteractionCompleted',
+      'ShortTermMemoryRecorded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[1]).toMatchObject({
+      type: 'SocialInteractionCompleted',
+      payload: {
+        sourceAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        relationDelta: -0.3,
+        attitudeDelta: -0.24,
+        outcomePolicyVersion: 'conversation-outcome-v2',
+        outcomeSignals: ['betrayal'],
+      },
+    });
+    expect(events[2]).toMatchObject({
+      type: 'SocialInteractionCompleted',
+      payload: {
+        sourceAgentId: 'agent-2',
+        targetAgentId: 'agent-1',
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v2',
+        outcomeSignals: [],
+      },
+    });
+    expect(events[3]).toMatchObject({
+      payload: {
+        record: {
+          consolidationHint: {
+            outcomePolicyVersion: 'conversation-outcome-v2',
+            outcomeSignals: ['betrayal'],
+          },
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
+      relationScore: -0.3,
+      attitudeScore: -0.24,
+      relationLabel: 'strained',
+    });
+  });
+
+  test('AgentStartConversation ignores invalid supplied signals and uses keyword adjudication', () => {
+    const unknownSignalEvents = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-unknown-signal',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'the broken delivery promise',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Did you bring the grain you promised last week?',
+              intent: 'ask-about-promise',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: "I just can't keep my word to you, sorry.",
+              intent: 'confess-failure',
+            },
+          ],
+          turnSignals: [{ turnIndex: 1, signals: [{ signal: 'mild-disappointment' }] }],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    expect(unknownSignalEvents[1]).toMatchObject({
+      payload: {
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v1',
+        outcomeSignals: [],
+      },
+    });
+
+    const outOfRangeEvents = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-out-of-range-signal',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'the broken delivery promise',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Did you bring the grain you promised last week?',
+              intent: 'ask-about-promise',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: "I just can't keep my word to you, sorry.",
+              intent: 'confess-failure',
+            },
+          ],
+          turnSignals: [{ turnIndex: 7, signals: [{ signal: 'betrayal' }] }],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    expect(outOfRangeEvents[1]).toMatchObject({
+      payload: {
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v1',
+        outcomeSignals: [],
+      },
+    });
+  });
+
+  test('AgentStartConversation clamps supplied-signal outcomes to the conversation delta bounds', () => {
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-supplied-clamp',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'a cascading falling out',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            { speakerAgentId: 'agent-1', utterance: 'We need to talk.', intent: 'open-topic' },
+            { speakerAgentId: 'agent-2', utterance: 'Fine, say it.', intent: 'respond' },
+            { speakerAgentId: 'agent-1', utterance: 'This is hard to hear.', intent: 'continue' },
+            { speakerAgentId: 'agent-2', utterance: 'Go on then.', intent: 'respond-again' },
+            { speakerAgentId: 'agent-1', utterance: 'I see how it is.', intent: 'conclude' },
+            { speakerAgentId: 'agent-2', utterance: 'That is all.', intent: 'end' },
+          ],
+          turnSignals: [
+            { turnIndex: 1, signals: [{ signal: 'betrayal' }] },
+            { turnIndex: 3, signals: [{ signal: 'deception' }] },
+            { turnIndex: 5, signals: [{ signal: 'hostility' }] },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    expect(events[1]).toMatchObject({
+      payload: {
+        sourceAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        relationDelta: -0.35,
+        attitudeDelta: -0.35,
+        outcomePolicyVersion: 'conversation-outcome-v2',
+        outcomeSignals: ['betrayal', 'deception', 'hostility'],
+      },
+    });
+  });
+
+  test('AgentStartConversation scales supplied signals by severity under conversation-outcome-v3', () => {
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-severity',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'the broken delivery promise',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Did you bring the grain you promised last week?',
+              intent: 'ask-about-promise',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: "I just can't keep my word to you, sorry.",
+              intent: 'confess-failure',
+            },
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'That leaves me without seed for the season.',
+              intent: 'explain-impact',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: 'I know, and I have no excuse to offer.',
+              intent: 'accept-blame',
+            },
+          ],
+          turnSignals: [
+            { turnIndex: 1, signals: [{ signal: 'betrayal', severity: 0.6 }] },
+            { turnIndex: 3, signals: [{ signal: 'repair', severity: 0.5 }] },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    // betrayal base -0.3/-0.24 x 0.6 plus repair base 0.02/0.08 x 0.5.
+    expect(events[1]).toMatchObject({
+      type: 'SocialInteractionCompleted',
+      payload: {
+        sourceAgentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        relationDelta: -0.17,
+        attitudeDelta: -0.104,
+        outcomePolicyVersion: 'conversation-outcome-v3',
+        outcomeSignals: ['betrayal', 'repair'],
+        outcomeSignalSeverities: [
+          { signal: 'betrayal', severity: 0.6 },
+          { signal: 'repair', severity: 0.5 },
+        ],
+      },
+    });
+    expect(events[2]).toMatchObject({
+      payload: {
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v3',
+        outcomeSignals: [],
+        outcomeSignalSeverities: [],
+      },
+    });
+    expect(events[3]).toMatchObject({
+      payload: {
+        record: {
+          consolidationHint: {
+            outcomePolicyVersion: 'conversation-outcome-v3',
+            outcomeSignals: ['betrayal', 'repair'],
+            outcomeSignalSeverities: [
+              { signal: 'betrayal', severity: 0.6 },
+              { signal: 'repair', severity: 0.5 },
+            ],
+          },
+        },
+      },
+    });
+
+    const updated = events.reduce(applyWorldEvent, createConversationTestProjection());
+    expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
+      relationScore: -0.17,
+      attitudeScore: -0.104,
+      relationLabel: 'strained',
+    });
+  });
+
+  test('AgentStartConversation still clamps severity-scaled outcomes to the conversation bounds', () => {
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-severity-clamp',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'a cascading falling out',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            { speakerAgentId: 'agent-1', utterance: 'We need to talk.', intent: 'open-topic' },
+            { speakerAgentId: 'agent-2', utterance: 'Fine, say it.', intent: 'respond' },
+            { speakerAgentId: 'agent-1', utterance: 'This is hard to hear.', intent: 'continue' },
+            { speakerAgentId: 'agent-2', utterance: 'Go on then.', intent: 'respond-again' },
+          ],
+          turnSignals: [
+            { turnIndex: 1, signals: [{ signal: 'betrayal', severity: 1 }] },
+            { turnIndex: 3, signals: [{ signal: 'deception', severity: 0.8 }] },
+          ],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    // -0.3 x 1 + -0.2 x 0.8 = -0.46 relation and -0.24 x 1 + -0.25 x 0.8 = -0.44 attitude.
+    expect(events[1]).toMatchObject({
+      payload: {
+        relationDelta: -0.35,
+        attitudeDelta: -0.35,
+        outcomePolicyVersion: 'conversation-outcome-v3',
+        outcomeSignals: ['betrayal', 'deception'],
+      },
+    });
+  });
+
+  test('AgentStartConversation ignores out-of-range severities and uses keyword adjudication', () => {
+    const events = handleAgentStartConversationCommand({
+      command: createCommandEnvelope({
+        id: 'command-conversation-invalid-severity',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentStartConversation',
+        payload: {
+          targetAgentId: 'agent-2',
+          topic: 'the broken delivery promise',
+          relationDelta: 0,
+          attitudeDelta: 0,
+          turns: [
+            {
+              speakerAgentId: 'agent-1',
+              utterance: 'Did you bring the grain you promised last week?',
+              intent: 'ask-about-promise',
+            },
+            {
+              speakerAgentId: 'agent-2',
+              utterance: "I just can't keep my word to you, sorry.",
+              intent: 'confess-failure',
+            },
+          ],
+          turnSignals: [{ turnIndex: 1, signals: [{ signal: 'betrayal', severity: 1.5 }] }],
+        },
+        issuedAt: 90,
+      }),
+      projection: createConversationTestProjection(),
+      nextSequence: 1,
+    });
+
+    expect(events[1]).toMatchObject({
+      payload: {
+        relationDelta: 0,
+        attitudeDelta: 0,
+        outcomePolicyVersion: 'conversation-outcome-v1',
+        outcomeSignals: [],
+      },
+    });
+  });
 });
 
 describe('peer resource transfer command handling', () => {
@@ -3749,90 +4141,7 @@ describe('peer resource transfer command handling', () => {
 });
 
 describe('agent social command handling', () => {
-  test('AgentSocialize updates directed relation state and records social STM', () => {
-    const projection = createWorldProjection({
-      agents: [
-        {
-          agentId: asAgentId('agent-1'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-        {
-          agentId: asAgentId('agent-2'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-      ],
-    });
-
-    const events = handleAgentSocializeCommand({
-      command: createCommandEnvelope({
-        id: 'command-social',
-        simulationId: 'sim-1',
-        actorId: 'agent-1',
-        type: 'AgentSocialize',
-        payload: {
-          targetAgentId: 'agent-2',
-          summary: 'Shared food after work.',
-          relationDelta: 0.25,
-          attitudeDelta: 0.5,
-        },
-        issuedAt: 80,
-      }),
-      projection,
-      nextSequence: 1,
-    });
-
-    expect(events.map((event) => event.type)).toEqual([
-      'SocialInteractionCompleted',
-      'ShortTermMemoryRecorded',
-    ]);
-    expect(events[0]?.payload).toMatchObject({
-      sourceAgentId: 'agent-1',
-      targetAgentId: 'agent-2',
-      summary: 'Shared food after work.',
-      relationDelta: 0.25,
-      attitudeDelta: 0.5,
-      nextRelation: {
-        relationScore: 0.25,
-        attitudeScore: 0.5,
-        relationLabel: 'acquaintance',
-        interactionCount: 1,
-      },
-    });
-
-    const updated = events.reduce(applyWorldEvent, projection);
-    expect(updated.socialRelations['agent-1->agent-2']).toMatchObject({
-      sourceAgentId: 'agent-1',
-      targetAgentId: 'agent-2',
-      relationScore: 0.25,
-      attitudeScore: 0.5,
-      relationLabel: 'acquaintance',
-      interactionCount: 1,
-      lastInteractionSummary: 'Shared food after work.',
-    });
-    expect(updated.memoryRecords[0]).toMatchObject({
-      kind: 'social-interaction',
-      status: 'succeeded',
-      consolidationHint: {
-        kind: 'social',
-        targetAgentId: 'agent-2',
-        relationDelta: 0.25,
-        attitudeDelta: 0.5,
-        summary: 'Shared food after work.',
-      },
-    });
-  });
-
-  test('AgentSocialize rejects known agents that are not co-located', () => {
+  test('AgentStartConversation rejects known agents that are not co-located', () => {
     const projection = createWorldProjection({
       agents: [
         {
@@ -3874,17 +4183,18 @@ describe('agent social command handling', () => {
       ],
     });
 
-    const events = handleAgentSocializeCommand({
+    const events = handleAgentStartConversationCommand({
       command: createCommandEnvelope({
         id: 'command-social',
         simulationId: 'sim-1',
         actorId: 'agent-1',
-        type: 'AgentSocialize',
+        type: 'AgentStartConversation',
         payload: {
           targetAgentId: 'agent-2',
-          summary: 'Tried to talk across town.',
+          topic: 'town news',
           relationDelta: 0.1,
           attitudeDelta: 0,
+          turns: [{ speakerAgentId: 'agent-1', utterance: 'Tried to talk across town.' }],
         },
         issuedAt: 80,
       }),
@@ -3897,12 +4207,12 @@ describe('agent social command handling', () => {
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
-      commandType: 'AgentSocialize',
+      commandType: 'AgentStartConversation',
       reason: 'target agent agent-2 is at market, not co-located with agent-1 at school',
     });
   });
 
-  test('AgentSocialize rejects unknown target agents', () => {
+  test('AgentStartConversation rejects unknown target agents', () => {
     const projection = createWorldProjection({
       agents: [
         {
@@ -3917,17 +4227,18 @@ describe('agent social command handling', () => {
       ],
     });
 
-    const events = handleAgentSocializeCommand({
+    const events = handleAgentStartConversationCommand({
       command: createCommandEnvelope({
         id: 'command-social',
         simulationId: 'sim-1',
         actorId: 'agent-1',
-        type: 'AgentSocialize',
+        type: 'AgentStartConversation',
         payload: {
           targetAgentId: 'agent-2',
-          summary: 'Looked for a missing friend.',
+          topic: 'town news',
           relationDelta: 0.1,
           attitudeDelta: 0,
+          turns: [{ speakerAgentId: 'agent-1', utterance: 'Looked for a missing friend.' }],
         },
         issuedAt: 80,
       }),
@@ -3940,12 +4251,12 @@ describe('agent social command handling', () => {
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
-      commandType: 'AgentSocialize',
+      commandType: 'AgentStartConversation',
       reason: 'unknown target agent agent-2',
     });
   });
 
-  test('AgentSocialize rejects self-targeted interactions', () => {
+  test('AgentStartConversation rejects self-targeted conversations', () => {
     const projection = createWorldProjection({
       agents: [
         {
@@ -3960,17 +4271,18 @@ describe('agent social command handling', () => {
       ],
     });
 
-    const events = handleAgentSocializeCommand({
+    const events = handleAgentStartConversationCommand({
       command: createCommandEnvelope({
         id: 'command-social',
         simulationId: 'sim-1',
         actorId: 'agent-1',
-        type: 'AgentSocialize',
+        type: 'AgentStartConversation',
         payload: {
           targetAgentId: 'agent-1',
-          summary: 'Tried to socialize with self.',
+          topic: 'town news',
           relationDelta: 0.1,
           attitudeDelta: 0,
+          turns: [{ speakerAgentId: 'agent-1', utterance: 'Tried to converse with self.' }],
         },
         issuedAt: 80,
       }),
@@ -3983,116 +4295,9 @@ describe('agent social command handling', () => {
       'ShortTermMemoryRecorded',
     ]);
     expect(events[0]?.payload).toMatchObject({
-      commandType: 'AgentSocialize',
-      reason: 'social relation target must differ from source',
+      commandType: 'AgentStartConversation',
+      reason: 'conversation target must differ',
     });
-  });
-
-  test('AgentSocialize rejects invalid social deltas', () => {
-    const projection = createWorldProjection({
-      agents: [
-        {
-          agentId: asAgentId('agent-1'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-        {
-          agentId: asAgentId('agent-2'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-      ],
-    });
-
-    const events = handleAgentSocializeCommand({
-      command: createCommandEnvelope({
-        id: 'command-social',
-        simulationId: 'sim-1',
-        actorId: 'agent-1',
-        type: 'AgentSocialize',
-        payload: {
-          targetAgentId: 'agent-2',
-          summary: 'Oversized relation update.',
-          relationDelta: 2,
-          attitudeDelta: 0,
-        },
-        issuedAt: 80,
-      }),
-      projection,
-      nextSequence: 1,
-    });
-
-    expect(events.map((event) => event.type)).toEqual([
-      'ActionRejected',
-      'ShortTermMemoryRecorded',
-    ]);
-    expect(events[0]?.payload).toMatchObject({
-      commandType: 'AgentSocialize',
-      reason: 'relationDelta must be within [-1, 1]',
-    });
-  });
-
-  test('dispatchWorldCommand routes AgentSocialize through the world handler', () => {
-    const projection = createWorldProjection({
-      agents: [
-        {
-          agentId: asAgentId('agent-1'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-        {
-          agentId: asAgentId('agent-2'),
-          physiology: { energy: 100, satiety: 80, health: 100 },
-          educationScore: 0,
-          balance: 0,
-          residentialTier: 1,
-          job: null,
-          inventory: {},
-        },
-      ],
-    });
-
-    const events = dispatchWorldCommand({
-      command: createCommandEnvelope({
-        id: 'command-social',
-        simulationId: 'sim-1',
-        actorId: 'agent-1',
-        type: 'AgentSocialize',
-        payload: {
-          targetAgentId: 'agent-2',
-          summary: 'Talked about market prices.',
-          relationDelta: 0.1,
-          attitudeDelta: 0.2,
-        },
-        issuedAt: 80,
-      }),
-      projection,
-      policies: {
-        satietyRecoveryByCommodity: {},
-        maxSatiety: 100,
-        wageCalculator: () => 0,
-        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
-        criticalThresholds: { energy: 1, health: 1 },
-      },
-      nextSequence: 1,
-    });
-
-    expect(events.map((event) => event.type)).toEqual([
-      'SocialInteractionCompleted',
-      'ShortTermMemoryRecorded',
-    ]);
   });
 });
 
@@ -4260,3 +4465,39 @@ describe('exclusive agent activity time allocation', () => {
     ]);
   });
 });
+
+function createConversationTestProjection() {
+  return createWorldProjection({
+    agents: [
+      {
+        agentId: asAgentId('agent-1'),
+        locationId: asLocationId('school'),
+        physiology: { energy: 100, satiety: 80, health: 100 },
+        educationScore: 20,
+        balance: 50,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      {
+        agentId: asAgentId('agent-2'),
+        locationId: asLocationId('school'),
+        physiology: { energy: 90, satiety: 70, health: 100 },
+        educationScore: 30,
+        balance: 80,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+    ],
+    locations: [
+      {
+        locationId: asLocationId('school'),
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study', 'socialize'],
+        capacity: null,
+      },
+    ],
+  });
+}

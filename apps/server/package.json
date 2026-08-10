@@ -1,0 +1,47 @@
+{
+  "name": "@aivilization/server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/localRuntimeTownCliMain.ts src/localRuntimeTownDataMigrationCliMain.ts src/localRuntimeTownParticipantDataDeletionCliMain.ts src/localRuntimeTownParticipantDataLifecycleCliMain.ts src/localRuntimeTownPaperAblationCliMain.ts src/localRuntimeTownPaperAblationCompareCliMain.ts src/localRuntimeTownPaperMarketDatasetCliMain.ts src/localRuntimeTownPaperMarketAnalysisCliMain.ts src/localRuntimeTownPaperMarketCollectionCliMain.ts src/localRuntimeTownPaperMarketCollectionDatasetCliMain.ts src/localRuntimeTownPaperMarketCollectionShardCliMain.ts src/localRuntimeTownPaperStratificationCliMain.ts src/localRuntimeTownPaperTrajectoryCliMain.ts src/localRuntimeTownRecoveryDrillCliMain.ts src/localRuntimeTownResourceEnvelopeCliMain.ts src/localRuntimeTownSoakCliMain.ts --format esm --dts",
+    "start": "node --enable-source-maps dist/localRuntimeTownCliMain.js",
+    "paper-ablation": "node --enable-source-maps dist/localRuntimeTownPaperAblationCliMain.js",
+    "paper-ablation-compare": "node --enable-source-maps dist/localRuntimeTownPaperAblationCompareCliMain.js",
+    "paper-market-dataset": "node --enable-source-maps dist/localRuntimeTownPaperMarketDatasetCliMain.js",
+    "paper-market-collect": "node --enable-source-maps dist/localRuntimeTownPaperMarketCollectionCliMain.js",
+    "paper-market-collection-dataset": "node --enable-source-maps dist/localRuntimeTownPaperMarketCollectionDatasetCliMain.js",
+    "paper-market-analysis": "node --enable-source-maps dist/localRuntimeTownPaperMarketAnalysisCliMain.js",
+    "paper-stratification": "node --enable-source-maps dist/localRuntimeTownPaperStratificationCliMain.js",
+    "paper-trajectory": "node --enable-source-maps dist/localRuntimeTownPaperTrajectoryCliMain.js",
+    "recovery-drill": "node --enable-source-maps dist/localRuntimeTownRecoveryDrillCliMain.js",
+    "resource-envelope": "node --enable-source-maps dist/localRuntimeTownResourceEnvelopeCliMain.js",
+    "runtime-soak": "node --enable-source-maps dist/localRuntimeTownSoakCliMain.js",
+    "migrate-data-v1-to-v2": "node --enable-source-maps dist/localRuntimeTownDataMigrationCliMain.js",
+    "delete-participant-data": "node --enable-source-maps dist/localRuntimeTownParticipantDataDeletionCliMain.js",
+    "participant-data-lifecycle": "node --enable-source-maps dist/localRuntimeTownParticipantDataLifecycleCliMain.js",
+    "dev": "pnpm --filter @aivilization/server... --sort build && node --enable-source-maps dist/localRuntimeTownCliMain.js --llm-mode deterministic",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aivilization/agent-runtime": "workspace:*",
+    "@aivilization/api": "workspace:*",
+    "@aivilization/content": "workspace:*",
+    "@aivilization/llm": "workspace:*",
+    "@aivilization/memory": "workspace:*",
+    "@aivilization/observability": "workspace:*",
+    "@aivilization/sim-core": "workspace:*",
+    "@aivilization/worker": "workspace:*",
+    "@aivilization/web": "workspace:*",
+    "@aivilization/world": "workspace:*"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@aivilization/worker",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aivilization/agent-runtime": "workspace:*",
+    "@aivilization/api": "workspace:*",
+    "@aivilization/content": "workspace:*",
+    "@aivilization/economy": "workspace:*",
+    "@aivilization/memory": "workspace:*",
+    "@aivilization/observability": "workspace:*",
+    "@aivilization/sim-core": "workspace:*",
+    "@aivilization/society": "workspace:*",
+    "@aivilization/world": "workspace:*"
+  }
+}

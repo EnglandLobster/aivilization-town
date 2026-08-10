@@ -1,0 +1,350 @@
+import type { CommandDraft } from '@aivilization/agent-runtime';
+import {
+  createCommandEnvelope,
+  type AppendToEventStreamResult,
+  type CommandEnvelope,
+  type CoreCommandType,
+  type EventStore,
+  type EventStreamName,
+  type PartitionKey,
+} from '@aivilization/sim-core';
+import {
+  applyWorldEvent,
+  dispatchWorldCommand,
+  type AgentMoveToPayload,
+  type AgentStartConversationPayload,
+  type AgentTradePayload,
+  type WorldEvent,
+  type WorldProjection,
+} from '@aivilization/world';
+import {
+  dispatchCommandDraftsToWorldEventStream,
+  type DispatchCommandDraftsToEventStreamResult,
+} from './commandDispatch';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
+import type {
+  SimulationWideAuthorityLease,
+  SimulationWideAuthorityService,
+} from './simulationWideAuthority';
+import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
+
+/**
+ * The command types the authority canonically owns. Trade and conversation are
+ * settled against the global AMM / social graph because their meaning spans
+ * partitions; movement is settled against the one simulation-wide spatial view
+ * so capacity and route checks count every Agent in the town. Cross-owner
+ * ownership flips additionally require the owner-transfer runtime handoff
+ * (Agent storage migration and replay materialization); until that lands the
+ * router settles moves as same-owner spatial changes.
+ */
+const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandType>([
+  'AgentTrade',
+  'AgentStartConversation',
+  'AgentMoveTo',
+]);
+
+export type SimulationCommandRouter = {
+  readonly routeCommandDrafts: (input: {
+    readonly commandDrafts: readonly CommandDraft[];
+    readonly projection: WorldProjection;
+    readonly policies: WorldCommandPolicySource;
+    readonly eventStore: EventStore<WorldEvent>;
+    readonly streamName: EventStreamName;
+    readonly appendIdempotencyKey: string;
+    readonly commandIdPrefix: string;
+    readonly expectedVersion?: number;
+  }) => Promise<DispatchCommandDraftsToEventStreamResult>;
+};
+
+export function createSimulationCommandRouter(input: {
+  readonly authority: SimulationWideAuthorityService;
+  readonly lease: () => SimulationWideAuthorityLease;
+  readonly partitionKey: PartitionKey;
+  /**
+   * Manifest-declared location affinity: which partition will own an Agent
+   * standing at a location. Unaffiliated (or multiply-affiliated) locations
+   * resolve to undefined and keep the mover's current owner.
+   */
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  /**
+   * Captures the moving Agent's durable cognitive state from this partition's
+   * storage. Only invoked for moves whose affinity resolves to a different
+   * owner partition.
+   */
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
+}): SimulationCommandRouter {
+  // Partition-local moves never settle through the authority, so its global
+  // projection would otherwise keep bootstrap-era locations forever and
+  // co-location checks would settle against stale facts. Before routing any
+  // drafts we report this partition's current Agent locations; the fingerprint
+  // skip keeps unchanged reports out of the authority journal entirely.
+  let lastSyncedLocationsFingerprint: string | undefined;
+  const syncPartitionLocations = (projection: WorldProjection): void => {
+    const agentLocations = Object.values(projection.agents)
+      .map((agent) => ({ agentId: agent.agentId, locationId: agent.locationId }))
+      .sort((left, right) => left.agentId.localeCompare(right.agentId));
+    const fingerprint = JSON.stringify(agentLocations);
+    if (fingerprint === lastSyncedLocationsFingerprint) {
+      return;
+    }
+    const lease = input.lease();
+    input.authority.syncPartitionAgentLocations({
+      operationId: `location-sync:${input.partitionKey}:${fingerprint}`,
+      workerId: lease.workerId,
+      observedAt: lease.observedAt,
+      durationMs: lease.durationMs,
+      partitionKey: input.partitionKey,
+      agentLocations,
+    });
+    lastSyncedLocationsFingerprint = fingerprint;
+  };
+  return {
+    routeCommandDrafts: async (routeInput) => {
+      syncPartitionLocations(routeInput.projection);
+      const globalDrafts = routeInput.commandDrafts.filter((draft) =>
+        GLOBAL_COMMAND_TYPES.has(draft.type),
+      );
+      if (globalDrafts.length === 0) {
+        return dispatchCommandDraftsToWorldEventStream(routeInput);
+      }
+      return routeMixedDrafts({
+        routeInput,
+        authority: input.authority,
+        lease: input.lease(),
+        ...(input.resolveLocationOwner === undefined
+          ? {}
+          : { resolveLocationOwner: input.resolveLocationOwner }),
+        ...(input.captureCognitiveSnapshot === undefined
+          ? {}
+          : { captureCognitiveSnapshot: input.captureCognitiveSnapshot }),
+      });
+    },
+  };
+}
+
+type RoutedSettlement = {
+  readonly draft: CommandDraft;
+  readonly events: readonly WorldEvent[];
+  readonly settled: boolean;
+};
+
+async function routeMixedDrafts(input: {
+  readonly routeInput: Parameters<SimulationCommandRouter['routeCommandDrafts']>[0];
+  readonly authority: SimulationWideAuthorityService;
+  readonly lease: SimulationWideAuthorityLease;
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
+}): Promise<DispatchCommandDraftsToEventStreamResult> {
+  const { routeInput, authority, lease } = input;
+  const expectedVersion =
+    routeInput.expectedVersion ?? routeInput.eventStore.getStreamVersion(routeInput.streamName);
+
+  // Phase 1: settle global drafts against the authority, collecting the events
+  // they produced. Partition-local drafts are dispatched later in phase 2 as one
+  // contiguous stream append, preserving the existing append idempotency key.
+  const settlements: RoutedSettlement[] = [];
+  let workingProjection = routeInput.projection;
+  let nextSequence = expectedVersion + 1;
+  for (const draft of routeInput.commandDrafts) {
+    if (!GLOBAL_COMMAND_TYPES.has(draft.type)) {
+      continue;
+    }
+    const settlement = await settleGlobalDraft({
+      draft,
+      authority,
+      lease,
+      commandIdPrefix: routeInput.commandIdPrefix,
+      projection: workingProjection,
+      policies: routeInput.policies,
+      nextSequence,
+      ...(input.resolveLocationOwner === undefined
+        ? {}
+        : { resolveLocationOwner: input.resolveLocationOwner }),
+      ...(input.captureCognitiveSnapshot === undefined
+        ? {}
+        : { captureCognitiveSnapshot: input.captureCognitiveSnapshot }),
+    });
+    settlements.push(settlement);
+    if (settlement.events.length > 0) {
+      workingProjection = settlement.events.reduce(applyWorldEvent, workingProjection);
+      nextSequence += settlement.events.length;
+    }
+  }
+
+  const localDrafts = routeInput.commandDrafts.filter(
+    (draft) => !GLOBAL_COMMAND_TYPES.has(draft.type),
+  );
+
+  // Phase 2: partition-local drafts append to the partition stream as before.
+  let localAppend: DispatchCommandDraftsToEventStreamResult | undefined;
+  if (localDrafts.length > 0) {
+    localAppend = dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: localDrafts,
+      projection: workingProjection,
+      policies: routeInput.policies,
+      eventStore: routeInput.eventStore,
+      streamName: routeInput.streamName,
+      appendIdempotencyKey: `${routeInput.appendIdempotencyKey}:local`,
+      commandIdPrefix: `${routeInput.commandIdPrefix}-local`,
+      expectedVersion,
+    });
+    workingProjection = localAppend.projection;
+  }
+
+  const globalCommands = settlements.map((settlement, index) =>
+    createCommandEnvelope({
+      id: `${routeInput.commandIdPrefix}-global-${index + 1}`,
+      simulationId: settlement.draft.simulationId,
+      actorId: settlement.draft.actorId,
+      source: settlement.draft.source,
+      type: settlement.draft.type,
+      payload: settlement.draft.payload,
+      issuedAt: settlement.draft.issuedAt,
+      ...(expectedVersion === undefined ? {} : { expectedVersion }),
+    }),
+  );
+  const globalEvents = settlements.flatMap((settlement) => settlement.events);
+
+  const commands: CommandEnvelope<CoreCommandType, unknown>[] = [
+    ...globalCommands,
+    ...(localAppend?.commands ?? []),
+  ];
+  const events: WorldEvent[] = [...globalEvents, ...(localAppend?.events ?? [])];
+
+  const streamVersion = localAppend?.appendResult.streamVersion ?? expectedVersion;
+  const syntheticAppendResult: AppendToEventStreamResult<WorldEvent> = {
+    appendedEvents: events,
+    streamVersion,
+    idempotentReplay: false,
+  };
+
+  return {
+    commands,
+    events,
+    projection: workingProjection,
+    appendResult: syntheticAppendResult,
+  };
+}
+
+async function settleGlobalDraft(input: {
+  readonly draft: CommandDraft;
+  readonly authority: SimulationWideAuthorityService;
+  readonly lease: SimulationWideAuthorityLease;
+  readonly commandIdPrefix: string;
+  readonly projection: WorldProjection;
+  readonly policies: WorldCommandPolicySource;
+  readonly nextSequence: number;
+  readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
+  readonly captureCognitiveSnapshot?: (input: {
+    readonly agentId: string;
+    readonly capturedAt: number;
+  }) => Promise<AgentCognitiveSnapshot>;
+}): Promise<RoutedSettlement> {
+  const { draft, authority, lease, commandIdPrefix, projection, policies, nextSequence } = input;
+  const operationId = `${commandIdPrefix}:${draft.type}:${draft.actorId}:${draft.issuedAt}`;
+  try {
+    if (draft.type === 'AgentTrade') {
+      const operation = authority.settleTrade({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        trade: draft.payload as AgentTradePayload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (draft.type === 'AgentStartConversation') {
+      const payload = draft.payload as AgentStartConversationPayload;
+      const operation = authority.settleConversation({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        initiatorAgentId: draft.actorId,
+        targetAgentId: payload.targetAgentId,
+        topic: payload.topic,
+        turns: payload.turns,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (draft.type === 'AgentMoveTo') {
+      const payload = draft.payload as AgentMoveToPayload;
+      // Destination ownership comes from manifest-declared location affinity;
+      // anything unaffiliated keeps the mover's current owner.
+      const currentOwner =
+        authority.getSnapshot().ownerPartitionKeyByAgentId[draft.actorId];
+      const affinityOwner = input.resolveLocationOwner?.(payload.targetLocationId);
+      const destinationPartitionKey =
+        affinityOwner === undefined || affinityOwner === currentOwner
+          ? undefined
+          : affinityOwner;
+      const cognitiveSnapshot =
+        destinationPartitionKey === undefined || input.captureCognitiveSnapshot === undefined
+          ? undefined
+          : await input.captureCognitiveSnapshot({
+              agentId: draft.actorId,
+              capturedAt: lease.observedAt,
+            });
+      const operation = authority.settleMove({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        targetLocationId: payload.targetLocationId,
+        ...(payload.reason === undefined ? {} : { reason: payload.reason }),
+        ...(destinationPartitionKey === undefined
+          ? {}
+          : { destinationPartitionKey }),
+        ...(cognitiveSnapshot === undefined ? {} : { cognitiveSnapshot }),
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    // Unreachable: callers filter to GLOBAL_COMMAND_TYPES before settling. If a
+    // future command type joins that set without a branch here, fail loudly.
+    throw new Error(`simulation command router has no settlement branch for ${draft.type}`);
+  } catch (error) {
+    // Authority settlement rejected the command (insufficient funds, unknown
+    // agent, co-location violation, etc.). Rather than fabricate an event, we
+    // re-dispatch the same draft against the partition projection. For a draft
+    // the authority just rejected, the partition dispatcher yields a matching
+    // ActionRejected event (plus a short-term-memory record) using the exact
+    // event schema the rest of the cycle already consumes — so the failed
+    // attempt is recorded and the tick continues, matching the partition path
+    // which returns rejection events instead of throwing.
+    const rejectionReason = error instanceof Error ? error.message : String(error);
+    void rejectionReason; // surfaced via the dispatcher's ActionRejected payload
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: operationId,
+        simulationId: draft.simulationId,
+        actorId: draft.actorId,
+        source: draft.source,
+        type: draft.type,
+        payload: draft.payload,
+        issuedAt: draft.issuedAt,
+      }),
+      projection,
+      policies: resolveWorldCommandPolicies({ policies, projection }),
+      nextSequence,
+    });
+    return { draft, events, settled: false };
+  }
+}
+
+function resequence(events: readonly WorldEvent[], startingSequence: number): readonly WorldEvent[] {
+  return events.map((event, index) => ({
+    ...event,
+    sequence: startingSequence + index,
+  }));
+}

@@ -612,7 +612,7 @@ describe('worker memory consolidation', () => {
       profileEntryKeys: ['community-cooperation'],
       profileEvidenceRecordIds: ['social-agent-2-1', 'social-agent-2-3', 'social-agent-3-2'],
     });
-    expect(afterConsolidation.commandDrafts[0]?.type).toBe('AgentSocialize');
+    expect(afterConsolidation.commandDrafts[0]?.type).toBe('AgentStartConversation');
 
     const stableProfile = structuredClone(evolvedProfile);
     const idleResult = await runWorkerMemoryConsolidationSchedule({
@@ -1281,12 +1281,18 @@ function createIdentityLoopMicroPlanners(): readonly DomainMicroPlanner[] {
         {
           id: 'identity-loop-socialize',
           description: 'talk with agent-2 about the community',
-          commandType: 'AgentSocialize',
+          commandType: 'AgentStartConversation',
           payload: {
             targetAgentId: otherAgentId,
-            summary: 'Discussed community plans.',
+            topic: 'community plans',
             relationDelta: 1,
             attitudeDelta: 1,
+            turns: [
+              { speakerAgentId: agentId, utterance: "I'd like to compare notes about community plans." },
+              { speakerAgentId: otherAgentId, utterance: 'What part of community plans matters most to you?' },
+              { speakerAgentId: agentId, utterance: 'I want to understand your perspective on community plans.' },
+              { speakerAgentId: otherAgentId, utterance: "Let's keep each other informed about community plans." },
+            ],
           },
         },
       ],

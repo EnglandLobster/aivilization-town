@@ -57,6 +57,18 @@ export type SocialDialoguePayload = {
   readonly attitudeDelta: number;
   readonly turns: readonly SocialDialogueTurnProposal[];
   readonly planningContext?: SocialPlanningContextTrace;
+  /**
+   * Optional LLM-proposed per-turn social signals with per-signal severity. The world re-validates
+   * them against the signal taxonomy and falls back to deterministic keyword adjudication when
+   * they are absent or invalid.
+   */
+  readonly turnSignals?: readonly {
+    readonly turnIndex: number;
+    readonly signals: readonly {
+      readonly signal: string;
+      readonly severity?: number;
+    }[];
+  }[];
 };
 
 export type SocialDialogueProposal = {

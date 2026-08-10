@@ -369,6 +369,41 @@ export type AgentCycleActionRepairTrace = {
   readonly outcome: 'repaired' | 'needs-replan';
 };
 
+export type AgentCycleSocialSignalExtractionTrace = {
+  readonly status: 'deterministic' | 'accepted' | 'fallback';
+  readonly source: 'deterministic' | 'llm' | 'deterministic-fallback';
+  readonly policyVersion: string;
+  readonly agentId: string;
+  readonly targetAgentId: string;
+  readonly topic: string;
+  readonly turnCount: number;
+  readonly extractedSignalCount: number;
+  readonly requestId?: string;
+  readonly providerId?: string;
+  readonly model?: string;
+  readonly failureReason?: string;
+  readonly message?: string;
+  readonly attempts?: readonly {
+    readonly attemptIndex: number;
+    readonly status: string;
+    readonly providerId: string;
+    readonly model: string;
+    readonly message: string;
+    readonly usage: {
+      readonly inputTokens: number;
+      readonly outputTokens: number;
+      readonly totalTokens: number;
+      readonly estimatedCostMicros: number;
+    };
+  }[];
+  readonly usage?: {
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly totalTokens: number;
+    readonly estimatedCostMicros: number;
+  };
+};
+
 export type AgentCycleSubtaskReplanningDecisionTrace = {
   readonly branchId: string;
   readonly subtaskId: string;
@@ -437,6 +472,7 @@ export type AgentCycleTrace = {
   readonly contextualPrioritization?: AgentCycleContextualPrioritizationTrace;
   readonly actionSequenceGeneration?: readonly AgentCycleActionSequenceGenerationTrace[];
   readonly socialDialogueGeneration?: readonly AgentCycleSocialDialogueGenerationTrace[];
+  readonly socialSignalExtraction?: readonly AgentCycleSocialSignalExtractionTrace[];
   readonly globalSynthesis?: AgentCycleGlobalSynthesisTrace;
   readonly actionRepair?: readonly AgentCycleActionRepairTrace[];
   readonly subtaskCandidates: readonly AgentCycleSubtaskCandidateTrace[];

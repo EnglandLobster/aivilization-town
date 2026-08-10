@@ -27,6 +27,7 @@ import {
   type AgentCycleContextualPrioritizationTrace,
   type AgentCycleGlobalSynthesisTrace,
   type AgentCycleSocialDialogueGenerationTrace,
+  type AgentCycleSocialSignalExtractionTrace,
   type AgentCycleActionProposalTrace,
   type AgentCycleActionResourceEstimateTrace,
   type AgentCycleActionSynthesisContextTrace,
@@ -1214,6 +1215,13 @@ function cloneTrace(trace: PersistedAgentCycleTrace): AgentCycleTrace {
             cloneSocialDialogueGeneration(entry),
           ),
         }),
+    ...(trace.socialSignalExtraction === undefined
+      ? {}
+      : {
+          socialSignalExtraction: trace.socialSignalExtraction.map((entry) =>
+            cloneSocialSignalExtraction(entry),
+          ),
+        }),
     ...(trace.globalSynthesis === undefined
       ? {}
       : { globalSynthesis: cloneGlobalSynthesis(trace.globalSynthesis) }),
@@ -1634,6 +1642,39 @@ function cloneSocialDialogueGeneration(
     ...(trace.worldDecisionContext === undefined
       ? {}
       : { worldDecisionContext: cloneWorldDecisionContextTrace(trace.worldDecisionContext) }),
+  };
+}
+
+function cloneSocialSignalExtraction(
+  trace: AgentCycleSocialSignalExtractionTrace,
+): AgentCycleSocialSignalExtractionTrace {
+  return {
+    status: trace.status,
+    source: trace.source,
+    policyVersion: trace.policyVersion,
+    agentId: trace.agentId,
+    targetAgentId: trace.targetAgentId,
+    topic: trace.topic,
+    turnCount: trace.turnCount,
+    extractedSignalCount: trace.extractedSignalCount,
+    ...(trace.requestId === undefined ? {} : { requestId: trace.requestId }),
+    ...(trace.providerId === undefined ? {} : { providerId: trace.providerId }),
+    ...(trace.model === undefined ? {} : { model: trace.model }),
+    ...(trace.failureReason === undefined ? {} : { failureReason: trace.failureReason }),
+    ...(trace.message === undefined ? {} : { message: trace.message }),
+    ...(trace.attempts === undefined
+      ? {}
+      : {
+          attempts: trace.attempts.map((attempt) => ({
+            attemptIndex: attempt.attemptIndex,
+            status: attempt.status,
+            providerId: attempt.providerId,
+            model: attempt.model,
+            message: attempt.message,
+            usage: { ...attempt.usage },
+          })),
+        }),
+    ...(trace.usage === undefined ? {} : { usage: { ...trace.usage } }),
   };
 }
 

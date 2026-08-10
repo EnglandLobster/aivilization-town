@@ -6,6 +6,8 @@ import {
   createDirectedSocialRelationKey,
   decaySocialRelation,
   evaluateConversationSocialOutcomes,
+  evaluateConversationSocialOutcomesFromSignals,
+  evaluateConversationSocialOutcomesFromSignalSeverities,
   evaluateResourceTransferSocialOutcome,
 } from './index';
 
@@ -158,5 +160,193 @@ describe('social relationships', () => {
         targetAgentId: agent1,
       }),
     ).toThrow(/social relation target must differ/);
+  });
+});
+
+describe('supplied-signal conversation outcomes', () => {
+  test('adjudicates supplied per-turn signals with the same rule table under conversation-outcome-v2', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignals({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'Did you bring the grain?', intent: 'ask' },
+        {
+          speakerAgentId: agent2,
+          utterance: "I just can't keep my word to you, sorry.",
+          intent: 'confess-failure',
+        },
+        { speakerAgentId: agent1, utterance: 'That hurts my season.', intent: 'explain' },
+        { speakerAgentId: agent2, utterance: 'I have no excuse.', intent: 'accept-blame' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: ['betrayal'] },
+        { turnIndex: 3, signals: ['repair', 'repair'] },
+      ],
+    });
+
+    expect(outcome.policyVersion).toBe('conversation-outcome-v2');
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: -0.28,
+      attitudeDelta: -0.16,
+      signals: ['betrayal', 'repair'],
+    });
+    expect(outcome.targetToInitiator).toMatchObject({
+      relationDelta: 0,
+      attitudeDelta: 0,
+      signals: [],
+    });
+  });
+
+  test('ignores unknown signals and out-of-range turn indexes and clamps the total delta', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignals({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'We need to talk.' },
+        { speakerAgentId: agent2, utterance: 'Fine.' },
+        { speakerAgentId: agent1, utterance: 'This is hard.' },
+        { speakerAgentId: agent2, utterance: 'Go on.' },
+        { speakerAgentId: agent1, utterance: 'I see.' },
+        { speakerAgentId: agent2, utterance: 'That is all.' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: ['betrayal'] },
+        { turnIndex: 3, signals: ['deception'] },
+        { turnIndex: 5, signals: ['hostility', 'not-a-signal'] },
+        { turnIndex: 12, signals: ['repair'] },
+      ],
+    });
+
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: -0.35,
+      attitudeDelta: -0.35,
+      signals: ['betrayal', 'deception', 'hostility'],
+    });
+  });
+
+  test('counts each signal only once even when supplied for several turns', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignals({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'Hi.' },
+        { speakerAgentId: agent2, utterance: 'One.' },
+        { speakerAgentId: agent1, utterance: 'Thanks.' },
+        { speakerAgentId: agent2, utterance: 'Two.' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: ['cooperation'] },
+        { turnIndex: 3, signals: ['cooperation'] },
+      ],
+    });
+
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: 0.06,
+      attitudeDelta: 0.06,
+      signals: ['cooperation'],
+    });
+  });
+});
+
+describe('severity-weighted conversation outcomes', () => {
+  test('scales rule-table base deltas by per-signal severity under conversation-outcome-v3', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignalSeverities({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'Did you bring the grain?', intent: 'ask' },
+        {
+          speakerAgentId: agent2,
+          utterance: "I just can't keep my word to you, sorry.",
+          intent: 'confess-failure',
+        },
+        { speakerAgentId: agent1, utterance: 'That hurts my season.', intent: 'explain' },
+        { speakerAgentId: agent2, utterance: 'I have no excuse.', intent: 'accept-blame' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: [{ signal: 'betrayal', severity: 0.6 }] },
+        { turnIndex: 3, signals: [{ signal: 'repair' }] },
+      ],
+    });
+
+    expect(outcome.policyVersion).toBe('conversation-outcome-v3');
+    // betrayal base -0.3/-0.24 x 0.6 plus repair base 0.02/0.08 x 1 (default severity).
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: -0.16,
+      attitudeDelta: -0.064,
+      signals: ['betrayal', 'repair'],
+      signalSeverities: [
+        { signal: 'betrayal', severity: 0.6 },
+        { signal: 'repair', severity: 1 },
+      ],
+    });
+    expect(outcome.targetToInitiator).toMatchObject({
+      relationDelta: 0,
+      attitudeDelta: 0,
+      signals: [],
+      signalSeverities: [],
+    });
+  });
+
+  test('clamps severity-scaled totals to the conversation delta bounds', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignalSeverities({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'We need to talk.' },
+        { speakerAgentId: agent2, utterance: 'Fine.' },
+        { speakerAgentId: agent1, utterance: 'This is hard.' },
+        { speakerAgentId: agent2, utterance: 'Go on.' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: [{ signal: 'betrayal', severity: 1 }] },
+        { turnIndex: 3, signals: [{ signal: 'deception', severity: 0.8 }] },
+      ],
+    });
+
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: -0.35,
+      attitudeDelta: -0.35,
+      signals: ['betrayal', 'deception'],
+    });
+  });
+
+  test('counts each signal once with the first supplied severity and skips invalid severities', () => {
+    const agent1 = asAgentId('agent-1');
+    const agent2 = asAgentId('agent-2');
+    const outcome = evaluateConversationSocialOutcomesFromSignalSeverities({
+      initiatorAgentId: agent1,
+      targetAgentId: agent2,
+      turns: [
+        { speakerAgentId: agent1, utterance: 'Hi.' },
+        { speakerAgentId: agent2, utterance: 'One.' },
+        { speakerAgentId: agent1, utterance: 'Thanks.' },
+        { speakerAgentId: agent2, utterance: 'Two.' },
+        { speakerAgentId: agent1, utterance: 'Right.' },
+        { speakerAgentId: agent2, utterance: 'Three.' },
+      ],
+      turnSignals: [
+        { turnIndex: 1, signals: [{ signal: 'cooperation', severity: 0.5 }] },
+        { turnIndex: 3, signals: [{ signal: 'cooperation', severity: 1 }] },
+        { turnIndex: 5, signals: [{ signal: 'hostility', severity: 2 }] },
+      ],
+    });
+
+    expect(outcome.initiatorToTarget).toMatchObject({
+      relationDelta: 0.03,
+      attitudeDelta: 0.03,
+      signals: ['cooperation'],
+      signalSeverities: [{ signal: 'cooperation', severity: 0.5 }],
+    });
   });
 });

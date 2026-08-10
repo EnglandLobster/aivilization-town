@@ -24,7 +24,6 @@ export type CoreCommandType =
   | 'AgentApplyJob'
   | 'AgentUpgradeResidentialTier'
   | 'AgentWork'
-  | 'AgentSocialize'
   | 'SetLongHorizonObjective'
   | 'IssueReactiveCommand'
   | 'RegisterAgent'

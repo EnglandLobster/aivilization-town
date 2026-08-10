@@ -26,12 +26,23 @@ export type AgentStartConversationTurnPayload = {
   readonly intent?: string;
 };
 
+export type AgentStartConversationSignalSeverityPayload = {
+  readonly signal: string;
+  readonly severity?: number;
+};
+
+export type AgentStartConversationTurnSignalsPayload = {
+  readonly turnIndex: number;
+  readonly signals: readonly AgentStartConversationSignalSeverityPayload[];
+};
+
 export type AgentStartConversationPayload = {
   readonly targetAgentId: AgentId;
   readonly topic: string;
   readonly relationDelta: number;
   readonly attitudeDelta: number;
   readonly turns: readonly AgentStartConversationTurnPayload[];
+  readonly turnSignals?: readonly AgentStartConversationTurnSignalsPayload[];
 };
 
 export type AgentStudyPayload = {
@@ -84,13 +95,6 @@ export type AgentApplyJobPayload = {
 
 export type AgentUpgradeResidentialTierPayload = {
   readonly targetResidentialTier: number;
-};
-
-export type AgentSocializePayload = {
-  readonly targetAgentId: AgentId;
-  readonly summary: string;
-  readonly relationDelta: number;
-  readonly attitudeDelta: number;
 };
 
 export type AdvanceSimulationTimePayload = {
@@ -180,6 +184,7 @@ export function assertAgentStartConversationPayload(
   const relationDelta = payload['relationDelta'];
   const attitudeDelta = payload['attitudeDelta'];
   const turns = payload['turns'];
+  const turnSignals = payload['turnSignals'];
 
   if (typeof targetAgentId !== 'string' || targetAgentId.trim().length === 0) {
     throw new Error('AgentStartConversation targetAgentId must not be empty');
@@ -192,6 +197,9 @@ export function assertAgentStartConversationPayload(
   if (!Array.isArray(turns) || turns.length === 0) {
     throw new Error('AgentStartConversation turns must not be empty');
   }
+  if (turnSignals !== undefined && !Array.isArray(turnSignals)) {
+    throw new Error('AgentStartConversation turnSignals must be an array');
+  }
 
   return {
     targetAgentId: asAgentId(targetAgentId.trim()),
@@ -199,6 +207,13 @@ export function assertAgentStartConversationPayload(
     relationDelta,
     attitudeDelta,
     turns: turns.map((turn, index) => assertAgentStartConversationTurnPayload(turn, index)),
+    ...(turnSignals === undefined
+      ? {}
+      : {
+          turnSignals: turnSignals.map((entry, index) =>
+            assertAgentStartConversationTurnSignalsPayload(entry, index),
+          ),
+        }),
   };
 }
 
@@ -362,32 +377,6 @@ export function assertAgentUpgradeResidentialTierPayload(
   return { targetResidentialTier };
 }
 
-export function assertAgentSocializePayload(payload: unknown): AgentSocializePayload {
-  if (!isRecord(payload)) {
-    throw new Error('AgentSocialize payload must be an object');
-  }
-  const targetAgentId = payload['targetAgentId'];
-  const summary = payload['summary'];
-  const relationDelta = payload['relationDelta'];
-  const attitudeDelta = payload['attitudeDelta'];
-
-  if (typeof targetAgentId !== 'string') {
-    throw new Error('AgentSocialize targetAgentId must be a string');
-  }
-  if (typeof summary !== 'string' || summary.trim().length === 0) {
-    throw new Error('AgentSocialize summary must not be empty');
-  }
-  assertFinite(relationDelta, 'AgentSocialize relationDelta');
-  assertFinite(attitudeDelta, 'AgentSocialize attitudeDelta');
-
-  return {
-    targetAgentId: asAgentId(targetAgentId),
-    summary,
-    relationDelta,
-    attitudeDelta,
-  };
-}
-
 export function assertAdvanceSimulationTimePayload(payload: unknown): AdvanceSimulationTimePayload {
   if (!isRecord(payload)) {
     throw new Error('AdvanceSimulationTime payload must be an object');
@@ -465,5 +454,60 @@ function assertAgentStartConversationTurnPayload(
     speakerAgentId: asAgentId(speakerAgentId.trim()),
     utterance: utterance.trim(),
     ...(intent === undefined ? {} : { intent: intent.trim() }),
+  };
+}
+
+function assertAgentStartConversationTurnSignalsPayload(
+  payload: unknown,
+  index: number,
+): AgentStartConversationTurnSignalsPayload {
+  if (!isRecord(payload)) {
+    throw new Error(`AgentStartConversation turnSignals[${index}] must be an object`);
+  }
+  const turnIndex = payload['turnIndex'];
+  const signals = payload['signals'];
+  if (typeof turnIndex !== 'number' || !Number.isInteger(turnIndex) || turnIndex < 0) {
+    throw new Error(
+      `AgentStartConversation turnSignals[${index}].turnIndex must be a non-negative integer`,
+    );
+  }
+  if (!Array.isArray(signals)) {
+    throw new Error(`AgentStartConversation turnSignals[${index}].signals must be an array`);
+  }
+
+  return {
+    turnIndex,
+    signals: signals.map((signal, signalIndex) =>
+      assertAgentStartConversationSignalSeverityPayload(signal, index, signalIndex),
+    ),
+  };
+}
+
+/**
+ * Shape-level validation only: severity must be a finite number when present. The [0, 1] range is
+ * enforced by the conversation handler, which conservatively ignores the whole turnSignals field
+ * and falls back to keyword adjudication instead of rejecting the command.
+ */
+function assertAgentStartConversationSignalSeverityPayload(
+  payload: unknown,
+  index: number,
+  signalIndex: number,
+): AgentStartConversationSignalSeverityPayload {
+  const label = `AgentStartConversation turnSignals[${index}].signals[${signalIndex}]`;
+  if (!isRecord(payload)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const signal = payload['signal'];
+  const severity = payload['severity'];
+  if (typeof signal !== 'string' || signal.trim().length === 0) {
+    throw new Error(`${label}.signal must not be empty`);
+  }
+  if (severity !== undefined && (typeof severity !== 'number' || !Number.isFinite(severity))) {
+    throw new Error(`${label}.severity must be a finite number`);
+  }
+
+  return {
+    signal: signal.trim(),
+    ...(severity === undefined ? {} : { severity }),
   };
 }

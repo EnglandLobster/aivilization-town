@@ -521,6 +521,29 @@ describe('runtime profile run report repositories', () => {
             worldDecisionContext: createWorldDecisionContextTrace(),
           },
         ],
+        socialSignalExtraction: [
+          {
+            status: 'accepted',
+            source: 'llm',
+            policyVersion: 'llm-social-signal-extraction-v2',
+            agentId: 'agent-1',
+            targetAgentId: 'agent-2',
+            topic: 'market prices',
+            turnCount: 2,
+            extractedSignalCount: 1,
+          },
+          {
+            status: 'fallback',
+            source: 'deterministic-fallback',
+            policyVersion: 'llm-social-signal-extraction-v2',
+            agentId: 'agent-1',
+            targetAgentId: 'agent-3',
+            topic: 'stall gossip',
+            turnCount: 4,
+            extractedSignalCount: 0,
+            failureReason: 'provider-error',
+          },
+        ],
         globalSynthesis: {
           status: 'fallback',
           source: 'deterministic-fallback',
@@ -638,6 +661,24 @@ describe('runtime profile run report repositories', () => {
         completeEconomicContextCount: 1,
         rulesContextCount: 1,
         completeRulesContextCount: 1,
+      },
+      {
+        stageName: 'socialSignalExtraction',
+        traceCount: 2,
+        llmAcceptedCount: 1,
+        deterministicFallbackCount: 1,
+        deterministicCount: 0,
+        missingCycleCount: 1,
+        evidenceBackedAcceptedCount: 0,
+        observedStateSummaryCount: 0,
+        shortTermMemoryContextCount: 0,
+        longTermProfileContextCount: 0,
+        worldDecisionContextCount: 0,
+        completeWorldDecisionContextCount: 0,
+        economicContextCount: 0,
+        completeEconomicContextCount: 0,
+        rulesContextCount: 0,
+        completeRulesContextCount: 0,
       },
       {
         stageName: 'globalSynthesis',
@@ -1105,6 +1146,7 @@ function createTrace(input: {
   readonly contextualPrioritization?: AgentCycleTrace['contextualPrioritization'];
   readonly actionSequenceGeneration?: AgentCycleTrace['actionSequenceGeneration'];
   readonly socialDialogueGeneration?: AgentCycleTrace['socialDialogueGeneration'];
+  readonly socialSignalExtraction?: AgentCycleTrace['socialSignalExtraction'];
   readonly globalSynthesis?: AgentCycleTrace['globalSynthesis'];
   readonly actionRepair?: AgentCycleTrace['actionRepair'];
   readonly replanningDecisionTrace?: AgentCycleTrace['replanningDecisionTrace'];
@@ -1126,6 +1168,9 @@ function createTrace(input: {
     ...(input.socialDialogueGeneration === undefined
       ? {}
       : { socialDialogueGeneration: input.socialDialogueGeneration }),
+    ...(input.socialSignalExtraction === undefined
+      ? {}
+      : { socialSignalExtraction: input.socialSignalExtraction }),
     ...(input.globalSynthesis === undefined ? {} : { globalSynthesis: input.globalSynthesis }),
     ...(input.actionRepair === undefined ? {} : { actionRepair: input.actionRepair }),
     ...(input.replanningDecisionTrace === undefined
@@ -1212,6 +1257,7 @@ function createEmptyLlmStageDiagnostics(traceCount: number) {
     'contextualPrioritization',
     'actionSequenceGeneration',
     'socialDialogueGeneration',
+    'socialSignalExtraction',
     'globalSynthesis',
     'reactiveCorrection',
     'replanningDecision',

@@ -15,6 +15,7 @@ import type {
   ReplanningDecider,
   ReactionEvaluator,
   SocialDialogueGenerator,
+  SocialSignalExtractor,
   StrategicPlanCompiler,
   SubtaskPrioritizer,
   WorldDecisionContext,
@@ -107,6 +108,7 @@ export type WorkerTickAgentInput = {
   readonly actionSynthesis?: ActionSynthesisPolicy;
   readonly actionSequenceGenerator?: ActionSequenceGenerator;
   readonly socialDialogueGenerator?: SocialDialogueGenerator;
+  readonly socialSignalExtractor?: SocialSignalExtractor;
   readonly globalSynthesizer?: GlobalActionSynthesizer;
   readonly reactiveCorrector?: ReactiveCorrector;
   readonly replanningDecider?: ReplanningDecider;
@@ -341,6 +343,9 @@ export async function runWorkerSimulationTick(
         ...(agent.socialDialogueGenerator === undefined
           ? {}
           : { socialDialogueGenerator: agent.socialDialogueGenerator }),
+        ...(agent.socialSignalExtractor === undefined
+          ? {}
+          : { socialSignalExtractor: agent.socialSignalExtractor }),
         ...(agent.globalSynthesizer === undefined
           ? {}
           : { globalSynthesizer: agent.globalSynthesizer }),

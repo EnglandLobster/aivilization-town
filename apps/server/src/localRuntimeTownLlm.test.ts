@@ -40,6 +40,7 @@ describe('local runtime town LLM composition', () => {
     expect(typeof runtime.reactiveCorrector).toBe('function');
     expect(typeof runtime.replanningDecider).toBe('function');
     expect(typeof runtime.socialDialogueGenerator).toBe('function');
+    expect(typeof runtime.socialSignalExtractor).toBe('function');
     expect(typeof runtime.reactionEvaluator).toBe('function');
     expect(typeof runtime.reflectiveInsightSynthesizer).toBe('function');
     expect(typeof runtime.socialModelSynthesizer).toBe('function');
@@ -92,12 +93,14 @@ describe('local runtime town LLM composition', () => {
       model: 'production-model',
       stages: {
         'social-dialogue': false,
+        'social-signal-extraction': false,
         'memory-reflection': { model: 'reflection-model', maxAttempts: 3 },
       },
     });
 
     expect(runtime.providerId).toBe('openai-compatible-runtime');
     expect(runtime.socialDialogueGenerator).toBeUndefined();
+    expect(runtime.socialSignalExtractor).toBeUndefined();
     expect(runtime.reflectiveInsightSynthesizer).toEqual(expect.any(Function));
   });
 
@@ -143,6 +146,7 @@ describe('local runtime town LLM composition', () => {
     expect(decorated.reactiveCorrector).toBe(runtime.reactiveCorrector);
     expect(decorated.replanningDecider).toBe(runtime.replanningDecider);
     expect(decorated.socialDialogueGenerator).toBe(runtime.socialDialogueGenerator);
+    expect(decorated.socialSignalExtractor).toBe(runtime.socialSignalExtractor);
   });
 
   test('injects memory synthesis hooks while preserving explicit schedule overrides', () => {

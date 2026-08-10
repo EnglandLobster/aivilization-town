@@ -330,6 +330,10 @@ export type SocialInteractionCompletedPayload = {
   readonly attitudeDelta: number;
   readonly outcomePolicyVersion?: string;
   readonly outcomeSignals?: readonly string[];
+  readonly outcomeSignalSeverities?: readonly {
+    readonly signal: string;
+    readonly severity: number;
+  }[];
   readonly nextRelation: SocialRelationState;
 };
 

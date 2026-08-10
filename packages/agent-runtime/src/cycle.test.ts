@@ -4,10 +4,14 @@ import { describe, expect, test } from 'vitest';
 import {
   createBranchPlan,
   createBranchPlanProgress,
+  createDeterministicSocialDialogueGenerator,
   markSubtaskCompleted,
   runAgentPlanningCycle,
   runAgentPlanningCycleWithPrioritization,
+  type CycleActionSimulator,
+  type DomainMicroPlanner,
 } from './index';
+import { SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION } from './socialSignalExtraction';
 
 describe('agent planning cycle', () => {
   test('selects a subtask, gates actions through the simulator, and returns command drafts', () => {
@@ -571,6 +575,144 @@ describe('agent planning cycle', () => {
         rationale: 'Use current price context and social memory.',
       },
     ]);
+  });
+
+  test('records social signal extraction traces for deterministic, no-proposal, and accepted states', async () => {
+    const plan = createBranchPlan({
+      objective: 'maintain social ties',
+      branches: [
+        {
+          id: 'social',
+          objective: 'maintain ties',
+          subtasks: [{ id: 'check-in', description: 'check in with neighbor', basePriority: 8 }],
+        },
+      ],
+    });
+    const socialMicroPlanner: DomainMicroPlanner = {
+      domain: 'social',
+      supports: ({ subtaskId }) => subtaskId === 'check-in',
+      propose: () => [
+        {
+          id: 'social-check-in',
+          description: 'start a neighbor conversation',
+          commandType: 'AgentStartConversation',
+          payload: {
+            targetAgentId: asAgentId('agent-2'),
+            topic: 'deterministic fallback topic',
+            relationDelta: 0.05,
+            attitudeDelta: 0.02,
+            turns: [
+              { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback hello.' },
+              { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback reply.' },
+              { speakerAgentId: asAgentId('agent-1'), utterance: 'Fallback follow-up.' },
+              { speakerAgentId: asAgentId('agent-2'), utterance: 'Fallback closing.' },
+            ],
+          },
+        },
+      ],
+    };
+    const simulate: CycleActionSimulator = ({ action }) => ({ status: 'accepted', action });
+    const baseInput = {
+      simulationId: asSimulationId('sim-1'),
+      agentId: asAgentId('agent-1'),
+      issuedAt: 200,
+      plan,
+      signals: [],
+      microPlanners: [socialMicroPlanner],
+      simulate,
+    };
+
+    // State 1: no extractor configured — keyword adjudication is recorded as deterministic.
+    const deterministicResult = await runAgentPlanningCycleWithPrioritization({
+      ...baseInput,
+      socialDialogueGenerator: createDeterministicSocialDialogueGenerator(),
+    });
+    expect(deterministicResult.socialSignalExtractionTraces).toEqual([
+      {
+        status: 'deterministic',
+        source: 'deterministic',
+        policyVersion: SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        topic: 'deterministic fallback topic',
+        turnCount: 4,
+        extractedSignalCount: 0,
+      },
+    ]);
+    expect(deterministicResult.commandDrafts[0]?.payload).not.toHaveProperty('turnSignals');
+
+    // State 2: extractor ran but produced no usable proposal — keyword fallback is recorded.
+    const noProposalResult = await runAgentPlanningCycleWithPrioritization({
+      ...baseInput,
+      socialSignalExtractor: (input) =>
+        Promise.resolve({
+          trace: {
+            status: 'no-proposal' as const,
+            source: 'deterministic-fallback' as const,
+            policyVersion: SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION,
+            agentId: input.agentId,
+            targetAgentId: input.targetAgentId,
+            topic: input.topic,
+            turnCount: input.turns.length,
+            extractedSignalCount: 0,
+            requestId: 'social-signals-cycle-no-proposal',
+            failureReason: 'provider-error',
+            message: 'signal provider offline',
+          },
+        }),
+    });
+    expect(noProposalResult.socialSignalExtractionTraces).toEqual([
+      {
+        status: 'no-proposal',
+        source: 'deterministic-fallback',
+        policyVersion: SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        topic: 'deterministic fallback topic',
+        turnCount: 4,
+        extractedSignalCount: 0,
+        requestId: 'social-signals-cycle-no-proposal',
+        failureReason: 'provider-error',
+        message: 'signal provider offline',
+      },
+    ]);
+    expect(noProposalResult.commandDrafts[0]?.payload).not.toHaveProperty('turnSignals');
+
+    // State 3: extractor proposal accepted — turnSignals reach the command payload.
+    const acceptedResult = await runAgentPlanningCycleWithPrioritization({
+      ...baseInput,
+      socialSignalExtractor: (input) =>
+        Promise.resolve({
+          turnSignals: [{ turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.5 }] }],
+          trace: {
+            status: 'accepted' as const,
+            source: 'llm' as const,
+            policyVersion: SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION,
+            agentId: input.agentId,
+            targetAgentId: input.targetAgentId,
+            topic: input.topic,
+            turnCount: input.turns.length,
+            extractedSignalCount: 1,
+            requestId: 'social-signals-cycle-accepted',
+          },
+        }),
+    });
+    expect(acceptedResult.socialSignalExtractionTraces).toEqual([
+      {
+        status: 'accepted',
+        source: 'llm',
+        policyVersion: SOCIAL_SIGNAL_EXTRACTION_POLICY_VERSION,
+        agentId: 'agent-1',
+        targetAgentId: 'agent-2',
+        topic: 'deterministic fallback topic',
+        turnCount: 4,
+        extractedSignalCount: 1,
+        requestId: 'social-signals-cycle-accepted',
+      },
+    ]);
+    expect(acceptedResult.commandDrafts[0]?.payload).toMatchObject({
+      turnSignals: [{ turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.5 }] }],
+    });
   });
 
   test('runs social dialogue generation before global synthesis ranking', async () => {

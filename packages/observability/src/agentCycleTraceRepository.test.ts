@@ -98,6 +98,7 @@ function createTrace(input: {
   readonly contextualPrioritization?: boolean;
   readonly actionSequenceGeneration?: boolean;
   readonly socialDialogueGeneration?: boolean;
+  readonly socialSignalExtraction?: boolean;
   readonly globalSynthesis?: boolean;
   readonly actionRepair?: boolean;
   readonly replanningDecisionTrace?: boolean;
@@ -244,6 +245,46 @@ function createTrace(input: {
               longTermProfileContext,
               observedStateSummary,
               worldDecisionContext: createWorldDecisionContextTrace(input.agentId ?? 'agent-1'),
+            },
+          ],
+        }
+      : {}),
+    ...(input.socialSignalExtraction === true
+      ? {
+          socialSignalExtraction: [
+            {
+              status: 'accepted' as const,
+              source: 'llm' as const,
+              policyVersion: 'llm-social-signal-extraction-v2',
+              agentId: input.agentId ?? 'agent-1',
+              targetAgentId: 'agent-2',
+              topic: 'market prices',
+              turnCount: 2,
+              extractedSignalCount: 1,
+              requestId: `${input.traceId}:social-signals`,
+              providerId: 'scripted-social-signals',
+              model: 'signal-model',
+              attempts: [
+                {
+                  attemptIndex: 1,
+                  status: 'succeeded',
+                  providerId: 'scripted-social-signals',
+                  model: 'signal-model',
+                  message: 'LLM structured response validated',
+                  usage: {
+                    inputTokens: 12,
+                    outputTokens: 4,
+                    totalTokens: 16,
+                    estimatedCostMicros: 28,
+                  },
+                },
+              ],
+              usage: {
+                inputTokens: 12,
+                outputTokens: 4,
+                totalTokens: 16,
+                estimatedCostMicros: 28,
+              },
             },
           ],
         }
@@ -531,6 +572,7 @@ describe('agent cycle trace repositories', () => {
       contextualPrioritization: true,
       actionSequenceGeneration: true,
       socialDialogueGeneration: true,
+      socialSignalExtraction: true,
       globalSynthesis: true,
       actionRepair: true,
       replanningDecisionTrace: true,
@@ -621,6 +663,12 @@ describe('agent cycle trace repositories', () => {
       }
     ).marketSpotPriceCount = 999;
     (
+      read!.socialSignalExtraction![0] as unknown as { extractedSignalCount: number }
+    ).extractedSignalCount = 999;
+    (
+      read!.socialSignalExtraction![0]!.usage as unknown as { totalTokens: number }
+    ).totalTokens = 999;
+    (
       read!.globalSynthesis!.choices as unknown as {
         rationale: string;
       }[]
@@ -694,6 +742,9 @@ describe('agent cycle trace repositories', () => {
     );
     expect((await repository.get('trace-200'))?.socialDialogueGeneration).toEqual(
       newer.socialDialogueGeneration,
+    );
+    expect((await repository.get('trace-200'))?.socialSignalExtraction).toEqual(
+      newer.socialSignalExtraction,
     );
     expect((await repository.get('trace-200'))?.globalSynthesis).toEqual(newer.globalSynthesis);
     expect((await repository.get('trace-200'))?.actionRepair).toEqual(newer.actionRepair);

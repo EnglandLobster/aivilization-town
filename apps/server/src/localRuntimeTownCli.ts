@@ -392,6 +392,8 @@ export function createLocalRuntimeTownCliHelp(): string {
     'Optional provider variables: AIVILIZATION_LLM_API_KEY, AIVILIZATION_LLM_PROVIDER_ID,',
     'AIVILIZATION_LLM_RESPONSE_FORMAT, AIVILIZATION_LLM_MAX_ATTEMPTS,',
     'AIVILIZATION_LLM_TIMEOUT_MS.',
+    'LLM social signal extraction is enabled by default; set',
+    'AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION=off to keep deterministic keyword adjudication only.',
     'Authenticated participant mode uses AIVILIZATION_ACCESS_MODE=authenticated plus',
     'AIVILIZATION_ACCESS_CREDENTIALS_JSON and optional AIVILIZATION_MAX_AGENTS_PER_PARTICIPANT.',
     'Open mode is restricted to loopback binds. Terminate TLS in the deployment proxy.',
@@ -496,12 +498,18 @@ function resolveProviderLlmConfig(
       'AIVILIZATION_LLM_OUTPUT_TOKEN_COST_MICROS',
     ),
   };
+  const socialSignalExtraction = parseSocialSignalExtractionMode(
+    env.AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION,
+  );
 
   return {
     model,
     pricing,
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(socialSignalExtraction === 'on'
+      ? {}
+      : { stages: { 'social-signal-extraction': false } }),
     providerConfig: {
       kind: 'openai-compatible',
       providerId,
@@ -512,6 +520,13 @@ function resolveProviderLlmConfig(
         : { apiKey: requireNonEmpty(env.AIVILIZATION_LLM_API_KEY, 'AIVILIZATION_LLM_API_KEY') }),
     },
   };
+}
+
+function parseSocialSignalExtractionMode(value: string | undefined): 'on' | 'off' {
+  if (value === undefined || value === 'on' || value === 'off') {
+    return value ?? 'on';
+  }
+  throw new Error('AIVILIZATION_SOCIAL_SIGNAL_EXTRACTION must be "on" or "off"');
 }
 
 function resolveParticipantAccessConfig(input: {

@@ -3,7 +3,7 @@
 This document defines what results from this repository can and cannot support. It preserves the
 limitations stated in Section 7 of the AIvilization v0 paper and turns them into project-level claim
 rules. The current implementation and evidence boundary is summarized in
-[`../HANDOFF.md`](../HANDOFF.md).
+[`PAPER_ALIGNMENT_MATRIX.md`](PAPER_ALIGNMENT_MATRIX.md).
 
 ## Limitations inherited from the paper
 

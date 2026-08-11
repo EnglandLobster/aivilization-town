@@ -43,6 +43,12 @@ started with `--llm-mode deterministic`.
   behavior. If your change turns tests red, either the old behavior was a
   bug (say so in the PR and update the tests deliberately) or your change
   is wrong. Never weaken an assertion just to go green.
+- **Coverage gate.** CI runs `pnpm test:coverage` and fails below 80% on
+  lines, statements, functions, and branches (workspace-wide, measured by
+  `@vitest/coverage-v8`). Thresholds are a ratchet: they may only move up.
+  Coverage is a floor for "untested code", not a quality proof — weak
+  assertions with high line coverage are still reviewable defects. Keep
+  `pnpm test` (fast, no instrumentation) for the local dev loop.
 - World-authoritative commands live in `packages/world`; cognition lives in
   `packages/agent-runtime`; social/institution models live in
   `packages/society`. Keep that layering.

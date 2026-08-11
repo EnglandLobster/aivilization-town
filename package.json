@@ -12,11 +12,13 @@
     "migrate:runtime-data-v1-to-v2": "pnpm --filter @aivilization/server migrate-data-v1-to-v2",
     "regrade:runtime-resource-envelope": "node --enable-source-maps apps/server/dist/localRuntimeTownResourceEnvelopeCliMain.js",
     "test": "vitest run",
-    "typecheck": "pnpm -r --sort typecheck"
+    "typecheck": "pnpm -r --sort typecheck",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^3.2.7",
     "eslint": "^9.30.0",
     "prettier": "^3.5.3",
     "tsup": "^8.5.0",

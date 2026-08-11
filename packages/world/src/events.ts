@@ -18,6 +18,7 @@ import type {
   RecruitmentResolutionReason,
   SocialRelationState,
 } from '@aivilization/society';
+import type { TownWeatherKind } from './weather';
 
 export const RUNTIME_AGENT_REGISTRATION_POLICY_VERSION = 'runtime-agent-registration-v3';
 export const RUNTIME_AGENT_REGISTRATION_MAX_POPULATION = 100_000;
@@ -405,6 +406,18 @@ export type SimulationTimeAdvancedPayload = {
 };
 
 /**
+ * Simulation-wide weather transition settled by the AdvanceSimulationTime
+ * handler under the town-weather policy. `transitionedAt` is the simulation
+ * time (not wall time) at which the new weather takes effect.
+ */
+export type WeatherChangedPayload = {
+  readonly policyVersion: string;
+  readonly from: TownWeatherKind;
+  readonly to: TownWeatherKind;
+  readonly transitionedAt: number;
+};
+
+/**
  * An Agent whose durable ownership moved to another execution partition. In the
  * departing partition's stream this event ends the Agent's local presence: the
  * projection stops tracking it, while the durable cognitive history stays for
@@ -470,6 +483,7 @@ export type WorldEventPayloadByType = {
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;
+  readonly WeatherChanged: WeatherChangedPayload;
   readonly AgentOwnershipDeparted: AgentOwnershipDepartedPayload;
   readonly AgentOwnershipArrived: AgentOwnershipArrivedPayload;
 };

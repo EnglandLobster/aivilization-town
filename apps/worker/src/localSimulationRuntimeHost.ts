@@ -42,6 +42,10 @@ import {
   type SimulationCommandRouter,
 } from './simulationCommandRouter';
 import { captureAgentCognitiveSnapshot } from './agentCognitiveSnapshot';
+import {
+  createAivilizationTownConditionsPolicy,
+  createAivilizationTownWeatherPolicy,
+} from './aivilizationWorldPolicies';
 
 export type LocalSimulationRuntimeHostInput = LocalSimulationRuntimeRegistryInput & {
   readonly bootstrappedAt: SimulationTimestamp;
@@ -59,6 +63,20 @@ export type SimulationWideAuthorityHostOptions = {
    * prices can diverge. Omitted/false keeps the legacy single-global-pool merge.
    */
   readonly regionalMarkets?: boolean;
+  /**
+   * Opt-in town weather (borrowed-mechanics adoption plan #1). When true, the
+   * authority settles the simulation-wide weather Markov chain during time
+   * advancement and emits WeatherChanged events. Omitted/false keeps the run
+   * free of weather state and events, matching legacy behavior.
+   */
+  readonly townWeather?: boolean;
+  /**
+   * Opt-in town-condition catalog (borrowed-mechanics adoption plan #2). When
+   * true, the society projection derives per-agent conditions from the
+   * authority snapshot on every read. Omitted/false keeps the projection
+   * condition-free, matching legacy behavior.
+   */
+  readonly townConditions?: boolean;
 };
 
 export type LocalSimulationRuntimeHostPartition = {
@@ -144,6 +162,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       ...(activeAuthorityOptions.regionalMarkets === true
         ? { regionalMarketsEnabled: true }
         : {}),
+      ...(activeAuthorityOptions.townWeather === true
+        ? { townWeather: createAivilizationTownWeatherPolicy() }
+        : {}),
     });
     const lease = (): SimulationWideAuthorityMaterializerLease => materializeLease!;
     authority.recover({
@@ -186,6 +207,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
   const societyProjection = createLocalSimulationSocietyProjectionService({
     partitions,
     societyDirectory,
+    ...(authorityOptions?.townConditions === true
+      ? { conditionPolicy: createAivilizationTownConditionsPolicy() }
+      : {}),
     ...(authority === undefined
       ? {}
       : {

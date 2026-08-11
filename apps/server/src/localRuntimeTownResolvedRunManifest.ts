@@ -87,6 +87,8 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
                 creatorIdentityRule: 'authenticated-principal-subject',
               },
             }),
+        ...(config.townWeatherEnabled ? { townWeather: true } : {}),
+        ...(config.townConditionsEnabled ? { townConditions: true } : {}),
       }),
       'policies',
     ),

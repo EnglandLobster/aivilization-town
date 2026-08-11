@@ -1,4 +1,5 @@
 export * from './education';
+export * from './conditions';
 export * from './healthcare';
 export * from './occupation-catalog';
 export * from './occupation';

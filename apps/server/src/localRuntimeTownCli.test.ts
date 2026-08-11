@@ -114,6 +114,8 @@ describe('local runtime town executable composition', () => {
       simulationWideAuthorityWorkerId: 'local-runtime-town:127.0.0.1:3000',
       simulationWideAuthorityLeaseDurationMs: 30_000,
       regionalMarketsEnabled: false,
+      townWeatherEnabled: false,
+      townConditionsEnabled: false,
     });
   });
 
@@ -183,6 +185,8 @@ describe('local runtime town executable composition', () => {
       simulationWideAuthorityWorkerId: 'local-runtime-town:0.0.0.0:4310',
       simulationWideAuthorityLeaseDurationMs: 30_000,
       regionalMarketsEnabled: false,
+      townWeatherEnabled: false,
+      townConditionsEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -272,6 +276,100 @@ describe('local runtime town executable composition', () => {
         env: { AIVILIZATION_REGIONAL_MARKETS: '1' },
       }).regionalMarketsEnabled,
     ).toBe(true);
+  });
+
+  test('town weather is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: town weather is disabled, so runs stay byte-for-byte weather-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townWeatherEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-weather', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townWeatherEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_WEATHER: '1' },
+      }).townWeatherEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-weather-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-weather-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_WEATHER: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-weather-v1');
+  });
+
+  test('town conditions are off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: town conditions are disabled, so runs stay condition-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townConditionsEnabled).toBe(
+      false,
+    );
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-conditions', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townConditionsEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_CONDITIONS: '1' },
+      }).townConditionsEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-conditions-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-conditions-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_CONDITIONS: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-conditions-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

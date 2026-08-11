@@ -62,6 +62,7 @@ import {
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
   type StochasticIllnessPolicy,
+  type TownConditionsPolicy,
 } from '@aivilization/society';
 import {
   assertAdvanceSimulationTimePayload,
@@ -95,6 +96,12 @@ import {
 import type { WorldAgentState, WorldProjection } from './projection';
 import { resolveAgentRegion, resolveMarketPool } from './regionalMarkets';
 import { resolveSpatialRoute, TOWN_SPATIAL_GRAPH_POLICY_VERSION } from './spatial';
+import {
+  assertTownWeatherPolicy,
+  isTownWeatherTransitionDue,
+  sampleTownWeatherTransition,
+  type TownWeatherPolicy,
+} from './weather';
 
 export type WorldCommandPolicies = {
   readonly randomSeed?: string;
@@ -142,6 +149,21 @@ export type WorldCommandPolicies = {
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  /**
+   * Optional town-weather policy (borrowed-mechanics adoption plan #1). When
+   * present, AdvanceSimulationTime evaluates the Markov transition matrix once
+   * per cadence and emits WeatherChanged events. Omitted keeps the world free
+   * of any weather state or events, byte-for-byte identical to legacy runs.
+   */
+  readonly weather?: TownWeatherPolicy;
+  /**
+   * Optional town-condition catalog (borrowed-mechanics adoption plan #2).
+   * Read-path only: command handlers never consume it. When present, planning
+   * context builders derive per-agent conditions from durable physiology axes,
+   * the projection weather, and location exposure. Omitted keeps every read
+   * path condition-free, byte-for-byte identical to legacy runs.
+   */
+  readonly conditions?: TownConditionsPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   /** Optional legacy balance-floor transfer; canonical AIvilization uses physiologicalSafetyNet. */
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
@@ -192,6 +214,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.stochasticIllness === undefined
           ? {}
           : { stochasticIllness: input.policies.stochasticIllness }),
+        ...(input.policies.weather === undefined
+          ? {}
+          : { weather: input.policies.weather }),
         ...(input.policies.residentialUpkeep === undefined
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),
@@ -494,6 +519,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly randomSeed?: string;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  readonly weather?: TownWeatherPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
@@ -511,10 +537,17 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }),
   ];
   appendCompletedTravelArrivals({ input, events, nextSimulationTime: next.now });
+  appendWeatherTransitionEvent({
+    input,
+    events,
+    payload,
+    nextSimulationTime: next.now,
+  });
 
   if (
     input.sleepDeprivation === undefined &&
     input.stochasticIllness === undefined &&
+    input.weather === undefined &&
     input.residentialUpkeep === undefined &&
     input.safetyNetSubsidy === undefined &&
     input.physiologicalSafetyNet === undefined &&
@@ -2744,6 +2777,59 @@ function makeAgentActivityTimeCommittedEvent(
     startedAt: input.projection.clock.now,
     availableAt,
   });
+}
+
+function appendWeatherTransitionEvent(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly payload: { readonly deltaMs: number };
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.weather;
+  if (policy === undefined) {
+    return;
+  }
+  assertTownWeatherPolicy(policy);
+  if (
+    !isTownWeatherTransitionDue({
+      transitionCadenceMs: policy.transitionCadenceMs,
+      previousSimulationTime: input.input.projection.clock.now,
+      nextSimulationTime: input.nextSimulationTime,
+    })
+  ) {
+    return;
+  }
+  const current = input.input.projection.weather?.current ?? policy.initialWeather;
+  const next = sampleTownWeatherTransition({
+    policy,
+    current,
+    rng: createSeededRandom(createWeatherTransitionSeed(input)),
+  });
+  if (next === current) {
+    return;
+  }
+  input.events.push(
+    makeEvent(input.input, input.events.length, 'WeatherChanged', {
+      policyVersion: policy.policyVersion,
+      from: current,
+      to: next,
+      transitionedAt: input.nextSimulationTime,
+    }),
+  );
+}
+
+function createWeatherTransitionSeed(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly payload: { readonly deltaMs: number };
+}): string {
+  return [
+    'town-weather',
+    ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
+    input.input.command.simulationId,
+    input.input.command.id,
+    input.input.projection.clock.now,
+    input.payload.deltaMs,
+  ].join(':');
 }
 
 function appendCompletedTravelArrivals(input: {

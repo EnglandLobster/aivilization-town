@@ -80,6 +80,8 @@ export type LocalRuntimeTownCliConfig = {
   readonly simulationWideAuthorityWorkerId: string;
   readonly simulationWideAuthorityLeaseDurationMs: number;
   readonly regionalMarketsEnabled: boolean;
+  readonly townWeatherEnabled: boolean;
+  readonly townConditionsEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -180,6 +182,22 @@ export function resolveLocalRuntimeTownCliConfig(
     options.regionalMarkets ?? env.AIVILIZATION_REGIONAL_MARKETS,
     false,
   );
+  // Town weather is an opt-in borrowed mechanic (adoption plan #1): the
+  // simulation-wide authority settles a Markov weather chain during time
+  // advancement. Disabled by default so runs stay byte-for-byte identical to
+  // the weather-free behavior; enable explicitly for a weather-aware town.
+  const townWeatherEnabled = parseBooleanFlagWithDefault(
+    options.townWeather ?? env.AIVILIZATION_TOWN_WEATHER,
+    false,
+  );
+  // Town conditions are an opt-in borrowed mechanic (adoption plan #2): a
+  // derived condition catalog over physiology axes, weather, and location
+  // exposure, visible in planning contexts and the society projection.
+  // Disabled by default so runs stay byte-for-byte condition-free.
+  const townConditionsEnabled = parseBooleanFlagWithDefault(
+    options.townConditions ?? env.AIVILIZATION_TOWN_CONDITIONS,
+    false,
+  );
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -198,6 +216,8 @@ export function resolveLocalRuntimeTownCliConfig(
     simulationWideAuthorityWorkerId,
     simulationWideAuthorityLeaseDurationMs,
     regionalMarketsEnabled,
+    townWeatherEnabled,
+    townConditionsEnabled,
   };
 }
 
@@ -233,7 +253,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
     bootstrappedAt,
     manifest: runtimeManifest,
     scenarioPresets: profile.scenarioPresets.filter((preset) => ownedPresetIds.has(preset.id)),
-    policies: createAivilizationWorldCommandPolicies(config.seed),
+    policies: createAivilizationWorldCommandPolicies(config.seed, undefined, {
+      townConditions: config.townConditionsEnabled,
+    }),
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
     agents: [],
@@ -264,6 +286,8 @@ export function createCanonicalLocalRuntimeTownServerInput(
             ...(config.regionalMarketsEnabled
               ? { regionalMarkets: true as const }
               : {}),
+            ...(config.townWeatherEnabled ? { townWeather: true as const } : {}),
+            ...(config.townConditionsEnabled ? { townConditions: true as const } : {}),
           },
         }
       : {}),
@@ -378,6 +402,8 @@ export function createLocalRuntimeTownCliHelp(): string {
     '  --llm-mode <mode>    provider | deterministic (default: provider)',
     '  --simulation-wide-authority <on|off>  Unified society + market authority (default: on)',
     '  --regional-markets <on|off>  Per-region AMM pools with divergent prices (default: off)',
+    '  --town-weather <on|off>  Authoritative town weather Markov chain (default: off)',
+    '  --town-conditions <on|off>  Derived agent condition catalog (default: off)',
     '  --help               Show this help',
     '',
     'The simulation-wide authority (one unified AMM and social graph) is the default',
@@ -386,6 +412,12 @@ export function createLocalRuntimeTownCliHelp(): string {
     'Regional markets are a repository-specific extension (not a paper mechanism): pass',
     '--regional-markets on or AIVILIZATION_REGIONAL_MARKETS=1 to keep per-region AMM pools',
     'with divergent prices under one settlement authority. Disabled by default.',
+    'Town weather is a repository-specific extension (not a paper mechanism): pass',
+    '--town-weather on or AIVILIZATION_TOWN_WEATHER=1 to let the simulation-wide authority',
+    'settle the town-weather-v1 Markov chain during time advancement. Disabled by default.',
+    'Town conditions are a repository-specific extension (not a paper mechanism): pass',
+    '--town-conditions on or AIVILIZATION_TOWN_CONDITIONS=1 to derive the town-conditions-v1',
+    'catalog into planning contexts and the society projection. Disabled by default.',
     'Provider mode requires AIVILIZATION_LLM_ENDPOINT and AIVILIZATION_LLM_MODEL.',
     'Provider mode also requires AIVILIZATION_LLM_INPUT_TOKEN_COST_MICROS and',
     'AIVILIZATION_LLM_OUTPUT_TOKEN_COST_MICROS so cost accounting cannot silently report zero.',
@@ -420,6 +452,8 @@ type ParsedOptions = {
   readonly simulationWideAuthorityWorkerId?: string;
   readonly simulationWideAuthorityLeaseDurationMs?: string;
   readonly regionalMarkets?: string;
+  readonly townWeather?: string;
+  readonly townConditions?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {
@@ -437,6 +471,8 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
     '--simulation-wide-authority-worker-id': 'simulationWideAuthorityWorkerId',
     '--simulation-wide-authority-lease-ms': 'simulationWideAuthorityLeaseDurationMs',
     '--regional-markets': 'regionalMarkets',
+    '--town-weather': 'townWeather',
+    '--town-conditions': 'townConditions',
   };
 
   for (let index = 0; index < argv.length; index += 1) {

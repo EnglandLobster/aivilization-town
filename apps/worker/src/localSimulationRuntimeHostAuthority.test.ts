@@ -678,6 +678,149 @@ describe('regional markets in the simulation-wide authority', () => {
     expect(afterBoth.marketPools['harbor::Fish']?.commodityReserve).toBe(199);
   });
 
+  test('town weather on: authority settles WeatherChanged and the society projection exposes it', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townWeather: true,
+      },
+    });
+    const authority = host.authority!;
+
+    // No weather exists until the town-weather-v1 cadence (3_600_000 ms of
+    // simulation time) has been evaluated at least once with a state change.
+    expect(authority.getSnapshot().projection.weather).toBeUndefined();
+    for (
+      let tick = 0;
+      tick < 20 && authority.getSnapshot().projection.weather === undefined;
+      tick += 1
+    ) {
+      authority.advanceTime({
+        operationId: `advance-weather-${tick}`,
+        workerId: 'authority-worker',
+        observedAt: 200 + tick,
+        durationMs: 30_000,
+        deltaMs: 3_600_000,
+      });
+    }
+    const weather = authority.getSnapshot().projection.weather;
+    expect(weather).toBeDefined();
+    expect(weather?.since).toBeGreaterThan(0);
+
+    // The society projection reads weather from the authority snapshot.
+    const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(projection.weather).toEqual(weather);
+  });
+
+  test('town weather off (default): advancing time produces no weather state or events', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const authority = host.authority!;
+    authority.advanceTime({
+      operationId: 'advance-no-weather',
+      workerId: 'authority-worker',
+      observedAt: 200,
+      durationMs: 30_000,
+      deltaMs: 3_600_000,
+    });
+
+    expect(authority.getSnapshot().projection.weather).toBeUndefined();
+    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).weather).toBeUndefined();
+  });
+
+  test('town conditions on: society projection derives per-agent conditions from the authority snapshot', async () => {
+    const exhaustedPreset = createScenarioPreset({
+      id: 'scenario-main',
+      agentId: agentOne,
+      educationScore: 10,
+    });
+    const exhaustedMain = {
+      ...exhaustedPreset,
+      agentSeeds: exhaustedPreset.agentSeeds.map((seed) => ({
+        ...seed,
+        physiology: { energy: 5, satiety: 80, health: 100 },
+      })),
+    };
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: [
+        exhaustedMain,
+        createScenarioPreset({ id: 'scenario-east', agentId: agentTwo, educationScore: 20 }),
+      ],
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townConditions: true,
+      },
+    });
+
+    const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    // agentOne is exhausted (energy 5 < severeBelow 10): severe overtired.
+    // agentTwo (energy 50) has no active condition and is not listed.
+    expect(projection.agentConditions).toEqual([
+      {
+        agentId: 'agent-1',
+        conditions: [{ kind: 'overtired', severity: 'severe', need: 'sleep' }],
+      },
+    ]);
+  });
+
+  test('town conditions off (default): society projection omits agent conditions', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+
+    expect(
+      host.societyProjection.getProjection({ simulationId: 'sim-1' }).agentConditions,
+    ).toBeUndefined();
+  });
+
   function createRegionalManifest(): LocalSimulationRuntimeManifest {
     // Each partition seeds BOTH a downtown pool (100/1000) and a harbor pool
     // (100/400). moneySupply 1000 each. Across 2 partitions this gives downtown

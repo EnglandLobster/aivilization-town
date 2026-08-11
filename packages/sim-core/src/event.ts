@@ -43,6 +43,7 @@ export type CoreEventType =
   | 'ActionRejected'
   | 'ActionRepaired'
   | 'SimulationTimeAdvanced'
+  | 'WeatherChanged'
   | 'AgentOwnershipDeparted'
   | 'AgentOwnershipArrived';
 

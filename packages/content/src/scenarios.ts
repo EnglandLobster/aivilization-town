@@ -53,6 +53,56 @@ export type ScenarioStochasticIllnessPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownWeatherKind =
+  | 'sunny'
+  | 'cloudy'
+  | 'windy'
+  | 'rainy'
+  | 'stormy'
+  | 'snowy'
+  | 'foggy';
+
+export type ScenarioTownWeatherTransitionMatrix = Readonly<
+  Record<ScenarioTownWeatherKind, Readonly<Record<ScenarioTownWeatherKind, number>>>
+>;
+
+export type ScenarioTownWeatherPolicyConfig = {
+  readonly policyVersion: string;
+  readonly initialWeather: ScenarioTownWeatherKind;
+  readonly transitionCadenceMs: number;
+  readonly transitions: ScenarioTownWeatherTransitionMatrix;
+  readonly source: string;
+};
+
+export type ScenarioTownConditionSeverity = 'mild' | 'moderate' | 'severe';
+
+export type ScenarioTownConditionNeed = 'eat' | 'sleep' | 'shelter' | 'warm-up' | 'see-doctor';
+
+export type ScenarioTownPhysiologyConditionConfig = {
+  readonly triggerBelow: number;
+  readonly severeBelow: number;
+  readonly need: ScenarioTownConditionNeed;
+};
+
+export type ScenarioTownWeatherConditionConfig = {
+  readonly outdoorSeverityByWeather: Readonly<
+    Record<string, ScenarioTownConditionSeverity>
+  >;
+  readonly shelteredSeverity?: ScenarioTownConditionSeverity;
+  readonly shelteredMaxResidentialTier?: number;
+  readonly need: ScenarioTownConditionNeed;
+};
+
+export type ScenarioTownConditionsPolicyConfig = {
+  readonly policyVersion: string;
+  readonly soaked: ScenarioTownWeatherConditionConfig;
+  readonly cold: ScenarioTownWeatherConditionConfig;
+  readonly overtired: ScenarioTownPhysiologyConditionConfig;
+  readonly hungry: ScenarioTownPhysiologyConditionConfig;
+  readonly stressed: ScenarioTownPhysiologyConditionConfig;
+  readonly source: string;
+};
+
 export type ScenarioResidentialUpkeepCostConfig = {
   readonly residentialTier: number;
   readonly currencyCostPerHour: number;
@@ -283,6 +333,10 @@ const recruitmentCyclePolicySource =
   'AIvilization v0 Section 3.2.3 requires recruitment cycles and competitive scarcity; recruitment-cycle-v1 is a repository policy decision because the paper does not specify cadence, capacity, ranking tie-breaks, or matching strategy';
 const productionPolicySource =
   'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
+const townWeatherPolicySource =
+  'Borrowed mechanics adoption plan #1 authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
+const townConditionsPolicySource =
+  'Borrowed mechanics adoption plan #2 condition catalog; town-conditions-v1 conditions, thresholds, severities, and implied needs are repository policy decisions because the paper does not model conditions';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -393,6 +447,56 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     source: physiologicalSafetyNetPolicySource,
   },
 } as const satisfies ScenarioSurvivalTimePolicyDefaults;
+
+export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v1';
+
+/**
+ * Authoritative town weather (borrowed-mechanics adoption plan #1). The Markov
+ * transition matrix is evaluated once per `transitionCadenceMs` of simulation
+ * time; every row sums to 1 so rain can naturally persist or clear. The policy
+ * is opt-in (default off) and only settles while explicitly enabled.
+ */
+export const aivilizationTownWeatherPolicyDefaults = {
+  policyVersion: TOWN_WEATHER_POLICY_VERSION,
+  initialWeather: 'sunny',
+  transitionCadenceMs: 3_600_000,
+  transitions: {
+    sunny: { sunny: 0.55, cloudy: 0.25, windy: 0.1, rainy: 0, stormy: 0, snowy: 0, foggy: 0.1 },
+    cloudy: { sunny: 0.3, cloudy: 0.35, windy: 0.1, rainy: 0.15, stormy: 0, snowy: 0, foggy: 0.1 },
+    windy: { sunny: 0.15, cloudy: 0.25, windy: 0.3, rainy: 0.15, stormy: 0.1, snowy: 0.05, foggy: 0 },
+    rainy: { sunny: 0, cloudy: 0.25, windy: 0.1, rainy: 0.4, stormy: 0.15, snowy: 0.05, foggy: 0.05 },
+    stormy: { sunny: 0, cloudy: 0.2, windy: 0.2, rainy: 0.35, stormy: 0.25, snowy: 0, foggy: 0 },
+    snowy: { sunny: 0, cloudy: 0.3, windy: 0.1, rainy: 0.1, stormy: 0, snowy: 0.35, foggy: 0.15 },
+    foggy: { sunny: 0.25, cloudy: 0.3, windy: 0, rainy: 0.1, stormy: 0, snowy: 0.05, foggy: 0.3 },
+  },
+  source: townWeatherPolicySource,
+} as const satisfies ScenarioTownWeatherPolicyConfig;
+
+export const TOWN_CONDITIONS_POLICY_VERSION = 'town-conditions-v1';
+
+/**
+ * Condition catalog (borrowed-mechanics adoption plan #2). Conditions are
+ * derived read-path state over durable physiology axes, the town weather, and
+ * location exposure — never stored. Pure threshold triggers keep derivation
+ * deterministic without events or RNG. Opt-in via the town-conditions switch.
+ */
+export const aivilizationTownConditionsPolicyDefaults = {
+  policyVersion: TOWN_CONDITIONS_POLICY_VERSION,
+  soaked: {
+    outdoorSeverityByWeather: { rainy: 'moderate', stormy: 'severe' },
+    need: 'shelter',
+  },
+  cold: {
+    outdoorSeverityByWeather: { snowy: 'severe', foggy: 'moderate' },
+    shelteredSeverity: 'mild',
+    shelteredMaxResidentialTier: 1,
+    need: 'warm-up',
+  },
+  overtired: { triggerBelow: 30, severeBelow: 10, need: 'sleep' },
+  hungry: { triggerBelow: 30, severeBelow: 10, need: 'eat' },
+  stressed: { triggerBelow: 40, severeBelow: 20, need: 'see-doctor' },
+  source: townConditionsPolicySource,
+} as const satisfies ScenarioTownConditionsPolicyConfig;
 
 export const aivilizationHealthcarePolicyDefaults = {
   seeDoctorTreatmentCost: {

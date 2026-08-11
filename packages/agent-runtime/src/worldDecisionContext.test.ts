@@ -30,4 +30,38 @@ describe('world decision context trace', () => {
       hasInventory: true,
     });
   });
+
+  test('surfaces town weather only when the context carries it', () => {
+    const base: WorldDecisionContext = {
+      agent: {
+        agentId: asAgentId('agent-1'),
+        locationId: 'market',
+        physiology: { energy: 72, satiety: 41, health: 93 },
+        educationScore: 31,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      market: { spotPrices: [] },
+    };
+
+    expect(createWorldDecisionContextTrace(base).hasWeather).toBeUndefined();
+    expect(createWorldDecisionContextTrace(base).conditionCount).toBeUndefined();
+    expect(
+      createWorldDecisionContextTrace({
+        ...base,
+        weather: { current: 'rainy', since: 3_600_000 },
+      }),
+    ).toMatchObject({ hasWeather: true, weatherCurrent: 'rainy' });
+    expect(
+      createWorldDecisionContextTrace({
+        ...base,
+        conditions: [
+          { kind: 'soaked', severity: 'moderate', need: 'shelter' },
+          { kind: 'overtired', severity: 'severe', need: 'sleep' },
+        ],
+      }),
+    ).toMatchObject({ conditionCount: 2, conditionKinds: ['soaked', 'overtired'] });
+  });
 });

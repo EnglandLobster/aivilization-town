@@ -513,4 +513,105 @@ describe('worker world decision context', () => {
 
     expect(context.market.spotPrices).toEqual([{ commodity: 'Fish', spotPrice: 10 }]);
   });
+
+  test('exposes the projection weather to agent planning context only when present', () => {
+    const createAgentProjection = (weather?: { current: 'rainy'; since: number }) =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId,
+            locationId: null,
+            physiology: { energy: 45, satiety: 30, health: 90 },
+            educationScore: 31,
+            balance: 100,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+        ...(weather === undefined ? {} : { weather }),
+      });
+
+    expect(
+      createWorldDecisionContextFromProjection({
+        projection: createAgentProjection(),
+        agentId,
+      }).weather,
+    ).toBeUndefined();
+    expect(
+      createWorldDecisionContextFromProjection({
+        projection: createAgentProjection({ current: 'rainy', since: 3_600_000 }),
+        agentId,
+      }).weather,
+    ).toEqual({ current: 'rainy', since: 3_600_000 });
+  });
+
+  test('derives town conditions into planning context only when the catalog policy is present', () => {
+    const conditionPolicy: NonNullable<WorldCommandPolicies['conditions']> = {
+      policyVersion: 'town-conditions-v1',
+      soaked: {
+        outdoorSeverityByWeather: { rainy: 'moderate', stormy: 'severe' },
+        need: 'shelter',
+      },
+      cold: {
+        outdoorSeverityByWeather: { snowy: 'severe', foggy: 'moderate' },
+        shelteredSeverity: 'mild',
+        shelteredMaxResidentialTier: 1,
+        need: 'warm-up',
+      },
+      overtired: { triggerBelow: 30, severeBelow: 10, need: 'sleep' },
+      hungry: { triggerBelow: 30, severeBelow: 10, need: 'eat' },
+      stressed: { triggerBelow: 40, severeBelow: 20, need: 'see-doctor' },
+    };
+    const basePolicies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 0,
+      laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+      criticalThresholds: { energy: 0, health: 0 },
+    };
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: asLocationId('main-square'),
+          name: 'Main Square',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: null,
+        },
+      ],
+      agents: [
+        {
+          agentId,
+          locationId: asLocationId('main-square'),
+          physiology: { energy: 5, satiety: 80, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      weather: { current: 'rainy', since: 3_600_000 },
+    });
+
+    // Flag off (no conditions policy): the context stays condition-free.
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId, policies: basePolicies })
+        .conditions,
+    ).toBeUndefined();
+
+    // Flag on: rainy weather at the open-air square soaks the agent, and the
+    // exhausted energy axis grades overtired as severe.
+    expect(
+      createWorldDecisionContextFromProjection({
+        projection,
+        agentId,
+        policies: { ...basePolicies, conditions: conditionPolicy },
+      }).conditions,
+    ).toEqual([
+      { kind: 'soaked', severity: 'moderate', need: 'shelter' },
+      { kind: 'overtired', severity: 'severe', need: 'sleep' },
+    ]);
+  });
 });

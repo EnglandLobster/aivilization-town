@@ -18,6 +18,7 @@ import {
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
   calculateEffectiveKnowledgeThreshold,
+  deriveAgentConditions,
 } from '@aivilization/society';
 import type {
   WorldAgentState,
@@ -143,8 +144,46 @@ export function createWorldDecisionContextFromProjection(input: {
     ...(input.societyDirectory === undefined
       ? {}
       : { society: createSocietyDecisionContext(input.societyDirectory) }),
+    ...(input.projection.weather === undefined
+      ? {}
+      : { weather: { ...input.projection.weather } }),
+    ...createConditionDecisionContext(input),
     ...(rules === undefined ? {} : { rules }),
   };
+}
+
+/**
+ * Derive the agent's town conditions when the town-conditions catalog is part
+ * of the resolved policies. Exposure is read from the agent's location: the
+ * open-air public spaces (kind `social`) count as outdoors; every building and
+ * the unplaced state count as sheltered. Returns an empty object when the
+ * policy is absent so flag-off runs stay condition-free.
+ */
+function createConditionDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'conditions'> | Record<string, never> {
+  const policy = input.policies?.conditions;
+  if (policy === undefined) {
+    return {};
+  }
+  const agent = input.projection.agents[input.agentId];
+  if (agent === undefined) {
+    return {};
+  }
+  const location =
+    agent.locationId === null ? undefined : input.projection.locations[agent.locationId];
+  const conditions = deriveAgentConditions({
+    physiology: agent.physiology,
+    residentialTier: agent.residentialTier,
+    outdoors: location?.kind === 'social',
+    ...(input.projection.weather === undefined
+      ? {}
+      : { weather: input.projection.weather.current }),
+    policy,
+  });
+  return { conditions: conditions.map((condition) => ({ ...condition })) };
 }
 
 function createSocietyDecisionContext(directory: LocalSimulationSocietyDirectory) {

@@ -135,10 +135,36 @@ export type WorldDecisionSocietyContext = {
   readonly agents: readonly WorldDecisionSocietyAgentContext[];
 };
 
+/**
+ * Optional simulation-wide weather visible to agent planning (borrowed-mechanics
+ * adoption plan #1). Present only when the town-weather policy is enabled; the
+ * context exposes it for situational awareness only — it does not change any
+ * activity policy. `since` is the simulation time the current weather started.
+ */
+export type WorldDecisionWeatherContext = {
+  readonly current: string;
+  readonly since: number;
+};
+
+/**
+ * A derived town condition visible to agent planning (borrowed-mechanics
+ * adoption plan #2). Present only when the town-conditions policy is enabled;
+ * conditions are derived from durable physiology axes, weather, and location
+ * exposure — the context exposes them for situational awareness only and does
+ * not change any activity policy.
+ */
+export type WorldDecisionConditionContext = {
+  readonly kind: string;
+  readonly severity: string;
+  readonly need: string;
+};
+
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
   readonly society?: WorldDecisionSocietyContext;
+  readonly weather?: WorldDecisionWeatherContext;
+  readonly conditions?: readonly WorldDecisionConditionContext[];
   readonly rules?: WorldDecisionRulesContext;
 };
 
@@ -161,6 +187,10 @@ export type WorldDecisionContextTrace = {
   readonly societyPartitionCount?: number;
   readonly societyAgentCount?: number;
   readonly remoteSocietyAgentCount?: number;
+  readonly hasWeather?: boolean;
+  readonly weatherCurrent?: string;
+  readonly conditionCount?: number;
+  readonly conditionKinds?: readonly string[];
   readonly occupationRuleCount: number;
   readonly eligibleOccupationRuleCount: number;
   readonly productionRuleCount: number;
@@ -215,6 +245,15 @@ export function createWorldDecisionContextTrace(
           remoteSocietyAgentCount: context.society.agents.filter(
             (agent) => agent.ownerPartitionKey !== localOwnerPartitionKey,
           ).length,
+        }),
+    ...(context.weather === undefined
+      ? {}
+      : { hasWeather: true, weatherCurrent: context.weather.current }),
+    ...(context.conditions === undefined
+      ? {}
+      : {
+          conditionCount: context.conditions.length,
+          conditionKinds: context.conditions.map((condition) => condition.kind),
         }),
     occupationRuleCount: context.rules?.occupations.length ?? 0,
     eligibleOccupationRuleCount:

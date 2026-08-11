@@ -14,6 +14,7 @@ import {
 import type { WorldEvent } from './events';
 import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './events';
 import { resolveMarketPoolKey } from './regionalMarkets';
+import type { WorldWeatherState } from './weather';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -193,6 +194,13 @@ export type WorldProjection = {
   readonly socialCommitments: Readonly<Record<string, WorldSocialCommitmentState>>;
   readonly activityTimeByAgent: Readonly<Record<string, WorldAgentActivityTimeState>>;
   readonly transitByAgent?: Readonly<Record<string, WorldAgentTransitState>>;
+  /**
+   * Optional simulation-wide weather slice, present only when the town-weather
+   * policy has produced at least one WeatherChanged event (or the projection
+   * was created with an explicit initial weather). Omitted keeps legacy
+   * snapshots byte-for-byte compatible.
+   */
+  readonly weather?: WorldWeatherState;
   readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
@@ -244,6 +252,7 @@ export function createWorldProjection(input: {
   readonly conversationRecords?: readonly WorldConversationRecordState[];
   readonly socialCommitments?: readonly WorldSocialCommitmentState[];
   readonly socialRelations?: readonly SocialRelationState[];
+  readonly weather?: WorldWeatherState;
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
   for (const location of input.locations ?? []) {
@@ -319,6 +328,7 @@ export function createWorldProjection(input: {
     ),
     activityTimeByAgent: {},
     transitByAgent: {},
+    ...(input.weather === undefined ? {} : { weather: { ...input.weather } }),
     socialRelations,
     memoryRecords: [],
     rejectedActions: [],
@@ -769,6 +779,14 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
       return {
         ...projection,
         rejectedActions: [...projection.rejectedActions, event.payload],
+      };
+    case 'WeatherChanged':
+      return {
+        ...projection,
+        weather: {
+          current: event.payload.to,
+          since: event.payload.transitionedAt,
+        },
       };
     case 'AgentOwnershipDeparted': {
       const agent = projection.agents[event.payload.agentId];

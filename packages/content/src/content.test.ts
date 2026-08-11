@@ -9,6 +9,8 @@ import {
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
+  aivilizationTownConditionsPolicyDefaults,
+  aivilizationTownWeatherPolicyDefaults,
   aivilizationWagePolicyDefaults,
   commodities,
   createAivilizationAblationAgentSeeds,
@@ -129,6 +131,55 @@ describe('AIvilization source content', () => {
       source:
         'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning',
     });
+  });
+
+  test('captures the versioned town weather policy with a row-stochastic matrix', () => {
+    expect(aivilizationTownWeatherPolicyDefaults.policyVersion).toBe('town-weather-v1');
+    expect(aivilizationTownWeatherPolicyDefaults.initialWeather).toBe('sunny');
+    expect(aivilizationTownWeatherPolicyDefaults.transitionCadenceMs).toBeGreaterThanOrEqual(
+      45 * 60_000,
+    );
+    expect(aivilizationTownWeatherPolicyDefaults.transitionCadenceMs).toBeLessThanOrEqual(
+      90 * 60_000,
+    );
+    const kinds = ['sunny', 'cloudy', 'windy', 'rainy', 'stormy', 'snowy', 'foggy'] as const;
+    for (const from of kinds) {
+      const row = aivilizationTownWeatherPolicyDefaults.transitions[from];
+      expect(Object.keys(row).sort()).toEqual([...kinds].sort());
+      const rowSum = kinds.reduce((sum, to) => sum + row[to], 0);
+      expect(Math.abs(rowSum - 1)).toBeLessThanOrEqual(1e-9);
+    }
+    // Rain can naturally persist or clear.
+    expect(aivilizationTownWeatherPolicyDefaults.transitions.rainy.rainy).toBeGreaterThan(0);
+    expect(aivilizationTownWeatherPolicyDefaults.transitions.rainy.cloudy).toBeGreaterThan(0);
+    expect(aivilizationTownWeatherPolicyDefaults.source).toContain('town-weather-v1');
+  });
+
+  test('captures the versioned town condition catalog with thresholds, severities, and needs', () => {
+    expect(aivilizationTownConditionsPolicyDefaults.policyVersion).toBe('town-conditions-v1');
+    expect(aivilizationTownConditionsPolicyDefaults.soaked).toEqual({
+      outdoorSeverityByWeather: { rainy: 'moderate', stormy: 'severe' },
+      need: 'shelter',
+    });
+    expect(aivilizationTownConditionsPolicyDefaults.cold).toEqual({
+      outdoorSeverityByWeather: { snowy: 'severe', foggy: 'moderate' },
+      shelteredSeverity: 'mild',
+      shelteredMaxResidentialTier: 1,
+      need: 'warm-up',
+    });
+    for (const config of [
+      aivilizationTownConditionsPolicyDefaults.overtired,
+      aivilizationTownConditionsPolicyDefaults.hungry,
+      aivilizationTownConditionsPolicyDefaults.stressed,
+    ]) {
+      expect(config.triggerBelow).toBeGreaterThan(0);
+      expect(config.severeBelow).toBeGreaterThan(0);
+      expect(config.severeBelow).toBeLessThanOrEqual(config.triggerBelow);
+    }
+    expect(aivilizationTownConditionsPolicyDefaults.overtired.need).toBe('sleep');
+    expect(aivilizationTownConditionsPolicyDefaults.hungry.need).toBe('eat');
+    expect(aivilizationTownConditionsPolicyDefaults.stressed.need).toBe('see-doctor');
+    expect(aivilizationTownConditionsPolicyDefaults.source).toContain('town-conditions-v1');
   });
 
   test('captures source-backed healthcare defaults for medical treatment costs', () => {

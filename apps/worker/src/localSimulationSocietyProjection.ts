@@ -1,11 +1,17 @@
 import { createHash } from 'node:crypto';
 import { asSimulationId, type PartitionKey, type SimulationId } from '@aivilization/sim-core';
 import type { AmmPool } from '@aivilization/economy';
-import type { SocialRelationState } from '@aivilization/society';
+import {
+  deriveAgentConditions,
+  type DerivedAgentCondition,
+  type SocialRelationState,
+  type TownConditionsPolicy,
+} from '@aivilization/society';
 import {
   DEFAULT_MARKET_REGION_ID,
   type WorldLocationState,
   type WorldProjection,
+  type WorldWeatherState,
 } from '@aivilization/world';
 import type { LocalSimulationSocietyDirectoryService } from './localSimulationSocietyDirectory';
 import type { LocalSimulationRuntimeHostPartition } from './localSimulationRuntimeHost';
@@ -43,6 +49,25 @@ export type LocalSimulationSocietyProjection = {
     readonly latestFencingToken: number;
     readonly simulationTime: number;
   };
+  /**
+   * Optional simulation-wide weather, present only when the town-weather
+   * policy is enabled and the world has a weather state. Read from the
+   * authority snapshot when the simulation-wide authority is active; otherwise
+   * merged from partition checkpoints (which must agree, like locations).
+   */
+  readonly weather?: WorldWeatherState;
+  /**
+   * Optional per-agent derived conditions (borrowed-mechanics adoption plan
+   * #2), present only when the town-conditions policy is enabled and the
+   * simulation-wide authority is the source. Conditions are derived from the
+   * authority snapshot's durable physiology axes, weather, and location
+   * exposure on every read — never stored. Only agents with at least one
+   * active condition are listed, sorted by agentId.
+   */
+  readonly agentConditions?: readonly {
+    readonly agentId: string;
+    readonly conditions: readonly DerivedAgentCondition[];
+  }[];
   /**
    * This is a simulation-wide current migration view, not an inferred route
    * history. It is sourced from the owner directory so consumers can tell an
@@ -135,6 +160,12 @@ export function createLocalSimulationSocietyProjectionService(input: {
   readonly societyDirectory: LocalSimulationSocietyDirectoryService;
   readonly authoritySource?: LocalSimulationSocietyAuthoritySource;
   readonly authorityMarketSource?: LocalSimulationSocietyAuthorityMarketSource;
+  /**
+   * Optional town-conditions catalog (opt-in switch). When provided together
+   * with an authority source, the projection derives per-agent conditions from
+   * the authority snapshot on every read.
+   */
+  readonly conditionPolicy?: TownConditionsPolicy;
 }): LocalSimulationSocietyProjectionService {
   return {
     getProjection({ simulationId }) {
@@ -196,6 +227,14 @@ export function createLocalSimulationSocietyProjectionService(input: {
           : input.authorityMarketSource === undefined
             ? describeMarket(materialized)
             : describeUnifiedAuthorityMarket(input.authorityMarketSource());
+      const weather =
+        authorityView !== undefined
+          ? authorityView.projection.weather
+          : mergeWeather(materialized.map((entry) => entry.projection));
+      const agentConditions =
+        input.conditionPolicy === undefined || authorityView === undefined
+          ? undefined
+          : deriveSocietyAgentConditions(authorityView.projection, input.conditionPolicy);
       const projectionWithoutId: Omit<LocalSimulationSocietyProjection, 'projectionId'> = {
         schemaVersion: LOCAL_SIMULATION_SOCIETY_PROJECTION_SCHEMA_VERSION,
         simulationId: directory.simulationId,
@@ -217,6 +256,8 @@ export function createLocalSimulationSocietyProjectionService(input: {
         socialRelations,
         migrations,
         market,
+        ...(weather === undefined ? {} : { weather: { ...weather } }),
+        ...(agentConditions === undefined ? {} : { agentConditions }),
         ...(authorityView === undefined
           ? {}
           : {
@@ -264,6 +305,40 @@ function mergeLocations(projections: readonly WorldProjection[]): Readonly<Recor
     }
   }
   return locations;
+}
+
+function deriveSocietyAgentConditions(
+  projection: WorldProjection,
+  policy: TownConditionsPolicy,
+): NonNullable<LocalSimulationSocietyProjection['agentConditions']> {
+  return Object.values(projection.agents)
+    .map((agent) => {
+      const location =
+        agent.locationId === null ? undefined : projection.locations[agent.locationId];
+      const conditions = deriveAgentConditions({
+        physiology: agent.physiology,
+        residentialTier: agent.residentialTier,
+        outdoors: location?.kind === 'social',
+        ...(projection.weather === undefined ? {} : { weather: projection.weather.current }),
+        policy,
+      });
+      return { agentId: agent.agentId, conditions };
+    })
+    .filter((entry) => entry.conditions.length > 0)
+    .sort((left, right) => left.agentId.localeCompare(right.agentId));
+}
+
+function mergeWeather(projections: readonly WorldProjection[]): WorldWeatherState | undefined {
+  let merged: WorldWeatherState | undefined;
+  for (const projection of projections) {
+    const weather = projection.weather;
+    if (weather === undefined) continue;
+    if (merged !== undefined && stableStringify(merged) !== stableStringify(weather)) {
+      throw new Error('society projection weather diverged across partitions');
+    }
+    merged = structuredClone(weather);
+  }
+  return merged;
 }
 
 function mergeSocialRelations(projections: readonly WorldProjection[]): readonly SocialRelationState[] {

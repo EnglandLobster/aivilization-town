@@ -6,6 +6,8 @@ import {
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
+  aivilizationTownConditionsPolicyDefaults,
+  aivilizationTownWeatherPolicyDefaults,
   aivilizationWagePolicyDefaults,
   commodities,
   jobTiers,
@@ -23,16 +25,20 @@ import {
   createSocialOutcomePolicyManifest,
   SOCIAL_OUTCOME_POLICY_VERSION,
   SOCIAL_RELATION_DECAY_POLICY_VERSION,
+  assertTownConditionsPolicy,
+  type TownConditionsPolicy,
 } from '@aivilization/society';
 import {
   createRuntimeAgentRegistrationPolicyManifest,
   createTownSpatialGraphPolicyManifest,
   createWorldProjectionMemoryRetentionPolicyManifest,
+  assertTownWeatherPolicy,
   EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
   RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
   TOWN_SPATIAL_GRAPH_POLICY_VERSION,
   WORLD_PROJECTION_MEMORY_RETENTION_POLICY_VERSION,
   type RuntimeAgentCreatorIdentityRule,
+  type TownWeatherPolicy,
   type WorldCommandPolicies,
 } from '@aivilization/world';
 import {
@@ -68,6 +74,14 @@ export type AivilizationAgentRegistrationPolicyInput = {
   readonly creatorIdentityRule?: RuntimeAgentCreatorIdentityRule;
 };
 
+/**
+ * Opt-in borrowed-mechanics switches. Both default to off so a run without
+ * them keeps policies, settlement, and manifests identical to legacy runs.
+ */
+export type AivilizationExperimentalPolicySwitches = {
+  readonly townConditions?: boolean;
+};
+
 const canonicalLaborCost = {
   energyCostPerHour: 10,
   satietyCostPerHour: 10,
@@ -91,12 +105,14 @@ const canonicalResidentialUpgradePolicy = {
 export function createAivilizationWorldCommandPolicies(
   randomSeed?: string,
   agentRegistration?: AivilizationAgentRegistrationPolicyInput,
+  experimental?: AivilizationExperimentalPolicySwitches,
 ): WorldCommandPolicyResolver {
   return (projection) => {
     const basePolicies = createAivilizationWorldCommandPoliciesSnapshot(
       Object.values(projection.agents).map((agent) => agent.educationScore),
       randomSeed,
       agentRegistration,
+      experimental,
     );
     return createProjectionBackedWorldCommandPolicies({
       basePolicies,
@@ -117,9 +133,13 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
   populationEducationScores: readonly number[],
   randomSeed?: string,
   agentRegistration?: AivilizationAgentRegistrationPolicyInput,
+  experimental?: AivilizationExperimentalPolicySwitches,
 ): WorldCommandPolicies {
   return {
     ...(randomSeed === undefined ? {} : { randomSeed }),
+    ...(experimental?.townConditions === true
+      ? { conditions: createAivilizationTownConditionsPolicy() }
+      : {}),
     ...(agentRegistration?.maxAgentsPerCreator === undefined
       ? {}
       : {
@@ -239,9 +259,69 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
   };
 }
 
+/**
+ * Build the validated town-weather world policy from the versioned content
+ * catalog (town-weather-v1). Only wired into settlement when the opt-in
+ * town-weather switch is enabled.
+ */
+export function createAivilizationTownWeatherPolicy(): TownWeatherPolicy {
+  const policy: TownWeatherPolicy = {
+    policyVersion: aivilizationTownWeatherPolicyDefaults.policyVersion,
+    initialWeather: aivilizationTownWeatherPolicyDefaults.initialWeather,
+    transitionCadenceMs: aivilizationTownWeatherPolicyDefaults.transitionCadenceMs,
+    transitions: aivilizationTownWeatherPolicyDefaults.transitions,
+  };
+  assertTownWeatherPolicy(policy);
+  return policy;
+}
+
+/**
+ * Build the validated town-conditions catalog from the versioned content
+ * defaults (town-conditions-v1). Read-path derivation only; wired into
+ * planning contexts and the society projection when the opt-in
+ * town-conditions switch is enabled.
+ */
+export function createAivilizationTownConditionsPolicy(): TownConditionsPolicy {
+  const policy: TownConditionsPolicy = {
+    policyVersion: aivilizationTownConditionsPolicyDefaults.policyVersion,
+    soaked: {
+      outdoorSeverityByWeather: {
+        ...aivilizationTownConditionsPolicyDefaults.soaked.outdoorSeverityByWeather,
+      },
+      need: aivilizationTownConditionsPolicyDefaults.soaked.need,
+    },
+    cold: {
+      outdoorSeverityByWeather: {
+        ...aivilizationTownConditionsPolicyDefaults.cold.outdoorSeverityByWeather,
+      },
+      shelteredSeverity: aivilizationTownConditionsPolicyDefaults.cold.shelteredSeverity,
+      shelteredMaxResidentialTier:
+        aivilizationTownConditionsPolicyDefaults.cold.shelteredMaxResidentialTier,
+      need: aivilizationTownConditionsPolicyDefaults.cold.need,
+    },
+    overtired: { ...aivilizationTownConditionsPolicyDefaults.overtired },
+    hungry: { ...aivilizationTownConditionsPolicyDefaults.hungry },
+    stressed: { ...aivilizationTownConditionsPolicyDefaults.stressed },
+  };
+  assertTownConditionsPolicy(policy);
+  return policy;
+}
+
 export function createAivilizationWorldPolicyManifest(
   input: {
     readonly agentRegistration?: AivilizationAgentRegistrationPolicyInput;
+    /**
+     * Opt-in town-weather switch (borrowed-mechanics adoption plan #1). When
+     * true the manifest declares the town-weather policy version and matrix;
+     * omitted/false keeps the manifest weather-free, matching legacy runs.
+     */
+    readonly townWeather?: boolean;
+    /**
+     * Opt-in town-conditions switch (borrowed-mechanics adoption plan #2).
+     * When true the manifest declares the town-conditions policy version and
+     * catalog; omitted/false keeps the manifest condition-free.
+     */
+    readonly townConditions?: boolean;
   } = {},
 ) {
   const manifest = {
@@ -268,6 +348,12 @@ export function createAivilizationWorldPolicyManifest(
         aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
       memoryConsolidation: CANONICAL_MEMORY_CONSOLIDATION_POLICY_ID,
       worldProjectionMemoryRetention: WORLD_PROJECTION_MEMORY_RETENTION_POLICY_VERSION,
+      ...(input.townWeather === true
+        ? { townWeather: aivilizationTownWeatherPolicyDefaults.policyVersion }
+        : {}),
+      ...(input.townConditions === true
+        ? { townConditions: aivilizationTownConditionsPolicyDefaults.policyVersion }
+        : {}),
     },
     formulas: {
       travelDuration: 'ceil(shortestPathBaseDuration*(1+min(1,destinationOccupancy/capacity)*0.5))',
@@ -369,6 +455,40 @@ export function createAivilizationWorldPolicyManifest(
           })),
       },
       occupations: occupations.map((occupation) => ({ ...occupation })),
+      ...(input.townWeather === true
+        ? {
+            townWeather: {
+              ...aivilizationTownWeatherPolicyDefaults,
+              transitions: Object.fromEntries(
+                Object.entries(aivilizationTownWeatherPolicyDefaults.transitions).map(
+                  ([from, row]) => [from, { ...row }],
+                ),
+              ),
+            },
+          }
+        : {}),
+      ...(input.townConditions === true
+        ? {
+            townConditions: {
+              ...aivilizationTownConditionsPolicyDefaults,
+              soaked: {
+                ...aivilizationTownConditionsPolicyDefaults.soaked,
+                outdoorSeverityByWeather: {
+                  ...aivilizationTownConditionsPolicyDefaults.soaked.outdoorSeverityByWeather,
+                },
+              },
+              cold: {
+                ...aivilizationTownConditionsPolicyDefaults.cold,
+                outdoorSeverityByWeather: {
+                  ...aivilizationTownConditionsPolicyDefaults.cold.outdoorSeverityByWeather,
+                },
+              },
+              overtired: { ...aivilizationTownConditionsPolicyDefaults.overtired },
+              hungry: { ...aivilizationTownConditionsPolicyDefaults.hungry },
+              stressed: { ...aivilizationTownConditionsPolicyDefaults.stressed },
+            },
+          }
+        : {}),
     },
   } as const;
   return {
@@ -552,6 +672,31 @@ function createCanonicalPolicyRegistry(manifest: {
       'paper-derived',
       'AIvilization Appendix occupation and tier catalogs.',
     ),
+    // The town-weather entry is appended only when the opt-in switch placed the
+    // policy in the manifest, so a weather-off run keeps a manifest identical
+    // to pre-weather builds.
+    ...('townWeather' in manifest.parameters
+      ? [
+          registryEntry(
+            'townWeather',
+            'town-weather-v1',
+            ['townWeather'],
+            'experimental',
+            'Borrowed-mechanics adoption plan #1: authoritative town weather is not a paper mechanism; states, matrix, and cadence are repository-defined.',
+          ),
+        ]
+      : []),
+    ...('townConditions' in manifest.parameters
+      ? [
+          registryEntry(
+            'townConditions',
+            'town-conditions-v1',
+            ['townConditions'],
+            'experimental',
+            'Borrowed-mechanics adoption plan #2: the condition catalog is not a paper mechanism; conditions, thresholds, and implied needs are repository-defined.',
+          ),
+        ]
+      : []),
   ] as const satisfies readonly CanonicalPolicyRegistryEntry[];
   const registeredParameterPaths = new Set(entries.map((entry) => entry.parameterPath));
   const registeredPolicyVersionKeys = new Set(entries.flatMap((entry) => entry.policyVersionKeys));

@@ -23,6 +23,7 @@ import {
   dispatchWorldCommand,
   type AgentStartConversationTurnPayload,
   type AgentTradePayload,
+  type TownWeatherPolicy,
   type WorldCommandPolicies,
   type WorldEvent,
   type WorldProjection,
@@ -385,6 +386,14 @@ export function createSimulationWideAuthority(input: {
    * settlement honors regional markets without touching every caller.
    */
   readonly regionalMarketsEnabled?: boolean;
+  /**
+   * Opt-in town-weather policy (borrowed-mechanics adoption plan #1). When
+   * present, the authority's AdvanceSimulationTime settlement evaluates the
+   * Markov transition matrix once per cadence and emits WeatherChanged events
+   * against the single simulation-wide projection. Omitted keeps settlement
+   * free of any weather state or events.
+   */
+  readonly townWeather?: TownWeatherPolicy;
 }): SimulationWideAuthorityService {
   const directory = authorityDirectory(input.rootDir, input.seed.simulationId);
   const statePath = join(directory, 'state.json');
@@ -430,6 +439,7 @@ export function createSimulationWideAuthority(input: {
     ...(input.regionalMarketsEnabled === true
       ? { regionalMarkets: { enabled: true } }
       : {}),
+    ...(input.townWeather === undefined ? {} : { weather: input.townWeather }),
   });
 
   const mutate = <TOperation extends SimulationWideAuthorityOperation>(inputMutation: {
@@ -876,10 +886,7 @@ export function createSimulationWideAuthority(input: {
         }),
         lease: request,
         create: (state, fencingToken) => {
-          const policies = resolveWorldCommandPolicies({
-            policies: input.policies,
-            projection: state.projection,
-          });
+          const policies = resolvePolicies(state.projection);
           const events = dispatchWorldCommand({
             command: createCommandEnvelope({
               id: `simulation-wide-advance-${request.operationId}`,

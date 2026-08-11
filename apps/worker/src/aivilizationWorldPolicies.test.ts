@@ -1,7 +1,15 @@
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
-import { applyWorldEvent, createWorldProjection, dispatchWorldCommand } from '@aivilization/world';
+import {
+  applyWorldEvent,
+  assertTownWeatherPolicy,
+  createWorldProjection,
+  dispatchWorldCommand,
+} from '@aivilization/world';
+import { assertTownConditionsPolicy } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
+  createAivilizationTownConditionsPolicy,
+  createAivilizationTownWeatherPolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -147,6 +155,77 @@ describe('AIvilization default world command policies', () => {
             'value-or-semantics-change-requires-new-policy-version-and-replay-boundary',
       ),
     ).toBe(true);
+  });
+
+  test('declares the town weather policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townWeather');
+    expect(off.parameters).not.toHaveProperty('townWeather');
+    expect(off.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(off.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const on = createAivilizationWorldPolicyManifest({ townWeather: true });
+    expect(on.policyVersions).toMatchObject({ townWeather: 'town-weather-v1' });
+    expect(on.parameters.townWeather).toMatchObject({
+      policyVersion: 'town-weather-v1',
+      initialWeather: 'sunny',
+      transitionCadenceMs: 3_600_000,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townWeather',
+          provenance: 'experimental',
+          policyVersion: 'town-weather-v1',
+        }),
+      ]),
+    );
+
+    const policy = createAivilizationTownWeatherPolicy();
+    expect(policy.policyVersion).toBe('town-weather-v1');
+    expect(() => assertTownWeatherPolicy(policy)).not.toThrow();
+  });
+
+  test('declares the town conditions catalog in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townConditions');
+    expect(off.parameters).not.toHaveProperty('townConditions');
+    expect(JSON.stringify(off)).not.toContain('town-conditions-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townConditions: true });
+    expect(on.policyVersions).toMatchObject({ townConditions: 'town-conditions-v1' });
+    expect(on.parameters.townConditions).toMatchObject({
+      policyVersion: 'town-conditions-v1',
+      overtired: { triggerBelow: 30, severeBelow: 10, need: 'sleep' },
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townConditions',
+          provenance: 'experimental',
+          policyVersion: 'town-conditions-v1',
+        }),
+      ]),
+    );
+
+    const policy = createAivilizationTownConditionsPolicy();
+    expect(policy.policyVersion).toBe('town-conditions-v1');
+    expect(() => assertTownConditionsPolicy(policy)).not.toThrow();
+
+    // The opt-in catalog reaches command policies only when the switch is on.
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).conditions).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townConditions: true })(
+        projection,
+      ).conditions?.policyVersion,
+    ).toBe('town-conditions-v1');
   });
 
   test('propagates an experiment seed into the resolved world policies', () => {

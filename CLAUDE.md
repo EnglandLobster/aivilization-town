@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-AIvilization Town is a ground-up, executable reconstruction of the mechanisms in the _AIvilization v0_
-paper (large-scale artificial social simulation with a unified agent architecture). It is a simulation
-**backend**, not a game or a skeleton. Two sibling directories are references only, not dependencies:
-`../a16z-ai-town` (visual/real-time reference) and `../generative_agents` (paper-era agent reference).
+AIvilization Town is an open, living AI world: a town of autonomous LLM-driven agents who plan, work,
+trade, and form a society — growing release by release toward a Cities: Skylines-class simulation.
+It is a simulation **backend**, not a game or a skeleton. The _AIvilization v0_ paper was the 0→1
+bootstrap scaffold; the project now develops independently beyond it (1→100), with
+`docs/CITY_MECHANISM_GAP_ANALYSIS.md` as the live roadmap. Two sibling directories are references
+only, not dependencies: `../a16z-ai-town` (visual/real-time reference) and `../generative_agents`
+(paper-era agent reference).
 
 The most important cultural rule here is the **claim boundary**: an implemented mechanism, an executable
 pipeline, an empirical reproduction, and a scale claim are four distinct evidence classes. Code and docs
 must never promote a lower class to a higher one — deterministic smoke runs and synthetic fixtures do
-**not** count as reproducing the paper's numbers. `docs/PAPER_ALIGNMENT_MATRIX.md` is the authoritative
-status ledger; `docs/SCIENTIFIC_LIMITATIONS.md` defines the boundaries. Preserve this discipline in any
-new code, comments, or documentation.
+**not** count as mature-run evidence. `docs/PAPER_ALIGNMENT_MATRIX.md` (the 0→1 milestone record) defines
+the evidence classes; `docs/SCIENTIFIC_LIMITATIONS.md` defines the boundaries. Preserve this discipline
+in any new code, comments, or documentation.
 
 ## Commands
 

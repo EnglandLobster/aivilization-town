@@ -1,16 +1,21 @@
 # AIvilization Town
 
-AIvilization Town is an independent, ground-up reconstruction of the mechanisms described in
+AIvilization Town is an open, living AI world: a town of autonomous LLM-driven agents who plan,
+work, trade, form relationships, and build a society — engineered to grow, release by release,
+toward a Cities: Skylines-class simulation whose citizens are genuinely intelligent.
+
+The project was bootstrapped as a ground-up reconstruction of the mechanisms described in
 _AIvilization v0: Toward Large-Scale Artificial Social Simulation with a Unified Agent Architecture
-and Adaptive Agent Profiles_. It is an executable simulation backend, not an architecture skeleton.
+and Adaptive Agent Profiles_. That paper was the 0→1 scaffold; the project now develops
+independently beyond it (1→100). The paper-era milestone record is preserved in
+[`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md) — its evidence-class discipline
+still governs all claims — and the public roadmap lives in
+[`docs/CITY_MECHANISM_GAP_ANALYSIS.md`](docs/CITY_MECHANISM_GAP_ANALYSIS.md).
 
 The canonical runtime currently integrates hierarchical agent planning, simulation-guided action
 selection and repair, dual-process memory, adaptive profiles, human steering, physiological survival,
 education and occupation gates, production chains, AMM trading, market observation, durable replay,
-and experiment provenance. The current implementation boundary and unfinished paper-alignment work
-are summarized in [`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md), and the
-public roadmap toward a living, Cities: Skylines-class AI town lives in
-[`docs/CITY_MECHANISM_GAP_ANALYSIS.md`](docs/CITY_MECHANISM_GAP_ANALYSIS.md).
+and experiment provenance.
 
 This repository is intentionally independent from the two older reference projects in the parent
 directory:
@@ -22,12 +27,12 @@ directory:
 
 - The backend has one versioned canonical composition with durable state, content-addressed run
   manifests, HTTP/SSE APIs, scheduler, queue worker, recovery host, and graceful shutdown.
-- Paper mechanisms are broadly implemented, but several mature-run empirical results are still
-  missing. Synthetic fixtures and short smoke runs are not treated as reproduction of the paper's
-  reported numbers.
-- The four planner-ablation tasks and three planner variants are executable through a bounded
-  80-agent experiment pipeline. It generates machine-readable Tables 2-5 and Figures 11-14, but a
-  declared mature duration/model, repeated runs, and published-number comparison remain open.
+- The bootstrap-phase paper mechanisms are implemented and the simulation-wide authority (one
+  market, one social graph, cross-owner movement) is the default settlement path. Multi-process
+  deployment verification and long-run maturity evidence remain open gates.
+- The paper-era benchmark pipelines (mature market dataset, stratification, trajectories, planner
+  ablations) remain executable and are kept as regression and validation tools; reproducing the
+  paper's reported numbers is no longer a project goal.
 - The built-in observatory exposes live runtime/SLO health, town and market state, agent cognition,
   durable plans/profiles/traces, post-bootstrap Agent creation, steering commands, execution feedback,
   and replay. Authenticated mode binds creator IDs to participant principals, restricts steering to the
@@ -39,7 +44,7 @@ directory:
   this repository.
 
 See [`docs/SCIENTIFIC_LIMITATIONS.md`](docs/SCIENTIFIC_LIMITATIONS.md) for the evidence and claim
-boundaries inherited from the paper and enforced by this project.
+boundaries enforced by this project.
 
 ## Repository structure
 
@@ -381,8 +386,8 @@ immutable JSON tables and SVG figures.
 
 ## Project documents
 
-- [`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md): current implementation
-  boundary, evidence classes, and unfinished paper-alignment work.
+- [`docs/PAPER_ALIGNMENT_MATRIX.md`](docs/PAPER_ALIGNMENT_MATRIX.md): the 0→1 bootstrap milestone
+  record against the AIvilization v0 paper; its four evidence classes still govern all claims.
 - [`docs/CITY_MECHANISM_GAP_ANALYSIS.md`](docs/CITY_MECHANISM_GAP_ANALYSIS.md): public roadmap —
   eight layers of city-simulation gaps versus Cities: Skylines, ordered by ROI, with the
   evidence-boundary rules that govern extensions.

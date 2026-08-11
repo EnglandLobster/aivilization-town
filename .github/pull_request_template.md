@@ -8,10 +8,10 @@
      scale validation — see docs/PAPER_ALIGNMENT_MATRIX.md. Do not claim a
      higher class than the PR establishes. -->
 
-## Paper-alignment boundary
+## Canonical-path boundary
 
 - [ ] Default configuration behavior is unchanged, OR this change is behind an explicit opt-in flag
-- [ ] The §4/§5 evidence paths are not contaminated by non-paper mechanics
+- [ ] If this touches an evidence run path, the active flag set is declared
 
 ## Invariants
 

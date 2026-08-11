@@ -6,14 +6,16 @@ simulation's invariants instead of eroding them.
 
 ## Ground rules
 
-1. **The constitution: the default configuration stays paper-aligned.**
-   New mechanics beyond the paper must ship behind explicit opt-in flags
-   (precedent: `--regional-markets`), and must never contaminate the
-   paper §4/§5 evidence paths. See `docs/PAPER_ALIGNMENT_MATRIX.md`.
+1. **The constitution: the canonical default path stays stable and honest.**
+   The default configuration is the town we ship and measure. Experimental or
+   direction-changing mechanics ship behind explicit opt-in flags
+   (precedent: `--regional-markets`) until they are promoted by evidence, and
+   long-running evidence runs must declare which flags were active.
 2. **Evidence honesty.** Mechanism verification, pipeline verification,
    empirical reproduction, and scale validation are distinct evidence
-   classes. PRs and docs must not promote a claim to a higher class than
-   the evidence supports.
+   classes (defined in `docs/PAPER_ALIGNMENT_MATRIX.md`, our 0→1 milestone
+   record whose discipline still governs). PRs and docs must not promote a
+   claim to a higher class than the evidence supports.
 3. **Determinism, replay, idempotency.** Every world state transition must
    be deterministic, replayable from the event log, and idempotent under
    redelivery. LLM outputs are proposals recorded in command payloads;

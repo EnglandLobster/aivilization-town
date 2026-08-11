@@ -17,10 +17,11 @@ labels: enhancement
 <!-- Which layer of docs/CITY_MECHANISM_GAP_ANALYSIS.md this belongs to,
      or why it is outside the roadmap -->
 
-## Evidence boundary
+## Canonical-path boundary
 
-<!-- Is this paper-aligned (default path) or an opt-in extension?
-     How does it stay out of the §4/§5 evidence paths? -->
+<!-- Does this change the default configuration's behavior? If yes, it must ship
+     behind an explicit opt-in flag until promoted by evidence, and long-running
+     evidence runs must declare the active flag set. -->
 
 ## Determinism / replay / idempotency considerations
 

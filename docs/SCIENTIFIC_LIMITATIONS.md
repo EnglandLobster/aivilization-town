@@ -1,11 +1,12 @@
 # Scientific Limitations and Evidence Boundaries
 
-This document defines what results from this repository can and cannot support. It preserves the
-limitations stated in Section 7 of the AIvilization v0 paper and turns them into project-level claim
-rules. The current implementation and evidence boundary is summarized in
-[`PAPER_ALIGNMENT_MATRIX.md`](PAPER_ALIGNMENT_MATRIX.md).
+This document defines what results from this repository can and cannot support. It originated from the
+limitations stated in Section 7 of the AIvilization v0 paper (the project's 0→1 bootstrap reference)
+and now stands as the project's own claim rules. The evidence-class definitions live in
+[`PAPER_ALIGNMENT_MATRIX.md`](PAPER_ALIGNMENT_MATRIX.md); the live roadmap is
+[`CITY_MECHANISM_GAP_ANALYSIS.md`](CITY_MECHANISM_GAP_ANALYSIS.md).
 
-## Limitations inherited from the paper
+## Limitations inherited from the bootstrap paper
 
 ### LLM reasoning remains a system boundary
 

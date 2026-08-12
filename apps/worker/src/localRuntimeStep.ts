@@ -215,6 +215,18 @@ export async function runLocalWorldRuntimeStep(
     ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
   });
 
+  // Post-tick authority drain. Router-settled events from this tick are only
+  // journaled on the authority (the tick checkpoint is skipped for them, see
+  // hasUnstreamedAuthorityEvents); draining the inbox right away appends the
+  // deliveries to the partition stream and lets the materializer write a fresh
+  // stream-consistent checkpoint boundary. That keeps the checkpoint lag SLO
+  // flat and leaves no pending deliveries behind at shutdown, so a restart
+  // restores the exact pre-shutdown projection. When nothing settled globally
+  // the drain is an idempotent no-op.
+  if (input.preTickMaterialize !== undefined) {
+    await input.preTickMaterialize({ projection: tick.projection, issuedAt: input.issuedAt });
+  }
+
   return {
     status: 'ticked',
     commandDrain,

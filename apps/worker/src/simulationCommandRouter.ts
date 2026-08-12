@@ -97,6 +97,10 @@ export function createSimulationCommandRouter(input: {
   // co-location checks would settle against stale facts. Before routing any
   // drafts we report this partition's current Agent locations; the fingerprint
   // skip keeps unchanged reports out of the authority journal entirely.
+  // Runtime-registered Agents (participant registration settles
+  // partition-locally in the command drain) are reported with their full
+  // record so the authority admits them to the ledger before any global
+  // settlement references them.
   let lastSyncedLocationsFingerprint: string | undefined;
   const syncPartitionLocations = (projection: WorldProjection): void => {
     const agentLocations = Object.values(projection.agents)
@@ -106,6 +110,10 @@ export function createSimulationCommandRouter(input: {
     if (fingerprint === lastSyncedLocationsFingerprint) {
       return;
     }
+    const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
+    const newAgents = Object.values(projection.agents)
+      .filter((agent) => knownOwners[agent.agentId] === undefined)
+      .sort((left, right) => left.agentId.localeCompare(right.agentId));
     const lease = input.lease();
     input.authority.syncPartitionAgentLocations({
       operationId: `location-sync:${input.partitionKey}:${fingerprint}`,
@@ -114,8 +122,33 @@ export function createSimulationCommandRouter(input: {
       durationMs: lease.durationMs,
       partitionKey: input.partitionKey,
       agentLocations,
+      ...(newAgents.length === 0 ? {} : { newAgents }),
     });
     lastSyncedLocationsFingerprint = fingerprint;
+  };
+  // The tick advances the partition clock before drafting agent commands, while
+  // the pre-tick materializer only catches the authority up to the pre-tick
+  // clock — so at settle time the authority lags one tick behind. Global
+  // settlements embed the authority clock (e.g. AgentActivityTimeCommitted
+  // startedAt from a move), and applying those events onto the partition
+  // working projection fails its clock invariants when the two diverge. Catch
+  // the authority up to this partition's current clock before settling; the
+  // target-keyed operationId makes repeat calls (other partitions, recovery
+  // replays) no-op replays, and the advance also settles due weather cadence
+  // transitions and in-transit travel completions on the way.
+  const syncAuthorityClock = (projection: WorldProjection): void => {
+    const authorityClockNow = input.authority.getSnapshot().projection.clock.now;
+    if (authorityClockNow >= projection.clock.now) {
+      return;
+    }
+    const lease = input.lease();
+    input.authority.advanceTime({
+      operationId: `advance-time-to:${projection.clock.now}`,
+      workerId: lease.workerId,
+      observedAt: lease.observedAt,
+      durationMs: lease.durationMs,
+      deltaMs: projection.clock.now - authorityClockNow,
+    });
   };
   return {
     routeCommandDrafts: async (routeInput) => {
@@ -126,6 +159,7 @@ export function createSimulationCommandRouter(input: {
       if (globalDrafts.length === 0) {
         return dispatchCommandDraftsToWorldEventStream(routeInput);
       }
+      syncAuthorityClock(routeInput.projection);
       return routeMixedDrafts({
         routeInput,
         authority: input.authority,
@@ -245,6 +279,9 @@ async function routeMixedDrafts(input: {
     events,
     projection: workingProjection,
     appendResult: syntheticAppendResult,
+    // Authority-settled events live only in this projection until the
+    // materializer delivers them into the partition stream.
+    ...(globalEvents.length > 0 ? { hasUnstreamedAuthorityEvents: true as const } : {}),
   };
 }
 

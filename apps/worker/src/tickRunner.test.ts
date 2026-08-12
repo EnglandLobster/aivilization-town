@@ -46,7 +46,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { createAivilizationWorldCommandPolicies, runWorkerSimulationTick } from './index';
+import { createAivilizationWorldCommandPolicies, dispatchCommandDraftsToWorldEventStream, runWorkerSimulationTick } from './index';
 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
@@ -2323,6 +2323,57 @@ describe('worker tick runner', () => {
       }),
     ).toEqual(result.checkpoint);
     expect(snapshotStore.loadSnapshot(result.snapshot)).toEqual(result.projection);
+  });
+
+  test('skips the tick checkpoint when the command router applied authority-settled events off-stream', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    // A stand-in for the simulation command router: authority-settled events
+    // are applied to the tick projection but only reach the partition stream
+    // later through the materializer inbox. Checkpointing that projection
+    // against the stream version would replay the delivered events onto a
+    // snapshot that already contains them.
+    const commandRouter: NonNullable<
+      Parameters<typeof runWorkerSimulationTick>[0]['commandRouter']
+    > = {
+      routeCommandDrafts: (routeInput) =>
+        Promise.resolve({
+          ...dispatchCommandDraftsToWorldEventStream(routeInput),
+          hasUnstreamedAuthorityEvents: true as const,
+        }),
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-1',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      checkpointing: {
+        partitionKey: partition.partitionKey,
+        checkpointStore,
+        snapshotStore,
+      },
+      commandRouter,
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    expect(result.checkpoint).toBeUndefined();
+    expect(result.snapshot).toBeUndefined();
+    expect(
+      checkpointStore.getLatestCheckpoint({
+        simulationId,
+        partitionKey: partition.partitionKey,
+      }),
+    ).toBeUndefined();
   });
 
   test('replays a whole tick idempotently from the same starting expected version', async () => {

@@ -824,6 +824,20 @@ function toLoopBaseInput(
       ? {}
       : { ambientObservationMemory: input.ambientObservationMemory }),
     ...(input.agentProvider === undefined ? {} : { agentProvider: input.agentProvider }),
+    // Simulation-wide-authority augment (wired per partition by the runtime
+    // host's resolveBackendAugment): without these the tick loop settles
+    // everything partition-locally and the authority never advances, so
+    // authority-scoped features (town weather, operator bulletins) go inert.
+    ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
+    ...(input.preTickMaterialize === undefined
+      ? {}
+      : { preTickMaterialize: input.preTickMaterialize }),
+    ...(input.materializerLease === undefined
+      ? {}
+      : { materializerLease: input.materializerLease }),
+    ...(input.townBulletinIssuer === undefined
+      ? {}
+      : { townBulletinIssuer: input.townBulletinIssuer }),
   };
 }
 

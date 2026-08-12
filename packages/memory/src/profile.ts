@@ -1,5 +1,5 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type { MemoryRecordId } from './records';
+import type { MemoryProvenance, MemoryRecordId } from './records';
 
 export type LongTermProfileSection =
   | 'beliefs'
@@ -21,6 +21,7 @@ export type LongTermMemoryPatch = {
   readonly relationDelta?: number;
   readonly attitudeDelta?: number;
   readonly outcomeSignals?: readonly string[];
+  readonly provenance?: MemoryProvenance;
 };
 
 export type LongTermProfileEntry = {
@@ -32,6 +33,7 @@ export type LongTermProfileEntry = {
   readonly relationDelta?: number;
   readonly attitudeDelta?: number;
   readonly outcomeSignals?: readonly string[];
+  readonly provenance?: MemoryProvenance;
 };
 
 export type LongTermAgentProfile = {
@@ -54,6 +56,22 @@ export function createEmptyLongTermAgentProfile(agentId: AgentId): LongTermAgent
     personality: [],
     socialRecords: [],
   };
+}
+
+/**
+ * A profile entry asserts only while its provenance is influencing (or
+ * unknown/legacy): corrected and aged-out entries stay durable for audit but
+ * are excluded from belief assertions; doubtful entries still assert but carry
+ * the flag so consumers can hedge.
+ */
+export function isAssertableProfileEntry(entry: LongTermProfileEntry): boolean {
+  return entry.provenance?.status !== 'corrected' && entry.provenance?.status !== 'past';
+}
+
+export function listAssertableBeliefs(
+  profile: LongTermAgentProfile,
+): readonly LongTermProfileEntry[] {
+  return profile.beliefs.filter(isAssertableProfileEntry);
 }
 
 export function applyLongTermMemoryPatches(
@@ -108,6 +126,14 @@ function createEntryFromPatch(
             ...new Set([...(existing?.outcomeSignals ?? []), ...patch.outcomeSignals]),
           ],
         }),
+    // Provenance follows the latest patch: a correction patch overwrites the
+    // entry's status, and a provenance-free legacy patch preserves whatever
+    // the entry already carried.
+    ...(patch.provenance === undefined
+      ? existing?.provenance === undefined
+        ? {}
+        : { provenance: existing.provenance }
+      : { provenance: patch.provenance }),
   };
 }
 

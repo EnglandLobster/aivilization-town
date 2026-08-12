@@ -238,6 +238,7 @@ export async function renewActiveStrategicPlansForMajorContextShifts(input: {
     const shortTermMemoryContext = await input.shortTermMemoryRepository.retrieve({
       agentId: agent.agentId,
       limit: memoryRetrievalLimit,
+      orderBy: 'provenance-importance',
     });
     const compiled = normalizeStrategicPlanCompilerOutput(
       await input.strategicPlanCompiler({

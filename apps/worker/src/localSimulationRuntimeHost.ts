@@ -1,6 +1,7 @@
 import { type AgentId, asAgentId, type PartitionKey, type SimulationTimestamp } from '@aivilization/sim-core';
 import type { AmmPool } from '@aivilization/economy';
 import type { WorldProjection } from '@aivilization/world';
+import type { AgentPostBulletinPayload } from '@aivilization/world';
 import {
   createLocalSimulationBackendRegistry,
   type LocalSimulationBackendRegistry,
@@ -42,6 +43,7 @@ import {
   type SimulationCommandRouter,
 } from './simulationCommandRouter';
 import { captureAgentCognitiveSnapshot } from './agentCognitiveSnapshot';
+import type { WorkerSteeringCommand } from './steering';
 import {
   createAivilizationTownConditionsPolicy,
   createAivilizationTownWeatherPolicy,
@@ -64,19 +66,26 @@ export type SimulationWideAuthorityHostOptions = {
    */
   readonly regionalMarkets?: boolean;
   /**
-   * Opt-in town weather (borrowed-mechanics adoption plan #1). When true, the
+   * Opt-in town weather. When true, the
    * authority settles the simulation-wide weather Markov chain during time
    * advancement and emits WeatherChanged events. Omitted/false keeps the run
    * free of weather state and events, matching legacy behavior.
    */
   readonly townWeather?: boolean;
   /**
-   * Opt-in town-condition catalog (borrowed-mechanics adoption plan #2). When
+   * Opt-in town-condition catalog. When
    * true, the society projection derives per-agent conditions from the
    * authority snapshot on every read. Omitted/false keeps the projection
    * condition-free, matching legacy behavior.
    */
   readonly townConditions?: boolean;
+  /**
+   * Opt-in town bulletin board. When
+   * true, bulletins settle against the authority's single board and operator
+   * IssueTownBulletin steering commands are wired to it. Omitted/false keeps
+   * the run bulletin-free, matching legacy behavior.
+   */
+  readonly townBulletin?: boolean;
 };
 
 export type LocalSimulationRuntimeHostPartition = {
@@ -310,6 +319,29 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                   marketOverride: { marketPools: authorityProjection.marketPools },
                 };
               },
+              // Operator town bulletins settle against the one authoritative
+              // board; only wired when the town-bulletin switch is on.
+              ...(authorityOptions?.townBulletin === true
+                ? {
+                    townBulletinIssuer: ({
+                      command,
+                    }: {
+                      readonly command: WorkerSteeringCommand;
+                    }): { readonly bulletinId: string; readonly status: 'posted' | 'scheduled' } => {
+                      const operation = authority!.settleBulletin({
+                        operationId: `steering-bulletin:${command.id}`,
+                        workerId: materializeLease!.workerId,
+                        observedAt: command.issuedAt,
+                        durationMs: materializeLease!.durationMs,
+                        bulletin: command.payload as AgentPostBulletinPayload,
+                        ...(command.humanAttribution === undefined
+                          ? {}
+                          : { humanAttribution: command.humanAttribution }),
+                      });
+                      return { bulletinId: operation.bulletinId, status: operation.status };
+                    },
+                  }
+                : {}),
             };
           },
         }

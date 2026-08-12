@@ -281,6 +281,7 @@ export async function renewDailyPlanScheduledIntentions(input: {
         ? Promise.resolve([])
         : input.shortTermMemoryRepository.retrieve({
             agentId: agent.agentId,
+            orderBy: 'provenance-importance',
             limit: input.memoryRetrievalLimit ?? 12,
           }),
     ]);

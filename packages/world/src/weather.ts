@@ -17,7 +17,7 @@ export type TownWeatherTransitionMatrix = Readonly<
 >;
 
 /**
- * Versioned town-weather policy (borrowed-mechanics adoption plan #1). Weather
+ * Versioned town-weather policy. Weather
  * is a simulation-wide Markov chain settled inside AdvanceSimulationTime: every
  * `transitionCadenceMs` of simulation time the current state's transition row
  * is sampled with the seeded RNG and a WeatherChanged event is emitted when the

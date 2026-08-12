@@ -571,6 +571,71 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('excludes corrected beliefs from profile-driven objective assertions', () => {
+    const projection = createProjection([
+      createAgent({
+        agentId: agentA,
+        educationScore: 150,
+        balance: 200,
+      }),
+    ]);
+    const belief = {
+      key: 'social-knowledge:agent-b:studio-scene',
+      statement: 'agent-b asserted about studio scene: "Everyone is creative." (unverified).',
+      confidence: 0.9,
+      updatedAt: 80,
+      provenanceRecordIds: [asMemoryRecordId('claim-1')],
+    };
+    const baseInput = {
+      agentId: agentA,
+      agent: projection.agents[agentA] ?? createAgent({ agentId: agentA }),
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    } as const;
+
+    // An influencing hearsay belief still asserts into a routine candidate.
+    const influencing = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      longTermProfile: createProfile(agentA, {
+        beliefs: [
+          {
+            ...belief,
+            provenance: { kind: 'hearsay', status: 'influencing' },
+          },
+        ],
+      }),
+    });
+    expect(influencing.decisionTrace.selectedCandidateId).toBe('profile-creative');
+
+    // Once corrected, the same belief stays durable but stops asserting.
+    const corrected = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      longTermProfile: createProfile(agentA, {
+        beliefs: [
+          {
+            ...belief,
+            provenance: {
+              kind: 'hearsay',
+              status: 'corrected',
+              correctedByRecordId: asMemoryRecordId('claim-2'),
+            },
+          },
+        ],
+      }),
+    });
+    expect(corrected.decisionTrace.selectedCandidateId).not.toBe('profile-creative');
+    expect(corrected.decisionTrace.profileEntryKeys).not.toContain(
+      'social-knowledge:agent-b:studio-scene',
+    );
+  });
+
   test('turns constructive and adverse social identity into different autonomous goals', () => {
     const projection = createProjection([
       createAgent({ agentId: agentA, educationScore: 150, balance: 200 }),

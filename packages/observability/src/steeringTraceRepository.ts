@@ -38,7 +38,10 @@ export type SteeringStrategicPlanTrace = {
   readonly worldDecisionContext?: WorldDecisionContextTrace;
 };
 
-export type SteeringTraceResultKind = 'long-horizon-objective-set' | 'reactive-command-routed';
+export type SteeringTraceResultKind =
+  | 'long-horizon-objective-set'
+  | 'reactive-command-routed'
+  | 'town-bulletin-issued';
 
 export type SteeringTrace = {
   readonly traceId: string;
@@ -48,8 +51,10 @@ export type SteeringTrace = {
   readonly commandType: string;
   readonly source: string;
   readonly humanAttribution?: HumanCommandAttribution;
-  readonly agentId: string;
+  /** Absent for operator-issued town bulletins, which have no acting Agent. */
+  readonly agentId?: string;
   readonly resultKind: SteeringTraceResultKind;
+  readonly bulletinId?: string;
   readonly objectiveId?: string;
   readonly objectiveStatement?: string;
   readonly objectiveAffinityTags?: readonly string[];
@@ -184,8 +189,9 @@ function cloneTrace(trace: SteeringTrace): SteeringTrace {
             principalRoles: [...trace.humanAttribution.principalRoles],
           },
         }),
-    agentId: trace.agentId,
+    ...(trace.agentId === undefined ? {} : { agentId: trace.agentId }),
     resultKind: trace.resultKind,
+    ...(trace.bulletinId === undefined ? {} : { bulletinId: trace.bulletinId }),
     ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
     ...(trace.objectiveStatement === undefined
       ? {}
@@ -292,7 +298,21 @@ function assertValidTrace(trace: SteeringTrace): void {
       throw new Error('humanAttribution principalRoles must not be empty');
     }
   }
-  assertNonEmpty(trace.agentId, 'agentId');
+  if (trace.resultKind === 'town-bulletin-issued') {
+    // Operator-issued town bulletins carry no acting Agent but must name the bulletin.
+    if (trace.agentId !== undefined) {
+      assertNonEmpty(trace.agentId, 'agentId');
+    }
+    if (trace.bulletinId === undefined) {
+      throw new Error('bulletinId must not be empty');
+    }
+    assertNonEmpty(trace.bulletinId, 'bulletinId');
+  } else {
+    if (trace.agentId === undefined) {
+      throw new Error('agentId must not be empty');
+    }
+    assertNonEmpty(trace.agentId, 'agentId');
+  }
   assertResultKind(trace.resultKind);
   if (trace.objectiveStatement !== undefined) {
     assertNonEmpty(trace.objectiveStatement, 'objectiveStatement');
@@ -343,7 +363,11 @@ function assertValidQuery(query: SteeringTraceQuery): void {
 }
 
 function assertResultKind(value: string): asserts value is SteeringTraceResultKind {
-  if (value !== 'long-horizon-objective-set' && value !== 'reactive-command-routed') {
+  if (
+    value !== 'long-horizon-objective-set' &&
+    value !== 'reactive-command-routed' &&
+    value !== 'town-bulletin-issued'
+  ) {
     throw new Error('resultKind must be a known steering result kind');
   }
 }

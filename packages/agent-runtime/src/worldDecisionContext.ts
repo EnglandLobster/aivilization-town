@@ -136,8 +136,8 @@ export type WorldDecisionSocietyContext = {
 };
 
 /**
- * Optional simulation-wide weather visible to agent planning (borrowed-mechanics
- * adoption plan #1). Present only when the town-weather policy is enabled; the
+ * Optional simulation-wide weather visible to agent planning. Present only
+ * when the town-weather policy is enabled; the
  * context exposes it for situational awareness only — it does not change any
  * activity policy. `since` is the simulation time the current weather started.
  */
@@ -147,8 +147,8 @@ export type WorldDecisionWeatherContext = {
 };
 
 /**
- * A derived town condition visible to agent planning (borrowed-mechanics
- * adoption plan #2). Present only when the town-conditions policy is enabled;
+ * A derived town condition visible to agent planning. Present only when the
+ * town-conditions policy is enabled;
  * conditions are derived from durable physiology axes, weather, and location
  * exposure — the context exposes them for situational awareness only and does
  * not change any activity policy.

@@ -90,6 +90,8 @@ describe('reactive steering route', () => {
     expect(result.shortTermMemoryRecords[1]).toMatchObject({
       kind: 'human-command',
       status: 'repaired',
+      // Reactive human commands are injected by steering: implanted.
+      provenance: { kind: 'implanted', status: 'influencing' },
     });
   });
 

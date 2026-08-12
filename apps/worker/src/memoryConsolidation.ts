@@ -2,6 +2,8 @@ import {
   convertReflectiveInsightsToLongTermMemoryPatches,
   createDeterministicReflectiveInsightSynthesizer,
   createDeterministicSocialModelSynthesizer,
+  createMemoryProvenance,
+  createShortTermMemoryRecord,
   proposeNonSocialLongTermMemoryPatches,
   type LongTermAgentProfile,
   type LongTermMemoryPatch,
@@ -54,6 +56,12 @@ export type WorkerMemoryConsolidationResult = {
   readonly reflectiveInsights: readonly ReflectiveInsightRecord[];
   readonly reflectionSynthesisTrace: ReflectiveInsightSynthesisTrace;
   readonly patches: readonly LongTermMemoryPatch[];
+  /**
+   * Correction memories generated when a hearsay belief transitioned to
+   * doubtful/corrected during this consolidation. They are appended to the
+   * agent's short-term memory so later reflection can reason about them.
+   */
+  readonly correctionRecords: readonly ShortTermMemoryRecord[];
   readonly profile: LongTermAgentProfile;
 };
 
@@ -191,6 +199,7 @@ export async function runWorkerMemoryConsolidation(
   return applyWorkerMemoryConsolidation({
     agentId: input.agentId,
     records,
+    shortTermMemoryRepository: input.shortTermMemoryRepository,
     longTermProfileRepository: input.longTermProfileRepository,
     minPatternCount: input.minPatternCount,
     proposedAt: input.proposedAt,
@@ -209,6 +218,7 @@ export async function runWorkerMemoryConsolidation(
 async function applyWorkerMemoryConsolidation(input: {
   readonly agentId: AgentId;
   readonly records: readonly ShortTermMemoryRecord[];
+  readonly shortTermMemoryRepository: ShortTermMemoryRepository;
   readonly longTermProfileRepository: LongTermProfileRepository;
   readonly minPatternCount: number;
   readonly proposedAt: SimulationTimestamp;
@@ -263,6 +273,18 @@ async function applyWorkerMemoryConsolidation(input: {
       ? currentProfile
       : await input.longTermProfileRepository.applyPatches(input.agentId, patches);
 
+  // A corrected/doubtful hearsay belief is itself memorable: the correction
+  // is recorded as a firsthand short-term memory so reflection can pick it up.
+  const correctionRecords = createBeliefCorrectionRecords({
+    agentId: input.agentId,
+    patches,
+    currentProfile,
+    proposedAt: input.proposedAt,
+  });
+  if (correctionRecords.length > 0) {
+    await input.shortTermMemoryRepository.appendMany(correctionRecords);
+  }
+
   return {
     agentId: input.agentId,
     records: input.records,
@@ -271,8 +293,51 @@ async function applyWorkerMemoryConsolidation(input: {
     reflectiveInsights,
     reflectionSynthesisTrace: reflectionSynthesis.trace,
     patches,
+    correctionRecords,
     profile,
   };
+}
+
+/**
+ * Deterministic transition detection: a correction memory is generated exactly
+ * when a belief patch moves the entry's provenance status to doubtful or
+ * corrected from a different previous state (a legacy entry without provenance
+ * counts as influencing). Record ids derive from the patch id, so replaying
+ * the same consolidation window regenerates the same records.
+ */
+function createBeliefCorrectionRecords(input: {
+  readonly agentId: AgentId;
+  readonly patches: readonly LongTermMemoryPatch[];
+  readonly currentProfile: LongTermAgentProfile;
+  readonly proposedAt: SimulationTimestamp;
+}): ShortTermMemoryRecord[] {
+  const records: ShortTermMemoryRecord[] = [];
+  for (const patch of input.patches) {
+    const status = patch.provenance?.status;
+    if (patch.section !== 'beliefs' || (status !== 'corrected' && status !== 'doubtful')) {
+      continue;
+    }
+    const existing = input.currentProfile.beliefs.find((entry) => entry.key === patch.key);
+    const previousStatus = existing?.provenance?.status ?? 'influencing';
+    if (existing !== undefined && previousStatus === status) {
+      continue;
+    }
+    records.push(
+      createShortTermMemoryRecord({
+        id: `${patch.id}:belief-correction`,
+        agentId: input.agentId,
+        kind: 'observation',
+        status: 'observed',
+        summary: `Belief ${patch.key} marked ${status}: ${patch.statement}`,
+        occurredAt: input.proposedAt,
+        importanceScore: 0.7,
+        source: { eventIds: [] },
+        tags: ['belief-correction', status, patch.key],
+        provenance: createMemoryProvenance({ kind: 'firsthand' }),
+      }),
+    );
+  }
+  return records;
 }
 
 export async function runWorkerMemoryConsolidationBatch(
@@ -355,6 +420,7 @@ export async function runWorkerMemoryConsolidationSchedule(
     const result = await applyWorkerMemoryConsolidation({
       agentId,
       records: pendingRecords,
+      shortTermMemoryRepository: input.shortTermMemoryRepository,
       longTermProfileRepository: input.longTermProfileRepository,
       minPatternCount: input.minPatternCount,
       proposedAt: input.proposedAt,

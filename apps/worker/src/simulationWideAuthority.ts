@@ -15,6 +15,7 @@ import {
   createCommandEnvelope,
   createEventEnvelope,
   type AgentId,
+  type HumanCommandAttribution,
   type PartitionKey,
   type SimulationId,
 } from '@aivilization/sim-core';
@@ -23,6 +24,7 @@ import {
   dispatchWorldCommand,
   type AgentStartConversationTurnPayload,
   type AgentTradePayload,
+  type AgentPostBulletinPayload,
   type TownWeatherPolicy,
   type WorldCommandPolicies,
   type WorldEvent,
@@ -114,6 +116,43 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
     readonly agentId: string;
     readonly locationId: string | null;
   }[];
+};
+
+/**
+ * A bulletin posting settled against the single authoritative town board.
+ * Agent posts carry `authorAgentId`; operator-issued town bulletins carry the
+ * steering command's `humanAttribution` (the world handler enforces the
+ * operator role). Exactly one of the two must be present.
+ */
+export type SimulationWideBulletinRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly bulletin: AgentPostBulletinPayload;
+  readonly authorAgentId?: AgentId;
+  readonly humanAttribution?: HumanCommandAttribution;
+};
+
+/**
+ * A conflict command (confront/attack/intervene) settled against the
+ * authoritative world state. Conflict facts are town-wide, so every partition
+ * materializes the operation's events.
+ */
+export type SimulationWideConflictRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: AgentId;
+  readonly commandType: 'AgentConfront' | 'AgentAttack' | 'AgentIntervene';
+  readonly payload: unknown;
+};
+
+/** A social-matter lifecycle command settled against the authoritative board. */
+export type SimulationWideMatterRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: AgentId;
+  readonly commandType:
+    | 'AgentRaiseMatter'
+    | 'AgentRespondMatter'
+    | 'AgentAssignMatter'
+    | 'AgentCloseMatter';
+  readonly payload: unknown;
 };
 
 export type SimulationWideAuthorityOperation =
@@ -224,6 +263,46 @@ export type SimulationWideAuthorityOperation =
       readonly throughFencingToken: number;
       readonly status: 'completed';
       readonly events: readonly [];
+    }
+  | {
+      /**
+       * A town-bulletin posting (agent post or operator-issued town bulletin)
+       * settled against the single authoritative board. Emits BulletinPosted
+       * (immediate) or BulletinScheduled (future effectiveAt); scheduled
+       * bulletins activate during a later advanceTime.
+       */
+      readonly kind: 'bulletin';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly bulletinId: string;
+      readonly status: 'posted' | 'scheduled';
+      readonly events: readonly WorldEvent[];
+    }
+  | {
+      /**
+       * A social-matter lifecycle command (raise/respond/assign/close) settled
+       * against the single authoritative board. Matters are town-wide facts,
+       * so every partition materializes the operation's events.
+       */
+      readonly kind: 'matter';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly matterId: string;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
+      /**
+       * A conflict command (confront/attack/intervene) settled against the one
+       * authoritative world state, with world-adjudicated grievance, damage,
+       * and witness fallout.
+       */
+      readonly kind: 'conflict';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly conflictId: string;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
     };
 
 export type SimulationWideAuthorityInboxDelivery = {
@@ -298,6 +377,15 @@ export type SimulationWideAuthorityService = {
   readonly settleConversation: (
     request: SimulationWideConversationRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'conversation' };
+  readonly settleBulletin: (
+    request: SimulationWideBulletinRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'bulletin' };
+  readonly settleMatter: (
+    request: SimulationWideMatterRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'matter' };
+  readonly settleConflict: (
+    request: SimulationWideConflictRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'conflict' };
   readonly transferAgent: (
     request: SimulationWideTransferRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'transfer' };
@@ -387,7 +475,7 @@ export function createSimulationWideAuthority(input: {
    */
   readonly regionalMarketsEnabled?: boolean;
   /**
-   * Opt-in town-weather policy (borrowed-mechanics adoption plan #1). When
+   * Opt-in town-weather policy. When
    * present, the authority's AdvanceSimulationTime settlement evaluates the
    * Markov transition matrix once per cadence and emits WeatherChanged events
    * against the single simulation-wide projection. Omitted keeps settlement
@@ -608,8 +696,207 @@ export function createSimulationWideAuthority(input: {
         }),
       });
     },
-    transferAgent(request) {
-      const agentId = asAgentId(request.agentId);
+    settleBulletin(request) {
+      if ((request.authorAgentId === undefined) === (request.humanAttribution === undefined)) {
+        throw new Error(
+          'simulation-wide bulletin requires exactly one author (agentId or human attribution)',
+        );
+      }
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'bulletin',
+          bulletin: request.bulletin,
+          authorAgentId: request.authorAgentId,
+          authorSubjectId: request.humanAttribution?.principalSubjectId,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const command =
+            request.authorAgentId !== undefined
+              ? createCommandEnvelope({
+                  id: `simulation-wide-bulletin-${request.operationId}`,
+                  simulationId: state.simulationId,
+                  actorId: request.authorAgentId,
+                  source: 'agent-runtime',
+                  type: 'AgentPostBulletin',
+                  payload: request.bulletin,
+                  issuedAt: request.observedAt,
+                })
+              : createCommandEnvelope({
+                  id: `simulation-wide-bulletin-${request.operationId}`,
+                  simulationId: state.simulationId,
+                  source: 'human',
+                  ...(request.humanAttribution === undefined
+                    ? {}
+                    : { humanAttribution: request.humanAttribution }),
+                  type: 'IssueTownBulletin',
+                  payload: request.bulletin,
+                  issuedAt: request.observedAt,
+                });
+          const events = dispatchWorldCommand({
+            command,
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new Error(`simulation-wide bulletin rejected: ${rejection.payload.reason}`);
+          }
+          const bulletinEvent = events.find(
+            (event) => event.type === 'BulletinPosted' || event.type === 'BulletinScheduled',
+          );
+          if (
+            bulletinEvent === undefined ||
+            (bulletinEvent.type !== 'BulletinPosted' && bulletinEvent.type !== 'BulletinScheduled')
+          ) {
+            throw new Error('simulation-wide bulletin settlement produced no bulletin event');
+          }
+          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'bulletin' }> =
+            {
+              kind: 'bulletin',
+              operationId: request.operationId,
+              fencingToken,
+              bulletinId: bulletinEvent.payload.bulletin.bulletinId,
+              status: bulletinEvent.type === 'BulletinPosted' ? 'posted' : 'scheduled',
+              events,
+            };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settleMatter(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'matter',
+          agentId: request.agentId,
+          commandType: request.commandType,
+          payload: request.payload,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-matter-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: request.agentId,
+              source: 'agent-runtime',
+              type: request.commandType,
+              payload: request.payload,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new Error(`simulation-wide matter rejected: ${rejection.payload.reason}`);
+          }
+          const matterEvent = events.find(
+            (event) =>
+              event.type === 'MatterRaised' ||
+              event.type === 'MatterResponded' ||
+              event.type === 'MatterAssigned' ||
+              event.type === 'MatterClosed',
+          );
+          if (matterEvent === undefined) {
+            throw new Error('simulation-wide matter settlement produced no matter event');
+          }
+          const matterId =
+            matterEvent.type === 'MatterRaised'
+              ? matterEvent.payload.matter.matterId
+              : matterEvent.payload.matterId;
+          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'matter' }> =
+            {
+              kind: 'matter',
+              operationId: request.operationId,
+              fencingToken,
+              matterId,
+              events,
+              status: 'completed',
+            };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settleConflict(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'conflict',
+          agentId: request.agentId,
+          commandType: request.commandType,
+          payload: request.payload,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-conflict-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: request.agentId,
+              source: 'agent-runtime',
+              type: request.commandType,
+              payload: request.payload,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new Error(`simulation-wide conflict rejected: ${rejection.payload.reason}`);
+          }
+          const conflictEvent = events.find(
+            (event) =>
+              event.type === 'ConfrontationRecorded' ||
+              event.type === 'AttackRecorded' ||
+              event.type === 'InterventionRecorded',
+          );
+          if (conflictEvent === undefined) {
+            throw new Error('simulation-wide conflict settlement produced no conflict event');
+          }
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'conflict' }
+          > = {
+            kind: 'conflict',
+            operationId: request.operationId,
+            fencingToken,
+            conflictId: conflictEvent.payload.conflictId,
+            events,
+            status: 'completed',
+          };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    transferAgent(request) {      const agentId = asAgentId(request.agentId);
       const destinationLocationId = asLocationId(request.destinationLocationId);
       return mutate({
         operationId: request.operationId,
@@ -1008,7 +1295,9 @@ export function createSimulationWideAuthority(input: {
       const afterFencingToken = cursor?.throughFencingToken ?? 0;
       const deliveries = Object.values(state.operations)
         .map((entry) => entry.operation)
-        .flatMap((operation) => createInboxDeliveries(operation))
+        .flatMap((operation) =>
+          createInboxDeliveries(operation, state.partitionKeys, state.ownerPartitionKeyByAgentId),
+        )
         .filter((delivery) => delivery.partitionKey === partitionKey)
         .filter((delivery) => delivery.fencingToken > afterFencingToken)
         .sort((left, right) => left.fencingToken - right.fencingToken)
@@ -1164,6 +1453,8 @@ function assertKnownPartition(state: SimulationWideAuthoritySnapshot, partitionK
 
 function createInboxDeliveries(
   operation: SimulationWideAuthorityOperation,
+  partitionKeys: readonly PartitionKey[],
+  ownerPartitionKeyByAgentId: Readonly<Record<string, PartitionKey>>,
 ): readonly SimulationWideAuthorityInboxDelivery[] {
   switch (operation.kind) {
     case 'trade':
@@ -1184,6 +1475,73 @@ function createInboxDeliveries(
         operationKind: operation.kind,
         events: operation.events,
       }));
+    // Bulletins are town-wide: every partition materializes the board update
+    // so its residents gain awareness.
+    case 'bulletin':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: operation.events,
+      }));
+    // Social matters are town-wide too: every partition tracks the board.
+    case 'matter':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: operation.events,
+      }));
+    // Conflict events reach the partitions owning the parties and witnesses.
+    // Per-agent physiology updates are filtered to the owning partition so a
+    // remote partition never applies another Agent's health change.
+    case 'conflict': {
+      const conflictEvent = operation.events.find(
+        (event) =>
+          event.type === 'ConfrontationRecorded' ||
+          event.type === 'AttackRecorded' ||
+          event.type === 'InterventionRecorded',
+      );
+      if (conflictEvent === undefined) {
+        return [];
+      }
+      const payload = conflictEvent.payload;
+      const involvedAgentIds = [
+        ...('initiatorAgentId' in payload ? [payload.initiatorAgentId] : []),
+        ...('attackerAgentId' in payload ? [payload.attackerAgentId] : []),
+        ...('intervenerAgentId' in payload ? [payload.intervenerAgentId] : []),
+        payload.targetAgentId,
+        ...payload.witnessAgentIds,
+      ];
+      const involvedPartitions = [
+        ...new Set(
+          involvedAgentIds
+            .map((agentId) => ownerPartitionKeyByAgentId[agentId])
+            .filter((partitionKey): partitionKey is PartitionKey => partitionKey !== undefined),
+        ),
+      ].sort();
+      return involvedPartitions.flatMap((partitionKey) => {
+        const events = operation.events.filter(
+          (event) =>
+            event.type !== 'PhysiologyChanged' ||
+            ownerPartitionKeyByAgentId[event.payload.agentId] === partitionKey,
+        );
+        if (events.length === 0) {
+          return [];
+        }
+        return [
+          {
+            operationId: operation.operationId,
+            fencingToken: operation.fencingToken,
+            partitionKey,
+            operationKind: operation.kind,
+            events,
+          },
+        ];
+      });
+    }
     case 'transfer':
       return [operation.sourcePartitionKey, operation.destinationPartitionKey]
         .filter((partitionKey, index, values) => values.indexOf(partitionKey) === index)
@@ -1256,6 +1614,31 @@ function createInboxDeliveries(
       for (const transfer of operation.completedTransfers) {
         addEvents(transfer.sourcePartitionKey, operation.events);
         addEvents(transfer.destinationPartitionKey, operation.events);
+      }
+      // Town-wide board updates during this advance (bulletin activations,
+      // matter expiries and their breach outcomes): partitions that already
+      // receive the full advance event set (transfer moves) have them inline;
+      // everyone else gets just those events.
+      const townWideEvents = operation.events.filter(
+        (event) =>
+          event.type === 'BulletinPosted' ||
+          event.type === 'MatterClosed' ||
+          event.type === 'SocialInteractionCompleted' ||
+          // Matter-expiry closures carry the parties' memory records; they
+          // must ride along so each owner partition materializes them.
+          event.type === 'ShortTermMemoryRecorded',
+      );
+      if (townWideEvents.length > 0) {
+        const fullRecipients = new Set<PartitionKey>();
+        for (const transfer of operation.completedTransfers) {
+          fullRecipients.add(transfer.sourcePartitionKey);
+          fullRecipients.add(transfer.destinationPartitionKey);
+        }
+        for (const partitionKey of partitionKeys) {
+          if (!fullRecipients.has(partitionKey)) {
+            addEvents(partitionKey, townWideEvents);
+          }
+        }
       }
       for (const move of operation.completedMoves) {
         addEvents(move.ownerPartitionKey, move.departureEvents);
@@ -1362,7 +1745,9 @@ function assertContiguousInboxAcknowledgement(input: {
 }): void {
   const deliveries = Object.values(input.state.operations)
     .map((entry) => entry.operation)
-    .flatMap(createInboxDeliveries)
+    .flatMap((operation) =>
+      createInboxDeliveries(operation, input.state.partitionKeys, input.state.ownerPartitionKeyByAgentId),
+    )
     .filter((delivery) => delivery.partitionKey === input.partitionKey)
     .filter((delivery) => delivery.fencingToken > input.afterFencingToken)
     .sort((left, right) => left.fencingToken - right.fencingToken);

@@ -44,6 +44,7 @@ describe('long-term memory consolidation', () => {
         confidence: 0.6,
         provenanceRecordIds: ['memory-1', 'memory-2', 'memory-3'],
         proposedAt: 10,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
   });
@@ -85,6 +86,7 @@ describe('long-term memory consolidation', () => {
         confidence: 0.8,
         provenanceRecordIds: ['failure-1', 'failure-2'],
         proposedAt: 20,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
   });
@@ -148,6 +150,7 @@ describe('long-term memory consolidation', () => {
         proposedAt: 30,
         relationDelta: 0.75,
         attitudeDelta: 0.25,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
   });
@@ -199,6 +202,11 @@ describe('long-term memory consolidation', () => {
         confidence: 0.6,
         provenanceRecordIds: ['social-claim-1'],
         proposedAt: 35,
+        provenance: {
+          kind: 'hearsay',
+          status: 'doubtful',
+          correctedByRecordId: 'social-claim-1',
+        },
       },
       {
         id: 'ltm-patch-agent-1-social-agent-2-35',
@@ -211,6 +219,7 @@ describe('long-term memory consolidation', () => {
         proposedAt: 35,
         relationDelta: -0.2,
         attitudeDelta: -0.25,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
   });
@@ -270,6 +279,7 @@ describe('long-term memory consolidation', () => {
         confidence: 0.6,
         provenanceRecordIds: ['habit-1'],
         proposedAt: 40,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
   });

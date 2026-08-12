@@ -48,6 +48,7 @@ describe('social model synthesis', () => {
           proposedAt: 100,
           relationDelta: 0.25,
           attitudeDelta: 0.5,
+          provenance: { kind: 'firsthand', status: 'influencing' },
         },
       ],
       socialReflections: [

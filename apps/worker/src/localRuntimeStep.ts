@@ -10,6 +10,7 @@ import {
   drainLocalRuntimeSteeringCommandsToWorld,
   type LocalRuntimeSteeringCommandWorldDrainResult,
 } from './localCommandDrain';
+import type { WorkerTownBulletinIssuer } from './steering';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
@@ -91,6 +92,12 @@ export type LocalWorldRuntimeStepInput = {
   readonly commandRouter?: SimulationCommandRouter;
   readonly preTickMaterialize?: LocalWorldRuntimePreTickMaterializeHook;
   readonly materializerLease?: SimulationWideAuthorityMaterializerLease;
+  /**
+   * Optional operator town-bulletin issuer (town-bulletin switch). Wired to
+   * the simulation-wide authority by the runtime host; absent rejects
+   * IssueTownBulletin steering commands.
+   */
+  readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
 };
 
 export type LocalWorldRuntimeStepResult =
@@ -144,6 +151,9 @@ export async function runLocalWorldRuntimeStep(
     ...(input.strategicPlanCompiler === undefined
       ? {}
       : { strategicPlanCompiler: input.strategicPlanCompiler }),
+    ...(input.townBulletinIssuer === undefined
+      ? {}
+      : { townBulletinIssuer: input.townBulletinIssuer }),
     ...(input.commandDrainLimit === undefined ? {} : { limit: input.commandDrainLimit }),
   });
 

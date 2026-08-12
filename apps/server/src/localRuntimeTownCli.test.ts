@@ -116,6 +116,9 @@ describe('local runtime town executable composition', () => {
       regionalMarketsEnabled: false,
       townWeatherEnabled: false,
       townConditionsEnabled: false,
+      townBulletinEnabled: false,
+      socialMattersEnabled: false,
+      townConflictEnabled: false,
     });
   });
 
@@ -187,6 +190,9 @@ describe('local runtime town executable composition', () => {
       regionalMarketsEnabled: false,
       townWeatherEnabled: false,
       townConditionsEnabled: false,
+      townBulletinEnabled: false,
+      socialMattersEnabled: false,
+      townConflictEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -370,6 +376,144 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('town-conditions-v1');
+  });
+
+  test('town bulletin is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: the bulletin board is disabled, so runs stay bulletin-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townBulletinEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-bulletin', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townBulletinEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_BULLETIN: '1' },
+      }).townBulletinEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-bulletin-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-bulletin-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_BULLETIN: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-bulletin-v1');
+  });
+
+  test('social matters are off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: social matters are disabled, so runs stay matter-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).socialMattersEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--social-matters', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).socialMattersEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_SOCIAL_MATTERS: '1' },
+      }).socialMattersEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares social-matters-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('social-matters-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_SOCIAL_MATTERS: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('social-matters-v1');
+  });
+
+  test('town conflict is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: the conflict system is disabled, so runs stay conflict-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townConflictEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-conflict', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townConflictEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_CONFLICT: '1' },
+      }).townConflictEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-conflict-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-conflict-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_CONFLICT: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-conflict-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

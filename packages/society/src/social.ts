@@ -190,6 +190,20 @@ export function isSocialSignalName(value: string): boolean {
 }
 
 /**
+ * Look up the canonical relation/attitude deltas for a signal in the rule
+ * table, so non-conversation adjudications (e.g. social-matter closures) reuse
+ * the same scoring instead of inventing new numbers.
+ */
+export function resolveSocialSignalDeltas(
+  signal: string,
+): { readonly relationDelta: number; readonly attitudeDelta: number } | undefined {
+  const rule = socialSignalRules.find((candidate) => candidate.signal === signal);
+  return rule === undefined
+    ? undefined
+    : { relationDelta: rule.relationDelta, attitudeDelta: rule.attitudeDelta };
+}
+
+/**
  * Evaluates what each participant learns about the other participant from that participant's own
  * turns. This keeps the two directed relationships independent and makes the world, rather than an
  * agent-supplied score, authoritative for social outcomes.

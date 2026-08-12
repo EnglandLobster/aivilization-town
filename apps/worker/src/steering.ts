@@ -13,6 +13,7 @@ import {
   type StrategicPlanCompiler,
 } from '@aivilization/agent-runtime';
 import {
+  createMemoryProvenance,
   createShortTermMemoryRecord,
   type AgentIntentionRepository,
   type AgentIntentionState,
@@ -42,6 +43,13 @@ export type WorkerSteeringResult =
       readonly shortTermMemoryRecords: readonly [];
     }
   | {
+      readonly kind: 'town-bulletin-issued';
+      readonly bulletinId: string;
+      readonly status: 'posted' | 'scheduled';
+      readonly commandDrafts: readonly [];
+      readonly shortTermMemoryRecords: readonly [];
+    }
+  | {
       readonly kind: 'long-horizon-objective-set';
       readonly intentionState: AgentIntentionState;
       readonly planRecord?: BranchPlanRecord;
@@ -59,6 +67,15 @@ export type WorkerSteeringResult =
 
 export type WorkerSteeringCommand = CommandEnvelope<CoreCommandType, unknown>;
 
+/**
+ * Settles an operator-issued town bulletin against the authoritative board
+ * (town-bulletin switch). Provided by the runtime host when the simulation-wide
+ * authority owns bulletin settlement.
+ */
+export type WorkerTownBulletinIssuer = (input: {
+  readonly command: WorkerSteeringCommand;
+}) => { readonly bulletinId: string; readonly status: 'posted' | 'scheduled' };
+
 export async function handleWorkerSteeringCommand(input: {
   readonly command: WorkerSteeringCommand;
   readonly intentionRepository: AgentIntentionRepository;
@@ -71,7 +88,36 @@ export async function handleWorkerSteeringCommand(input: {
   readonly simulate: ReactiveActionSimulator;
   readonly repair?: ReactiveRepairPolicy;
   readonly persistShortTermMemoryRecords?: boolean;
+  /**
+   * Optional town-bulletin issuer (town-bulletin switch + simulation-wide
+   * authority). When absent, IssueTownBulletin steering commands are rejected.
+   */
+  readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
 }): Promise<WorkerSteeringResult> {
+  // Operator-issued town bulletins carry no actorId and settle against the
+  // authoritative board, so they are handled before agent-scoped steering.
+  if (input.command.type === 'IssueTownBulletin') {
+    const attribution = input.command.humanAttribution;
+    if (
+      input.command.source !== 'human' ||
+      attribution === undefined ||
+      !attribution.principalRoles.includes('operator')
+    ) {
+      throw new Error('IssueTownBulletin requires the operator role');
+    }
+    if (input.townBulletinIssuer === undefined) {
+      throw new Error('IssueTownBulletin requires the town-bulletin switch and authority');
+    }
+    const issued = input.townBulletinIssuer({ command: input.command });
+    return {
+      kind: 'town-bulletin-issued',
+      bulletinId: issued.bulletinId,
+      status: issued.status,
+      commandDrafts: [],
+      shortTermMemoryRecords: [],
+    };
+  }
+
   const agentId = requireActorId(input.command);
   const persistShortTermMemoryRecords = input.persistShortTermMemoryRecords ?? true;
 
@@ -218,6 +264,8 @@ function createStrategicSteeringMemoryRecord(input: {
       'long-horizon-objective',
       ...input.objective.affinityTags,
     ]),
+    // Human steering injects this memory: implanted.
+    provenance: createMemoryProvenance({ kind: 'implanted' }),
   });
 }
 
@@ -234,6 +282,7 @@ function createStrategicSteeringLongTermMemoryPatch(input: {
     confidence: strategicObjectiveConfidence(input.objective),
     provenanceRecordIds: [input.memoryRecord.id],
     proposedAt: input.objective.updatedAt,
+    provenance: createMemoryProvenance({ kind: 'implanted' }),
   };
 }
 

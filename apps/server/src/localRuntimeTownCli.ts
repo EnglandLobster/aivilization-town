@@ -15,9 +15,11 @@ import {
   type PaperPlannerAblationTaskId,
 } from '@aivilization/observability';
 import {
+  AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS,
   createAivilizationWorldCommandPolicies,
   createPaperMarketObservationRecordingConfig,
   createPaperPlannerAblationObjectiveProposer,
+  type AivilizationExperimentalFeatureKey,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownLlmConfig } from './localRuntimeTownLlm';
 import { stopLocalRuntimeTownOrchestration } from './localRuntimeTownOrchestration';
@@ -82,6 +84,9 @@ export type LocalRuntimeTownCliConfig = {
   readonly regionalMarketsEnabled: boolean;
   readonly townWeatherEnabled: boolean;
   readonly townConditionsEnabled: boolean;
+  readonly townBulletinEnabled: boolean;
+  readonly socialMattersEnabled: boolean;
+  readonly townConflictEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -182,22 +187,21 @@ export function resolveLocalRuntimeTownCliConfig(
     options.regionalMarkets ?? env.AIVILIZATION_REGIONAL_MARKETS,
     false,
   );
-  // Town weather is an opt-in borrowed mechanic (adoption plan #1): the
-  // simulation-wide authority settles a Markov weather chain during time
-  // advancement. Disabled by default so runs stay byte-for-byte identical to
-  // the weather-free behavior; enable explicitly for a weather-aware town.
-  const townWeatherEnabled = parseBooleanFlagWithDefault(
-    options.townWeather ?? env.AIVILIZATION_TOWN_WEATHER,
-    false,
-  );
-  // Town conditions are an opt-in borrowed mechanic (adoption plan #2): a
-  // derived condition catalog over physiology axes, weather, and location
-  // exposure, visible in planning contexts and the society projection.
-  // Disabled by default so runs stay byte-for-byte condition-free.
-  const townConditionsEnabled = parseBooleanFlagWithDefault(
-    options.townConditions ?? env.AIVILIZATION_TOWN_CONDITIONS,
-    false,
-  );
+  // Experimental features are parsed from the one registry
+  // (AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS): CLI flag and env var per
+  // feature, all default off so runs stay byte-for-byte identical without
+  // them.
+  const experimentalFeatureEnabled = Object.fromEntries(
+    AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS.map((spec) => [
+      spec.key,
+      parseBooleanFlagWithDefault(options[spec.key] ?? env[spec.envVar], false),
+    ]),
+  ) as Record<AivilizationExperimentalFeatureKey, boolean>;
+  const townWeatherEnabled = experimentalFeatureEnabled.townWeather;
+  const townConditionsEnabled = experimentalFeatureEnabled.townConditions;
+  const townBulletinEnabled = experimentalFeatureEnabled.townBulletin;
+  const socialMattersEnabled = experimentalFeatureEnabled.socialMatters;
+  const townConflictEnabled = experimentalFeatureEnabled.townConflict;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -218,6 +222,9 @@ export function resolveLocalRuntimeTownCliConfig(
     regionalMarketsEnabled,
     townWeatherEnabled,
     townConditionsEnabled,
+    townBulletinEnabled,
+    socialMattersEnabled,
+    townConflictEnabled,
   };
 }
 
@@ -255,6 +262,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
     scenarioPresets: profile.scenarioPresets.filter((preset) => ownedPresetIds.has(preset.id)),
     policies: createAivilizationWorldCommandPolicies(config.seed, undefined, {
       townConditions: config.townConditionsEnabled,
+      townBulletin: config.townBulletinEnabled,
+      socialMatters: config.socialMattersEnabled,
+      townConflict: config.townConflictEnabled,
     }),
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
@@ -288,6 +298,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
               : {}),
             ...(config.townWeatherEnabled ? { townWeather: true as const } : {}),
             ...(config.townConditionsEnabled ? { townConditions: true as const } : {}),
+            ...(config.townBulletinEnabled ? { townBulletin: true as const } : {}),
           },
         }
       : {}),
@@ -402,8 +413,9 @@ export function createLocalRuntimeTownCliHelp(): string {
     '  --llm-mode <mode>    provider | deterministic (default: provider)',
     '  --simulation-wide-authority <on|off>  Unified society + market authority (default: on)',
     '  --regional-markets <on|off>  Per-region AMM pools with divergent prices (default: off)',
-    '  --town-weather <on|off>  Authoritative town weather Markov chain (default: off)',
-    '  --town-conditions <on|off>  Derived agent condition catalog (default: off)',
+    ...AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS.map(
+      (spec) => `  ${spec.cliFlag} <on|off>  ${spec.helpTitle} (default: off)`,
+    ),
     '  --help               Show this help',
     '',
     'The simulation-wide authority (one unified AMM and social graph) is the default',
@@ -412,12 +424,7 @@ export function createLocalRuntimeTownCliHelp(): string {
     'Regional markets are a repository-specific extension (not a paper mechanism): pass',
     '--regional-markets on or AIVILIZATION_REGIONAL_MARKETS=1 to keep per-region AMM pools',
     'with divergent prices under one settlement authority. Disabled by default.',
-    'Town weather is a repository-specific extension (not a paper mechanism): pass',
-    '--town-weather on or AIVILIZATION_TOWN_WEATHER=1 to let the simulation-wide authority',
-    'settle the town-weather-v1 Markov chain during time advancement. Disabled by default.',
-    'Town conditions are a repository-specific extension (not a paper mechanism): pass',
-    '--town-conditions on or AIVILIZATION_TOWN_CONDITIONS=1 to derive the town-conditions-v1',
-    'catalog into planning contexts and the society projection. Disabled by default.',
+    ...AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS.flatMap((spec) => spec.helpLines),
     'Provider mode requires AIVILIZATION_LLM_ENDPOINT and AIVILIZATION_LLM_MODEL.',
     'Provider mode also requires AIVILIZATION_LLM_INPUT_TOKEN_COST_MICROS and',
     'AIVILIZATION_LLM_OUTPUT_TOKEN_COST_MICROS so cost accounting cannot silently report zero.',
@@ -454,6 +461,9 @@ type ParsedOptions = {
   readonly regionalMarkets?: string;
   readonly townWeather?: string;
   readonly townConditions?: string;
+  readonly townBulletin?: string;
+  readonly socialMatters?: string;
+  readonly townConflict?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {
@@ -471,8 +481,9 @@ function parseOptions(argv: readonly string[]): ParsedOptions {
     '--simulation-wide-authority-worker-id': 'simulationWideAuthorityWorkerId',
     '--simulation-wide-authority-lease-ms': 'simulationWideAuthorityLeaseDurationMs',
     '--regional-markets': 'regionalMarkets',
-    '--town-weather': 'townWeather',
-    '--town-conditions': 'townConditions',
+    ...Object.fromEntries(
+      AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS.map((spec) => [spec.cliFlag, spec.key]),
+    ),
   };
 
   for (let index = 0; index < argv.length; index += 1) {

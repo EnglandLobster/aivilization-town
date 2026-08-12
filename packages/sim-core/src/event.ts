@@ -44,6 +44,16 @@ export type CoreEventType =
   | 'ActionRepaired'
   | 'SimulationTimeAdvanced'
   | 'WeatherChanged'
+  | 'BulletinScheduled'
+  | 'BulletinPosted'
+  | 'MatterRaised'
+  | 'MatterResponded'
+  | 'MatterAssigned'
+  | 'MatterProgressed'
+  | 'MatterClosed'
+  | 'ConfrontationRecorded'
+  | 'AttackRecorded'
+  | 'InterventionRecorded'
   | 'AgentOwnershipDeparted'
   | 'AgentOwnershipArrived';
 

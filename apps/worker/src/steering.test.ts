@@ -14,6 +14,77 @@ import { describe, expect, test } from 'vitest';
 import { handleWorkerSteeringCommand } from './index';
 
 describe('worker steering ingress', () => {
+  test('settles operator town bulletins through the injected issuer and rejects non-operators', async () => {
+    const intentionRepository = new InMemoryAgentIntentionRepository();
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const operatorCommand = createCommandEnvelope({
+      id: 'cmd-bulletin-1',
+      simulationId: 'sim-1',
+      source: 'human',
+      humanAttribution: {
+        principalSubjectId: 'operator-1',
+        principalRoles: ['operator'],
+        accessPolicyVersion: 'town-access-v1',
+        consentPolicyVersion: 'town-consent-v1',
+      },
+      type: 'IssueTownBulletin',
+      payload: { title: 'Storm warning', body: 'A storm is coming.', priority: 'high' },
+      issuedAt: 100,
+    });
+
+    const result = await handleWorkerSteeringCommand({
+      command: operatorCommand,
+      intentionRepository,
+      shortTermMemoryRepository,
+      localizedPlanners: [],
+      simulate: ({ action }) => ({ status: 'accepted', action }),
+      townBulletinIssuer: () => ({ bulletinId: 'bulletin-cmd-bulletin-1', status: 'posted' }),
+    });
+    expect(result).toEqual({
+      kind: 'town-bulletin-issued',
+      bulletinId: 'bulletin-cmd-bulletin-1',
+      status: 'posted',
+      commandDrafts: [],
+      shortTermMemoryRecords: [],
+    });
+
+    // A participant (no operator role) cannot issue town bulletins.
+    await expect(
+      handleWorkerSteeringCommand({
+        command: createCommandEnvelope({
+          id: 'cmd-bulletin-2',
+          simulationId: 'sim-1',
+          source: 'human',
+          humanAttribution: {
+            principalSubjectId: 'participant-1',
+            principalRoles: ['participant'],
+            accessPolicyVersion: 'town-access-v1',
+            consentPolicyVersion: 'town-consent-v1',
+          },
+          type: 'IssueTownBulletin',
+          payload: { title: 'T', body: 'B' },
+          issuedAt: 101,
+        }),
+        intentionRepository,
+        shortTermMemoryRepository,
+        localizedPlanners: [],
+        simulate: ({ action }) => ({ status: 'accepted', action }),
+        townBulletinIssuer: () => ({ bulletinId: 'b', status: 'posted' }),
+      }),
+    ).rejects.toThrow(/operator role/);
+
+    // Without the wired issuer (switch off), even an operator is rejected.
+    await expect(
+      handleWorkerSteeringCommand({
+        command: operatorCommand,
+        intentionRepository,
+        shortTermMemoryRepository,
+        localizedPlanners: [],
+        simulate: ({ action }) => ({ status: 'accepted', action }),
+      }),
+    ).rejects.toThrow(/town-bulletin/);
+  });
+
   test('persists SetLongHorizonObjective as agent intention state', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
@@ -67,6 +138,7 @@ describe('worker steering ingress', () => {
             eventIds: [],
           },
           tags: ['steering', 'strategic', 'long-horizon-objective', 'study', 'education'],
+          provenance: { kind: 'implanted', status: 'influencing' },
         },
       ],
     });
@@ -126,6 +198,7 @@ describe('worker steering ingress', () => {
         confidence: 0.95,
         provenanceRecordIds: ['cmd-objective-study:strategic-objective'],
         proposedAt: 100,
+        provenance: { kind: 'implanted', status: 'influencing' },
       },
     ]);
     await expect(longTermProfileRepository.getOrCreate(command.actorId!)).resolves.toMatchObject({

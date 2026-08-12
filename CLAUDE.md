@@ -136,6 +136,21 @@ migration, and the fail-closed contracts that must not regress.
 
 ## Conventions
 
+- **DDD layering is a hard rule.** Domain layer (`packages/world`, `society`, `economy`, `memory`):
+  pure types + pure functions + validators, zero side effects (see `weather.ts`, `matters.ts`,
+  `conflict.ts`, `conditions.ts` for the shape). Application layer (command handlers in
+  `packages/world/src/handlers/`, authority settlement, materializers): orchestrates domain calls
+  and emits events, holds no domain rules. Interface layer (`apps/api`, `apps/web`, CLIs): parsing
+  and presentation only. Domain modules never import from application/interface layers.
+- **World command handlers live in `packages/world/src/handlers/` by domain area**
+  (conversation/matters/conflict/bulletin/physiology/economic/movement/timeAdvance), sharing
+  helpers from `handlers/shared.ts`. `agentActions.ts` is only the dispatch/re-export seam — never
+  add handler logic there.
+- **Experimental features register once** in `apps/worker/src/experimentalFeatures.ts`: one spec
+  entry (`key`, `policyVersion`, `cliFlag`, `envVar`, `createManifestParameters`, optional
+  `withCommandPolicy`) drives CLI parsing, manifest declaration, and the policies factory. A new
+  feature should touch: the registry, its content defaults, its settlement/exposure wiring, and
+  `runtime.env.example` — nothing else. Default-off is mandatory until evidence promotes it.
 - TypeScript is strict with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and
   `verbatimModuleSyntax`. Use `import type` for type-only imports (enforced), and never leave floating
   promises (enforced).

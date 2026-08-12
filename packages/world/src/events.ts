@@ -19,6 +19,9 @@ import type {
   SocialRelationState,
 } from '@aivilization/society';
 import type { TownWeatherKind } from './weather';
+import type { TownBulletin } from './bulletin';
+import type { WorldSocialMatterState } from './matters';
+import type { ConflictGrievance } from './conflict';
 
 export const RUNTIME_AGENT_REGISTRATION_POLICY_VERSION = 'runtime-agent-registration-v3';
 export const RUNTIME_AGENT_REGISTRATION_MAX_POPULATION = 100_000;
@@ -418,6 +421,96 @@ export type WeatherChangedPayload = {
 };
 
 /**
+ * A bulletin accepted for the town board but not yet effective: residents
+ * become aware of it (BulletinPosted) once simulation time reaches
+ * bulletin.effectiveAt.
+ */
+export type BulletinScheduledPayload = {
+  readonly bulletin: TownBulletin;
+  readonly humanAttribution?: HumanCommandAttribution;
+};
+
+/**
+ * A bulletin effective on the town board. Emitted either directly by the
+ * post/issue command (immediate bulletins) or by AdvanceSimulationTime when
+ * the clock crosses a scheduled bulletin's effectiveAt.
+ */
+export type BulletinPostedPayload = {
+  readonly bulletin: TownBulletin;
+  readonly humanAttribution?: HumanCommandAttribution;
+};
+
+/** A social matter enters the board (help-request: open; commitment: latent). */
+export type MatterRaisedPayload = {
+  readonly matter: WorldSocialMatterState;
+};
+
+export type MatterRespondedPayload = {
+  readonly matterId: string;
+  readonly responderAgentId: AgentId;
+  readonly decision: 'accept' | 'reject' | 'defer' | 'withdraw';
+  readonly respondedAt: number;
+};
+
+export type MatterAssignedPayload = {
+  readonly matterId: string;
+  readonly assigneeAgentId: AgentId;
+  readonly assignedAt: number;
+};
+
+/** World-verified partial fulfillment progress (e.g. a partial delivery). */
+export type MatterProgressedPayload = {
+  readonly matterId: string;
+  readonly deliveredQuantity: number;
+  readonly transferEventId: string;
+};
+
+export type MatterClosedPayload = {
+  readonly matterId: string;
+  readonly closure: 'fulfilled' | 'breached' | 'expired' | 'withdrawn';
+  readonly closedAt: number;
+  readonly fulfillmentEventId?: string;
+};
+
+/** A co-located verbal confrontation (town-conflict switch). */
+export type ConfrontationRecordedPayload = {
+  readonly conflictId: string;
+  readonly initiatorAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly locationId: LocationId;
+  readonly statement: string;
+  readonly witnessAgentIds: readonly AgentId[];
+  readonly recordedAt: number;
+};
+
+/** A world-adjudicated attack: grievance, hit, and damage are all rule-based. */
+export type AttackRecordedPayload = {
+  readonly conflictId: string;
+  readonly attackerAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly locationId: LocationId;
+  readonly grievance: ConflictGrievance;
+  readonly damage: number;
+  readonly targetPreviousHealth: number;
+  readonly targetNextHealth: number;
+  readonly attackerEnergyCost: number;
+  readonly witnessAgentIds: readonly AgentId[];
+  readonly recordedAt: number;
+};
+
+/** A third party mediating a conflict pair (town-conflict switch). */
+export type InterventionRecordedPayload = {
+  readonly conflictId: string;
+  readonly intervenerAgentId: AgentId;
+  readonly attackerAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly locationId: LocationId;
+  readonly statement: string;
+  readonly witnessAgentIds: readonly AgentId[];
+  readonly recordedAt: number;
+};
+
+/**
  * An Agent whose durable ownership moved to another execution partition. In the
  * departing partition's stream this event ends the Agent's local presence: the
  * projection stops tracking it, while the durable cognitive history stays for
@@ -484,6 +577,16 @@ export type WorldEventPayloadByType = {
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;
   readonly WeatherChanged: WeatherChangedPayload;
+  readonly BulletinScheduled: BulletinScheduledPayload;
+  readonly BulletinPosted: BulletinPostedPayload;
+  readonly MatterRaised: MatterRaisedPayload;
+  readonly MatterResponded: MatterRespondedPayload;
+  readonly MatterAssigned: MatterAssignedPayload;
+  readonly MatterProgressed: MatterProgressedPayload;
+  readonly MatterClosed: MatterClosedPayload;
+  readonly ConfrontationRecorded: ConfrontationRecordedPayload;
+  readonly AttackRecorded: AttackRecordedPayload;
+  readonly InterventionRecorded: InterventionRecordedPayload;
   readonly AgentOwnershipDeparted: AgentOwnershipDepartedPayload;
   readonly AgentOwnershipArrived: AgentOwnershipArrivedPayload;
 };

@@ -417,6 +417,7 @@ async function resolveShortTermMemoryContext(input: {
 
   const candidates = await input.shortTermMemoryRepository.retrieve({
     agentId: input.agentId,
+    orderBy: 'provenance-importance',
     limit: resolveMemoryRetrievalCandidateLimit({
       memoryRetrievalLimit,
       ...(input.memoryRetrievalCandidateLimit === undefined

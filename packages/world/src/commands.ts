@@ -101,6 +101,209 @@ export type AdvanceSimulationTimePayload = {
   readonly deltaMs: number;
 };
 
+export type AgentPostBulletinPayload = {
+  readonly title: string;
+  readonly body: string;
+  readonly priority?: 'normal' | 'high';
+  readonly effectiveAt?: number;
+};
+
+export type IssueTownBulletinPayload = {
+  readonly title: string;
+  readonly body: string;
+  readonly priority?: 'normal' | 'high';
+  readonly effectiveAt?: number;
+};
+
+function assertBulletinPayload(
+  payload: unknown,
+  commandType: string,
+): AgentPostBulletinPayload {
+  if (!isRecord(payload)) {
+    throw new Error(`${commandType} payload must be an object`);
+  }
+  const title = payload['title'];
+  const body = payload['body'];
+  const priority = payload['priority'];
+  const effectiveAt = payload['effectiveAt'];
+  assertBoundedNonEmptyString(title, `${commandType} title`, 200);
+  assertBoundedNonEmptyString(body, `${commandType} body`, 2000);
+  if (priority !== undefined && priority !== 'normal' && priority !== 'high') {
+    throw new Error(`${commandType} priority must be normal or high`);
+  }
+  if (effectiveAt !== undefined) {
+    assertNonNegativeFinite(effectiveAt, `${commandType} effectiveAt`);
+  }
+  return {
+    title: title.trim(),
+    body: body.trim(),
+    ...(priority === undefined ? {} : { priority }),
+    ...(effectiveAt === undefined ? {} : { effectiveAt }),
+  };
+}
+
+export function assertAgentPostBulletinPayload(payload: unknown): AgentPostBulletinPayload {
+  return assertBulletinPayload(payload, 'AgentPostBulletin');
+}
+
+export function assertIssueTownBulletinPayload(payload: unknown): IssueTownBulletinPayload {
+  return assertBulletinPayload(payload, 'IssueTownBulletin');
+}
+
+export type AgentRaiseMatterPayload = {
+  readonly topic: string;
+  readonly statement: string;
+  readonly requiredCommodity?: {
+    readonly commodityName: string;
+    readonly quantity: number;
+  };
+  readonly expiresInMs?: number;
+};
+
+export type AgentRespondMatterPayload = {
+  readonly matterId: string;
+  readonly decision: 'accept' | 'reject' | 'defer' | 'withdraw';
+};
+
+export type AgentAssignMatterPayload = {
+  readonly matterId: string;
+  readonly assigneeAgentId: AgentId;
+};
+
+export type AgentCloseMatterPayload = {
+  readonly matterId: string;
+  readonly outcome: 'fulfilled' | 'breached' | 'withdrawn';
+};
+
+export function assertAgentRaiseMatterPayload(payload: unknown): AgentRaiseMatterPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentRaiseMatter payload must be an object');
+  }
+  const topic = payload['topic'];
+  const statement = payload['statement'];
+  const requiredCommodity = payload['requiredCommodity'];
+  const expiresInMs = payload['expiresInMs'];
+  assertBoundedNonEmptyString(topic, 'AgentRaiseMatter topic', 200);
+  assertBoundedNonEmptyString(statement, 'AgentRaiseMatter statement', 2000);
+  if (expiresInMs !== undefined) {
+    assertPositiveFinite(expiresInMs, 'AgentRaiseMatter expiresInMs');
+  }
+  let parsedRequiredCommodity: AgentRaiseMatterPayload['requiredCommodity'];
+  if (requiredCommodity !== undefined) {
+    if (!isRecord(requiredCommodity)) {
+      throw new Error('AgentRaiseMatter requiredCommodity must be an object');
+    }
+    const commodityName = requiredCommodity['commodityName'];
+    const quantity = requiredCommodity['quantity'];
+    assertBoundedNonEmptyString(commodityName, 'AgentRaiseMatter requiredCommodity.commodityName', 128);
+    assertPositiveFinite(quantity, 'AgentRaiseMatter requiredCommodity.quantity');
+    parsedRequiredCommodity = { commodityName: commodityName.trim(), quantity };
+  }
+  return {
+    topic: topic.trim(),
+    statement: statement.trim(),
+    ...(parsedRequiredCommodity === undefined ? {} : { requiredCommodity: parsedRequiredCommodity }),
+    ...(expiresInMs === undefined ? {} : { expiresInMs }),
+  };
+}
+
+export function assertAgentRespondMatterPayload(payload: unknown): AgentRespondMatterPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentRespondMatter payload must be an object');
+  }
+  const matterId = payload['matterId'];
+  const decision = payload['decision'];
+  assertBoundedNonEmptyString(matterId, 'AgentRespondMatter matterId', 256);
+  if (
+    decision !== 'accept' &&
+    decision !== 'reject' &&
+    decision !== 'defer' &&
+    decision !== 'withdraw'
+  ) {
+    throw new Error('AgentRespondMatter decision must be accept, reject, defer, or withdraw');
+  }
+  return { matterId: matterId.trim(), decision };
+}
+
+export function assertAgentAssignMatterPayload(payload: unknown): AgentAssignMatterPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentAssignMatter payload must be an object');
+  }
+  const matterId = payload['matterId'];
+  const assigneeAgentId = payload['assigneeAgentId'];
+  assertBoundedNonEmptyString(matterId, 'AgentAssignMatter matterId', 256);
+  assertBoundedNonEmptyString(assigneeAgentId, 'AgentAssignMatter assigneeAgentId', 128);
+  return { matterId: matterId.trim(), assigneeAgentId: asAgentId(assigneeAgentId.trim()) };
+}
+
+export function assertAgentCloseMatterPayload(payload: unknown): AgentCloseMatterPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentCloseMatter payload must be an object');
+  }
+  const matterId = payload['matterId'];
+  const outcome = payload['outcome'];
+  assertBoundedNonEmptyString(matterId, 'AgentCloseMatter matterId', 256);
+  if (outcome !== 'fulfilled' && outcome !== 'breached' && outcome !== 'withdrawn') {
+    throw new Error('AgentCloseMatter outcome must be fulfilled, breached, or withdrawn');
+  }
+  return { matterId: matterId.trim(), outcome };
+}
+
+export type AgentConfrontPayload = {
+  readonly targetAgentId: AgentId;
+  readonly statement: string;
+};
+
+export type AgentAttackPayload = {
+  readonly targetAgentId: AgentId;
+};
+
+export type AgentIntervenePayload = {
+  readonly attackerAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly statement: string;
+};
+
+export function assertAgentConfrontPayload(payload: unknown): AgentConfrontPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentConfront payload must be an object');
+  }
+  const targetAgentId = payload['targetAgentId'];
+  const statement = payload['statement'];
+  assertBoundedNonEmptyString(targetAgentId, 'AgentConfront targetAgentId', 128);
+  assertBoundedNonEmptyString(statement, 'AgentConfront statement', 2000);
+  return {
+    targetAgentId: asAgentId(targetAgentId.trim()),
+    statement: statement.trim(),
+  };
+}
+
+export function assertAgentAttackPayload(payload: unknown): AgentAttackPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentAttack payload must be an object');
+  }
+  const targetAgentId = payload['targetAgentId'];
+  assertBoundedNonEmptyString(targetAgentId, 'AgentAttack targetAgentId', 128);
+  return { targetAgentId: asAgentId(targetAgentId.trim()) };
+}
+
+export function assertAgentIntervenePayload(payload: unknown): AgentIntervenePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentIntervene payload must be an object');
+  }
+  const attackerAgentId = payload['attackerAgentId'];
+  const targetAgentId = payload['targetAgentId'];
+  const statement = payload['statement'];
+  assertBoundedNonEmptyString(attackerAgentId, 'AgentIntervene attackerAgentId', 128);
+  assertBoundedNonEmptyString(targetAgentId, 'AgentIntervene targetAgentId', 128);
+  assertBoundedNonEmptyString(statement, 'AgentIntervene statement', 2000);
+  return {
+    attackerAgentId: asAgentId(attackerAgentId.trim()),
+    targetAgentId: asAgentId(targetAgentId.trim()),
+    statement: statement.trim(),
+  };
+}
+
 export function assertRegisterAgentPayload(payload: unknown): RegisterAgentPayload {
   if (!isRecord(payload)) {
     throw new Error('RegisterAgent payload must be an object');

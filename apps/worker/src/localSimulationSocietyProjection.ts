@@ -9,8 +9,12 @@ import {
 } from '@aivilization/society';
 import {
   DEFAULT_MARKET_REGION_ID,
+  cloneSocialMatter,
+  type WorldBulletinState,
+  type WorldConflictRecord,
   type WorldLocationState,
   type WorldProjection,
+  type WorldSocialMatterState,
   type WorldWeatherState,
 } from '@aivilization/world';
 import type { LocalSimulationSocietyDirectoryService } from './localSimulationSocietyDirectory';
@@ -57,7 +61,7 @@ export type LocalSimulationSocietyProjection = {
    */
   readonly weather?: WorldWeatherState;
   /**
-   * Optional per-agent derived conditions (borrowed-mechanics adoption plan
+   * Optional per-agent derived conditions (town-conditions switch).
    * #2), present only when the town-conditions policy is enabled and the
    * simulation-wide authority is the source. Conditions are derived from the
    * authority snapshot's durable physiology axes, weather, and location
@@ -68,6 +72,25 @@ export type LocalSimulationSocietyProjection = {
     readonly agentId: string;
     readonly conditions: readonly DerivedAgentCondition[];
   }[];
+  /**
+   * Optional town-bulletin board view (opt-in town-bulletin switch), read
+   * from the authority snapshot when active and merged from partition
+   * checkpoints otherwise. Entries carry their durable status (`scheduled`
+   * until the simulation clock reaches effectiveAt, then `effective`).
+   */
+  readonly bulletins?: readonly WorldBulletinState[];
+  /**
+   * Optional social-matter board view (opt-in social-matters switch), read
+   * from the authority snapshot when active and merged from partition
+   * checkpoints otherwise. Sorted by expiry then matterId for a stable view.
+   */
+  readonly socialMatters?: readonly WorldSocialMatterState[];
+  /**
+   * Optional town-conflict log (opt-in town-conflict switch): every
+   * confrontation, attack, and intervention in settlement order. Read from
+   * the authority snapshot when active, merged from partitions otherwise.
+   */
+  readonly conflictRecords?: readonly WorldConflictRecord[];
   /**
    * This is a simulation-wide current migration view, not an inferred route
    * history. It is sourced from the owner directory so consumers can tell an
@@ -235,6 +258,20 @@ export function createLocalSimulationSocietyProjectionService(input: {
         input.conditionPolicy === undefined || authorityView === undefined
           ? undefined
           : deriveSocietyAgentConditions(authorityView.projection, input.conditionPolicy);
+      const bulletins =
+        authorityView !== undefined
+          ? authorityView.projection.bulletins
+          : mergeBulletins(materialized.map((entry) => entry.projection));
+      const socialMatters =
+        authorityView !== undefined
+          ? authorityView.projection.socialMatters === undefined
+            ? undefined
+            : Object.values(authorityView.projection.socialMatters)
+          : mergeSocialMatters(materialized.map((entry) => entry.projection));
+      const conflictRecords =
+        authorityView !== undefined
+          ? authorityView.projection.conflictRecords
+          : mergeConflictRecords(materialized.map((entry) => entry.projection));
       const projectionWithoutId: Omit<LocalSimulationSocietyProjection, 'projectionId'> = {
         schemaVersion: LOCAL_SIMULATION_SOCIETY_PROJECTION_SCHEMA_VERSION,
         simulationId: directory.simulationId,
@@ -258,6 +295,23 @@ export function createLocalSimulationSocietyProjectionService(input: {
         market,
         ...(weather === undefined ? {} : { weather: { ...weather } }),
         ...(agentConditions === undefined ? {} : { agentConditions }),
+        ...(bulletins === undefined
+          ? {}
+          : { bulletins: bulletins.map((bulletin) => ({ ...bulletin })) }),
+        ...(conflictRecords === undefined
+          ? {}
+          : { conflictRecords: conflictRecords.map((record) => ({ ...record })) }),
+        ...(socialMatters === undefined
+          ? {}
+          : {
+              socialMatters: socialMatters
+                .map((matter) => cloneSocialMatter(matter))
+                .sort(
+                  (left, right) =>
+                    left.expiresAt - right.expiresAt ||
+                    left.matterId.localeCompare(right.matterId),
+                ),
+            }),
         ...(authorityView === undefined
           ? {}
           : {
@@ -326,6 +380,63 @@ function deriveSocietyAgentConditions(
     })
     .filter((entry) => entry.conditions.length > 0)
     .sort((left, right) => left.agentId.localeCompare(right.agentId));
+}
+
+function mergeConflictRecords(
+  projections: readonly WorldProjection[],
+): readonly WorldConflictRecord[] | undefined {
+  let merged: readonly WorldConflictRecord[] | undefined;
+  for (const projection of projections) {
+    if (projection.conflictRecords === undefined) continue;
+    if (merged !== undefined && stableStringify(merged) !== stableStringify(projection.conflictRecords)) {
+      throw new Error('society projection conflict records diverged across partitions');
+    }
+    merged = structuredClone(projection.conflictRecords);
+  }
+  return merged;
+}
+
+function mergeSocialMatters(
+  projections: readonly WorldProjection[],
+): readonly WorldSocialMatterState[] | undefined {
+  const merged = new Map<string, WorldSocialMatterState>();
+  let sawAny = false;
+  for (const projection of projections) {
+    if (projection.socialMatters === undefined) continue;
+    sawAny = true;
+    for (const [matterId, matter] of Object.entries(projection.socialMatters)) {
+      const existing = merged.get(matterId);
+      if (existing !== undefined && stableStringify(existing) !== stableStringify(matter)) {
+        throw new Error(`society projection social matter ${matterId} diverged across partitions`);
+      }
+      merged.set(matterId, structuredClone(matter));
+    }
+  }
+  if (!sawAny) return undefined;
+  return [...merged.values()];
+}
+
+function mergeBulletins(
+  projections: readonly WorldProjection[],
+): readonly WorldBulletinState[] | undefined {
+  const merged = new Map<string, WorldBulletinState>();
+  let sawAny = false;
+  for (const projection of projections) {
+    if (projection.bulletins === undefined) continue;
+    sawAny = true;
+    for (const bulletin of projection.bulletins) {
+      const existing = merged.get(bulletin.bulletinId);
+      if (existing !== undefined && stableStringify(existing) !== stableStringify(bulletin)) {
+        throw new Error(`society projection bulletin ${bulletin.bulletinId} diverged across partitions`);
+      }
+      merged.set(bulletin.bulletinId, structuredClone(bulletin));
+    }
+  }
+  if (!sawAny) return undefined;
+  return [...merged.values()].sort(
+    (left, right) =>
+      left.effectiveAt - right.effectiveAt || left.bulletinId.localeCompare(right.bulletinId),
+  );
 }
 
 function mergeWeather(projections: readonly WorldProjection[]): WorldWeatherState | undefined {

@@ -32,7 +32,7 @@ export type TownWeatherConditionConfig = {
 };
 
 /**
- * Versioned town-condition catalog (borrowed-mechanics adoption plan #2).
+ * Versioned town-condition catalog.
  * Conditions are a DERIVED view over durable physiology axes, the simulation
  * weather, and the agent's location exposure — never authoritative state.
  */

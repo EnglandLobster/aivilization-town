@@ -26,6 +26,7 @@ import {
   type AgentTradePayload,
   type AgentPostBulletinPayload,
   type TownWeatherPolicy,
+  type WorldAgentState,
   type WorldCommandPolicies,
   type WorldEvent,
   type WorldProjection,
@@ -116,6 +117,14 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
     readonly agentId: string;
     readonly locationId: string | null;
   }[];
+  /**
+   * Full records for Agents the authority has never seen (runtime participant
+   * registration settles partition-locally first). The reporting partition
+   * becomes their owner; from then on they settle like seed Agents. Kept out
+   * of the request fingerprint so a crash/replay between the journaled sync
+   * and the tick boundary re-issues an identical idempotent request.
+   */
+  readonly newAgents?: readonly WorldAgentState[];
 };
 
 /**
@@ -245,6 +254,12 @@ export type SimulationWideAuthorityOperation =
       readonly fencingToken: number;
       readonly partitionKey: PartitionKey;
       readonly updatedAgentIds: readonly AgentId[];
+      /**
+       * Runtime-registered Agents admitted to the ledger by this sync (their
+       * first report carries their full record). Absent when the sync only
+       * refreshed locations of already-known Agents.
+       */
+      readonly registeredAgentIds?: readonly AgentId[];
       readonly status: 'completed';
       readonly events: readonly [];
     }
@@ -1108,8 +1123,14 @@ export function createSimulationWideAuthority(input: {
       const agentLocations = [...request.agentLocations].sort((left, right) =>
         left.agentId.localeCompare(right.agentId),
       );
+      const newAgents = [...(request.newAgents ?? [])].sort((left, right) =>
+        left.agentId.localeCompare(right.agentId),
+      );
       return mutate({
         operationId: request.operationId,
+        // newAgents stay out of the fingerprint: after a crash the replayed
+        // sync finds the agents already registered and omits their records,
+        // and must still match the journaled request.
         requestFingerprint: stableStringify({
           kind: 'location-sync',
           partitionKey,
@@ -1119,10 +1140,29 @@ export function createSimulationWideAuthority(input: {
         create: (state, fencingToken) => {
           assertKnownPartition(state, partitionKey);
           const agents = { ...state.projection.agents };
+          const owners = { ...state.ownerPartitionKeyByAgentId };
+          const registeredAgentIds: AgentId[] = [];
+          for (const record of newAgents) {
+            const agentId = asAgentId(record.agentId);
+            if (owners[agentId] !== undefined) {
+              throw new Error(`simulation-wide Agent ${agentId} is already registered`);
+            }
+            if (
+              record.locationId !== null &&
+              state.projection.locations[record.locationId] === undefined
+            ) {
+              throw new Error(
+                `simulation-wide Agent ${agentId} reports unknown location ${record.locationId}`,
+              );
+            }
+            agents[agentId] = clone(record);
+            owners[agentId] = partitionKey;
+            registeredAgentIds.push(agentId);
+          }
           const updatedAgentIds: AgentId[] = [];
           for (const entry of agentLocations) {
             const agentId = asAgentId(entry.agentId);
-            const owner = state.ownerPartitionKeyByAgentId[agentId];
+            const owner = owners[agentId];
             if (owner === undefined) {
               throw new Error(`unknown simulation-wide Agent ${agentId}`);
             }
@@ -1151,6 +1191,7 @@ export function createSimulationWideAuthority(input: {
             fencingToken,
             partitionKey,
             updatedAgentIds,
+            ...(registeredAgentIds.length === 0 ? {} : { registeredAgentIds }),
             status: 'completed',
             events: [],
           };
@@ -1158,6 +1199,7 @@ export function createSimulationWideAuthority(input: {
             state: {
               ...state,
               projection: { ...state.projection, agents },
+              ownerPartitionKeyByAgentId: owners,
             },
             operation,
           };
@@ -1618,12 +1660,15 @@ function createInboxDeliveries(
       // Town-wide board updates during this advance (bulletin activations,
       // matter expiries and their breach outcomes): partitions that already
       // receive the full advance event set (transfer moves) have them inline;
-      // everyone else gets just those events.
+      // everyone else gets just those events. WeatherChanged rides along too:
+      // weather settles only on the authority, so without delivery no partition
+      // stream ever records the transition.
       const townWideEvents = operation.events.filter(
         (event) =>
           event.type === 'BulletinPosted' ||
           event.type === 'MatterClosed' ||
           event.type === 'SocialInteractionCompleted' ||
+          event.type === 'WeatherChanged' ||
           // Matter-expiry closures carry the parties' memory records; they
           // must ride along so each owner partition materializes them.
           event.type === 'ShortTermMemoryRecorded',

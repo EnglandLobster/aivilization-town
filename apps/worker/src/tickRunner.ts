@@ -449,7 +449,19 @@ export async function runWorkerSimulationTick(
     events,
     projection,
   });
-  const checkpointResult = saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
+  // Under the simulation-wide authority, router-settled events are applied to
+  // this tick's projection without a partition stream append (they arrive via
+  // the materializer inbox). Checkpointing that projection against the stream
+  // version would corrupt the checkpoint/stream invariant — hydration would
+  // replay the delivered events onto a snapshot already containing them — so
+  // the tick skips its checkpoint; the materializer writes the next boundary
+  // once the deliveries land in the stream.
+  const hasUnstreamedAuthorityEvents = agentResults.some(
+    (result) => result.dispatchResult?.hasUnstreamedAuthorityEvents === true,
+  );
+  const checkpointResult = hasUnstreamedAuthorityEvents
+    ? undefined
+    : saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);
 
   return {
     tickId: input.tickId,

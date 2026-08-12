@@ -11,7 +11,7 @@ import {
   createSimulationPartition,
   type PartitionKey,
 } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldEvent } from '@aivilization/world';
+import { applyWorldEvent, createWorldProjection, type WorldEvent } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 import { createSimulationCommandRouter } from './simulationCommandRouter';
@@ -179,6 +179,205 @@ describe('simulation command router', () => {
       authority.readInbox({ partitionKey: partitionA, consumerId: 'm-a' }).deliveries,
     ).toMatchObject([{ operationKind: 'move', partitionKey: partitionA }]);
     expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(0);
+  });
+  test('catches the authority clock up to the partition clock before settling global drafts', async () => {
+    // Locations are connected (town-square -> school takes 120s), so the move
+    // settles as a transit whose AgentActivityTimeCommitted embeds the
+    // authority clock as startedAt.
+    const connectedLocations = [
+      {
+        locationId: asLocationId('town-square'),
+        name: 'Town square',
+        kind: 'social' as const,
+        activityAffinities: ['social'],
+        capacity: 20,
+        connections: [
+          { targetLocationId: asLocationId('school'), travelDurationSeconds: 120 },
+        ],
+      },
+      {
+        locationId: asLocationId('school'),
+        name: 'School',
+        kind: 'education' as const,
+        activityAffinities: ['study'],
+        capacity: 20,
+        connections: [
+          { targetLocationId: asLocationId('town-square'), travelDurationSeconds: 120 },
+        ],
+      },
+    ];
+    const agentSeed = {
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+      physiology: { energy: 100, satiety: 100, health: 100 },
+      educationScore: 0,
+      balance: 500,
+      residentialTier: 1,
+      job: null,
+      inventory: {},
+    };
+    const authority = createSimulationWideAuthority({
+      rootDir: mkdtempSync(join(tmpdir(), 'aivilization-router-clock-')),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      seed: {
+        manifestId: 'router-clock-manifest',
+        simulationId: asSimulationId('sim-1'),
+        projection: createWorldProjection({
+          clock: { now: 0, tickDurationMs: 1_000 },
+          locations: connectedLocations,
+          agents: [agentSeed],
+          marketPools: [{ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000 }],
+          moneySupply: 1_000,
+        }),
+        owners: [{ agentId: agentA, partitionKey: partitionA }],
+        partitionKeys: [partitionA],
+      },
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+    // The tick already advanced the partition clock to 7000 while the
+    // authority still sits at the bootstrap clock (0): the pre-tick
+    // materializer only catches the authority up to the pre-tick clock.
+    // Settlement events embed the authority clock (the transit commits
+    // AgentActivityTimeCommitted.startedAt), so applying them onto the
+    // partition projection breaks its clock invariants unless the router
+    // levels the authority first.
+    const partitionProjection = {
+      ...createWorldProjection({
+        clock: { now: 0, tickDurationMs: 1_000 },
+        locations: connectedLocations,
+        agents: [agentSeed],
+        marketPools: [{ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000 }],
+        moneySupply: 1_000,
+      }),
+      clock: { now: 7_000, tickDurationMs: 1_000 },
+    };
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentMoveTo',
+          payload: { targetLocationId: asLocationId('school'), reason: 'attend class' },
+          issuedAt: 100,
+        },
+      ],
+      projection: partitionProjection,
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-1:agent-a',
+      commandIdPrefix: 'tick-1:agent-a',
+    });
+
+    expect(authority.getSnapshot().projection.clock.now).toBe(7_000);
+    const activityCommit = result.events.find(
+      (event) => event.type === 'AgentActivityTimeCommitted',
+    );
+    expect(activityCommit?.payload.startedAt).toBe(7_000);
+    // The settlement events apply cleanly onto the partition's working
+    // projection, and the result is marked as carrying authority-settled
+    // events the stream has not seen yet (no tick checkpoint against it).
+    expect(() => result.events.reduce(applyWorldEvent, partitionProjection)).not.toThrow();
+    expect(result.hasUnstreamedAuthorityEvents).toBe(true);
+  });
+  test('admits runtime-registered agents to the authority ledger on their first route', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+    // participant-agent registered partition-locally (command drain); the
+    // authority ledger only knows the seed agents.
+    const newcomer = asAgentId('participant-agent');
+    const projection = createWorldProjection({
+      clock: { now: 0, tickDurationMs: 1_000 },
+      locations: [
+        {
+          locationId: asLocationId('town-square'),
+          name: 'Town square',
+          kind: 'social',
+          activityAffinities: ['social'],
+          capacity: 20,
+        },
+        {
+          locationId: asLocationId('school'),
+          name: 'School',
+          kind: 'education',
+          activityAffinities: ['study'],
+          capacity: 20,
+        },
+      ],
+      agents: [
+        {
+          agentId: newcomer,
+          locationId: asLocationId('town-square'),
+          physiology: { energy: 90, satiety: 90, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [{ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000 }],
+      moneySupply: 1_000,
+    });
+
+    await router.routeCommandDrafts({
+      commandDrafts: [createStudyDraft(newcomer)],
+      projection,
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-1:newcomer',
+      commandIdPrefix: 'tick-1:newcomer',
+    });
+
+    const snapshot = authority.getSnapshot();
+    expect(snapshot.ownerPartitionKeyByAgentId[newcomer]).toBe(partitionA);
+    expect(snapshot.projection.agents[newcomer]).toMatchObject({
+      locationId: asLocationId('town-square'),
+      physiology: { energy: 90, satiety: 90, health: 100 },
+    });
+    expect(
+      Object.values(snapshot.operations).map((entry) => entry.operation),
+    ).toContainEqual(
+      expect.objectContaining({ kind: 'location-sync', registeredAgentIds: [newcomer] }),
+    );
+
+    // A later sync with an unchanged location view is a no-op: no new
+    // authority operation is journaled for the repeat route.
+    const operationCount = Object.keys(authority.getSnapshot().operations).length;
+    await router.routeCommandDrafts({
+      commandDrafts: [createStudyDraft(newcomer)],
+      projection,
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-2:newcomer',
+      commandIdPrefix: 'tick-2:newcomer',
+    });
+    expect(Object.keys(authority.getSnapshot().operations).length).toBe(operationCount);
   });
   test('routes a cross-owner move resolved by location affinity with a captured snapshot', async () => {
     const authority = createRouterAuthority({

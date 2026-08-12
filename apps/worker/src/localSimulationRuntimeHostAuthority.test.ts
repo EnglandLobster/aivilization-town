@@ -1,4 +1,4 @@
-import { asAgentId, asLocationId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createCommandEnvelope, type AgentId } from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -10,6 +10,7 @@ import {
   createAivilizationSocialMattersPolicy,
   createAivilizationTownBulletinPolicy,
   createAivilizationTownConflictPolicy,
+  createAivilizationWorldCommandPolicies,
   type LocalSimulationRuntimeManifest,
 } from './index';
 
@@ -724,6 +725,144 @@ describe('regional markets in the simulation-wide authority', () => {
     // The society projection reads weather from the authority snapshot.
     const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
     expect(projection.weather).toEqual(weather);
+  });
+
+  test('town weather on: the daemon tick loop settles WeatherChanged into the partition stream', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      // One weather cadence per tick so a handful of ticks crosses several
+      // transition evaluations.
+      timeDeltaMs: 3_600_000,
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townWeather: true,
+      },
+    });
+    const authority = host.authority!;
+
+    // Drive ticks through the lifecycle start path — the same route the
+    // daemon's supervisor runCycles takes (registry api → lifecycle → tick
+    // loop), so the pre-tick materializer hook must keep the authority clock
+    // level and let the authority settle the weather cadence. Each cadence is
+    // a seeded coin flip, so loop until a transition actually fires.
+    for (
+      let tick = 0;
+      tick < 20 && authority.getSnapshot().projection.weather === undefined;
+      tick += 1
+    ) {
+      await host.registry.api.startSimulation({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt: 200 + tick,
+      });
+    }
+    const weather = authority.getSnapshot().projection.weather;
+    expect(weather).toBeDefined();
+
+    // The transition is delivered town-wide: the partition stream records
+    // WeatherChanged and the hydrated partition projection carries the slice.
+    const events = await host.registry.api.getEvents({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(events.events.some((event) => event.type === 'WeatherChanged')).toBe(true);
+    const projection = await host.registry.api.getProjection({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(projection.projection.weather).toEqual(weather);
+    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).weather).toEqual(
+      weather,
+    );
+  });
+
+  test('town bulletin on: the daemon tick loop settles operator bulletins onto the authoritative board', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      // The same policy factory the CLI uses, with the town-bulletin switch on.
+      policies: createAivilizationWorldCommandPolicies('host-bulletin-test', undefined, {
+        townBulletin: true,
+      }),
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townBulletin: true,
+      },
+    });
+    const authority = host.authority!;
+    const mainStorage = host.partitions[0]!.bootstrap.storage;
+
+    // An operator steering command lands in the partition command stream, the
+    // same ingress the daemon's steering submission port writes to.
+    mainStorage.commandStore.appendToStream({
+      streamName: mainStorage.partition.commandStreamName,
+      expectedVersion: 0,
+      idempotencyKey: 'append-bulletin-command',
+      commands: [
+        createCommandEnvelope({
+          id: 'cmd-bulletin-1',
+          simulationId: 'sim-1',
+          source: 'human',
+          humanAttribution: {
+            principalSubjectId: 'operator-1',
+            principalRoles: ['operator'],
+            accessPolicyVersion: 'town-access-v1',
+            consentPolicyVersion: 'town-consent-v1',
+          },
+          type: 'IssueTownBulletin',
+          payload: { title: 'Storm warning', body: 'A storm is coming.', priority: 'high' },
+          issuedAt: 150,
+        }),
+      ],
+    });
+
+    // Tick 1 drains the command and settles the bulletin against the
+    // authority board through the wired issuer; tick 2 materializes the
+    // town-wide BulletinPosted delivery into the partition stream.
+    for (const [offset, requestedAt] of [200, 201].entries()) {
+      await host.registry.api.startSimulation({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+        requestedAt,
+        operationId: `bulletin-tick-${offset}`,
+      });
+    }
+
+    const bulletins = authority.getSnapshot().projection.bulletins;
+    expect(bulletins).toHaveLength(1);
+    expect(bulletins?.[0]).toMatchObject({ title: 'Storm warning', priority: 'high' });
+
+    const events = await host.registry.api.getEvents({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(events.events.some((event) => event.type === 'BulletinPosted')).toBe(true);
+    const projection = await host.registry.api.getProjection({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(projection.projection.bulletins).toHaveLength(1);
+    expect(
+      host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins,
+    ).toHaveLength(1);
   });
 
   test('town weather off (default): advancing time produces no weather state or events', async () => {

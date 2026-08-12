@@ -286,7 +286,22 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
             const materialize = materializer.materializeInbox.bind(materializer);
             return {
               commandRouter: router,
-              preTickMaterialize: async ({ projection }: { readonly projection: WorldProjection }) => {
+              preTickMaterialize: async ({
+                projection,
+                issuedAt,
+              }: {
+                readonly projection: WorldProjection;
+                readonly issuedAt: number;
+              }) => {
+                // Refresh the lease timestamp per invocation: the materializer
+                // stamps checkpoint boundaries with the lease observedAt, so a
+                // boot-time lease would age-trip the checkpoint freshness SLO
+                // as uptime grows.
+                const leaseNow: SimulationWideAuthorityMaterializerLease = {
+                  workerId: materializeLease!.workerId,
+                  observedAt: issuedAt,
+                  durationMs: materializeLease!.durationMs,
+                };
                 // Keep the authority clock level with the partition clocks so
                 // in-transit travel settled globally completes on schedule and
                 // its arrival deliveries are ready to materialize. Partitions
@@ -296,13 +311,13 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 if (authorityClockNow < projection.clock.now) {
                   authority!.advanceTime({
                     operationId: `advance-time-to:${projection.clock.now}`,
-                    workerId: materializeLease!.workerId,
-                    observedAt: materializeLease!.observedAt,
-                    durationMs: materializeLease!.durationMs,
+                    workerId: leaseNow.workerId,
+                    observedAt: leaseNow.observedAt,
+                    durationMs: leaseNow.durationMs,
                     deltaMs: projection.clock.now - authorityClockNow,
                   });
                 }
-                const result = await materialize({ lease: materializeLease! });
+                const result = await materialize({ lease: leaseNow });
                 // The materializer's projection reflects the partition stream
                 // after consuming the inbox. The step passes its own hydrated
                 // projection for context; we return the materialized one so the

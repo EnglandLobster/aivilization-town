@@ -26,6 +26,15 @@ export type DispatchCommandDraftsResult = {
 
 export type DispatchCommandDraftsToEventStreamResult = DispatchCommandDraftsResult & {
   readonly appendResult: AppendToEventStreamResult<WorldEvent>;
+  /**
+   * Set by the simulation command router when authority-settled events were
+   * applied to the returned projection WITHOUT a partition stream append —
+   * they reach the stream later through the materializer inbox delivery. A
+   * projection carrying such events must not be checkpointed against the
+   * current stream version: hydration would replay the delivered events onto
+   * a snapshot that already contains them.
+   */
+  readonly hasUnstreamedAuthorityEvents?: true;
 };
 
 export type DispatchWorldCommandToEventStreamResult = {

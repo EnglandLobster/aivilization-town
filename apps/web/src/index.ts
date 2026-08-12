@@ -14,11 +14,23 @@ export type WebInspectionPanelContract = {
   readonly showsPlannerInternals: true;
 };
 
+const TEXT_JAVASCRIPT = 'text/javascript; charset=utf-8';
+
+/** Browser ES modules served verbatim; keep in sync with `public/`. */
+const javaScriptModulePaths = [
+  'app.js',
+  'ui/map/renderer.js',
+  'ui/map/tilesheet.js',
+  'ui/map/interpolation.js',
+  'ui/map/picking.js',
+  'ui/map/weatherLayer.js',
+  'ui/panels/workspaces.js',
+  'ui/panels/inspector.js',
+] as const;
 export function createTownWebAssets(): readonly TownWebAsset[] {
   const html = readWebAsset('index.html');
   const css = readWebAsset('app.css');
-  const javascript = readWebAsset('app.js');
-  const townMap = readBinaryWebAsset('assets/town-map.png');
+  const tiles = readBinaryWebAsset('ui/assets/tiles.png');
   return [
     {
       path: '/',
@@ -38,16 +50,16 @@ export function createTownWebAssets(): readonly TownWebAsset[] {
       body: css,
       cacheControl: 'no-cache',
     },
-    {
-      path: '/ui/app.js',
-      contentType: 'text/javascript; charset=utf-8',
-      body: javascript,
+    ...javaScriptModulePaths.map((modulePath) => ({
+      path: modulePath.startsWith('ui/') ? `/${modulePath}` : `/ui/${modulePath}`,
+      contentType: TEXT_JAVASCRIPT,
+      body: readWebAsset(modulePath),
       cacheControl: 'no-cache',
-    },
+    })),
     {
-      path: '/ui/assets/town-map.png',
+      path: '/ui/assets/tiles.png',
       contentType: 'image/png',
-      body: townMap,
+      body: tiles,
       cacheControl: 'public, max-age=31536000, immutable',
     },
   ];

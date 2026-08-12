@@ -405,6 +405,7 @@ describe('worker memory consolidation', () => {
         confidence: 0.6,
         provenanceRecordIds: ['memory-agent-1-1', 'memory-agent-1-2', 'memory-agent-1-3'],
         proposedAt: 1000,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
     expect(result.profile.habits).toEqual([
@@ -414,6 +415,7 @@ describe('worker memory consolidation', () => {
         confidence: 0.6,
         provenanceRecordIds: ['memory-agent-1-1', 'memory-agent-1-2', 'memory-agent-1-3'],
         updatedAt: 1000,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
     await expect(longTermProfileRepository.getOrCreate(agentId)).resolves.toEqual(result.profile);
@@ -692,6 +694,7 @@ describe('worker memory consolidation', () => {
         proposedAt: 2000,
         relationDelta: 1,
         attitudeDelta: 1,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
     expect(result.profile.socialRecords).toEqual([
@@ -703,8 +706,118 @@ describe('worker memory consolidation', () => {
         updatedAt: 2000,
         relationDelta: 1,
         attitudeDelta: 1,
+        provenance: { kind: 'firsthand', status: 'influencing' },
       },
     ]);
+  });
+
+  test('records a correction memory when a hearsay belief is corrected across batches', async () => {
+    const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();
+    const longTermProfileRepository = new InMemoryLongTermProfileRepository();
+    const claimRecord = (input: {
+      readonly id: string;
+      readonly occurredAt: number;
+      readonly claimStatus: 'asserted' | 'corrected';
+      readonly statement: string;
+    }) =>
+      createShortTermMemoryRecord({
+        id: input.id,
+        agentId,
+        kind: 'social-interaction',
+        status: 'succeeded',
+        summary: 'Agent-2 discussed the harvest.',
+        occurredAt: input.occurredAt,
+        importanceScore: 0.6,
+        source: { eventIds: [] },
+        consolidationHint: {
+          kind: 'social',
+          targetAgentId: otherAgentId,
+          relationDelta: 0,
+          attitudeDelta: 0,
+          summary: 'Agent-2 discussed the harvest.',
+          knowledgeClaims: [
+            {
+              sourceAgentId: otherAgentId,
+              topic: 'wheat harvest',
+              statement: input.statement,
+              status: input.claimStatus,
+            },
+          ],
+        },
+      });
+
+    // First batch: the asserted claim consolidates into an influencing hearsay
+    // belief; no correction is recorded.
+    await shortTermMemoryRepository.appendMany([
+      claimRecord({
+        id: 'claim-asserted',
+        occurredAt: 1,
+        claimStatus: 'asserted',
+        statement: 'The wheat harvest has failed.',
+      }),
+    ]);
+    const asserted = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 1_000,
+    });
+    const beliefKey = 'social-knowledge:agent-2:wheat-harvest';
+    expect(asserted.correctionRecords).toEqual([]);
+    expect(
+      asserted.profile.beliefs.find((entry) => entry.key === beliefKey)?.provenance,
+    ).toEqual({ kind: 'hearsay', status: 'influencing' });
+
+    // Second batch: the corrected claim flips the belief to corrected and the
+    // correction itself becomes a fresh firsthand memory for later reflection.
+    await shortTermMemoryRepository.appendMany([
+      claimRecord({
+        id: 'claim-corrected',
+        occurredAt: 2,
+        claimStatus: 'corrected',
+        statement: 'Actually the wheat harvest was fine.',
+      }),
+    ]);
+    const corrected = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 2_000,
+    });
+    const entry = corrected.profile.beliefs.find((belief) => belief.key === beliefKey);
+    expect(entry?.provenance).toEqual({
+      kind: 'hearsay',
+      status: 'corrected',
+      correctedByRecordId: 'claim-corrected',
+    });
+    expect(corrected.correctionRecords).toHaveLength(1);
+    expect(corrected.correctionRecords[0]).toMatchObject({
+      kind: 'observation',
+      status: 'observed',
+      occurredAt: 2_000,
+      provenance: { kind: 'firsthand', status: 'influencing' },
+    });
+    expect(corrected.correctionRecords[0]?.summary).toContain('marked corrected');
+    expect(corrected.correctionRecords[0]?.tags).toContain('belief-correction');
+
+    // The correction memory is durable in short-term memory.
+    const stored = await shortTermMemoryRepository.retrieve({ agentId, limit: 20 });
+    expect(stored.some((record) => record.id === corrected.correctionRecords[0]?.id)).toBe(true);
+
+    // Re-running the same window detects no new transition: idempotent.
+    const replayed = await runWorkerMemoryConsolidation({
+      agentId,
+      shortTermMemoryRepository,
+      longTermProfileRepository,
+      retrievalLimit: 10,
+      minPatternCount: 1,
+      proposedAt: 2_000,
+    });
+    expect(replayed.correctionRecords).toEqual([]);
   });
 
   test('leaves the profile unchanged when not enough records match a consolidation pattern', async () => {

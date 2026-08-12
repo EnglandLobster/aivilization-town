@@ -49,9 +49,14 @@ started with `--llm-mode deterministic`.
   Coverage is a floor for "untested code", not a quality proof — weak
   assertions with high line coverage are still reviewable defects. Keep
   `pnpm test` (fast, no instrumentation) for the local dev loop.
-- World-authoritative commands live in `packages/world`; cognition lives in
-  `packages/agent-runtime`; social/institution models live in
-  `packages/society`. Keep that layering.
+- World-authoritative commands live in `packages/world/src/handlers/` (one module per domain area,
+  never in the `agentActions.ts` dispatch seam); cognition lives in `packages/agent-runtime`;
+  social/institution models live in `packages/society`. Domain packages contain pure types and pure
+  functions only — side effects belong to the application layer (handlers, authority, materializers).
+  Keep that DDD layering.
+- Experimental features ship behind a single registration in
+  `apps/worker/src/experimentalFeatures.ts` (drives CLI flag, env var, manifest declaration, and the
+  policies factory) and default to off.
 - Durable payloads and events are append-compatible only: add optional
   fields, never repurpose or remove existing ones without a migration plan.
 - Commit messages follow the repo's conventional style

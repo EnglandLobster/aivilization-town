@@ -7,6 +7,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import {
   bootstrapLocalSimulationRuntimeHostFromManifest,
+  createAivilizationSocialMattersPolicy,
+  createAivilizationTownBulletinPolicy,
+  createAivilizationTownConflictPolicy,
   type LocalSimulationRuntimeManifest,
 } from './index';
 
@@ -818,6 +821,326 @@ describe('regional markets in the simulation-wide authority', () => {
 
     expect(
       host.societyProjection.getProjection({ simulationId: 'sim-1' }).agentConditions,
+    ).toBeUndefined();
+  });
+
+  test('town bulletin on: authority settles idempotently, fans out hearsay awareness, and high priority preempts', async () => {
+    const bulletinPolicies: WorldCommandPolicies = {
+      ...policies,
+      bulletin: createAivilizationTownBulletinPolicy(),
+    };
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies: bulletinPolicies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townBulletin: true,
+      },
+    });
+    const authority = host.authority!;
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+    const operator = {
+      principalSubjectId: 'operator-1',
+      principalRoles: ['operator'],
+      accessPolicyVersion: 'town-access-v1',
+      consentPolicyVersion: 'town-consent-v1',
+    };
+
+    const posted = authority.settleBulletin({
+      operationId: 'bulletin-storm',
+      bulletin: { title: 'Storm warning', body: 'A storm is coming.', priority: 'high' },
+      humanAttribution: operator,
+      ...lease,
+    });
+    expect(posted.status).toBe('posted');
+    // Idempotent replay: the same operationId returns the stored operation.
+    expect(
+      authority.settleBulletin({
+        operationId: 'bulletin-storm',
+        bulletin: { title: 'Storm warning', body: 'A storm is coming.', priority: 'high' },
+        humanAttribution: operator,
+        ...lease,
+      }),
+    ).toEqual(posted);
+
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    await host.materializers.get('world-east')!.materializeInbox({ lease });
+
+    // Every resident gains a hearsay awareness memory on their owner partition.
+    const mainMemory = await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
+      { agentId: agentOne, limit: 64 },
+    );
+    expect(mainMemory).toHaveLength(1);
+    expect(mainMemory[0]).toMatchObject({
+      kind: 'observation',
+      status: 'observed',
+      provenance: { kind: 'hearsay', status: 'influencing' },
+    });
+    expect(mainMemory[0]?.summary).toContain('Storm warning');
+    expect(mainMemory[0]?.tags).toContain('town-bulletin');
+    expect(mainMemory[0]?.tags).toContain('bulletin-priority-high');
+    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
+      { agentId: agentTwo, limit: 64 },
+    );
+    expect(eastMemory).toHaveLength(1);
+
+    // High priority preempts: a forced-attention intention per resident.
+    const mainIntentions = await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(
+      agentOne,
+    );
+    const bulletinIntentions = mainIntentions.scheduledIntentions.filter((intention) =>
+      intention.affinityTags.includes('town-bulletin'),
+    );
+    expect(bulletinIntentions).toHaveLength(1);
+    expect(bulletinIntentions[0]?.priority).toBe(90);
+    expect(bulletinIntentions[0]?.status).toBe('planned');
+
+    // The society projection exposes the board from the authority snapshot.
+    const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(projection.bulletins).toHaveLength(1);
+    expect(projection.bulletins?.[0]).toMatchObject({
+      status: 'effective',
+      priority: 'high',
+      authorSubjectId: 'operator-1',
+    });
+
+    // A normal-priority bulletin adds awareness but no new preemption.
+    authority.settleBulletin({
+      operationId: 'bulletin-picnic',
+      bulletin: { title: 'Picnic', body: 'Community picnic on the square.' },
+      humanAttribution: operator,
+      ...lease,
+    });
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    const afterNormal = await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(
+      agentOne,
+    );
+    expect(
+      afterNormal.scheduledIntentions.filter((intention) =>
+        intention.affinityTags.includes('town-bulletin'),
+      ),
+    ).toHaveLength(1);
+    const mainMemoryAfter =
+      await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        limit: 64,
+      });
+    expect(mainMemoryAfter).toHaveLength(2);
+    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins).toHaveLength(2);
+  });
+
+  test('social matters on: authority settles the lifecycle idempotently and exposes the board', async () => {
+    const mattersPolicies: WorldCommandPolicies = {
+      ...policies,
+      socialMatters: createAivilizationSocialMattersPolicy(),
+    };
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies: mattersPolicies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const authority = host.authority!;
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+
+    const raised = authority.settleMatter({
+      operationId: 'matter-raise-1',
+      agentId: agentOne,
+      commandType: 'AgentRaiseMatter',
+      payload: { topic: 'apples', statement: 'Need an apple.', expiresInMs: 60_000 },
+      ...lease,
+    });
+    expect(raised.matterId).toBe('matter-simulation-wide-matter-matter-raise-1');
+    // Idempotent replay: the same operationId returns the stored operation.
+    expect(
+      authority.settleMatter({
+        operationId: 'matter-raise-1',
+        agentId: agentOne,
+        commandType: 'AgentRaiseMatter',
+        payload: { topic: 'apples', statement: 'Need an apple.', expiresInMs: 60_000 },
+        ...lease,
+      }),
+    ).toEqual(raised);
+
+    authority.settleMatter({
+      operationId: 'matter-respond-1',
+      agentId: agentTwo,
+      commandType: 'AgentRespondMatter',
+      payload: { matterId: raised.matterId, decision: 'accept' },
+      ...lease,
+    });
+    authority.settleMatter({
+      operationId: 'matter-assign-1',
+      agentId: agentOne,
+      commandType: 'AgentAssignMatter',
+      payload: { matterId: raised.matterId, assigneeAgentId: agentTwo },
+      ...lease,
+    });
+    const snapshot = authority.getSnapshot().projection;
+    expect(snapshot.socialMatters?.[raised.matterId]).toMatchObject({
+      status: 'assigned',
+      assigneeAgentId: agentTwo,
+    });
+
+    // Every partition materializes the town-wide board.
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    await host.materializers.get('world-east')!.materializeInbox({ lease });
+    const mainCheckpoint = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(mainCheckpoint.socialMatters).toHaveLength(1);
+    expect(mainCheckpoint.socialMatters?.[0]).toMatchObject({
+      matterId: raised.matterId,
+      status: 'assigned',
+    });
+
+    // Expiry settles during advance and reaches every partition: the assigned
+    // matter breaches with the canonical betrayal outcome.
+    authority.advanceTime({
+      operationId: 'advance-matter-expiry',
+      deltaMs: 3_600_000,
+      ...lease,
+    });
+    expect(authority.getSnapshot().projection.socialMatters?.[raised.matterId]).toMatchObject({
+      status: 'closed',
+      closure: 'breached',
+    });
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    const after = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(after.socialMatters?.[0]).toMatchObject({ status: 'closed', closure: 'breached' });
+  });
+
+  test('town conflict on: confront issues a grievance, attack settles damage, and the log is exposed', async () => {
+    const conflictPolicies: WorldCommandPolicies = {
+      ...policies,
+      conflict: createAivilizationTownConflictPolicy(),
+    };
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies: conflictPolicies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const authority = host.authority!;
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+
+    // No grievance yet: the attack is rejected before any hostility exists.
+    expect(() =>
+      authority.settleConflict({
+        operationId: 'conflict-attack-early',
+        agentId: agentOne,
+        commandType: 'AgentAttack',
+        payload: { targetAgentId: agentTwo },
+        ...lease,
+      }),
+    ).toThrow(/grievance/);
+
+    // The confrontation drops the relation below the grievance threshold.
+    const confrontation = authority.settleConflict({
+      operationId: 'conflict-confront-1',
+      agentId: agentOne,
+      commandType: 'AgentConfront',
+      payload: { targetAgentId: agentTwo, statement: 'You cheated me.' },
+      ...lease,
+    });
+    expect(confrontation.status).toBe('completed');
+    // Idempotent replay.
+    expect(
+      authority.settleConflict({
+        operationId: 'conflict-confront-1',
+        agentId: agentOne,
+        commandType: 'AgentConfront',
+        payload: { targetAgentId: agentTwo, statement: 'You cheated me.' },
+        ...lease,
+      }),
+    ).toEqual(confrontation);
+
+    const attack = authority.settleConflict({
+      operationId: 'conflict-attack-1',
+      agentId: agentOne,
+      commandType: 'AgentAttack',
+      payload: { targetAgentId: agentTwo },
+      ...lease,
+    });
+    expect(attack.status).toBe('completed');
+    const snapshot = authority.getSnapshot().projection;
+    const target = snapshot.agents[agentTwo];
+    // base 15 + energy 50*0.05 - 50*0.02 = 16.5 damage on health 100.
+    expect(target?.physiology.health).toBeCloseTo(83.5, 6);
+    expect(snapshot.agents[agentOne]?.physiology.energy).toBe(40);
+    expect(snapshot.conflictRecords).toHaveLength(2);
+
+    // Every partition materializes the conflict events and party memories.
+    await host.materializers.get('world-main')!.materializeInbox({ lease });
+    await host.materializers.get('world-east')!.materializeInbox({ lease });
+    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
+      { agentId: agentTwo, limit: 64 },
+    );
+    expect(eastMemory.some((record) => record.tags.includes('attack'))).toBe(true);
+
+    const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
+    expect(projection.conflictRecords).toHaveLength(2);
+    expect(projection.conflictRecords?.map((record) => record.kind)).toEqual([
+      'confrontation',
+      'attack',
+    ]);
+  });
+
+  test('town bulletin off (default): agent posts are rejected and no board exists', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+    expect(() =>
+      host.authority!.settleBulletin({
+        operationId: 'bulletin-off',
+        bulletin: { title: 'T', body: 'B' },
+        authorAgentId: agentOne,
+        ...lease,
+      }),
+    ).toThrow(/missing bulletin policy/);
+    expect(
+      host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins,
     ).toBeUndefined();
   });
 

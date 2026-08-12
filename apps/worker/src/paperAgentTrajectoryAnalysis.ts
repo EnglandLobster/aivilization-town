@@ -115,6 +115,7 @@ export function createGuidanceObservations(
     })
     .map((trace) => {
       if (
+        trace.agentId === undefined ||
         trace.objectiveId === undefined ||
         trace.objectiveStatement === undefined ||
         trace.objectiveAffinityTags === undefined

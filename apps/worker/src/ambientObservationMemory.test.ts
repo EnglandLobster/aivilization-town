@@ -124,6 +124,8 @@ describe('ambient observation memory', () => {
       status: 'observed',
       summary: 'Observed agent-1 buy 2 Apple at Market.',
       source: { eventIds: ['event-trade'] },
+      // A bystander directly witnessed the trade: firsthand.
+      provenance: { kind: 'firsthand', status: 'influencing' },
     });
     expect(result.records[0]?.tags).toEqual([
       'ambient-observation',

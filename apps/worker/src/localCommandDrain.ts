@@ -21,7 +21,7 @@ import {
   type CheckpointedWorkerCommandStreamConsumptionResult,
 } from './commandStreamConsumer';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
-import { handleWorkerSteeringCommand, type WorkerSteeringResult } from './steering';
+import { handleWorkerSteeringCommand, type WorkerSteeringResult, type WorkerTownBulletinIssuer } from './steering';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type LocalRuntimeSteeringCommandDrainInput = {
@@ -32,6 +32,7 @@ export type LocalRuntimeSteeringCommandDrainInput = {
   readonly simulate: ReactiveActionSimulator;
   readonly repair?: ReactiveRepairPolicy;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
+  readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
   readonly limit?: number;
 };
 
@@ -55,6 +56,9 @@ export function drainLocalRuntimeSteeringCommands(
         ...(input.strategicPlanCompiler === undefined
           ? {}
           : { strategicPlanCompiler: input.strategicPlanCompiler }),
+        ...(input.townBulletinIssuer === undefined
+          ? {}
+          : { townBulletinIssuer: input.townBulletinIssuer }),
       });
       await recordSteeringTrace({
         storage: input.storage,
@@ -145,6 +149,9 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
         ...(input.strategicPlanCompiler === undefined
           ? {}
           : { strategicPlanCompiler: input.strategicPlanCompiler }),
+        ...(input.townBulletinIssuer === undefined
+          ? {}
+          : { townBulletinIssuer: input.townBulletinIssuer }),
         persistShortTermMemoryRecords: false,
       });
 
@@ -317,13 +324,21 @@ function createSteeringTrace(input: {
     ...(input.command.humanAttribution === undefined
       ? {}
       : { humanAttribution: input.command.humanAttribution }),
-    agentId: requireActorId(input.command),
+    ...(input.command.actorId === undefined ? {} : { agentId: input.command.actorId }),
     resultKind: input.steering.kind,
     commandDraftCount: input.steering.commandDrafts.length,
     shortTermMemoryRecordIds: input.steering.shortTermMemoryRecords.map((record) => record.id),
     issuedAt: input.command.issuedAt,
     recordedAt: input.recordedAt,
   };
+
+  if (input.steering.kind === 'town-bulletin-issued') {
+    return {
+      ...base,
+      bulletinId: input.steering.bulletinId,
+      candidateActionCount: 0,
+    };
+  }
 
   if (input.steering.kind === 'long-horizon-objective-set') {
     const objective = input.steering.intentionState.activeObjective;
@@ -397,11 +412,4 @@ function readReactiveCommandId(command: WorkerSteeringCommand): string {
     }
   }
   return command.id;
-}
-
-function requireActorId(command: WorkerSteeringCommand): string {
-  if (command.actorId === undefined) {
-    throw new Error(`${command.type} requires actorId`);
-  }
-  return command.actorId;
 }

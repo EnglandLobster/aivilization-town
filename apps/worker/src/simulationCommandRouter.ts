@@ -12,6 +12,7 @@ import {
   applyWorldEvent,
   dispatchWorldCommand,
   type AgentMoveToPayload,
+  type AgentPostBulletinPayload,
   type AgentStartConversationPayload,
   type AgentTradePayload,
   type WorldEvent,
@@ -44,6 +45,18 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
   'AgentTrade',
   'AgentStartConversation',
   'AgentMoveTo',
+  // Bulletin posts are town-wide facts, so they settle against the one
+  // authoritative board instead of a partition-local projection.
+  'AgentPostBulletin',
+  // Social matters are likewise town-wide board state.
+  'AgentRaiseMatter',
+  'AgentRespondMatter',
+  'AgentAssignMatter',
+  'AgentCloseMatter',
+  // Conflict commands settle against the one authoritative world state.
+  'AgentConfront',
+  'AgentAttack',
+  'AgentIntervene',
 ]);
 
 export type SimulationCommandRouter = {
@@ -277,8 +290,51 @@ async function settleGlobalDraft(input: {
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
     }
-    if (draft.type === 'AgentMoveTo') {
-      const payload = draft.payload as AgentMoveToPayload;
+    if (draft.type === 'AgentPostBulletin') {
+      const operation = authority.settleBulletin({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        authorAgentId: draft.actorId,
+        bulletin: draft.payload as AgentPostBulletinPayload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (
+      draft.type === 'AgentRaiseMatter' ||
+      draft.type === 'AgentRespondMatter' ||
+      draft.type === 'AgentAssignMatter' ||
+      draft.type === 'AgentCloseMatter'
+    ) {
+      const operation = authority.settleMatter({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (
+      draft.type === 'AgentConfront' ||
+      draft.type === 'AgentAttack' ||
+      draft.type === 'AgentIntervene'
+    ) {
+      const operation = authority.settleConflict({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (draft.type === 'AgentMoveTo') {      const payload = draft.payload as AgentMoveToPayload;
       // Destination ownership comes from manifest-declared location affinity;
       // anything unaffiliated keeps the mover's current owner.
       const currentOwner =

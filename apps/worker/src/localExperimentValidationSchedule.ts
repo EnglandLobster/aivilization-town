@@ -294,20 +294,29 @@ async function createValidationSteeringTracesFromSource(
     ...(source.limit === undefined ? {} : { limit: source.limit }),
   });
 
-  return traces.map((trace) => ({
-    traceId: trace.traceId,
-    agentId: trace.agentId,
-    source: trace.source,
-    resultKind: trace.resultKind,
-    ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
-    ...(trace.planId === undefined ? {} : { planId: trace.planId }),
-    ...(trace.reactiveCommandId === undefined
-      ? {}
-      : { reactiveCommandId: trace.reactiveCommandId }),
-    commandDraftCount: trace.commandDraftCount,
-    shortTermMemoryRecordIds: [...trace.shortTermMemoryRecordIds],
-    issuedAt: trace.issuedAt,
-  }));
+  return traces.flatMap((trace) => {
+    // Operator town-bulletin traces carry no acting Agent and are not
+    // experiment-validation guidance, so they are skipped here.
+    if (trace.agentId === undefined || trace.resultKind === 'town-bulletin-issued') {
+      return [];
+    }
+    return [
+      {
+        traceId: trace.traceId,
+        agentId: trace.agentId,
+        source: trace.source,
+        resultKind: trace.resultKind,
+        ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
+        ...(trace.planId === undefined ? {} : { planId: trace.planId }),
+        ...(trace.reactiveCommandId === undefined
+          ? {}
+          : { reactiveCommandId: trace.reactiveCommandId }),
+        commandDraftCount: trace.commandDraftCount,
+        shortTermMemoryRecordIds: [...trace.shortTermMemoryRecordIds],
+        issuedAt: trace.issuedAt,
+      },
+    ];
+  });
 }
 
 function resolveEventWindow(

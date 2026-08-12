@@ -15,6 +15,9 @@ import type { WorldEvent } from './events';
 import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './events';
 import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
+import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
+import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
+import type { WorldConflictRecord } from './conflict';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -201,6 +204,22 @@ export type WorldProjection = {
    * snapshots byte-for-byte compatible.
    */
   readonly weather?: WorldWeatherState;
+  /**
+   * Optional town-bulletin board state (opt-in town-bulletin switch). Absent
+   * on legacy projections; present (possibly empty) once the board is used.
+   */
+  readonly bulletins?: readonly WorldBulletinState[];
+  /**
+   * Optional social-matter board state (opt-in social-matters switch), keyed
+   * by matterId. Absent on legacy projections.
+   */
+  readonly socialMatters?: Readonly<Record<string, WorldSocialMatterState>>;
+  /**
+   * Optional town-conflict log (opt-in town-conflict switch), one entry per
+   * confrontation/attack/intervention, append-only in event order. Absent on
+   * legacy projections.
+   */
+  readonly conflictRecords?: readonly WorldConflictRecord[];
   readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
@@ -253,6 +272,8 @@ export function createWorldProjection(input: {
   readonly socialCommitments?: readonly WorldSocialCommitmentState[];
   readonly socialRelations?: readonly SocialRelationState[];
   readonly weather?: WorldWeatherState;
+  readonly bulletins?: readonly WorldBulletinState[];
+  readonly socialMatters?: readonly WorldSocialMatterState[];
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
   for (const location of input.locations ?? []) {
@@ -329,6 +350,18 @@ export function createWorldProjection(input: {
     activityTimeByAgent: {},
     transitByAgent: {},
     ...(input.weather === undefined ? {} : { weather: { ...input.weather } }),
+    ...(input.bulletins === undefined
+      ? {}
+      : {
+          bulletins: input.bulletins.map((bulletin) => ({ ...bulletin })),
+        }),
+    ...(input.socialMatters === undefined
+      ? {}
+      : {
+          socialMatters: Object.fromEntries(
+            input.socialMatters.map((matter) => [matter.matterId, cloneSocialMatter(matter)]),
+          ),
+        }),
     socialRelations,
     memoryRecords: [],
     rejectedActions: [],
@@ -788,6 +821,193 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           since: event.payload.transitionedAt,
         },
       };
+    case 'BulletinScheduled': {
+      const bulletins = projection.bulletins ?? [];
+      if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
+        throw new Error(
+          `cannot replay duplicate bulletin ${event.payload.bulletin.bulletinId}`,
+        );
+      }
+      return {
+        ...projection,
+        bulletins: [
+          ...bulletins,
+          { ...cloneTownBulletin(event.payload.bulletin), status: 'scheduled' },
+        ],
+      };
+    }
+    case 'BulletinPosted': {
+      const bulletins = projection.bulletins ?? [];
+      const bulletinId = event.payload.bulletin.bulletinId;
+      if (bulletins.some((bulletin) => bulletin.bulletinId === bulletinId)) {
+        // Activation of a previously scheduled bulletin.
+        return {
+          ...projection,
+          bulletins: bulletins.map((bulletin) =>
+            bulletin.bulletinId === bulletinId
+              ? { ...cloneTownBulletin(event.payload.bulletin), status: 'effective' }
+              : bulletin,
+          ),
+        };
+      }
+      return {
+        ...projection,
+        bulletins: [
+          ...bulletins,
+          { ...cloneTownBulletin(event.payload.bulletin), status: 'effective' },
+        ],
+      };
+    }
+    case 'MatterRaised': {
+      const matters = projection.socialMatters ?? {};
+      const matter = event.payload.matter;
+      if (matters[matter.matterId] !== undefined) {
+        throw new Error(`cannot replay duplicate social matter ${matter.matterId}`);
+      }
+      return {
+        ...projection,
+        socialMatters: { ...matters, [matter.matterId]: cloneSocialMatter(matter) },
+      };
+    }
+    case 'MatterResponded': {
+      const matter = requireSocialMatter(projection, event.payload.matterId);
+      if (matter.status !== 'open' && matter.status !== 'collecting') {
+        throw new Error(`social matter ${matter.matterId} is not open for responses`);
+      }
+      const retained = matter.responses.filter(
+        (response) => response.responderAgentId !== event.payload.responderAgentId,
+      );
+      const responses =
+        event.payload.decision === 'withdraw'
+          ? retained
+          : [
+              ...retained,
+              {
+                responderAgentId: event.payload.responderAgentId,
+                decision: event.payload.decision,
+                respondedAt: event.payload.respondedAt,
+              },
+            ];
+      return {
+        ...projection,
+        socialMatters: {
+          ...projection.socialMatters,
+          [matter.matterId]: {
+            ...cloneSocialMatter(matter),
+            responses,
+            status: responses.some((response) => response.decision === 'accept')
+              ? 'collecting'
+              : 'open',
+          },
+        },
+      };
+    }
+    case 'MatterAssigned': {
+      const matter = requireSocialMatter(projection, event.payload.matterId);
+      if (matter.status !== 'open' && matter.status !== 'collecting') {
+        throw new Error(`social matter ${matter.matterId} is not assignable`);
+      }
+      return {
+        ...projection,
+        socialMatters: {
+          ...projection.socialMatters,
+          [matter.matterId]: {
+            ...cloneSocialMatter(matter),
+            status: 'assigned',
+            assigneeAgentId: event.payload.assigneeAgentId,
+            assignedAt: event.payload.assignedAt,
+          },
+        },
+      };
+    }
+    case 'MatterProgressed': {
+      const matter = requireSocialMatter(projection, event.payload.matterId);
+      if (matter.status !== 'assigned' && matter.status !== 'executing') {
+        throw new Error(`social matter ${matter.matterId} is not in progress`);
+      }
+      return {
+        ...projection,
+        socialMatters: {
+          ...projection.socialMatters,
+          [matter.matterId]: {
+            ...cloneSocialMatter(matter),
+            status: 'executing',
+            deliveredQuantity: event.payload.deliveredQuantity,
+          },
+        },
+      };
+    }
+    case 'MatterClosed': {
+      const matter = requireSocialMatter(projection, event.payload.matterId);
+      if (matter.status === 'closed') {
+        throw new Error(`social matter ${matter.matterId} is already closed`);
+      }
+      return {
+        ...projection,
+        socialMatters: {
+          ...projection.socialMatters,
+          [matter.matterId]: {
+            ...cloneSocialMatter(matter),
+            status: 'closed',
+            closure: event.payload.closure,
+            closedAt: event.payload.closedAt,
+            ...(event.payload.fulfillmentEventId === undefined
+              ? {}
+              : { fulfillmentEventId: event.payload.fulfillmentEventId }),
+          },
+        },
+      };
+    }
+    case 'ConfrontationRecorded':
+      return {
+        ...projection,
+        conflictRecords: [
+          ...(projection.conflictRecords ?? []),
+          {
+            conflictId: event.payload.conflictId,
+            kind: 'confrontation',
+            actorAgentId: event.payload.initiatorAgentId,
+            targetAgentId: event.payload.targetAgentId,
+            locationId: event.payload.locationId,
+            summary: event.payload.statement,
+            recordedAt: event.payload.recordedAt,
+          },
+        ],
+      };
+    case 'AttackRecorded':
+      return {
+        ...projection,
+        conflictRecords: [
+          ...(projection.conflictRecords ?? []),
+          {
+            conflictId: event.payload.conflictId,
+            kind: 'attack',
+            actorAgentId: event.payload.attackerAgentId,
+            targetAgentId: event.payload.targetAgentId,
+            locationId: event.payload.locationId,
+            damage: event.payload.damage,
+            summary: `Attack on ${event.payload.targetAgentId} for ${event.payload.damage} damage`,
+            recordedAt: event.payload.recordedAt,
+          },
+        ],
+      };
+    case 'InterventionRecorded':
+      return {
+        ...projection,
+        conflictRecords: [
+          ...(projection.conflictRecords ?? []),
+          {
+            conflictId: event.payload.conflictId,
+            kind: 'intervention',
+            actorAgentId: event.payload.intervenerAgentId,
+            targetAgentId: event.payload.targetAgentId,
+            counterpartyAgentId: event.payload.attackerAgentId,
+            locationId: event.payload.locationId,
+            summary: event.payload.statement,
+            recordedAt: event.payload.recordedAt,
+          },
+        ],
+      };
     case 'AgentOwnershipDeparted': {
       const agent = projection.agents[event.payload.agentId];
       if (agent === undefined) {
@@ -966,6 +1186,17 @@ function applyConversationCommitmentChanges(
     };
   }
   return commitments;
+}
+
+function requireSocialMatter(
+  projection: WorldProjection,
+  matterId: string,
+): WorldSocialMatterState {
+  const matter = projection.socialMatters?.[matterId];
+  if (matter === undefined) {
+    throw new Error(`cannot replay social matter event for unknown matter ${matterId}`);
+  }
+  return matter;
 }
 
 function clonePhysiologicalDistressByAgent(

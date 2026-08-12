@@ -3293,6 +3293,9 @@ describe('agent conversation command handling', () => {
           agentId: 'agent-1',
           kind: 'social-interaction',
           status: 'succeeded',
+          // The participant lived the conversation: firsthand. The knowledge
+          // claims inside the hint stay hearsay when consolidated into beliefs.
+          provenance: { kind: 'firsthand', status: 'influencing' },
           source: {
             eventIds: [
               'command-conversation:event:0',
@@ -3324,6 +3327,7 @@ describe('agent conversation command handling', () => {
           agentId: 'agent-2',
           kind: 'social-interaction',
           status: 'succeeded',
+          provenance: { kind: 'firsthand', status: 'influencing' },
           source: {
             eventIds: [
               'command-conversation:event:0',

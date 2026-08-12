@@ -1,6 +1,9 @@
 type MaybePromise<TValue> = TValue | Promise<TValue>;
 
-export type SteeringTraceResultKind = 'long-horizon-objective-set' | 'reactive-command-routed';
+export type SteeringTraceResultKind =
+  | 'long-horizon-objective-set'
+  | 'reactive-command-routed'
+  | 'town-bulletin-issued';
 
 export type SteeringTraceLookupRequest = {
   readonly simulationId: string;

@@ -228,6 +228,108 @@ describe('AIvilization default world command policies', () => {
     ).toBe('town-conditions-v1');
   });
 
+  test('declares the town bulletin policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townBulletin');
+    expect(JSON.stringify(off)).not.toContain('town-bulletin-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townBulletin: true });
+    expect(on.policyVersions).toMatchObject({ townBulletin: 'town-bulletin-v1' });
+    expect(on.parameters.townBulletin).toMatchObject({
+      policyVersion: 'town-bulletin-v1',
+      highPriorityIntentionPriority: 90,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townBulletin',
+          provenance: 'experimental',
+          policyVersion: 'town-bulletin-v1',
+        }),
+      ]),
+    );
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).bulletin).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townBulletin: true })(projection)
+        .bulletin?.policyVersion,
+    ).toBe('town-bulletin-v1');
+  });
+
+  test('declares the social matters policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('socialMatters');
+    expect(JSON.stringify(off)).not.toContain('social-matters-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ socialMatters: true });
+    expect(on.policyVersions).toMatchObject({ socialMatters: 'social-matters-v1' });
+    expect(on.parameters.socialMatters).toMatchObject({
+      policyVersion: 'social-matters-v1',
+      defaultExpiryMs: 14_400_000,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'socialMatters',
+          provenance: 'experimental',
+          policyVersion: 'social-matters-v1',
+        }),
+      ]),
+    );
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(
+      createAivilizationWorldCommandPolicies('seed')(projection).socialMatters,
+    ).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { socialMatters: true })(projection)
+        .socialMatters?.policyVersion,
+    ).toBe('social-matters-v1');
+  });
+
+  test('declares the town conflict policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townConflict');
+    expect(JSON.stringify(off)).not.toContain('town-conflict-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townConflict: true });
+    expect(on.policyVersions).toMatchObject({ townConflict: 'town-conflict-v1' });
+    expect(on.parameters.townConflict).toMatchObject({
+      policyVersion: 'town-conflict-v1',
+      baseDamage: 15,
+      grievanceRelationThreshold: 0,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townConflict',
+          provenance: 'experimental',
+          policyVersion: 'town-conflict-v1',
+        }),
+      ]),
+    );
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).conflict).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townConflict: true })(projection)
+        .conflict?.policyVersion,
+    ).toBe('town-conflict-v1');
+  });
+
   test('propagates an experiment seed into the resolved world policies', () => {
     const policies = createAivilizationWorldCommandPolicies('experiment-seed-42')(
       createWorldProjection({ agents: [createAgent({ index: 1, educationScore: 0 })] }),

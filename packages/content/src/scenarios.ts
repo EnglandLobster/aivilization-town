@@ -103,6 +103,33 @@ export type ScenarioTownConditionsPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownBulletinPolicyConfig = {
+  readonly policyVersion: string;
+  readonly highPriorityIntentionPriority: number;
+  readonly highPriorityReactionWindowMs: number;
+  readonly source: string;
+};
+
+export type ScenarioSocialMattersPolicyConfig = {
+  readonly policyVersion: string;
+  readonly defaultExpiryMs: number;
+  readonly source: string;
+};
+
+export type ScenarioTownConflictPolicyConfig = {
+  readonly policyVersion: string;
+  readonly grievanceRelationThreshold: number;
+  readonly baseDamage: number;
+  readonly attackerEnergyDamageFactor: number;
+  readonly targetEnergyDefenseFactor: number;
+  readonly minDamage: number;
+  readonly maxDamage: number;
+  readonly attackerEnergyCost: number;
+  readonly minHealthAfterAttack: number;
+  readonly witnessAttitudePenaltyScale: number;
+  readonly source: string;
+};
+
 export type ScenarioResidentialUpkeepCostConfig = {
   readonly residentialTier: number;
   readonly currencyCostPerHour: number;
@@ -334,9 +361,15 @@ const recruitmentCyclePolicySource =
 const productionPolicySource =
   'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
 const townWeatherPolicySource =
-  'Borrowed mechanics adoption plan #1 authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
+  'Authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
 const townConditionsPolicySource =
-  'Borrowed mechanics adoption plan #2 condition catalog; town-conditions-v1 conditions, thresholds, severities, and implied needs are repository policy decisions because the paper does not model conditions';
+  'Town condition catalog; town-conditions-v1 conditions, thresholds, severities, and implied needs are repository policy decisions because the paper does not model conditions';
+const townBulletinPolicySource =
+  'Town bulletin board; town-bulletin-v1 priority and preemption parameters are repository policy decisions because the paper does not model bulletin boards';
+const socialMattersPolicySource =
+  'Social matters state machine; social-matters-v1 lifecycle and expiry parameters are repository policy decisions because the paper does not model social matters';
+const townConflictPolicySource =
+  'Town conflict system; town-conflict-v1 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -451,7 +484,7 @@ export const aivilizationSurvivalTimePolicyDefaults = {
 export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v1';
 
 /**
- * Authoritative town weather (borrowed-mechanics adoption plan #1). The Markov
+ * Authoritative town weather. The Markov
  * transition matrix is evaluated once per `transitionCadenceMs` of simulation
  * time; every row sums to 1 so rain can naturally persist or clear. The policy
  * is opt-in (default off) and only settles while explicitly enabled.
@@ -475,7 +508,7 @@ export const aivilizationTownWeatherPolicyDefaults = {
 export const TOWN_CONDITIONS_POLICY_VERSION = 'town-conditions-v1';
 
 /**
- * Condition catalog (borrowed-mechanics adoption plan #2). Conditions are
+ * Condition catalog. Conditions are
  * derived read-path state over durable physiology axes, the town weather, and
  * location exposure — never stored. Pure threshold triggers keep derivation
  * deterministic without events or RNG. Opt-in via the town-conditions switch.
@@ -497,6 +530,57 @@ export const aivilizationTownConditionsPolicyDefaults = {
   stressed: { triggerBelow: 40, severeBelow: 20, need: 'see-doctor' },
   source: townConditionsPolicySource,
 } as const satisfies ScenarioTownConditionsPolicyConfig;
+
+export const TOWN_BULLETIN_POLICY_VERSION = 'town-bulletin-v1';
+
+/**
+ * Town bulletin board. Opt-in via the
+ * town-bulletin switch. High-priority bulletins preempt resident planning with
+ * a forced-attention ScheduledIntention; normal bulletins only enter awareness
+ * memory. The reaction window uses wall-clock ms, matching the social
+ * observation reaction scheduling convention.
+ */
+export const aivilizationTownBulletinPolicyDefaults = {
+  policyVersion: TOWN_BULLETIN_POLICY_VERSION,
+  highPriorityIntentionPriority: 90,
+  highPriorityReactionWindowMs: 3_600_000,
+  source: townBulletinPolicySource,
+} as const satisfies ScenarioTownBulletinPolicyConfig;
+
+export const SOCIAL_MATTERS_POLICY_VERSION = 'social-matters-v1';
+
+/**
+ * Social matters: conversation
+ * commitments escalate into a world-side matter state machine, and agents can
+ * raise help requests with candidate/assignment/fulfillment tracking. Opt-in
+ * via the social-matters switch. Default expiry is 4 simulation hours.
+ */
+export const aivilizationSocialMattersPolicyDefaults = {
+  policyVersion: SOCIAL_MATTERS_POLICY_VERSION,
+  defaultExpiryMs: 14_400_000,
+  source: socialMattersPolicySource,
+} as const satisfies ScenarioSocialMattersPolicyConfig;
+
+export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v1';
+
+/**
+ * Town conflict system. Opt-in via the
+ * town-conflict switch. The world adjudicates grievance issuance, damage, and
+ * fallout deterministically; attacks incapacitate but never kill.
+ */
+export const aivilizationTownConflictPolicyDefaults = {
+  policyVersion: TOWN_CONFLICT_POLICY_VERSION,
+  grievanceRelationThreshold: 0,
+  baseDamage: 15,
+  attackerEnergyDamageFactor: 0.05,
+  targetEnergyDefenseFactor: 0.02,
+  minDamage: 1,
+  maxDamage: 40,
+  attackerEnergyCost: 10,
+  minHealthAfterAttack: 0,
+  witnessAttitudePenaltyScale: 0.5,
+  source: townConflictPolicySource,
+} as const satisfies ScenarioTownConflictPolicyConfig;
 
 export const aivilizationHealthcarePolicyDefaults = {
   seeDoctorTreatmentCost: {

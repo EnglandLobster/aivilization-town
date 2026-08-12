@@ -1,7 +1,9 @@
 import {
   createProjectionCheckpoint,
+  type AgentId,
   type PartitionKey,
 } from '@aivilization/sim-core';
+import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
 import { applyWorldEvent } from '@aivilization/world';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
@@ -11,6 +13,11 @@ import type {
   SimulationWideAuthorityInboxCursor,
   SimulationWideAuthorityService,
 } from './simulationWideAuthority';
+import { createAivilizationTownBulletinPolicy } from './aivilizationWorldPolicies';
+import {
+  createBulletinObservationRecords,
+  createBulletinScheduledIntentions,
+} from './bulletinBoard';
 
 /**
  * Consumes a partition's slice of the simulation-wide authority inbox into the
@@ -111,6 +118,11 @@ export function createSimulationWideAuthorityMaterializer(input: {
       if (!appendResult.idempotentReplay) {
         projection = appendResult.appendedEvents.reduce(applyWorldEvent, projection);
         await ensurePartitionMemoryMaterialized(appendResult.appendedEvents, projection);
+        await ensureBulletinAwarenessMaterialized(
+          appendResult.appendedEvents,
+          projection,
+          lease.observedAt,
+        );
         // Arrival deliveries for cross-owner transfers carry the Agent's durable
         // cognitive state. Hydrate it alongside the arrival event so the very
         // next tick can plan with the migrated objectives, plans, and memory.
@@ -217,19 +229,61 @@ export function createSimulationWideAuthorityMaterializer(input: {
       )
       .filter((record) => projectionAfter.agents[record.agentId] !== undefined);
     for (const record of records) {
-      const recent = await input.storage.shortTermMemoryRepository.retrieve({
-        agentId: record.agentId,
-        limit: SHORT_TERM_MEMORY_MATERIALIZATION_DEDUP_LIMIT,
-      });
-      const existing = recent.find((candidate) => candidate.id === record.id);
-      if (existing !== undefined) {
-        if (stableStringify(existing) !== stableStringify(record)) {
-          throw new Error(`short-term memory id ${record.id} has conflicting content`);
-        }
-        continue;
-      }
-      await input.storage.shortTermMemoryRepository.append(record);
+      await appendShortTermMemoryRecordIfNew(record);
     }
+  }
+
+  /**
+   * Town-bulletin awareness fanout. A BulletinPosted delivery turns into one
+   * hearsay observation memory per resident this partition owns (idempotent by
+   * deterministic record id); high-priority bulletins additionally upsert a
+   * forced-attention ScheduledIntention so the next cycle preempts ordinary
+   * work. Data-driven: without the town-bulletin switch no BulletinPosted
+   * events exist and this is a no-op.
+   */
+  async function ensureBulletinAwarenessMaterialized(
+    events: readonly WorldEvent[],
+    projectionAfter: WorldProjection,
+    observedAt: number,
+  ): Promise<void> {
+    if (!events.some((event) => event.type === 'BulletinPosted')) {
+      return;
+    }
+    const records = createBulletinObservationRecords({ events, projection: projectionAfter });
+    for (const record of records) {
+      await appendShortTermMemoryRecordIfNew(record);
+    }
+    const intentions = createBulletinScheduledIntentions({
+      records,
+      policy: createAivilizationTownBulletinPolicy(),
+      createdAt: observedAt,
+    });
+    const intentionsByAgentId = new Map<AgentId, typeof intentions>();
+    for (const intention of intentions) {
+      const existing = intentionsByAgentId.get(intention.agentId) ?? [];
+      intentionsByAgentId.set(intention.agentId, [...existing, intention]);
+    }
+    for (const [agentId, scheduledIntentions] of intentionsByAgentId) {
+      await input.storage.intentionRepository.upsertScheduledIntentions(
+        agentId,
+        scheduledIntentions,
+      );
+    }
+  }
+
+  async function appendShortTermMemoryRecordIfNew(record: ShortTermMemoryRecord): Promise<void> {
+    const recent = await input.storage.shortTermMemoryRepository.retrieve({
+      agentId: record.agentId,
+      limit: SHORT_TERM_MEMORY_MATERIALIZATION_DEDUP_LIMIT,
+    });
+    const existing = recent.find((candidate) => candidate.id === record.id);
+    if (existing !== undefined) {
+      if (stableStringify(existing) !== stableStringify(record)) {
+        throw new Error(`short-term memory id ${record.id} has conflicting content`);
+      }
+      return;
+    }
+    await input.storage.shortTermMemoryRepository.append(record);
   }
 }
 

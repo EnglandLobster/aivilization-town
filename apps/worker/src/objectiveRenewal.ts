@@ -8,7 +8,11 @@ import {
   type StrategicPlanCompiler,
   type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
-import { getCompletedObjectiveCount, selectActiveScheduledIntentions } from '@aivilization/memory';
+import {
+  getCompletedObjectiveCount,
+  listAssertableBeliefs,
+  selectActiveScheduledIntentions,
+} from '@aivilization/memory';
 import type {
   AgentIntentionRepository,
   AgentIntentionState,
@@ -219,6 +223,8 @@ export async function renewMissingActiveObjectives(input: {
     const shortTermMemoryContext = await input.shortTermMemoryRepository.retrieve({
       agentId: agent.agentId,
       limit: memoryRetrievalLimit,
+      // Planning reads rank firsthand experience above hearsay (provenance slice).
+      orderBy: 'provenance-importance',
     });
     const worldDecisionContext = createWorldDecisionContextFromProjection({
       projection: input.projection,
@@ -876,7 +882,9 @@ function createProfileRoutineCandidate(
     ...profile.values,
     ...profile.habits,
     ...profile.personality,
-    ...profile.beliefs,
+    // Corrected/aged-out beliefs stay durable for audit but no longer assert
+    // into objective candidates (memory-provenance slice).
+    ...listAssertableBeliefs(profile),
   ];
   let best: ObjectiveCandidate | undefined;
 

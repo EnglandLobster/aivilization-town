@@ -1,8 +1,10 @@
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
-import type {
-  MemoryConsolidationHint,
-  ShortTermMemoryRecord,
-  SocialKnowledgeClaim,
+import {
+  createMemoryProvenance,
+  type MemoryConsolidationHint,
+  type MemoryProvenance,
+  type ShortTermMemoryRecord,
+  type SocialKnowledgeClaim,
 } from './records';
 import type { LongTermMemoryPatch } from './profile';
 
@@ -125,6 +127,8 @@ function buildPatternPatches(input: {
         confidence: averageImportance(records),
         provenanceRecordIds,
         proposedAt: input.proposedAt,
+        // Habits/cautions consolidate the agent's own action outcomes: firsthand.
+        provenance: createMemoryProvenance({ kind: 'firsthand' }),
       };
     });
 }
@@ -166,6 +170,8 @@ function buildSocialPatches(input: {
       relationDelta,
       attitudeDelta,
       ...(outcomeSignals.length === 0 ? {} : { outcomeSignals }),
+      // Direct interactions the agent participated in are firsthand.
+      provenance: createMemoryProvenance({ kind: 'firsthand' }),
     };
   });
 }
@@ -177,7 +183,13 @@ function buildSocialKnowledgePatches(input: {
 }): LongTermMemoryPatch[] {
   const groups = new Map<
     string,
-    { readonly claim: SocialKnowledgeClaim; readonly records: ShortTermMemoryRecord[] }
+    {
+      readonly claims: readonly {
+        readonly claim: SocialKnowledgeClaim;
+        readonly recordId: ShortTermMemoryRecord['id'];
+      }[];
+      readonly records: readonly ShortTermMemoryRecord[];
+    }
   >();
   for (const record of input.records) {
     const hint = record.consolidationHint;
@@ -186,21 +198,81 @@ function buildSocialKnowledgePatches(input: {
     }
     for (const claim of hint.knowledgeClaims ?? []) {
       const key = `${claim.sourceAgentId}:${normalizeKnowledgeKey(claim.topic)}`;
-      const group = groups.get(key) ?? { claim, records: [] };
-      groups.set(key, { claim, records: [...group.records, record] });
+      const group = groups.get(key) ?? { claims: [], records: [] };
+      groups.set(key, {
+        claims: [...group.claims, { claim, recordId: record.id }],
+        records: [...group.records, record],
+      });
     }
   }
 
-  return [...groups.entries()].map(([key, group]) => ({
-    id: `ltm-patch-${input.agentId}-belief-social-knowledge-${key}-${input.proposedAt}`,
-    agentId: input.agentId,
-    section: 'beliefs',
-    key: `social-knowledge:${key}`,
-    statement: formatSocialKnowledgeStatement(group.claim),
-    confidence: averageImportance(group.records),
-    provenanceRecordIds: [...new Set(group.records.map((record) => record.id))],
-    proposedAt: input.proposedAt,
-  }));
+  return [...groups.entries()].map(([key, group]) => {
+    const resolution = resolveSocialKnowledgeResolution(group.claims);
+    return {
+      id: `ltm-patch-${input.agentId}-belief-social-knowledge-${key}-${input.proposedAt}`,
+      agentId: input.agentId,
+      section: 'beliefs' as const,
+      key: `social-knowledge:${key}`,
+      statement: formatSocialKnowledgeStatement(resolution.statementClaim),
+      confidence: averageImportance([...group.records]),
+      provenanceRecordIds: [...new Set(group.records.map((record) => record.id))],
+      proposedAt: input.proposedAt,
+      // Conversation claims are hearsay; the correction state machine below
+      // marks them doubtful/corrected when later claims contradict earlier
+      // assertions (deterministic rule over the claim classification).
+      provenance: resolution.provenance,
+    };
+  });
+}
+
+/**
+ * Deterministic correction rule over the existing claim classification: the
+ * latest claim for a subject decides. A later `corrected` claim supersedes the
+ * belief (status corrected); a later `disputed`/`suspected-misinformation`
+ * claim marks it doubtful; a latest `asserted` claim (re-)asserts it as
+ * influencing hearsay. The statement follows the decisive claim when the
+ * belief is contradicted, otherwise the first assertion (legacy behavior).
+ */
+function resolveSocialKnowledgeResolution(
+  claims: readonly {
+    readonly claim: SocialKnowledgeClaim;
+    readonly recordId: ShortTermMemoryRecord['id'];
+  }[],
+): {
+  readonly statementClaim: SocialKnowledgeClaim;
+  readonly provenance: MemoryProvenance;
+} {
+  const first = claims[0];
+  const latest = claims.at(-1);
+  if (first === undefined || latest === undefined) {
+    throw new Error('social knowledge resolution requires at least one claim');
+  }
+  switch (latest.claim.status) {
+    case 'corrected':
+      return {
+        statementClaim: latest.claim,
+        provenance: createMemoryProvenance({
+          kind: 'hearsay',
+          status: 'corrected',
+          correctedByRecordId: latest.recordId,
+        }),
+      };
+    case 'disputed':
+    case 'suspected-misinformation':
+      return {
+        statementClaim: latest.claim,
+        provenance: createMemoryProvenance({
+          kind: 'hearsay',
+          status: 'doubtful',
+          correctedByRecordId: latest.recordId,
+        }),
+      };
+    case 'asserted':
+      return {
+        statementClaim: first.claim,
+        provenance: createMemoryProvenance({ kind: 'hearsay' }),
+      };
+  }
 }
 
 function formatSocialKnowledgeStatement(claim: SocialKnowledgeClaim): string {

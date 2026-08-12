@@ -1,4 +1,5 @@
 import {
+  createMemoryProvenance,
   createShortTermMemoryRecord,
   type ShortTermMemoryRecord,
   type ShortTermMemoryStatus,
@@ -148,6 +149,7 @@ function createFailureResult(input: {
         importanceScore: 1,
         source: { commandId: asCommandId(input.command.id), eventIds: [] },
         tags: buildMemoryTags(input.command, input.candidateActions),
+        provenance: createMemoryProvenance({ kind: 'implanted' }),
       }),
     ],
     needsReplan: true,
@@ -186,6 +188,7 @@ function createReceiptRecord(input: {
     importanceScore: 0.6,
     source: { commandId: asCommandId(input.command.id), eventIds: [] },
     tags: buildMemoryTags(input.command, []),
+    provenance: createMemoryProvenance({ kind: 'implanted' }),
   });
 }
 
@@ -218,6 +221,7 @@ function createOutcomeRecord(input: {
       input.command,
       input.simulationResults.map((result) => actionFromAnySimulationResult(result)),
     ),
+    provenance: createMemoryProvenance({ kind: 'implanted' }),
   });
 }
 

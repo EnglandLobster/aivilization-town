@@ -1,4 +1,4 @@
-import { createShortTermMemoryRecord, type ShortTermMemoryRecord } from '@aivilization/memory';
+import { createMemoryProvenance, createShortTermMemoryRecord, type ShortTermMemoryRecord } from '@aivilization/memory';
 import {
   createSeededRandom,
   type AgentId,
@@ -150,6 +150,8 @@ function createObserverRecords(input: {
         eventIds: [input.event.eventId],
       },
       tags: input.event.tags,
+      // Ambient bystanders directly witnessed the event: firsthand.
+      provenance: createMemoryProvenance({ kind: 'firsthand' }),
     }),
   );
 }

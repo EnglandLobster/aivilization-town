@@ -1,6 +1,7 @@
 import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
 import type {
   EducationInvestmentPolicy,
+  EducationSystemPolicy,
   MedicalTreatmentCostPolicy,
   PhysiologicalSafetyNetPolicy,
   RecruitmentCyclePolicy,
@@ -51,6 +52,7 @@ import {
   handleAgentTradeCommand,
   handleAgentUpgradeResidentialTierCommand,
 } from './handlers/economic';
+import { handleAgentApplyEducationExamCommand } from './handlers/educationExam';
 import {
   handleAgentAssignMatterCommand,
   handleAgentCloseMatterCommand,
@@ -107,6 +109,7 @@ export {
   handleAgentTradeCommand,
   handleAgentUpgradeResidentialTierCommand,
 } from './handlers/economic';
+export { handleAgentApplyEducationExamCommand } from './handlers/educationExam';
 export {
   handleAgentAssignMatterCommand,
   handleAgentCloseMatterCommand,
@@ -146,6 +149,15 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
     readonly health: number;
   };
   readonly educationInvestment?: EducationInvestmentPolicy;
+  /**
+   * Optional discrete education-system policy (education-system-v2). When
+   * present and enabled, AgentStudy settles tuition per level (compulsory
+   * levels are billed to the treasury) with the employed-study efficiency
+   * penalty, and AdvanceSimulationTime settles automatic promotions inside the
+   * compulsory stage. Absent or disabled keeps the legacy continuous-score
+   * study semantics byte-for-byte.
+   */
+  readonly educationSystem?: EducationSystemPolicy;
   readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
   /**
    * Optional regional-markets configuration. When enabled, each trade settles
@@ -319,6 +331,9 @@ export function dispatchWorldCommand(input: {
           : { enterprise: input.policies.enterprise }),
         ...(input.policies.tax === undefined ? {} : { tax: input.policies.tax }),
         ...(input.policies.credit === undefined ? {} : { credit: input.policies.credit }),
+        ...(input.policies.educationSystem === undefined
+          ? {}
+          : { educationSystem: input.policies.educationSystem }),
         nextSequence: input.nextSequence,
       });
     case 'AgentPostBulletin':
@@ -441,6 +456,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.educationInvestment === undefined
           ? {}
           : { educationInvestment: input.policies.educationInvestment }),
+        ...(input.policies.educationSystem === undefined
+          ? {}
+          : { educationSystem: input.policies.educationSystem }),
         nextSequence: input.nextSequence,
       });
     case 'AgentSleep':
@@ -623,6 +641,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.production?.efficiency === undefined
           ? {}
           : { productionEfficiency: input.policies.production.efficiency }),
+        ...(input.policies.educationSystem === undefined
+          ? {}
+          : { educationSystem: input.policies.educationSystem }),
         criticalThresholds: input.policies.criticalThresholds,
         nextSequence: input.nextSequence,
       });
@@ -660,6 +681,19 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.jobApplication.recruitmentCycle === undefined
           ? {}
           : { recruitmentCycle: input.policies.jobApplication.recruitmentCycle }),
+        ...(input.policies.educationSystem === undefined
+          ? {}
+          : { educationSystem: input.policies.educationSystem }),
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentApplyEducationExam':
+      if (input.policies.educationSystem === undefined) {
+        return rejectCommand(input, 'AgentApplyEducationExam', 'missing education system policy');
+      }
+      return handleAgentApplyEducationExamCommand({
+        command: input.command as CommandEnvelope<'AgentApplyEducationExam', unknown>,
+        projection: input.projection,
+        policy: input.policies.educationSystem,
         nextSequence: input.nextSequence,
       });
     case 'AgentUpgradeResidentialTier':

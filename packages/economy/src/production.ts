@@ -10,6 +10,12 @@ import { getInventoryQuantity, type Inventory } from './inventory';
 export type ProductionAgentState = {
   readonly residentialTier: number;
   readonly educationScore?: number;
+  /**
+   * Discrete education level (education-system-v3). When the efficiency policy
+   * carries `educationLevelMultipliers`, the education factor is multiplied by
+   * the level's multiplier; omitted keeps the legacy score-only factor.
+   */
+  readonly educationLevel?: number;
   readonly energy: number;
   readonly satiety: number;
   readonly health?: number;
@@ -31,6 +37,14 @@ export type ProductionEfficiencyPhysiologyCapPolicy = {
 export type ProductionEfficiencyPolicy = {
   readonly minEfficiency: number;
   readonly educationScoreForMaxEfficiency: number;
+  /**
+   * Per-level multiplier on the education efficiency factor
+   * (production-efficiency-v2), indexed by discrete education level. The
+   * multiplied factor is still clamped to [0, 1]. Applies only when the agent
+   * state carries `educationLevel`; agents without a level keep the legacy
+   * score-only factor, so continuous-score runs are unchanged.
+   */
+  readonly educationLevelMultipliers?: readonly number[];
   readonly physiologyCaps?: ProductionEfficiencyPhysiologyCapPolicy;
   readonly residentialTierForMaxEfficiency?: number;
 };
@@ -192,7 +206,7 @@ export function planProduction(input: {
 export function evaluateProductionEfficiency(input: {
   readonly agent: Pick<
     ProductionAgentState,
-    'residentialTier' | 'educationScore' | 'energy' | 'satiety' | 'health'
+    'residentialTier' | 'educationScore' | 'educationLevel' | 'energy' | 'satiety' | 'health'
   >;
   readonly policy: ProductionEfficiencyPolicy;
 }): ProductionEfficiencyDecision {
@@ -205,6 +219,12 @@ export function evaluateProductionEfficiency(input: {
   }
   if (input.policy.educationScoreForMaxEfficiency <= 0) {
     return rejectEfficiency('educationScoreForMaxEfficiency must be positive');
+  }
+  const levelMultipliersError = validateEducationLevelMultipliers(
+    input.policy.educationLevelMultipliers,
+  );
+  if (levelMultipliersError !== undefined) {
+    return rejectEfficiency(levelMultipliersError);
   }
   if (
     input.policy.residentialTierForMaxEfficiency !== undefined &&
@@ -222,9 +242,18 @@ export function evaluateProductionEfficiency(input: {
     return rejectEfficiency('educationScore must be non-negative');
   }
 
-  const factors = [
-    capProgress(educationScore, input.policy.educationScoreForMaxEfficiency),
-  ];
+  const educationFactor = evaluateEducationFactor({
+    educationScore,
+    ...(input.agent.educationLevel === undefined
+      ? {}
+      : { educationLevel: input.agent.educationLevel }),
+    policy: input.policy,
+  });
+  if (typeof educationFactor !== 'number') {
+    return rejectEfficiency(educationFactor);
+  }
+
+  const factors = [educationFactor];
 
   if (input.policy.physiologyCaps !== undefined) {
     const cap = input.policy.physiologyCaps.caps.find(
@@ -268,6 +297,49 @@ export function evaluateProductionEfficiency(input: {
     status: 'accepted',
     efficiency: input.policy.minEfficiency + (1 - input.policy.minEfficiency) * progress,
   };
+}
+
+function validateEducationLevelMultipliers(
+  multipliers: readonly number[] | undefined,
+): string | undefined {
+  if (multipliers === undefined) {
+    return undefined;
+  }
+  if (multipliers.length === 0) {
+    return 'educationLevelMultipliers must not be empty';
+  }
+  for (const multiplier of multipliers) {
+    if (!isPositiveFinite(multiplier)) {
+      return 'educationLevelMultipliers entries must be positive';
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Education factor of the efficiency aggregate: the legacy score progress
+ * (`min(1, score / educationScoreForMaxEfficiency)`), optionally scaled by the
+ * agent's discrete-level multiplier and re-clamped to [0, 1]. Returns an error
+ * string when a supplied level cannot index the multiplier table.
+ */
+function evaluateEducationFactor(input: {
+  readonly educationScore: number;
+  readonly educationLevel?: number;
+  readonly policy: ProductionEfficiencyPolicy;
+}): number | string {
+  const progress = capProgress(input.educationScore, input.policy.educationScoreForMaxEfficiency);
+  const multipliers = input.policy.educationLevelMultipliers;
+  if (multipliers === undefined || input.educationLevel === undefined) {
+    return progress;
+  }
+  if (!Number.isInteger(input.educationLevel) || input.educationLevel < 0) {
+    return 'educationLevel must be a non-negative integer';
+  }
+  const multiplier = multipliers[input.educationLevel];
+  if (multiplier === undefined) {
+    return `educationLevelMultipliers has no entry for level ${input.educationLevel}`;
+  }
+  return Math.min(1, progress * multiplier);
 }
 
 function validatePhysiologyCapsPolicy(

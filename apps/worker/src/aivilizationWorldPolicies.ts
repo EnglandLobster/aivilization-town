@@ -2,6 +2,7 @@ import {
   aivilizationHealthcarePolicyDefaults,
   aivilizationCreditPolicyDefaults,
   aivilizationEducationPolicyDefaults,
+  aivilizationEducationSystemPolicyDefaults,
   aivilizationExternalTradePolicyDefaults,
   aivilizationJobApplicationPolicyDefaults,
   aivilizationLifestylePolicyDefaults,
@@ -27,6 +28,8 @@ import {
   createSocialOutcomePolicyManifest,
   SOCIAL_OUTCOME_POLICY_VERSION,
   SOCIAL_RELATION_DECAY_POLICY_VERSION,
+  validateEducationSystemPolicy,
+  type EducationSystemPolicy,
 } from '@aivilization/society';
 import {
   createRuntimeAgentRegistrationPolicyManifest,
@@ -159,6 +162,37 @@ const canonicalCreditPolicy = aivilizationCreditPolicyDefaults;
 
 const canonicalExternalTradePolicy = aivilizationExternalTradePolicyDefaults;
 
+const canonicalEducationSystemPolicy: EducationSystemPolicy = {
+  policyVersion: aivilizationEducationSystemPolicyDefaults.policyVersion,
+  enabled: aivilizationEducationSystemPolicyDefaults.enabled,
+  levelScoreThresholds: [...aivilizationEducationSystemPolicyDefaults.levelScoreThresholds] as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ],
+  compulsoryLevels: [...aivilizationEducationSystemPolicyDefaults.compulsoryLevels] as (
+    | 0
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5
+  )[],
+  levelTuitionPerHour: { ...aivilizationEducationSystemPolicyDefaults.levelTuitionPerHour },
+  employedStudyEfficiencyRatio:
+    aivilizationEducationSystemPolicyDefaults.employedStudyEfficiencyRatio,
+  examCycleDurationMs: aivilizationEducationSystemPolicyDefaults.examCycleDurationMs,
+  admissionQuotaByLevel: { ...aivilizationEducationSystemPolicyDefaults.admissionQuotaByLevel },
+  vocationalTrackShare: aivilizationEducationSystemPolicyDefaults.vocationalTrackShare,
+  vocationalTrackJobTierBonus: {
+    ...aivilizationEducationSystemPolicyDefaults.vocationalTrackJobTierBonus,
+  },
+  source: aivilizationEducationSystemPolicyDefaults.source,
+};
+validateEducationSystemPolicy(canonicalEducationSystemPolicy);
+
 export type AivilizationWorldCommandPolicyOptions = {
   /**
    * When set, per-agent time effects (upkeep, safety nets, deprivation, illness)
@@ -168,6 +202,12 @@ export type AivilizationWorldCommandPolicyOptions = {
    * canonical settle-every-agent-every-tick cadence byte-for-byte.
    */
   readonly timeSettlementAmortizationBuckets?: number;
+  /**
+   * Optional education-system policy override (e.g. the paper-ablation profile
+   * pins `enabled: false` to keep the legacy continuous-score semantics).
+   * Omitted uses the canonical education-system-v3 defaults.
+   */
+  readonly educationSystem?: EducationSystemPolicy;
 };
 
 export function createAivilizationWorldCommandPolicies(
@@ -231,6 +271,7 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
         ...aivilizationEducationPolicyDefaults.studyInvestment.inventoryCostsPerHour,
       },
     },
+    educationSystem: options?.educationSystem ?? canonicalEducationSystemPolicy,
     wageCalculator: calculateOccupationWage,
     laborCost: { ...canonicalLaborCost },
     criticalThresholds: { ...canonicalCriticalThresholds },
@@ -256,6 +297,9 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
         minEfficiency: aivilizationProductionPolicyDefaults.productionEfficiency.minEfficiency,
         educationScoreForMaxEfficiency:
           aivilizationProductionPolicyDefaults.productionEfficiency.educationScoreForMaxEfficiency,
+        educationLevelMultipliers: [
+          ...aivilizationProductionPolicyDefaults.productionEfficiency.educationLevelMultipliers,
+        ],
         physiologyCaps: {
           caps: aivilizationProductionPolicyDefaults.productionEfficiency.physiologyCaps.caps.map(
             (cap) => ({
@@ -421,8 +465,17 @@ export function createAivilizationWorldPolicyManifest(
      * parameters; omitted/false keeps the manifest conflict-free.
      */
     readonly townConflict?: boolean;
+    /**
+     * Optional education-system policy override recorded verbatim in the
+     * manifest parameters (e.g. the paper-ablation profile pins
+     * `enabled: false`). Must match the runtime command-policy override so the
+     * manifest provenance reflects the actual runtime semantics; omitted
+     * records the canonical defaults.
+     */
+    readonly educationSystem?: EducationSystemPolicy;
   } = {},
 ) {
+  const educationSystemPolicy = input.educationSystem ?? aivilizationEducationSystemPolicyDefaults;
   const experimentalPolicyVersions: Partial<Record<AivilizationExperimentalFeatureKey, string>> =
     {};
   const experimentalParameters: Partial<Record<AivilizationExperimentalFeatureKey, unknown>> = {};
@@ -436,6 +489,7 @@ export function createAivilizationWorldPolicyManifest(
     schemaVersion: AIVILIZATION_WORLD_POLICY_MANIFEST_SCHEMA_VERSION,
     policyVersions: {
       educationInvestment: aivilizationEducationPolicyDefaults.studyInvestment.policyVersion,
+      educationSystem: educationSystemPolicy.policyVersion,
       educationAccumulation: CANONICAL_EDUCATION_ACCUMULATION_POLICY_VERSION,
       educationOpportunityCost: EDUCATION_OPPORTUNITY_COST_POLICY_VERSION,
       agentActivityTimeAllocation: EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
@@ -474,7 +528,7 @@ export function createAivilizationWorldPolicyManifest(
         'baseWage*knowledgePremium(effectiveKnowledgeThreshold)*overallPriceIndex*(1+boundedShortTermAdjustment)',
       knowledgePremium: '1+effectiveKnowledgeThreshold*knowledgePremiumPerEducationPoint',
       productionEfficiency:
-        'clamp(minEfficiency,1,educationFactor*energyFactor*satietyFactor*healthFactor*jobFactor*residentialFactor)',
+        'clamp(minEfficiency,1,educationFactor*energyFactor*satietyFactor*healthFactor*jobFactor*residentialFactor); educationFactor=min(1,score/educationScoreForMaxEfficiency*educationLevelMultipliers[level])',
     },
     parameters: {
       townSpatialGraph: createTownSpatialGraphPolicyManifest(),
@@ -486,6 +540,20 @@ export function createAivilizationWorldPolicyManifest(
         ...aivilizationEducationPolicyDefaults.studyInvestment,
         inventoryCostsPerHour: {
           ...aivilizationEducationPolicyDefaults.studyInvestment.inventoryCostsPerHour,
+        },
+      },
+      educationSystem: {
+        ...educationSystemPolicy,
+        levelScoreThresholds: [...educationSystemPolicy.levelScoreThresholds] as [
+          number,
+          number,
+          number,
+          number,
+          number,
+        ],
+        compulsoryLevels: [...educationSystemPolicy.compulsoryLevels],
+        levelTuitionPerHour: {
+          ...educationSystemPolicy.levelTuitionPerHour,
         },
       },
       agentAllocation: createCanonicalAgentAllocationPolicyManifest(),
@@ -528,7 +596,7 @@ export function createAivilizationWorldPolicyManifest(
         })),
       },
       credit: { ...canonicalCreditPolicy },
-    externalTrade: { ...canonicalExternalTradePolicy },
+      externalTrade: { ...canonicalExternalTradePolicy },
       enterprise: {
         ...canonicalEnterprisePolicy,
         solvency: { ...canonicalEnterprisePolicy.solvency },
@@ -662,6 +730,13 @@ function createCanonicalPolicyRegistry(manifest: {
       ['educationInvestment'],
       'repository-defined',
       'Paper requires education investment; repository defines its direct cost.',
+    ),
+    registryEntry(
+      'educationSystem',
+      aivilizationEducationSystemPolicyDefaults.policyVersion,
+      ['educationSystem'],
+      'repository-defined',
+      'The paper models education as a continuous score; discrete levels, the nine-year compulsory stage, thresholds, tuition rates, the employed-study efficiency penalty, the exam-release cadence/quotas/track share, and the vocational-track job-tier bonus are repository-defined.',
     ),
     registryEntry(
       'agentAllocation',
@@ -810,10 +885,10 @@ function createCanonicalPolicyRegistry(manifest: {
     ),
     registryEntry(
       'production',
-      'production-efficiency-v1',
+      'production-efficiency-v2',
       [],
       'repository-defined',
-      'Paper defines monotone G(S,E,J,R,H) but not its exact functional form.',
+      'Paper defines monotone G(S,E,J,R,H) but not its exact functional form; v2 adds the discrete education-level multiplier on the education factor.',
     ),
     registryEntry(
       'survival',

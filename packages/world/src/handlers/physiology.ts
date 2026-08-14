@@ -11,11 +11,16 @@ import {
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
+  applyStudyEfficiency,
+  deriveEducationLevel,
   evaluateEducationInvestment,
   evaluateIncomeTax,
   evaluateMedicalTreatmentCost,
+  evaluateStudyCost,
   isIncapacitated,
+  isCompulsoryLevel,
   type EducationInvestmentPolicy,
+  type EducationSystemPolicy,
   type MedicalTreatmentCostPolicy,
   type ResidentialPhysiologyCapPolicy,
   type TaxPolicy,
@@ -118,12 +123,32 @@ export function handleAgentStudyCommand(input: {
   readonly command: CommandEnvelope<'AgentStudy', unknown>;
   readonly projection: WorldProjection;
   readonly educationInvestment?: EducationInvestmentPolicy;
+  /**
+   * Discrete education-system policy (education-system-v2). Absent or disabled
+   * keeps the legacy continuous-score path byte-for-byte: tuition comes from
+   * `educationInvestment` and every level pays for itself.
+   */
+  readonly educationSystem?: EducationSystemPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
   const payloadResult = parsePayload(() => assertAgentStudyPayload(input.command.payload));
   if (payloadResult.status === 'invalid') {
     return rejectCommand(input, 'AgentStudy', payloadResult.reason);
+  }
+
+  const educationSystem =
+    input.educationSystem !== undefined && input.educationSystem.enabled
+      ? input.educationSystem
+      : undefined;
+
+  if (educationSystem !== undefined) {
+    return settleEducationSystemStudy({
+      input,
+      agent,
+      payload: payloadResult.payload,
+      policy: educationSystem,
+    });
   }
 
   const investment =
@@ -197,6 +222,123 @@ export function handleAgentStudyCommand(input: {
     }),
   );
   return events;
+}
+
+/**
+ * Education-system study settlement: tuition comes from the level's hourly
+ * rate, compulsory levels are billed to the treasury (fallback to self-pay
+ * when the treasury feature is off or short), later levels are self-funded,
+ * and studying while employed accumulates score at the reduced efficiency.
+ */
+function settleEducationSystemStudy(input: {
+  readonly input: Parameters<typeof handleAgentStudyCommand>[0];
+  readonly agent: WorldAgentState;
+  readonly payload: { readonly durationSeconds: number; readonly educationRatePerSecond: number };
+  readonly policy: EducationSystemPolicy;
+}): WorldEvent[] {
+  const { agent, payload, policy } = input;
+  const level = agent.educationLevel ?? deriveEducationLevel(agent.educationScore, policy);
+  const cost = evaluateStudyCost({
+    level,
+    durationSeconds: payload.durationSeconds,
+    balance: agent.balance,
+    inventory: agent.inventory,
+    treasuryBalance: input.input.projection.treasury ?? null,
+    policy,
+  });
+  if (cost.status === 'rejected') {
+    return rejectCommand(input.input, 'AgentStudy', cost.detail);
+  }
+
+  const effectiveEducationRatePerSecond = applyStudyEfficiency({
+    educationRatePerSecond: payload.educationRatePerSecond,
+    employed: agent.job !== null,
+    policy,
+  });
+  const nextEducationScore = accumulateEducation({
+    currentEducationScore: agent.educationScore,
+    educationRatePerSecond: effectiveEducationRatePerSecond,
+    studyDurationSeconds: payload.durationSeconds,
+  });
+
+  const events: WorldEvent[] = [];
+  if (isCompulsoryLevel(level, policy)) {
+    events.push(
+      makeEvent(input.input, events.length, 'EducationCompulsoryFeeCovered', {
+        agentId: agent.agentId,
+        level,
+        durationSeconds: payload.durationSeconds,
+        coveredAmount: cost.treasuryCoveredCost,
+        selfPaidAmount: cost.selfPayCost,
+        reason: 'compulsory-education',
+      }),
+    );
+  } else {
+    events.push(
+      makeEvent(input.input, events.length, 'EducationInvestmentPaid', {
+        agentId: agent.agentId,
+        durationSeconds: payload.durationSeconds,
+        currencyCost: cost.selfPayCost,
+        previousBalance: agent.balance,
+        nextBalance: agent.balance - cost.selfPayCost,
+        consumedInventory: cost.consumedInventory,
+        reason: 'study-investment',
+      }),
+    );
+  }
+  events.push(
+    makeEvent(input.input, events.length, 'EducationChanged', {
+      agentId: agent.agentId,
+      previousEducationScore: agent.educationScore,
+      nextEducationScore,
+      reason: 'study',
+    }),
+  );
+  events.push(
+    makeAgentActivityTimeCommittedEvent(input.input, events.length, {
+      agentId: agent.agentId,
+      activity: 'education',
+      commandType: 'AgentStudy',
+      durationSeconds: payload.durationSeconds,
+    }),
+  );
+  events.push(
+    makeMemoryEvent(input.input, events.length, {
+      summary: createEducationSystemStudySummary({
+        durationSeconds: payload.durationSeconds,
+        level,
+        compulsory: isCompulsoryLevel(level, policy),
+        coveredAmount: cost.treasuryCoveredCost,
+        selfPaidAmount: cost.selfPayCost,
+        employed: agent.job !== null,
+      }),
+      status: 'succeeded',
+      tags: ['study'],
+      consolidationHint: {
+        kind: 'habit',
+        patternKey: 'study',
+        statement: 'Studies to improve education score.',
+      },
+    }),
+  );
+  return events;
+}
+
+function createEducationSystemStudySummary(input: {
+  readonly durationSeconds: number;
+  readonly level: number;
+  readonly compulsory: boolean;
+  readonly coveredAmount: number;
+  readonly selfPaidAmount: number;
+  readonly employed: boolean;
+}): string {
+  const funding = input.compulsory
+    ? `the town treasury covered ${input.coveredAmount}${
+        input.selfPaidAmount > 0 ? ` and ${input.selfPaidAmount} was paid from own balance` : ''
+      }`
+    : `${input.selfPaidAmount} was paid from own balance`;
+  const efficiency = input.employed ? ' while working (reduced study efficiency)' : '';
+  return `Studied at education level ${input.level} for ${input.durationSeconds} seconds; ${funding}${efficiency}.`;
 }
 
 function createStudyInvestmentSummary(input: {
@@ -572,6 +714,7 @@ export function handleAgentProduceCommand(input: {
   readonly randomSeed?: string;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   readonly productionEfficiency?: ProductionEfficiencyPolicy;
+  readonly educationSystem?: EducationSystemPolicy;
   readonly criticalThresholds?: {
     readonly energy: number;
     readonly health: number;
@@ -612,6 +755,13 @@ export function handleAgentProduceCommand(input: {
     return rejectCommand(input, 'AgentProduce', 'agent is incapacitated');
   }
 
+  // production-efficiency-v2: the education factor picks up the discrete-level
+  // multiplier only when the education system is enabled; legacy
+  // continuous-score runs (ablation pins it off) keep the un-multiplied factor.
+  const educationLevel =
+    input.educationSystem !== undefined && input.educationSystem.enabled
+      ? (agent.educationLevel ?? deriveEducationLevel(agent.educationScore, input.educationSystem))
+      : undefined;
   const productionPlan = planProduction({
     commodityName: payload.commodityName,
     quantity: payload.quantity,
@@ -623,6 +773,7 @@ export function handleAgentProduceCommand(input: {
       availableLaborSeconds: payload.availableLaborSeconds,
       inventory: enterprise?.inventory ?? agent.inventory,
       educationScore: agent.educationScore,
+      ...(educationLevel === undefined ? {} : { educationLevel }),
     },
     rng: createSeededRandom(createProductionRewardSeed({ input, payload, agent })),
     ...(input.recipeOverrides === undefined ? {} : { recipeOverrides: input.recipeOverrides }),

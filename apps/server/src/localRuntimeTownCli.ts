@@ -30,6 +30,7 @@ import {
 } from './localRuntimeTownDataCompatibility';
 import {
   createLocalRuntimeTownDaemonScenarioProfile,
+  createLocalRuntimeTownEducationSystemPolicyOverride,
   type LocalRuntimeTownDaemonScenarioProfileId,
 } from './localRuntimeTownScenarioProfile';
 import {
@@ -239,6 +240,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
   assertFiniteTimestamp(bootstrappedAt, 'bootstrappedAt');
   const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
   const resolvedRunManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(config);
+  const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
+    config.profileId,
+  );
   const daemonAutoStart = options.daemonAutoStart ?? true;
   const ownedPartitionKeys = resolveOwnedPartitionKeys(
     profile.manifest.partitions.map((partition) => partition.partitionKey),
@@ -260,12 +264,21 @@ export function createCanonicalLocalRuntimeTownServerInput(
     bootstrappedAt,
     manifest: runtimeManifest,
     scenarioPresets: profile.scenarioPresets.filter((preset) => ownedPresetIds.has(preset.id)),
-    policies: createAivilizationWorldCommandPolicies(config.seed, undefined, {
-      townConditions: config.townConditionsEnabled,
-      townBulletin: config.townBulletinEnabled,
-      socialMatters: config.socialMattersEnabled,
-      townConflict: config.townConflictEnabled,
-    }),
+    policies: createAivilizationWorldCommandPolicies(
+      config.seed,
+      undefined,
+      {
+        townConditions: config.townConditionsEnabled,
+        townBulletin: config.townBulletinEnabled,
+        socialMatters: config.socialMattersEnabled,
+        townConflict: config.townConflictEnabled,
+      },
+      // The paper-ablation cohort pins the education system off so the Section
+      // 5.1 baseline keeps the legacy continuous-score education semantics.
+      educationSystemOverride === undefined
+        ? undefined
+        : { educationSystem: educationSystemOverride },
+    ),
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
     agents: [],
@@ -293,9 +306,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
             enabled: true as const,
             workerId: config.simulationWideAuthorityWorkerId,
             leaseDurationMs: config.simulationWideAuthorityLeaseDurationMs,
-            ...(config.regionalMarketsEnabled
-              ? { regionalMarkets: true as const }
-              : {}),
+            ...(config.regionalMarketsEnabled ? { regionalMarkets: true as const } : {}),
             ...(config.townWeatherEnabled ? { townWeather: true as const } : {}),
             ...(config.townConditionsEnabled ? { townConditions: true as const } : {}),
             ...(config.townBulletinEnabled ? { townBulletin: true as const } : {}),
@@ -554,9 +565,7 @@ function resolveProviderLlmConfig(
     pricing,
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    ...(socialSignalExtraction === 'on'
-      ? {}
-      : { stages: { 'social-signal-extraction': false } }),
+    ...(socialSignalExtraction === 'on' ? {} : { stages: { 'social-signal-extraction': false } }),
     providerConfig: {
       kind: 'openai-compatible',
       providerId,

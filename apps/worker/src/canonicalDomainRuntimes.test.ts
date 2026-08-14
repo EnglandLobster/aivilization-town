@@ -13,11 +13,12 @@ import {
   type LongTermAgentProfile,
 } from '@aivilization/memory';
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
-import type { SocialRelationState } from '@aivilization/society';
+import type { EducationSystemPolicy, SocialRelationState } from '@aivilization/society';
 import {
   createWorldProjection,
   type WorldAgentState,
   type WorldCommandPolicies,
+  type WorldEducationExamApplicationState,
   type WorldLocationObservationState,
   type WorldProjection,
 } from '@aivilization/world';
@@ -61,6 +62,24 @@ const policies: WorldCommandPolicies = {
     maxResidentialTier: 4,
     costs: [{ targetResidentialTier: 2, currencyCost: 100, inventoryCosts: { Wood: 1 } }],
   },
+};
+
+const educationSystemPolicy: EducationSystemPolicy = {
+  policyVersion: 'education-system-v3',
+  enabled: true,
+  levelScoreThresholds: [20, 70, 180, 320, 450],
+  compulsoryLevels: [1, 2],
+  levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+  employedStudyEfficiencyRatio: 0.3,
+  examCycleDurationMs: 86_400_000,
+  admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+  vocationalTrackShare: 0.5,
+  source: 'test-education-system',
+};
+
+const educationSystemPolicies: WorldCommandPolicies = {
+  ...policies,
+  educationSystem: educationSystemPolicy,
 };
 
 describe('canonical domain runtimes', () => {
@@ -235,6 +254,130 @@ describe('canonical domain runtimes', () => {
     }
 
     expect(proposal.resourceEstimate?.currencyCost).toBeCloseTo(10.101010101);
+  });
+
+  test('proposes an education exam application once an exam-gated threshold is met', async () => {
+    // Recorded level 2 with a score past the level-3 threshold (180): the next
+    // step is the 中考 application, not more study.
+    const context = createRuntimeContext({
+      agent: createAgent({ agentId: agentA, educationScore: 200, educationLevel: 2 }),
+    });
+    const binding = await resolveCanonicalBinding(context, {}, educationSystemPolicies);
+
+    expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
+      id: 'canonical-study-step-a-exam-application',
+      commandType: 'AgentApplyEducationExam',
+      payload: { targetLevel: 3 },
+      priority: 10,
+    });
+  });
+
+  test('keeps proposing study below the threshold, after applying, or with the system disabled', async () => {
+    // Below the next level threshold (100 < 180 at level 2): keep studying.
+    const belowThreshold = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: createAgent({ agentId: agentA, educationScore: 100, educationLevel: 2 }),
+      }),
+      {},
+      educationSystemPolicies,
+    );
+    expect(firstProposal(belowThreshold.microPlanners, 'study')).toMatchObject({
+      commandType: 'AgentStudy',
+    });
+
+    // Already applied in the current exam cycle (clock now 0 => cycle 0).
+    const appliedAgent = createAgent({ agentId: agentA, educationScore: 200, educationLevel: 2 });
+    const alreadyApplied = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: appliedAgent,
+        projection: createProjection({
+          agents: [appliedAgent],
+          marketPools: [],
+          educationExamApplications: [
+            {
+              applicationId: 'command-earlier:application',
+              cycleNumber: 0,
+              agentId: agentA,
+              targetLevel: 3,
+              educationScore: 200,
+              submittedAt: 0,
+              status: 'pending',
+            },
+          ],
+        }),
+      }),
+      {},
+      educationSystemPolicies,
+    );
+    expect(firstProposal(alreadyApplied.microPlanners, 'study')).toMatchObject({
+      commandType: 'AgentStudy',
+    });
+
+    // Education system disabled: legacy continuous-score study only.
+    const disabled = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: createAgent({ agentId: agentA, educationScore: 200, educationLevel: 2 }),
+      }),
+      {},
+      {
+        ...educationSystemPolicies,
+        educationSystem: { ...educationSystemPolicy, enabled: false },
+      },
+    );
+    expect(firstProposal(disabled.microPlanners, 'study')).toMatchObject({
+      commandType: 'AgentStudy',
+    });
+  });
+
+  test('estimates study costs from the education-system settlement terms', async () => {
+    // Compulsory level 1 with a funded treasury: the self-pay share is zero,
+    // so a low-balance agent is not priced out by the legacy flat rate.
+    const compulsoryAgent = createAgent({
+      agentId: agentA,
+      educationScore: 25,
+      educationLevel: 1,
+      balance: 5,
+    });
+    const compulsory = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: compulsoryAgent,
+        projection: createProjection({
+          agents: [compulsoryAgent],
+          marketPools: [],
+          treasury: 1000,
+        }),
+      }),
+      { study: { durationSeconds: 1800 } },
+      educationSystemPolicies,
+    );
+    expect(firstProposal(compulsory.microPlanners, 'study')).toMatchObject({
+      commandType: 'AgentStudy',
+      resourceEstimate: { actionSeconds: 1800, currencyCost: 0, inventoryCosts: {} },
+    });
+
+    // Non-compulsory level 4 pays the level tuition (30/hour over 1800s).
+    const academicAgent = createAgent({
+      agentId: agentA,
+      educationScore: 400,
+      educationLevel: 4,
+      balance: 100,
+    });
+    const academic = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: academicAgent,
+        projection: createProjection({
+          agents: [academicAgent],
+          marketPools: [],
+          treasury: 1000,
+        }),
+      }),
+      { study: { durationSeconds: 1800 } },
+      educationSystemPolicies,
+    );
+    expect(firstProposal(academic.microPlanners, 'study')).toMatchObject({
+      commandType: 'AgentStudy',
+      resourceEstimate: { actionSeconds: 1800, currencyCost: 15, inventoryCosts: {} },
+    });
   });
 
   test('uses context-derived defaults for work, trade, social, and eat proposals', async () => {
@@ -1355,6 +1498,8 @@ function createProjection(input: {
     readonly commodityReserve: number;
     readonly currencyReserve: number;
   }[];
+  readonly treasury?: number;
+  readonly educationExamApplications?: readonly WorldEducationExamApplicationState[];
   readonly locationObservations?: readonly WorldLocationObservationState[];
   readonly socialRelations?: readonly SocialRelationState[];
 }): WorldProjection {
@@ -1365,6 +1510,10 @@ function createProjection(input: {
       ? {}
       : { locationObservations: input.locationObservations }),
     ...(input.socialRelations === undefined ? {} : { socialRelations: input.socialRelations }),
+    ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
+    ...(input.educationExamApplications === undefined
+      ? {}
+      : { educationExamApplications: input.educationExamApplications }),
     marketPools: input.marketPools,
   });
 }
@@ -1376,6 +1525,7 @@ function createAgent(input: {
   readonly inventory?: WorldAgentState['inventory'];
   readonly residentialTier?: number;
   readonly educationScore?: number;
+  readonly educationLevel?: WorldAgentState['educationLevel'];
   readonly balance?: number;
 }): WorldAgentState {
   return {
@@ -1387,6 +1537,7 @@ function createAgent(input: {
     residentialTier: input.residentialTier ?? 1,
     job: input.job ?? null,
     inventory: input.inventory ?? { Book: 3, Wood: 1 },
+    ...(input.educationLevel === undefined ? {} : { educationLevel: input.educationLevel }),
   };
 }
 

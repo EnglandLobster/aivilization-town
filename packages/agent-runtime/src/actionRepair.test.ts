@@ -370,3 +370,12 @@ function createEatAction(): AtomicActionProposal {
     payload: { commodityName: 'Fish', quantity: 1 },
   };
 }
+
+
+describe('AGENT_ACTION_COMMAND_TYPES', () => {
+  test('exposes the education exam application to LLM action synthesis and repair', () => {
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentApplyEducationExam');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentApplyJob');
+    expect(new Set(AGENT_ACTION_COMMAND_TYPES).size).toBe(AGENT_ACTION_COMMAND_TYPES.length);
+  });
+});

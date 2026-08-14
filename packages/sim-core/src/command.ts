@@ -23,6 +23,7 @@ export type CoreCommandType =
   | 'AgentSeeDoctor'
   | 'AgentStudy'
   | 'AgentApplyJob'
+  | 'AgentApplyEducationExam'
   | 'AgentUpgradeResidentialTier'
   | 'AgentWork'
   | 'AgentFoundEnterprise'

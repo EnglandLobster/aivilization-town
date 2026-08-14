@@ -221,6 +221,34 @@ export type ScenarioEducationInvestmentPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioEducationSystemPolicyConfig = {
+  readonly policyVersion: string;
+  /** false falls every consumer back to the legacy continuous-score semantics. */
+  readonly enabled: boolean;
+  /** Score thresholds to advance into levels 1..5 (strictly increasing). */
+  readonly levelScoreThresholds: readonly [number, number, number, number, number];
+  /** Levels financed by the treasury (nine-year compulsory education). */
+  readonly compulsoryLevels: readonly number[];
+  /** Tuition per study hour indexed by level; compulsory levels are reimbursed at this rate. */
+  readonly levelTuitionPerHour: Readonly<Record<string, number>>;
+  /** Efficiency multiplier applied to study while employed (0 < ratio <= 1). */
+  readonly employedStudyEfficiencyRatio: number;
+  /** Exam-release cadence: one admission cycle settles per crossed boundary. */
+  readonly examCycleDurationMs: number;
+  /** Admission quota per exam-gated target level ('3'/'4'/'5'), each in [0, 1]. */
+  readonly admissionQuotaByLevel: Readonly<Record<string, number>>;
+  /** Share of 中考 admittees tracked into the vocational school (中职), in [0, 1]. */
+  readonly vocationalTrackShare: number;
+  /**
+   * Education-score bonus for vocational-track (中职, level 3) applicants to
+   * skilled-manual occupations, keyed by job tier.
+   */
+  readonly vocationalTrackJobTierBonus: Readonly<Record<string, number>>;
+  /** Optional cap on cumulative exam attempts per agent; omitted allows retakes. */
+  readonly maxExamAttempts?: number;
+  readonly source: string;
+};
+
 export type ScenarioProductionEfficiencyPhysiologyCapConfig = {
   readonly residentialTier: number;
   readonly maxEnergy: number;
@@ -235,6 +263,13 @@ export type ScenarioProductionEfficiencyPhysiologyCapPolicyConfig = {
 export type ScenarioProductionEfficiencyPolicyConfig = {
   readonly minEfficiency: number;
   readonly educationScoreForMaxEfficiency: number;
+  /**
+   * Per-level multiplier applied to the education efficiency factor
+   * (education-system-v3), indexed by discrete education level 0..5. Only
+   * applies when the caller supplies the agent's education level; legacy
+   * continuous-score runs omit the level and keep the un-multiplied factor.
+   */
+  readonly educationLevelMultipliers: readonly number[];
   readonly physiologyCaps: ScenarioProductionEfficiencyPhysiologyCapPolicyConfig;
   readonly residentialTierForMaxEfficiency: number;
   readonly source: string;
@@ -253,6 +288,7 @@ export type ScenarioHealthcarePolicyDefaults = {
 
 export type ScenarioEducationPolicyDefaults = {
   readonly studyInvestment: ScenarioEducationInvestmentPolicyConfig;
+  readonly educationSystem: ScenarioEducationSystemPolicyConfig;
 };
 
 export type ScenarioWagePolicyDefaults = {
@@ -412,6 +448,8 @@ const healthcarePolicySource =
   'AIvilization v0 Section 3.1.1 healthcare recovery action and resource-constrained survival default runtime tuning';
 const educationInvestmentPolicySource =
   'AIvilization v0 Section 3.2.1 requires resource-consuming education; education-investment-v1 is a repository policy decision because the paper does not specify cost rates';
+const educationSystemPolicySource =
+  'Town education system; education-system-v3 discrete levels, the nine-year compulsory stage (levels 1-2), level thresholds and tuition rates, the employed-study efficiency penalty, the exam-release parameters (cycle cadence, per-level admission quotas, vocational track share), and the vocational-track job-tier education bonus are repository policy decisions because the paper models education as a continuous score';
 const wagePolicySource =
   'AIvilization v0 Section 3.2.4 defines static and dynamic wage regimes; wage-regime-v1 is a repository policy decision because the paper does not specify Phi or the short-term shock process';
 const jobApplicationPolicySource =
@@ -675,6 +713,39 @@ export const aivilizationHealthcarePolicyDefaults = {
   },
 } as const satisfies ScenarioHealthcarePolicyDefaults;
 
+export const EDUCATION_SYSTEM_POLICY_VERSION = 'education-system-v3';
+
+/**
+ * Town education system. Education becomes a discrete six-level ladder
+ * (未受教育/小学/初中/高中/大学/研究生) derived from the accumulated score; levels
+ * 1-2 form the nine-year compulsory stage whose tuition the public treasury
+ * covers (with an agent fallback when the treasury is off or short), later
+ * levels are self-funded at their level's hourly rate, and studying while
+ * employed accumulates score at the reduced efficiency ratio. Promotion inside
+ * the compulsory stage is automatic at the thresholds; entry into levels 3-5
+ * is exam-gated (education-system-v2): agents apply for the 中考/高考/考研, one
+ * admission cycle releases per examCycleDurationMs boundary, each level group
+ * admits its top `ceil(applicants × quota)` candidates by score, and admitted
+ * 中考 candidates split into the academic (普高) and vocational (中职) tracks at
+ * the vocationalTrackShare ratio. Under education-system-v3, vocational-track
+ * (中职, level 3) applicants to skilled-manual occupations are evaluated at an
+ * effective education score (raw + vocationalTrackJobTierBonus[tier]) for both
+ * eligibility and employer ranking.
+ */
+export const aivilizationEducationSystemPolicyDefaults = {
+  policyVersion: EDUCATION_SYSTEM_POLICY_VERSION,
+  enabled: true,
+  levelScoreThresholds: [20, 70, 180, 320, 450],
+  compulsoryLevels: [1, 2],
+  levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+  employedStudyEfficiencyRatio: 0.3,
+  examCycleDurationMs: 86_400_000,
+  admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+  vocationalTrackShare: 0.5,
+  vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+  source: educationSystemPolicySource,
+} as const satisfies ScenarioEducationSystemPolicyConfig;
+
 export const aivilizationEducationPolicyDefaults = {
   studyInvestment: {
     policyVersion: 'education-investment-v1',
@@ -682,6 +753,7 @@ export const aivilizationEducationPolicyDefaults = {
     inventoryCostsPerHour: {},
     source: educationInvestmentPolicySource,
   },
+  educationSystem: aivilizationEducationSystemPolicyDefaults,
 } as const satisfies ScenarioEducationPolicyDefaults;
 
 export const aivilizationWagePolicyDefaults = {
@@ -713,6 +785,7 @@ export const aivilizationProductionPolicyDefaults = {
   productionEfficiency: {
     minEfficiency: 0.5,
     educationScoreForMaxEfficiency: 500,
+    educationLevelMultipliers: [1, 1.2, 1.5, 2, 2.5, 3],
     physiologyCaps: {
       caps: aivilizationResidentialPhysiologyCaps.map((cap) => ({
         residentialTier: cap.residentialTier,

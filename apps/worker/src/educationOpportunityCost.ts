@@ -4,7 +4,11 @@ import type {
   WorldDecisionEducationOpportunityCostRule,
 } from '@aivilization/agent-runtime';
 import type { RuntimeProfileActivityAllocationKind } from '@aivilization/observability';
-import { calculateEducationInvestmentRequirements } from '@aivilization/society';
+import {
+  calculateEducationInvestmentRequirements,
+  deriveEducationLevel,
+  quoteStudyTuition,
+} from '@aivilization/society';
 import {
   EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
   type WorldAgentState,
@@ -50,15 +54,24 @@ export function createEducationOpportunityCostRule(input: {
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
   readonly config?: EducationOpportunityCostConfig;
+  /**
+   * Public treasury balance visible to the planner (projection.treasury ?? null
+   * at the call site). Required to mirror the compulsory-education treasury
+   * coverage of the authoritative study settlement.
+   */
+  readonly treasuryBalance?: number | null;
 }): WorldDecisionEducationOpportunityCostRule | undefined {
   const investmentPolicy = input.policies.educationInvestment;
   if (investmentPolicy === undefined) {
     return undefined;
   }
   const settings = resolveEducationOpportunityCostSettings(input.config);
-  const requirements = calculateEducationInvestmentRequirements({
+  const directStudyCost = resolveDirectStudyCost({
+    agent: input.agent,
+    policies: input.policies,
+    investmentPolicy,
     studyDurationSeconds: settings.studyDurationSeconds,
-    policy: investmentPolicy,
+    treasuryBalance: input.treasuryBalance ?? null,
   });
   const currentOccupationName = input.agent.job;
   const currentOccupationWage =
@@ -66,10 +79,10 @@ export function createEducationOpportunityCostRule(input: {
   assertNonNegativeFinite(currentOccupationWage, 'current occupation wage');
   const foregoneLaborIncome =
     currentOccupationWage * (settings.studyDurationSeconds / settings.workLaborSeconds);
-  const balanceAfterDirectCost = input.agent.balance - requirements.currencyCost;
+  const balanceAfterDirectCost = input.agent.balance - directStudyCost.currencyCost;
   const directlyAffordable =
     balanceAfterDirectCost >= 0 &&
-    Object.entries(requirements.inventoryCosts).every(
+    Object.entries(directStudyCost.inventoryCosts).every(
       ([itemName, quantity]) => (input.agent.inventory[itemName] ?? 0) >= quantity,
     );
 
@@ -78,17 +91,54 @@ export function createEducationOpportunityCostRule(input: {
     studyDurationSeconds: settings.studyDurationSeconds,
     educationRatePerSecond: settings.educationRatePerSecond,
     expectedEducationGain: settings.studyDurationSeconds * settings.educationRatePerSecond,
-    directCurrencyCost: requirements.currencyCost,
-    directInventoryCosts: { ...requirements.inventoryCosts },
+    directCurrencyCost: directStudyCost.currencyCost,
+    directInventoryCosts: directStudyCost.inventoryCosts,
     workLaborSeconds: settings.workLaborSeconds,
     currentOccupationName,
     foregoneLaborIncome,
-    totalCurrencyOpportunityCost: requirements.currencyCost + foregoneLaborIncome,
+    totalCurrencyOpportunityCost: directStudyCost.currencyCost + foregoneLaborIncome,
     minimumBalanceReserve: settings.minimumBalanceReserve,
     balanceAfterDirectCost,
     directlyAffordable,
     preservesMinimumBalanceReserve:
       directlyAffordable && balanceAfterDirectCost >= settings.minimumBalanceReserve,
+  };
+}
+
+/**
+ * Direct study cost estimate aligned with the authoritative settlement: under
+ * an enabled education system the level tuition applies with compulsory levels
+ * treasury-covered (self-pay share only); otherwise the legacy flat
+ * education-investment rate holds.
+ */
+function resolveDirectStudyCost(input: {
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+  readonly investmentPolicy: NonNullable<WorldCommandPolicies['educationInvestment']>;
+  readonly studyDurationSeconds: number;
+  readonly treasuryBalance: number | null;
+}): { readonly currencyCost: number; readonly inventoryCosts: Readonly<Record<string, number>> } {
+  const educationSystemPolicy = input.policies.educationSystem;
+  if (educationSystemPolicy !== undefined && educationSystemPolicy.enabled) {
+    const quote = quoteStudyTuition({
+      level:
+        input.agent.educationLevel ??
+        deriveEducationLevel(input.agent.educationScore, educationSystemPolicy),
+      durationSeconds: input.studyDurationSeconds,
+      treasuryBalance: input.treasuryBalance,
+      policy: educationSystemPolicy,
+    });
+    if (quote !== undefined) {
+      return { currencyCost: quote.selfPayCost, inventoryCosts: {} };
+    }
+  }
+  const requirements = calculateEducationInvestmentRequirements({
+    studyDurationSeconds: input.studyDurationSeconds,
+    policy: input.investmentPolicy,
+  });
+  return {
+    currencyCost: requirements.currencyCost,
+    inventoryCosts: { ...requirements.inventoryCosts },
   };
 }
 

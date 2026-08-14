@@ -1,4 +1,6 @@
 export * from './education';
+export * from './educationSystem';
+export * from './educationExam';
 export * from './conditions';
 export * from './consumption';
 export * from './healthcare';

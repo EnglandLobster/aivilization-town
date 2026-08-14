@@ -42,7 +42,10 @@ import {
   createRuntimeSoakEvidencePolicyManifest,
   getPaperPlannerAblationTaskDefinition,
 } from '@aivilization/observability';
-import { createLocalRuntimeTownDaemonScenarioProfile } from './localRuntimeTownScenarioProfile';
+import {
+  createLocalRuntimeTownDaemonScenarioProfile,
+  createLocalRuntimeTownEducationSystemPolicyOverride,
+} from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownCliConfig } from './localRuntimeTownCli';
 import { createLocalRuntimeTownProductionSloPolicy } from './localRuntimeTownProductionSlo';
 import { createLocalRuntimeTownDataCompatibilityPolicy } from './localRuntimeTownDataCompatibility';
@@ -53,6 +56,9 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
 ): LocalSimulationRuntimeResolvedRunManifest {
   assertReproducibleSourceRevision(config.sourceRevision, 'config.sourceRevision');
   const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
+  const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
+    config.profileId,
+  );
 
   return createLocalSimulationRuntimeResolvedRunManifest({
     schemaVersion: LOCAL_SIMULATION_RUNTIME_RESOLVED_RUN_MANIFEST_SCHEMA_VERSION,
@@ -92,6 +98,11 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
         ...(config.townBulletinEnabled ? { townBulletin: true } : {}),
         ...(config.socialMattersEnabled ? { socialMatters: true } : {}),
         ...(config.townConflictEnabled ? { townConflict: true } : {}),
+        // The paper-ablation cohort runs with the education system disabled;
+        // record that override so the manifest provenance matches the runtime.
+        ...(educationSystemOverride === undefined
+          ? {}
+          : { educationSystem: educationSystemOverride }),
       }),
       'policies',
     ),

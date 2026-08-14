@@ -13,6 +13,7 @@ import type {
   WorldDecisionAgentContext,
   WorldDecisionContext,
   WorldDecisionConsumptionRule,
+  WorldDecisionEducationReturnContext,
   WorldDecisionExternalTradeCommodityContext,
   WorldDecisionOccupationRule,
   WorldDecisionProductionRule,
@@ -25,7 +26,17 @@ import {
   calculateRecruitmentCycleNumber,
   calculateEffectiveKnowledgeThreshold,
   deriveAgentConditions,
+  deriveEducationLevel,
+  describeEducationStage,
+  EDUCATION_EXAM_TARGET_LEVELS,
+  EDUCATION_SYSTEM_MAX_LEVEL,
+  evaluateEffectiveEducationScoreForOccupation,
   evaluateLifestyleTier,
+  isCompulsoryLevel,
+  isEducationExamTargetLevel,
+  type EducationExamTargetLevel,
+  type EducationLevel,
+  type EducationSystemPolicy,
 } from '@aivilization/society';
 import type {
   WorldAgentState,
@@ -41,6 +52,7 @@ import {
 import type { AmmPool } from '@aivilization/economy';
 import {
   createEducationOpportunityCostRule,
+  resolveEducationOpportunityCostSettings,
   type EducationOpportunityCostConfig,
 } from './educationOpportunityCost';
 import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
@@ -142,6 +154,14 @@ export function createWorldDecisionContextFromProjection(input: {
       }),
       job: agent.job,
       inventory: copyPositiveSortedRecord(agent.inventory),
+      ...createEducationSystemDecisionContext({
+        projection: input.projection,
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+        ...(input.educationOpportunityCost === undefined
+          ? {}
+          : { educationOpportunityCost: input.educationOpportunityCost }),
+      }),
       ...(agent.durableGoods === undefined
         ? {}
         : {
@@ -229,6 +249,216 @@ function createEnterpriseDecisionContext(input: {
         wageArrears: enterprise.wageArrears ?? 0,
       }))
       .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId)),
+  };
+}
+
+/**
+ * Derive the agent's discrete education level and stage label when the
+ * education-system policy is enabled, plus the exam-attempt counter and a
+ * read-model view of the next exam-gated level (current-cycle competition,
+ * previous-cycle admission rate and cutoff). Absent `educationLevel` on the
+ * agent state (legacy snapshots) falls back to deriving the level from the
+ * score. Returns an empty object when the policy is absent or disabled so
+ * legacy runs keep the context education-system-free.
+ */
+function createEducationSystemDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+  readonly educationOpportunityCost?: EducationOpportunityCostConfig;
+}):
+  | Pick<
+      WorldDecisionAgentContext,
+      | 'educationLevel'
+      | 'educationStage'
+      | 'compulsoryEducationIncomplete'
+      | 'examAttempts'
+      | 'nextEducationExam'
+      | 'educationReturn'
+    >
+  | Record<string, never> {
+  const policy = input.policies?.educationSystem;
+  if (policy === undefined || !policy.enabled) {
+    return {};
+  }
+  const level =
+    input.agent.educationLevel ?? deriveEducationLevel(input.agent.educationScore, policy);
+  const examAttempts = input.agent.examAttempts ?? 0;
+  const educationStage = describeEducationStage({
+    level,
+    ...(input.agent.educationTrack === undefined ? {} : { track: input.agent.educationTrack }),
+  });
+  return {
+    educationLevel: level,
+    educationStage,
+    compulsoryEducationIncomplete: policy.compulsoryLevels.some(
+      (compulsoryLevel) => level < compulsoryLevel,
+    ),
+    examAttempts,
+    ...createNextEducationExamContext({ projection: input.projection, level, policy }),
+    educationReturn: createEducationReturnContext({
+      projection: input.projection,
+      agent: input.agent,
+      level,
+      stage: educationStage,
+      policy,
+      educationRatePerSecond: resolveEducationOpportunityCostSettings(
+        input.educationOpportunityCost,
+      ).educationRatePerSecond,
+    }),
+  };
+}
+
+/**
+ * Rational investment view of the education ladder (CS2 stayEarn/quitEarn
+ * simplified): the score, study-hour, and tuition cost of the next level
+ * against its exam-admission outlook and the wage uplift implied by the
+ * job-tier catalog. Study hours use the canonical education rate with the
+ * employed-study penalty when the agent holds a job; the wage uplift compares
+ * the minimum base wage of the highest job tier each score unlocks.
+ */
+function createEducationReturnContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly level: EducationLevel;
+  readonly stage: string;
+  readonly policy: EducationSystemPolicy;
+  readonly educationRatePerSecond: number;
+}): WorldDecisionEducationReturnContext {
+  const nextLevel =
+    input.level === EDUCATION_SYSTEM_MAX_LEVEL
+      ? null
+      : ((input.level + 1) as EducationLevel);
+  const requiredScore =
+    input.level === EDUCATION_SYSTEM_MAX_LEVEL
+      ? (input.policy.levelScoreThresholds.at(-1) ?? 0)
+      : (input.policy.levelScoreThresholds[input.level] ?? 0);
+  const missingScore = Math.max(0, requiredScore - input.agent.educationScore);
+  const studyRatePerSecond =
+    input.educationRatePerSecond *
+    (input.agent.job === null ? 1 : input.policy.employedStudyEfficiencyRatio);
+  const expectedStudyHoursRemaining =
+    missingScore === 0
+      ? 0
+      : studyRatePerSecond > 0
+        ? missingScore / studyRatePerSecond / 3600
+        : Number.POSITIVE_INFINITY;
+  const isExamGated = nextLevel !== null && isEducationExamTargetLevel(nextLevel);
+  const examAdmission =
+    isExamGated && nextLevel !== null
+      ? createExamAdmissionContext({
+          projection: input.projection,
+          targetLevel: nextLevel,
+          policy: input.policy,
+        })
+      : undefined;
+  const currentTierWage = estimateMinTierWageForScore(input.agent.educationScore);
+  return {
+    currentLevel: input.level,
+    currentStage: input.stage,
+    nextLevel,
+    requiredScore,
+    currentScore: input.agent.educationScore,
+    expectedStudyHoursRemaining,
+    isExamGated,
+    ...(examAdmission === undefined ? {} : { examAdmission }),
+    tuitionPerHour: input.policy.levelTuitionPerHour[String(input.level)] ?? 0,
+    compulsoryFree: isCompulsoryLevel(input.level, input.policy),
+    wageUpliftEstimate: {
+      currentTierWage,
+      nextLevelMinTierWage:
+        nextLevel === null ? currentTierWage : estimateMinTierWageForScore(requiredScore),
+    },
+  };
+}
+
+/** Latest completed exam cycle's admission outlook for one exam-gated level. */
+function createExamAdmissionContext(input: {
+  readonly projection: WorldProjection;
+  readonly targetLevel: EducationExamTargetLevel;
+  readonly policy: EducationSystemPolicy;
+}): NonNullable<WorldDecisionEducationReturnContext['examAdmission']> {
+  const previousCycle = [...input.projection.educationExamCycles]
+    .sort((left, right) => right.cycleNumber - left.cycleNumber)
+    .find((cycle) => (cycle.applicationsByLevel[String(input.targetLevel)] ?? 0) > 0);
+  return {
+    quota: input.policy.admissionQuotaByLevel[String(input.targetLevel)] ?? 0,
+    ...(previousCycle === undefined
+      ? {}
+      : {
+          lastCycleAdmissionRate:
+            (previousCycle.admittedByLevel[String(input.targetLevel)] ?? 0) /
+            (previousCycle.applicationsByLevel[String(input.targetLevel)] ?? 1),
+          ...(previousCycle.cutoffScoresByLevel[String(input.targetLevel)] === undefined
+            ? {}
+            : {
+                lastCycleCutoffScore:
+                  previousCycle.cutoffScoresByLevel[String(input.targetLevel)],
+              }),
+        }),
+  };
+}
+
+/**
+ * Minimum base wage among the occupations of the highest job tier a score
+ * unlocks (jobTiers.minEducationScore ladder). Pure read-model estimate over
+ * the content catalog.
+ */
+function estimateMinTierWageForScore(score: number): number {
+  const tier = jobTiers.reduce(
+    (best, candidate) => (score >= candidate.minEducationScore ? candidate.tier : best),
+    1,
+  );
+  const tierWages = occupations
+    .filter((occupation) => occupation.jobTier === tier)
+    .map((occupation) => occupation.baseWage);
+  return Math.min(...tierWages);
+}
+
+/**
+ * Next exam-gated level above the agent's current level: the smallest target
+ * in {3, 4, 5} strictly above it. Reports the current cycle's parked
+ * applications for that level and the latest completed cycle's admission rate
+ * and cutoff so planners can gauge competition. Absent when no exam-gated
+ * level lies ahead (already at/above level 5's gate).
+ */
+function createNextEducationExamContext(input: {
+  readonly projection: WorldProjection;
+  readonly level: EducationLevel;
+  readonly policy: EducationSystemPolicy;
+}): Pick<WorldDecisionAgentContext, 'nextEducationExam'> | Record<string, never> {
+  const targetLevel = EDUCATION_EXAM_TARGET_LEVELS.find((target) => target > input.level);
+  if (targetLevel === undefined) {
+    return {};
+  }
+  const currentCycleNumber = calculateRecruitmentCycleNumber({
+    simulationTime: input.projection.clock.now,
+    cycleDurationMs: input.policy.examCycleDurationMs,
+  });
+  const currentCycleApplications = input.projection.educationExamApplications.filter(
+    (application) =>
+      application.targetLevel === targetLevel && application.cycleNumber === currentCycleNumber,
+  ).length;
+  const previousCycle = [...input.projection.educationExamCycles]
+    .sort((left, right) => right.cycleNumber - left.cycleNumber)
+    .find((cycle) => (cycle.applicationsByLevel[String(targetLevel)] ?? 0) > 0);
+  return {
+    nextEducationExam: {
+      targetLevel,
+      currentCycleApplications,
+      ...(previousCycle === undefined
+        ? {}
+        : {
+            previousCycleAdmissionRate:
+              (previousCycle.admittedByLevel[String(targetLevel)] ?? 0) /
+              (previousCycle.applicationsByLevel[String(targetLevel)] ?? 1),
+            ...(previousCycle.cutoffScoresByLevel[String(targetLevel)] === undefined
+              ? {}
+              : {
+                  previousCycleCutoffScore: previousCycle.cutoffScoresByLevel[String(targetLevel)],
+                }),
+          }),
+    },
   };
 }
 
@@ -542,6 +772,7 @@ function withResidentialUpgradeRule(input: {
 }
 
 function withEducationOpportunityCostRule(input: {
+  readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly policies: WorldCommandPolicies;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
@@ -549,6 +780,7 @@ function withEducationOpportunityCostRule(input: {
   const educationOpportunityCost = createEducationOpportunityCostRule({
     agent: input.agent,
     policies: input.policies,
+    treasuryBalance: input.projection.treasury ?? null,
     ...(input.educationOpportunityCost === undefined
       ? {}
       : { config: input.educationOpportunityCost }),
@@ -582,6 +814,11 @@ function createOccupationRules(input: {
     residentialTier: input.agent.residentialTier,
     quotaByResidentialTier: jobApplication.quotaByResidentialTier,
   });
+  const educationSystemPolicy = input.policies.educationSystem;
+  const agentEducationLevel = resolveEnabledAgentEducationLevel({
+    agent: input.agent,
+    policies: input.policies,
+  });
 
   return occupations
     .map((occupation): WorldDecisionOccupationRule => {
@@ -596,8 +833,23 @@ function createOccupationRules(input: {
         occupation.minResidentialTier,
         jobTier.minResidentialTier,
       );
+      // education-system-v3: eligibility mirrors settlement — a vocational-track
+      // applicant is evaluated at the bonus-adjusted effective score.
+      const effectiveEducationScore =
+        educationSystemPolicy === undefined || agentEducationLevel === undefined
+          ? input.agent.educationScore
+          : evaluateEffectiveEducationScoreForOccupation({
+              score: input.agent.educationScore,
+              level: agentEducationLevel,
+              ...(input.agent.educationTrack === undefined
+                ? {}
+                : { track: input.agent.educationTrack }),
+              occupationTier: occupation.jobTier,
+              policy: educationSystemPolicy,
+            });
       const rejectionReasons = createOccupationRejectionReasons({
         agent: input.agent,
+        effectiveEducationScore,
         effectiveEducationThreshold,
         requiredResidentialTier,
         prerequisiteCommodity: jobTier.prerequisiteCommodity,
@@ -611,6 +863,9 @@ function createOccupationRules(input: {
         baseWage: occupation.baseWage,
         currentWage: input.policies.wageCalculator(occupation.name),
         effectiveEducationThreshold,
+        ...(effectiveEducationScore === input.agent.educationScore
+          ? {}
+          : { effectiveEducationScore }),
         requiredResidentialTier,
         prerequisiteCommodity: jobTier.prerequisiteCommodity,
         eligible: rejectionReasons.length === 0,
@@ -629,8 +884,25 @@ function createOccupationRules(input: {
     );
 }
 
+/**
+ * The agent's discrete education level when the education-system policy is
+ * enabled (score-derived fallback for legacy snapshots), undefined otherwise
+ * so disabled-policy runs keep the legacy continuous-score semantics.
+ */
+function resolveEnabledAgentEducationLevel(input: {
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+}): EducationLevel | undefined {
+  const policy = input.policies.educationSystem;
+  if (policy === undefined || !policy.enabled) {
+    return undefined;
+  }
+  return input.agent.educationLevel ?? deriveEducationLevel(input.agent.educationScore, policy);
+}
+
 function createOccupationRejectionReasons(input: {
   readonly agent: WorldAgentState;
+  readonly effectiveEducationScore: number;
   readonly effectiveEducationThreshold: number;
   readonly requiredResidentialTier: number;
   readonly prerequisiteCommodity: string | null;
@@ -644,7 +916,7 @@ function createOccupationRejectionReasons(input: {
   if (input.agent.residentialTier < input.requiredResidentialTier) {
     reasons.push('residential-tier-too-low');
   }
-  if (input.agent.educationScore < input.effectiveEducationThreshold) {
+  if (input.effectiveEducationScore < input.effectiveEducationThreshold) {
     reasons.push('education-too-low');
   }
   if (
@@ -662,6 +934,10 @@ function createProductionRules(input: {
   readonly policies: WorldCommandPolicies;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
 }): readonly WorldDecisionProductionRule[] {
+  const agentEducationLevel = resolveEnabledAgentEducationLevel({
+    agent: input.agent,
+    policies: input.policies,
+  });
   return commodities
     .flatMap((commodity): readonly WorldDecisionProductionRule[] => {
       const definition = resolveProductionDefinition(commodity.name, {
@@ -680,6 +956,9 @@ function createProductionRules(input: {
               agent: {
                 residentialTier: input.agent.residentialTier,
                 educationScore: input.agent.educationScore,
+                ...(agentEducationLevel === undefined
+                  ? {}
+                  : { educationLevel: agentEducationLevel }),
                 energy: input.agent.physiology.energy,
                 satiety: input.agent.physiology.satiety,
                 health: input.agent.physiology.health,

@@ -11,11 +11,21 @@ import {
   planProduction,
   planProductionChain,
   resolveProductionDefinition,
+  type ProductionAgentState,
   type ProductionChainStep,
 } from '@aivilization/economy';
-import { calculateEducationInvestmentRequirements } from '@aivilization/society';
+import {
+  calculateEducationInvestmentRequirements,
+  calculateRecruitmentCycleNumber,
+  deriveEducationLevel,
+  EDUCATION_SYSTEM_MAX_LEVEL,
+  quoteStudyTuition,
+  type EducationExamTargetLevel,
+  type EducationSystemPolicy,
+} from '@aivilization/society';
 import { asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type {
+  AgentApplyEducationExamPayload,
   AgentApplyJobPayload,
   AgentEatPayload,
   AgentGiveResourcePayload,
@@ -163,12 +173,20 @@ export function createCanonicalDomainRuntimeRegistrations(
   policies?: WorldCommandPolicies,
 ): readonly WorkerDomainRuntimeRegistration[] {
   return [
-    createStudyDomainRuntimeRegistration(config.study, policies?.educationInvestment),
+    createStudyDomainRuntimeRegistration(
+      config.study,
+      policies?.educationInvestment,
+      policies?.educationSystem,
+    ),
     createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social),
-    createProductionDomainRuntimeRegistration(config.production, policies?.production),
+    createProductionDomainRuntimeRegistration(
+      config.production,
+      policies?.production,
+      policies?.educationSystem,
+    ),
     createResidentialDomainRuntimeRegistration(
       config.residential,
       policies?.residentialTierUpgrade,
@@ -181,6 +199,7 @@ export function createCanonicalDomainRuntimeRegistrations(
 export function createStudyDomainRuntimeRegistration(
   config: StudyDomainRuntimeConfig = {},
   educationInvestment?: WorldCommandPolicies['educationInvestment'],
+  educationSystemPolicy?: EducationSystemPolicy,
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'study',
@@ -190,6 +209,14 @@ export function createStudyDomainRuntimeRegistration(
         context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
+          const examProposal = resolveEducationExamApplicationProposal({
+            context,
+            selectedSubtask,
+            ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
+          });
+          if (examProposal !== undefined) {
+            return examProposal;
+          }
           const educationRatePerSecond =
             config.educationRatePerSecond ?? CANONICAL_EDUCATION_RATE_PER_SECOND;
           const durationSeconds = resolveStudyActionDurationSeconds({
@@ -198,13 +225,6 @@ export function createStudyDomainRuntimeRegistration(
             currentEducationScore: context.agent.educationScore,
             objectiveAffinityTags: context.activeObjective.affinityTags,
           });
-          const requirements =
-            educationInvestment === undefined
-              ? undefined
-              : calculateEducationInvestmentRequirements({
-                  studyDurationSeconds: durationSeconds,
-                  policy: educationInvestment,
-                });
           return {
             id: createCanonicalActionId('study', selectedSubtask),
             description: `Study for ${selectedSubtask.description}.`,
@@ -214,19 +234,113 @@ export function createStudyDomainRuntimeRegistration(
               durationSeconds,
               educationRatePerSecond,
             },
-            resourceEstimate: {
-              actionSeconds: durationSeconds,
-              ...(requirements === undefined
-                ? {}
-                : {
-                    currencyCost: requirements.currencyCost,
-                    inventoryCosts: requirements.inventoryCosts,
-                  }),
-            },
+            resourceEstimate: createStudyActionResourceEstimate({
+              durationSeconds,
+              context,
+              ...(educationInvestment === undefined ? {} : { educationInvestment }),
+              ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
+            }),
           };
         },
       }),
     ],
+  };
+}
+
+/**
+ * Exam-application proposal for the deterministic runtime: once an agent at an
+ * exam-gated level (2→3 中考, 3→4 高考, 4→5 考研) reaches the next level's
+ * score threshold and has not applied in the current exam cycle, applying for
+ * the exam is the obviously viable study-domain step. The world handler stays
+ * the authority on eligibility details (track constraints, attempt caps).
+ */
+function resolveEducationExamApplicationProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly educationSystemPolicy?: EducationSystemPolicy;
+}): CanonicalActionProposal | undefined {
+  const policy = input.educationSystemPolicy;
+  if (policy === undefined || !policy.enabled) {
+    return undefined;
+  }
+  const agent = input.context.agent;
+  const currentLevel = agent.educationLevel ?? deriveEducationLevel(agent.educationScore, policy);
+  if (currentLevel < 2 || currentLevel >= EDUCATION_SYSTEM_MAX_LEVEL) {
+    return undefined;
+  }
+  // thresholds[i] is the score required to advance from level i to i+1; the
+  // bounds check above keeps the index inside the tuple.
+  const thresholdIndex: number = currentLevel;
+  const requiredScore: number | undefined = policy.levelScoreThresholds[thresholdIndex];
+  if (requiredScore === undefined || agent.educationScore < requiredScore) {
+    return undefined;
+  }
+  const cycleNumber = calculateRecruitmentCycleNumber({
+    simulationTime: input.context.projection.clock.now,
+    cycleDurationMs: policy.examCycleDurationMs,
+  });
+  const alreadyApplied = input.context.projection.educationExamApplications.some(
+    (application) =>
+      application.agentId === agent.agentId && application.cycleNumber === cycleNumber,
+  );
+  if (alreadyApplied) {
+    return undefined;
+  }
+  const targetLevel = (currentLevel + 1) as EducationExamTargetLevel;
+  return {
+    id: `${createCanonicalActionId('study', input.selectedSubtask)}-exam-application`,
+    description: `Apply for the level-${String(targetLevel)} education exam.`,
+    commandType: 'AgentApplyEducationExam',
+    priority: input.selectedSubtask.score,
+    payload: { targetLevel },
+  };
+}
+
+/**
+ * Study cost estimate aligned with the authoritative settlement: under an
+ * enabled education system the level tuition applies and compulsory levels are
+ * treasury-covered (self-pay share only); otherwise the legacy flat
+ * education-investment rate holds.
+ */
+function createStudyActionResourceEstimate(input: {
+  readonly durationSeconds: number;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly educationInvestment?: WorldCommandPolicies['educationInvestment'];
+  readonly educationSystemPolicy?: EducationSystemPolicy;
+}): ActionResourceEstimate {
+  const educationSystemPolicy = input.educationSystemPolicy;
+  if (educationSystemPolicy !== undefined && educationSystemPolicy.enabled) {
+    const quote = quoteStudyTuition({
+      level:
+        input.context.agent.educationLevel ??
+        deriveEducationLevel(input.context.agent.educationScore, educationSystemPolicy),
+      durationSeconds: input.durationSeconds,
+      treasuryBalance: input.context.projection.treasury ?? null,
+      policy: educationSystemPolicy,
+    });
+    if (quote !== undefined) {
+      return {
+        actionSeconds: input.durationSeconds,
+        currencyCost: quote.selfPayCost,
+        inventoryCosts: {},
+      };
+    }
+  }
+  const requirements =
+    input.educationInvestment === undefined
+      ? undefined
+      : calculateEducationInvestmentRequirements({
+          studyDurationSeconds: input.durationSeconds,
+          policy: input.educationInvestment,
+        });
+  return {
+    actionSeconds: input.durationSeconds,
+    ...(requirements === undefined
+      ? {}
+      : {
+          currencyCost: requirements.currencyCost,
+          inventoryCosts: requirements.inventoryCosts,
+        }),
   };
 }
 
@@ -539,6 +653,7 @@ export function createSocialDomainRuntimeRegistration(
 export function createProductionDomainRuntimeRegistration(
   config: ProductionDomainRuntimeConfig = {},
   productionPolicy?: WorldCommandPolicies['production'],
+  educationSystemPolicy?: EducationSystemPolicy,
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'production',
@@ -562,6 +677,7 @@ export function createProductionDomainRuntimeRegistration(
             availableLaborSeconds,
             context,
             productionPolicy,
+            ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
           });
           const actionCommodityName = nextProductionStep?.commodityName ?? commodityName;
           const actionQuantity = nextProductionStep?.quantity ?? quantity;
@@ -586,6 +702,7 @@ export function createProductionDomainRuntimeRegistration(
                   availableLaborSeconds,
                   context,
                   productionPolicy,
+                  ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
                 })
               : { resourceEstimate: createProductionStepResourceEstimate(nextProductionStep) }),
           };
@@ -721,6 +838,7 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentSeeDoctor', AgentSeeDoctorPayload>
   | AtomicActionProposal<'AgentWork', AgentWorkPayload>
   | AtomicActionProposal<'AgentApplyJob', AgentApplyJobPayload>
+  | AtomicActionProposal<'AgentApplyEducationExam', AgentApplyEducationExamPayload>
   | AtomicActionProposal<'AgentTrade', AgentTradePayload>
   | AtomicActionProposal<'AgentGiveResource', AgentGiveResourcePayload>
   | AtomicActionProposal<'AgentStartConversation', AgentStartConversationPayload>
@@ -1156,19 +1274,12 @@ function resolveNextProductionStep(input: {
   readonly availableLaborSeconds: number;
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly productionPolicy?: WorldCommandPolicies['production'];
+  readonly educationSystemPolicy?: EducationSystemPolicy;
 }): ProductionChainStep | undefined {
   const productionChain = planProductionChain({
     commodityName: input.commodityName,
     quantity: input.quantity,
-    agent: {
-      residentialTier: input.context.agent.residentialTier,
-      energy: input.context.agent.physiology.energy,
-      satiety: input.context.agent.physiology.satiety,
-      health: input.context.agent.physiology.health,
-      availableLaborSeconds: input.availableLaborSeconds,
-      inventory: input.context.agent.inventory,
-      educationScore: input.context.agent.educationScore,
-    },
+    agent: createProductionEstimateAgentState(input),
     ...(input.productionPolicy?.recipeOverrides === undefined
       ? {}
       : { recipeOverrides: input.productionPolicy.recipeOverrides }),
@@ -1181,6 +1292,35 @@ function resolveNextProductionStep(input: {
   }
 
   return productionChain.steps[0];
+}
+
+/**
+ * Agent state for production planning estimates. Mirrors the settlement
+ * handler: the discrete education level (and with it the production-efficiency
+ * level multiplier) is only supplied when the education-system policy is
+ * enabled, with the score-derived fallback for legacy snapshots.
+ */
+function createProductionEstimateAgentState(input: {
+  readonly availableLaborSeconds: number;
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly educationSystemPolicy?: EducationSystemPolicy;
+}): ProductionAgentState {
+  const agent = input.context.agent;
+  const educationLevel =
+    input.educationSystemPolicy !== undefined && input.educationSystemPolicy.enabled
+      ? (agent.educationLevel ??
+        deriveEducationLevel(agent.educationScore, input.educationSystemPolicy))
+      : undefined;
+  return {
+    residentialTier: agent.residentialTier,
+    energy: agent.physiology.energy,
+    satiety: agent.physiology.satiety,
+    health: agent.physiology.health,
+    availableLaborSeconds: input.availableLaborSeconds,
+    inventory: agent.inventory,
+    educationScore: agent.educationScore,
+    ...(educationLevel === undefined ? {} : { educationLevel }),
+  };
 }
 
 function createProductionStepResourceEstimate(step: ProductionChainStep): ActionResourceEstimate {
@@ -1200,19 +1340,12 @@ function createProductionResourceEstimate(input: {
   readonly availableLaborSeconds: number;
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly productionPolicy?: WorldCommandPolicies['production'];
+  readonly educationSystemPolicy?: EducationSystemPolicy;
 }): { readonly resourceEstimate?: ActionResourceEstimate } {
   const productionPlan = planProduction({
     commodityName: input.commodityName,
     quantity: input.quantity,
-    agent: {
-      residentialTier: input.context.agent.residentialTier,
-      energy: input.context.agent.physiology.energy,
-      satiety: input.context.agent.physiology.satiety,
-      health: input.context.agent.physiology.health,
-      availableLaborSeconds: input.availableLaborSeconds,
-      inventory: input.context.agent.inventory,
-      educationScore: input.context.agent.educationScore,
-    },
+    agent: createProductionEstimateAgentState(input),
     ...(input.productionPolicy?.recipeOverrides === undefined
       ? {}
       : { recipeOverrides: input.productionPolicy.recipeOverrides }),

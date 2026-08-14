@@ -1,5 +1,5 @@
 import type { AgentId } from '@aivilization/sim-core';
-import type { LifestyleTier } from '@aivilization/society';
+import type { EducationLevel, LifestyleTier } from '@aivilization/society';
 
 export type WorldDecisionAgentContext = {
   readonly agentId: AgentId;
@@ -10,6 +10,37 @@ export type WorldDecisionAgentContext = {
     readonly health: number;
   };
   readonly educationScore: number;
+  /**
+   * Discrete education level under education-system-v2. Present only when the
+   * resolved command policies carry an enabled education-system policy; absent
+   * means the legacy continuous-score semantics.
+   */
+  readonly educationLevel?: EducationLevel;
+  /**
+   * Chinese-language stage label for the education level (e.g. '小学(义务教育)',
+   * '高中(普高)'). Present only together with `educationLevel`.
+   */
+  readonly educationStage?: string;
+  /** True when the agent has not completed the compulsory education stage. */
+  readonly compulsoryEducationIncomplete?: boolean;
+  /**
+   * Cumulative exam attempts under education-system-v2. Present only together
+   * with `educationLevel`.
+   */
+  readonly examAttempts?: number;
+  /**
+   * Read-model view of the next exam-gated level above the agent's current
+   * level (中考/高考/考研): how many applications the current cycle already
+   * holds for that level, and the previous completed cycle's admission rate
+   * and cutoff score. Present only when the education-system policy is enabled
+   * and an exam-gated level lies ahead.
+   */
+  readonly nextEducationExam?: WorldDecisionEducationExamContext;
+  /**
+   * Rational investment view of the next education level (cost vs wage uplift).
+   * Present only when the education-system policy is enabled.
+   */
+  readonly educationReturn?: WorldDecisionEducationReturnContext;
   readonly balance: number;
   readonly residentialTier: number;
   /** Accumulated unpaid residential upkeep; absent or zero when the household is current. */
@@ -59,6 +90,64 @@ export type WorldDecisionBankingContext = {
   readonly loanDailyInterestRate: number;
 };
 
+export type WorldDecisionEducationExamContext = {
+  /** Exam-gated level the agent would apply for next (中考 3, 高考 4, 考研 5). */
+  readonly targetLevel: EducationLevel;
+  /** Applications parked for that level in the current exam cycle so far. */
+  readonly currentCycleApplications: number;
+  /** Admission rate (admitted / applications) of the latest completed cycle for that level. */
+  readonly previousCycleAdmissionRate?: number;
+  /** Cutoff score of the latest completed cycle for that level. */
+  readonly previousCycleCutoffScore?: number;
+};
+
+/**
+ * Rational investment view of the education ladder (education-system-v3): what
+ * the next level costs (score, study hours at the canonical rate, tuition) and
+ * what it returns (exam admission odds, estimated wage uplift from the job-tier
+ * catalog). Read-only planning context — settlement never consumes it. Present
+ * only when the education-system policy is enabled.
+ */
+export type WorldDecisionEducationReturnContext = {
+  readonly currentLevel: EducationLevel;
+  readonly currentStage: string;
+  /** Next level to study toward; null when the agent already holds level 5. */
+  readonly nextLevel: EducationLevel | null;
+  /**
+   * Score required to enter `nextLevel`. When `nextLevel` is null this is the
+   * entry threshold of the top level (already met).
+   */
+  readonly requiredScore: number;
+  readonly currentScore: number;
+  /**
+   * Study hours still needed to reach `requiredScore` at the canonical
+   * education rate, including the employed-study efficiency penalty when the
+   * agent holds a job.
+   */
+  readonly expectedStudyHoursRemaining: number;
+  /** True when entry into `nextLevel` is decided by an exam cycle (levels 3-5). */
+  readonly isExamGated: boolean;
+  /** Admission outlook for the exam gate, from the education exam read model. */
+  readonly examAdmission?: {
+    readonly quota: number;
+    readonly lastCycleCutoffScore?: number;
+    readonly lastCycleAdmissionRate?: number;
+  };
+  /** Tuition per study hour at the agent's current level. */
+  readonly tuitionPerHour: number;
+  /** True when the current level belongs to the treasury-covered compulsory stage. */
+  readonly compulsoryFree: boolean;
+  /**
+   * Wage uplift estimate from the occupation catalog: the minimum base wage of
+   * the highest job tier the current score unlocks vs the one the next level's
+   * required score would unlock.
+   */
+  readonly wageUpliftEstimate: {
+    readonly currentTierWage: number;
+    readonly nextLevelMinTierWage: number;
+  };
+};
+
 export type WorldDecisionMarketSpotPrice = {
   readonly commodity: string;
   readonly spotPrice: number;
@@ -89,6 +178,13 @@ export type WorldDecisionOccupationRule = {
   readonly baseWage: number;
   readonly currentWage?: number;
   readonly effectiveEducationThreshold: number;
+  /**
+   * The agent's bonus-adjusted education score for this occupation
+   * (vocational-track tier bonus, education-system-v3). Present only when it
+   * differs from the raw educationScore; eligibility and employer ranking both
+   * use it.
+   */
+  readonly effectiveEducationScore?: number;
   readonly requiredResidentialTier: number;
   readonly prerequisiteCommodity: string | null;
   readonly eligible: boolean;

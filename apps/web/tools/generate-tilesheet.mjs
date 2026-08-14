@@ -2,6 +2,13 @@
 /**
  * Programmatic placeholder tilesheet generator for the living-town canvas.
  *
+ * Status: this is the FALLBACK generator. The canonical
+ * `public/ui/assets/tiles.png` is the Kenney Tiny Town (CC0) repack produced
+ * by `tools/repack-kenney-tilesheet.py`; only the agent walk sprites and the
+ * selection bracket on the last row still come from this script. Re-run it
+ * only to regenerate placeholder art or those row-15 sprites — running it
+ * overwrites the whole sheet.
+ *
  * Dependency-free by design (the monorepo has a zero-runtime-dependency
  * policy): pixels are drawn into an RGBA buffer and encoded as PNG with a
  * minimal hand-rolled encoder (raw scanlines, filter byte 0, zlib deflate via

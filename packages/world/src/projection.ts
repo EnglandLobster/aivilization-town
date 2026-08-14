@@ -40,6 +40,7 @@ import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
 import type { WorldConflictRecord } from './conflict';
 import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise';
 import { applyCreditProjectionEvent } from './projectionReducers/credit';
+import { applyRegionalLandValueProjectionEvent } from './projectionReducers/regionalLandValue';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -353,6 +354,14 @@ export type WorldProjection = {
    * Taxation and treasury spending are transfers and never move moneySupply.
    */
   readonly treasury?: number;
+  /**
+   * Optional per-region land value index slice (regionId -> smoothed index).
+   * Present only once the first RegionalLandValueUpdated event exists (i.e. a
+   * land value policy is active); absent keeps legacy snapshots byte-for-byte
+   * compatible and keeps housing upkeep on flat v1 pricing. The index only
+   * modulates upkeep pricing and never moves currency by itself.
+   */
+  readonly regionalLandValues?: Readonly<Record<string, number>>;
   /**
    * Optional town-bank slice (deposits, loan book, credit history and the bank
    * cash account). Present only once credit events exist or the scenario seeded
@@ -674,6 +683,10 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
   const creditProjection = applyCreditProjectionEvent(projection, event);
   if (creditProjection !== undefined) {
     return creditProjection;
+  }
+  const landValueProjection = applyRegionalLandValueProjectionEvent(projection, event);
+  if (landValueProjection !== undefined) {
+    return landValueProjection;
   }
   switch (event.type) {
     case 'AgentRegistered': {

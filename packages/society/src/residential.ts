@@ -18,6 +18,11 @@ export type ResidentialUpkeepCost = {
 };
 
 export type ResidentialUpkeepPolicy = {
+  /**
+   * Optional policy version, recorded in the manifest when the pricing
+   * semantics include the land value term. Absent marks a legacy v1 policy.
+   */
+  readonly policyVersion?: string;
   readonly costs: readonly ResidentialUpkeepCost[];
   /**
    * Hours of unpaid upkeep (priced at the agent's current tier rate) that may
@@ -25,6 +30,13 @@ export type ResidentialUpkeepPolicy = {
    * when omitted, arrears never trigger a downgrade (legacy behavior).
    */
   readonly arrearsDowngradeThresholdHours?: number;
+  /**
+   * Optional coefficient converting the agent's regional land value index
+   * into an additional per-hour upkeep charge:
+   * effectiveRate = tierCost + landValueIndex * landValueCoefficientPerHour.
+   * Absent (or a missing land value index) keeps the flat per-tier v1 pricing.
+   */
+  readonly landValueCoefficientPerHour?: number;
 };
 
 export type ResidentialArrearsDecision =
@@ -50,6 +62,12 @@ export function evaluateResidentialArrears(input: {
   readonly residentialTier: number;
   readonly nextArrears: number;
   readonly policy: ResidentialUpkeepPolicy;
+  /**
+   * Effective per-hour upkeep rate (base tier cost plus land value term) as
+   * resolved by the caller via resolveResidentialUpkeepRate. When omitted the
+   * flat per-tier v1 rate is used.
+   */
+  readonly effectiveCostPerHour?: number;
 }): ResidentialArrearsDecision {
   if (!isPositiveInteger(input.residentialTier)) {
     throw new Error('residentialTier must be a positive integer');
@@ -64,13 +82,21 @@ export function evaluateResidentialArrears(input: {
   if (!isNonNegativeFinite(thresholdHours)) {
     throw new Error('arrearsDowngradeThresholdHours must be non-negative');
   }
+  if (
+    input.effectiveCostPerHour !== undefined &&
+    !isNonNegativeFinite(input.effectiveCostPerHour)
+  ) {
+    throw new Error('effectiveCostPerHour must be non-negative');
+  }
   const cost = input.policy.costs.find(
     (candidate) => candidate.residentialTier === input.residentialTier,
   );
-  if (cost === undefined || cost.currencyCostPerHour === 0) {
+  const costPerHour =
+    input.effectiveCostPerHour ?? (cost === undefined ? undefined : cost.currencyCostPerHour);
+  if (costPerHour === undefined || costPerHour === 0) {
     return { status: 'carry', reason: 'zero-cost' };
   }
-  if (input.nextArrears < cost.currencyCostPerHour * thresholdHours) {
+  if (input.nextArrears < costPerHour * thresholdHours) {
     return { status: 'carry', reason: 'below-threshold' };
   }
   if (input.residentialTier <= 1) {
@@ -213,11 +239,46 @@ export function evaluateResidentialTierUpgrade(input: {
   };
 }
 
+/**
+ * Resolves the effective per-hour upkeep rate for a tier: the flat tier cost
+ * plus the regional land value term when both the policy coefficient and a
+ * land value index are available. Returns undefined when the tier has no
+ * configured cost (which v1 semantics treat as "no upkeep").
+ */
+export function resolveResidentialUpkeepRate(input: {
+  readonly residentialTier: number;
+  readonly policy: ResidentialUpkeepPolicy;
+  readonly landValueIndex?: number;
+}): number | undefined {
+  if (!isPositiveInteger(input.residentialTier)) {
+    throw new Error('residentialTier must be a positive integer');
+  }
+  if (input.landValueIndex !== undefined && !isNonNegativeFinite(input.landValueIndex)) {
+    throw new Error('landValueIndex must be non-negative');
+  }
+  const cost = input.policy.costs.find(
+    (candidate) => candidate.residentialTier === input.residentialTier,
+  );
+  if (cost === undefined) {
+    return undefined;
+  }
+  const coefficient = input.policy.landValueCoefficientPerHour ?? 0;
+  if (!isNonNegativeFinite(coefficient)) {
+    throw new Error('landValueCoefficientPerHour must be non-negative');
+  }
+  return cost.currencyCostPerHour + (input.landValueIndex ?? 0) * coefficient;
+}
+
 export function evaluateResidentialUpkeep(input: {
   readonly residentialTier: number;
   readonly balance: number;
   readonly durationSeconds: number;
   readonly policy: ResidentialUpkeepPolicy;
+  /**
+   * Regional land value index for the agent's current region. Only affects
+   * pricing when the policy carries landValueCoefficientPerHour.
+   */
+  readonly landValueIndex?: number;
 }): ResidentialUpkeepDecision {
   if (!isPositiveInteger(input.residentialTier)) {
     return rejectUpkeep('residentialTier must be a positive integer');
@@ -227,6 +288,9 @@ export function evaluateResidentialUpkeep(input: {
   }
   if (!isNonNegativeFinite(input.durationSeconds)) {
     return rejectUpkeep('durationSeconds must be non-negative');
+  }
+  if (input.landValueIndex !== undefined && !isNonNegativeFinite(input.landValueIndex)) {
+    return rejectUpkeep('landValueIndex must be non-negative');
   }
 
   const cost = input.policy.costs.find(
@@ -242,7 +306,16 @@ export function evaluateResidentialUpkeep(input: {
     return rejectUpkeep('currencyCostPerHour must be non-negative');
   }
 
-  const dueAmount = cost.currencyCostPerHour * (input.durationSeconds / 3600);
+  const costPerHour = resolveResidentialUpkeepRate({
+    residentialTier: input.residentialTier,
+    policy: input.policy,
+    ...(input.landValueIndex === undefined ? {} : { landValueIndex: input.landValueIndex }),
+  });
+  if (costPerHour === undefined) {
+    return { status: 'uncharged', reason: 'no-upkeep-cost' };
+  }
+
+  const dueAmount = costPerHour * (input.durationSeconds / 3600);
   if (dueAmount === 0) {
     return { status: 'uncharged', reason: 'zero-cost' };
   }
@@ -263,6 +336,37 @@ function reject(
   detail: string,
 ): ResidentialTierUpgradeDecision {
   return { status: 'rejected', reason, detail };
+}
+
+/**
+ * Composition-root validation for ResidentialUpkeepPolicy. The evaluate
+ * functions keep their inline rejection-based checks for replay safety; this
+ * assert is for policy assembly (worker) to fail fast on malformed configs.
+ */
+export function assertValidResidentialUpkeepPolicy(policy: ResidentialUpkeepPolicy): void {
+  if (policy.policyVersion !== undefined && policy.policyVersion.trim().length === 0) {
+    throw new Error('residential upkeep policyVersion must not be empty when provided');
+  }
+  for (const cost of policy.costs) {
+    if (!isPositiveInteger(cost.residentialTier)) {
+      throw new Error('costs[].residentialTier must be a positive integer');
+    }
+    if (!isNonNegativeFinite(cost.currencyCostPerHour)) {
+      throw new Error('costs[].currencyCostPerHour must be non-negative');
+    }
+  }
+  if (
+    policy.arrearsDowngradeThresholdHours !== undefined &&
+    !isNonNegativeFinite(policy.arrearsDowngradeThresholdHours)
+  ) {
+    throw new Error('arrearsDowngradeThresholdHours must be non-negative');
+  }
+  if (
+    policy.landValueCoefficientPerHour !== undefined &&
+    !isNonNegativeFinite(policy.landValueCoefficientPerHour)
+  ) {
+    throw new Error('landValueCoefficientPerHour must be non-negative');
+  }
 }
 
 function rejectUpkeep(detail: string): ResidentialUpkeepDecision {

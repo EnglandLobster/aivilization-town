@@ -392,12 +392,25 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
       minHealth: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.minHealth,
     },
     residentialUpkeep: {
+      policyVersion: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
       costs: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs.map((cost) => ({
         residentialTier: cost.residentialTier,
         currencyCostPerHour: cost.currencyCostPerHour,
       })),
       arrearsDowngradeThresholdHours:
         aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.arrearsDowngradeThresholdHours,
+      landValueCoefficientPerHour:
+        aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.landValueCoefficientPerHour,
+    },
+    landValue: {
+      policyVersion: aivilizationSurvivalTimePolicyDefaults.landValue.policyVersion,
+      updateCadenceMs: aivilizationSurvivalTimePolicyDefaults.landValue.updateCadenceMs,
+      baseline: aivilizationSurvivalTimePolicyDefaults.landValue.baseline,
+      populationWeight: aivilizationSurvivalTimePolicyDefaults.landValue.populationWeight,
+      liquidityWeight: aivilizationSurvivalTimePolicyDefaults.landValue.liquidityWeight,
+      smoothingFactor: aivilizationSurvivalTimePolicyDefaults.landValue.smoothingFactor,
+      minIndex: aivilizationSurvivalTimePolicyDefaults.landValue.minIndex,
+      maxIndex: aivilizationSurvivalTimePolicyDefaults.landValue.maxIndex,
     },
     ...(options?.timeSettlementAmortizationBuckets === undefined
       ? {}
@@ -516,6 +529,8 @@ export function createAivilizationWorldPolicyManifest(
       recruitmentCycle: aivilizationJobApplicationPolicyDefaults.recruitmentCycle.policyVersion,
       physiologicalSafetyNet:
         aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
+      residentialUpkeep: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
+      landValue: aivilizationSurvivalTimePolicyDefaults.landValue.policyVersion,
       memoryConsolidation: CANONICAL_MEMORY_CONSOLIDATION_POLICY_ID,
       worldProjectionMemoryRetention: WORLD_PROJECTION_MEMORY_RETENTION_POLICY_VERSION,
       ...experimentalPolicyVersions,
@@ -635,12 +650,16 @@ export function createAivilizationWorldPolicyManifest(
         sleepDeprivation: { ...aivilizationSurvivalTimePolicyDefaults.sleepDeprivation },
         stochasticIllness: { ...aivilizationSurvivalTimePolicyDefaults.stochasticIllness },
         residentialUpkeep: {
+          policyVersion: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
           costs: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs.map((cost) => ({
             ...cost,
           })),
           arrearsDowngradeThresholdHours:
             aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.arrearsDowngradeThresholdHours,
+          landValueCoefficientPerHour:
+            aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.landValueCoefficientPerHour,
         },
+        landValue: { ...aivilizationSurvivalTimePolicyDefaults.landValue },
         physiologicalSafetyNet: {
           ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet,
           criticalThresholds: {
@@ -893,9 +912,9 @@ function createCanonicalPolicyRegistry(manifest: {
     registryEntry(
       'survival',
       'canonical-survival-time-v1',
-      ['physiologicalSafetyNet'],
+      ['physiologicalSafetyNet', 'residentialUpkeep', 'landValue'],
       'repository-defined',
-      'Paper requires physiology and safety-net behavior; illness, upkeep and timing parameters are repository-defined.',
+      'Paper requires physiology and safety-net behavior; illness, upkeep, land value and timing parameters are repository-defined.',
     ),
     registryEntry(
       'residentialUpgrade',

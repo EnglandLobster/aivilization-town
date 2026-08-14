@@ -1,4 +1,4 @@
-import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -927,5 +927,412 @@ describe('time settlement amortization', () => {
     expect(events[2]).toMatchObject({
       payload: { previousSettledAt: 1_000, nextSettledAt: 2_000 },
     });
+  });
+});
+
+describe('regional land value and upkeep pricing', () => {
+  const DAY_MS = 86_400_000;
+  const landValuePolicy = {
+    policyVersion: 'land-value-v1',
+    updateCadenceMs: DAY_MS,
+    baseline: 0,
+    populationWeight: 2,
+    liquidityWeight: 1,
+    smoothingFactor: 0.4,
+    minIndex: 0,
+    maxIndex: 100,
+  };
+  const upkeepPolicyV2 = {
+    policyVersion: 'residential-upkeep-v2',
+    costs: [{ residentialTier: 2, currencyCostPerHour: 20 }],
+    landValueCoefficientPerHour: 1,
+  };
+
+  const makeAgent = (agentId: string, locationId: ReturnType<typeof asLocationId>) => ({
+    agentId: asAgentId(agentId),
+    locationId,
+    physiology: { energy: 80, satiety: 80, health: 90 },
+    educationScore: 0,
+    balance: 100_000,
+    residentialTier: 2,
+    job: null,
+    inventory: {},
+  });
+
+  const createTwoRegionProjection = () =>
+    createWorldProjection({
+      locations: [
+        {
+          locationId: asLocationId('loc-downtown'),
+          name: 'Downtown Homes',
+          kind: 'residence',
+          activityAffinities: [],
+          capacity: null,
+          regionId: 'downtown',
+        },
+        {
+          locationId: asLocationId('loc-harbor'),
+          name: 'Harbor Homes',
+          kind: 'residence',
+          activityAffinities: [],
+          capacity: null,
+          regionId: 'harbor',
+        },
+      ],
+      agents: [
+        makeAgent('agent-dt-1', asLocationId('loc-downtown')),
+        makeAgent('agent-dt-2', asLocationId('loc-downtown')),
+        makeAgent('agent-dt-3', asLocationId('loc-downtown')),
+        makeAgent('agent-hb-1', asLocationId('loc-harbor')),
+      ],
+      moneySupply: 1_000_000,
+      clock: { now: 0, tickDurationMs: 1000 },
+    });
+
+  const advanceCommand = (id: string, deltaMs: number, issuedAt: number) =>
+    createCommandEnvelope({
+      id,
+      simulationId: 'sim-1',
+      source: 'system',
+      type: 'AdvanceSimulationTime',
+      payload: { deltaMs },
+      issuedAt,
+    });
+
+  test('updates per-region land value indices on cadence and prices upkeep segments with them', () => {
+    const projection = createTwoRegionProjection();
+
+    const events = dispatchWorldCommand({
+      command: advanceCommand('command-lv-1', 2 * DAY_MS, 0),
+      projection,
+      policies: { ...policies, residentialUpkeep: upkeepPolicyV2, landValue: landValuePolicy },
+      nextSequence: 7,
+    });
+
+    const landValueEvents = events.filter((event) => event.type === 'RegionalLandValueUpdated');
+    // Two crossed daily boundaries x two regions, downtown before harbor, day 1 before day 2.
+    expect(
+      landValueEvents.map((event) => [event.payload.regionId, event.payload.settledAt]),
+    ).toEqual([
+      ['downtown', DAY_MS],
+      ['harbor', DAY_MS],
+      ['downtown', 2 * DAY_MS],
+      ['harbor', 2 * DAY_MS],
+    ]);
+    // Day 1: raw = 2*sqrt(count); smoothed 0.4 from baseline 0.
+    expect(landValueEvents[0]?.payload).toMatchObject({
+      previousIndex: 0,
+      agentCount: 3,
+      marketLiquidity: 0,
+      policyVersion: 'land-value-v1',
+      reason: 'land-value-cadence',
+    });
+    expect(landValueEvents[0]?.payload.nextIndex).toBeCloseTo(0.4 * 2 * Math.sqrt(3), 8);
+    expect(landValueEvents[1]?.payload.nextIndex).toBeCloseTo(0.8, 8);
+    // Day 2 lerps from day 1 values.
+    const downtownDay1 = landValueEvents[0]?.payload.nextIndex ?? 0;
+    expect(landValueEvents[2]?.payload.previousIndex).toBeCloseTo(downtownDay1, 8);
+
+    // Charges: segment 1 (before the first boundary) is flat v1 pricing;
+    // segment 2 prices each region with its day-1 index.
+    const charges = events.filter((event) => event.type === 'ResidentialUpkeepCharged');
+    expect(charges).toHaveLength(8);
+    const downtownDayOneIndex = 0.8 * Math.sqrt(3);
+    const expectedDowntownSegmentTwo = (20 + downtownDayOneIndex) * 24;
+    const dt1Charges = charges.filter((event) => event.payload.agentId === 'agent-dt-1');
+    expect(dt1Charges[0]?.payload.amount).toBeCloseTo(20 * 24, 8);
+    expect(dt1Charges[1]?.payload.amount).toBeCloseTo(expectedDowntownSegmentTwo, 8);
+    const hb1Charges = charges.filter((event) => event.payload.agentId === 'agent-hb-1');
+    expect(hb1Charges[1]?.payload.amount).toBeCloseTo((20 + 0.8) * 24, 8);
+    expect(dt1Charges[1]?.payload.amount).toBeGreaterThan(hb1Charges[1]?.payload.amount ?? 0);
+
+    // Replay derives the same slice and every charge stays a money-supply burn.
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.regionalLandValues?.downtown).toBeCloseTo(
+      landValueEvents[2]?.payload.nextIndex ?? Number.NaN,
+      8,
+    );
+    expect(updated.regionalLandValues?.harbor).toBeCloseTo(
+      landValueEvents[3]?.payload.nextIndex ?? Number.NaN,
+      8,
+    );
+    const totalCharged = charges.reduce((sum, event) => sum + event.payload.amount, 0);
+    expect(updated.moneySupply).toBeCloseTo(1_000_000 - totalCharged, 6);
+  });
+
+  test('keeps flat v1 pricing and emits no land value events without a land value policy', () => {
+    const projection = createTwoRegionProjection();
+
+    const events = dispatchWorldCommand({
+      command: advanceCommand('command-lv-2', DAY_MS, 0),
+      projection,
+      policies: { ...policies, residentialUpkeep: upkeepPolicyV2 },
+      nextSequence: 7,
+    });
+
+    expect(events.some((event) => event.type === 'RegionalLandValueUpdated')).toBe(false);
+    const charges = events.filter((event) => event.type === 'ResidentialUpkeepCharged');
+    expect(charges).toHaveLength(4);
+    for (const charge of charges) {
+      expect(charge.payload.amount).toBeCloseTo(20 * 24, 8);
+    }
+  });
+
+  test('ignores the land value index when the upkeep policy has no coefficient', () => {
+    const projection = createTwoRegionProjection();
+
+    const events = dispatchWorldCommand({
+      command: advanceCommand('command-lv-3', 2 * DAY_MS, 0),
+      projection,
+      policies: {
+        ...policies,
+        residentialUpkeep: { costs: [{ residentialTier: 2, currencyCostPerHour: 20 }] },
+        landValue: landValuePolicy,
+      },
+      nextSequence: 7,
+    });
+
+    expect(events.filter((event) => event.type === 'RegionalLandValueUpdated')).toHaveLength(4);
+    const charges = events.filter((event) => event.type === 'ResidentialUpkeepCharged');
+    expect(charges).toHaveLength(8);
+    for (const charge of charges) {
+      expect(charge.payload.amount).toBeCloseTo(20 * 24, 8);
+    }
+  });
+
+  test('a merged multi-cadence advance settles identically to step-by-step advances', () => {
+    const runAndCollect = (steps: readonly number[]) => {
+      let projection = createTwoRegionProjection();
+      const collected: { type: string; payload: unknown }[] = [];
+      let nextSequence = 7;
+      for (const [index, deltaMs] of steps.entries()) {
+        const events = dispatchWorldCommand({
+          command: advanceCommand(`command-lv-equiv-${index}`, deltaMs, 0),
+          projection,
+          policies: { ...policies, residentialUpkeep: upkeepPolicyV2, landValue: landValuePolicy },
+          nextSequence,
+        });
+        nextSequence += events.length;
+        for (const event of events) {
+          if (
+            event.type === 'RegionalLandValueUpdated' ||
+            event.type === 'ResidentialUpkeepCharged'
+          ) {
+            collected.push({ type: event.type, payload: event.payload });
+          }
+        }
+        projection = events.reduce(applyWorldEvent, projection);
+      }
+      return { collected, projection };
+    };
+
+    const merged = runAndCollect([2 * DAY_MS]);
+    const stepped = runAndCollect([DAY_MS, DAY_MS]);
+
+    // Within one advance all land value events precede the settlement charges,
+    // so cross-type ordering differs from stepped runs by construction; and a
+    // merged advance settles each agent's segments contiguously while stepped
+    // runs interleave agents across steps. The semantic equivalence is the
+    // land value payload sequence plus per-agent charge sequence identity.
+    const byType = (collected: typeof merged.collected, type: string) =>
+      collected.filter((event) => event.type === type);
+    const chargesByAgent = (collected: typeof merged.collected) => {
+      const grouped = new Map<string, unknown[]>();
+      for (const event of byType(collected, 'ResidentialUpkeepCharged')) {
+        const agentId = (event.payload as { agentId: string }).agentId;
+        grouped.set(agentId, [...(grouped.get(agentId) ?? []), event.payload]);
+      }
+      return grouped;
+    };
+    expect(byType(merged.collected, 'RegionalLandValueUpdated')).toEqual(
+      byType(stepped.collected, 'RegionalLandValueUpdated'),
+    );
+    expect(chargesByAgent(merged.collected)).toEqual(chargesByAgent(stepped.collected));
+    expect(merged.projection.regionalLandValues).toEqual(stepped.projection.regionalLandValues);
+    expect(merged.projection.moneySupply).toBe(stepped.projection.moneySupply);
+    for (const agentId of ['agent-dt-1', 'agent-dt-2', 'agent-dt-3', 'agent-hb-1']) {
+      expect(merged.projection.agents[agentId]?.balance).toBe(
+        stepped.projection.agents[agentId]?.balance,
+      );
+    }
+  });
+});
+
+describe('regional land value cadence regressions', () => {
+  const DAY_MS = 86_400_000;
+
+  const advance = (
+    projection: ReturnType<typeof createWorldProjection>,
+    id: string,
+    deltaMs: number,
+    policies: WorldCommandPolicies,
+    nextSequence: number,
+  ) =>
+    dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id,
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs },
+        issuedAt: 0,
+      }),
+      projection,
+      policies,
+      nextSequence,
+    });
+
+  test('evolves regional inputs at each land value boundary (merged == stepped)', () => {
+    const landValuePolicy = {
+      policyVersion: 'land-value-v1',
+      updateCadenceMs: DAY_MS,
+      baseline: 0,
+      populationWeight: 0,
+      liquidityWeight: 1,
+      smoothingFactor: 1,
+      minIndex: 0,
+      maxIndex: 100,
+    };
+    const externalMarketPolicy = {
+      policyVersion: 'external-market-test-v1',
+      cadenceMs: DAY_MS,
+      commodityReserveFloor: 1,
+      commodityReserveCeiling: 10_000,
+      currencyReserveFloor: 1000,
+      currencyReserveCeiling: 100_000,
+      maxAdjustmentRatioPerCadence: 1,
+    };
+    const testPolicies: WorldCommandPolicies = {
+      ...policies,
+      landValue: landValuePolicy,
+      externalMarket: externalMarketPolicy,
+    };
+    const makeProjection = () =>
+      createWorldProjection({
+        agents: [],
+        marketPools: [{ commodity: 'Food', commodityReserve: 10, currencyReserve: 100 }],
+        clock: { now: 0, tickDurationMs: 1000 },
+      });
+
+    // Merged: one advance crossing two land value and two rebalance boundaries.
+    const mergedEvents = advance(
+      makeProjection(),
+      'command-lv-merged',
+      2 * DAY_MS,
+      testPolicies,
+      1,
+    );
+    const mergedLiquidity = mergedEvents
+      .filter((event) => event.type === 'RegionalLandValueUpdated')
+      .map((event) => event.payload.marketLiquidity);
+
+    // Stepped: two daily advances; the second observes the first rebalance.
+    let steppedProjection = makeProjection();
+    const steppedLiquidity: number[] = [];
+    let nextSequence = 1;
+    for (const [index] of [0, 1].entries()) {
+      const events = advance(
+        steppedProjection,
+        `command-lv-stepped-${index}`,
+        DAY_MS,
+        testPolicies,
+        nextSequence,
+      );
+      nextSequence += events.length;
+      steppedLiquidity.push(
+        ...events
+          .filter((event) => event.type === 'RegionalLandValueUpdated')
+          .map((event) => event.payload.marketLiquidity),
+      );
+      steppedProjection = events.reduce(applyWorldEvent, steppedProjection);
+    }
+
+    // The first boundary sees the pre-rebalance reserve (100); the second must
+    // observe the rebalance that completed at the first boundary (100 -> 200).
+    expect(mergedLiquidity).toEqual([100, 200]);
+    expect(mergedLiquidity).toEqual(steppedLiquidity);
+  });
+
+  test('applies arrears downgrades per priced segment (merged == stepped)', () => {
+    const landValuePolicy = {
+      policyVersion: 'land-value-v1',
+      updateCadenceMs: DAY_MS,
+      baseline: 0,
+      populationWeight: 2,
+      liquidityWeight: 0,
+      smoothingFactor: 0.4,
+      minIndex: 0,
+      maxIndex: 100,
+    };
+    const upkeepPolicy = {
+      policyVersion: 'residential-upkeep-v2',
+      costs: [
+        { residentialTier: 1, currencyCostPerHour: 0 },
+        { residentialTier: 2, currencyCostPerHour: 20 },
+        { residentialTier: 3, currencyCostPerHour: 40 },
+      ],
+      arrearsDowngradeThresholdHours: 2,
+      landValueCoefficientPerHour: 1,
+    };
+    const testPolicies: WorldCommandPolicies = {
+      ...policies,
+      landValue: landValuePolicy,
+      residentialUpkeep: upkeepPolicy,
+    };
+    const makeProjection = () =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-broke'),
+            locationId: null,
+            physiology: { energy: 80, satiety: 80, health: 90 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 3,
+            job: null,
+            inventory: {},
+          },
+        ],
+        moneySupply: 1000,
+        clock: { now: 0, tickDurationMs: 1000 },
+      });
+    const collect = (events: ReturnType<typeof advance>) =>
+      events
+        .filter(
+          (event) =>
+            event.type === 'ResidentialUpkeepCharged' || event.type === 'ResidentialTierDowngraded',
+        )
+        .map((event) => ({ type: event.type, payload: event.payload }));
+
+    const mergedEvents = advance(
+      makeProjection(),
+      'command-arrears-merged',
+      2 * DAY_MS,
+      testPolicies,
+      1,
+    );
+    const mergedProjection = mergedEvents.reduce(applyWorldEvent, makeProjection());
+
+    let steppedProjection = makeProjection();
+    const steppedCollected: ReturnType<typeof collect> = [];
+    let nextSequence = 1;
+    for (const [index] of [0, 1].entries()) {
+      const events = advance(
+        steppedProjection,
+        `command-arrears-stepped-${index}`,
+        DAY_MS,
+        testPolicies,
+        nextSequence,
+      );
+      nextSequence += events.length;
+      steppedCollected.push(...collect(events));
+      steppedProjection = events.reduce(applyWorldEvent, steppedProjection);
+    }
+
+    // Segment 1 (flat tier-3 rate) crosses the arrears threshold and must
+    // downgrade before segment 2 prices at tier 2 — exactly as stepped runs do.
+    expect(collect(mergedEvents)).toEqual(steppedCollected);
+    expect(mergedProjection.agents['agent-broke']?.residentialTier).toBe(1);
+    expect(steppedProjection.agents['agent-broke']?.residentialTier).toBe(1);
   });
 });

@@ -545,6 +545,7 @@ describe('AIvilization default world command policies', () => {
       minHealth: 10,
     });
     expect(policies.residentialUpkeep).toEqual({
+      policyVersion: 'residential-upkeep-v2',
       costs: [
         { residentialTier: 1, currencyCostPerHour: 0 },
         { residentialTier: 2, currencyCostPerHour: 20 },
@@ -554,6 +555,17 @@ describe('AIvilization default world command policies', () => {
         { residentialTier: 6, currencyCostPerHour: 320 },
       ],
       arrearsDowngradeThresholdHours: 72,
+      landValueCoefficientPerHour: 1,
+    });
+    expect(policies.landValue).toEqual({
+      policyVersion: 'land-value-v1',
+      updateCadenceMs: 86_400_000,
+      baseline: 0,
+      populationWeight: 2,
+      liquidityWeight: 1,
+      smoothingFactor: 0.4,
+      minIndex: 0,
+      maxIndex: 100,
     });
     expect(policies.safetyNetSubsidy).toBeUndefined();
     expect(policies.tax).toEqual({

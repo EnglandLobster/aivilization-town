@@ -1,24 +1,38 @@
 import { advanceClock, createSeededRandom, rollProbabilityPercent } from '@aivilization/sim-core';
+import {
+  decayExternalTradeBalance,
+  rebalanceMarketPoolLiquidity,
+  validateExternalTradePolicy,
+  type ExternalMarketLiquidityPolicy,
+  type ExternalTradePolicy,
+} from '@aivilization/economy';
 import type { AgentId, CommandEnvelope } from '@aivilization/sim-core';
+import type { EnterprisePolicy } from '@aivilization/enterprise';
+import type { CreditPolicy } from '@aivilization/credit';
 import {
   applySleepDeprivationHealthDecay,
   applyStochasticIllnessHealthDecay,
   calculateStochasticIllnessProbabilityPercent,
   calculateCompletedRecruitmentCycleNumbers,
   evaluatePhysiologicalSafetyNet,
+  evaluateResidentialArrears,
   evaluateResidentialUpkeep,
   evaluateSafetyNetSubsidy,
+  settlePublicBudget,
   resolveRecruitmentCycle,
   type PhysiologicalSafetyNetPolicy,
   type RecruitmentCyclePolicy,
+  type PublicBudgetPolicy,
   type ResidentialUpkeepPolicy,
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
   type StochasticIllnessPolicy,
+  type ConsumptionPolicy,
+  type TaxPolicy,
 } from '@aivilization/society';
 import { assertAdvanceSimulationTimePayload } from '../commands';
 import type { WorldEvent } from '../events';
-import type { WorldAgentState, WorldProjection } from '../projection';
+import { applyWorldEvent, type WorldAgentState, type WorldProjection } from '../projection';
 import {
   assertTownWeatherPolicy,
   isTownWeatherTransitionDue,
@@ -28,6 +42,8 @@ import {
 import { appendDueBulletinEvents } from './bulletin';
 import { appendMatterClosureWithSocialOutcome } from './matters';
 import { appendCompletedTravelArrivals } from './movement';
+import { appendEnterpriseLifecycleEvents } from './enterpriseLifecycle';
+import { appendCreditAccrualEvents } from './creditLifecycle';
 import { isMatterExpiryWithoutBreach } from '../matters';
 import { makeEvent, makeMemoryEvent } from './shared';
 
@@ -42,6 +58,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   readonly recruitmentCycle?: RecruitmentCyclePolicy;
+  readonly consumption?: ConsumptionPolicy;
+  readonly externalMarket?: ExternalMarketLiquidityPolicy;
+  readonly externalTrade?: ExternalTradePolicy;
+  readonly publicBudget?: PublicBudgetPolicy;
+  readonly enterprise?: EnterprisePolicy;
+  readonly tax?: TaxPolicy;
+  readonly credit?: CreditPolicy;
+  readonly timeSettlementAmortization?: { readonly buckets: number };
   readonly nextSequence: number;
 }): WorldEvent[] {
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
@@ -63,6 +87,35 @@ export function handleAdvanceSimulationTimeCommand(input: {
     payload,
     nextSimulationTime: next.now,
   });
+  appendExpiredDurableGoodEvents({ input, events, nextSimulationTime: next.now });
+  appendExternalMarketRebalanceEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+  });
+  appendExternalTradeBalanceDecayEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+  });
+  appendPublicBudgetEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+  });
+  appendEnterpriseLifecycleEvents({
+    command: input.command,
+    projection: input.projection,
+    nextSequence: input.nextSequence,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+    ...(input.enterprise === undefined ? {} : { policy: input.enterprise }),
+    ...(input.tax === undefined ? {} : { tax: input.tax }),
+  });
 
   if (
     input.sleepDeprivation === undefined &&
@@ -71,125 +124,328 @@ export function handleAdvanceSimulationTimeCommand(input: {
     input.residentialUpkeep === undefined &&
     input.safetyNetSubsidy === undefined &&
     input.physiologicalSafetyNet === undefined &&
-    input.recruitmentCycle === undefined
+    input.recruitmentCycle === undefined &&
+    input.credit === undefined
   ) {
     return events;
   }
 
-  const durationSeconds = payload.deltaMs / 1000;
-  const agents = Object.values(input.projection.agents).sort((left, right) =>
+  const allAgents = Object.values(input.projection.agents).sort((left, right) =>
     left.agentId.localeCompare(right.agentId),
   );
   const physiologyByAgent = new Map<AgentId, WorldAgentState['physiology']>();
   const balanceByAgent = new Map<AgentId, number>();
+  const arrearsByAgent = new Map<AgentId, number>();
+  const tierByAgent = new Map<AgentId, number>();
 
-  if (input.sleepDeprivation !== undefined) {
-    for (const agent of agents) {
-      appendPhysiologyTimeEffect({
-        input,
-        events,
-        physiologyByAgent,
-        agent,
-        reason: 'sleep-deprivation',
-        nextPhysiology: applySleepDeprivationHealthDecay({
-          ...getCurrentPhysiology(physiologyByAgent, agent),
-          durationSeconds,
-          energyThreshold: input.sleepDeprivation.energyThreshold,
-          healthDecayPerSecond: input.sleepDeprivation.healthDecayPerSecond,
-          minHealth: input.sleepDeprivation.minHealth,
-        }),
-      });
+  // Optional per-agent settlement amortization: each agent settles only when its
+  // stable bucket matches the current tick. Missed cadences are replayed one by
+  // one so probabilistic and stateful effects retain their per-tick semantics.
+  const amortization = input.timeSettlementAmortization;
+  if (amortization !== undefined) {
+    if (!Number.isInteger(amortization.buckets) || amortization.buckets < 1) {
+      throw new Error('timeSettlementAmortization.buckets must be a positive integer');
+    }
+    if (payload.deltaMs <= 0) {
+      throw new Error('timeSettlementAmortization requires a positive deltaMs cadence');
     }
   }
+  const settlementTickIndex =
+    amortization === undefined ? 0 : Math.floor(next.now / payload.deltaMs);
+  const previousSettledAt = (agent: WorldAgentState): number =>
+    input.projection.timeSettlementByAgent?.[agent.agentId] ??
+    agent.registration?.registeredAt ??
+    0;
+  const shouldSettleAgent = (agent: WorldAgentState): boolean =>
+    amortization === undefined ||
+    settlementTickIndex % amortization.buckets ===
+      hashAgentSettlementBucket(agent.agentId) % amortization.buckets;
+  const settlementIntervalsByAgent = new Map(
+    allAgents.map((agent) => [
+      agent.agentId,
+      shouldSettleAgent(agent)
+        ? amortization === undefined
+          ? [{ previousSimulationTime: previous.now, currentSimulationTime: next.now }]
+          : createSettlementIntervals({
+              previousSettledAt: previousSettledAt(agent),
+              nextSettledAt: next.now,
+              cadenceMs: payload.deltaMs,
+            })
+        : [],
+    ]),
+  );
+  const settlementTimes = [
+    ...new Set(
+      [...settlementIntervalsByAgent.values()].flatMap((intervals) =>
+        intervals.map((interval) => interval.currentSimulationTime),
+      ),
+    ),
+  ].sort((left, right) => left - right);
+  let settlementProjection = input.projection;
+  // Running town-bank state across settlement times; the credit domain decides
+  // each accrual boundary and this adapter applies the emitted events locally
+  // so subsequent boundaries settle against the evolved book.
+  let creditBank = input.projection.bank;
 
-  if (input.stochasticIllness !== undefined) {
-    const probabilityPercent = calculateStochasticIllnessProbabilityPercent({
-      illnessProbabilityPercentPerHour: input.stochasticIllness.illnessProbabilityPercentPerHour,
-      durationSeconds,
-    });
-    for (const agent of agents) {
-      const illnessOccurs = rollProbabilityPercent(
-        probabilityPercent,
-        createSeededRandom(createStochasticIllnessSeed({ input, payload, agent })),
-      );
-      appendPhysiologyTimeEffect({
-        input,
-        events,
-        physiologyByAgent,
-        agent,
-        reason: 'stochastic-illness',
-        nextPhysiology: applyStochasticIllnessHealthDecay({
-          ...getCurrentPhysiology(physiologyByAgent, agent),
-          illnessOccurs,
-          healthDamage: input.stochasticIllness.healthDamage,
-          minHealth: input.stochasticIllness.minHealth,
-        }),
-      });
-    }
-  }
-
-  if (input.residentialUpkeep !== undefined) {
-    for (const agent of agents) {
-      const decision = evaluateResidentialUpkeep({
-        residentialTier: agent.residentialTier,
-        balance: getCurrentBalance(balanceByAgent, agent),
-        durationSeconds,
-        policy: input.residentialUpkeep,
-      });
-      if (decision.status === 'rejected') {
-        throw new Error(decision.detail);
+  for (const currentSettlementTime of settlementTimes) {
+    const eventStart = events.length;
+    const agents = allAgents
+      .filter(
+        (agent) =>
+          settlementIntervalsByAgent
+            .get(agent.agentId)
+            ?.some((interval) => interval.currentSimulationTime === currentSettlementTime) === true,
+      )
+      .map((agent) => settlementProjection.agents[agent.agentId] ?? agent);
+    const currentInterval = (agent: WorldAgentState) => {
+      const interval = settlementIntervalsByAgent
+        .get(agent.agentId)
+        ?.find((candidate) => candidate.currentSimulationTime === currentSettlementTime);
+      if (interval === undefined) {
+        throw new Error(`missing settlement interval for agent ${agent.agentId}`);
       }
-      if (decision.status === 'uncharged') {
+      return interval;
+    };
+    const agentDurationSeconds = (agent: WorldAgentState): number => {
+      const interval = currentInterval(agent);
+      return (interval.currentSimulationTime - interval.previousSimulationTime) / 1000;
+    };
+
+    if (input.sleepDeprivation !== undefined) {
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        appendPhysiologyTimeEffect({
+          input,
+          events,
+          physiologyByAgent,
+          agent,
+          reason: 'sleep-deprivation',
+          nextPhysiology: applySleepDeprivationHealthDecay({
+            ...getCurrentPhysiology(physiologyByAgent, agent),
+            durationSeconds: agentDurationSeconds(agent),
+            energyThreshold: input.sleepDeprivation.energyThreshold,
+            healthDecayPerSecond: input.sleepDeprivation.healthDecayPerSecond,
+            minHealth: input.sleepDeprivation.minHealth,
+          }),
+        });
+      }
+    }
+
+    if (input.stochasticIllness !== undefined) {
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const probabilityPercent = calculateStochasticIllnessProbabilityPercent({
+          illnessProbabilityPercentPerHour:
+            input.stochasticIllness.illnessProbabilityPercentPerHour,
+          durationSeconds: agentDurationSeconds(agent),
+        });
+        const illnessOccurs = rollProbabilityPercent(
+          probabilityPercent,
+          createSeededRandom(
+            createStochasticIllnessSeed({
+              input,
+              payload,
+              agent,
+              ...(amortization === undefined
+                ? {}
+                : { evaluatedAt: currentInterval(agent).currentSimulationTime }),
+            }),
+          ),
+        );
+        appendPhysiologyTimeEffect({
+          input,
+          events,
+          physiologyByAgent,
+          agent,
+          reason: 'stochastic-illness',
+          nextPhysiology: applyStochasticIllnessHealthDecay({
+            ...getCurrentPhysiology(physiologyByAgent, agent),
+            illnessOccurs,
+            healthDamage: input.stochasticIllness.healthDamage,
+            minHealth: input.stochasticIllness.minHealth,
+          }),
+        });
+      }
+    }
+
+    if (input.residentialUpkeep !== undefined) {
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const currentTier = tierByAgent.get(agent.agentId) ?? agent.residentialTier;
+        const decision = evaluateResidentialUpkeep({
+          residentialTier: currentTier,
+          balance: getCurrentBalance(balanceByAgent, agent),
+          durationSeconds: agentDurationSeconds(agent),
+          policy: input.residentialUpkeep,
+        });
+        if (decision.status === 'rejected') {
+          throw new Error(decision.detail);
+        }
+        if (decision.status === 'uncharged') {
+          continue;
+        }
+        events.push(
+          makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
+            agentId: agent.agentId,
+            residentialTier: decision.residentialTier,
+            amount: decision.amount,
+            unpaidAmount: decision.unpaidAmount,
+            previousBalance: decision.previousBalance,
+            nextBalance: decision.nextBalance,
+            reason: 'residential-upkeep',
+          }),
+        );
+        balanceByAgent.set(agent.agentId, decision.nextBalance);
+
+        if (decision.unpaidAmount <= 0) {
+          continue;
+        }
+        const previousArrears = arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0;
+        const nextArrears = previousArrears + decision.unpaidAmount;
+        const arrearsDecision = evaluateResidentialArrears({
+          residentialTier: currentTier,
+          nextArrears,
+          policy: input.residentialUpkeep,
+        });
+        if (arrearsDecision.status === 'downgrade') {
+          const downgradeOffset = events.length;
+          events.push(
+            makeEvent(input, downgradeOffset, 'ResidentialTierDowngraded', {
+              agentId: agent.agentId,
+              previousResidentialTier: arrearsDecision.previousResidentialTier,
+              nextResidentialTier: arrearsDecision.nextResidentialTier,
+              arrearsCleared: arrearsDecision.arrearsCleared,
+              reason: 'upkeep-arrears',
+            }),
+          );
+          events.push(
+            makeMemoryEvent(input, events.length, {
+              agentId: agent.agentId,
+              summary: `Could not pay residential upkeep for too long and was downgraded from tier ${arrearsDecision.previousResidentialTier} to tier ${arrearsDecision.nextResidentialTier}.`,
+              status: 'failed',
+              sourceEventOffsets: [downgradeOffset],
+              tags: ['residential-downgrade', 'upkeep-arrears'],
+              consolidationHint: {
+                kind: 'caution',
+                patternKey: 'residential-downgrade:upkeep-arrears',
+                statement:
+                  'Persistently unpaid residential upkeep leads to a forced downgrade to a lower housing tier.',
+              },
+            }),
+          );
+          tierByAgent.set(agent.agentId, arrearsDecision.nextResidentialTier);
+          arrearsByAgent.set(agent.agentId, 0);
+        } else {
+          events.push(
+            makeEvent(input, events.length, 'ResidentialUpkeepArrearsUpdated', {
+              agentId: agent.agentId,
+              previousArrears,
+              nextArrears,
+              reason: 'upkeep-arrears',
+            }),
+          );
+          arrearsByAgent.set(agent.agentId, nextArrears);
+        }
+      }
+    }
+
+    if (input.safetyNetSubsidy !== undefined) {
+      // When the projection carries a public treasury, subsidies are paid from it
+      // (transfer, supply unchanged) instead of minted; the per-tick running
+      // balance tracks subsidies already emitted this tick, mirroring
+      // balanceByAgent.
+      const treasuryFunded = settlementProjection.treasury !== undefined;
+      let treasuryBalance = settlementProjection.treasury ?? 0;
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const decision = evaluateSafetyNetSubsidy({
+          balance: getCurrentBalance(balanceByAgent, agent),
+          minimumBalance: input.safetyNetSubsidy.minimumBalance,
+          maxSubsidy: input.safetyNetSubsidy.maxSubsidy,
+          ...(treasuryFunded ? { treasuryBalance } : {}),
+        });
+        if (decision.status === 'ineligible') {
+          continue;
+        }
+        events.push(
+          makeEvent(input, events.length, 'SubsidyPaid', {
+            agentId: agent.agentId,
+            amount: decision.amount,
+            previousBalance: decision.previousBalance,
+            nextBalance: decision.nextBalance,
+            reason: 'safety-net',
+            ...(treasuryFunded ? { fundingSource: 'treasury' as const } : {}),
+          }),
+        );
+        balanceByAgent.set(agent.agentId, decision.nextBalance);
+        if (treasuryFunded) {
+          treasuryBalance -= decision.amount;
+        }
+      }
+    }
+
+    if (input.physiologicalSafetyNet !== undefined) {
+      appendPhysiologicalSafetyNetEvents({
+        input,
+        events,
+        agents,
+        physiologyByAgent,
+        projection: settlementProjection,
+        previousSimulationTime: (agent) => currentInterval(agent).previousSimulationTime,
+        currentSimulationTime: (agent) => currentInterval(agent).currentSimulationTime,
+        policy: input.physiologicalSafetyNet,
+      });
+    }
+
+    // Credit daily accrual settles after household charges and safety nets so
+    // auto-collection sees the agent's post-subsidy cash for the interval.
+    if (input.credit !== undefined && creditBank !== undefined) {
+      const settlingAgentStateById = new Map(agents.map((agent) => [agent.agentId, agent]));
+      creditBank = appendCreditAccrualEvents({
+        command: input.command,
+        projection: input.projection,
+        nextSequence: input.nextSequence,
+        events,
+        policy: input.credit,
+        bank: creditBank,
+        agents,
+        balanceOf: (agentId) => {
+          const agentState = settlingAgentStateById.get(agentId);
+          return agentState === undefined
+            ? undefined
+            : getCurrentBalance(balanceByAgent, agentState);
+        },
+        setBalance: (agentId, balance) => {
+          balanceByAgent.set(agentId, balance);
+        },
+        intervalFor: currentInterval,
+      });
+    }
+
+    settlementProjection = events.slice(eventStart).reduce(applyWorldEvent, settlementProjection);
+  }
+
+  if (amortization !== undefined) {
+    for (const agent of allAgents) {
+      if (!shouldSettleAgent(agent)) {
         continue;
       }
       events.push(
-        makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
+        makeEvent(input, events.length, 'AgentTimeEffectsSettled', {
           agentId: agent.agentId,
-          residentialTier: decision.residentialTier,
-          amount: decision.amount,
-          unpaidAmount: decision.unpaidAmount,
-          previousBalance: decision.previousBalance,
-          nextBalance: decision.nextBalance,
-          reason: 'residential-upkeep',
+          previousSettledAt: previousSettledAt(agent),
+          nextSettledAt: next.now,
         }),
       );
-      balanceByAgent.set(agent.agentId, decision.nextBalance);
     }
-  }
-
-  if (input.safetyNetSubsidy !== undefined) {
-    for (const agent of agents) {
-      const decision = evaluateSafetyNetSubsidy({
-        balance: getCurrentBalance(balanceByAgent, agent),
-        minimumBalance: input.safetyNetSubsidy.minimumBalance,
-        maxSubsidy: input.safetyNetSubsidy.maxSubsidy,
-      });
-      if (decision.status === 'ineligible') {
-        continue;
-      }
-      events.push(
-        makeEvent(input, events.length, 'SubsidyPaid', {
-          agentId: agent.agentId,
-          amount: decision.amount,
-          previousBalance: decision.previousBalance,
-          nextBalance: decision.nextBalance,
-          reason: 'safety-net',
-        }),
-      );
-      balanceByAgent.set(agent.agentId, decision.nextBalance);
-    }
-  }
-
-  if (input.physiologicalSafetyNet !== undefined) {
-    appendPhysiologicalSafetyNetEvents({
-      input,
-      events,
-      agents,
-      physiologyByAgent,
-      previousSimulationTime: previous.now,
-      currentSimulationTime: next.now,
-      policy: input.physiologicalSafetyNet,
-    });
   }
 
   if (input.recruitmentCycle !== undefined) {
@@ -205,25 +461,181 @@ export function handleAdvanceSimulationTimeCommand(input: {
   return events;
 }
 
+function appendExpiredDurableGoodEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly nextSimulationTime: number;
+}): void {
+  if (input.input.consumption === undefined) {
+    return;
+  }
+  for (const agent of Object.values(input.input.projection.agents).sort((left, right) =>
+    left.agentId.localeCompare(right.agentId),
+  )) {
+    for (const lot of [...(agent.durableGoods ?? [])]
+      .filter((candidate) => candidate.expiresAt <= input.nextSimulationTime)
+      .sort(
+        (left, right) => left.expiresAt - right.expiresAt || left.lotId.localeCompare(right.lotId),
+      )) {
+      input.events.push(
+        makeEvent(input.input, input.events.length, 'DurableGoodExpired', {
+          agentId: agent.agentId,
+          lotId: lot.lotId,
+          commodityName: lot.commodityName,
+          quantity: lot.quantity,
+          expiredAt: lot.expiresAt,
+        }),
+      );
+    }
+  }
+}
+
+function appendExternalMarketRebalanceEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.externalMarket;
+  if (policy === undefined) {
+    return;
+  }
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: policy.cadenceMs,
+  });
+  const pools = new Map(Object.entries(input.input.projection.marketPools));
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * policy.cadenceMs;
+    for (const [poolKey, pool] of [...pools.entries()].sort(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
+      const decision = rebalanceMarketPoolLiquidity({ pool, policy });
+      if (decision.commodityReserveDelta === 0 && decision.currencyReserveDelta === 0) {
+        continue;
+      }
+      input.events.push(
+        makeEvent(input.input, input.events.length, 'ExternalMarketRebalanced', {
+          policyVersion: policy.policyVersion,
+          commodityName: pool.commodity,
+          ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
+          poolAfter: decision.poolAfter,
+          commodityReserveDelta: decision.commodityReserveDelta,
+          currencyReserveDelta: decision.currencyReserveDelta,
+          settledAt,
+        }),
+      );
+      pools.set(poolKey, decision.poolAfter);
+    }
+  }
+}
+
+/**
+ * Decays every rolling external-trade balance once per crossed policy cadence
+ * boundary (global cadence, no per-agent bucketing: the balances are
+ * town-wide). Compounding is applied boundary-by-boundary so multi-cadence
+ * jumps reproduce per-cadence semantics exactly. No-op while the policy is
+ * absent or no trade has ever created the slice.
+ */
+function appendExternalTradeBalanceDecayEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.externalTrade;
+  if (policy === undefined) {
+    return;
+  }
+  validateExternalTradePolicy(policy);
+  const balances = input.input.projection.externalTrade?.balancesByCommodity;
+  if (balances === undefined) {
+    return;
+  }
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: policy.cadenceMs,
+  });
+  let current: Readonly<Record<string, number>> = balances;
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * policy.cadenceMs;
+    const next: Record<string, number> = Object.fromEntries(
+      Object.entries(current).map(([commodityName, balance]) => [
+        commodityName,
+        decayExternalTradeBalance({ balance, policy }),
+      ]),
+    );
+    if (Object.entries(next).every(([commodityName, balance]) => balance === current[commodityName])) {
+      continue;
+    }
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'ExternalTradeBalancesDecayed', {
+        policyVersion: policy.policyVersion,
+        balancesBefore: { ...current },
+        balancesAfter: next,
+        decayedAt: settledAt,
+      }),
+    );
+    current = next;
+  }
+}
+
+function appendPublicBudgetEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.publicBudget;
+  if (policy === undefined) {
+    return;
+  }
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: policy.cadenceMs,
+  });
+  let treasury = input.input.projection.treasury ?? 0;
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * policy.cadenceMs;
+    for (const decision of settlePublicBudget({ treasury, policy })) {
+      input.events.push(
+        makeEvent(input.input, input.events.length, 'PublicBudgetSpent', {
+          policyVersion: policy.policyVersion,
+          service: decision.service,
+          amount: decision.amount,
+          previousTreasury: decision.previousTreasury,
+          nextTreasury: decision.nextTreasury,
+          settledAt,
+          fundingDestination: 'public-service-account',
+        }),
+      );
+      treasury = decision.nextTreasury;
+    }
+  }
+}
+
 function appendPhysiologicalSafetyNetEvents(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly events: WorldEvent[];
   readonly agents: readonly WorldAgentState[];
   readonly physiologyByAgent: ReadonlyMap<AgentId, WorldAgentState['physiology']>;
-  readonly previousSimulationTime: number;
-  readonly currentSimulationTime: number;
+  readonly projection: WorldProjection;
+  readonly previousSimulationTime: (agent: WorldAgentState) => number;
+  readonly currentSimulationTime: (agent: WorldAgentState) => number;
   readonly policy: PhysiologicalSafetyNetPolicy;
 }): void {
   for (const agent of input.agents) {
-    const previousDistressState =
-      input.input.projection.physiologicalDistressByAgent?.[agent.agentId];
+    const previousDistressState = input.projection.physiologicalDistressByAgent[agent.agentId];
     const decision = evaluatePhysiologicalSafetyNet({
       previousPhysiology: agent.physiology,
       currentPhysiology: getCurrentPhysiology(input.physiologyByAgent, agent),
       inventory: agent.inventory,
       ...(previousDistressState === undefined ? {} : { previousDistressState }),
-      previousSimulationTime: input.previousSimulationTime,
-      currentSimulationTime: input.currentSimulationTime,
+      previousSimulationTime: input.previousSimulationTime(agent),
+      currentSimulationTime: input.currentSimulationTime(agent),
       policy: input.policy,
     });
     const sourceEventOffsets: number[] = [];
@@ -238,7 +650,7 @@ function appendPhysiologicalSafetyNetEvents(input: {
           agentId: agent.agentId,
           status: 'active',
           state: decision.distressState,
-          evaluatedAt: input.currentSimulationTime,
+          evaluatedAt: input.currentSimulationTime(agent),
           reason: decision.transition,
         }),
       );
@@ -252,7 +664,7 @@ function appendPhysiologicalSafetyNetEvents(input: {
           agentId: agent.agentId,
           status: 'cleared',
           previousState: previousDistressState,
-          evaluatedAt: input.currentSimulationTime,
+          evaluatedAt: input.currentSimulationTime(agent),
           reason: 'recovered',
         }),
       );
@@ -461,10 +873,49 @@ export function isSamePhysiology(
   );
 }
 
+function createSettlementIntervals(input: {
+  readonly previousSettledAt: number;
+  readonly nextSettledAt: number;
+  readonly cadenceMs: number;
+}): readonly {
+  readonly previousSimulationTime: number;
+  readonly currentSimulationTime: number;
+}[] {
+  if (input.previousSettledAt > input.nextSettledAt) {
+    throw new Error('agent time settlement cannot move backwards');
+  }
+  const intervals: Array<{
+    readonly previousSimulationTime: number;
+    readonly currentSimulationTime: number;
+  }> = [];
+  let previousSimulationTime = input.previousSettledAt;
+  while (previousSimulationTime < input.nextSettledAt) {
+    const nextCadenceBoundary =
+      (Math.floor(previousSimulationTime / input.cadenceMs) + 1) * input.cadenceMs;
+    const currentSimulationTime = Math.min(input.nextSettledAt, nextCadenceBoundary);
+    intervals.push({ previousSimulationTime, currentSimulationTime });
+    previousSimulationTime = currentSimulationTime;
+  }
+  return intervals;
+}
+
+/**
+ * Stable per-agent settlement bucket (djb2). Deterministic across replays and
+ * processes, independent of iteration order.
+ */
+export function hashAgentSettlementBucket(agentId: AgentId): number {
+  let hash = 5381;
+  for (let index = 0; index < agentId.length; index += 1) {
+    hash = ((hash << 5) + hash + agentId.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
 function createStochasticIllnessSeed(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly payload: { readonly deltaMs: number };
   readonly agent: WorldAgentState;
+  readonly evaluatedAt?: number;
 }): string {
   return [
     'stochastic-illness',
@@ -473,11 +924,13 @@ function createStochasticIllnessSeed(input: {
     input.input.command.id,
     input.input.projection.clock.now,
     input.payload.deltaMs,
+    ...(input.evaluatedAt === undefined ? [] : [input.evaluatedAt]),
     input.agent.agentId,
   ].join(':');
 }
 
-function appendWeatherTransitionEvent(input: {  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+function appendWeatherTransitionEvent(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly events: WorldEvent[];
   readonly payload: { readonly deltaMs: number };
   readonly nextSimulationTime: number;
@@ -536,9 +989,7 @@ function appendMatterExpiryEvents(input: {
   readonly nextSimulationTime: number;
 }): void {
   const due = Object.values(input.input.projection.socialMatters ?? {})
-    .filter(
-      (matter) => matter.status !== 'closed' && matter.expiresAt <= input.nextSimulationTime,
-    )
+    .filter((matter) => matter.status !== 'closed' && matter.expiresAt <= input.nextSimulationTime)
     .sort(
       (left, right) =>
         left.expiresAt - right.expiresAt || left.matterId.localeCompare(right.matterId),

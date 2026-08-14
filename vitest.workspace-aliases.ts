@@ -8,7 +8,11 @@ export const workspaceAliases = {
   ),
   '@aivilization/api': fileURLToPath(new URL('apps/api/src/index.ts', workspaceRoot)),
   '@aivilization/content': fileURLToPath(new URL('packages/content/src/index.ts', workspaceRoot)),
+  '@aivilization/credit': fileURLToPath(new URL('packages/credit/src/index.ts', workspaceRoot)),
   '@aivilization/economy': fileURLToPath(new URL('packages/economy/src/index.ts', workspaceRoot)),
+  '@aivilization/enterprise': fileURLToPath(
+    new URL('packages/enterprise/src/index.ts', workspaceRoot),
+  ),
   '@aivilization/llm': fileURLToPath(new URL('packages/llm/src/index.ts', workspaceRoot)),
   '@aivilization/memory': fileURLToPath(new URL('packages/memory/src/index.ts', workspaceRoot)),
   '@aivilization/observability': fileURLToPath(

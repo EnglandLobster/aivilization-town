@@ -68,6 +68,7 @@ export type WorkerAgentRuntimeResolver = (input: {
   readonly planRecord: BranchPlanRecord;
   readonly longTermProfile?: LongTermAgentProfile;
   readonly worldDecisionContext?: WorldDecisionContext;
+  readonly marketOverride?: WorldDecisionMarketOverride;
 }) => WorkerAgentRuntimeBinding | undefined | Promise<WorkerAgentRuntimeBinding | undefined>;
 
 export async function buildWorkerTickAgentsFromActivePlans(input: {
@@ -148,6 +149,7 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
       activeObjective,
       planRecord,
       ...(longTermProfile === undefined ? {} : { longTermProfile }),
+      ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
       worldDecisionContext,
     });
     if (runtime === undefined) {

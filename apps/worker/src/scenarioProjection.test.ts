@@ -59,4 +59,39 @@ describe('scenario projection adapter', () => {
     expect(createWorldProjectionFromScenario({ preset }).moneySupply).toBe(42);
     expect(createWorldProjectionFromScenario({ preset, moneySupply: 100 }).moneySupply).toBe(100);
   });
+
+  test('seeds the public treasury only when the scenario provides one', () => {
+    const withoutTreasury = createWorldProjectionFromScenario({
+      preset: aivilizationAblationScenarioPreset,
+    });
+    expect(withoutTreasury.treasury).toBeUndefined();
+
+    const withTreasury = createWorldProjectionFromScenario({
+      preset: aivilizationAblationScenarioPreset,
+      moneySupply: 50_000,
+      treasury: 50_000,
+    });
+    expect(withTreasury.treasury).toBe(50_000);
+    expect(withTreasury.moneySupply).toBe(50_000);
+  });
+
+  test('seeds the town-bank reserves only when the scenario provides them', () => {
+    const withoutBank = createWorldProjectionFromScenario({
+      preset: aivilizationAblationScenarioPreset,
+    });
+    expect(withoutBank.bank).toBeUndefined();
+
+    const withBank = createWorldProjectionFromScenario({
+      preset: aivilizationAblationScenarioPreset,
+      moneySupply: 200_000,
+      bankReserves: 200_000,
+    });
+    expect(withBank.bank).toEqual({
+      balance: 200_000,
+      deposits: {},
+      loans: {},
+      creditHistoryByAgent: {},
+    });
+    expect(withBank.moneySupply).toBe(200_000);
+  });
 });

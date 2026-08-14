@@ -1,13 +1,21 @@
-import { buyFromPool, getInventoryQuantity, sellToPool, type AmmTradeResult } from '@aivilization/economy';
+import {
+  buyFromPool,
+  getInventoryQuantity,
+  sellToPool,
+  type AmmTradeResult,
+} from '@aivilization/economy';
 import type { CommandEnvelope } from '@aivilization/sim-core';
+import { isEnterpriseOperational } from '@aivilization/enterprise';
 import {
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
   evaluateOccupationApplication,
   evaluateResourceTransferSocialOutcome,
   evaluateResidentialTierUpgrade,
+  evaluateTradeTax,
   type RecruitmentCyclePolicy,
   type ResidentialTierUpgradePolicy,
+  type TaxPolicy,
 } from '@aivilization/society';
 import {
   assertAgentApplyJobPayload,
@@ -156,6 +164,7 @@ export function handleAgentTradeCommand(input: {
   readonly projection: WorldProjection;
   readonly activityDurationSeconds?: number;
   readonly regionalMarketsEnabled?: boolean;
+  readonly tax?: TaxPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -165,6 +174,21 @@ export function handleAgentTradeCommand(input: {
   }
 
   const payload = payloadResult.payload;
+  const enterprise =
+    payload.enterpriseId === undefined
+      ? undefined
+      : input.projection.enterprises[payload.enterpriseId];
+  if (payload.enterpriseId !== undefined) {
+    if (enterprise === undefined || !isEnterpriseOperational(enterprise)) {
+      return rejectCommand(input, 'AgentTrade', 'enterprise is missing or closed');
+    }
+    if (
+      enterprise.ownerAgentId !== agent.agentId &&
+      !enterprise.employeeAgentIds.includes(agent.agentId)
+    ) {
+      return rejectCommand(input, 'AgentTrade', 'agent is not authorized for enterprise');
+    }
+  }
   const regionalMarketsEnabled = input.regionalMarketsEnabled === true;
 
   // Resolve which regional pool the trade settles against. When regional
@@ -204,7 +228,9 @@ export function handleAgentTradeCommand(input: {
   });
   if (pool === undefined) {
     const regionHint =
-      regionalMarketsEnabled && requestedRegionId !== undefined ? ` in region ${requestedRegionId}` : '';
+      regionalMarketsEnabled && requestedRegionId !== undefined
+        ? ` in region ${requestedRegionId}`
+        : '';
     return rejectCommand(
       input,
       'AgentTrade',
@@ -218,11 +244,12 @@ export function handleAgentTradeCommand(input: {
       return rejectCommand(input, 'AgentTrade', tradeResult.reason);
     }
     const currencyRequired = tradeResult.payload.currencyDelta;
-    if (agent.balance < currencyRequired) {
+    const availableBalance = enterprise?.balance ?? agent.balance;
+    if (availableBalance < currencyRequired) {
       return rejectCommand(
         input,
         'AgentTrade',
-        `insufficient balance: required ${currencyRequired}, available ${agent.balance}`,
+        `insufficient balance: required ${currencyRequired}, available ${availableBalance}`,
       );
     }
 
@@ -235,10 +262,15 @@ export function handleAgentTradeCommand(input: {
       tradeResult.payload,
       input.activityDurationSeconds,
       requestedRegionId,
+      input.tax,
+      payload.enterpriseId,
     );
   }
 
-  const available = getInventoryQuantity(agent.inventory, payload.commodityName);
+  const available = getInventoryQuantity(
+    enterprise?.inventory ?? agent.inventory,
+    payload.commodityName,
+  );
   if (available < payload.quantity) {
     return rejectCommand(
       input,
@@ -261,6 +293,8 @@ export function handleAgentTradeCommand(input: {
     tradeResult.payload,
     input.activityDurationSeconds,
     requestedRegionId,
+    input.tax,
+    payload.enterpriseId,
   );
 }
 
@@ -277,11 +311,18 @@ function createTradeEvents(
   tradeResult: AmmTradeResult,
   activityDurationSeconds: number | undefined,
   regionId: string | undefined,
+  tax: TaxPolicy | undefined,
+  enterpriseId: string | undefined,
 ): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
-  const memoryOffset = activityDurationSeconds === undefined ? 1 : 2;
+  const enterprise =
+    enterpriseId === undefined ? undefined : input.projection.enterprises[enterpriseId];
+  const tradeTax =
+    side === 'sell' && tax !== undefined
+      ? evaluateTradeTax({ saleProceeds: currencyQuantity, policy: tax })
+      : 0;
 
-  return [
+  const events: WorldEvent[] = [
     makeEvent(input, 0, 'TradeExecuted', {
       agentId: agent.agentId,
       side,
@@ -297,23 +338,40 @@ function createTradeEvents(
       invariantBefore: tradeResult.invariantBefore,
       invariantAfter: tradeResult.invariantAfter,
       ...(regionId === undefined ? {} : { regionId }),
+      ...(enterpriseId === undefined ? {} : { enterpriseId }),
     }),
-    ...(activityDurationSeconds === undefined
-      ? []
-      : [
-          makeAgentActivityTimeCommittedEvent(input, 1, {
-            agentId: agent.agentId,
-            activity: 'trade',
-            commandType: 'AgentTrade',
-            durationSeconds: activityDurationSeconds,
-          }),
-        ]),
-    makeMemoryEvent(input, memoryOffset, {
+  ];
+  if (activityDurationSeconds !== undefined) {
+    events.push(
+      makeAgentActivityTimeCommittedEvent(input, events.length, {
+        agentId: agent.agentId,
+        activity: 'trade',
+        commandType: 'AgentTrade',
+        durationSeconds: activityDurationSeconds,
+      }),
+    );
+  }
+  if (tradeTax > 0) {
+    events.push(
+      makeEvent(input, events.length, 'TradeTaxCharged', {
+        agentId: agent.agentId,
+        commodityName,
+        saleProceeds: currencyQuantity,
+        amount: tradeTax,
+        previousBalance: (enterprise?.balance ?? agent.balance) + currencyQuantity,
+        nextBalance: (enterprise?.balance ?? agent.balance) + currencyQuantity - tradeTax,
+        ...(enterpriseId === undefined ? {} : { enterpriseId }),
+      }),
+    );
+  }
+  events.push(
+    makeMemoryEvent(input, events.length, {
       summary: `${side === 'buy' ? 'Bought' : 'Sold'} ${commodityQuantity} ${commodityName}.`,
       status: 'succeeded',
       tags: ['trade', side, commodityName],
     }),
-  ];
+  );
+  return events;
 }
 
 export function handleAgentApplyJobCommand(input: {

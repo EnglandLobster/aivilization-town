@@ -138,8 +138,23 @@ importers:
         specifier: workspace:*
         version: link:../sim-core
 
+  packages/credit:
+    dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
   packages/economy:
     dependencies:
+      '@aivilization/sim-core':
+        specifier: workspace:*
+        version: link:../sim-core
+
+  packages/enterprise:
+    dependencies:
+      '@aivilization/economy':
+        specifier: workspace:*
+        version: link:../economy
       '@aivilization/sim-core':
         specifier: workspace:*
         version: link:../sim-core
@@ -178,9 +193,15 @@ importers:
 
   packages/world:
     dependencies:
+      '@aivilization/credit':
+        specifier: workspace:*
+        version: link:../credit
       '@aivilization/economy':
         specifier: workspace:*
         version: link:../economy
+      '@aivilization/enterprise':
+        specifier: workspace:*
+        version: link:../enterprise
       '@aivilization/memory':
         specifier: workspace:*
         version: link:../memory

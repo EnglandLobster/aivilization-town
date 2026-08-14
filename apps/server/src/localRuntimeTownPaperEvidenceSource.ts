@@ -55,6 +55,10 @@ export async function loadLocalRuntimeTownPaperEvidenceSource(input: {
       preset,
       ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
       ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+      ...(partition.initialTreasury === undefined ? {} : { treasury: partition.initialTreasury }),
+      ...(partition.initialBankReserves === undefined
+        ? {}
+        : { bankReserves: partition.initialBankReserves }),
     });
     const storage = createLocalWorldRuntimeStorage({
       rootDir: input.rootDir,
@@ -100,7 +104,10 @@ function createWallClockToSimulatedTimeMapper(input: {
       (event): event is Extract<WorldEvent, { readonly type: 'SimulationTimeAdvanced' }> =>
         event.type === 'SimulationTimeAdvanced',
     )
-    .map((event) => ({ wallClockTimestamp: event.occurredAt, simulatedTime: event.payload.next.now }))
+    .map((event) => ({
+      wallClockTimestamp: event.occurredAt,
+      simulatedTime: event.payload.next.now,
+    }))
     .sort((left, right) => left.wallClockTimestamp - right.wallClockTimestamp);
   return (wallClockTimestamp: number) => {
     let simulatedTime = input.initialSimulatedTime;
@@ -153,7 +160,11 @@ export function resolvePaperEvidenceManifestPartitionKeys(
   simulationId: string,
 ): string[] {
   const manifest = scenario.manifest;
-  if (!isRecord(manifest) || !Array.isArray(manifest.partitions) || manifest.partitions.length === 0) {
+  if (
+    !isRecord(manifest) ||
+    !Array.isArray(manifest.partitions) ||
+    manifest.partitions.length === 0
+  ) {
     throw new Error('resolved run manifest scenario must contain partitions');
   }
   const partitionKeys = new Set<string>();

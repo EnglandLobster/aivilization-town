@@ -1,5 +1,11 @@
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import {
+  aivilizationCreditPolicyDefaults,
+  aivilizationExternalTradePolicyDefaults,
+  aivilizationLifestylePolicyDefaults,
+  aivilizationTaxPolicyDefaults,
+} from '@aivilization/content';
+import {
   applyWorldEvent,
   assertTownWeatherPolicy,
   createWorldProjection,
@@ -81,7 +87,7 @@ describe('AIvilization default world command policies', () => {
             tieBreak: 'action-id-ascending',
           },
           strategicPlanning: {
-          policyVersion: 'deterministic-strategic-planning-v3',
+            policyVersion: 'deterministic-strategic-planning-v3',
             ambiguousTokensExcludedFromResidentialInference: ['tier'],
           },
           strategicPlanRenewal: {
@@ -155,6 +161,40 @@ describe('AIvilization default world command policies', () => {
             'value-or-semantics-change-requires-new-policy-version-and-replay-boundary',
       ),
     ).toBe(true);
+  });
+
+  test('declares the canonical credit policy in the manifest and registry', () => {
+    const manifest = createAivilizationWorldPolicyManifest();
+    expect(manifest.policyVersions).toMatchObject({ credit: 'credit-v1' });
+    expect(manifest.parameters.credit).toEqual({ ...aivilizationCreditPolicyDefaults });
+    expect(manifest.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(manifest.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(manifest.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'credit',
+          provenance: 'repository-defined',
+          policyVersion: 'credit-v1',
+        }),
+      ]),
+    );
+  });
+
+  test('declares the canonical external trade policy in the manifest and registry', () => {
+    const manifest = createAivilizationWorldPolicyManifest();
+    expect(manifest.policyVersions).toMatchObject({ externalTrade: 'external-trade-v1' });
+    expect(manifest.parameters.externalTrade).toEqual({ ...aivilizationExternalTradePolicyDefaults });
+    expect(manifest.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(manifest.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(manifest.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'externalTrade',
+          provenance: 'repository-defined',
+          policyVersion: 'external-trade-v1',
+        }),
+      ]),
+    );
   });
 
   test('declares the town weather policy in the manifest only when the switch is on', () => {
@@ -452,8 +492,29 @@ describe('AIvilization default world command policies', () => {
         { residentialTier: 5, currencyCostPerHour: 160 },
         { residentialTier: 6, currencyCostPerHour: 320 },
       ],
+      arrearsDowngradeThresholdHours: 72,
     });
     expect(policies.safetyNetSubsidy).toBeUndefined();
+    expect(policies.tax).toEqual({
+      policyVersion: 'tax-regime-v2',
+      neutralRate: 0.1,
+      incomeTaxBrackets: [
+        { upToAmount: 300, rate: 0 },
+        { upToAmount: 800, rate: 0.08 },
+        { upToAmount: null, rate: 0.12 },
+      ],
+      tradeTaxRate: 0.05,
+      dividendTaxRate: 0.1,
+      source: aivilizationTaxPolicyDefaults.source,
+    });
+    expect(policies.lifestyle).toEqual({
+      policyVersion: 'lifestyle-v1',
+      netWorthBoundaries: [500, 2000, 10000],
+      strugglingNonSurvivalSpendCapRatio: 0.3,
+      source: aivilizationLifestylePolicyDefaults.source,
+    });
+    expect(policies.credit).toEqual({ ...aivilizationCreditPolicyDefaults });
+    expect(policies.externalTrade).toEqual({ ...aivilizationExternalTradePolicyDefaults });
     expect(policies.physiologicalSafetyNet).toEqual({
       policyVersion: 'physiological-safety-net-v1',
       criticalThresholds: { satiety: 20, energy: 20, health: 20 },

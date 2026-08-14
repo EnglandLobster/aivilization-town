@@ -1,11 +1,15 @@
 import {
   aivilizationHealthcarePolicyDefaults,
+  aivilizationCreditPolicyDefaults,
   aivilizationEducationPolicyDefaults,
+  aivilizationExternalTradePolicyDefaults,
   aivilizationJobApplicationPolicyDefaults,
+  aivilizationLifestylePolicyDefaults,
   aivilizationProductionPolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
+  aivilizationTaxPolicyDefaults,
   aivilizationWagePolicyDefaults,
   commodities,
   jobTiers,
@@ -105,10 +109,72 @@ const canonicalResidentialUpgradePolicy = {
   currencyCostPerTargetTier: 100,
 } as const;
 
+const canonicalEnterprisePolicy = {
+  policyVersion: 'agent-enterprise-v3',
+  minimumInitialCapital: 100,
+  maximumInitialCapital: 1_000_000,
+  maximumEmployees: 100,
+  solvency: {
+    evaluationCadenceMs: 3_600_000,
+    minimumCashBalance: 1,
+    gracePeriodMs: 21_600_000,
+  },
+  dividend: {
+    paymentCadenceMs: 86_400_000,
+    minimumCashReserve: 100,
+    payoutRatio: 0.25,
+  },
+} as const;
+
+const canonicalConsumptionPolicy = {
+  policyVersion: 'final-consumption-v1',
+  rules: {
+    Book: { kind: 'consumable', utilityPoints: 5 },
+    Chip: { kind: 'durable', utilityPoints: 25, lifetimeSeconds: 86_400 },
+  },
+} as const;
+
+const canonicalExternalMarketPolicy = {
+  policyVersion: 'external-market-liquidity-v1',
+  cadenceMs: 3_600_000,
+  commodityReserveFloor: 25,
+  commodityReserveCeiling: 100_000,
+  currencyReserveFloor: 250,
+  currencyReserveCeiling: 1_000_000,
+  maxAdjustmentRatioPerCadence: 0.1,
+} as const;
+
+const canonicalPublicBudgetPolicy = {
+  policyVersion: 'public-budget-v1',
+  cadenceMs: 3_600_000,
+  minimumTreasuryReserve: 100,
+  allocations: [
+    { service: 'education', amountPerCadence: 10 },
+    { service: 'healthcare', amountPerCadence: 10 },
+    { service: 'infrastructure', amountPerCadence: 10 },
+  ],
+} as const;
+
+const canonicalCreditPolicy = aivilizationCreditPolicyDefaults;
+
+const canonicalExternalTradePolicy = aivilizationExternalTradePolicyDefaults;
+
+export type AivilizationWorldCommandPolicyOptions = {
+  /**
+   * When set, per-agent time effects (upkeep, safety nets, deprivation, illness)
+   * settle in `hash(agentId) % buckets` rotation, charging elapsed time since
+   * each agent's previous settlement. Total settlement per agent is unchanged;
+   * per-tick load is divided by the bucket count. Opt-in; omitted keeps the
+   * canonical settle-every-agent-every-tick cadence byte-for-byte.
+   */
+  readonly timeSettlementAmortizationBuckets?: number;
+};
+
 export function createAivilizationWorldCommandPolicies(
   randomSeed?: string,
   agentRegistration?: AivilizationAgentRegistrationPolicyInput,
   experimental?: AivilizationExperimentalPolicySwitches,
+  options?: AivilizationWorldCommandPolicyOptions,
 ): WorldCommandPolicyResolver {
   return (projection) => {
     const basePolicies = createAivilizationWorldCommandPoliciesSnapshot(
@@ -116,6 +182,7 @@ export function createAivilizationWorldCommandPolicies(
       randomSeed,
       agentRegistration,
       experimental,
+      options,
     );
     return createProjectionBackedWorldCommandPolicies({
       basePolicies,
@@ -137,6 +204,7 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
   randomSeed?: string,
   agentRegistration?: AivilizationAgentRegistrationPolicyInput,
   experimental?: AivilizationExperimentalPolicySwitches,
+  options?: AivilizationWorldCommandPolicyOptions,
 ): WorldCommandPolicies {
   const experimentalPolicies = AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS.reduce(
     (policies, spec) =>
@@ -205,6 +273,40 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
     tradeActivity: {
       durationSeconds: CANONICAL_TRADE_ACTIVITY_DURATION_SECONDS,
     },
+    tax: {
+      policyVersion: aivilizationTaxPolicyDefaults.policyVersion,
+      neutralRate: aivilizationTaxPolicyDefaults.neutralRate,
+      incomeTaxBrackets: aivilizationTaxPolicyDefaults.incomeTaxBrackets.map((bracket) => ({
+        ...bracket,
+      })),
+      tradeTaxRate: aivilizationTaxPolicyDefaults.tradeTaxRate,
+      dividendTaxRate: aivilizationTaxPolicyDefaults.dividendTaxRate,
+      source: aivilizationTaxPolicyDefaults.source,
+    },
+    lifestyle: {
+      policyVersion: aivilizationLifestylePolicyDefaults.policyVersion,
+      netWorthBoundaries: [...aivilizationLifestylePolicyDefaults.netWorthBoundaries] as [
+        number,
+        number,
+        number,
+      ],
+      strugglingNonSurvivalSpendCapRatio:
+        aivilizationLifestylePolicyDefaults.strugglingNonSurvivalSpendCapRatio,
+      source: aivilizationLifestylePolicyDefaults.source,
+    },
+    consumption: { ...canonicalConsumptionPolicy, rules: { ...canonicalConsumptionPolicy.rules } },
+    externalMarket: { ...canonicalExternalMarketPolicy },
+    publicBudget: {
+      ...canonicalPublicBudgetPolicy,
+      allocations: canonicalPublicBudgetPolicy.allocations.map((allocation) => ({ ...allocation })),
+    },
+    credit: { ...canonicalCreditPolicy },
+    externalTrade: { ...canonicalExternalTradePolicy },
+    enterprise: {
+      ...canonicalEnterprisePolicy,
+      solvency: { ...canonicalEnterprisePolicy.solvency },
+      dividend: { ...canonicalEnterprisePolicy.dividend },
+    },
     jobApplication: {
       populationEducationScores,
       quotaByResidentialTier: [
@@ -250,7 +352,16 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
         residentialTier: cost.residentialTier,
         currencyCostPerHour: cost.currencyCostPerHour,
       })),
+      arrearsDowngradeThresholdHours:
+        aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.arrearsDowngradeThresholdHours,
     },
+    ...(options?.timeSettlementAmortizationBuckets === undefined
+      ? {}
+      : {
+          timeSettlementAmortization: {
+            buckets: options.timeSettlementAmortizationBuckets,
+          },
+        }),
     physiologicalSafetyNet: {
       policyVersion: aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
       criticalThresholds: {
@@ -314,8 +425,7 @@ export function createAivilizationWorldPolicyManifest(
 ) {
   const experimentalPolicyVersions: Partial<Record<AivilizationExperimentalFeatureKey, string>> =
     {};
-  const experimentalParameters: Partial<Record<AivilizationExperimentalFeatureKey, unknown>> =
-    {};
+  const experimentalParameters: Partial<Record<AivilizationExperimentalFeatureKey, unknown>> = {};
   for (const spec of AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS) {
     if (input[spec.key] === true) {
       experimentalPolicyVersions[spec.key] = spec.policyVersion;
@@ -340,6 +450,14 @@ export function createAivilizationWorldPolicyManifest(
       socialRelationDecay: SOCIAL_RELATION_DECAY_POLICY_VERSION,
       townSpatialGraph: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
       wageRegime: aivilizationWagePolicyDefaults.policyVersion,
+      tax: aivilizationTaxPolicyDefaults.policyVersion,
+      lifestyle: aivilizationLifestylePolicyDefaults.policyVersion,
+      consumption: canonicalConsumptionPolicy.policyVersion,
+      externalMarket: canonicalExternalMarketPolicy.policyVersion,
+      publicBudget: canonicalPublicBudgetPolicy.policyVersion,
+      credit: canonicalCreditPolicy.policyVersion,
+      externalTrade: canonicalExternalTradePolicy.policyVersion,
+      enterprise: canonicalEnterprisePolicy.policyVersion,
       applicationQuota: aivilizationJobApplicationPolicyDefaults.applicationQuota.policyVersion,
       recruitmentCycle: aivilizationJobApplicationPolicyDefaults.recruitmentCycle.policyVersion,
       physiologicalSafetyNet:
@@ -388,6 +506,34 @@ export function createAivilizationWorldPolicyManifest(
         outcome: createSocialOutcomePolicyManifest(),
       },
       wageRegime: { ...aivilizationWagePolicyDefaults },
+      tax: {
+        ...aivilizationTaxPolicyDefaults,
+        incomeTaxBrackets: aivilizationTaxPolicyDefaults.incomeTaxBrackets.map((bracket) => ({
+          ...bracket,
+        })),
+      },
+      lifestyle: {
+        ...aivilizationLifestylePolicyDefaults,
+        netWorthBoundaries: [...aivilizationLifestylePolicyDefaults.netWorthBoundaries],
+      },
+      consumption: {
+        ...canonicalConsumptionPolicy,
+        rules: { ...canonicalConsumptionPolicy.rules },
+      },
+      externalMarket: { ...canonicalExternalMarketPolicy },
+      publicBudget: {
+        ...canonicalPublicBudgetPolicy,
+        allocations: canonicalPublicBudgetPolicy.allocations.map((allocation) => ({
+          ...allocation,
+        })),
+      },
+      credit: { ...canonicalCreditPolicy },
+    externalTrade: { ...canonicalExternalTradePolicy },
+      enterprise: {
+        ...canonicalEnterprisePolicy,
+        solvency: { ...canonicalEnterprisePolicy.solvency },
+        dividend: { ...canonicalEnterprisePolicy.dividend },
+      },
       applicationQuota: {
         ...aivilizationJobApplicationPolicyDefaults.applicationQuota,
         quotaByResidentialTier: [
@@ -424,6 +570,8 @@ export function createAivilizationWorldPolicyManifest(
           costs: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.costs.map((cost) => ({
             ...cost,
           })),
+          arrearsDowngradeThresholdHours:
+            aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.arrearsDowngradeThresholdHours,
         },
         physiologicalSafetyNet: {
           ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet,
@@ -568,6 +716,62 @@ function createCanonicalPolicyRegistry(manifest: {
       ['wageRegime'],
       'paper-derived',
       'Paper specifies lower-tier price indexing and higher-tier knowledge-sensitive wages.',
+    ),
+    registryEntry(
+      'tax',
+      aivilizationTaxPolicyDefaults.policyVersion,
+      ['tax'],
+      'repository-defined',
+      'The paper does not model taxation; brackets, the neutral rate, the trade tax rate, and the dividend tax rate are repository-defined.',
+    ),
+    registryEntry(
+      'lifestyle',
+      'lifestyle-v1',
+      ['lifestyle'],
+      'repository-defined',
+      'The paper does not model wealth-tiered consumption; tier boundaries and the struggling-tier spend cap are repository-defined, benchmarked against the CS2 consumption multiplier.',
+    ),
+    registryEntry(
+      'consumption',
+      canonicalConsumptionPolicy.policyVersion,
+      ['consumption'],
+      'repository-defined',
+      'Final consumption, utility, and durable-good lifetimes are repository-defined extensions that close the household demand loop.',
+    ),
+    registryEntry(
+      'externalMarket',
+      canonicalExternalMarketPolicy.policyVersion,
+      ['externalMarket'],
+      'repository-defined',
+      'External reserve rebalancing is a repository-defined liquidity backstop for thin or isolated regional markets.',
+    ),
+    registryEntry(
+      'publicBudget',
+      canonicalPublicBudgetPolicy.policyVersion,
+      ['publicBudget'],
+      'repository-defined',
+      'Treasury reserve and public-service allocation rules are repository-defined extensions that close the fiscal spending loop.',
+    ),
+    registryEntry(
+      'credit',
+      canonicalCreditPolicy.policyVersion,
+      ['credit'],
+      'repository-defined',
+      'The paper does not model banking; town-bank deposit/loan rates, the reserve requirement, the missed-payment grace window, and the history-scaled credit-limit schedule are repository-defined.',
+    ),
+    registryEntry(
+      'externalTrade',
+      canonicalExternalTradePolicy.policyVersion,
+      ['externalTrade'],
+      'repository-defined',
+      'The paper does not model external trade; the rolling net-export balance, its 1% decay, and the saturating sqrt-balance price impact are repository-defined, benchmarked against the CS2 TradeSystem.',
+    ),
+    registryEntry(
+      'enterprise',
+      canonicalEnterprisePolicy.policyVersion,
+      ['enterprise'],
+      'repository-defined',
+      'Enterprise ownership, capitalization, employment, and closure rules are repository-defined extensions to the agent economy.',
     ),
     registryEntry(
       'applicationQuota',

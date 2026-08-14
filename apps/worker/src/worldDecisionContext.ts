@@ -1,5 +1,8 @@
 import { commodities, jobTiers, occupations } from '@aivilization/content';
 import {
+  calculateNetWorth,
+  evaluateExternalExportPrice,
+  evaluateExternalImportPrice,
   evaluateProductionEfficiency,
   getInventoryQuantity,
   getSpotPrice,
@@ -7,7 +10,10 @@ import {
   scaleProductionCost,
 } from '@aivilization/economy';
 import type {
+  WorldDecisionAgentContext,
   WorldDecisionContext,
+  WorldDecisionConsumptionRule,
+  WorldDecisionExternalTradeCommodityContext,
   WorldDecisionOccupationRule,
   WorldDecisionProductionRule,
   WorldDecisionResidentialUpgradeRule,
@@ -19,6 +25,7 @@ import {
   calculateRecruitmentCycleNumber,
   calculateEffectiveKnowledgeThreshold,
   deriveAgentConditions,
+  evaluateLifestyleTier,
 } from '@aivilization/society';
 import type {
   WorldAgentState,
@@ -26,7 +33,11 @@ import type {
   WorldMarketPriceIndexState,
   WorldProjection,
 } from '@aivilization/world';
-import { DEFAULT_MARKET_REGION_ID } from '@aivilization/world';
+import {
+  activeLoansByBorrower,
+  DEFAULT_MARKET_REGION_ID,
+  resolveCreditLimit,
+} from '@aivilization/world';
 import type { AmmPool } from '@aivilization/economy';
 import {
   createEducationOpportunityCostRule,
@@ -55,7 +66,7 @@ export type WorldDecisionMarketOverride = {
  * exploit a foreign region's prices. When no pool is region-tagged every pool
  * belongs to the single default region and the full map is returned unchanged.
  */
-function resolveAgentMarketPools(input: {
+export function resolveAgentMarketPools(input: {
   readonly projection: WorldProjection;
   readonly agent: WorldAgentState;
   readonly override?: Readonly<Record<string, AmmPool>>;
@@ -95,9 +106,7 @@ export function createWorldDecisionContextFromProjection(input: {
   const marketPools = resolveAgentMarketPools({
     projection: input.projection,
     agent,
-    ...(input.marketOverride === undefined
-      ? {}
-      : { override: input.marketOverride.marketPools }),
+    ...(input.marketOverride === undefined ? {} : { override: input.marketOverride.marketPools }),
   });
   const latestPriceIndex = resolveLatestPriceIndex(input.projection.marketPriceIndices);
   const rules =
@@ -120,8 +129,29 @@ export function createWorldDecisionContextFromProjection(input: {
       educationScore: agent.educationScore,
       balance: agent.balance,
       residentialTier: agent.residentialTier,
+      upkeepArrears: agent.upkeepArrears ?? 0,
+      ...createLifestyleDecisionContext({
+        agent,
+        marketPools,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
+      ...createBankingDecisionContext({
+        projection: input.projection,
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
       job: agent.job,
       inventory: copyPositiveSortedRecord(agent.inventory),
+      ...(agent.durableGoods === undefined
+        ? {}
+        : {
+            durableGoods: agent.durableGoods
+              .map((lot) => ({ ...lot }))
+              .sort(
+                (left, right) =>
+                  left.expiresAt - right.expiresAt || left.lotId.localeCompare(right.lotId),
+              ),
+          }),
     },
     market: {
       spotPrices: Object.values(marketPools)
@@ -144,12 +174,128 @@ export function createWorldDecisionContextFromProjection(input: {
     ...(input.societyDirectory === undefined
       ? {}
       : { society: createSocietyDecisionContext(input.societyDirectory) }),
-    ...(input.projection.weather === undefined
-      ? {}
-      : { weather: { ...input.projection.weather } }),
+    ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
     ...createConditionDecisionContext(input),
+    ...createFiscalDecisionContext(input),
+    ...createExternalTradeDecisionContext({
+      projection: input.projection,
+      marketPools,
+      ...(input.policies === undefined ? {} : { policies: input.policies }),
+    }),
+    ...createEnterpriseDecisionContext(input),
     ...(rules === undefined ? {} : { rules }),
   };
+}
+
+function createEnterpriseDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'enterprises'> | Record<string, never> {
+  if (input.policies?.enterprise === undefined) {
+    return {};
+  }
+  return {
+    enterprises: Object.values(input.projection.enterprises)
+      .map((enterprise) => ({
+        enterpriseId: enterprise.enterpriseId,
+        name: enterprise.name,
+        ownerAgentId: enterprise.ownerAgentId,
+        occupationName: enterprise.occupationName,
+        balance: enterprise.balance,
+        inventory: copyPositiveSortedRecord(enterprise.inventory),
+        maxEmployees: enterprise.maxEmployees,
+        employeeAgentIds: [...enterprise.employeeAgentIds].sort((left, right) =>
+          left.localeCompare(right),
+        ),
+        status: enterprise.status,
+        cumulativeSales: enterprise.cumulativeSales,
+        cumulativePurchases: enterprise.cumulativePurchases,
+        cumulativeWages: enterprise.cumulativeWages,
+        ...(enterprise.ownershipShares === undefined
+          ? {}
+          : { ownershipShares: { ...enterprise.ownershipShares } }),
+        ...(enterprise.retainedEarnings === undefined
+          ? {}
+          : { retainedEarnings: enterprise.retainedEarnings }),
+        ...(enterprise.cumulativeDividends === undefined
+          ? {}
+          : { cumulativeDividends: enterprise.cumulativeDividends }),
+        ...(enterprise.insolvencyStartedAt === undefined
+          ? {}
+          : { insolvencyStartedAt: enterprise.insolvencyStartedAt }),
+        ...(enterprise.jobPosting === undefined
+          ? {}
+          : { jobPosting: { ...enterprise.jobPosting } }),
+        wageArrears: enterprise.wageArrears ?? 0,
+      }))
+      .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId)),
+  };
+}
+
+/**
+ * Expose the town tax regime to agent planning when the resolved policies
+ * carry a tax policy. Returns an empty object when the policy is absent so
+ * tax-free runs keep the context fiscal-free.
+ */
+function createFiscalDecisionContext(input: {
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'fiscal'> | Record<string, never> {
+  const policy = input.policies?.tax;
+  if (policy === undefined) {
+    return {};
+  }
+  return {
+    fiscal: {
+      incomeTaxBrackets: policy.incomeTaxBrackets.map((bracket) => ({ ...bracket })),
+      tradeTaxRate: policy.tradeTaxRate,
+      neutralRate: policy.neutralRate,
+    },
+  };
+}
+
+/**
+ * Expose the external-trade view (rolling net-export balance plus indicative
+ * export/import unit prices per commodity) when the resolved policies carry an
+ * external-trade policy. Prices are quoted off the spot price of the market
+ * pools the agent actually sees (region-filtered, override-aware), matching
+ * the market the settlement handler resolves. Returns an empty object when the
+ * policy is absent so external-trade-free runs keep the context free of it.
+ */
+function createExternalTradeDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'externalTrade'> | Record<string, never> {
+  const policy = input.policies?.externalTrade;
+  if (policy === undefined) {
+    return {};
+  }
+  const balances = input.projection.externalTrade?.balancesByCommodity ?? {};
+  const externalTrade: WorldDecisionExternalTradeCommodityContext[] = Object.values(
+    input.marketPools,
+  )
+    .map((pool) => {
+      const netExportBalance = balances[pool.commodity] ?? 0;
+      const spotPrice = getSpotPrice(pool);
+      return {
+        commodityName: pool.commodity,
+        netExportBalance,
+        exportUnitPrice: evaluateExternalExportPrice({
+          spotPrice,
+          quantity: 1,
+          netExportBalance,
+          policy,
+        }).unitPrice,
+        importUnitPrice: evaluateExternalImportPrice({
+          spotPrice,
+          quantity: 1,
+          netExportBalance,
+          policy,
+        }).unitPrice,
+      };
+    })
+    .sort((left, right) => left.commodityName.localeCompare(right.commodityName));
+  return { externalTrade };
 }
 
 /**
@@ -184,6 +330,76 @@ function createConditionDecisionContext(input: {
     policy,
   });
   return { conditions: conditions.map((condition) => ({ ...condition })) };
+}
+
+/**
+ * Derive the agent's wealth-tier lifestyle when the resolved command policies
+ * carry a lifestyle policy. Net worth values the inventory at the spot prices
+ * of the pools the agent plans against (region-filtered, override-aware), so
+ * the tier matches the market the agent actually sees. Returns an empty object
+ * when the policy is absent so policy-free runs keep the context
+ * lifestyle-free.
+ */
+function createLifestyleDecisionContext(input: {
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+  readonly marketPools: Readonly<Record<string, AmmPool>>;
+}): Pick<WorldDecisionAgentContext, 'lifestyle'> | Record<string, never> {
+  const policy = input.policies?.lifestyle;
+  if (policy === undefined) {
+    return {};
+  }
+  return {
+    lifestyle: evaluateLifestyleTier({
+      netWorth: calculateNetWorth({
+        currencyBalance: input.agent.balance,
+        inventory: input.agent.inventory,
+        pools: Object.values(input.marketPools),
+      }),
+      policy,
+    }),
+  };
+}
+
+/**
+ * Expose the agent's town-bank position when the resolved policies carry a
+ * credit policy. Data comes from the projection bank slice (the authoritative
+ * settlement state); returns an empty object when the policy is absent so
+ * bank-free runs keep the context banking-free.
+ */
+function createBankingDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionAgentContext, 'banking'> | Record<string, never> {
+  const policy = input.policies?.credit;
+  if (policy === undefined) {
+    return {};
+  }
+  const bank = input.projection.bank;
+  const history = bank?.creditHistoryByAgent[input.agent.agentId];
+  return {
+    banking: {
+      depositBalance: bank?.deposits[input.agent.agentId] ?? 0,
+      activeLoans: (bank === undefined ? [] : activeLoansByBorrower(bank, input.agent.agentId)).map(
+        (loan) => ({
+          loanId: loan.loanId,
+          principal: loan.principal,
+          accruedInterest: loan.accruedInterest,
+          remainingTermDays: Math.max(
+            0,
+            loan.termDays -
+              Math.floor((input.projection.clock.now - loan.issuedAt) / policy.accrualCadenceMs),
+          ),
+        }),
+      ),
+      repaidCount: history?.repaidCount ?? 0,
+      defaultedCount: history?.defaultedCount ?? 0,
+      maxLoanAmount: resolveCreditLimit({ history, policy }),
+      depositDailyInterestRate: policy.depositDailyInterestRate,
+      loanDailyInterestRate: policy.loanDailyInterestRate,
+    },
+  };
 }
 
 function createSocietyDecisionContext(directory: LocalSimulationSocietyDirectory) {
@@ -243,9 +459,33 @@ function createWorldDecisionRulesContext(input: {
     criticalThresholds: { ...input.policies.criticalThresholds },
     occupations: createOccupationRules(input),
     production: createProductionRules(input),
+    ...withConsumptionRules(input),
     ...withResidentialUpgradeRule(input),
     ...withEducationOpportunityCostRule(input),
   };
+}
+
+function withConsumptionRules(input: {
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+}): Pick<WorldDecisionRulesContext, 'consumption'> | Record<string, never> {
+  const policy = input.policies.consumption;
+  if (policy === undefined) {
+    return {};
+  }
+  const consumption: WorldDecisionConsumptionRule[] = Object.entries(policy.rules)
+    .map(([commodityName, rule]) => ({
+      commodityName,
+      kind: rule.kind,
+      utilityPoints: rule.utilityPoints,
+      ...(rule.kind === 'durable' ? { lifetimeSeconds: rule.lifetimeSeconds } : {}),
+      inventoryQuantity: input.agent.inventory[commodityName] ?? 0,
+      activeDurableQuantity: (input.agent.durableGoods ?? [])
+        .filter((lot) => lot.commodityName === commodityName)
+        .reduce((total, lot) => total + lot.quantity, 0),
+    }))
+    .sort((left, right) => left.commodityName.localeCompare(right.commodityName));
+  return { consumption };
 }
 
 function withResidentialUpgradeRule(input: {

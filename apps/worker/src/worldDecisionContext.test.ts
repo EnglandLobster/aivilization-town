@@ -1,6 +1,16 @@
 import { createAmmPool } from '@aivilization/economy';
-import { asAgentId, asLocationId, asSimulationId } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldCommandPolicies } from '@aivilization/world';
+import {
+  asAgentId,
+  asLocationId,
+  asSimulationId,
+  createEventEnvelope,
+} from '@aivilization/sim-core';
+import {
+  applyWorldEvent,
+  createBankState,
+  createWorldProjection,
+  type WorldCommandPolicies,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
@@ -163,6 +173,7 @@ describe('worker world decision context', () => {
         educationScore: 31,
         balance: 191696904,
         residentialTier: 5,
+        upkeepArrears: 0,
         job: 'Stock Clerk',
         inventory: { Fish: 46, Transistor: 12 },
       },
@@ -322,6 +333,387 @@ describe('worker world decision context', () => {
     expect(transistorRule?.rejectionReasons).toEqual(
       expect.arrayContaining(['residential-tier-too-low']),
     );
+  });
+
+  test('exposes the fiscal regime only when command policies carry a tax policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      tax: {
+        policyVersion: 'tax-regime-v1',
+        neutralRate: 0.1,
+        incomeTaxBrackets: [
+          { upToAmount: 300, rate: 0 },
+          { upToAmount: null, rate: 0.12 },
+        ],
+        tradeTaxRate: 0.05,
+        source: 'test',
+      },
+    };
+
+    const withTax = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(withTax.fiscal).toEqual({
+      neutralRate: 0.1,
+      incomeTaxBrackets: [
+        { upToAmount: 300, rate: 0 },
+        { upToAmount: null, rate: 0.12 },
+      ],
+      tradeTaxRate: 0.05,
+    });
+
+    const policiesWithoutTax: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutTax = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutTax,
+    });
+    expect(withoutTax.fiscal).toBeUndefined();
+  });
+
+  test('exposes the banking position only when command policies carry a credit policy', () => {
+    const bank = createBankState({ reserves: 10_000 });
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      bank: {
+        ...bank,
+        deposits: { [agentId]: 250 },
+        creditHistoryByAgent: { [agentId]: { repaidCount: 1, defaultedCount: 0 } },
+      },
+      clock: { now: 86_400_000, tickDurationMs: 1000 },
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      credit: {
+        policyVersion: 'credit-v1',
+        depositDailyInterestRate: 0.001,
+        loanDailyInterestRate: 0.01,
+        loanTermDays: 30,
+        accrualCadenceMs: 86_400_000,
+        reserveRatio: 0.2,
+        maxLoansPerAgent: 1,
+        graceMissedPayments: 3,
+        baseLoanLimit: 5000,
+        creditLimitRepaidBonusRatio: 0.2,
+        creditLimitDefaultPenaltyRatio: 0.5,
+        creditLimitMinMultiplier: 0.1,
+        creditLimitMaxMultiplier: 3,
+        source: 'test',
+      },
+    };
+
+    const withCredit = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies,
+    });
+    expect(withCredit.agent.banking).toMatchObject({
+      depositBalance: 250,
+      activeLoans: [],
+      repaidCount: 1,
+      defaultedCount: 0,
+      depositDailyInterestRate: 0.001,
+      loanDailyInterestRate: 0.01,
+    });
+    // One repaid loan scales the credit limit by the +20% repaid bonus.
+    expect(withCredit.agent.banking?.maxLoanAmount).toBeCloseTo(6000);
+
+    const policiesWithoutCredit: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutCredit = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutCredit,
+    });
+    expect(withoutCredit.agent.banking).toBeUndefined();
+  });
+
+  test('exposes indicative external-trade prices only when policies carry an external trade policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 80, satiety: 80, health: 90 },
+          educationScore: 20,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: { Apple: 25 },
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 }),
+      ],
+      clock: { now: 0, tickDurationMs: 1000 },
+    });
+    // One settled export creates the slice with a net-export balance of 25.
+    const traded = applyWorldEvent(
+      projection,
+      createEventEnvelope({
+        id: 'event-export',
+        simulationId: 'sim-1',
+        type: 'ExternalTradeExecuted',
+        payload: {
+          trader: { agentId },
+          direction: 'export' as const,
+          commodityName: 'Apple',
+          quantity: 25,
+          unitPrice: 10,
+          totalCurrency: 250,
+          balanceBefore: 0,
+          balanceAfter: 25,
+          spotPrice: 10,
+          policyVersion: 'external-trade-v1',
+        },
+        occurredAt: 0,
+        sequence: 1,
+      }),
+    );
+
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      externalTrade: {
+        policyVersion: 'external-trade-v1',
+        balanceDecayRatioPerCadence: 0.01,
+        cadenceMs: 3_600_000,
+        priceImpactRatio: 0.2,
+        balanceScale: 50,
+        source: 'test',
+      },
+    };
+    const withTrade = createWorldDecisionContextFromProjection({
+      projection: traded,
+      agentId,
+      policies,
+    });
+    // Balance 25 → √25/50 × 0.2 = 2% below spot on exports; imports (net-export
+    // balance) settle at spot.
+    expect(withTrade.externalTrade).toHaveLength(1);
+    expect(withTrade.externalTrade?.[0]).toMatchObject({
+      commodityName: 'Apple',
+      netExportBalance: 25,
+      importUnitPrice: 10,
+    });
+    expect(withTrade.externalTrade?.[0]?.exportUnitPrice).toBeCloseTo(9.8);
+
+    const policiesWithoutTrade: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutTrade = createWorldDecisionContextFromProjection({
+      projection: traded,
+      agentId,
+      policies: policiesWithoutTrade,
+    });
+    expect(withoutTrade.externalTrade).toBeUndefined();
+  });
+
+  test('exposes final-consumption options, active durables, and enterprises to planning', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 80, satiety: 80, health: 90 },
+          educationScore: 20,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: { Book: 2, Chip: 1 },
+          durableGoods: [
+            {
+              lotId: 'chip-lot',
+              commodityName: 'Chip',
+              quantity: 2,
+              utilityPoints: 50,
+              acquiredAt: 100,
+              expiresAt: 1_000,
+            },
+          ],
+        },
+      ],
+      enterprises: [
+        {
+          enterpriseId: 'book-co',
+          name: 'Book Co',
+          ownerAgentId: agentId,
+          occupationName: 'Writer',
+          balance: 500,
+          inventory: { Book: 3 },
+          maxEmployees: 4,
+          employeeAgentIds: [agentId],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 120,
+          cumulativePurchases: 30,
+          cumulativeWages: 40,
+          jobPosting: { wageOffer: 55, openSlots: 3 },
+          wageArrears: 25,
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 10,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 1, health: 1 },
+      consumption: {
+        policyVersion: 'consumption-v1',
+        rules: {
+          Book: { kind: 'consumable', utilityPoints: 5 },
+          Chip: { kind: 'durable', utilityPoints: 25, lifetimeSeconds: 86_400 },
+        },
+      },
+      enterprise: {
+        policyVersion: 'enterprise-v1',
+        minimumInitialCapital: 100,
+        maximumInitialCapital: 10_000,
+        maximumEmployees: 10,
+      },
+    };
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(context.agent.durableGoods).toEqual([
+      expect.objectContaining({ lotId: 'chip-lot', commodityName: 'Chip', quantity: 2 }),
+    ]);
+    expect(context.rules?.consumption).toEqual([
+      expect.objectContaining({
+        commodityName: 'Book',
+        kind: 'consumable',
+        inventoryQuantity: 2,
+        activeDurableQuantity: 0,
+      }),
+      expect.objectContaining({
+        commodityName: 'Chip',
+        kind: 'durable',
+        lifetimeSeconds: 86_400,
+        inventoryQuantity: 1,
+        activeDurableQuantity: 2,
+      }),
+    ]);
+    expect(context.enterprises).toEqual([
+      expect.objectContaining({
+        enterpriseId: 'book-co',
+        ownerAgentId: agentId,
+        balance: 500,
+        inventory: { Book: 3 },
+        jobPosting: { wageOffer: 55, openSlots: 3 },
+        wageArrears: 25,
+      }),
+    ]);
+  });
+
+  test('exposes the lifestyle tier only when command policies carry a lifestyle policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: { Apple: 2 },
+        },
+        {
+          agentId: asAgentId('agent-rich'),
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 20_000,
+          residentialTier: 5,
+          job: 'CEO',
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      lifestyle: {
+        policyVersion: 'lifestyle-v1',
+        netWorthBoundaries: [500, 2000, 10000],
+        strugglingNonSurvivalSpendCapRatio: 0.3,
+        source: 'test',
+      },
+    };
+
+    // Net worth = 100 balance + 2 Apples at spot 10 = 120 → struggling.
+    const withPolicy = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(withPolicy.agent.lifestyle).toBe('struggling');
+
+    const rich = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: asAgentId('agent-rich'),
+      policies,
+    });
+    expect(rich.agent.lifestyle).toBe('affluent');
+
+    const policiesWithoutLifestyle: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutPolicy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutLifestyle,
+    });
+    expect(withoutPolicy.agent.lifestyle).toBeUndefined();
   });
 
   test('exposes direct study costs, foregone wages, and the post-study reserve', () => {

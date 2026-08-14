@@ -7,6 +7,7 @@ import type {
   CoreCommandType,
   EventEnvelope,
   HumanCommandAttribution,
+  LoanId,
   LocationId,
   SimulationClock,
 } from '@aivilization/sim-core';
@@ -124,6 +125,25 @@ export type InventoryChangedPayload = {
   readonly reason: string;
 };
 
+export type CommodityConsumedPayload = {
+  readonly agentId: AgentId;
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly utilityPoints: number;
+  readonly kind: 'consumable' | 'durable';
+  readonly durableLotId?: string;
+  readonly expiresAt?: number;
+  readonly policyVersion: string;
+};
+
+export type DurableGoodExpiredPayload = {
+  readonly agentId: AgentId;
+  readonly lotId: string;
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly expiredAt: number;
+};
+
 export type PhysiologyChangedPayload = {
   readonly agentId: AgentId;
   readonly previous: PhysiologicalState;
@@ -204,6 +224,165 @@ export type WagePaidPayload = {
   readonly agentId: AgentId;
   readonly occupationName: string;
   readonly amount: number;
+  /**
+   * Funding source of the wage. 'mint' (or omitted, for legacy events) means the
+   * authority minted the wage and moneySupply increases; 'employer' means an
+   * enterprise account paid (transfer, supply unchanged); 'treasury' means the
+   * public treasury paid (transfer, supply unchanged).
+   */
+  readonly fundingSource?: 'mint' | 'employer' | 'treasury';
+  readonly enterpriseId?: string;
+};
+
+export type EnterpriseFoundedPayload = {
+  readonly enterpriseId: string;
+  readonly name: string;
+  readonly ownerAgentId: AgentId;
+  readonly occupationName: string;
+  readonly initialCapital: number;
+  readonly ownerPreviousBalance: number;
+  readonly ownerNextBalance: number;
+  readonly maxEmployees: number;
+  readonly policyVersion: string;
+};
+
+export type EnterpriseMemberJoinedPayload = {
+  readonly enterpriseId: string;
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly previousJob: string | null;
+  /**
+   * Contracted wage copied from the enterprise job posting at join time.
+   * Absent on legacy events; payroll falls back to the world wage regime.
+   */
+  readonly wageOffer?: number;
+};
+
+export type EnterpriseJobPostingUpdatedPayload = {
+  readonly enterpriseId: string;
+  readonly ownerAgentId: AgentId;
+  readonly wageOffer: number;
+  readonly openSlots: number;
+};
+
+export type EnterpriseEmployeeLeftPayload = {
+  readonly enterpriseId: string;
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly previousJob: string | null;
+};
+
+export type EnterpriseEmployeeLaidOffPayload = {
+  readonly enterpriseId: string;
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly previousJob: string | null;
+};
+
+/**
+ * Wage-arrears memo for an enterprise payroll that could not pay in full (or
+ * repaid earlier arrears). Carries no money movement itself: the paid part is
+ * settled by the companion WagePaid event, emitted only when paidAmount > 0.
+ */
+export type EnterpriseWageArrearsUpdatedPayload = {
+  readonly enterpriseId: string;
+  readonly agentId: AgentId;
+  readonly wageAmount: number;
+  readonly paidAmount: number;
+  readonly previousArrears: number;
+  readonly nextArrears: number;
+};
+
+export type EnterpriseFundedPayload = {
+  readonly enterpriseId: string;
+  readonly funderAgentId: AgentId;
+  readonly amount: number;
+  readonly funderPreviousBalance: number;
+  readonly funderNextBalance: number;
+  readonly enterprisePreviousBalance: number;
+  readonly enterpriseNextBalance: number;
+};
+
+export type EnterpriseInsolvencyStartedPayload = {
+  readonly enterpriseId: string;
+  readonly evaluatedAt: number;
+  readonly balance: number;
+  readonly minimumCashBalance: number;
+  readonly policyVersion: string;
+};
+
+export type EnterpriseSolvencyRestoredPayload = {
+  readonly enterpriseId: string;
+  readonly evaluatedAt: number;
+  readonly balance: number;
+  readonly policyVersion: string;
+};
+
+export type EnterpriseBankruptcyDeclaredPayload = {
+  readonly enterpriseId: string;
+  readonly declaredAt: number;
+  readonly balance: number;
+  readonly insolvencyStartedAt: number;
+  readonly policyVersion: string;
+};
+
+export type EnterpriseDividendPaidPayload = {
+  readonly enterpriseId: string;
+  readonly totalAmount: number;
+  readonly payments: readonly {
+    readonly agentId: AgentId;
+    readonly amount: number;
+  }[];
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly previousRetainedEarnings: number;
+  readonly nextRetainedEarnings: number;
+  readonly paidAt: number;
+  readonly policyVersion: string;
+};
+
+export type EnterpriseClosedPayload = {
+  readonly enterpriseId: string;
+  readonly ownerAgentId: AgentId;
+  readonly returnedBalance: number;
+  readonly returnedInventory: Inventory;
+  readonly employeeAgentIds: readonly AgentId[];
+  readonly reason: 'owner-closed' | 'insolvent';
+};
+
+export type IncomeTaxChargedPayload = {
+  readonly agentId: AgentId;
+  readonly occupationName: string;
+  readonly taxableAmount: number;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+};
+
+export type TradeTaxChargedPayload = {
+  readonly agentId: AgentId;
+  readonly commodityName: string;
+  readonly saleProceeds: number;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly enterpriseId?: string;
+};
+
+/**
+ * Flat tax on an enterprise dividend payout, charged from the enterprise cash
+ * account into the treasury (transfer; moneySupply unchanged). Emitted right
+ * after the EnterpriseDividendPaid event it taxes.
+ */
+export type DividendTaxChargedPayload = {
+  readonly enterpriseId: string;
+  readonly dividendAmount: number;
+  readonly amount: number;
+  readonly enterprisePreviousBalance: number;
+  readonly enterpriseNextBalance: number;
+  readonly previousTreasury: number;
+  readonly nextTreasury: number;
+  readonly policyVersion: string;
 };
 
 export type SubsidyPaidPayload = {
@@ -212,6 +391,129 @@ export type SubsidyPaidPayload = {
   readonly previousBalance: number;
   readonly nextBalance: number;
   readonly reason: string;
+  /**
+   * Funding source of the subsidy. 'mint' (or omitted, for legacy events) means
+   * the authority minted the subsidy and moneySupply increases; 'treasury'
+   * means the public treasury paid (transfer, supply unchanged, treasury
+   * debited by the same amount).
+   */
+  readonly fundingSource?: 'mint' | 'treasury';
+};
+
+export type PublicBudgetSpentPayload = {
+  readonly policyVersion: string;
+  readonly service: string;
+  readonly amount: number;
+  readonly previousTreasury: number;
+  readonly nextTreasury: number;
+  readonly settledAt: number;
+  readonly fundingDestination: 'public-service-account';
+};
+
+/**
+ * An agent deposits cash into the town bank (transfer agent → bank account;
+ * moneySupply unchanged). The bank slice is created by the first credit event
+ * when the scenario did not seed bank reserves.
+ */
+export type DepositMadePayload = {
+  readonly agentId: AgentId;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/** An agent withdraws from its deposit ledger (transfer bank → agent). */
+export type WithdrawalMadePayload = {
+  readonly agentId: AgentId;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/** Loan approval is issuance (transfer bank → borrower of the principal). */
+export type LoanIssuedPayload = {
+  readonly loanId: LoanId;
+  readonly borrowerAgentId: AgentId;
+  readonly principal: number;
+  readonly dailyInterestRate: number;
+  readonly termDays: number;
+  readonly issuedAt: number;
+  readonly borrowerPreviousBalance: number;
+  readonly borrowerNextBalance: number;
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/**
+ * One daily loan settlement: the day's interest accrual plus the cash
+ * auto-collected from the borrower (transfer borrower → bank; zero on a fully
+ * missed day, in which case no accounting transfer is checked). Repayment
+ * applies interest-first, then principal; `status: 'repaid'` closes the loan
+ * and increments the borrower's repaid credit history.
+ */
+export type LoanRepaidPayload = {
+  readonly loanId: LoanId;
+  readonly borrowerAgentId: AgentId;
+  readonly settledAt: number;
+  readonly interestAccrued: number;
+  readonly paidAmount: number;
+  readonly interestPaid: number;
+  readonly principalPaid: number;
+  readonly missedPayments: number;
+  readonly status: 'active' | 'repaid';
+  readonly borrowerPreviousBalance: number;
+  readonly borrowerNextBalance: number;
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/**
+ * A loan crossed the missed-payment grace threshold at a daily settlement.
+ * The partial payment collected that day (if any) still settles as a
+ * transfer; the outstanding principal/interest stay on the book as the
+ * bank's recorded loss and the borrower's defaulted credit history grows.
+ */
+export type LoanDefaultedPayload = {
+  readonly loanId: LoanId;
+  readonly borrowerAgentId: AgentId;
+  readonly defaultedAt: number;
+  readonly interestAccrued: number;
+  readonly paidAmount: number;
+  readonly interestPaid: number;
+  readonly principalPaid: number;
+  readonly missedPayments: number;
+  readonly outstandingPrincipal: number;
+  readonly outstandingInterest: number;
+  readonly borrowerPreviousBalance: number;
+  readonly borrowerNextBalance: number;
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/**
+ * Daily deposit interest paid out of the bank cash account (transfers bank →
+ * depositors), batched per accrual cadence. Deposit principal is unchanged.
+ */
+export type DepositInterestPaidPayload = {
+  readonly paidAt: number;
+  readonly payments: readonly {
+    readonly agentId: AgentId;
+    readonly amount: number;
+    readonly previousBalance: number;
+    readonly nextBalance: number;
+  }[];
+  readonly bankPreviousBalance: number;
+  readonly bankNextBalance: number;
+  readonly policyVersion: string;
 };
 
 export type CommodityProducedPayload = {
@@ -222,6 +524,7 @@ export type CommodityProducedPayload = {
   readonly satietyCost: number;
   readonly laborSeconds: number;
   readonly productionEfficiency?: number;
+  readonly enterpriseId?: string;
 };
 
 export type TradeExecutedPayload = {
@@ -244,6 +547,7 @@ export type TradeExecutedPayload = {
    * replayable against the single global pool.
    */
   readonly regionId?: string;
+  readonly enterpriseId?: string;
 };
 
 export type ResourceTransferredPayload = {
@@ -262,6 +566,97 @@ export type MarketPriceIndexRecordedPayload = {
   readonly foodCount: number;
   readonly nonFoodCount: number;
   readonly ratios: Readonly<Record<string, number>>;
+};
+
+/**
+ * Per-tick observability snapshot of the town's economic composition, recorded
+ * by the worker market-metrics channel after agent actions settle. Purely a
+ * read-model fact: every field is derived from authoritative projection state
+ * at `recordedAt` and the event never changes economic state on replay.
+ *
+ * `composition` splits where currency sits: the first four sectors are the
+ * circulating accounts whose sum tracks `moneySupply` (agent, enterprise,
+ * treasury, town-bank cash); `ammPoolCurrency` is the currency locked in AMM
+ * pools and `ammPoolCommodityValue` the same pools' commodity reserves valued
+ * at each pool's spot price; `externalNetInflow` is the cumulative net
+ * currency the external market injected into domestic pools
+ * (`externalMarket.currencyReserveNetImports`, 0 before any rebalance).
+ *
+ * `enterprises.bankruptTotal` is the cumulative count of enterprises ever
+ * declared bankrupt (the projection keeps the tally because a closed
+ * enterprise's status no longer records the reason). `gini` measures
+ * inequality over agent net worth (balance + inventory valued at town-wide
+ * spot prices); 0 when no agents exist. `deposits` and `loansOutstanding`
+ * (principal + accrued interest of active loans) read the town bank, 0 when
+ * no bank exists.
+ */
+export type EconomicCompositionRecordedPayload = {
+  readonly recordedAt: number;
+  readonly moneySupply: number;
+  readonly composition: {
+    readonly agents: number;
+    readonly enterprises: number;
+    readonly treasury: number;
+    readonly bank: number;
+    readonly ammPoolCurrency: number;
+    readonly ammPoolCommodityValue: number;
+    readonly externalNetInflow: number;
+  };
+  readonly enterprises: {
+    readonly total: number;
+    readonly active: number;
+    readonly insolvent: number;
+    readonly bankruptTotal: number;
+  };
+  readonly gini: number;
+  readonly deposits: number;
+  readonly loansOutstanding: number;
+};
+
+export type ExternalMarketRebalancedPayload = {
+  readonly policyVersion: string;
+  readonly commodityName: string;
+  readonly regionId?: string;
+  readonly poolAfter: AmmPool;
+  readonly commodityReserveDelta: number;
+  readonly currencyReserveDelta: number;
+  readonly settledAt: number;
+};
+
+/** Who an external trade settled for: an agent's own account or an enterprise's. */
+export type ExternalTradeActor = { readonly agentId: AgentId } | { readonly enterpriseId: string };
+
+/**
+ * One settled external trade with the external sector. An export credits the
+ * trader from the external sector (injection: moneySupply rises by
+ * `totalCurrency`) and ships the commodity out of the trader's inventory; an
+ * import debits the trader into the external sector (burn: moneySupply falls)
+ * and delivers the commodity. `balanceBefore`/`balanceAfter` carry the rolling
+ * per-commodity net-export balance (positive = net exports) around the trade.
+ */
+export type ExternalTradeExecutedPayload = {
+  readonly trader: ExternalTradeActor;
+  readonly direction: 'export' | 'import';
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly unitPrice: number;
+  readonly totalCurrency: number;
+  readonly balanceBefore: number;
+  readonly balanceAfter: number;
+  readonly spotPrice: number;
+  readonly policyVersion: string;
+};
+
+/**
+ * One decay cadence of every rolling external-trade balance
+ * (`balance × (1 − decayRatio)`), settled by AdvanceSimulationTime at each
+ * crossed policy cadence boundary. Pure state update: no funds or goods move.
+ */
+export type ExternalTradeBalancesDecayedPayload = {
+  readonly policyVersion: string;
+  readonly balancesBefore: Readonly<Record<string, number>>;
+  readonly balancesAfter: Readonly<Record<string, number>>;
+  readonly decayedAt: number;
 };
 
 export type JobApplicationSubmittedPayload = {
@@ -316,6 +711,27 @@ export type ResidentialUpkeepChargedPayload = {
   readonly previousBalance: number;
   readonly nextBalance: number;
   readonly reason: string;
+};
+
+export type ResidentialUpkeepArrearsUpdatedPayload = {
+  readonly agentId: AgentId;
+  readonly previousArrears: number;
+  readonly nextArrears: number;
+  readonly reason: string;
+};
+
+export type ResidentialTierDowngradedPayload = {
+  readonly agentId: AgentId;
+  readonly previousResidentialTier: number;
+  readonly nextResidentialTier: number;
+  readonly arrearsCleared: number;
+  readonly reason: string;
+};
+
+export type AgentTimeEffectsSettledPayload = {
+  readonly agentId: AgentId;
+  readonly previousSettledAt: number;
+  readonly nextSettledAt: number;
 };
 
 export type MedicalTreatmentChargedPayload = {
@@ -551,13 +967,22 @@ export type WorldEventPayloadByType = {
   readonly CommodityProduced: CommodityProducedPayload;
   readonly TradeExecuted: TradeExecutedPayload;
   readonly ResourceTransferred: ResourceTransferredPayload;
+  readonly CommodityConsumed: CommodityConsumedPayload;
+  readonly DurableGoodExpired: DurableGoodExpiredPayload;
   readonly MarketPriceIndexRecorded: MarketPriceIndexRecordedPayload;
+  readonly EconomicCompositionRecorded: EconomicCompositionRecordedPayload;
+  readonly ExternalMarketRebalanced: ExternalMarketRebalancedPayload;
+  readonly ExternalTradeExecuted: ExternalTradeExecutedPayload;
+  readonly ExternalTradeBalancesDecayed: ExternalTradeBalancesDecayedPayload;
   readonly JobApplicationSubmitted: JobApplicationSubmittedPayload;
   readonly JobApplicationResolved: JobApplicationResolvedPayload;
   readonly JobAssigned: JobAssignedPayload;
   readonly RecruitmentCycleCompleted: RecruitmentCycleCompletedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
+  readonly ResidentialTierDowngraded: ResidentialTierDowngradedPayload;
   readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;
+  readonly ResidentialUpkeepArrearsUpdated: ResidentialUpkeepArrearsUpdatedPayload;
+  readonly AgentTimeEffectsSettled: AgentTimeEffectsSettledPayload;
   readonly MedicalTreatmentCharged: MedicalTreatmentChargedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;
   readonly AgentTravelStarted: AgentTravelStartedPayload;
@@ -572,7 +997,29 @@ export type WorldEventPayloadByType = {
   readonly EducationChanged: EducationChangedPayload;
   readonly AgentActivityTimeCommitted: AgentActivityTimeCommittedPayload;
   readonly WagePaid: WagePaidPayload;
+  readonly EnterpriseFounded: EnterpriseFoundedPayload;
+  readonly EnterpriseMemberJoined: EnterpriseMemberJoinedPayload;
+  readonly EnterpriseFunded: EnterpriseFundedPayload;
+  readonly EnterpriseInsolvencyStarted: EnterpriseInsolvencyStartedPayload;
+  readonly EnterpriseSolvencyRestored: EnterpriseSolvencyRestoredPayload;
+  readonly EnterpriseBankruptcyDeclared: EnterpriseBankruptcyDeclaredPayload;
+  readonly EnterpriseDividendPaid: EnterpriseDividendPaidPayload;
+  readonly EnterpriseClosed: EnterpriseClosedPayload;
+  readonly EnterpriseJobPostingUpdated: EnterpriseJobPostingUpdatedPayload;
+  readonly EnterpriseEmployeeLeft: EnterpriseEmployeeLeftPayload;
+  readonly EnterpriseEmployeeLaidOff: EnterpriseEmployeeLaidOffPayload;
+  readonly EnterpriseWageArrearsUpdated: EnterpriseWageArrearsUpdatedPayload;
+  readonly IncomeTaxCharged: IncomeTaxChargedPayload;
+  readonly TradeTaxCharged: TradeTaxChargedPayload;
+  readonly DividendTaxCharged: DividendTaxChargedPayload;
   readonly SubsidyPaid: SubsidyPaidPayload;
+  readonly PublicBudgetSpent: PublicBudgetSpentPayload;
+  readonly DepositMade: DepositMadePayload;
+  readonly WithdrawalMade: WithdrawalMadePayload;
+  readonly LoanIssued: LoanIssuedPayload;
+  readonly LoanRepaid: LoanRepaidPayload;
+  readonly LoanDefaulted: LoanDefaultedPayload;
+  readonly DepositInterestPaid: DepositInterestPaidPayload;
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;

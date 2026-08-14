@@ -1,4 +1,7 @@
-import type { ActionSynthesisPolicy } from '@aivilization/agent-runtime';
+import type {
+  ActionSynthesisLifestyleConstraint,
+  ActionSynthesisPolicy,
+} from '@aivilization/agent-runtime';
 import type { WorldAgentState } from '@aivilization/world';
 
 export type WorldStateActionSynthesisPolicyConfig = {
@@ -15,6 +18,12 @@ export type WorldStateActionSynthesisPolicyConfig = {
 export function deriveActionSynthesisPolicyFromWorldState(input: {
   readonly agent: WorldAgentState;
   readonly config?: WorldStateActionSynthesisPolicyConfig;
+  /**
+   * Optional wealth-tier constraint (already evaluated against the lifestyle
+   * policy). Passed through to the synthesis policy so the struggling-tier
+   * non-survival spend cap is enforced deterministically.
+   */
+  readonly lifestyle?: ActionSynthesisLifestyleConstraint;
 }): ActionSynthesisPolicy {
   const config = normalizeConfig(input.config);
   return {
@@ -22,6 +31,7 @@ export function deriveActionSynthesisPolicyFromWorldState(input: {
     ...(config.candidateSubtasks === undefined
       ? {}
       : { candidateSubtasks: config.candidateSubtasks }),
+    ...(input.lifestyle === undefined ? {} : { lifestyle: input.lifestyle }),
     budget: {
       ...(config.planningWindowSeconds === undefined
         ? {}

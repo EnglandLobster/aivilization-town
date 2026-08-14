@@ -19,7 +19,70 @@ export type ResidentialUpkeepCost = {
 
 export type ResidentialUpkeepPolicy = {
   readonly costs: readonly ResidentialUpkeepCost[];
+  /**
+   * Hours of unpaid upkeep (priced at the agent's current tier rate) that may
+   * accumulate before the household is forcibly downgraded one tier. Optional;
+   * when omitted, arrears never trigger a downgrade (legacy behavior).
+   */
+  readonly arrearsDowngradeThresholdHours?: number;
 };
+
+export type ResidentialArrearsDecision =
+  | {
+      readonly status: 'downgrade';
+      readonly previousResidentialTier: number;
+      readonly nextResidentialTier: number;
+      readonly arrearsCleared: number;
+    }
+  | {
+      readonly status: 'carry';
+      readonly reason: 'below-threshold' | 'lowest-tier' | 'threshold-disabled' | 'zero-cost';
+    };
+
+/**
+ * Evaluates whether accumulated upkeep arrears force a one-tier downgrade.
+ * Mirrors the real-world mechanic that persistent unpaid housing costs lead to
+ * losing the current home (Cities: Skylines II: households whose rent exceeds
+ * income move away; here the population policy keeps agents in town, so the
+ * consequence is a forced downgrade instead).
+ */
+export function evaluateResidentialArrears(input: {
+  readonly residentialTier: number;
+  readonly nextArrears: number;
+  readonly policy: ResidentialUpkeepPolicy;
+}): ResidentialArrearsDecision {
+  if (!isPositiveInteger(input.residentialTier)) {
+    throw new Error('residentialTier must be a positive integer');
+  }
+  if (!isNonNegativeFinite(input.nextArrears)) {
+    throw new Error('nextArrears must be non-negative');
+  }
+  const thresholdHours = input.policy.arrearsDowngradeThresholdHours;
+  if (thresholdHours === undefined) {
+    return { status: 'carry', reason: 'threshold-disabled' };
+  }
+  if (!isNonNegativeFinite(thresholdHours)) {
+    throw new Error('arrearsDowngradeThresholdHours must be non-negative');
+  }
+  const cost = input.policy.costs.find(
+    (candidate) => candidate.residentialTier === input.residentialTier,
+  );
+  if (cost === undefined || cost.currencyCostPerHour === 0) {
+    return { status: 'carry', reason: 'zero-cost' };
+  }
+  if (input.nextArrears < cost.currencyCostPerHour * thresholdHours) {
+    return { status: 'carry', reason: 'below-threshold' };
+  }
+  if (input.residentialTier <= 1) {
+    return { status: 'carry', reason: 'lowest-tier' };
+  }
+  return {
+    status: 'downgrade',
+    previousResidentialTier: input.residentialTier,
+    nextResidentialTier: input.residentialTier - 1,
+    arrearsCleared: input.nextArrears,
+  };
+}
 
 export type ResidentialTierUpgradeAgentState = {
   readonly residentialTier: number;

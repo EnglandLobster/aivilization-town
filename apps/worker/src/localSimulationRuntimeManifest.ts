@@ -47,6 +47,18 @@ export type LocalSimulationRuntimePartitionManifest = {
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly moneySupply?: number;
   /**
+   * Optional initial public treasury for this partition. Present enables the
+   * fiscal feature from bootstrap (treasury-funded public wages); the seed
+   * moneySupply must include it because the treasury is a circulating account.
+   */
+  readonly initialTreasury?: number;
+  /**
+   * Optional initial town-bank cash reserves for this partition. Present seeds
+   * the bank from bootstrap (loan issuance draws on reserves); the seed
+   * moneySupply must include it because the bank cash account circulates.
+   */
+  readonly initialBankReserves?: number;
+  /**
    * Explicit location affinity: Agents moving to one of these locations become
    * owned by this partition once the move commits. Partitions are a repository
    * scaling device the paper does not define, so affinity must be declared
@@ -77,6 +89,8 @@ export type ResolvedLocalSimulationRuntimePartition = {
   readonly commandConsumerId: CommandConsumerId;
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly moneySupply?: number;
+  readonly initialTreasury?: number;
+  readonly initialBankReserves?: number;
   readonly ownedLocationIds?: readonly string[];
 };
 
@@ -183,6 +197,10 @@ export function createLocalSimulationBackendRegistrationsFromResolvedManifest(
         preset: partition.preset,
         ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
         ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+        ...(partition.initialTreasury === undefined ? {} : { treasury: partition.initialTreasury }),
+        ...(partition.initialBankReserves === undefined
+          ? {}
+          : { bankReserves: partition.initialBankReserves }),
       }),
       policies: input.policies,
       localizedPlanners: input.localizedPlanners,
@@ -254,6 +272,12 @@ function resolvePartitionManifest(
       partition.commandConsumerId ?? createDefaultCommandConsumerId(manifest.defaults, partition),
     ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
     ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+    ...(partition.initialTreasury === undefined
+      ? {}
+      : { initialTreasury: partition.initialTreasury }),
+    ...(partition.initialBankReserves === undefined
+      ? {}
+      : { initialBankReserves: partition.initialBankReserves }),
     ...(partition.ownedLocationIds === undefined
       ? {}
       : { ownedLocationIds: [...partition.ownedLocationIds] }),

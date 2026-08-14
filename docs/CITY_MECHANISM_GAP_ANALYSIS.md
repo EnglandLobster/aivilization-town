@@ -77,6 +77,31 @@
   Town 页为静态地图 + overlay。
 - 缺：活的城市视图——Agent 实时移动、建筑生长、地价热力图、事件流 ticker。
 
+## 经济系统改造进展（2026-08-13，已落地）
+
+对标 Cities: Skylines II 反编译分析（`docs/reports/CS2_ECONOMY_SYSTEM_ANALYSIS.md`、
+`docs/reports/CS2_VS_OUR_ECONOMY_COMPARISON.md`），E 节（宏观治理与财政）已从零推进到基本闭环，
+全部按 `docs/ECONOMY_DDD_ARCHITECTURE.md` 的 DDD 边界落地：
+
+- **货币会计闭环**：mint/burn/transfer 三分类不变量（`packages/world/src/moneyAccounting.test.ts`），
+  工资/住宅升级/维护/医疗/教育全部归入口径；`packages/economy/src/accounting.ts` 复式记账。
+- **行为后果**：住宅欠费 arrears 累计超阈 → 强制降档（`society/residential.ts` `evaluateResidentialArrears`）。
+- **税收与财政**：工资累进税 + 交易税 + 分红税（`society/tax.ts`）；公共财政池 treasury
+  （补贴、公共预算、公共工资从池出，池赤字则打折——agent 可感知"政府欠薪"）。
+- **企业层**：新 bounded context `packages/enterprise`——创办/注资/招聘/欠薪/裁员/分红/
+  偿付宽限/破产清算；企业作为主体参与 AMM 交易与出口；`AgentWork` 工资由雇主账户支付。
+- **金融**：新 bounded context `packages/credit`——镇银行存款计息、贷款真实还本付息、
+  违约信用记录、准备金约束。
+- **镇外贸易**：滚动贸易平衡 + √balance 冲击定价（`economy/externalTrade.ts`），
+  出口=注入、进口=销毁，货币政策阀门成立。
+- **贫富分化**：lifestyle 四档（`society/lifestyle.ts`）+ 拮据档非生存消费护栏。
+- **观测**：每 tick `EconomicCompositionRecorded`（货币部门构成、企业统计、Gini、存款/贷款余额）。
+- **性能**：时间型结算可选分帧摊销（`timeSettlementAmortization`，canonical 默认关）。
+
+剩余缺口（未变）：A 空间/建造、B 交通物流、C 服务短缺动力学、D 人口生命周期、
+E 的治理命令面（税率/预算仍是参数而非参与者可调命令）、3.x 的 LLM 自主企业/外贸动作
+（命令层已就绪，`actionRepair.ts` 动作集未打开）。
+
 ## 推进顺序建议（按 ROI，尊重确定性 event-sourcing + authority 三关：确定性/replay/幂等）
 
 1. **F 昼夜/日历 + D 生理被动衰减**：小改动，小镇立刻"有日子过"。

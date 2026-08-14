@@ -1,4 +1,5 @@
 import type {
+  ActionSynthesisLifestyleConstraint,
   ActionWithRepairResult,
   ActionSimulationTraceEvent,
   AtomicActionProposal,
@@ -20,6 +21,8 @@ import {
   type SimulationId,
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
+import { calculateNetWorth } from '@aivilization/economy';
+import { evaluateLifestyleTier } from '@aivilization/society';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
@@ -27,6 +30,8 @@ import {
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
+  type WorldAgentState,
+  type WorldCommandPolicies,
   type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
@@ -36,6 +41,7 @@ import {
   resolveResidentialTargetTier,
   type CanonicalDomainRuntimeConfig,
 } from './canonicalDomainRuntimes';
+import { resolveAgentMarketPools, type WorldDecisionMarketOverride } from './worldDecisionContext';
 import { createCanonicalLocalRepairPolicy } from './canonicalLocalRepair';
 import {
   createDomainRuntimeResolver,
@@ -93,6 +99,12 @@ export function createCanonicalWorkerRuntimeResolver(
       policies: config.policies,
       projection: context.projection,
     });
+    const lifestyle = resolveLifestyleSynthesisConstraint({
+      agent: context.agent,
+      projection: context.projection,
+      policies,
+      ...(context.marketOverride === undefined ? {} : { marketOverride: context.marketOverride }),
+    });
     const repair = config.repair ?? createCanonicalLocalRepairPolicy({ policies });
     const registryResolver = createDomainRuntimeResolver({
       registrations: [
@@ -115,6 +127,7 @@ export function createCanonicalWorkerRuntimeResolver(
             actionSynthesis: deriveActionSynthesisPolicyFromWorldState({
               agent: context.agent,
               ...(config.actionSynthesis === undefined ? {} : { config: config.actionSynthesis }),
+              ...(lifestyle === undefined ? {} : { lifestyle }),
             }),
           }),
       simulate: createWorldCommandDryRunSimulator({
@@ -445,4 +458,40 @@ function summarizeWorldEvent(event: WorldEvent): string | undefined {
 
 function formatSignedNumber(value: number): string {
   return value >= 0 ? `+${value}` : `${value}`;
+}
+
+/**
+ * Evaluate the agent's lifestyle tier against the resolved command policies so
+ * the action-synthesis budgets can cap struggling-tier non-survival spending.
+ * Uses the same region-filtered, override-aware pools as the standard planning
+ * path; returns undefined when no lifestyle policy is configured.
+ * Survival commodities are the food commodities the world credits satiety for.
+ */
+function resolveLifestyleSynthesisConstraint(input: {
+  readonly agent: WorldAgentState;
+  readonly projection: WorldProjection;
+  readonly policies: WorldCommandPolicies;
+  readonly marketOverride?: WorldDecisionMarketOverride;
+}): ActionSynthesisLifestyleConstraint | undefined {
+  const policy = input.policies.lifestyle;
+  if (policy === undefined) {
+    return undefined;
+  }
+  const marketPools = resolveAgentMarketPools({
+    projection: input.projection,
+    agent: input.agent,
+    ...(input.marketOverride === undefined ? {} : { override: input.marketOverride.marketPools }),
+  });
+  return {
+    tier: evaluateLifestyleTier({
+      netWorth: calculateNetWorth({
+        currencyBalance: input.agent.balance,
+        inventory: input.agent.inventory,
+        pools: Object.values(marketPools),
+      }),
+      policy,
+    }),
+    nonSurvivalSpendCapRatio: policy.strugglingNonSurvivalSpendCapRatio,
+    survivalCommodities: Object.keys(input.policies.satietyRecoveryByCommodity),
+  };
 }

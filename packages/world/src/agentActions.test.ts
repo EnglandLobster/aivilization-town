@@ -1235,7 +1235,11 @@ describe('agent work command handling', () => {
       'AgentActivityTimeCommitted',
       'ShortTermMemoryRecorded',
     ]);
-    expect(events[0]?.payload).toMatchObject({ agentId: 'agent-1', amount: 300 });
+    expect(events[0]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      amount: 300,
+      fundingSource: 'mint',
+    });
     expect(events[1]?.payload).toMatchObject({
       next: { energy: 90, satiety: 60, health: 100 },
     });
@@ -1243,6 +1247,125 @@ describe('agent work command handling', () => {
     const updated = events.reduce(applyWorldEvent, projection);
     expect(updated.agents['agent-1']?.balance).toBe(350);
     expect(updated.memoryRecords[0]?.status).toBe('succeeded');
+  });
+
+  test('AgentWork charges progressive income tax into the treasury when a tax policy is present', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentWorkCommand({
+      command: createCommandEnvelope({
+        id: 'command-work-taxed',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+        issuedAt: 30,
+      }),
+      projection,
+      wageCalculator: () => 1000,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 20 },
+      criticalThresholds: { energy: 1, health: 1 },
+      tax: {
+        policyVersion: 'tax-regime-test',
+        neutralRate: 0.1,
+        incomeTaxBrackets: [
+          { upToAmount: 300, rate: 0 },
+          { upToAmount: 800, rate: 0.08 },
+          { upToAmount: null, rate: 0.12 },
+        ],
+        tradeTaxRate: 0.05,
+        source: 'test',
+      },
+      nextSequence: 1,
+    });
+
+    // 300 at 0% + 500 at 8% + 200 at 12% = 64
+    expect(events.map((event) => event.type)).toEqual([
+      'WagePaid',
+      'IncomeTaxCharged',
+      'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(events[1]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      occupationName: 'Cleaner',
+      taxableAmount: 1000,
+      amount: 64,
+      previousBalance: 1050,
+      nextBalance: 986,
+    });
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBe(986);
+    // The tax is a transfer: the treasury grows while the supply only reflects
+    // the minted wage.
+    expect(updated.treasury).toBe(64);
+    expect(updated.moneySupply).toBe(2000);
+  });
+
+  test('AgentWork skips the tax event when the wage sits in the tax-free bracket', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 50,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+    });
+
+    const events = handleAgentWorkCommand({
+      command: createCommandEnvelope({
+        id: 'command-work-untaxed',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentWork',
+        payload: { occupationName: 'Cleaner', laborSeconds: 3600 },
+        issuedAt: 30,
+      }),
+      projection,
+      wageCalculator: () => 300,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 20 },
+      criticalThresholds: { energy: 1, health: 1 },
+      tax: {
+        policyVersion: 'tax-regime-test',
+        neutralRate: 0.1,
+        incomeTaxBrackets: [
+          { upToAmount: 300, rate: 0 },
+          { upToAmount: null, rate: 0.12 },
+        ],
+        tradeTaxRate: 0.05,
+        source: 'test',
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'WagePaid',
+      'PhysiologyChanged',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.treasury).toBeUndefined();
   });
 
   test('dispatchWorldCommand routes AgentStudy commands through the world handler', () => {
@@ -1852,6 +1975,69 @@ describe('agent trade command handling', () => {
     expect(updated.marketPools['Apple']?.commodityReserve).toBe(110);
   });
 
+  test('AgentTrade sell charges trade tax on the proceeds when a tax policy is present', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: { Apple: 10 },
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+      moneySupply: 1000,
+    });
+
+    const events = handleAgentTradeCommand({
+      command: createCommandEnvelope({
+        id: 'command-trade-sell-taxed',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentTrade',
+        payload: { side: 'sell', commodityName: 'Apple', quantity: 10 },
+        issuedAt: 60,
+      }),
+      projection,
+      tax: {
+        policyVersion: 'tax-regime-test',
+        neutralRate: 0.1,
+        incomeTaxBrackets: [{ upToAmount: null, rate: 0.12 }],
+        tradeTaxRate: 0.05,
+        source: 'test',
+      },
+      nextSequence: 1,
+    });
+
+    // Sale proceeds are 1000*10/110 = 90.909…; the trade tax is 5% of that.
+    expect(events.map((event) => event.type)).toEqual([
+      'TradeExecuted',
+      'TradeTaxCharged',
+      'ShortTermMemoryRecorded',
+    ]);
+    const taxEvent = events[1];
+    if (taxEvent?.type !== 'TradeTaxCharged') {
+      throw new Error('expected TradeTaxCharged event');
+    }
+    expect(taxEvent.payload.commodityName).toBe('Apple');
+    expect(taxEvent.payload.saleProceeds).toBeCloseTo(90.9090909091);
+    expect(taxEvent.payload.amount).toBeCloseTo(4.5454545455);
+    expect(taxEvent.payload.previousBalance).toBeCloseTo(190.9090909091);
+    expect(taxEvent.payload.nextBalance).toBeCloseTo(186.3636363636);
+
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-1']?.balance).toBeCloseTo(186.3636363636);
+    expect(updated.treasury).toBeCloseTo(4.5454545455);
+    // The tax itself is a transfer: the supply only moves by the AMM payout
+    // (90.909…), exactly as an untaxed sell would.
+    expect(updated.moneySupply).toBeCloseTo(1090.9090909091);
+  });
+
   test('AgentTrade rejects insufficient balance on buy', () => {
     const projection = createWorldProjection({
       agents: [
@@ -1985,10 +2171,7 @@ describe('agent trade command handling', () => {
       nextSequence: 1,
     });
 
-    expect(events.map((event) => event.type)).toEqual([
-      'TradeExecuted',
-      'ShortTermMemoryRecorded',
-    ]);
+    expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
     if (events[0]?.type !== 'TradeExecuted') {
       throw new Error('expected trade to succeed under legacy global pool');
     }
@@ -2033,8 +2216,18 @@ describe('agent trade command handling', () => {
       ],
       // downtown pool has spot 10 (1000/100), harbor pool has spot 4 (200/50)
       marketPools: [
-        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000, regionId: 'downtown' }),
-        createAmmPool({ commodity: 'Apple', commodityReserve: 50, currencyReserve: 200, regionId: 'harbor' }),
+        createAmmPool({
+          commodity: 'Apple',
+          commodityReserve: 100,
+          currencyReserve: 1000,
+          regionId: 'downtown',
+        }),
+        createAmmPool({
+          commodity: 'Apple',
+          commodityReserve: 50,
+          currencyReserve: 200,
+          regionId: 'harbor',
+        }),
       ],
       moneySupply: 1200,
     });
@@ -2054,10 +2247,7 @@ describe('agent trade command handling', () => {
       nextSequence: 1,
     });
 
-    expect(events.map((event) => event.type)).toEqual([
-      'TradeExecuted',
-      'ShortTermMemoryRecorded',
-    ]);
+    expect(events.map((event) => event.type)).toEqual(['TradeExecuted', 'ShortTermMemoryRecorded']);
     if (events[0]?.type !== 'TradeExecuted') {
       throw new Error('expected regional trade to succeed');
     }
@@ -2103,7 +2293,12 @@ describe('agent trade command handling', () => {
         },
       ],
       marketPools: [
-        createAmmPool({ commodity: 'Apple', commodityReserve: 50, currencyReserve: 200, regionId: 'harbor' }),
+        createAmmPool({
+          commodity: 'Apple',
+          commodityReserve: 50,
+          currencyReserve: 200,
+          regionId: 'harbor',
+        }),
       ],
       moneySupply: 200,
     });

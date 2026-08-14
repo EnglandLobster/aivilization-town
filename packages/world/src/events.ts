@@ -720,6 +720,26 @@ export type ResidentialUpkeepArrearsUpdatedPayload = {
   readonly reason: string;
 };
 
+/**
+ * Regional land value index fact, emitted by the world at each land value
+ * cadence boundary. The index is a deterministic function of the previous
+ * index and the recorded regional inputs (population, market liquidity)
+ * smoothed per the land value policy; it only modulates housing upkeep
+ * pricing and never moves currency by itself. Payload carries the inputs and
+ * policy version so the pricing basis stays auditable and replayable.
+ */
+export type RegionalLandValueUpdatedPayload = {
+  readonly regionId: string;
+  readonly previousIndex: number;
+  readonly nextIndex: number;
+  readonly rawIndex: number;
+  readonly agentCount: number;
+  readonly marketLiquidity: number;
+  readonly policyVersion: string;
+  readonly settledAt: number;
+  readonly reason: 'land-value-cadence';
+};
+
 export type ResidentialTierDowngradedPayload = {
   readonly agentId: AgentId;
   readonly previousResidentialTier: number;
@@ -982,6 +1002,7 @@ export type WorldEventPayloadByType = {
   readonly ResidentialTierDowngraded: ResidentialTierDowngradedPayload;
   readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;
   readonly ResidentialUpkeepArrearsUpdated: ResidentialUpkeepArrearsUpdatedPayload;
+  readonly RegionalLandValueUpdated: RegionalLandValueUpdatedPayload;
   readonly AgentTimeEffectsSettled: AgentTimeEffectsSettledPayload;
   readonly MedicalTreatmentCharged: MedicalTreatmentChargedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;

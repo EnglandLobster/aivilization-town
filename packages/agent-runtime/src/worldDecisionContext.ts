@@ -15,6 +15,25 @@ export type WorldDecisionAgentContext = {
   /** Accumulated unpaid residential upkeep; absent or zero when the household is current. */
   readonly upkeepArrears?: number;
   /**
+   * Region the agent currently belongs to (resolved from its location, the
+   * same source authoritative trade gating and upkeep pricing use). Present
+   * only when the resolved command policies carry residential upkeep pricing.
+   */
+  readonly regionId?: string;
+  /**
+   * Latest smoothed land value index for the agent's region, straight from the
+   * projection slice the authoritative upkeep settlement reads. Present only
+   * once a land value policy has produced an index for the region.
+   */
+  readonly regionalLandValueIndex?: number;
+  /**
+   * Effective per-hour residential upkeep rate for the agent's current tier
+   * and region (base tier cost plus the land value term), resolved with the
+   * same function and policy the settlement uses. Absent when the tier has no
+   * configured upkeep cost.
+   */
+  readonly residentialUpkeepRatePerHour?: number;
+  /**
    * Optional town-bank banking view of this agent. Present only when the
    * resolved command policies carry a credit policy; exposes the deposit
    * balance, active loans, credit history, and the policy rates/limit for

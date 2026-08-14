@@ -32,6 +32,7 @@ export type CoreEventType =
   | 'ResidentialTierDowngraded'
   | 'ResidentialUpkeepCharged'
   | 'ResidentialUpkeepArrearsUpdated'
+  | 'RegionalLandValueUpdated'
   | 'AgentTimeEffectsSettled'
   | 'MedicalTreatmentCharged'
   | 'WagePaid'

@@ -12,14 +12,18 @@ import type { CreditPolicy } from '@aivilization/credit';
 import {
   applySleepDeprivationHealthDecay,
   applyStochasticIllnessHealthDecay,
+  assertValidLandValuePolicy,
   calculateStochasticIllnessProbabilityPercent,
   calculateCompletedRecruitmentCycleNumbers,
   evaluatePhysiologicalSafetyNet,
+  evaluateRegionalLandValue,
   evaluateResidentialArrears,
   evaluateResidentialUpkeep,
   evaluateSafetyNetSubsidy,
+  resolveResidentialUpkeepRate,
   settlePublicBudget,
   resolveRecruitmentCycle,
+  type LandValuePolicy,
   type PhysiologicalSafetyNetPolicy,
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
@@ -33,6 +37,12 @@ import {
 import { assertAdvanceSimulationTimePayload } from '../commands';
 import type { WorldEvent } from '../events';
 import { applyWorldEvent, type WorldAgentState, type WorldProjection } from '../projection';
+import {
+  regionIdFromPoolKey,
+  resolveAgentRegion,
+  resolveMarketPoolKey,
+  resolveRegionId,
+} from '../regionalMarkets';
 import {
   assertTownWeatherPolicy,
   isTownWeatherTransitionDue,
@@ -55,6 +65,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly weather?: TownWeatherPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
+  readonly landValue?: LandValuePolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   readonly recruitmentCycle?: RecruitmentCyclePolicy;
@@ -101,6 +112,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
     nextSimulationTime: next.now,
   });
   appendPublicBudgetEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+  });
+  // Land value re-evaluation precedes upkeep settlement so the same tick's
+  // housing charges price against the freshly updated index timeline.
+  const landValue = appendRegionalLandValueEvents({
     input,
     events,
     previousSimulationTime: previous.now,
@@ -277,80 +296,114 @@ export function handleAdvanceSimulationTimeCommand(input: {
         if (!shouldSettleAgent(agent)) {
           continue;
         }
-        const currentTier = tierByAgent.get(agent.agentId) ?? agent.residentialTier;
-        const decision = evaluateResidentialUpkeep({
-          residentialTier: currentTier,
-          balance: getCurrentBalance(balanceByAgent, agent),
-          durationSeconds: agentDurationSeconds(agent),
-          policy: input.residentialUpkeep,
-        });
-        if (decision.status === 'rejected') {
-          throw new Error(decision.detail);
-        }
-        if (decision.status === 'uncharged') {
-          continue;
-        }
-        events.push(
-          makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
-            agentId: agent.agentId,
-            residentialTier: decision.residentialTier,
-            amount: decision.amount,
-            unpaidAmount: decision.unpaidAmount,
-            previousBalance: decision.previousBalance,
-            nextBalance: decision.nextBalance,
-            reason: 'residential-upkeep',
-          }),
-        );
-        balanceByAgent.set(agent.agentId, decision.nextBalance);
+        let currentTier = tierByAgent.get(agent.agentId) ?? agent.residentialTier;
+        // With a land value policy the interval is segmented at every index
+        // boundary and each segment priced at its own effective rate; without
+        // one the whole interval prices flat (legacy v1 behavior). Arrears
+        // are evaluated after each priced segment so a merged advance
+        // downgrades at the same point step-by-step advances would.
+        const interval = currentInterval(agent);
+        const segments =
+          landValue === undefined
+            ? [{ durationSeconds: agentDurationSeconds(agent) }]
+            : resolveUpkeepRateSegments({
+                previousSimulationTime: interval.previousSimulationTime,
+                currentSimulationTime: interval.currentSimulationTime,
+                regionId: resolveAgentRegion({
+                  projection: input.projection,
+                  agentLocationId: agent.locationId,
+                }),
+                timeline: landValue.timeline,
+              });
+        for (const segment of segments) {
+          const decision = evaluateResidentialUpkeep({
+            residentialTier: currentTier,
+            balance: getCurrentBalance(balanceByAgent, agent),
+            durationSeconds: segment.durationSeconds,
+            policy: input.residentialUpkeep,
+            ...(segment.landValueIndex === undefined
+              ? {}
+              : { landValueIndex: segment.landValueIndex }),
+          });
+          if (decision.status === 'rejected') {
+            throw new Error(decision.detail);
+          }
+          if (decision.status === 'uncharged') {
+            continue;
+          }
+          events.push(
+            makeEvent(input, events.length, 'ResidentialUpkeepCharged', {
+              agentId: agent.agentId,
+              residentialTier: decision.residentialTier,
+              amount: decision.amount,
+              unpaidAmount: decision.unpaidAmount,
+              previousBalance: decision.previousBalance,
+              nextBalance: decision.nextBalance,
+              reason: 'residential-upkeep',
+            }),
+          );
+          balanceByAgent.set(agent.agentId, decision.nextBalance);
 
-        if (decision.unpaidAmount <= 0) {
-          continue;
-        }
-        const previousArrears = arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0;
-        const nextArrears = previousArrears + decision.unpaidAmount;
-        const arrearsDecision = evaluateResidentialArrears({
-          residentialTier: currentTier,
-          nextArrears,
-          policy: input.residentialUpkeep,
-        });
-        if (arrearsDecision.status === 'downgrade') {
-          const downgradeOffset = events.length;
-          events.push(
-            makeEvent(input, downgradeOffset, 'ResidentialTierDowngraded', {
-              agentId: agent.agentId,
-              previousResidentialTier: arrearsDecision.previousResidentialTier,
-              nextResidentialTier: arrearsDecision.nextResidentialTier,
-              arrearsCleared: arrearsDecision.arrearsCleared,
-              reason: 'upkeep-arrears',
-            }),
-          );
-          events.push(
-            makeMemoryEvent(input, events.length, {
-              agentId: agent.agentId,
-              summary: `Could not pay residential upkeep for too long and was downgraded from tier ${arrearsDecision.previousResidentialTier} to tier ${arrearsDecision.nextResidentialTier}.`,
-              status: 'failed',
-              sourceEventOffsets: [downgradeOffset],
-              tags: ['residential-downgrade', 'upkeep-arrears'],
-              consolidationHint: {
-                kind: 'caution',
-                patternKey: 'residential-downgrade:upkeep-arrears',
-                statement:
-                  'Persistently unpaid residential upkeep leads to a forced downgrade to a lower housing tier.',
-              },
-            }),
-          );
-          tierByAgent.set(agent.agentId, arrearsDecision.nextResidentialTier);
-          arrearsByAgent.set(agent.agentId, 0);
-        } else {
-          events.push(
-            makeEvent(input, events.length, 'ResidentialUpkeepArrearsUpdated', {
-              agentId: agent.agentId,
-              previousArrears,
-              nextArrears,
-              reason: 'upkeep-arrears',
-            }),
-          );
-          arrearsByAgent.set(agent.agentId, nextArrears);
+          if (decision.unpaidAmount <= 0) {
+            continue;
+          }
+          const previousArrears = arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0;
+          const nextArrears = previousArrears + decision.unpaidAmount;
+          // The arrears threshold prices against the same effective rate the
+          // segment charge used, so land value pressure cannot desync the two.
+          const effectiveCostPerHour = resolveResidentialUpkeepRate({
+            residentialTier: currentTier,
+            policy: input.residentialUpkeep,
+            ...(segment.landValueIndex === undefined
+              ? {}
+              : { landValueIndex: segment.landValueIndex }),
+          });
+          const arrearsDecision = evaluateResidentialArrears({
+            residentialTier: currentTier,
+            nextArrears,
+            policy: input.residentialUpkeep,
+            ...(effectiveCostPerHour === undefined ? {} : { effectiveCostPerHour }),
+          });
+          if (arrearsDecision.status === 'downgrade') {
+            const downgradeOffset = events.length;
+            events.push(
+              makeEvent(input, downgradeOffset, 'ResidentialTierDowngraded', {
+                agentId: agent.agentId,
+                previousResidentialTier: arrearsDecision.previousResidentialTier,
+                nextResidentialTier: arrearsDecision.nextResidentialTier,
+                arrearsCleared: arrearsDecision.arrearsCleared,
+                reason: 'upkeep-arrears',
+              }),
+            );
+            events.push(
+              makeMemoryEvent(input, events.length, {
+                agentId: agent.agentId,
+                summary: `Could not pay residential upkeep for too long and was downgraded from tier ${arrearsDecision.previousResidentialTier} to tier ${arrearsDecision.nextResidentialTier}.`,
+                status: 'failed',
+                sourceEventOffsets: [downgradeOffset],
+                tags: ['residential-downgrade', 'upkeep-arrears'],
+                consolidationHint: {
+                  kind: 'caution',
+                  patternKey: 'residential-downgrade:upkeep-arrears',
+                  statement:
+                    'Persistently unpaid residential upkeep leads to a forced downgrade to a lower housing tier.',
+                },
+              }),
+            );
+            currentTier = arrearsDecision.nextResidentialTier;
+            tierByAgent.set(agent.agentId, arrearsDecision.nextResidentialTier);
+            arrearsByAgent.set(agent.agentId, 0);
+          } else {
+            events.push(
+              makeEvent(input, events.length, 'ResidentialUpkeepArrearsUpdated', {
+                agentId: agent.agentId,
+                previousArrears,
+                nextArrears,
+                reason: 'upkeep-arrears',
+              }),
+            );
+            arrearsByAgent.set(agent.agentId, nextArrears);
+          }
         }
       }
     }
@@ -567,7 +620,9 @@ function appendExternalTradeBalanceDecayEvents(input: {
         decayExternalTradeBalance({ balance, policy }),
       ]),
     );
-    if (Object.entries(next).every(([commodityName, balance]) => balance === current[commodityName])) {
+    if (
+      Object.entries(next).every(([commodityName, balance]) => balance === current[commodityName])
+    ) {
       continue;
     }
     input.events.push(
@@ -615,6 +670,232 @@ function appendPublicBudgetEvents(input: {
       treasury = decision.nextTreasury;
     }
   }
+}
+
+/**
+ * Re-evaluates the smoothed per-region land value index at every policy
+ * cadence boundary crossed by this advance. Multiple crossed boundaries are
+ * replayed one lerp step at a time (the smoothing is stateful and must not be
+ * merged, matching the public-budget cadence pattern). Returns the index
+ * timeline — initial projection slice plus one snapshot per crossed boundary —
+ * so the same tick's residential upkeep can price each time segment against
+ * the index that was in effect for it (merging a stateful rate across a
+ * boundary would violate cadence equivalence). Undefined when no land value
+ * policy is active (flat v1 upkeep pricing).
+ */
+type RegionalLandValueTimeline = readonly {
+  /** Boundary the snapshot took effect at; NEGATIVE_INFINITY for the initial slice. */
+  readonly settledAt: number;
+  readonly indexByRegion: Readonly<Record<string, number>>;
+}[];
+
+function appendRegionalLandValueEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): { readonly timeline: RegionalLandValueTimeline } | undefined {
+  const policy = input.input.landValue;
+  if (policy === undefined) {
+    return undefined;
+  }
+  assertValidLandValuePolicy(policy);
+  const projection = input.input.projection;
+  const landValueByRegion = new Map<string, number>(
+    Object.entries(projection.regionalLandValues ?? {}),
+  );
+  const timeline: {
+    settledAt: number;
+    indexByRegion: Readonly<Record<string, number>>;
+  }[] = [
+    {
+      // The projection slice keeps only the latest index per region, so
+      // amortized catch-up intervals reaching back before this command settle
+      // at the latest known index. That matches the amortization convention
+      // of pricing elapsed time with settlement-time state (the same way
+      // policy rates apply); exact historical pricing would require retaining
+      // index history beyond the slice.
+      settledAt: Number.NEGATIVE_INFINITY,
+      indexByRegion: Object.fromEntries(landValueByRegion),
+    },
+  ];
+
+  // Regional inputs evolve across the boundaries of a merged advance: travel
+  // arrivals and external-market rebalances taking effect inside the window
+  // are applied boundary by boundary, mirroring what step-by-step advances
+  // would observe from the projection. An effect becomes visible to a
+  // boundary only after the canonical tick containing it has completed, hence
+  // the one-tick horizon behind each boundary.
+  const tickDurationMs = projection.clock.tickDurationMs;
+  const regionByAgent = new Map<AgentId, string>();
+  const agentCountByRegion = new Map<string, number>();
+  for (const agent of Object.values(projection.agents)) {
+    const regionId = resolveAgentRegion({ projection, agentLocationId: agent.locationId });
+    regionByAgent.set(agent.agentId, regionId);
+    agentCountByRegion.set(regionId, (agentCountByRegion.get(regionId) ?? 0) + 1);
+  }
+  const pendingArrivals = Object.values(projection.transitByAgent ?? {})
+    .filter(
+      (transit) =>
+        transit.arrivesAt > input.previousSimulationTime &&
+        transit.arrivesAt <= input.nextSimulationTime,
+    )
+    .map((transit) => ({
+      agentId: transit.agentId,
+      arrivesAt: transit.arrivesAt,
+      regionId: resolveRegionId(projection.locations[transit.toLocationId]?.regionId),
+    }))
+    .sort(
+      (left, right) =>
+        left.arrivesAt - right.arrivesAt || left.agentId.localeCompare(right.agentId),
+    );
+
+  const currencyReserveByPoolKey = new Map<string, number>();
+  for (const [poolKey, pool] of Object.entries(projection.marketPools)) {
+    currencyReserveByPoolKey.set(poolKey, pool.currencyReserve);
+  }
+  const liquidityByRegion = new Map<string, number>();
+  for (const [poolKey, reserve] of currencyReserveByPoolKey) {
+    const regionId = regionIdFromPoolKey(poolKey);
+    liquidityByRegion.set(regionId, (liquidityByRegion.get(regionId) ?? 0) + reserve);
+  }
+  const pendingRebalances = input.events
+    .filter(
+      (event): event is Extract<WorldEvent, { type: 'ExternalMarketRebalanced' }> =>
+        event.type === 'ExternalMarketRebalanced',
+    )
+    .map((event) => ({
+      settledAt: event.payload.settledAt,
+      poolKey: resolveMarketPoolKey({
+        regionId: event.payload.regionId,
+        commodity: event.payload.commodityName,
+      }),
+      currencyReserveAfter: event.payload.poolAfter.currencyReserve,
+    }))
+    .sort(
+      (left, right) =>
+        left.settledAt - right.settledAt || left.poolKey.localeCompare(right.poolKey),
+    );
+
+  const regionIds = [
+    ...new Set([
+      ...Object.values(projection.locations).map((location) => resolveRegionId(location.regionId)),
+      ...agentCountByRegion.keys(),
+      ...liquidityByRegion.keys(),
+      ...landValueByRegion.keys(),
+    ]),
+  ].sort((left, right) => left.localeCompare(right));
+
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: policy.updateCadenceMs,
+  });
+  let arrivalCursor = 0;
+  let rebalanceCursor = 0;
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * policy.updateCadenceMs;
+    const horizon = settledAt - tickDurationMs;
+    while (
+      arrivalCursor < pendingArrivals.length &&
+      (pendingArrivals[arrivalCursor] as (typeof pendingArrivals)[number]).arrivesAt <= horizon
+    ) {
+      const arrival = pendingArrivals[arrivalCursor] as (typeof pendingArrivals)[number];
+      arrivalCursor += 1;
+      const previousRegion = regionByAgent.get(arrival.agentId);
+      if (previousRegion !== undefined && previousRegion !== arrival.regionId) {
+        agentCountByRegion.set(previousRegion, (agentCountByRegion.get(previousRegion) ?? 1) - 1);
+        agentCountByRegion.set(
+          arrival.regionId,
+          (agentCountByRegion.get(arrival.regionId) ?? 0) + 1,
+        );
+        regionByAgent.set(arrival.agentId, arrival.regionId);
+      }
+    }
+    while (
+      rebalanceCursor < pendingRebalances.length &&
+      (pendingRebalances[rebalanceCursor] as (typeof pendingRebalances)[number]).settledAt <=
+        horizon
+    ) {
+      const rebalance = pendingRebalances[rebalanceCursor] as (typeof pendingRebalances)[number];
+      rebalanceCursor += 1;
+      const regionId = regionIdFromPoolKey(rebalance.poolKey);
+      const previousReserve = currencyReserveByPoolKey.get(rebalance.poolKey) ?? 0;
+      currencyReserveByPoolKey.set(rebalance.poolKey, rebalance.currencyReserveAfter);
+      liquidityByRegion.set(
+        regionId,
+        (liquidityByRegion.get(regionId) ?? 0) + rebalance.currencyReserveAfter - previousReserve,
+      );
+    }
+    for (const regionId of regionIds) {
+      const previousIndex = landValueByRegion.get(regionId) ?? policy.baseline;
+      const agentCount = agentCountByRegion.get(regionId) ?? 0;
+      const marketLiquidity = liquidityByRegion.get(regionId) ?? 0;
+      const evaluation = evaluateRegionalLandValue({
+        previousIndex,
+        inputs: { agentCount, marketLiquidity },
+        policy,
+      });
+      input.events.push(
+        makeEvent(input.input, input.events.length, 'RegionalLandValueUpdated', {
+          regionId,
+          previousIndex,
+          nextIndex: evaluation.nextIndex,
+          rawIndex: evaluation.rawIndex,
+          agentCount,
+          marketLiquidity,
+          policyVersion: policy.policyVersion,
+          settledAt,
+          reason: 'land-value-cadence',
+        }),
+      );
+      landValueByRegion.set(regionId, evaluation.nextIndex);
+    }
+    timeline.push({ settledAt, indexByRegion: Object.fromEntries(landValueByRegion) });
+  }
+  return { timeline };
+}
+
+/**
+ * Splits an upkeep settlement interval at every land value boundary inside it
+ * so each segment is priced against the index in effect for that segment. A
+ * boundary exactly at the interval start applies to the whole interval; a
+ * boundary exactly at the end belongs to the next interval.
+ */
+function resolveUpkeepRateSegments(input: {
+  readonly previousSimulationTime: number;
+  readonly currentSimulationTime: number;
+  readonly regionId: string;
+  readonly timeline: RegionalLandValueTimeline;
+}): readonly { readonly durationSeconds: number; readonly landValueIndex?: number }[] {
+  const indexAt = (at: number): number | undefined => {
+    let value: number | undefined;
+    for (const entry of input.timeline) {
+      if (entry.settledAt > at) {
+        break;
+      }
+      const candidate = entry.indexByRegion[input.regionId];
+      if (candidate !== undefined) {
+        value = candidate;
+      }
+    }
+    return value;
+  };
+  const splitPoints = input.timeline
+    .map((entry) => entry.settledAt)
+    .filter((at) => at > input.previousSimulationTime && at < input.currentSimulationTime);
+  const points = [input.previousSimulationTime, ...splitPoints, input.currentSimulationTime];
+  const segments: { durationSeconds: number; landValueIndex?: number }[] = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index] as number;
+    const end = points[index + 1] as number;
+    const landValueIndex = indexAt(start);
+    segments.push({
+      durationSeconds: (end - start) / 1000,
+      ...(landValueIndex === undefined ? {} : { landValueIndex }),
+    });
+  }
+  return segments;
 }
 
 function appendPhysiologicalSafetyNetEvents(input: {

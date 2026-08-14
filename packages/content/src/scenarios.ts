@@ -192,12 +192,40 @@ export type ScenarioResidentialUpkeepCostConfig = {
 };
 
 export type ScenarioResidentialUpkeepPolicyConfig = {
+  /**
+   * Policy version recorded in the manifest. Absent marks legacy v1 flat
+   * per-tier pricing; v2 adds the regional land value term.
+   */
+  readonly policyVersion?: string;
   readonly costs: readonly ScenarioResidentialUpkeepCostConfig[];
   /**
    * Hours of unpaid upkeep (at the current tier rate) that may accumulate before
    * a forced one-tier downgrade. Omit to disable downgrade consequences.
    */
   readonly arrearsDowngradeThresholdHours?: number;
+  /**
+   * Optional coefficient converting the agent's regional land value index into
+   * an additional per-hour upkeep charge. Omit to keep flat v1 pricing.
+   */
+  readonly landValueCoefficientPerHour?: number;
+};
+
+export type ScenarioLandValuePolicyConfig = {
+  readonly policyVersion: string;
+  /** Simulation milliseconds between land value re-evaluations. */
+  readonly updateCadenceMs: number;
+  /** Base index every region starts from and decays toward. */
+  readonly baseline: number;
+  /** Weight on sqrt(regional agent count). */
+  readonly populationWeight: number;
+  /** Weight on log1p(regional market liquidity). */
+  readonly liquidityWeight: number;
+  /** Lerp factor toward the raw target per cadence, in (0, 1]. */
+  readonly smoothingFactor: number;
+  /** Inclusive clamp bounds for the index. */
+  readonly minIndex: number;
+  readonly maxIndex: number;
+  readonly source: string;
 };
 
 export type ScenarioPhysiologicalSafetyNetPolicyConfig = {
@@ -245,6 +273,7 @@ export type ScenarioSurvivalTimePolicyDefaults = {
   readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
   readonly residentialUpkeep: ScenarioResidentialUpkeepPolicyConfig;
   readonly physiologicalSafetyNet: ScenarioPhysiologicalSafetyNetPolicyConfig;
+  readonly landValue: ScenarioLandValuePolicyConfig;
 };
 
 export type ScenarioHealthcarePolicyDefaults = {
@@ -516,6 +545,9 @@ export const aivilizationResidentialPhysiologyCaps = [
   },
 ] as const satisfies readonly ScenarioResidentialPhysiologyCapConfig[];
 
+export const RESIDENTIAL_UPKEEP_POLICY_VERSION = 'residential-upkeep-v2';
+export const LAND_VALUE_POLICY_VERSION = 'land-value-v1';
+
 export const aivilizationSurvivalTimePolicyDefaults = {
   sleepDeprivation: {
     energyThreshold: 20,
@@ -530,6 +562,7 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     source: survivalTimePolicySource,
   },
   residentialUpkeep: {
+    policyVersion: RESIDENTIAL_UPKEEP_POLICY_VERSION,
     costs: [
       { residentialTier: 1, currencyCostPerHour: 0, source: survivalTimePolicySource },
       { residentialTier: 2, currencyCostPerHour: 20, source: survivalTimePolicySource },
@@ -540,6 +573,21 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     ],
     // Roughly three days of unpaid upkeep force a one-tier downgrade.
     arrearsDowngradeThresholdHours: 72,
+    // Full land value pressure adds roughly a mid-tier upkeep rate on top.
+    landValueCoefficientPerHour: 1,
+  },
+  landValue: {
+    policyVersion: LAND_VALUE_POLICY_VERSION,
+    // Re-evaluated once per simulation day from regional population and
+    // market liquidity; smoothed so single-tick bursts cannot move rents.
+    updateCadenceMs: 86_400_000,
+    baseline: 0,
+    populationWeight: 2,
+    liquidityWeight: 1,
+    smoothingFactor: 0.4,
+    minIndex: 0,
+    maxIndex: 100,
+    source: survivalTimePolicySource,
   },
   physiologicalSafetyNet: {
     policyVersion: 'physiological-safety-net-v1',

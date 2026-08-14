@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
+  assertValidResidentialUpkeepPolicy,
   evaluateResidentialArrears,
   evaluateResidentialTierUpgrade,
   evaluateResidentialUpkeep,
+  resolveResidentialUpkeepRate,
   type ResidentialTierUpgradePolicy,
   type ResidentialUpkeepPolicy,
 } from './index';
@@ -252,5 +254,166 @@ describe('residential upkeep arrears', () => {
     expect(() =>
       evaluateResidentialArrears({ residentialTier: 2, nextArrears: -1, policy: arrearsPolicy }),
     ).toThrow(/nextArrears/);
+  });
+});
+
+describe('residential upkeep land value pricing (v2)', () => {
+  const v2Policy: ResidentialUpkeepPolicy = {
+    policyVersion: 'residential-upkeep-v2',
+    costs: [
+      { residentialTier: 1, currencyCostPerHour: 0 },
+      { residentialTier: 2, currencyCostPerHour: 10 },
+      { residentialTier: 3, currencyCostPerHour: 20 },
+    ],
+    arrearsDowngradeThresholdHours: 2,
+    landValueCoefficientPerHour: 0.5,
+  };
+
+  test('resolves the effective rate as tier cost plus the land value term', () => {
+    expect(
+      resolveResidentialUpkeepRate({ residentialTier: 2, policy: v2Policy, landValueIndex: 8 }),
+    ).toBe(14);
+    expect(resolveResidentialUpkeepRate({ residentialTier: 2, policy: v2Policy })).toBe(10);
+    expect(resolveResidentialUpkeepRate({ residentialTier: 9, policy: v2Policy })).toBeUndefined();
+  });
+
+  test('charges upkeep including the land value term', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 2,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: v2Policy,
+        landValueIndex: 8,
+      }),
+    ).toEqual({
+      status: 'charged',
+      residentialTier: 2,
+      amount: 7,
+      unpaidAmount: 0,
+      previousBalance: 100,
+      nextBalance: 93,
+    });
+  });
+
+  test('ignores the land value index when the policy has no coefficient', () => {
+    const v1Policy: ResidentialUpkeepPolicy = {
+      costs: [{ residentialTier: 2, currencyCostPerHour: 10 }],
+    };
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 2,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: v1Policy,
+        landValueIndex: 50,
+      }),
+    ).toEqual({
+      status: 'charged',
+      residentialTier: 2,
+      amount: 5,
+      unpaidAmount: 0,
+      previousBalance: 100,
+      nextBalance: 95,
+    });
+  });
+
+  test('matches v1 results exactly when no land value index is provided', () => {
+    const v1Decision = evaluateResidentialUpkeep({
+      residentialTier: 3,
+      balance: 7,
+      durationSeconds: 1800,
+      policy: v2Policy,
+    });
+    expect(v1Decision).toEqual({
+      status: 'charged',
+      residentialTier: 3,
+      amount: 7,
+      unpaidAmount: 3,
+      previousBalance: 7,
+      nextBalance: 0,
+    });
+  });
+
+  test('rejects a negative land value index', () => {
+    expect(
+      evaluateResidentialUpkeep({
+        residentialTier: 2,
+        balance: 100,
+        durationSeconds: 1800,
+        policy: v2Policy,
+        landValueIndex: -1,
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'landValueIndex must be non-negative',
+    });
+  });
+
+  test('uses the effective rate for the arrears downgrade threshold', () => {
+    // tier 2: base 10/h + index 8 * 0.5 = 14/h; threshold = 14 * 2 = 28
+    expect(
+      evaluateResidentialArrears({
+        residentialTier: 2,
+        nextArrears: 27,
+        policy: v2Policy,
+        effectiveCostPerHour: 14,
+      }),
+    ).toEqual({ status: 'carry', reason: 'below-threshold' });
+    expect(
+      evaluateResidentialArrears({
+        residentialTier: 2,
+        nextArrears: 28,
+        policy: v2Policy,
+        effectiveCostPerHour: 14,
+      }),
+    ).toEqual({
+      status: 'downgrade',
+      previousResidentialTier: 2,
+      nextResidentialTier: 1,
+      arrearsCleared: 28,
+    });
+  });
+});
+
+describe('assertValidResidentialUpkeepPolicy', () => {
+  test('accepts v1 and v2 policies', () => {
+    expect(() => assertValidResidentialUpkeepPolicy({ costs: [] })).not.toThrow();
+    expect(() =>
+      assertValidResidentialUpkeepPolicy({
+        policyVersion: 'residential-upkeep-v2',
+        costs: [{ residentialTier: 2, currencyCostPerHour: 10 }],
+        landValueCoefficientPerHour: 0.5,
+      }),
+    ).not.toThrow();
+  });
+
+  test('rejects malformed policies', () => {
+    expect(() => assertValidResidentialUpkeepPolicy({ policyVersion: ' ', costs: [] })).toThrow(
+      /policyVersion/,
+    );
+    expect(() =>
+      assertValidResidentialUpkeepPolicy({
+        costs: [{ residentialTier: 0, currencyCostPerHour: 10 }],
+      }),
+    ).toThrow(/residentialTier/);
+    expect(() =>
+      assertValidResidentialUpkeepPolicy({
+        costs: [{ residentialTier: 2, currencyCostPerHour: Number.NaN }],
+      }),
+    ).toThrow(/currencyCostPerHour/);
+    expect(() =>
+      assertValidResidentialUpkeepPolicy({
+        costs: [],
+        arrearsDowngradeThresholdHours: -1,
+      }),
+    ).toThrow(/arrearsDowngradeThresholdHours/);
+    expect(() =>
+      assertValidResidentialUpkeepPolicy({
+        costs: [],
+        landValueCoefficientPerHour: -0.1,
+      }),
+    ).toThrow(/landValueCoefficientPerHour/);
   });
 });

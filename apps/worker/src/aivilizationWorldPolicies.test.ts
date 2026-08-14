@@ -183,7 +183,9 @@ describe('AIvilization default world command policies', () => {
   test('declares the canonical external trade policy in the manifest and registry', () => {
     const manifest = createAivilizationWorldPolicyManifest();
     expect(manifest.policyVersions).toMatchObject({ externalTrade: 'external-trade-v1' });
-    expect(manifest.parameters.externalTrade).toEqual({ ...aivilizationExternalTradePolicyDefaults });
+    expect(manifest.parameters.externalTrade).toEqual({
+      ...aivilizationExternalTradePolicyDefaults,
+    });
     expect(manifest.policyRegistry.unregisteredParameterPaths).toEqual([]);
     expect(manifest.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
     expect(manifest.policyRegistry.entries).toEqual(
@@ -484,6 +486,7 @@ describe('AIvilization default world command policies', () => {
       minHealth: 10,
     });
     expect(policies.residentialUpkeep).toEqual({
+      policyVersion: 'residential-upkeep-v2',
       costs: [
         { residentialTier: 1, currencyCostPerHour: 0 },
         { residentialTier: 2, currencyCostPerHour: 20 },
@@ -493,6 +496,17 @@ describe('AIvilization default world command policies', () => {
         { residentialTier: 6, currencyCostPerHour: 320 },
       ],
       arrearsDowngradeThresholdHours: 72,
+      landValueCoefficientPerHour: 1,
+    });
+    expect(policies.landValue).toEqual({
+      policyVersion: 'land-value-v1',
+      updateCadenceMs: 86_400_000,
+      baseline: 0,
+      populationWeight: 2,
+      liquidityWeight: 1,
+      smoothingFactor: 0.4,
+      minIndex: 0,
+      maxIndex: 100,
     });
     expect(policies.safetyNetSubsidy).toBeUndefined();
     expect(policies.tax).toEqual({

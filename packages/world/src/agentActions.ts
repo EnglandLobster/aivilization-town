@@ -1,6 +1,7 @@
 import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
 import type {
   EducationInvestmentPolicy,
+  LandValuePolicy,
   MedicalTreatmentCostPolicy,
   PhysiologicalSafetyNetPolicy,
   RecruitmentCyclePolicy,
@@ -201,6 +202,14 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
   readonly conflict?: TownConflictPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   /**
+   * Optional regional land value policy. When present, AdvanceSimulationTime
+   * re-evaluates the smoothed per-region land value index at each policy
+   * cadence (recorded as RegionalLandValueUpdated) and residential upkeep
+   * pricing may reference the index. Omitted keeps flat v1 upkeep pricing
+   * byte-for-byte.
+   */
+  readonly landValue?: LandValuePolicy;
+  /**
    * Optional town-bank credit policy. When present, AgentDeposit,
    * AgentWithdraw and AgentRequestLoan settle against the bank aggregate and
    * AdvanceSimulationTime settles the daily credit accrual cadence (loan
@@ -290,6 +299,7 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.residentialUpkeep === undefined
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),
+        ...(input.policies.landValue === undefined ? {} : { landValue: input.policies.landValue }),
         ...(input.policies.safetyNetSubsidy === undefined
           ? {}
           : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),

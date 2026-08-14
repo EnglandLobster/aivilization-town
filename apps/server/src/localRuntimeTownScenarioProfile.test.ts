@@ -34,6 +34,21 @@ describe('local runtime town daemon scenario profiles', () => {
     );
     expect(smoke.manifest.partitions[0]?.marketPools).toHaveLength(commodities.length - 1);
     expect(smoke.manifest.partitions[0]?.moneySupply).toBeGreaterThan(0);
+    // The fiscal feature seeds an initial treasury and the town bank seeds
+    // initial reserves; both are circulating accounts and therefore part of
+    // the seed money supply.
+    const smokePartition = smoke.manifest.partitions[0];
+    expect(smokePartition?.initialTreasury).toBe(50_000);
+    expect(smokePartition?.initialBankReserves).toBe(200_000);
+    expect(smokePartition?.moneySupply).toBe(
+      (smokePartition?.marketPools ?? []).reduce((total, pool) => total + pool.currencyReserve, 0) +
+        (smoke.scenarioPresets[0]?.agentSeeds ?? []).reduce(
+          (total, agent) => total + agent.balance,
+          0,
+        ) +
+        50_000 +
+        200_000,
+    );
 
     const standard = createLocalRuntimeTownDaemonScenarioProfile('default-100');
     expect(standard).toMatchObject({
@@ -178,6 +193,9 @@ describe('local runtime town daemon scenario profiles', () => {
     const ablationPartition = ablation.manifest.partitions[0];
     const ablationMarketPools = ablationPartition?.marketPools ?? [];
     expect(ablationMarketPools).not.toEqual([]);
+    // The paper ablation baseline keeps the legacy mint-funded wage regime.
+    expect(ablationPartition?.initialTreasury).toBeUndefined();
+    expect(ablationPartition?.initialBankReserves).toBeUndefined();
     expect(ablationPartition?.moneySupply).toBe(
       ablationMarketPools.reduce((total, marketPool) => total + marketPool.currencyReserve, 0),
     );

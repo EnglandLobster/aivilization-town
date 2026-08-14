@@ -1,3 +1,4 @@
+import type { LifestyleTier } from '@aivilization/society';
 import type { ActionResourceEstimate, AtomicActionProposal } from './actions';
 
 export type ActionSynthesisBudget = {
@@ -8,9 +9,24 @@ export type ActionSynthesisBudget = {
   readonly inventoryBudget?: Readonly<Record<string, number>>;
 };
 
+/**
+ * Optional wealth-tier budget constraint. When the agent's lifestyle tier is
+ * `struggling`, cumulative non-survival currency spending (buy-side trades of
+ * non-food commodities, residential upgrades, education investment) is capped
+ * at `currencyBudget * nonSurvivalSpendCapRatio`; survival spending (medical
+ * treatment, purchases of `survivalCommodities`) stays exempt. Requires the
+ * currency budget to be set; other tiers impose no extra cap.
+ */
+export type ActionSynthesisLifestyleConstraint = {
+  readonly tier: LifestyleTier;
+  readonly nonSurvivalSpendCapRatio: number;
+  readonly survivalCommodities?: readonly string[];
+};
+
 export type ActionSynthesisPolicy = {
   readonly maxActions?: number;
   readonly budget?: ActionSynthesisBudget;
+  readonly lifestyle?: ActionSynthesisLifestyleConstraint;
   readonly scoring?: {
     readonly priorityWeight?: number;
     readonly strategicAlignmentWeight?: number;
@@ -48,6 +64,7 @@ type ResourceLedger = {
   energyCost: number;
   satietyCost: number;
   currencyCost: number;
+  nonSurvivalCurrencyCost: number;
   inventoryCosts: Record<string, number>;
   acceptedActionCountByBranch: Record<string, number>;
 };
@@ -63,9 +80,16 @@ type NormalizedBranchLimits = {
   readonly maxAcceptedActionsPerBranch?: number;
 };
 
+type NormalizedLifestyleConstraint = {
+  readonly tier: LifestyleTier;
+  readonly nonSurvivalSpendCapRatio: number;
+  readonly survivalCommodities: ReadonlySet<string>;
+};
+
 type NormalizedActionSynthesisPolicy = {
   readonly maxActions?: number;
   readonly budget?: ActionSynthesisBudget;
+  readonly lifestyle?: NormalizedLifestyleConstraint;
   readonly scoring: NormalizedScoringPolicy;
   readonly branchLimits: NormalizedBranchLimits;
 };
@@ -80,6 +104,7 @@ export function synthesizeActionCandidates(input: {
     energyCost: 0,
     satietyCost: 0,
     currencyCost: 0,
+    nonSurvivalCurrencyCost: 0,
     inventoryCosts: {},
     acceptedActionCountByBranch: {},
   };
@@ -105,7 +130,7 @@ export function synthesizeActionCandidates(input: {
     }
 
     acceptedActions.push(action);
-    applyAcceptedActionToLedger(ledger, action, estimate);
+    applyAcceptedActionToLedger(ledger, action, estimate, policy.lifestyle);
   }
 
   return {
@@ -159,11 +184,34 @@ function normalizePolicy(
   const branchLimits = normalizeBranchLimits(policy?.branchLimits);
   validateCandidateSubtaskPolicy(policy?.candidateSubtasks);
 
+  const lifestyle = normalizeLifestyleConstraint(policy?.lifestyle);
+
   return {
     ...(maxActions === undefined ? {} : { maxActions }),
     ...(budget === undefined ? {} : { budget }),
+    ...(lifestyle === undefined ? {} : { lifestyle }),
     scoring,
     branchLimits,
+  };
+}
+
+function normalizeLifestyleConstraint(
+  lifestyle: ActionSynthesisLifestyleConstraint | undefined,
+): NormalizedLifestyleConstraint | undefined {
+  if (lifestyle === undefined) {
+    return undefined;
+  }
+  const ratio = lifestyle.nonSurvivalSpendCapRatio;
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+    throw new Error('action synthesis lifestyle nonSurvivalSpendCapRatio must be between 0 and 1');
+  }
+  for (const commodity of lifestyle.survivalCommodities ?? []) {
+    assertNonEmptyName(commodity, 'action synthesis lifestyle survival commodity name');
+  }
+  return {
+    tier: lifestyle.tier,
+    nonSurvivalSpendCapRatio: ratio,
+    survivalCommodities: new Set(lifestyle.survivalCommodities ?? []),
   };
 }
 
@@ -350,7 +398,67 @@ function firstBudgetRejection(input: {
     return 'currency budget exceeded';
   }
 
+  const lifestyleRejection = strugglingLifestyleRejectionReason({
+    action: input.action,
+    estimate: input.estimate,
+    ledger: input.ledger,
+    currencyBudget: budget.currencyBudget,
+    lifestyle: input.policy.lifestyle,
+  });
+  if (lifestyleRejection !== undefined) {
+    return lifestyleRejection;
+  }
+
   return undefined;
+}
+
+function strugglingLifestyleRejectionReason(input: {
+  readonly action: AtomicActionProposal;
+  readonly estimate: NormalizedResourceEstimate;
+  readonly ledger: ResourceLedger;
+  readonly currencyBudget: number | undefined;
+  readonly lifestyle: NormalizedLifestyleConstraint | undefined;
+}): string | undefined {
+  if (
+    input.lifestyle === undefined ||
+    input.lifestyle.tier !== 'struggling' ||
+    input.currencyBudget === undefined ||
+    input.estimate.currencyCost <= 0 ||
+    isSurvivalCurrencySpend(input.action, input.lifestyle)
+  ) {
+    return undefined;
+  }
+  const cap = input.currencyBudget * input.lifestyle.nonSurvivalSpendCapRatio;
+  if (input.ledger.nonSurvivalCurrencyCost + input.estimate.currencyCost > cap) {
+    return 'struggling lifestyle non-survival currency budget exceeded';
+  }
+  return undefined;
+}
+
+function isSurvivalCurrencySpend(
+  action: AtomicActionProposal,
+  lifestyle: NormalizedLifestyleConstraint,
+): boolean {
+  // Medical treatment is survival spending.
+  if (action.commandType === 'AgentSeeDoctor') {
+    return true;
+  }
+  if (action.commandType === 'AgentTrade') {
+    const payload = action.payload as
+      | { readonly side?: unknown; readonly commodityName?: unknown }
+      | undefined;
+    // Sell-side trades spend no currency; buy-side food purchases are survival
+    // spending, everything else (plus upgrades and study, which fall through to
+    // the default) counts against the non-survival cap.
+    if (payload?.side !== 'buy') {
+      return true;
+    }
+    return (
+      typeof payload.commodityName === 'string' &&
+      lifestyle.survivalCommodities.has(payload.commodityName)
+    );
+  }
+  return false;
 }
 
 function firstInventoryBudgetRejection(input: {
@@ -393,8 +501,12 @@ function applyAcceptedActionToLedger(
   ledger: ResourceLedger,
   action: AtomicActionProposal,
   estimate: NormalizedResourceEstimate,
+  lifestyle: NormalizedLifestyleConstraint | undefined,
 ): void {
   applyEstimateToLedger(ledger, estimate);
+  if (lifestyle !== undefined && !isSurvivalCurrencySpend(action, lifestyle)) {
+    ledger.nonSurvivalCurrencyCost += estimate.currencyCost;
+  }
   const branchId = action.synthesisContext?.branchId;
   if (branchId !== undefined) {
     ledger.acceptedActionCountByBranch[branchId] =

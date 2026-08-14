@@ -69,7 +69,7 @@ import {
   createAmbientObservationMemoryRecords,
   type WorkerAmbientObservationMemoryResult,
 } from './ambientObservationMemory';
-import { recordMarketPriceIndexToEventStream } from './marketMetrics';
+import { recordMarketMetricsToEventStream } from './marketMetrics';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import {
   createTraceableSocialObservationScheduledIntentions,
@@ -158,10 +158,11 @@ export type WorkerTickMarketMetricsInput = {
   readonly baselineAt: SimulationTimestamp;
   readonly appendIdempotencyKey?: string;
   /**
-   * When the unified authority owns the market, the price index values are
-   * derived from these authoritative global pools instead of the partition
-   * projection's own. The MarketPriceIndexRecorded event still appends to and
-   * applies against the partition stream; only the computed values change.
+   * When the unified authority owns the market, the pool-derived metric values
+   * (price index, AMM composition, net-worth valuation) are computed from these
+   * authoritative global pools instead of the partition projection's own. The
+   * recorded events still append to and apply against the partition stream;
+   * only the computed values change.
    */
   readonly currentMarketOverride?: WorldDecisionMarketOverride;
   readonly baselineMarketOverride?: WorldDecisionMarketOverride;
@@ -409,7 +410,7 @@ export async function runWorkerSimulationTick(
   ];
   let marketMetricEvents: readonly WorldEvent[] = [];
   if (input.marketMetrics !== undefined) {
-    const marketMetricsResult = recordMarketPriceIndexToEventStream({
+    const marketMetricsResult = recordMarketMetricsToEventStream({
       baselineProjection: input.marketMetrics.baselineProjection,
       currentProjection: projection,
       ...(input.marketMetrics.baselineMarketOverride === undefined

@@ -679,6 +679,137 @@ describe('world economy projection', () => {
       },
     ]);
   });
+
+  test('replays economic composition records, keeping only the latest bounded observation', () => {
+    const initial = createWorldProjection({ agents: [] });
+    // Legacy projections carry neither slice until the events exist.
+    expect(initial.economicComposition).toBeUndefined();
+    expect(initial.bankruptEnterpriseTotal).toBeUndefined();
+
+    const record = (sequence: number, recordedAt: number, moneySupply: number) =>
+      createEventEnvelope({
+        id: `event-economic-composition-${sequence}`,
+        simulationId: 'sim-1',
+        type: 'EconomicCompositionRecorded',
+        payload: {
+          recordedAt,
+          moneySupply,
+          composition: {
+            agents: 100,
+            enterprises: 0,
+            treasury: 0,
+            bank: 0,
+            ammPoolCurrency: 1000,
+            ammPoolCommodityValue: 1000,
+            externalNetInflow: 0,
+          },
+          enterprises: { total: 0, active: 0, insolvent: 0, bankruptTotal: 0 },
+          gini: 0.25,
+          deposits: 0,
+          loansOutstanding: 0,
+        },
+        occurredAt: recordedAt,
+        sequence,
+      });
+
+    const projection = replayEvents(
+      initial,
+      [record(1, 100, 1000), record(2, 200, 1100)],
+      applyWorldEvent,
+    );
+
+    expect(projection.economicComposition).toEqual({
+      recordedAt: 200,
+      moneySupply: 1100,
+      composition: {
+        agents: 100,
+        enterprises: 0,
+        treasury: 0,
+        bank: 0,
+        ammPoolCurrency: 1000,
+        ammPoolCommodityValue: 1000,
+        externalNetInflow: 0,
+      },
+      enterprises: { total: 0, active: 0, insolvent: 0, bankruptTotal: 0 },
+      gini: 0.25,
+      deposits: 0,
+      loansOutstanding: 0,
+    });
+  });
+
+  test('tallies cumulative enterprise bankruptcies from declarations, not closures', () => {
+    const owner = asAgentId('agent-owner');
+    const enterprise = (enterpriseId: string, status: 'active' | 'insolvent') => ({
+      enterpriseId,
+      name: `Workshop ${enterpriseId}`,
+      ownerAgentId: owner,
+      occupationName: 'Baker',
+      balance: 10,
+      inventory: {},
+      maxEmployees: 1,
+      employeeAgentIds: [],
+      status,
+      foundedAt: 0,
+      cumulativeSales: 0,
+      cumulativePurchases: 0,
+      cumulativeWages: 0,
+    });
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: owner,
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      enterprises: [enterprise('enterprise-1', 'insolvent'), enterprise('enterprise-2', 'active')],
+    });
+    const close = (enterpriseId: string, reason: 'owner-closed' | 'insolvent', sequence: number) =>
+      createEventEnvelope({
+        id: `event-close-${sequence}`,
+        simulationId: 'sim-1',
+        type: 'EnterpriseClosed',
+        payload: {
+          enterpriseId,
+          ownerAgentId: owner,
+          returnedBalance: 0,
+          returnedInventory: {},
+          employeeAgentIds: [],
+          reason,
+        },
+        occurredAt: 100,
+        sequence,
+      });
+    const events: WorldEvent[] = [
+      createEventEnvelope({
+        id: 'event-bankruptcy',
+        simulationId: 'sim-1',
+        type: 'EnterpriseBankruptcyDeclared',
+        payload: {
+          enterpriseId: 'enterprise-1',
+          declaredAt: 100,
+          balance: 10,
+          insolvencyStartedAt: 50,
+          policyVersion: 'enterprise-policy-v1',
+        },
+        occurredAt: 100,
+        sequence: 1,
+      }),
+      close('enterprise-1', 'insolvent', 2),
+      // An owner-initiated close is not a bankruptcy and must not move the tally.
+      close('enterprise-2', 'owner-closed', 3),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+
+    expect(projection.enterprises['enterprise-1']?.status).toBe('closed');
+    expect(projection.enterprises['enterprise-2']?.status).toBe('closed');
+    expect(projection.bankruptEnterpriseTotal).toBe(1);
+  });
 });
 
 describe('world job projection', () => {

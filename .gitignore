@@ -12,6 +12,8 @@ coverage/
 .DS_Store
 tmp/
 data/local/
+docs/
+tools/
 .aivilization/
 .qoder/
 .zcode/

@@ -381,6 +381,7 @@ describe('canonical active-plan worker tick', () => {
       [2, 'TradeExecuted'],
       [3, 'ShortTermMemoryRecorded'],
       [4, 'MarketPriceIndexRecorded'],
+      [5, 'EconomicCompositionRecorded'],
     ]);
     expect(result.projection.marketPriceIndices[0]).toMatchObject({
       baselineAt: 0,
@@ -389,8 +390,9 @@ describe('canonical active-plan worker tick', () => {
       nonFoodCount: 0,
     });
     expect(result.projection.marketPriceIndices[0]?.overall).toBeCloseTo(1.2345679012);
-    expect(result.streamVersion).toBe(4);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+    expect(result.projection.economicComposition?.recordedAt).toBe(100);
+    expect(result.streamVersion).toBe(5);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
     await expect(
       planProgressRepository.getOrCreate({
         planId: 'objective-trade',

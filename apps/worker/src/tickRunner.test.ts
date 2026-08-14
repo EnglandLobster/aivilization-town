@@ -2118,10 +2118,19 @@ describe('worker tick runner', () => {
       [1, 'SimulationTimeAdvanced'],
       [2, 'PhysiologyChanged'],
       [3, 'ResidentialUpkeepCharged'],
-      [4, 'PhysiologicalDistressChanged'],
-      [5, 'SafetyNetGranted'],
-      [6, 'ShortTermMemoryRecorded'],
+      [4, 'ResidentialUpkeepArrearsUpdated'],
+      [5, 'PhysiologicalDistressChanged'],
+      [6, 'SafetyNetGranted'],
+      [7, 'ShortTermMemoryRecorded'],
     ]);
+    expect(result.events[3]).toMatchObject({
+      payload: {
+        agentId: agentOne,
+        previousArrears: 0,
+        nextArrears: 10,
+        reason: 'upkeep-arrears',
+      },
+    });
     expect(result.events[1]).toMatchObject({
       payload: {
         agentId: agentOne,
@@ -2209,6 +2218,7 @@ describe('worker tick runner', () => {
       [2, 'TradeExecuted'],
       [3, 'ShortTermMemoryRecorded'],
       [4, 'MarketPriceIndexRecorded'],
+      [5, 'EconomicCompositionRecorded'],
     ]);
     expect(result.projection.marketPriceIndices[0]).toMatchObject({
       baselineAt: 0,
@@ -2218,8 +2228,58 @@ describe('worker tick runner', () => {
     });
     expect(result.projection.marketPriceIndices[0]?.overall).toBeCloseTo(1.2345679012);
     expect(result.projection.marketPriceIndices[0]?.ratios['Apple']).toBeCloseTo(1.2345679012);
-    expect(result.streamVersion).toBe(4);
-    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(4);
+    // The same append carries the economic composition of the post-trade
+    // projection: agent-1 paid 111.11… from the circulating agent account into
+    // the (non-circulating) Apple pool, so moneySupply drops by the same amount.
+    expect(result.projection.economicComposition).toMatchObject({
+      recordedAt: 100,
+      composition: {
+        treasury: 0,
+        bank: 0,
+        externalNetInflow: 0,
+      },
+      enterprises: { total: 0, active: 0, insolvent: 0, bankruptTotal: 0 },
+      gini: 0,
+      deposits: 0,
+      loansOutstanding: 0,
+    });
+    expect(result.projection.economicComposition?.moneySupply).toBeCloseTo(888.8888888889, 8);
+    expect(result.projection.economicComposition?.composition.agents).toBeCloseTo(
+      888.8888888889,
+      8,
+    );
+    expect(result.projection.economicComposition?.composition.ammPoolCurrency).toBeCloseTo(
+      1111.1111111111,
+      8,
+    );
+    expect(result.streamVersion).toBe(5);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(5);
+  });
+
+  test('records no market metric events when market metrics are not configured', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-without-market-metrics',
+      simulationId,
+      issuedAt: 100,
+      projection: createMarketProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createTradeTickAgent()],
+      ...repositories,
+    });
+
+    expect(result.events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'TradeExecuted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(result.projection.marketPriceIndices).toHaveLength(0);
+    expect(result.projection.economicComposition).toBeUndefined();
   });
 
   test('records market observations after all tick events when configured', async () => {

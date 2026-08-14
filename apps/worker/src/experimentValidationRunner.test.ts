@@ -6,18 +6,69 @@ import {
   type AgentCycleTrace,
   type ExperimentValidationMetric,
 } from '@aivilization/observability';
-import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, createEventEnvelope } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldEvent, type WorldProjection } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createAgentTrajectoriesFromTraceRepository,
   createOhlcPriceBarsFromTradePriceObservations,
   createTradePriceObservationsFromWorldEvents,
+  createWealthSnapshotFromWorldProjection,
   createWorkerExperimentValidationReport,
   recordWorkerExperimentValidationReport,
 } from './index';
 
 const simulationId = 'sim-worker-validation';
+
+test('wealth snapshots value inventory only in each agent visible region', () => {
+  const downtown = asLocationId('downtown');
+  const projection = createWorldProjection({
+    locations: [
+      {
+        locationId: downtown,
+        name: 'Downtown',
+        kind: 'market',
+        activityAffinities: ['trade'],
+        capacity: null,
+        regionId: 'downtown',
+      },
+    ],
+    agents: [
+      {
+        agentId: asAgentId('agent-regional'),
+        locationId: downtown,
+        physiology: { energy: 100, satiety: 100, health: 100 },
+        educationScore: 0,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: { Fish: 10 },
+      },
+    ],
+    marketPools: [
+      createAmmPool({
+        commodity: 'Fish',
+        commodityReserve: 100,
+        currencyReserve: 1_000,
+        regionId: 'downtown',
+      }),
+      createAmmPool({
+        commodity: 'Fish',
+        commodityReserve: 100,
+        currencyReserve: 10_000,
+        regionId: 'harbor',
+      }),
+    ],
+  });
+
+  expect(createWealthSnapshotFromWorldProjection(projection)).toEqual([
+    {
+      agentId: 'agent-regional',
+      educationScore: 0,
+      netWorth: 200,
+    },
+  ]);
+});
 
 function getMetric(
   metrics: readonly ExperimentValidationMetric[],

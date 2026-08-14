@@ -77,6 +77,25 @@ describe('world-state action synthesis policy', () => {
       candidateSubtasks: { maxSubtasks: 2 },
     });
   });
+
+  test('propagates the lifestyle constraint into the synthesis policy', () => {
+    expect(
+      deriveActionSynthesisPolicyFromWorldState({
+        agent: createAgent({ balance: 100 }),
+        lifestyle: {
+          tier: 'struggling',
+          nonSurvivalSpendCapRatio: 0.3,
+          survivalCommodities: ['Apple'],
+        },
+      }),
+    ).toMatchObject({
+      lifestyle: {
+        tier: 'struggling',
+        nonSurvivalSpendCapRatio: 0.3,
+        survivalCommodities: ['Apple'],
+      },
+    });
+  });
 });
 
 function createAgent(input: {

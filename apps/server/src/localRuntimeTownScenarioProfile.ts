@@ -52,6 +52,18 @@ type LocalRuntimeTownDaemonScenarioProfileConfig = {
   readonly recoveryIntervalMs: number;
   readonly commodityReserve: number;
   readonly currencyReserve: number;
+  /**
+   * Initial public treasury seeded into the partition projection. The treasury
+   * is a circulating account, so the seed moneySupply includes it. Omitted
+   * keeps the partition on the legacy mint-funded wage regime.
+   */
+  readonly initialTreasury?: number;
+  /**
+   * Initial town-bank cash reserves seeded into the partition projection. The
+   * bank cash account circulates, so the seed moneySupply includes it. Omitted
+   * leaves the partition bank-free until the first deposit bootstraps it.
+   */
+  readonly initialBankReserves?: number;
   readonly partitions: readonly ProfilePartitionConfig[];
 };
 
@@ -70,6 +82,8 @@ const profileConfigs = {
     recoveryIntervalMs: 1_000,
     commodityReserve: 100,
     currencyReserve: 1_000,
+    initialTreasury: 50_000,
+    initialBankReserves: 200_000,
     partitions: [{ partitionKey: 'world-main', agentCount: 25, label: 'Main' }],
   },
   'default-100': {
@@ -86,6 +100,8 @@ const profileConfigs = {
     recoveryIntervalMs: 1_000,
     commodityReserve: 500,
     currencyReserve: 5_000,
+    initialTreasury: 50_000,
+    initialBankReserves: 200_000,
     partitions: [
       { partitionKey: 'world-main', agentCount: 50, label: 'Main' },
       { partitionKey: 'world-east', agentCount: 50, label: 'East' },
@@ -105,6 +121,8 @@ const profileConfigs = {
     recoveryIntervalMs: 1_000,
     commodityReserve: 1_000,
     currencyReserve: 10_000,
+    initialTreasury: 50_000,
+    initialBankReserves: 200_000,
     partitions: [
       { partitionKey: 'world-main', agentCount: 100, label: 'Main' },
       { partitionKey: 'world-east', agentCount: 100, label: 'East' },
@@ -133,6 +151,8 @@ const profileConfigs = {
     recoveryIntervalMs: 1_000,
     commodityReserve: 100,
     currencyReserve: 1_000,
+    initialTreasury: 50_000,
+    initialBankReserves: 200_000,
     partitions: [{ partitionKey: 'world-main', agentCount: 25, label: 'Main' }],
   },
   'ablation-80': {
@@ -249,9 +269,20 @@ function createManifest(
         partitionKey: partition.partitionKey,
         scenarioPresetId: preset.id,
         marketPools,
+        // The treasury and the bank cash account are circulating accounts, so
+        // their seeds count towards the initial money supply alongside pool
+        // reserves and agent balances.
         moneySupply:
           marketPools.reduce((total, pool) => total + pool.currencyReserve, 0) +
-          preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0),
+          preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0) +
+          (config.initialTreasury ?? 0) +
+          (config.initialBankReserves ?? 0),
+        ...(config.initialTreasury === undefined
+          ? {}
+          : { initialTreasury: config.initialTreasury }),
+        ...(config.initialBankReserves === undefined
+          ? {}
+          : { initialBankReserves: config.initialBankReserves }),
       };
     }),
   };

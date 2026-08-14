@@ -49,24 +49,36 @@ export type SafetyNetSubsidyDecision =
     }
   | {
       readonly status: 'ineligible';
-      readonly reason: 'balance-at-or-above-minimum';
+      readonly reason: 'balance-at-or-above-minimum' | 'treasury-depleted';
     };
 
 export function evaluateSafetyNetSubsidy(
   input: SafetyNetSubsidyPolicy & {
     readonly balance: number;
+    /**
+     * When provided, the subsidy is funded from the public treasury instead of
+     * minted: the payment is capped at the remaining treasury balance and a
+     * depleted treasury makes the agent ineligible.
+     */
+    readonly treasuryBalance?: number;
   },
 ): SafetyNetSubsidyDecision {
   assertNonNegativeFinite(input.balance, 'balance');
   assertNonNegativeFinite(input.minimumBalance, 'minimumBalance');
   assertNonNegativeFinite(input.maxSubsidy, 'maxSubsidy');
+  if (input.treasuryBalance !== undefined) {
+    assertNonNegativeFinite(input.treasuryBalance, 'treasuryBalance');
+  }
 
   const gap = input.minimumBalance - input.balance;
   if (gap <= 0 || input.maxSubsidy === 0) {
     return { status: 'ineligible', reason: 'balance-at-or-above-minimum' };
   }
+  if (input.treasuryBalance !== undefined && input.treasuryBalance === 0) {
+    return { status: 'ineligible', reason: 'treasury-depleted' };
+  }
 
-  const amount = Math.min(gap, input.maxSubsidy);
+  const amount = Math.min(gap, input.maxSubsidy, input.treasuryBalance ?? Number.MAX_VALUE);
   return {
     status: 'eligible',
     amount,

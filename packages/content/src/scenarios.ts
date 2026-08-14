@@ -85,9 +85,7 @@ export type ScenarioTownPhysiologyConditionConfig = {
 };
 
 export type ScenarioTownWeatherConditionConfig = {
-  readonly outdoorSeverityByWeather: Readonly<
-    Record<string, ScenarioTownConditionSeverity>
-  >;
+  readonly outdoorSeverityByWeather: Readonly<Record<string, ScenarioTownConditionSeverity>>;
   readonly shelteredSeverity?: ScenarioTownConditionSeverity;
   readonly shelteredMaxResidentialTier?: number;
   readonly need: ScenarioTownConditionNeed;
@@ -130,6 +128,63 @@ export type ScenarioTownConflictPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioIncomeTaxBracketConfig = {
+  // Inclusive upper bound of the single wage payment this bracket covers;
+  // null marks the top (uncapped) bracket.
+  readonly upToAmount: number | null;
+  readonly rate: number;
+};
+
+export type ScenarioTaxPolicyConfig = {
+  readonly policyVersion: string;
+  readonly neutralRate: number;
+  readonly incomeTaxBrackets: readonly ScenarioIncomeTaxBracketConfig[];
+  readonly tradeTaxRate: number;
+  /** Optional flat rate (0..1) on enterprise dividend payouts, credited to the treasury. */
+  readonly dividendTaxRate?: number;
+  readonly source: string;
+};
+
+export type ScenarioCreditPolicyConfig = {
+  readonly policyVersion: string;
+  readonly depositDailyInterestRate: number;
+  readonly loanDailyInterestRate: number;
+  readonly loanTermDays: number;
+  /** Simulation ms per credit accrual "day" boundary. */
+  readonly accrualCadenceMs: number;
+  readonly reserveRatio: number;
+  readonly maxLoansPerAgent: number;
+  readonly graceMissedPayments: number;
+  readonly baseLoanLimit: number;
+  readonly creditLimitRepaidBonusRatio: number;
+  readonly creditLimitDefaultPenaltyRatio: number;
+  readonly creditLimitMinMultiplier: number;
+  readonly creditLimitMaxMultiplier: number;
+  readonly source: string;
+};
+
+export type ScenarioExternalTradePolicyConfig = {
+  readonly policyVersion: string;
+  /** Fraction of the rolling per-commodity net-export balance decayed per cadence. */
+  readonly balanceDecayRatioPerCadence: number;
+  /** Simulation ms per balance-decay cadence boundary. */
+  readonly cadenceMs: number;
+  /** Maximum relative external-price impact once the √balance term saturates. */
+  readonly priceImpactRatio: number;
+  /** Normalization scale of the √|balance| impact term. */
+  readonly balanceScale: number;
+  readonly source: string;
+};
+
+export type ScenarioLifestylePolicyConfig = {
+  readonly policyVersion: string;
+  // Strictly increasing net-worth ceilings, exactly 3 entries:
+  // below [0] struggling, below [1] stable, below [2] comfortable, else affluent.
+  readonly netWorthBoundaries: readonly [number, number, number];
+  readonly strugglingNonSurvivalSpendCapRatio: number;
+  readonly source: string;
+};
+
 export type ScenarioResidentialUpkeepCostConfig = {
   readonly residentialTier: number;
   readonly currencyCostPerHour: number;
@@ -138,6 +193,11 @@ export type ScenarioResidentialUpkeepCostConfig = {
 
 export type ScenarioResidentialUpkeepPolicyConfig = {
   readonly costs: readonly ScenarioResidentialUpkeepCostConfig[];
+  /**
+   * Hours of unpaid upkeep (at the current tier rate) that may accumulate before
+   * a forced one-tier downgrade. Omit to disable downgrade consequences.
+   */
+  readonly arrearsDowngradeThresholdHours?: number;
 };
 
 export type ScenarioPhysiologicalSafetyNetPolicyConfig = {
@@ -370,6 +430,14 @@ const socialMattersPolicySource =
   'Social matters state machine; social-matters-v1 lifecycle and expiry parameters are repository policy decisions because the paper does not model social matters';
 const townConflictPolicySource =
   'Town conflict system; town-conflict-v1 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
+const taxPolicySource =
+  'Town public finance; tax-regime-v2 brackets, the CS2-convention 10% neutral rate, the trade tax rate, and the dividend tax rate are repository policy decisions because the paper does not model taxation';
+const lifestylePolicySource =
+  'Town wealth-tiered consumption; lifestyle-v1 net-worth boundaries and the struggling-tier non-survival spend cap are repository policy decisions because the paper does not model wealth-tiered consumption (benchmarked against the CS2 consumption multiplier 0.3+10*smoothstep(wealth))';
+const creditPolicySource =
+  'Town banking and credit; credit-v1 rates, reserve ratio, amortized loan term, missed-payment grace, and the history-scaled credit-limit schedule are repository policy decisions because the paper does not model banking';
+const externalTradePolicySource =
+  'Town external trade; external-trade-v1 balance decay, saturating sqrt-balance price impact, and balance scale are repository policy decisions benchmarked against the CS2 TradeSystem rolling trade balance with 1% decay and sqrt|balance| trade cost (TradeSystem.cs:344-364), because the paper does not model external trade';
 
 export const aivilizationScenarioDefaults = {
   maxPhysiology: { energy: 500, satiety: 500, health: 500 },
@@ -470,6 +538,8 @@ export const aivilizationSurvivalTimePolicyDefaults = {
       { residentialTier: 5, currencyCostPerHour: 160, source: survivalTimePolicySource },
       { residentialTier: 6, currencyCostPerHour: 320, source: survivalTimePolicySource },
     ],
+    // Roughly three days of unpaid upkeep force a one-tier downgrade.
+    arrearsDowngradeThresholdHours: 72,
   },
   physiologicalSafetyNet: {
     policyVersion: 'physiological-safety-net-v1',
@@ -496,8 +566,24 @@ export const aivilizationTownWeatherPolicyDefaults = {
   transitions: {
     sunny: { sunny: 0.55, cloudy: 0.25, windy: 0.1, rainy: 0, stormy: 0, snowy: 0, foggy: 0.1 },
     cloudy: { sunny: 0.3, cloudy: 0.35, windy: 0.1, rainy: 0.15, stormy: 0, snowy: 0, foggy: 0.1 },
-    windy: { sunny: 0.15, cloudy: 0.25, windy: 0.3, rainy: 0.15, stormy: 0.1, snowy: 0.05, foggy: 0 },
-    rainy: { sunny: 0, cloudy: 0.25, windy: 0.1, rainy: 0.4, stormy: 0.15, snowy: 0.05, foggy: 0.05 },
+    windy: {
+      sunny: 0.15,
+      cloudy: 0.25,
+      windy: 0.3,
+      rainy: 0.15,
+      stormy: 0.1,
+      snowy: 0.05,
+      foggy: 0,
+    },
+    rainy: {
+      sunny: 0,
+      cloudy: 0.25,
+      windy: 0.1,
+      rainy: 0.4,
+      stormy: 0.15,
+      snowy: 0.05,
+      foggy: 0.05,
+    },
     stormy: { sunny: 0, cloudy: 0.2, windy: 0.2, rainy: 0.35, stormy: 0.25, snowy: 0, foggy: 0 },
     snowy: { sunny: 0, cloudy: 0.3, windy: 0.1, rainy: 0.1, stormy: 0, snowy: 0.35, foggy: 0.15 },
     foggy: { sunny: 0.25, cloudy: 0.3, windy: 0, rainy: 0.1, stormy: 0, snowy: 0.05, foggy: 0.3 },
@@ -639,6 +725,99 @@ export const aivilizationProductionPolicyDefaults = {
     source: productionPolicySource,
   },
 } as const satisfies ScenarioProductionPolicyDefaults;
+
+export const TAX_POLICY_VERSION = 'tax-regime-v2';
+
+/**
+ * Town public finance. Wage income is taxed progressively per payment
+ * (brackets below) and sell-side trades pay a flat rate on the proceeds; both
+ * settle as transfers into the projection treasury, which funds safety-net
+ * subsidies once present. Enterprise dividend payouts additionally pay a flat
+ * profit tax into the treasury (v2). The neutral rate is the CS2-convention
+ * 10% shown to agents in decision contexts; settlement always uses the
+ * brackets.
+ */
+export const aivilizationTaxPolicyDefaults = {
+  policyVersion: TAX_POLICY_VERSION,
+  neutralRate: 0.1,
+  incomeTaxBrackets: [
+    // 低档工资免税（起征点）
+    { upToAmount: 300, rate: 0 },
+    { upToAmount: 800, rate: 0.08 },
+    { upToAmount: null, rate: 0.12 },
+  ],
+  tradeTaxRate: 0.05,
+  dividendTaxRate: 0.1,
+  source: taxPolicySource,
+} as const satisfies ScenarioTaxPolicyConfig;
+
+export const LIFESTYLE_POLICY_VERSION = 'lifestyle-v1';
+
+/**
+ * Wealth-tiered consumption. Net worth (balance plus inventory valued at spot
+ * prices) maps onto struggling/stable/comfortable/affluent tiers; only the
+ * struggling tier constrains planning — its non-survival spending (non-food
+ * purchases, residential upgrades, education investment) is capped at
+ * `strugglingNonSurvivalSpendCapRatio` of the spendable balance, mirroring the
+ * low end of the CS2 consumption multiplier `0.3+10*smoothstep(wealth)`.
+ */
+export const aivilizationLifestylePolicyDefaults = {
+  policyVersion: LIFESTYLE_POLICY_VERSION,
+  netWorthBoundaries: [500, 2000, 10000],
+  strugglingNonSurvivalSpendCapRatio: 0.3,
+  source: lifestylePolicySource,
+} as const satisfies ScenarioLifestylePolicyConfig;
+
+export const CREDIT_POLICY_VERSION = 'credit-v1';
+
+/**
+ * Town banking and credit. The town bank accepts agent deposits paying a
+ * daily interest rate out of its own cash, and issues amortized loans whose
+ * daily auto-collection settles interest-first from the borrower's cash;
+ * consecutive under-covered days beyond the grace window default the loan.
+ * Issuance is bounded by the borrower's history-scaled credit limit and by
+ * the reserve requirement (bank cash must keep `reserveRatio` of deposits).
+ * All movements are transfers between circulating accounts, so banking never
+ * moves the money supply; deposit and loan rates differ so the bank can run
+ * a spread loss or profit.
+ */
+export const aivilizationCreditPolicyDefaults = {
+  policyVersion: CREDIT_POLICY_VERSION,
+  depositDailyInterestRate: 0.001,
+  loanDailyInterestRate: 0.01,
+  loanTermDays: 30,
+  accrualCadenceMs: 86_400_000,
+  reserveRatio: 0.2,
+  maxLoansPerAgent: 1,
+  graceMissedPayments: 3,
+  baseLoanLimit: 5000,
+  creditLimitRepaidBonusRatio: 0.2,
+  creditLimitDefaultPenaltyRatio: 0.5,
+  creditLimitMinMultiplier: 0.1,
+  creditLimitMaxMultiplier: 3,
+  source: creditPolicySource,
+} as const satisfies ScenarioCreditPolicyConfig;
+
+export const EXTERNAL_TRADE_POLICY_VERSION = 'external-trade-v1';
+
+/**
+ * Town external trade (import/export with the external sector). Agents and
+ * enterprises sell into / buy from the external sector at their regional AMM
+ * spot price adjusted by a rolling per-commodity net-export balance: the more
+ * the town net-exports a commodity the lower the next export price, and the
+ * more it net-imports the higher the next import price, with the impact
+ * saturating at `priceImpactRatio` via a √balance term. The balance decays
+ * 1% per cadence (CS2 TradeSystem convention). Exports inject currency from
+ * the external sector (moneySupply rises) and imports burn into it (falls).
+ */
+export const aivilizationExternalTradePolicyDefaults = {
+  policyVersion: EXTERNAL_TRADE_POLICY_VERSION,
+  balanceDecayRatioPerCadence: 0.01,
+  cadenceMs: 3_600_000,
+  priceImpactRatio: 0.2,
+  balanceScale: 50,
+  source: externalTradePolicySource,
+} as const satisfies ScenarioExternalTradePolicyConfig;
 
 export function createAivilizationAblationAgentSeeds(
   input: CreateAivilizationAblationAgentSeedsInput = {},

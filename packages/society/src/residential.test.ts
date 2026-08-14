@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  evaluateResidentialArrears,
   evaluateResidentialTierUpgrade,
   evaluateResidentialUpkeep,
   type ResidentialTierUpgradePolicy,
@@ -190,5 +191,66 @@ describe('residential upkeep', () => {
       reason: 'policy-invalid',
       detail: 'currencyCostPerHour must be non-negative',
     });
+  });
+});
+
+describe('residential upkeep arrears', () => {
+  const arrearsPolicy: ResidentialUpkeepPolicy = {
+    costs: [
+      { residentialTier: 1, currencyCostPerHour: 0 },
+      { residentialTier: 2, currencyCostPerHour: 20 },
+      { residentialTier: 3, currencyCostPerHour: 40 },
+    ],
+    arrearsDowngradeThresholdHours: 2,
+  };
+
+  test('carries arrears below the downgrade threshold', () => {
+    expect(
+      evaluateResidentialArrears({ residentialTier: 3, nextArrears: 79, policy: arrearsPolicy }),
+    ).toEqual({ status: 'carry', reason: 'below-threshold' });
+  });
+
+  test('downgrades one tier and clears arrears at the threshold', () => {
+    expect(
+      evaluateResidentialArrears({ residentialTier: 3, nextArrears: 80, policy: arrearsPolicy }),
+    ).toEqual({
+      status: 'downgrade',
+      previousResidentialTier: 3,
+      nextResidentialTier: 2,
+      arrearsCleared: 80,
+    });
+  });
+
+  test('never downgrades below tier 1', () => {
+    expect(
+      evaluateResidentialArrears({ residentialTier: 2, nextArrears: 40, policy: arrearsPolicy }),
+    ).toEqual({
+      status: 'downgrade',
+      previousResidentialTier: 2,
+      nextResidentialTier: 1,
+      arrearsCleared: 40,
+    });
+    expect(
+      evaluateResidentialArrears({ residentialTier: 1, nextArrears: 1000, policy: arrearsPolicy }),
+    ).toEqual({ status: 'carry', reason: 'zero-cost' });
+  });
+
+  test('carries arrears when the threshold is disabled', () => {
+    expect(
+      evaluateResidentialArrears({
+        residentialTier: 3,
+        nextArrears: 10_000,
+        policy: { costs: arrearsPolicy.costs },
+      }),
+    ).toEqual({ status: 'carry', reason: 'threshold-disabled' });
+  });
+
+  test('rejects invalid inputs', () => {
+    expect(() =>
+      evaluateResidentialArrears({ residentialTier: 0, nextArrears: 0, policy: arrearsPolicy }),
+    ).toThrow(/residentialTier/);
+    expect(() =>
+      evaluateResidentialArrears({ residentialTier: 2, nextArrears: -1, policy: arrearsPolicy }),
+    ).toThrow(/nextArrears/);
   });
 });

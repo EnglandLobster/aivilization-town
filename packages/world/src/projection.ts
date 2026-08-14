@@ -1,4 +1,14 @@
-import { addInventory, removeInventory, type AmmPool, type Inventory } from '@aivilization/economy';
+import {
+  addInventory,
+  assertMoneySupplyDelta,
+  calculateCirculatingMoneyDelta,
+  createMoneyTransfer,
+  economicAccount,
+  removeInventory,
+  type AmmPool,
+  type EconomicAccountSector,
+  type Inventory,
+} from '@aivilization/economy';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type { AgentId, ConversationId, LocationId, SimulationClock } from '@aivilization/sim-core';
 import type { HumanCommandAttribution } from '@aivilization/sim-core';
@@ -12,12 +22,20 @@ import {
   type SocialRelationState,
 } from '@aivilization/society';
 import type { WorldEvent } from './events';
+import {
+  applyEnterpriseDomainEvent,
+  normalizeEnterpriseState,
+  type WorldEnterpriseState,
+} from './enterprise';
+import { normalizeBankState, type WorldBankState } from './credit';
 import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './events';
 import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
 import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
 import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
 import type { WorldConflictRecord } from './conflict';
+import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise';
+import { applyCreditProjectionEvent } from './projectionReducers/credit';
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -28,6 +46,19 @@ export type WorldAgentState = {
   readonly residentialTier: number;
   readonly job: string | null;
   readonly inventory: Inventory;
+  readonly durableGoods?: readonly {
+    readonly lotId: string;
+    readonly commodityName: string;
+    readonly quantity: number;
+    readonly utilityPoints: number;
+    readonly acquiredAt: number;
+    readonly expiresAt: number;
+  }[];
+  /**
+   * Accumulated unpaid residential upkeep. Optional so legacy snapshots and
+   * registrations stay byte-for-byte compatible; absent means zero arrears.
+   */
+  readonly upkeepArrears?: number;
   readonly registration?: {
     readonly registrationId: string;
     readonly policyVersion: string;
@@ -117,6 +148,34 @@ export type WorldMarketPriceIndexState = {
   readonly ratios: Readonly<Record<string, number>>;
 };
 
+/**
+ * Latest recorded economic-composition observation. The projection keeps only
+ * the newest entry (replaced, not appended, by each EconomicCompositionRecorded)
+ * so the slice stays bounded; the durable series lives in the event stream.
+ */
+export type WorldEconomicCompositionState = {
+  readonly recordedAt: number;
+  readonly moneySupply: number;
+  readonly composition: {
+    readonly agents: number;
+    readonly enterprises: number;
+    readonly treasury: number;
+    readonly bank: number;
+    readonly ammPoolCurrency: number;
+    readonly ammPoolCommodityValue: number;
+    readonly externalNetInflow: number;
+  };
+  readonly enterprises: {
+    readonly total: number;
+    readonly active: number;
+    readonly insolvent: number;
+    readonly bankruptTotal: number;
+  };
+  readonly gini: number;
+  readonly deposits: number;
+  readonly loansOutstanding: number;
+};
+
 export type WorldLocationObservationState = {
   readonly agentId: AgentId;
   readonly locationId: LocationId;
@@ -185,10 +244,40 @@ export type WorldAgentTransitState = {
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
+  readonly enterprises: Readonly<Record<string, WorldEnterpriseState>>;
   readonly locations: Readonly<Record<string, WorldLocationState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly moneySupply: number;
   readonly marketPriceIndices: readonly WorldMarketPriceIndexState[];
+  /**
+   * Newest economic-composition observation from the worker market-metrics
+   * channel. Optional so legacy snapshots stay byte-for-byte compatible;
+   * absent means no EconomicCompositionRecorded has been applied yet.
+   */
+  readonly economicComposition?: WorldEconomicCompositionState;
+  /**
+   * Cumulative count of EnterpriseBankruptcyDeclared events applied. Tracked
+   * separately from enterprise status because a bankrupt enterprise is closed
+   * in the same settlement and its terminal `closed` status no longer records
+   * the reason; absent on legacy snapshots and treated as zero.
+   */
+  readonly bankruptEnterpriseTotal?: number;
+  readonly externalMarket?: {
+    readonly commodityReserveNetImports: Readonly<Record<string, number>>;
+    readonly currencyReserveNetImports: number;
+  };
+  /**
+   * Optional external-trade slice: the rolling per-commodity net-export balance
+   * (positive = net exports) that prices trades against the external sector.
+   * Present only once the first ExternalTradeExecuted/ExternalTradeBalancesDecayed
+   * event exists; absent keeps legacy snapshots byte-for-byte compatible. Exports
+   * inject currency from the external sector and imports burn into it, so these
+   * trades move moneySupply with the `external` counterpart sector.
+   */
+  readonly externalTrade?: {
+    readonly balancesByCommodity: Readonly<Record<string, number>>;
+    readonly lastDecayAt: number;
+  };
   readonly jobApplications: readonly WorldJobApplicationState[];
   readonly recruitmentCycles: readonly WorldRecruitmentCycleState[];
   readonly physiologicalDistressByAgent: Readonly<Record<string, PhysiologicalDistressState>>;
@@ -197,6 +286,32 @@ export type WorldProjection = {
   readonly socialCommitments: Readonly<Record<string, WorldSocialCommitmentState>>;
   readonly activityTimeByAgent: Readonly<Record<string, WorldAgentActivityTimeState>>;
   readonly transitByAgent?: Readonly<Record<string, WorldAgentTransitState>>;
+  /**
+   * Last simulation time each agent's per-agent time effects were settled.
+   * Present only when time-settlement amortization is enabled; absent on legacy
+   * projections (every agent settles every tick).
+   */
+  readonly timeSettlementByAgent?: Readonly<Record<string, number>>;
+  /**
+   * Public treasury balance funded by tax events and drained by
+   * treasury-funded subsidies. Optional so legacy snapshots stay byte-for-byte
+   * compatible; absent is treated as zero by the tax and subsidy cases.
+   * Taxation and treasury spending are transfers and never move moneySupply.
+   */
+  readonly treasury?: number;
+  /**
+   * Optional town-bank slice (deposits, loan book, credit history and the bank
+   * cash account). Present only once credit events exist or the scenario seeded
+   * initial bank reserves; absent keeps legacy snapshots byte-for-byte
+   * compatible. The bank cash account circulates, so banking transfers never
+   * move moneySupply; a reserve seed counts towards the bootstrap supply.
+   */
+  readonly bank?: WorldBankState;
+  readonly publicBudget?: {
+    readonly cumulativeSpendingByService: Readonly<Record<string, number>>;
+    readonly serviceBalances: Readonly<Record<string, number>>;
+    readonly lastSettledAt: number;
+  };
   /**
    * Optional simulation-wide weather slice, present only when the town-weather
    * policy has produced at least one WeatherChanged event (or the projection
@@ -259,6 +374,7 @@ export function enforceWorldProjectionMemoryRetention(
 
 export function createWorldProjection(input: {
   readonly agents: readonly WorldAgentStateInput[];
+  readonly enterprises?: readonly WorldEnterpriseState[];
   readonly clock?: SimulationClock;
   readonly locations?: readonly WorldLocationStateInput[];
   readonly marketPools?: readonly AmmPool[];
@@ -272,6 +388,20 @@ export function createWorldProjection(input: {
   readonly socialCommitments?: readonly WorldSocialCommitmentState[];
   readonly socialRelations?: readonly SocialRelationState[];
   readonly weather?: WorldWeatherState;
+  readonly treasury?: number;
+  /**
+   * Optional initial town-bank state, typically seeded from scenario reserves
+   * via `createBankState`. Omitted leaves the projection bank-free until the
+   * first credit event bootstraps it.
+   */
+  readonly bank?: WorldBankState;
+  /**
+   * Optional seed for the latest economic-composition observation and the
+   * cumulative bankruptcy tally; omitted keeps constructed projections
+   * byte-for-byte identical to legacy ones until the events apply.
+   */
+  readonly economicComposition?: WorldEconomicCompositionState;
+  readonly bankruptEnterpriseTotal?: number;
   readonly bulletins?: readonly WorldBulletinState[];
   readonly socialMatters?: readonly WorldSocialMatterState[];
 }): WorldProjection {
@@ -306,6 +436,9 @@ export function createWorldProjection(input: {
       ...agent,
       locationId,
       inventory: { ...agent.inventory },
+      ...(agent.durableGoods === undefined
+        ? {}
+        : { durableGoods: agent.durableGoods.map((lot) => ({ ...lot })) }),
     };
   }
 
@@ -323,9 +456,21 @@ export function createWorldProjection(input: {
     socialRelations[createDirectedSocialRelationKey(relation)] = relation;
   }
 
+  const enterprises: Record<string, WorldEnterpriseState> = {};
+  for (const enterprise of input.enterprises ?? []) {
+    if (enterprises[enterprise.enterpriseId] !== undefined) {
+      throw new Error(`duplicate enterprise id ${enterprise.enterpriseId}`);
+    }
+    if (agents[enterprise.ownerAgentId] === undefined) {
+      throw new Error(`enterprise ${enterprise.enterpriseId} has unknown owner`);
+    }
+    enterprises[enterprise.enterpriseId] = normalizeEnterpriseState(enterprise);
+  }
+
   return {
     clock: input.clock === undefined ? { now: 0, tickDurationMs: 1000 } : { ...input.clock },
     agents,
+    enterprises,
     locations,
     marketPools,
     moneySupply: input.moneySupply ?? 0,
@@ -350,6 +495,14 @@ export function createWorldProjection(input: {
     activityTimeByAgent: {},
     transitByAgent: {},
     ...(input.weather === undefined ? {} : { weather: { ...input.weather } }),
+    ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
+    ...(input.bank === undefined ? {} : { bank: normalizeBankState(input.bank) }),
+    ...(input.economicComposition === undefined
+      ? {}
+      : { economicComposition: cloneEconomicComposition(input.economicComposition) }),
+    ...(input.bankruptEnterpriseTotal === undefined
+      ? {}
+      : { bankruptEnterpriseTotal: input.bankruptEnterpriseTotal }),
     ...(input.bulletins === undefined
       ? {}
       : {
@@ -432,6 +585,14 @@ function validateSpatialLocations(locations: Readonly<Record<string, WorldLocati
 }
 
 export function applyWorldEvent(projection: WorldProjection, event: WorldEvent): WorldProjection {
+  const enterpriseProjection = applyEnterpriseProjectionEvent(projection, event);
+  if (enterpriseProjection !== undefined) {
+    return enterpriseProjection;
+  }
+  const creditProjection = applyCreditProjectionEvent(projection, event);
+  if (creditProjection !== undefined) {
+    return creditProjection;
+  }
   switch (event.type) {
     case 'AgentRegistered': {
       if (projection.agents[event.payload.agentId] !== undefined) {
@@ -482,53 +643,219 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ],
       };
     case 'CommodityProduced':
-      return updateAgent(projection, event.payload.agentId, (agent) => ({
-        ...agent,
-        inventory: applyInventoryChanges(
-          applyInventoryChanges(agent.inventory, event.payload.consumedInputs, -1),
-          event.payload.produced,
-          1,
-        ),
-        physiology: {
-          ...agent.physiology,
-          energy: Math.max(0, agent.physiology.energy - event.payload.energyCost),
-          satiety: Math.max(0, agent.physiology.satiety - event.payload.satietyCost),
-        },
-      }));
-    case 'TradeExecuted':
       return updateAgent(
-        {
-          ...projection,
-          marketPools: {
-            ...projection.marketPools,
-            [resolveMarketPoolKey({
-              regionId: event.payload.regionId,
-              commodity: event.payload.commodityName,
-            })]: event.payload.poolAfter,
-          },
-          moneySupply: projection.moneySupply + event.payload.moneySupplyDelta,
-        },
+        event.payload.enterpriseId === undefined
+          ? projection
+          : updateEnterprise(projection, event.payload.enterpriseId, (enterprise) => ({
+              ...enterprise,
+              inventory: applyInventoryChanges(
+                applyInventoryChanges(enterprise.inventory, event.payload.consumedInputs, -1),
+                event.payload.produced,
+                1,
+              ),
+            })),
         event.payload.agentId,
         (agent) => ({
           ...agent,
-          balance:
-            event.payload.side === 'buy'
-              ? agent.balance - event.payload.currencyQuantity
-              : agent.balance + event.payload.currencyQuantity,
-          inventory:
-            event.payload.side === 'buy'
-              ? addInventory(
-                  agent.inventory,
-                  event.payload.commodityName,
-                  event.payload.commodityQuantity,
-                )
-              : removeInventory(
-                  agent.inventory,
-                  event.payload.commodityName,
-                  event.payload.commodityQuantity,
+          ...(event.payload.enterpriseId === undefined
+            ? {
+                inventory: applyInventoryChanges(
+                  applyInventoryChanges(agent.inventory, event.payload.consumedInputs, -1),
+                  event.payload.produced,
+                  1,
                 ),
+              }
+            : {}),
+          physiology: {
+            ...agent.physiology,
+            energy: Math.max(0, agent.physiology.energy - event.payload.energyCost),
+            satiety: Math.max(0, agent.physiology.satiety - event.payload.satietyCost),
+          },
         }),
       );
+    case 'TradeExecuted': {
+      const actorSector: EconomicAccountSector =
+        event.payload.enterpriseId === undefined ? 'agent' : 'enterprise';
+      const actorId = event.payload.enterpriseId ?? event.payload.agentId;
+      const marketAccount = economicAccount(
+        'market',
+        resolveMarketPoolKey({
+          regionId: event.payload.regionId,
+          commodity: event.payload.commodityName,
+        }),
+      );
+      const transaction = createMoneyTransfer({
+        transactionId: event.id,
+        reason: `trade-${event.payload.side}`,
+        from: event.payload.side === 'buy' ? economicAccount(actorSector, actorId) : marketAccount,
+        to: event.payload.side === 'buy' ? marketAccount : economicAccount(actorSector, actorId),
+        amount: event.payload.currencyQuantity,
+      });
+      // Legacy trade events used zero as an unspecified accounting delta.
+      // Preserve replay compatibility; all versioned/non-zero deltas are
+      // checked against the double-entry transaction.
+      if (event.payload.moneySupplyDelta !== 0) {
+        assertMoneySupplyDelta({
+          transaction,
+          moneySupplyDelta: event.payload.moneySupplyDelta,
+        });
+      }
+      const marketProjection = {
+        ...projection,
+        marketPools: {
+          ...projection.marketPools,
+          [resolveMarketPoolKey({
+            regionId: event.payload.regionId,
+            commodity: event.payload.commodityName,
+          })]: event.payload.poolAfter,
+        },
+        moneySupply: projection.moneySupply + event.payload.moneySupplyDelta,
+      };
+      if (event.payload.enterpriseId !== undefined) {
+        return updateEnterprise(marketProjection, event.payload.enterpriseId, (enterprise) =>
+          applyEnterpriseDomainEvent(
+            enterprise,
+            event.payload.side === 'sell'
+              ? {
+                  type: 'EnterpriseSaleRecorded',
+                  amount: event.payload.currencyQuantity,
+                  commodityName: event.payload.commodityName,
+                  quantity: event.payload.commodityQuantity,
+                }
+              : {
+                  type: 'EnterprisePurchaseRecorded',
+                  amount: event.payload.currencyQuantity,
+                  commodityName: event.payload.commodityName,
+                  quantity: event.payload.commodityQuantity,
+                },
+          ),
+        );
+      }
+      return updateAgent(marketProjection, event.payload.agentId, (agent) => ({
+        ...agent,
+        balance:
+          event.payload.side === 'buy'
+            ? agent.balance - event.payload.currencyQuantity
+            : agent.balance + event.payload.currencyQuantity,
+        inventory:
+          event.payload.side === 'buy'
+            ? addInventory(
+                agent.inventory,
+                event.payload.commodityName,
+                event.payload.commodityQuantity,
+              )
+            : removeInventory(
+                agent.inventory,
+                event.payload.commodityName,
+                event.payload.commodityQuantity,
+              ),
+      }));
+    }
+    case 'ExternalMarketRebalanced': {
+      const poolKey = resolveMarketPoolKey({
+        regionId: event.payload.regionId,
+        commodity: event.payload.commodityName,
+      });
+      return {
+        ...projection,
+        marketPools: { ...projection.marketPools, [poolKey]: event.payload.poolAfter },
+        externalMarket: {
+          commodityReserveNetImports: {
+            ...(projection.externalMarket?.commodityReserveNetImports ?? {}),
+            [poolKey]:
+              (projection.externalMarket?.commodityReserveNetImports[poolKey] ?? 0) +
+              event.payload.commodityReserveDelta,
+          },
+          currencyReserveNetImports:
+            (projection.externalMarket?.currencyReserveNetImports ?? 0) +
+            event.payload.currencyReserveDelta,
+        },
+      };
+    }
+    case 'ExternalTradeExecuted': {
+      const trader = event.payload.trader;
+      const traderSector: EconomicAccountSector = 'agentId' in trader ? 'agent' : 'enterprise';
+      const traderId = 'agentId' in trader ? trader.agentId : trader.enterpriseId;
+      // Export = injection from the external sector (supply rises); import =
+      // burn into the external sector (supply falls).
+      const settledProjection = applyMoneyTransferToSupply(projection, {
+        transactionId: event.id,
+        reason: `external-trade-${event.payload.direction}`,
+        ...(event.payload.direction === 'export'
+          ? { fromSector: 'external', fromId: 'external-market', toSector: traderSector, toId: traderId }
+          : { fromSector: traderSector, fromId: traderId, toSector: 'external', toId: 'external-market' }),
+        amount: event.payload.totalCurrency,
+      });
+      const balanceBefore =
+        projection.externalTrade?.balancesByCommodity[event.payload.commodityName] ?? 0;
+      const balanceAfter =
+        event.payload.direction === 'export'
+          ? balanceBefore + event.payload.quantity
+          : balanceBefore - event.payload.quantity;
+      assertExternalTradeBalanceTransition({
+        event,
+        balanceBefore,
+        balanceAfter,
+      });
+      const tradedProjection = {
+        ...settledProjection,
+        externalTrade: {
+          balancesByCommodity: {
+            ...(projection.externalTrade?.balancesByCommodity ?? {}),
+            [event.payload.commodityName]: balanceAfter,
+          },
+          lastDecayAt: projection.externalTrade?.lastDecayAt ?? 0,
+        },
+      };
+      if ('enterpriseId' in trader) {
+        return updateEnterprise(tradedProjection, trader.enterpriseId, (enterprise) =>
+          applyEnterpriseDomainEvent(
+            enterprise,
+            event.payload.direction === 'export'
+              ? {
+                  type: 'EnterpriseSaleRecorded',
+                  amount: event.payload.totalCurrency,
+                  commodityName: event.payload.commodityName,
+                  quantity: event.payload.quantity,
+                }
+              : {
+                  type: 'EnterprisePurchaseRecorded',
+                  amount: event.payload.totalCurrency,
+                  commodityName: event.payload.commodityName,
+                  quantity: event.payload.quantity,
+                },
+          ),
+        );
+      }
+      return updateAgent(tradedProjection, trader.agentId, (agent) => ({
+        ...agent,
+        balance:
+          event.payload.direction === 'export'
+            ? agent.balance + event.payload.totalCurrency
+            : agent.balance - event.payload.totalCurrency,
+        inventory:
+          event.payload.direction === 'export'
+            ? removeInventory(agent.inventory, event.payload.commodityName, event.payload.quantity)
+            : addInventory(agent.inventory, event.payload.commodityName, event.payload.quantity),
+      }));
+    }
+    case 'ExternalTradeBalancesDecayed': {
+      const current = projection.externalTrade?.balancesByCommodity ?? {};
+      for (const [commodityName, balance] of Object.entries(event.payload.balancesBefore)) {
+        if (Math.abs((current[commodityName] ?? 0) - balance) > 1e-9) {
+          throw new Error(
+            `external trade balance for ${commodityName} is ${current[commodityName] ?? 0}, cannot replay decay from ${balance}`,
+          );
+        }
+      }
+      return {
+        ...projection,
+        externalTrade: {
+          balancesByCommodity: { ...event.payload.balancesAfter },
+          lastDecayAt: event.payload.decayedAt,
+        },
+      };
+    }
     case 'ResourceTransferred':
       return updateAgent(
         updateAgent(projection, event.payload.sourceAgentId, (agent) => ({
@@ -549,6 +876,37 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           ),
         }),
       );
+    case 'CommodityConsumed':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        inventory: removeInventory(
+          agent.inventory,
+          event.payload.commodityName,
+          event.payload.quantity,
+        ),
+        ...(event.payload.kind === 'durable' &&
+        event.payload.durableLotId !== undefined &&
+        event.payload.expiresAt !== undefined
+          ? {
+              durableGoods: [
+                ...(agent.durableGoods ?? []),
+                {
+                  lotId: event.payload.durableLotId,
+                  commodityName: event.payload.commodityName,
+                  quantity: event.payload.quantity,
+                  utilityPoints: event.payload.utilityPoints,
+                  acquiredAt: event.occurredAt,
+                  expiresAt: event.payload.expiresAt,
+                },
+              ],
+            }
+          : {}),
+      }));
+    case 'DurableGoodExpired':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        durableGoods: (agent.durableGoods ?? []).filter((lot) => lot.lotId !== event.payload.lotId),
+      }));
     case 'MarketPriceIndexRecorded':
       return {
         ...projection,
@@ -565,6 +923,12 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             ratios: event.payload.ratios,
           }),
         ],
+      };
+    case 'EconomicCompositionRecorded':
+      // Read-model fact only: replace the latest observation, never recompute it.
+      return {
+        ...projection,
+        economicComposition: cloneEconomicComposition(event.payload),
       };
     case 'JobApplicationSubmitted':
       return {
@@ -628,12 +992,39 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ],
       };
     case 'ResidentialTierUpgraded':
+      // The upgrade fee is burned: it leaves circulation entirely.
+      return updateAgent(
+        {
+          ...projection,
+          moneySupply: projection.moneySupply - event.payload.currencyCost,
+        },
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: agent.balance - event.payload.currencyCost,
+          residentialTier: event.payload.nextResidentialTier,
+          inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
+        }),
+      );
+    case 'ResidentialTierDowngraded':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,
-        balance: agent.balance - event.payload.currencyCost,
         residentialTier: event.payload.nextResidentialTier,
-        inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
+        upkeepArrears: 0,
       }));
+    case 'ResidentialUpkeepArrearsUpdated':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        upkeepArrears: event.payload.nextArrears,
+      }));
+    case 'AgentTimeEffectsSettled':
+      return {
+        ...projection,
+        timeSettlementByAgent: {
+          ...(projection.timeSettlementByAgent ?? {}),
+          [event.payload.agentId]: event.payload.nextSettledAt,
+        },
+      };
     case 'ResidentialUpkeepCharged':
       return updateAgent(
         {
@@ -772,22 +1163,221 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
       }));
     case 'AgentActivityTimeCommitted':
       return applyAgentActivityTimeCommitment(projection, event);
-    case 'WagePaid':
-      return updateAgent(projection, event.payload.agentId, (agent) => ({
+    case 'WagePaid': {
+      // Minted wages increase the money supply; employer/treasury-paid wages are
+      // transfers and leave the supply unchanged (the payer account is debited
+      // by its own companion event).
+      const fundingSource = event.payload.fundingSource ?? 'mint';
+      const fundedProjection =
+        fundingSource === 'mint'
+          ? applyMoneyTransferToSupply(projection, {
+              transactionId: event.id,
+              reason: 'minted-wage',
+              fromSector: 'monetary-authority',
+              fromId: 'system',
+              toSector: 'agent',
+              toId: event.payload.agentId,
+              amount: event.payload.amount,
+            })
+          : fundingSource === 'employer' && event.payload.enterpriseId !== undefined
+            ? updateEnterprise(
+                applyMoneyTransferToSupply(projection, {
+                  transactionId: event.id,
+                  reason: 'employer-payroll',
+                  fromSector: 'enterprise',
+                  fromId: event.payload.enterpriseId,
+                  toSector: 'agent',
+                  toId: event.payload.agentId,
+                  amount: event.payload.amount,
+                }),
+                event.payload.enterpriseId,
+                (enterprise) =>
+                  applyEnterpriseDomainEvent(enterprise, {
+                    type: 'EnterprisePayrollRecorded',
+                    amount: event.payload.amount,
+                  }),
+              )
+            : fundingSource === 'treasury'
+              ? applyMoneyTransferToSupply(
+                  { ...projection, treasury: (projection.treasury ?? 0) - event.payload.amount },
+                  {
+                    transactionId: event.id,
+                    reason: 'treasury-payroll',
+                    fromSector: 'treasury',
+                    fromId: 'public-treasury',
+                    toSector: 'agent',
+                    toId: event.payload.agentId,
+                    amount: event.payload.amount,
+                  },
+                )
+              : projection;
+      return updateAgent(fundedProjection, event.payload.agentId, (agent) => ({
         ...agent,
         balance: agent.balance + event.payload.amount,
       }));
-    case 'SubsidyPaid':
+    }
+    case 'IncomeTaxCharged':
+      // Taxes are transfers: the agent balance is debited and the treasury is
+      // credited by the same amount; moneySupply is unchanged.
       return updateAgent(
-        {
-          ...projection,
-          moneySupply: projection.moneySupply + event.payload.amount,
-        },
+        applyMoneyTransferToSupply(
+          {
+            ...projection,
+            treasury: (projection.treasury ?? 0) + event.payload.amount,
+          },
+          {
+            transactionId: event.id,
+            reason: 'income-tax',
+            fromSector: 'agent',
+            fromId: event.payload.agentId,
+            toSector: 'treasury',
+            toId: 'public-treasury',
+            amount: event.payload.amount,
+          },
+        ),
         event.payload.agentId,
         (agent) => ({
           ...agent,
           balance: event.payload.nextBalance,
         }),
+      );
+    case 'TradeTaxCharged':
+      if (event.payload.enterpriseId !== undefined) {
+        return updateEnterprise(
+          applyMoneyTransferToSupply(
+            {
+              ...projection,
+              treasury: (projection.treasury ?? 0) + event.payload.amount,
+            },
+            {
+              transactionId: event.id,
+              reason: 'enterprise-trade-tax',
+              fromSector: 'enterprise',
+              fromId: event.payload.enterpriseId,
+              toSector: 'treasury',
+              toId: 'public-treasury',
+              amount: event.payload.amount,
+            },
+          ),
+          event.payload.enterpriseId,
+          (enterprise) =>
+            applyEnterpriseDomainEvent(enterprise, {
+              type: 'EnterpriseTaxRecorded',
+              amount: event.payload.amount,
+            }),
+        );
+      }
+      return updateAgent(
+        applyMoneyTransferToSupply(
+          {
+            ...projection,
+            treasury: (projection.treasury ?? 0) + event.payload.amount,
+          },
+          {
+            transactionId: event.id,
+            reason: 'trade-tax',
+            fromSector: 'agent',
+            fromId: event.payload.agentId,
+            toSector: 'treasury',
+            toId: 'public-treasury',
+            amount: event.payload.amount,
+          },
+        ),
+        event.payload.agentId,
+        (agent) => ({ ...agent, balance: event.payload.nextBalance }),
+      );
+    case 'DividendTaxCharged':
+      // Dividend tax is a transfer from the enterprise cash account into the
+      // treasury; moneySupply is unchanged. The treasury delta is computed
+      // incrementally (not from the audit payload) so same-tick budget
+      // spending cannot resurrect or double-count funds.
+      return updateEnterprise(
+        applyMoneyTransferToSupply(
+          {
+            ...projection,
+            treasury: (projection.treasury ?? 0) + event.payload.amount,
+          },
+          {
+            transactionId: event.id,
+            reason: 'dividend-tax',
+            fromSector: 'enterprise',
+            fromId: event.payload.enterpriseId,
+            toSector: 'treasury',
+            toId: 'public-treasury',
+            amount: event.payload.amount,
+          },
+        ),
+        event.payload.enterpriseId,
+        (enterprise) =>
+          applyEnterpriseDomainEvent(enterprise, {
+            type: 'EnterpriseTaxRecorded',
+            amount: event.payload.amount,
+          }),
+      );
+    case 'SubsidyPaid': {
+      // Minted subsidies increase the money supply; treasury-funded subsidies
+      // are transfers from the treasury (supply unchanged).
+      const fundingSource = event.payload.fundingSource ?? 'mint';
+      return updateAgent(
+        fundingSource === 'treasury'
+          ? applyMoneyTransferToSupply(
+              { ...projection, treasury: (projection.treasury ?? 0) - event.payload.amount },
+              {
+                transactionId: event.id,
+                reason: 'treasury-subsidy',
+                fromSector: 'treasury',
+                fromId: 'public-treasury',
+                toSector: 'agent',
+                toId: event.payload.agentId,
+                amount: event.payload.amount,
+              },
+            )
+          : applyMoneyTransferToSupply(projection, {
+              transactionId: event.id,
+              reason: 'minted-subsidy',
+              fromSector: 'monetary-authority',
+              fromId: 'system',
+              toSector: 'agent',
+              toId: event.payload.agentId,
+              amount: event.payload.amount,
+            }),
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: event.payload.nextBalance,
+        }),
+      );
+    }
+    case 'PublicBudgetSpent':
+      return applyMoneyTransferToSupply(
+        {
+          ...projection,
+          treasury: event.payload.nextTreasury,
+          publicBudget: {
+            cumulativeSpendingByService: {
+              ...(projection.publicBudget?.cumulativeSpendingByService ?? {}),
+              [event.payload.service]:
+                (projection.publicBudget?.cumulativeSpendingByService[event.payload.service] ?? 0) +
+                event.payload.amount,
+            },
+            serviceBalances: {
+              ...(projection.publicBudget?.serviceBalances ?? {}),
+              [event.payload.service]:
+                (projection.publicBudget?.serviceBalances[event.payload.service] ?? 0) +
+                event.payload.amount,
+            },
+            lastSettledAt: event.payload.settledAt,
+          },
+        },
+        {
+          transactionId: event.id,
+          reason: `public-budget:${event.payload.service}`,
+          fromSector: 'treasury',
+          fromId: 'public-treasury',
+          toSector: 'public-service',
+          toId: event.payload.service,
+          amount: event.payload.amount,
+        },
       );
     case 'ShortTermMemoryRecorded':
       return {
@@ -824,9 +1414,7 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
     case 'BulletinScheduled': {
       const bulletins = projection.bulletins ?? [];
       if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
-        throw new Error(
-          `cannot replay duplicate bulletin ${event.payload.bulletin.bulletinId}`,
-        );
+        throw new Error(`cannot replay duplicate bulletin ${event.payload.bulletin.bulletinId}`);
       }
       return {
         ...projection,
@@ -1050,6 +1638,7 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
       };
     }
   }
+  throw new Error(`unhandled world event ${event.type}`);
 }
 
 export function isAgentAvailableForWorldAction(
@@ -1407,6 +1996,16 @@ function cloneMarketPriceIndex(index: WorldMarketPriceIndexState): WorldMarketPr
   };
 }
 
+function cloneEconomicComposition(
+  composition: WorldEconomicCompositionState,
+): WorldEconomicCompositionState {
+  return {
+    ...composition,
+    composition: { ...composition.composition },
+    enterprises: { ...composition.enterprises },
+  };
+}
+
 function updateAgent(
   projection: WorldProjection,
   agentId: AgentId,
@@ -1423,5 +2022,66 @@ function updateAgent(
       ...projection.agents,
       [agentId]: update(current),
     },
+  };
+}
+
+function updateEnterprise(
+  projection: WorldProjection,
+  enterpriseId: string,
+  update: (enterprise: WorldEnterpriseState) => WorldEnterpriseState,
+): WorldProjection {
+  const current = projection.enterprises[enterpriseId];
+  if (current === undefined) {
+    throw new Error(`unknown enterprise ${enterpriseId}`);
+  }
+  return {
+    ...projection,
+    enterprises: {
+      ...projection.enterprises,
+      [enterpriseId]: update(current),
+    },
+  };
+}
+
+function assertExternalTradeBalanceTransition(input: {
+  readonly event: Extract<WorldEvent, { readonly type: 'ExternalTradeExecuted' }>;
+  readonly balanceBefore: number;
+  readonly balanceAfter: number;
+}): void {
+  const payload = input.event.payload;
+  if (Math.abs(payload.balanceBefore - input.balanceBefore) > 1e-9) {
+    throw new Error(
+      `external trade balanceBefore ${payload.balanceBefore} does not match projection balance ${input.balanceBefore} for ${payload.commodityName}`,
+    );
+  }
+  if (Math.abs(payload.balanceAfter - input.balanceAfter) > 1e-9) {
+    throw new Error(
+      `external trade balanceAfter ${payload.balanceAfter} does not match ${payload.direction} of ${payload.quantity} from ${input.balanceBefore} for ${payload.commodityName}`,
+    );
+  }
+}
+
+function applyMoneyTransferToSupply(
+  projection: WorldProjection,
+  input: {
+    readonly transactionId: string;
+    readonly reason: string;
+    readonly fromSector: EconomicAccountSector;
+    readonly fromId: string;
+    readonly toSector: EconomicAccountSector;
+    readonly toId: string;
+    readonly amount: number;
+  },
+): WorldProjection {
+  const transaction = createMoneyTransfer({
+    transactionId: input.transactionId,
+    reason: input.reason,
+    from: economicAccount(input.fromSector, input.fromId),
+    to: economicAccount(input.toSector, input.toId),
+    amount: input.amount,
+  });
+  return {
+    ...projection,
+    moneySupply: projection.moneySupply + calculateCirculatingMoneyDelta(transaction),
   };
 }

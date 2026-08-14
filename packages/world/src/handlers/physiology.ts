@@ -1,16 +1,24 @@
-import { getInventoryQuantity, planProduction, type ProductionEfficiencyPolicy, type ProductionRecipeOverride } from '@aivilization/economy';
+import {
+  getInventoryQuantity,
+  planProduction,
+  type ProductionEfficiencyPolicy,
+  type ProductionRecipeOverride,
+} from '@aivilization/economy';
 import { createSeededRandom, type CommandEnvelope } from '@aivilization/sim-core';
+import { decidePayWage, isEnterpriseOperational } from '@aivilization/enterprise';
 import {
   accumulateEducation,
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
   evaluateEducationInvestment,
+  evaluateIncomeTax,
   evaluateMedicalTreatmentCost,
   isIncapacitated,
   type EducationInvestmentPolicy,
   type MedicalTreatmentCostPolicy,
   type ResidentialPhysiologyCapPolicy,
+  type TaxPolicy,
 } from '@aivilization/society';
 import {
   assertAgentEatPayload,
@@ -371,6 +379,7 @@ export function handleAgentWorkCommand(input: {
     readonly energy: number;
     readonly health: number;
   };
+  readonly tax?: TaxPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -399,36 +408,133 @@ export function handleAgentWorkCommand(input: {
     return rejectCommand(input, 'AgentWork', 'agent is incapacitated');
   }
 
-  const wage = input.wageCalculator(payload.occupationName);
+  const enterprise =
+    payload.enterpriseId === undefined
+      ? undefined
+      : input.projection.enterprises[payload.enterpriseId];
+  if (payload.enterpriseId !== undefined) {
+    if (enterprise === undefined || !isEnterpriseOperational(enterprise)) {
+      return rejectCommand(input, 'AgentWork', 'enterprise is missing or closed');
+    }
+    if (!enterprise.employeeAgentIds.includes(agent.agentId)) {
+      return rejectCommand(input, 'AgentWork', 'agent is not an enterprise employee');
+    }
+    if (enterprise.occupationName !== payload.occupationName) {
+      return rejectCommand(input, 'AgentWork', 'enterprise occupation does not match work');
+    }
+  }
+
+  // Enterprise employees earn the contracted wage offer recorded at join time;
+  // legacy members without an offer and non-enterprise work fall back to the
+  // world wage regime.
+  const wage =
+    enterprise?.employeeWageOffers?.[agent.agentId] ?? input.wageCalculator(payload.occupationName);
   if (!Number.isFinite(wage) || wage < 0) {
     return rejectCommand(input, 'AgentWork', 'wageCalculator must return a non-negative wage');
   }
+
+  // Settle the wage against its funding source. Employer payroll follows the
+  // enterprise wage decision: cash shortfalls accrue wage arrears instead of
+  // rejecting the work, and later surpluses repay arrears first. Public wages
+  // draw on the treasury when the fiscal feature is on; a short treasury pays
+  // a discounted wage without recording public debt. Treasury-free runs keep
+  // minting the wage (legacy behavior).
+  let fundingSource: 'mint' | 'employer' | 'treasury';
+  let paid: number;
+  let arrearsBefore: number | undefined;
+  let arrearsAfter: number | undefined;
+  if (enterprise !== undefined) {
+    const currentArrears = enterprise.wageArrears ?? 0;
+    const payroll = parsePayload(() =>
+      decidePayWage({ wage, balance: enterprise.balance, arrears: currentArrears }),
+    );
+    if (payroll.status === 'invalid') {
+      return rejectCommand(input, 'AgentWork', payroll.reason);
+    }
+    fundingSource = 'employer';
+    paid = payroll.payload.paid;
+    arrearsBefore = currentArrears;
+    arrearsAfter = payroll.payload.nextArrears;
+  } else if (input.projection.treasury !== undefined) {
+    fundingSource = 'treasury';
+    paid = Math.min(wage, input.projection.treasury);
+  } else {
+    fundingSource = 'mint';
+    paid = wage;
+  }
+
   const nextPhysiology = applyLaborPhysiologyCost({
     ...agent.physiology,
     laborSeconds: payload.laborSeconds,
     energyCostPerHour: input.laborCost.energyCostPerHour,
     satietyCostPerHour: input.laborCost.satietyCostPerHour,
   });
+  // Income tax applies to wages actually received; unpaid or discounted parts
+  // are not taxable income.
+  const incomeTax =
+    input.tax === undefined || paid <= 0
+      ? 0
+      : evaluateIncomeTax({ wageAmount: paid, policy: input.tax });
 
-  return [
-    makeEvent(input, 0, 'WagePaid', {
-      agentId: agent.agentId,
-      occupationName: payload.occupationName,
-      amount: wage,
-    }),
-    makeEvent(input, 1, 'PhysiologyChanged', {
+  const events: WorldEvent[] = [];
+  if (paid > 0) {
+    events.push(
+      makeEvent(input, events.length, 'WagePaid', {
+        agentId: agent.agentId,
+        occupationName: payload.occupationName,
+        amount: paid,
+        fundingSource,
+        ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
+      }),
+    );
+  }
+  if (
+    enterprise !== undefined &&
+    arrearsBefore !== undefined &&
+    arrearsAfter !== undefined &&
+    arrearsAfter !== arrearsBefore
+  ) {
+    events.push(
+      makeEvent(input, events.length, 'EnterpriseWageArrearsUpdated', {
+        enterpriseId: enterprise.enterpriseId,
+        agentId: agent.agentId,
+        wageAmount: wage,
+        paidAmount: paid,
+        previousArrears: arrearsBefore,
+        nextArrears: arrearsAfter,
+      }),
+    );
+  }
+  if (incomeTax > 0) {
+    events.push(
+      makeEvent(input, events.length, 'IncomeTaxCharged', {
+        agentId: agent.agentId,
+        occupationName: payload.occupationName,
+        taxableAmount: paid,
+        amount: incomeTax,
+        previousBalance: agent.balance + paid,
+        nextBalance: agent.balance + paid - incomeTax,
+      }),
+    );
+  }
+  events.push(
+    makeEvent(input, events.length, 'PhysiologyChanged', {
       agentId: agent.agentId,
       previous: agent.physiology,
       next: nextPhysiology,
       reason: 'work',
     }),
-    makeAgentActivityTimeCommittedEvent(input, 2, {
+  );
+  events.push(
+    makeAgentActivityTimeCommittedEvent(input, events.length, {
       agentId: agent.agentId,
       activity: 'labor',
       commandType: 'AgentWork',
       durationSeconds: payload.laborSeconds,
     }),
-    makeMemoryEvent(input, 3, {
+  );
+  events.push(
+    makeMemoryEvent(input, events.length, {
       summary: `Worked as ${payload.occupationName} for ${payload.laborSeconds} seconds.`,
       status: 'succeeded',
       tags: ['work', payload.occupationName],
@@ -438,7 +544,26 @@ export function handleAgentWorkCommand(input: {
         statement: `Works as ${payload.occupationName} when conditions allow.`,
       },
     }),
-  ];
+  );
+  if (enterprise !== undefined && paid < wage) {
+    events.push(
+      makeMemoryEvent(input, events.length, {
+        summary: `Worked as ${payload.occupationName}, but ${wage - paid} of the wage went unpaid by ${enterprise.name} (enterprise wage arrears now ${arrearsAfter ?? 0}).`,
+        status: 'succeeded',
+        tags: ['work', payload.occupationName, 'wage-arrears', enterprise.enterpriseId],
+      }),
+    );
+  }
+  if (fundingSource === 'treasury' && paid < wage) {
+    events.push(
+      makeMemoryEvent(input, events.length, {
+        summary: `Worked as ${payload.occupationName}, but the public treasury paid only ${paid} of the ${wage} wage.`,
+        status: 'succeeded',
+        tags: ['work', payload.occupationName, 'treasury-wage-discount'],
+      }),
+    );
+  }
+  return events;
 }
 
 export function handleAgentProduceCommand(input: {
@@ -460,6 +585,21 @@ export function handleAgentProduceCommand(input: {
   }
 
   const payload = payloadResult.payload;
+  const enterprise =
+    payload.enterpriseId === undefined
+      ? undefined
+      : input.projection.enterprises[payload.enterpriseId];
+  if (payload.enterpriseId !== undefined) {
+    if (enterprise === undefined || !isEnterpriseOperational(enterprise)) {
+      return rejectCommand(input, 'AgentProduce', 'enterprise is missing or closed');
+    }
+    if (
+      enterprise.ownerAgentId !== agent.agentId &&
+      !enterprise.employeeAgentIds.includes(agent.agentId)
+    ) {
+      return rejectCommand(input, 'AgentProduce', 'agent is not authorized for enterprise');
+    }
+  }
   if (
     input.criticalThresholds !== undefined &&
     isIncapacitated({
@@ -481,7 +621,7 @@ export function handleAgentProduceCommand(input: {
       satiety: agent.physiology.satiety,
       health: agent.physiology.health,
       availableLaborSeconds: payload.availableLaborSeconds,
-      inventory: agent.inventory,
+      inventory: enterprise?.inventory ?? agent.inventory,
       educationScore: agent.educationScore,
     },
     rng: createSeededRandom(createProductionRewardSeed({ input, payload, agent })),
@@ -510,6 +650,7 @@ export function handleAgentProduceCommand(input: {
       ...(productionPlan.productionEfficiency === undefined
         ? {}
         : { productionEfficiency: productionPlan.productionEfficiency }),
+      ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
     }),
     makeAgentActivityTimeCommittedEvent(input, 1, {
       agentId: agent.agentId,

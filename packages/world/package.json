@@ -16,7 +16,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aivilization/credit": "workspace:*",
     "@aivilization/economy": "workspace:*",
+    "@aivilization/enterprise": "workspace:*",
     "@aivilization/memory": "workspace:*",
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/society": "workspace:*"

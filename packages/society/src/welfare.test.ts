@@ -60,6 +60,47 @@ describe('welfare safety net', () => {
       }),
     ).toThrow(/maxSubsidy must be non-negative/);
   });
+
+  test('caps treasury-funded subsidies at the remaining treasury balance', () => {
+    expect(
+      evaluateSafetyNetSubsidy({
+        balance: 10,
+        minimumBalance: 50,
+        maxSubsidy: 25,
+        treasuryBalance: 12,
+      }),
+    ).toEqual({
+      status: 'eligible',
+      amount: 12,
+      previousBalance: 10,
+      nextBalance: 22,
+    });
+  });
+
+  test('makes agents ineligible when the treasury is depleted', () => {
+    expect(
+      evaluateSafetyNetSubsidy({
+        balance: 10,
+        minimumBalance: 50,
+        maxSubsidy: 25,
+        treasuryBalance: 0,
+      }),
+    ).toEqual({
+      status: 'ineligible',
+      reason: 'treasury-depleted',
+    });
+  });
+
+  test('rejects invalid treasury balances', () => {
+    expect(() =>
+      evaluateSafetyNetSubsidy({
+        balance: 10,
+        minimumBalance: 50,
+        maxSubsidy: 25,
+        treasuryBalance: -1,
+      }),
+    ).toThrow(/treasuryBalance must be non-negative/);
+  });
 });
 
 describe('physiological welfare safety net', () => {

@@ -1,4 +1,5 @@
 import type { AgentId } from '@aivilization/sim-core';
+import type { LifestyleTier } from '@aivilization/society';
 
 export type WorldDecisionAgentContext = {
   readonly agentId: AgentId;
@@ -11,8 +12,51 @@ export type WorldDecisionAgentContext = {
   readonly educationScore: number;
   readonly balance: number;
   readonly residentialTier: number;
+  /** Accumulated unpaid residential upkeep; absent or zero when the household is current. */
+  readonly upkeepArrears?: number;
+  /**
+   * Optional town-bank banking view of this agent. Present only when the
+   * resolved command policies carry a credit policy; exposes the deposit
+   * balance, active loans, credit history, and the policy rates/limit for
+   * planning — settlement never consumes it.
+   */
+  readonly banking?: WorldDecisionBankingContext;
+  /**
+   * Optional wealth-tier lifestyle derived from the agent's net worth.
+   * Present only when the resolved command policies carry a lifestyle policy;
+   * the context exposes it for situational awareness and planning budget
+   * guardrails — settlement never consumes it.
+   */
+  readonly lifestyle?: LifestyleTier;
   readonly job: string | null;
   readonly inventory: Readonly<Record<string, number>>;
+  readonly durableGoods?: readonly {
+    readonly lotId: string;
+    readonly commodityName: string;
+    readonly quantity: number;
+    readonly utilityPoints: number;
+    readonly acquiredAt: number;
+    readonly expiresAt: number;
+  }[];
+};
+
+export type WorldDecisionBankingLoanContext = {
+  readonly loanId: string;
+  readonly principal: number;
+  readonly accruedInterest: number;
+  /** Read-model estimate of the amortization installments still ahead. */
+  readonly remainingTermDays: number;
+};
+
+export type WorldDecisionBankingContext = {
+  readonly depositBalance: number;
+  readonly activeLoans: readonly WorldDecisionBankingLoanContext[];
+  readonly repaidCount: number;
+  readonly defaultedCount: number;
+  /** Current history-scaled credit limit for the next loan request. */
+  readonly maxLoanAmount: number;
+  readonly depositDailyInterestRate: number;
+  readonly loanDailyInterestRate: number;
 };
 
 export type WorldDecisionMarketSpotPrice = {
@@ -94,6 +138,15 @@ export type WorldDecisionEducationOpportunityCostRule = {
   readonly preservesMinimumBalanceReserve: boolean;
 };
 
+export type WorldDecisionConsumptionRule = {
+  readonly commodityName: string;
+  readonly kind: 'consumable' | 'durable';
+  readonly utilityPoints: number;
+  readonly lifetimeSeconds?: number;
+  readonly inventoryQuantity: number;
+  readonly activeDurableQuantity: number;
+};
+
 export type WorldDecisionRulesContext = {
   readonly criticalThresholds?: {
     readonly energy: number;
@@ -101,6 +154,7 @@ export type WorldDecisionRulesContext = {
   };
   readonly occupations: readonly WorldDecisionOccupationRule[];
   readonly production: readonly WorldDecisionProductionRule[];
+  readonly consumption?: readonly WorldDecisionConsumptionRule[];
   readonly residentialUpgrade?: WorldDecisionResidentialUpgradeRule;
   readonly educationOpportunityCost?: WorldDecisionEducationOpportunityCostRule;
 };
@@ -159,12 +213,69 @@ export type WorldDecisionConditionContext = {
   readonly need: string;
 };
 
+/**
+ * Optional public-finance context visible to agent planning. Present only when
+ * the resolved command policies carry a tax policy; the neutral rate is the
+ * headline rate agents reason about, while settlement uses the brackets.
+ */
+export type WorldDecisionFiscalContext = {
+  readonly incomeTaxBrackets: readonly {
+    readonly upToAmount: number | null;
+    readonly rate: number;
+  }[];
+  readonly tradeTaxRate: number;
+  readonly neutralRate: number;
+};
+
+/**
+ * Per-commodity external-trade view visible to agent planning. Present only
+ * when the resolved command policies carry an external-trade policy; the
+ * indicative unit prices are evaluated at the current rolling net-export
+ * balance (positive = net exports) against the spot price of the market pool
+ * the agent can actually trade on — settlement never consumes this context.
+ */
+export type WorldDecisionExternalTradeCommodityContext = {
+  readonly commodityName: string;
+  readonly netExportBalance: number;
+  readonly exportUnitPrice: number;
+  readonly importUnitPrice: number;
+};
+
+export type WorldDecisionEnterpriseContext = {
+  readonly enterpriseId: string;
+  readonly name: string;
+  readonly ownerAgentId: AgentId;
+  readonly occupationName: string;
+  readonly balance: number;
+  readonly inventory: Readonly<Record<string, number>>;
+  readonly maxEmployees: number;
+  readonly employeeAgentIds: readonly AgentId[];
+  readonly status: 'active' | 'insolvent' | 'bankrupt' | 'closed';
+  readonly cumulativeSales: number;
+  readonly cumulativePurchases: number;
+  readonly cumulativeWages: number;
+  readonly ownershipShares?: Readonly<Record<string, number>>;
+  readonly retainedEarnings?: number;
+  readonly cumulativeDividends?: number;
+  readonly insolvencyStartedAt?: number;
+  /** Published hiring offer; absent means the enterprise is not hiring. */
+  readonly jobPosting?: {
+    readonly wageOffer: number;
+    readonly openSlots: number;
+  };
+  /** Accumulated unpaid wages the enterprise still owes its employees. */
+  readonly wageArrears?: number;
+};
+
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
   readonly society?: WorldDecisionSocietyContext;
   readonly weather?: WorldDecisionWeatherContext;
   readonly conditions?: readonly WorldDecisionConditionContext[];
+  readonly fiscal?: WorldDecisionFiscalContext;
+  readonly externalTrade?: readonly WorldDecisionExternalTradeCommodityContext[];
+  readonly enterprises?: readonly WorldDecisionEnterpriseContext[];
   readonly rules?: WorldDecisionRulesContext;
 };
 
@@ -191,10 +302,14 @@ export type WorldDecisionContextTrace = {
   readonly weatherCurrent?: string;
   readonly conditionCount?: number;
   readonly conditionKinds?: readonly string[];
+  readonly durableGoodCount?: number;
+  readonly enterpriseCount?: number;
+  readonly activeEnterpriseCount?: number;
   readonly occupationRuleCount: number;
   readonly eligibleOccupationRuleCount: number;
   readonly productionRuleCount: number;
   readonly producibleCommodityRuleCount: number;
+  readonly consumptionRuleCount?: number;
   readonly hasResidentialUpgradeRule?: boolean;
   readonly residentialUpgradeEligible?: boolean;
   readonly hasEducationOpportunityCost?: boolean;
@@ -231,6 +346,9 @@ export function createWorldDecisionContextTrace(
     hasResidentialTier: Number.isFinite(context.agent.residentialTier),
     hasInventory,
     inventoryItemCount: Object.keys(context.agent.inventory).length,
+    ...(context.agent.durableGoods === undefined
+      ? {}
+      : { durableGoodCount: context.agent.durableGoods.length }),
     marketSpotPriceCount: context.market.spotPrices.length,
     hasLatestPriceIndex,
     hasEconomicState,
@@ -255,12 +373,23 @@ export function createWorldDecisionContextTrace(
           conditionCount: context.conditions.length,
           conditionKinds: context.conditions.map((condition) => condition.kind),
         }),
+    ...(context.enterprises === undefined
+      ? {}
+      : {
+          enterpriseCount: context.enterprises.length,
+          activeEnterpriseCount: context.enterprises.filter(
+            (enterprise) => enterprise.status === 'active',
+          ).length,
+        }),
     occupationRuleCount: context.rules?.occupations.length ?? 0,
     eligibleOccupationRuleCount:
       context.rules?.occupations.filter((occupation) => occupation.eligible).length ?? 0,
     productionRuleCount: context.rules?.production.length ?? 0,
     producibleCommodityRuleCount:
       context.rules?.production.filter((production) => production.producible).length ?? 0,
+    ...(context.rules?.consumption === undefined
+      ? {}
+      : { consumptionRuleCount: context.rules.consumption.length }),
     hasResidentialUpgradeRule: context.rules?.residentialUpgrade !== undefined,
     residentialUpgradeEligible: context.rules?.residentialUpgrade?.eligible ?? false,
     hasEducationOpportunityCost: context.rules?.educationOpportunityCost !== undefined,

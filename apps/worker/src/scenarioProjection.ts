@@ -1,12 +1,25 @@
 import type { ScenarioMarketPoolSeed, ScenarioPreset } from '@aivilization/content';
 import type { SimulationClock } from '@aivilization/sim-core';
-import { createWorldProjection, type WorldProjection } from '@aivilization/world';
+import { createBankState, createWorldProjection, type WorldProjection } from '@aivilization/world';
 
 export type ScenarioProjectionInput = {
   readonly preset: ScenarioPreset;
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly clock?: SimulationClock;
   readonly moneySupply?: number;
+  /**
+   * Optional initial public treasury. When present the fiscal feature is on
+   * from bootstrap: public wages and safety nets draw from the treasury, and
+   * taxes accumulate into it. Omitted keeps the legacy mint-funded world.
+   */
+  readonly treasury?: number;
+  /**
+   * Optional initial town-bank cash reserves. When present the bank slice
+   * exists from bootstrap so loans can be issued against reserves. The caller
+   * must include the reserves in the money supply seed, mirroring the
+   * treasury convention (the bank cash account circulates).
+   */
+  readonly bankReserves?: number;
 };
 
 export function createWorldProjectionFromScenario(input: ScenarioProjectionInput): WorldProjection {
@@ -40,6 +53,10 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
       ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
     })),
     moneySupply: input.moneySupply ?? calculateCirculatingMoneySupply(input.preset),
+    ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
+    ...(input.bankReserves === undefined
+      ? {}
+      : { bank: createBankState({ reserves: input.bankReserves }) }),
   });
 }
 

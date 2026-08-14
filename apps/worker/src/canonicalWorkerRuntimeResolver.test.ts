@@ -12,7 +12,7 @@ import {
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import { InMemoryAgentIntentionRepository, type LongHorizonObjective } from '@aivilization/memory';
-import { asAgentId, asSimulationId, type AgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, asSimulationId, type AgentId } from '@aivilization/sim-core';
 import {
   createWorldProjection,
   type WorldAgentState,
@@ -44,6 +44,77 @@ const policies: WorldCommandPolicies = {
 };
 
 describe('canonical worker runtime resolver', () => {
+  test('derives synthesis lifestyle from the agent-visible authoritative regional market', async () => {
+    const downtown = asLocationId('downtown-market');
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: downtown,
+          name: 'Downtown Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: null,
+          regionId: 'downtown',
+        },
+      ],
+      agents: [
+        {
+          ...createAgent(agentA),
+          locationId: downtown,
+          balance: 100,
+          inventory: { Apple: 10 },
+        },
+      ],
+      marketPools: [
+        {
+          commodity: 'Apple',
+          commodityReserve: 10,
+          currencyReserve: 10_000,
+          regionId: 'downtown',
+        },
+      ],
+    });
+    const lifestylePolicies: WorldCommandPolicies = {
+      ...policies,
+      lifestyle: {
+        policyVersion: 'lifestyle-v1',
+        netWorthBoundaries: [500, 2_000, 10_000],
+        strugglingNonSurvivalSpendCapRatio: 0.3,
+        source: 'test',
+      },
+    };
+    const binding = await createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies: lifestylePolicies,
+    })({
+      agentId: agentA,
+      agent: requireAgent(projection, agentA),
+      projection,
+      marketOverride: {
+        marketPools: {
+          'downtown::Apple': {
+            commodity: 'Apple',
+            commodityReserve: 100,
+            currencyReserve: 1_000,
+            regionId: 'downtown',
+          },
+          'harbor::Apple': {
+            commodity: 'Apple',
+            commodityReserve: 10,
+            currencyReserve: 10_000,
+            regionId: 'harbor',
+          },
+        },
+      },
+      activeObjective: createObjective({ agentId: agentA }),
+      planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+    });
+
+    // Net worth is 100 + 10*10 = 200 in downtown. The stale projection price
+    // and the inaccessible harbor pool must not raise the tier.
+    expect(binding?.actionSynthesis?.lifestyle).toMatchObject({ tier: 'struggling' });
+  });
+
   test('builds tick agents from active plans with canonical planners and repair', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const planRepository = new InMemoryBranchPlanRepository();

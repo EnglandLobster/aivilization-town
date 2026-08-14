@@ -15,6 +15,7 @@ import {
   type WealthSnapshotObservation,
 } from '@aivilization/observability';
 import type { WorldEvent, WorldProjection } from '@aivilization/world';
+import { resolveAgentMarketPools } from './worldDecisionContext';
 
 export type WorkerExperimentValidationTraceWindow = {
   readonly fromCycleStartedAt?: number;
@@ -259,19 +260,21 @@ export function createPriceCloseObservationsFromOhlcBars(
 export function createWealthSnapshotFromWorldProjection(
   projection: WorldProjection,
 ): WealthSnapshotObservation[] {
-  const pools = Object.values(projection.marketPools);
   return Object.values(projection.agents)
     .sort((left, right) => left.agentId.localeCompare(right.agentId))
-    .map((agent) => ({
-      agentId: agent.agentId,
-      educationScore: agent.educationScore,
-      netWorth: calculateNetWorth({
-        currencyBalance: agent.balance,
-        inventory: agent.inventory,
-        pools,
-      }),
-      ...(agent.job === null ? {} : { occupationId: agent.job }),
-    }));
+    .map((agent) => {
+      const pools = resolveAgentMarketPools({ projection, agent });
+      return {
+        agentId: agent.agentId,
+        educationScore: agent.educationScore,
+        netWorth: calculateNetWorth({
+          currencyBalance: agent.balance,
+          inventory: agent.inventory,
+          pools: Object.values(pools),
+        }),
+        ...(agent.job === null ? {} : { occupationId: agent.job }),
+      };
+    });
 }
 
 export async function createAgentTrajectoriesFromTraceRepository(input: {

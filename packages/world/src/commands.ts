@@ -11,6 +11,11 @@ export type AgentEatPayload = {
   readonly quantity: number;
 };
 
+export type AgentConsumePayload = {
+  readonly commodityName: string;
+  readonly quantity: number;
+};
+
 export type AgentMoveToPayload = {
   readonly targetLocationId: LocationId;
   readonly reason?: string;
@@ -61,12 +66,14 @@ export type AgentSeeDoctorPayload = {
 export type AgentWorkPayload = {
   readonly occupationName: string;
   readonly laborSeconds: number;
+  readonly enterpriseId?: string;
 };
 
 export type AgentProducePayload = {
   readonly commodityName: string;
   readonly quantity: number;
   readonly availableLaborSeconds: number;
+  readonly enterpriseId?: string;
 };
 
 export type AgentTradePayload = {
@@ -80,7 +87,121 @@ export type AgentTradePayload = {
    * gates the trade on regional co-location when regional markets are on.
    */
   readonly regionId?: string;
+  readonly enterpriseId?: string;
 };
+
+export type AgentFoundEnterprisePayload = {
+  readonly enterpriseId: string;
+  readonly name: string;
+  readonly occupationName: string;
+  readonly initialCapital: number;
+  readonly maxEmployees: number;
+};
+
+export type AgentJoinEnterprisePayload = {
+  readonly enterpriseId: string;
+};
+
+export type AgentFundEnterprisePayload = {
+  readonly enterpriseId: string;
+  readonly amount: number;
+};
+
+export type AgentCloseEnterprisePayload = {
+  readonly enterpriseId: string;
+};
+
+export type AgentSetEnterpriseJobPostingPayload = {
+  readonly enterpriseId: string;
+  readonly wageOffer: number;
+  readonly openSlots: number;
+};
+
+export type AgentLeaveEnterprisePayload = {
+  readonly enterpriseId: string;
+};
+
+export type AgentLayoffEnterpriseEmployeePayload = {
+  readonly enterpriseId: string;
+  readonly employeeAgentId: AgentId;
+};
+
+export type AgentDepositPayload = {
+  readonly amount: number;
+};
+
+export type AgentWithdrawPayload = {
+  readonly amount: number;
+};
+
+export type AgentRequestLoanPayload = {
+  readonly amount: number;
+};
+
+export type AgentExportCommodityPayload = {
+  readonly commodityName: string;
+  readonly quantity: number;
+  /**
+   * Settle the trade on an enterprise's cash and inventory instead of the
+   * agent's. The acting agent must own or be employed by the enterprise.
+   */
+  readonly asEnterpriseId?: string;
+};
+
+export type AgentImportCommodityPayload = {
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly asEnterpriseId?: string;
+};
+
+export function assertAgentExportCommodityPayload(payload: unknown): AgentExportCommodityPayload {
+  return assertExternalTradePayload(payload, 'AgentExportCommodity');
+}
+
+export function assertAgentImportCommodityPayload(payload: unknown): AgentImportCommodityPayload {
+  return assertExternalTradePayload(payload, 'AgentImportCommodity');
+}
+
+function assertExternalTradePayload(
+  payload: unknown,
+  commandType: string,
+): AgentExportCommodityPayload {
+  if (!isRecord(payload)) {
+    throw new Error(`${commandType} payload must be an object`);
+  }
+  const commodityName = payload['commodityName'];
+  const quantity = payload['quantity'];
+  const asEnterpriseId = payload['asEnterpriseId'];
+  assertBoundedNonEmptyString(commodityName, `${commandType} commodityName`, 128);
+  assertPositiveFinite(quantity, `${commandType} quantity`);
+  assertOptionalEnterpriseId(asEnterpriseId, `${commandType} asEnterpriseId`);
+  return {
+    commodityName: commodityName.trim(),
+    quantity,
+    ...(asEnterpriseId === undefined ? {} : { asEnterpriseId: asEnterpriseId.trim() }),
+  };
+}
+
+export function assertAgentDepositPayload(payload: unknown): AgentDepositPayload {
+  return assertBankAmountPayload(payload, 'AgentDeposit');
+}
+
+export function assertAgentWithdrawPayload(payload: unknown): AgentWithdrawPayload {
+  return assertBankAmountPayload(payload, 'AgentWithdraw');
+}
+
+export function assertAgentRequestLoanPayload(payload: unknown): AgentRequestLoanPayload {
+  return assertBankAmountPayload(payload, 'AgentRequestLoan');
+}
+
+function assertBankAmountPayload(payload: unknown, commandType: string): { readonly amount: number } {
+  if (!isRecord(payload)) {
+    throw new Error(`${commandType} payload must be an object`);
+  }
+  const amount = payload['amount'];
+  assertPositiveFinite(amount, `${commandType} amount`);
+  return { amount };
+}
 
 export type AgentGiveResourcePayload = {
   readonly targetAgentId: AgentId;
@@ -115,10 +236,7 @@ export type IssueTownBulletinPayload = {
   readonly effectiveAt?: number;
 };
 
-function assertBulletinPayload(
-  payload: unknown,
-  commandType: string,
-): AgentPostBulletinPayload {
+function assertBulletinPayload(payload: unknown, commandType: string): AgentPostBulletinPayload {
   if (!isRecord(payload)) {
     throw new Error(`${commandType} payload must be an object`);
   }
@@ -195,14 +313,20 @@ export function assertAgentRaiseMatterPayload(payload: unknown): AgentRaiseMatte
     }
     const commodityName = requiredCommodity['commodityName'];
     const quantity = requiredCommodity['quantity'];
-    assertBoundedNonEmptyString(commodityName, 'AgentRaiseMatter requiredCommodity.commodityName', 128);
+    assertBoundedNonEmptyString(
+      commodityName,
+      'AgentRaiseMatter requiredCommodity.commodityName',
+      128,
+    );
     assertPositiveFinite(quantity, 'AgentRaiseMatter requiredCommodity.quantity');
     parsedRequiredCommodity = { commodityName: commodityName.trim(), quantity };
   }
   return {
     topic: topic.trim(),
     statement: statement.trim(),
-    ...(parsedRequiredCommodity === undefined ? {} : { requiredCommodity: parsedRequiredCommodity }),
+    ...(parsedRequiredCommodity === undefined
+      ? {}
+      : { requiredCommodity: parsedRequiredCommodity }),
     ...(expiresInMs === undefined ? {} : { expiresInMs }),
   };
 }
@@ -341,6 +465,17 @@ export function assertAgentEatPayload(payload: unknown): AgentEatPayload {
   };
 }
 
+export function assertAgentConsumePayload(payload: unknown): AgentConsumePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentConsume payload must be an object');
+  }
+  const commodityName = payload['commodityName'];
+  const quantity = payload['quantity'];
+  assertBoundedNonEmptyString(commodityName, 'AgentConsume commodityName', 128);
+  assertPositiveFinite(quantity, 'AgentConsume quantity');
+  return { commodityName: commodityName.trim(), quantity };
+}
+
 export function assertAgentMoveToPayload(payload: unknown): AgentMoveToPayload {
   if (!isRecord(payload)) {
     throw new Error('AgentMoveTo payload must be an object');
@@ -465,14 +600,17 @@ export function assertAgentWorkPayload(payload: unknown): AgentWorkPayload {
   }
   const occupationName = payload['occupationName'];
   const laborSeconds = payload['laborSeconds'];
+  const enterpriseId = payload['enterpriseId'];
   if (typeof occupationName !== 'string' || occupationName.trim().length === 0) {
     throw new Error('AgentWork occupationName must not be empty');
   }
   assertPositiveFinite(laborSeconds, 'AgentWork laborSeconds');
+  assertOptionalEnterpriseId(enterpriseId, 'AgentWork enterpriseId');
 
   return {
     occupationName,
     laborSeconds,
+    ...(enterpriseId === undefined ? {} : { enterpriseId: enterpriseId.trim() }),
   };
 }
 
@@ -483,16 +621,19 @@ export function assertAgentProducePayload(payload: unknown): AgentProducePayload
   const commodityName = payload['commodityName'];
   const quantity = payload['quantity'];
   const availableLaborSeconds = payload['availableLaborSeconds'];
+  const enterpriseId = payload['enterpriseId'];
   if (typeof commodityName !== 'string' || commodityName.trim().length === 0) {
     throw new Error('AgentProduce commodityName must not be empty');
   }
   assertPositiveInteger(quantity, 'AgentProduce quantity');
   assertNonNegativeFinite(availableLaborSeconds, 'AgentProduce availableLaborSeconds');
+  assertOptionalEnterpriseId(enterpriseId, 'AgentProduce enterpriseId');
 
   return {
     commodityName,
     quantity,
     availableLaborSeconds,
+    ...(enterpriseId === undefined ? {} : { enterpriseId: enterpriseId.trim() }),
   };
 }
 
@@ -504,9 +645,11 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
   const commodityName = payload['commodityName'];
   const quantity = payload['quantity'];
   const regionId = payload['regionId'];
+  const enterpriseId = payload['enterpriseId'];
   if (side !== 'buy' && side !== 'sell') {
     throw new Error('AgentTrade side must be buy or sell');
   }
+  assertOptionalEnterpriseId(enterpriseId, 'AgentTrade enterpriseId');
   if (typeof commodityName !== 'string' || commodityName.trim().length === 0) {
     throw new Error('AgentTrade commodityName must not be empty');
   }
@@ -525,6 +668,103 @@ export function assertAgentTradePayload(payload: unknown): AgentTradePayload {
     commodityName,
     quantity,
     ...(regionId === undefined ? {} : { regionId }),
+    ...(enterpriseId === undefined ? {} : { enterpriseId: enterpriseId.trim() }),
+  };
+}
+
+export function assertAgentFoundEnterprisePayload(payload: unknown): AgentFoundEnterprisePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentFoundEnterprise payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  const name = payload['name'];
+  const occupationName = payload['occupationName'];
+  const initialCapital = payload['initialCapital'];
+  const maxEmployees = payload['maxEmployees'];
+  assertEnterpriseId(enterpriseId, 'AgentFoundEnterprise enterpriseId');
+  assertBoundedNonEmptyString(name, 'AgentFoundEnterprise name', 160);
+  assertBoundedNonEmptyString(occupationName, 'AgentFoundEnterprise occupationName', 128);
+  assertNonNegativeFinite(initialCapital, 'AgentFoundEnterprise initialCapital');
+  assertPositiveInteger(maxEmployees, 'AgentFoundEnterprise maxEmployees');
+  return {
+    enterpriseId: enterpriseId.trim(),
+    name: name.trim(),
+    occupationName: occupationName.trim(),
+    initialCapital,
+    maxEmployees,
+  };
+}
+
+export function assertAgentJoinEnterprisePayload(payload: unknown): AgentJoinEnterprisePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentJoinEnterprise payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  assertEnterpriseId(enterpriseId, 'AgentJoinEnterprise enterpriseId');
+  return { enterpriseId: enterpriseId.trim() };
+}
+
+export function assertAgentFundEnterprisePayload(payload: unknown): AgentFundEnterprisePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentFundEnterprise payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  const amount = payload['amount'];
+  assertEnterpriseId(enterpriseId, 'AgentFundEnterprise enterpriseId');
+  assertPositiveFinite(amount, 'AgentFundEnterprise amount');
+  return { enterpriseId: enterpriseId.trim(), amount };
+}
+
+export function assertAgentCloseEnterprisePayload(payload: unknown): AgentCloseEnterprisePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentCloseEnterprise payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  assertEnterpriseId(enterpriseId, 'AgentCloseEnterprise enterpriseId');
+  return { enterpriseId: enterpriseId.trim() };
+}
+
+export function assertAgentSetEnterpriseJobPostingPayload(
+  payload: unknown,
+): AgentSetEnterpriseJobPostingPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentSetEnterpriseJobPosting payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  const wageOffer = payload['wageOffer'];
+  const openSlots = payload['openSlots'];
+  assertEnterpriseId(enterpriseId, 'AgentSetEnterpriseJobPosting enterpriseId');
+  assertPositiveFinite(wageOffer, 'AgentSetEnterpriseJobPosting wageOffer');
+  assertNonNegativeInteger(openSlots, 'AgentSetEnterpriseJobPosting openSlots');
+  return { enterpriseId: enterpriseId.trim(), wageOffer, openSlots };
+}
+
+export function assertAgentLeaveEnterprisePayload(payload: unknown): AgentLeaveEnterprisePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentLeaveEnterprise payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  assertEnterpriseId(enterpriseId, 'AgentLeaveEnterprise enterpriseId');
+  return { enterpriseId: enterpriseId.trim() };
+}
+
+export function assertAgentLayoffEnterpriseEmployeePayload(
+  payload: unknown,
+): AgentLayoffEnterpriseEmployeePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentLayoffEnterpriseEmployee payload must be an object');
+  }
+  const enterpriseId = payload['enterpriseId'];
+  const employeeAgentId = payload['employeeAgentId'];
+  assertEnterpriseId(enterpriseId, 'AgentLayoffEnterpriseEmployee enterpriseId');
+  assertBoundedNonEmptyString(
+    employeeAgentId,
+    'AgentLayoffEnterpriseEmployee employeeAgentId',
+    128,
+  );
+  return {
+    enterpriseId: enterpriseId.trim(),
+    employeeAgentId: asAgentId(employeeAgentId.trim()),
   };
 }
 
@@ -608,6 +848,12 @@ function assertPositiveInteger(value: unknown, name: string): asserts value is n
   }
 }
 
+function assertNonNegativeInteger(value: unknown, name: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+}
+
 function assertNonNegativeFinite(value: unknown, name: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be non-negative`);
@@ -630,6 +876,23 @@ function assertBoundedNonEmptyString(
   }
   if (value.trim().length > maximumLength) {
     throw new Error(`${name} must not exceed ${maximumLength} characters`);
+  }
+}
+
+function assertOptionalEnterpriseId(
+  value: unknown,
+  name: string,
+): asserts value is string | undefined {
+  if (value === undefined) {
+    return;
+  }
+  assertEnterpriseId(value, name);
+}
+
+function assertEnterpriseId(value: unknown, name: string): asserts value is string {
+  assertBoundedNonEmptyString(value, name, 128);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value)) {
+    throw new Error(`${name} contains unsupported characters`);
   }
 }
 

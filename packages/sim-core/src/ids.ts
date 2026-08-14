@@ -7,6 +7,7 @@ export type ConversationId = Brand<string, 'ConversationId'>;
 export type CommandId = Brand<string, 'CommandId'>;
 export type CommandIdempotencyKey = Brand<string, 'CommandIdempotencyKey'>;
 export type EventId = Brand<string, 'EventId'>;
+export type LoanId = Brand<string, 'LoanId'>;
 
 export function asSimulationId(value: string): SimulationId {
   return value as SimulationId;
@@ -34,4 +35,8 @@ export function asCommandIdempotencyKey(value: string): CommandIdempotencyKey {
 
 export function asEventId(value: string): EventId {
   return value as EventId;
+}
+
+export function asLoanId(value: string): LoanId {
+  return value as LoanId;
 }

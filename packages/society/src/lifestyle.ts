@@ -1,0 +1,67 @@
+/**
+ * Lifestyle tiers and pure evaluators for wealth-tiered consumption. An
+ * agent's net worth (balance plus inventory valued at spot prices) maps onto
+ * one of four tiers; the struggling tier caps non-survival spending at a
+ * fraction of the spendable balance, benchmarked against the CS2 consumption
+ * multiplier `0.3 + 10*smoothstep(wealth)`. All evaluation is pure and
+ * deterministic — the world settles nothing from it; it feeds decision
+ * contexts and planning budget guardrails only.
+ */
+export type LifestyleTier = 'struggling' | 'stable' | 'comfortable' | 'affluent';
+
+export type LifestylePolicy = {
+  readonly policyVersion: string;
+  // Strictly increasing net-worth ceilings, exactly 3 entries:
+  // netWorth < boundaries[0] → struggling; < boundaries[1] → stable;
+  // < boundaries[2] → comfortable; otherwise affluent.
+  readonly netWorthBoundaries: readonly [number, number, number];
+  // Struggling-tier cap on non-survival spending, as a share (0..1) of the
+  // spendable balance. Survival spending (food purchases, medical treatment)
+  // is exempt.
+  readonly strugglingNonSurvivalSpendCapRatio: number;
+  readonly source: string;
+};
+
+export function evaluateLifestyleTier(input: {
+  readonly netWorth: number;
+  readonly policy: LifestylePolicy;
+}): LifestyleTier {
+  if (!Number.isFinite(input.netWorth)) {
+    throw new Error('netWorth must be finite');
+  }
+  assertValidLifestylePolicy(input.policy);
+
+  const [strugglingBoundary, stableBoundary, comfortableBoundary] = input.policy.netWorthBoundaries;
+  if (input.netWorth < strugglingBoundary) {
+    return 'struggling';
+  }
+  if (input.netWorth < stableBoundary) {
+    return 'stable';
+  }
+  if (input.netWorth < comfortableBoundary) {
+    return 'comfortable';
+  }
+  return 'affluent';
+}
+
+function assertValidLifestylePolicy(policy: LifestylePolicy): void {
+  if (policy.policyVersion.trim().length === 0) {
+    throw new Error('lifestyle policyVersion must not be empty');
+  }
+  const boundaries = policy.netWorthBoundaries;
+  if (boundaries.length !== 3) {
+    throw new Error('lifestyle netWorthBoundaries must contain exactly 3 boundaries');
+  }
+  boundaries.forEach((boundary, index) => {
+    if (!Number.isFinite(boundary)) {
+      throw new Error('lifestyle netWorthBoundaries must be finite');
+    }
+    if (index > 0 && boundary <= (boundaries[index - 1] ?? Number.NEGATIVE_INFINITY)) {
+      throw new Error('lifestyle netWorthBoundaries must be strictly increasing');
+    }
+  });
+  const ratio = policy.strugglingNonSurvivalSpendCapRatio;
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+    throw new Error('lifestyle strugglingNonSurvivalSpendCapRatio must be between 0 and 1');
+  }
+}

@@ -28,7 +28,9 @@ const BUILDING_ROWS_BY_LOCATION = {
 const AGENT_DIR_COLUMNS = { down: 0, up: 2, left: 4, right: 6 };
 
 export const TERRAIN_TILES = {
-  grass: [0, 1, 2].map((col) => ({ col, row: TERRAIN_ROW })),
+  // Weighted toward plain grass: the flowered variant (col 2) reads as noise
+  // when it covers a third of the map.
+  grass: [0, 0, 1, 0, 2].map((col) => ({ col, row: TERRAIN_ROW })),
   path: [3, 4].map((col) => ({ col, row: TERRAIN_ROW })),
   plaza: [5, 6].map((col) => ({ col, row: TERRAIN_ROW })),
 };

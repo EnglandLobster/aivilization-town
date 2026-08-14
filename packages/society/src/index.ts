@@ -2,6 +2,7 @@ export * from './education';
 export * from './conditions';
 export * from './consumption';
 export * from './healthcare';
+export * from './landValue';
 export * from './lifestyle';
 export * from './occupation-catalog';
 export * from './occupation';

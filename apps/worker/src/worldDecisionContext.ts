@@ -26,6 +26,7 @@ import {
   calculateEffectiveKnowledgeThreshold,
   deriveAgentConditions,
   evaluateLifestyleTier,
+  resolveResidentialUpkeepRate,
 } from '@aivilization/society';
 import type {
   WorldAgentState,
@@ -36,6 +37,7 @@ import type {
 import {
   activeLoansByBorrower,
   DEFAULT_MARKET_REGION_ID,
+  resolveAgentRegion,
   resolveCreditLimit,
 } from '@aivilization/world';
 import type { AmmPool } from '@aivilization/economy';
@@ -136,6 +138,11 @@ export function createWorldDecisionContextFromProjection(input: {
         ...(input.policies === undefined ? {} : { policies: input.policies }),
       }),
       ...createBankingDecisionContext({
+        projection: input.projection,
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
+      ...createHousingDecisionContext({
         projection: input.projection,
         agent,
         ...(input.policies === undefined ? {} : { policies: input.policies }),
@@ -399,6 +406,51 @@ function createBankingDecisionContext(input: {
       depositDailyInterestRate: policy.depositDailyInterestRate,
       loanDailyInterestRate: policy.loanDailyInterestRate,
     },
+  };
+}
+
+/**
+ * Expose the agent's housing price signal when the resolved policies carry
+ * residential upkeep pricing: the agent's region, its latest land value
+ * index, and the effective per-hour upkeep rate. All three come from the same
+ * projection slice, region resolution, policy, and rate function the
+ * authoritative settlement uses, so planning and settlement never diverge.
+ * Returns an empty object when no upkeep policy is present.
+ */
+function createHousingDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+}):
+  | Pick<
+      WorldDecisionAgentContext,
+      'regionId' | 'regionalLandValueIndex' | 'residentialUpkeepRatePerHour'
+    >
+  | Record<string, never> {
+  const policy = input.policies?.residentialUpkeep;
+  if (policy === undefined) {
+    return {};
+  }
+  const regionId = resolveAgentRegion({
+    projection: input.projection,
+    agentLocationId: input.agent.locationId,
+  });
+  // The land value index only enters pricing when a land value policy is
+  // active; without one the authoritative settlement prices flat, so the
+  // context must not read the persisted slice either (the two would diverge).
+  const landValueIndex =
+    input.policies?.landValue === undefined
+      ? undefined
+      : input.projection.regionalLandValues?.[regionId];
+  const rate = resolveResidentialUpkeepRate({
+    residentialTier: input.agent.residentialTier,
+    policy,
+    ...(landValueIndex === undefined ? {} : { landValueIndex }),
+  });
+  return {
+    regionId,
+    ...(landValueIndex === undefined ? {} : { regionalLandValueIndex: landValueIndex }),
+    ...(rate === undefined ? {} : { residentialUpkeepRatePerHour: rate }),
   };
 }
 

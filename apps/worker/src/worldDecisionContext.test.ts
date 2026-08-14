@@ -4,6 +4,7 @@ import {
   asLocationId,
   asSimulationId,
   createEventEnvelope,
+  replayEvents,
 } from '@aivilization/sim-core';
 import {
   applyWorldEvent,
@@ -1005,5 +1006,123 @@ describe('worker world decision context', () => {
       { kind: 'soaked', severity: 'moderate', need: 'shelter' },
       { kind: 'overtired', severity: 'severe', need: 'sleep' },
     ]);
+  });
+});
+
+describe('worker housing decision context', () => {
+  const basePolicies: WorldCommandPolicies = {
+    satietyRecoveryByCommodity: {},
+    maxSatiety: 100,
+    wageCalculator: () => 250,
+    laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+    criticalThresholds: { energy: 20, health: 35 },
+  };
+
+  test('exposes region, land value index, and effective upkeep rate from the authoritative sources', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 2,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const projection = replayEvents(
+      initial,
+      [
+        createEventEnvelope({
+          id: 'event-land-value',
+          simulationId: 'sim-1',
+          commandId: 'command-time',
+          type: 'RegionalLandValueUpdated',
+          payload: {
+            regionId: 'town-center',
+            previousIndex: 0,
+            nextIndex: 8,
+            rawIndex: 8,
+            agentCount: 1,
+            marketLiquidity: 0,
+            policyVersion: 'land-value-v1',
+            settledAt: 86_400_000,
+            reason: 'land-value-cadence' as const,
+          },
+          occurredAt: 86_400_000,
+          sequence: 1,
+        }),
+      ],
+      applyWorldEvent,
+    );
+    const policies: WorldCommandPolicies = {
+      ...basePolicies,
+      residentialUpkeep: {
+        policyVersion: 'residential-upkeep-v2',
+        costs: [{ residentialTier: 2, currencyCostPerHour: 10 }],
+        landValueCoefficientPerHour: 0.5,
+      },
+      landValue: {
+        policyVersion: 'land-value-v1',
+        updateCadenceMs: 86_400_000,
+        baseline: 0,
+        populationWeight: 2,
+        liquidityWeight: 1,
+        smoothingFactor: 0.4,
+        minIndex: 0,
+        maxIndex: 100,
+      },
+    };
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(context.agent.regionId).toBe('town-center');
+    expect(context.agent.regionalLandValueIndex).toBe(8);
+    expect(context.agent.residentialUpkeepRatePerHour).toBe(14);
+
+    // Without an active land value policy the settlement prices flat, so the
+    // context must hide the persisted index and report the flat rate too.
+    const policiesWithoutLandValue: WorldCommandPolicies = {
+      ...basePolicies,
+      residentialUpkeep: {
+        policyVersion: 'residential-upkeep-v2',
+        costs: [{ residentialTier: 2, currencyCostPerHour: 10 }],
+        landValueCoefficientPerHour: 0.5,
+      },
+    };
+    const flatContext = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutLandValue,
+    });
+    expect(flatContext.agent.regionId).toBe('town-center');
+    expect(flatContext.agent.regionalLandValueIndex).toBeUndefined();
+    expect(flatContext.agent.residentialUpkeepRatePerHour).toBe(10);
+  });
+
+  test('omits housing price signals when policies carry no residential upkeep', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 2,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: basePolicies,
+    });
+    expect(context.agent.regionId).toBeUndefined();
+    expect(context.agent.regionalLandValueIndex).toBeUndefined();
+    expect(context.agent.residentialUpkeepRatePerHour).toBeUndefined();
   });
 });

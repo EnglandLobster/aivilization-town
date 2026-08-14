@@ -12,6 +12,11 @@ import type {
   SimulationClock,
 } from '@aivilization/sim-core';
 import type {
+  EducationExamResolutionReason,
+  EducationExamResolutionStatus,
+  EducationExamTargetLevel,
+  EducationLevel,
+  EducationTrack,
   PhysiologicalState,
   PhysiologicalAxis,
   PhysiologicalDistressState,
@@ -192,6 +197,84 @@ export type EducationInvestmentPaidPayload = {
   readonly nextBalance: number;
   readonly consumedInventory: Inventory;
   readonly reason: string;
+};
+
+/**
+ * An agent advanced one discrete education level. Under education-system-v2
+ * both automatic promotion inside the compulsory stage (0→1, 1→2) and admitted
+ * exam resolutions (中考/高考/考研放榜) settle this event; `track` is carried
+ * only when the transition also assigns a track (admitted 中考 exam
+ * resolutions) and is always absent on automatic promotions.
+ */
+export type EducationLevelChangedPayload = {
+  readonly agentId: AgentId;
+  readonly previousLevel: EducationLevel;
+  readonly nextLevel: EducationLevel;
+  readonly track?: EducationTrack;
+  readonly reason: string;
+};
+
+/**
+ * Tuition settlement for one study session at a compulsory education level.
+ * `coveredAmount` is paid by the public treasury (transfer treasury → public
+ * education service; moneySupply unchanged, same treatment as PublicBudgetSpent);
+ * `selfPaidAmount` is charged from the agent's balance and leaves circulation
+ * (burn, same treatment as the legacy EducationInvestmentPaid).
+ */
+export type EducationCompulsoryFeeCoveredPayload = {
+  readonly agentId: AgentId;
+  readonly level: EducationLevel;
+  readonly durationSeconds: number;
+  readonly coveredAmount: number;
+  readonly selfPaidAmount: number;
+  readonly reason: string;
+};
+
+/**
+ * One exam application (中考/高考/考研) parked until the next exam-cycle
+ * release. The score is snapshotted at submission so the ranking replays
+ * exactly even if the agent keeps studying afterwards.
+ */
+export type EducationExamApplicationSubmittedPayload = {
+  readonly applicationId: string;
+  readonly cycleNumber: number;
+  readonly agentId: AgentId;
+  readonly targetLevel: EducationExamTargetLevel;
+  readonly educationScore: number;
+};
+
+/**
+ * 放榜 resolution of one exam application. `track` is carried only on admitted
+ * 中考 (target level 3) resolutions; `cutoffScore` is the level group's lowest
+ * admitted score (absent when the group admitted nobody).
+ */
+export type EducationExamResolvedPayload = {
+  readonly applicationId: string;
+  readonly cycleNumber: number;
+  readonly agentId: AgentId;
+  readonly targetLevel: EducationExamTargetLevel;
+  readonly status: EducationExamResolutionStatus;
+  readonly track?: EducationTrack;
+  readonly cutoffScore?: number;
+  readonly reason: EducationExamResolutionReason;
+};
+
+/**
+ * Cycle-level exam summary recorded after every resolution of the cycle, so
+ * read models can expose per-level admission rates and cutoffs without
+ * re-deriving them from individual resolutions.
+ */
+export type EducationExamCycleCompletedPayload = {
+  readonly cycleNumber: number;
+  readonly cycleStartedAt: number;
+  readonly cycleEndedAt: number;
+  readonly policyVersion: string;
+  readonly applicationCount: number;
+  readonly admittedCount: number;
+  readonly rejectedCount: number;
+  readonly applicationsByLevel: Readonly<Record<string, number>>;
+  readonly admittedByLevel: Readonly<Record<string, number>>;
+  readonly cutoffScoresByLevel: Readonly<Record<string, number>>;
 };
 
 export const LEGACY_EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION =
@@ -611,6 +694,16 @@ export type EconomicCompositionRecordedPayload = {
   readonly gini: number;
   readonly deposits: number;
   readonly loansOutstanding: number;
+  /**
+   * Agent headcount per discrete education level ('0'..'5') at `recordedAt`,
+   * recorded by the worker market-metrics channel when an enabled
+   * education-system policy is available. Agents without a durable
+   * `educationLevel` (legacy registrations) fall back to deriving the level
+   * from `educationScore` via the policy thresholds, matching the E1
+   * fallback semantics. Optional so events recorded before the
+   * education-system observability stage stay replay-compatible.
+   */
+  readonly educationDistribution?: Readonly<Record<string, number>>;
 };
 
 export type ExternalMarketRebalancedPayload = {
@@ -666,6 +759,13 @@ export type JobApplicationSubmittedPayload = {
   readonly occupationName: string;
   readonly residentialTier: number;
   readonly educationScore: number;
+  /**
+   * Effective education score (raw + vocational-track tier bonus) the
+   * recruitment cycle ranks this application with. Recorded at submission so
+   * replay never recomputes it; absent on legacy applications, which rank by
+   * the raw educationScore.
+   */
+  readonly effectiveEducationScore?: number;
 };
 
 export type JobApplicationResolvedPayload = {
@@ -995,6 +1095,11 @@ export type WorldEventPayloadByType = {
   readonly SafetyNetGranted: SafetyNetGrantedPayload;
   readonly EducationInvestmentPaid: EducationInvestmentPaidPayload;
   readonly EducationChanged: EducationChangedPayload;
+  readonly EducationLevelChanged: EducationLevelChangedPayload;
+  readonly EducationCompulsoryFeeCovered: EducationCompulsoryFeeCoveredPayload;
+  readonly EducationExamApplicationSubmitted: EducationExamApplicationSubmittedPayload;
+  readonly EducationExamResolved: EducationExamResolvedPayload;
+  readonly EducationExamCycleCompleted: EducationExamCycleCompletedPayload;
   readonly AgentActivityTimeCommitted: AgentActivityTimeCommittedPayload;
   readonly WagePaid: WagePaidPayload;
   readonly EnterpriseFounded: EnterpriseFoundedPayload;

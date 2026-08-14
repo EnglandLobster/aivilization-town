@@ -1,11 +1,13 @@
 import {
   aivilizationAblationScenarioPreset,
+  aivilizationEducationSystemPolicyDefaults,
   createAivilizationPopulationScenarioPreset,
   createCommodityMarketPoolSeeds,
   type ScenarioPreset,
 } from '@aivilization/content';
 import type { PartitionKey } from '@aivilization/sim-core';
 import type { LocalSimulationRuntimeManifest } from '@aivilization/worker';
+import type { WorldCommandPolicies } from '@aivilization/world';
 import type {
   LocalRuntimeTownRecoveryInput,
   LocalRuntimeTownRunQueueWorkerInput,
@@ -212,6 +214,35 @@ export function createLocalRuntimeTownDaemonScenarioProfile(
       maxDeadLetterReplaysPerRun: config.maxJobsPerPoll,
       maxReplayCountPerJob: 2,
       deadLetterReplayMaxAttempts: 3,
+    },
+  };
+}
+
+/**
+ * The paper-ablation cohort pins the education system off so the Section 5.1
+ * baseline keeps the legacy continuous-score education semantics. The runtime
+ * command policies and the resolved-run manifest must share this override so
+ * runtime policy, manifest parameters and the policy registry stay in sync.
+ */
+export function createLocalRuntimeTownEducationSystemPolicyOverride(
+  profileId: LocalRuntimeTownDaemonScenarioProfileId,
+): NonNullable<WorldCommandPolicies['educationSystem']> | undefined {
+  if (profileId !== 'ablation-80') {
+    return undefined;
+  }
+  return {
+    ...aivilizationEducationSystemPolicyDefaults,
+    enabled: false,
+    levelScoreThresholds: [...aivilizationEducationSystemPolicyDefaults.levelScoreThresholds] as [
+      number,
+      number,
+      number,
+      number,
+      number,
+    ],
+    compulsoryLevels: [...aivilizationEducationSystemPolicyDefaults.compulsoryLevels],
+    levelTuitionPerHour: {
+      ...aivilizationEducationSystemPolicyDefaults.levelTuitionPerHour,
     },
   };
 }

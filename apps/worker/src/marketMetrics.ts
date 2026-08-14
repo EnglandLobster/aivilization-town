@@ -7,9 +7,15 @@ import {
   type CommodityPriceSnapshot,
 } from '@aivilization/economy';
 import {
+  deriveEducationLevel,
+  EDUCATION_SYSTEM_MAX_LEVEL,
+  type EducationSystemPolicy,
+} from '@aivilization/society';
+import {
   applyWorldEvent,
   totalDeposits,
   type EconomicCompositionRecordedPayload,
+  type WorldAgentState,
   type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
@@ -47,6 +53,12 @@ export type RecordMarketMetricsInput = MarketMetricsSnapshotInput & {
   readonly streamName: EventStreamName;
   readonly appendIdempotencyKey: string;
   readonly expectedVersion?: number;
+  /**
+   * Enabled education-system policy used to record the per-level agent
+   * headcount on the composition event. Absent or disabled omits
+   * `educationDistribution`, keeping legacy runs byte-for-byte compatible.
+   */
+  readonly educationSystemPolicy?: EducationSystemPolicy;
 };
 
 export type RecordMarketMetricsResult = {
@@ -98,6 +110,13 @@ export function createEconomicCompositionPayload(input: {
   readonly projection: WorldProjection;
   readonly recordedAt: number;
   readonly marketOverride?: MarketMetricsPoolOverride;
+  /**
+   * Enabled education-system policy; when present the payload records the
+   * per-level agent headcount (`educationDistribution`). Agents without a
+   * durable `educationLevel` fall back to deriving the level from
+   * `educationScore` via the policy thresholds (E1 fallback semantics).
+   */
+  readonly educationSystemPolicy?: EducationSystemPolicy;
 }): EconomicCompositionRecordedPayload {
   const projection = input.projection;
   const pools = Object.values(input.marketOverride?.marketPools ?? projection.marketPools);
@@ -105,6 +124,7 @@ export function createEconomicCompositionPayload(input: {
   const enterprises = Object.values(projection.enterprises);
   const valuationPools = aggregatePoolsByCommodity(pools);
   const bank = projection.bank;
+  const educationSystemPolicy = input.educationSystemPolicy;
   return {
     recordedAt: input.recordedAt,
     moneySupply: projection.moneySupply,
@@ -142,7 +162,33 @@ export function createEconomicCompositionPayload(input: {
         : Object.values(bank.loans)
             .filter((loan) => loan.status === 'active')
             .reduce((total, loan) => total + loan.principal + loan.accruedInterest, 0),
+    ...(educationSystemPolicy === undefined || !educationSystemPolicy.enabled
+      ? {}
+      : {
+          educationDistribution: countAgentsByEducationLevel(agents, educationSystemPolicy),
+        }),
   };
+}
+
+/**
+ * Agent headcount per discrete education level ('0'..'5'). Agents without a
+ * durable `educationLevel` (legacy registrations) derive it from
+ * `educationScore` via the policy thresholds, matching the fallback used by
+ * the study/recruitment handlers and the decision context.
+ */
+function countAgentsByEducationLevel(
+  agents: readonly WorldAgentState[],
+  policy: EducationSystemPolicy,
+): Record<string, number> {
+  const distribution: Record<string, number> = {};
+  for (let level = 0; level <= EDUCATION_SYSTEM_MAX_LEVEL; level += 1) {
+    distribution[String(level)] = 0;
+  }
+  for (const agent of agents) {
+    const level = agent.educationLevel ?? deriveEducationLevel(agent.educationScore, policy);
+    distribution[String(level)] = (distribution[String(level)] ?? 0) + 1;
+  }
+  return distribution;
 }
 
 /**
@@ -183,6 +229,9 @@ export function recordMarketMetricsToEventStream(
       ...(input.currentMarketOverride === undefined
         ? {}
         : { marketOverride: input.currentMarketOverride }),
+      ...(input.educationSystemPolicy === undefined
+        ? {}
+        : { educationSystemPolicy: input.educationSystemPolicy }),
     }),
     occurredAt: input.issuedAt,
     sequence: expectedVersion + 2,

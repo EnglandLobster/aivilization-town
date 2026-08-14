@@ -9,10 +9,14 @@ import { isEnterpriseOperational } from '@aivilization/enterprise';
 import {
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
+  deriveEducationLevel,
+  evaluateEffectiveEducationScoreForOccupation,
   evaluateOccupationApplication,
   evaluateResourceTransferSocialOutcome,
   evaluateResidentialTierUpgrade,
   evaluateTradeTax,
+  resolveOccupation,
+  type EducationSystemPolicy,
   type RecruitmentCyclePolicy,
   type ResidentialTierUpgradePolicy,
   type TaxPolicy,
@@ -24,7 +28,7 @@ import {
   assertAgentUpgradeResidentialTierPayload,
 } from '../commands';
 import type { WorldEvent } from '../events';
-import type { WorldProjection } from '../projection';
+import type { WorldAgentState, WorldProjection } from '../projection';
 import { resolveAgentRegion, resolveMarketPool } from '../regionalMarkets';
 import type { SocialMattersPolicy } from '../matters';
 import { appendMatterFulfillmentEvents } from './matters';
@@ -380,6 +384,7 @@ export function handleAgentApplyJobCommand(input: {
   readonly populationEducationScores: readonly number[];
   readonly quotaByResidentialTier: readonly number[];
   readonly recruitmentCycle?: RecruitmentCyclePolicy;
+  readonly educationSystem?: EducationSystemPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -432,12 +437,27 @@ export function handleAgentApplyJobCommand(input: {
       `duplicate application for ${payload.occupationName} in recruitment cycle ${cycleNumber}`,
     );
   }
+  // education-system-v3: vocational-track (中职) applicants are evaluated at
+  // their effective education score (raw + tier bonus) for both the
+  // eligibility check and the employer ranking; the effective score is
+  // recorded on the submission event so replay never recomputes it.
+  const effectiveScoreResult = parsePayload(() =>
+    resolveEffectiveApplicationEducationScore({
+      agent,
+      occupationName: payload.occupationName,
+      ...(input.educationSystem === undefined ? {} : { educationSystem: input.educationSystem }),
+    }),
+  );
+  if (effectiveScoreResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentApplyJob', effectiveScoreResult.reason);
+  }
+  const effectiveEducationScore = effectiveScoreResult.payload;
   const applicationResult = parsePayload(() =>
     evaluateOccupationApplication({
       occupationName: payload.occupationName,
       agent: {
         residentialTier: agent.residentialTier,
-        educationScore: agent.educationScore,
+        educationScore: effectiveEducationScore,
         inventory: agent.inventory,
       },
       populationEducationScores: input.populationEducationScores,
@@ -474,6 +494,9 @@ export function handleAgentApplyJobCommand(input: {
     occupationName: payload.occupationName,
     residentialTier: agent.residentialTier,
     educationScore: agent.educationScore,
+    ...(effectiveEducationScore === agent.educationScore
+      ? {}
+      : { effectiveEducationScore }),
   });
 
   if (input.recruitmentCycle !== undefined) {
@@ -567,4 +590,30 @@ export function handleAgentUpgradeResidentialTierCommand(input: {
       },
     }),
   ];
+}
+
+/**
+ * Effective education score used to evaluate one job application. Legacy runs
+ * (no education-system policy, or the policy disabled) keep the raw score; an
+ * enabled policy routes through the domain pure function so the vocational
+ * track bonus applies. The level falls back to the score-derived level,
+ * matching the education-system fallback semantics.
+ */
+function resolveEffectiveApplicationEducationScore(input: {
+  readonly agent: WorldAgentState;
+  readonly occupationName: string;
+  readonly educationSystem?: EducationSystemPolicy;
+}): number {
+  const policy = input.educationSystem;
+  if (policy === undefined || !policy.enabled) {
+    return input.agent.educationScore;
+  }
+  return evaluateEffectiveEducationScoreForOccupation({
+    score: input.agent.educationScore,
+    level:
+      input.agent.educationLevel ?? deriveEducationLevel(input.agent.educationScore, policy),
+    ...(input.agent.educationTrack === undefined ? {} : { track: input.agent.educationTrack }),
+    occupationTier: resolveOccupation({ occupationName: input.occupationName }).jobTier,
+    policy,
+  });
 }

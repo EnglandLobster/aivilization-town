@@ -144,7 +144,7 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'production',
           provenance: 'repository-defined',
-          policyVersion: 'production-efficiency-v1',
+          policyVersion: 'production-efficiency-v2',
         }),
         expect.objectContaining({
           parameterPath: 'townSpatialGraph',
@@ -183,7 +183,9 @@ describe('AIvilization default world command policies', () => {
   test('declares the canonical external trade policy in the manifest and registry', () => {
     const manifest = createAivilizationWorldPolicyManifest();
     expect(manifest.policyVersions).toMatchObject({ externalTrade: 'external-trade-v1' });
-    expect(manifest.parameters.externalTrade).toEqual({ ...aivilizationExternalTradePolicyDefaults });
+    expect(manifest.parameters.externalTrade).toEqual({
+      ...aivilizationExternalTradePolicyDefaults,
+    });
     expect(manifest.policyRegistry.unregisteredParameterPaths).toEqual([]);
     expect(manifest.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
     expect(manifest.policyRegistry.entries).toEqual(
@@ -370,6 +372,64 @@ describe('AIvilization default world command policies', () => {
     ).toBe('town-conflict-v1');
   });
 
+  test('declares the canonical education system policy in the manifest and registry', () => {
+    const manifest = createAivilizationWorldPolicyManifest();
+    expect(manifest.policyVersions).toMatchObject({ educationSystem: 'education-system-v3' });
+    expect(manifest.parameters.educationSystem).toMatchObject({
+      policyVersion: 'education-system-v3',
+      enabled: true,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+    });
+    expect(manifest.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(manifest.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(manifest.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'educationSystem',
+          provenance: 'repository-defined',
+          policyVersion: 'education-system-v3',
+        }),
+      ]),
+    );
+
+    // Canonical policies carry the enabled education system...
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(
+      createAivilizationWorldCommandPolicies('seed')(projection).educationSystem,
+    ).toMatchObject({
+      policyVersion: 'education-system-v3',
+      enabled: true,
+      vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+    });
+
+    // ...and an explicit options override (paper-ablation baseline) wins.
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, undefined, {
+        educationSystem: {
+          policyVersion: 'education-system-v2',
+          enabled: false,
+          levelScoreThresholds: [20, 70, 180, 320, 450],
+          compulsoryLevels: [1, 2],
+          levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+          employedStudyEfficiencyRatio: 0.3,
+          examCycleDurationMs: 86_400_000,
+          admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+          vocationalTrackShare: 0.5,
+          source: 'test',
+        },
+      })(projection).educationSystem,
+    ).toMatchObject({ enabled: false });
+  });
+
   test('propagates an experiment seed into the resolved world policies', () => {
     const policies = createAivilizationWorldCommandPolicies('experiment-seed-42')(
       createWorldProjection({ agents: [createAgent({ index: 1, educationScore: 0 })] }),
@@ -427,6 +487,7 @@ describe('AIvilization default world command policies', () => {
       efficiency: {
         minEfficiency: 0.5,
         educationScoreForMaxEfficiency: 500,
+        educationLevelMultipliers: [1, 1.2, 1.5, 2, 2.5, 3],
         physiologyCaps: {
           caps: [
             { residentialTier: 1, maxEnergy: 100, maxSatiety: 100, maxHealth: 100 },

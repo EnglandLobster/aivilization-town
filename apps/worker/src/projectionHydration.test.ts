@@ -4,11 +4,17 @@ import {
   InMemoryProjectionCheckpointStore,
   asAgentId,
   createProjectionCheckpoint,
+  createCommandEnvelope,
   createEventEnvelope,
   createSimulationPartition,
 } from '@aivilization/sim-core';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
-import { createWorldProjection, type WorldEvent, type WorldProjection } from '@aivilization/world';
+import {
+  createWorldProjection,
+  dispatchWorldCommand,
+  type WorldEvent,
+  type WorldProjection,
+} from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -255,6 +261,93 @@ describe('worker projection hydration', () => {
     expect(result.projection.memoryRecords).toHaveLength(256);
     expect(result.projection.memoryRecords[0]?.id).toBe('legacy-memory-44');
     expect(result.projection.memoryRecords.at(-1)?.id).toBe('legacy-memory-299');
+  });
+
+  test('normalizes a legacy snapshot without education-exam arrays and settles an exam cycle', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    eventStore.appendToStream({
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      events: [createTimeEvent(1)],
+    });
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    // Legacy snapshots predate education-system-v2 and lack the exam arrays;
+    // the JSON round-trip mirrors the store's deserialization boundary.
+    const legacySnapshotPayload = JSON.parse(
+      JSON.stringify(createProjection({ now: 1_000 })),
+    ) as WorldProjection;
+    Reflect.deleteProperty(legacySnapshotPayload, 'educationExamApplications');
+    Reflect.deleteProperty(legacySnapshotPayload, 'educationExamCycles');
+    const snapshot = snapshotStore.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 1,
+      createdAt: 100,
+      projection: legacySnapshotPayload,
+    });
+    checkpointStore.saveCheckpoint(
+      createProjectionCheckpoint({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        lastAppliedSequence: 1,
+        snapshot,
+      }),
+    );
+
+    const result = hydrateWorldProjectionFromEventStream({
+      initialProjection: createProjection(),
+      eventStore,
+      streamName: partition.eventStreamName,
+      checkpoint: {
+        checkpointStore,
+        snapshotStore,
+        lookup: {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+        },
+      },
+    });
+
+    expect(result.projection.educationExamApplications).toEqual([]);
+    expect(result.projection.educationExamCycles).toEqual([]);
+
+    // With the education-system policy enabled, a 放榜 cycle boundary settles
+    // on the hydrated legacy projection without crashing on the exam arrays.
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-advance-exam-cycle',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 1_000 },
+        issuedAt: 1_000,
+      }),
+      projection: result.projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+        criticalThresholds: { energy: 0, health: 0 },
+        educationSystem: {
+          policyVersion: 'education-system-v2',
+          enabled: true,
+          levelScoreThresholds: [20, 70, 180, 320, 450],
+          compulsoryLevels: [1, 2],
+          levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+          employedStudyEfficiencyRatio: 0.3,
+          examCycleDurationMs: 1_000,
+          admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+          vocationalTrackShare: 0.5,
+          source: 'test-education-system',
+        },
+      },
+      nextSequence: 10,
+    });
+    expect(events.map((event) => event.type)).toContain('EducationExamCycleCompleted');
   });
 
   test('rejects a checkpoint whose snapshot blob is missing', () => {

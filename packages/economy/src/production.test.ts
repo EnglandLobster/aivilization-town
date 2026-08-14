@@ -243,3 +243,119 @@ describe('planProduction', () => {
     });
   });
 });
+
+describe('production efficiency education level multiplier', () => {
+  const levelMultiplierPolicy = {
+    minEfficiency: 0.5,
+    educationScoreForMaxEfficiency: 500,
+    educationLevelMultipliers: [1, 1.2, 1.5, 2, 2.5, 3],
+  };
+
+  function efficiencyOf(agent: { readonly educationScore: number; readonly educationLevel?: number }) {
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: {
+        ...chipReadyAgent,
+        energy: 1_000,
+        satiety: 1_000,
+        availableLaborSeconds: 1_000,
+        ...agent,
+      },
+      productionEfficiency: levelMultiplierPolicy,
+    });
+    if (plan.status !== 'accepted') {
+      throw new Error(`expected accepted production plan, got ${plan.reason}: ${plan.detail}`);
+    }
+    return plan.productionEfficiency;
+  }
+
+  test('multiplies the education factor by the discrete level multiplier', () => {
+    // score 250 → progress 0.5; level 2 multiplier 1.5 → factor 0.75 → efficiency 0.875.
+    expect(efficiencyOf({ educationScore: 250, educationLevel: 2 })).toBeCloseTo(0.875);
+    // level 0 multiplier 1 keeps the legacy factor.
+    expect(efficiencyOf({ educationScore: 250, educationLevel: 0 })).toBeCloseTo(0.75);
+  });
+
+  test('clamps the multiplied education factor to 1', () => {
+    // score 400 → progress 0.8; level 3 multiplier 2 → 1.6 clamped to 1 → efficiency 1.
+    expect(efficiencyOf({ educationScore: 400, educationLevel: 3 })).toBe(1);
+  });
+
+  test('keeps the legacy factor when the level or the multiplier table is absent', () => {
+    expect(efficiencyOf({ educationScore: 250 })).toBeCloseTo(0.75);
+    const plan = planProduction({
+      commodityName: 'Chip',
+      quantity: 1,
+      agent: {
+        ...chipReadyAgent,
+        energy: 1_000,
+        satiety: 1_000,
+        availableLaborSeconds: 1_000,
+        educationScore: 250,
+        educationLevel: 5,
+      },
+      productionEfficiency: educationEfficiencyPolicy,
+    });
+    expect(plan).toMatchObject({ status: 'accepted', productionEfficiency: 0.75 });
+  });
+
+  test('rejects malformed multiplier tables and out-of-table levels', () => {
+    const baseAgent = {
+      ...chipReadyAgent,
+      energy: 1_000,
+      satiety: 1_000,
+      availableLaborSeconds: 1_000,
+      educationScore: 250,
+      educationLevel: 2,
+    };
+    expect(
+      planProduction({
+        commodityName: 'Chip',
+        quantity: 1,
+        agent: baseAgent,
+        productionEfficiency: { ...levelMultiplierPolicy, educationLevelMultipliers: [] },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'educationLevelMultipliers must not be empty',
+    });
+    expect(
+      planProduction({
+        commodityName: 'Chip',
+        quantity: 1,
+        agent: baseAgent,
+        productionEfficiency: { ...levelMultiplierPolicy, educationLevelMultipliers: [1, 0] },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'educationLevelMultipliers entries must be positive',
+    });
+    expect(
+      planProduction({
+        commodityName: 'Chip',
+        quantity: 1,
+        agent: { ...baseAgent, educationLevel: 9 },
+        productionEfficiency: levelMultiplierPolicy,
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'educationLevelMultipliers has no entry for level 9',
+    });
+    expect(
+      planProduction({
+        commodityName: 'Chip',
+        quantity: 1,
+        agent: { ...baseAgent, educationLevel: 1.5 },
+        productionEfficiency: levelMultiplierPolicy,
+      }),
+    ).toEqual({
+      status: 'rejected',
+      reason: 'policy-invalid',
+      detail: 'educationLevel must be a non-negative integer',
+    });
+  });
+});

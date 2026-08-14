@@ -111,7 +111,7 @@ def main() -> None:
         row0 = 1 + band * 2
         for level in range(3):
             for i, (bg, fg) in enumerate(COMP[location][level]):
-                base.paste(comp(bg, fg), ((level * 2) + (i % 2)) * TS, (row0 + (i // 2)) * TS)
+                base.paste(comp(bg, fg), (((level * 2) + (i % 2)) * TS, (row0 + (i // 2)) * TS))
 
     base.save(args.base)
     print(f"repacked {args.base}")

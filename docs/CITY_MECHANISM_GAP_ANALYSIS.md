@@ -102,6 +102,28 @@
 E 的治理命令面（税率/预算仍是参数而非参与者可调命令）、3.x 的 LLM 自主企业/外贸动作
 （命令层已就绪，`actionRepair.ts` 动作集未打开）。
 
+### 教育体系进展（2026-08-14，已落地）
+
+- **离散六级轨道**（`society/educationSystem.ts`）：0 未受教育 → 1 小学 → 2 初中 →
+  3 高中 → 4 大学 → 5 研究生；小学/初中为九年义务教育，学费由公共财政池
+  （treasury）承担、货币供给不变（`EducationCompulsoryFeeCovered`），高中阶段普职分流
+  （普高/中职 track，`vocationalTrackShare`）。
+- **中考/高考/考研放榜制**（`society/educationExam.ts`，E2）：按 cadence 周期结算，
+  分位数划线（`admissionQuotaByLevel`），周期事件记录报考/录取/切线；义务教育段内
+  仍自动晋升，3-5 级一律考试闸门。
+- **中职就业加成**（E3）：中职 track 报技能型职业按职级加有效教育分
+  （`evaluateEffectiveEducationScoreForOccupation`），招聘资格与雇主排序一致使用。
+- **生产力教育乘子**：生产效率按离散等级乘子结算（economy production efficiency），
+  教育回报真实反映到产出。
+- **理性投资上下文**：决策上下文给出等级/阶段标签/义务教育缺口/下次考试竞争与
+  录取率/教育回报（`worldDecisionContext.ts`），agent 可感知升学成本收益。
+- **LLM 自主报考**：考试报名进入 LLM 动作白名单与 proposal union。
+- **观测**：每 tick `EconomicCompositionRecorded` 新增 `educationDistribution`
+  （0-5 级人数，缺省等级按 score 派生，与 E1 兜底语义一致）。
+
+剩余缺口：儿童年龄阶段（无年龄概念，新生 agent 直接成人）、学校建筑与容量约束、
+教师雇员（教育目前无劳动力投入）——均依赖 GAP A（空间/建造）与 D（人口生命周期）先行。
+
 ## 推进顺序建议（按 ROI，尊重确定性 event-sourcing + authority 三关：确定性/replay/幂等）
 
 1. **F 昼夜/日历 + D 生理被动衰减**：小改动，小镇立刻"有日子过"。

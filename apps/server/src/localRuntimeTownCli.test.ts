@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FileLocalSimulationRuntimeResolvedRunManifestRepository } from '@aivilization/worker';
 import { createTownStaticBearerCredentialDigest } from '@aivilization/api';
+import { asAgentId } from '@aivilization/sim-core';
+import { createWorldProjection } from '@aivilization/world';
 import {
   createCanonicalLocalRuntimeTownServerInput,
   createCanonicalLocalRuntimeTownResolvedRunManifest,
@@ -712,6 +714,45 @@ describe('local runtime town executable composition', () => {
       }),
     ).toThrow('unsupported paper planner ablation task task-9');
     expect(createLocalRuntimeTownCliHelp()).toContain('task-1 | task-2 | task-3 | task-4');
+  });
+
+  test('records the ablation education-system override in the resolved run manifest', () => {
+    const ablationConfig = createDeterministicConfig(['--profile', 'ablation-80']);
+    const ablationManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(ablationConfig);
+    expect(ablationManifest.payload.policies).toMatchObject({
+      parameters: { educationSystem: { enabled: false } },
+    });
+    // The runtime command policies resolve the same override, keeping the
+    // runtime policy, manifest parameters and registry in sync.
+    const ablationInput = createCanonicalLocalRuntimeTownServerInput(ablationConfig, 100);
+    const resolverProjection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 10,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const ablationPolicySource = ablationInput.policies;
+    const ablationResolvedPolicies =
+      typeof ablationPolicySource === 'function'
+        ? ablationPolicySource(resolverProjection)
+        : ablationPolicySource;
+    expect(ablationResolvedPolicies).toMatchObject({
+      educationSystem: { enabled: false },
+    });
+
+    const canonicalManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(
+      createDeterministicConfig(),
+    );
+    expect(canonicalManifest.payload.policies).toMatchObject({
+      parameters: { educationSystem: { enabled: true } },
+    });
   });
 
   test('builds one canonical object graph with autonomous agents and daemon services', async () => {

@@ -5,7 +5,7 @@ import {
   createCommandEnvelope,
   type CoreCommandType,
 } from '@aivilization/sim-core';
-import type { ResidentialPhysiologyCapPolicy } from '@aivilization/society';
+import type { EducationSystemPolicy, ResidentialPhysiologyCapPolicy } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -26,6 +26,7 @@ import {
   handleAgentWorkCommand,
   handleAdvanceSimulationTimeCommand,
   handleRegisterAgentCommand,
+  type WorldProjection,
 } from './index';
 
 const residentialPhysiologyCaps: ResidentialPhysiologyCapPolicy = {
@@ -2625,6 +2626,185 @@ describe('agent job application command handling', () => {
       'JobAssigned',
       'ShortTermMemoryRecorded',
     ]);
+  });
+
+  const vocationalBonusEducationSystem: EducationSystemPolicy = {
+    policyVersion: 'education-system-v3',
+    enabled: true,
+    levelScoreThresholds: [20, 70, 180, 320, 450],
+    compulsoryLevels: [1, 2],
+    levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+    employedStudyEfficiencyRatio: 0.3,
+    examCycleDurationMs: 86_400_000,
+    admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+    vocationalTrackShare: 0.5,
+    vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+    source: 'test-education-system-v3',
+  };
+
+  test('AgentApplyJob evaluates vocational-track applicants at their effective education score', () => {
+    const createProjection = (track: 'academic' | 'vocational') =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-1'),
+            physiology: { energy: 100, satiety: 80, health: 100 },
+            educationScore: 150,
+            educationLevel: 3,
+            educationTrack: track,
+            balance: 0,
+            residentialTier: 3,
+            job: null,
+            inventory: { Sushi: 1 },
+          },
+        ],
+      });
+    const applyInput = (projection: WorldProjection) => ({
+      command: createCommandEnvelope({
+        id: 'command-apply',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentApplyJob' as const,
+        payload: { occupationName: 'Cashier' },
+        issuedAt: 70,
+      }),
+      projection,
+      // Cashier eligibilityShare 0.56 over a single-score population puts the
+      // knowledge threshold at 160: raw score 150 fails, the 中职 tier-3 bonus
+      // (+10) lifts the effective score to exactly 160.
+      populationEducationScores: [160],
+      quotaByResidentialTier: [1, 1, 1],
+      recruitmentCycle: {
+        policyVersion: 'recruitment-cycle-v1',
+        cycleDurationMs: 86_400_000,
+        defaultOccupationCapacity: 1,
+        occupationCapacityOverrides: {},
+      },
+      educationSystem: vocationalBonusEducationSystem,
+      nextSequence: 1,
+    });
+
+    const academicEvents = handleAgentApplyJobCommand(applyInput(createProjection('academic')));
+    expect(academicEvents.map((event) => event.type)).toEqual([
+      'ActionRejected',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(academicEvents[0]?.payload).toMatchObject({
+      commandType: 'AgentApplyJob',
+      reason: 'education-too-low: educationScore requires 160, available 150',
+    });
+
+    const vocationalProjection = createProjection('vocational');
+    const vocationalEvents = handleAgentApplyJobCommand(applyInput(vocationalProjection));
+    expect(vocationalEvents.map((event) => event.type)).toEqual([
+      'InventoryChanged',
+      'JobApplicationSubmitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(vocationalEvents[1]?.payload).toMatchObject({
+      agentId: 'agent-1',
+      occupationName: 'Cashier',
+      educationScore: 150,
+      effectiveEducationScore: 160,
+    });
+
+    const updated = vocationalEvents.reduce(applyWorldEvent, vocationalProjection);
+    expect(updated.jobApplications[0]).toMatchObject({
+      educationScore: 150,
+      effectiveEducationScore: 160,
+      status: 'pending',
+    });
+  });
+
+  test('recruitment cycle ranks applicants by the recorded effective education score', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-academic'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 155,
+          educationLevel: 3,
+          educationTrack: 'academic',
+          balance: 0,
+          residentialTier: 3,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-vocational'),
+          physiology: { energy: 100, satiety: 80, health: 100 },
+          educationScore: 150,
+          educationLevel: 3,
+          educationTrack: 'vocational',
+          balance: 0,
+          residentialTier: 3,
+          job: null,
+          inventory: {},
+        },
+      ],
+      jobApplications: [
+        {
+          applicationId: 'app-academic',
+          cycleNumber: 0,
+          agentId: asAgentId('agent-academic'),
+          occupationName: 'Cashier',
+          residentialTier: 3,
+          educationScore: 155,
+          submittedAt: 10,
+          status: 'pending',
+        },
+        {
+          applicationId: 'app-vocational',
+          cycleNumber: 0,
+          agentId: asAgentId('agent-vocational'),
+          occupationName: 'Cashier',
+          residentialTier: 3,
+          educationScore: 150,
+          effectiveEducationScore: 160,
+          submittedAt: 20,
+          status: 'pending',
+        },
+      ],
+    });
+
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-time-1',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 86_400_000 },
+        issuedAt: 86_400_000,
+      }),
+      projection,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 0,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 1, health: 1 },
+        jobApplication: {
+          populationEducationScores: [150, 155],
+          quotaByResidentialTier: [1, 1, 1],
+          recruitmentCycle: {
+            policyVersion: 'recruitment-cycle-v1',
+            cycleDurationMs: 86_400_000,
+            defaultOccupationCapacity: 1,
+            occupationCapacityOverrides: {},
+          },
+        },
+      },
+      nextSequence: 1,
+    });
+
+    const assigned = events.filter((event) => event.type === 'JobAssigned');
+    // Raw scores would rank the academic applicant first (155 > 150); the
+    // recorded effective score (150 + 10 中职 bonus) wins the single slot.
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0]?.payload).toMatchObject({
+      agentId: 'agent-vocational',
+      occupationName: 'Cashier',
+    });
   });
 });
 

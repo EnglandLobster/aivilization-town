@@ -419,4 +419,191 @@ describe('worker economic composition metrics', () => {
       loansOutstanding: 0,
     });
   });
+
+  test('records the per-level education distribution, deriving missing levels from the score', () => {
+    const educationSystemPolicy = {
+      policyVersion: 'education-system-v2',
+      enabled: true,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      source: 'test',
+    } as const;
+    const projection = createWorldProjection({
+      agents: [
+        // Durable level wins over the score-derived fallback.
+        {
+          agentId: asAgentId('agent-leveled'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 500,
+          educationLevel: 3,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        // Legacy agent without a durable level: score 75 derives level 2.
+        {
+          agentId: asAgentId('agent-legacy'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 75,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('agent-uneducated'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 0,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+
+    const payload = createEconomicCompositionPayload({
+      projection,
+      recordedAt: 100,
+      educationSystemPolicy,
+    });
+
+    expect(payload.educationDistribution).toEqual({
+      0: 1,
+      1: 0,
+      2: 1,
+      3: 1,
+      4: 0,
+      5: 0,
+    });
+  });
+
+  test('omits the education distribution when the policy is absent or disabled', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-a'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 75,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+    const disabledPolicy = {
+      policyVersion: 'education-system-v2',
+      enabled: false,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      source: 'test',
+    } as const;
+
+    expect(
+      createEconomicCompositionPayload({ projection, recordedAt: 7 }),
+    ).not.toHaveProperty('educationDistribution');
+    expect(
+      createEconomicCompositionPayload({
+        projection,
+        recordedAt: 7,
+        educationSystemPolicy: disabledPolicy,
+      }),
+    ).not.toHaveProperty('educationDistribution');
+  });
+
+  test('applies the education distribution onto the projection slice when recorded', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const educationSystemPolicy = {
+      policyVersion: 'education-system-v2',
+      enabled: true,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      source: 'test',
+    } as const;
+    const baselineProjection = createWorldProjection({
+      agents: [],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+    const currentProjection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-a'),
+          physiology: { energy: 50, satiety: 80, health: 100 },
+          educationScore: 200,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      marketPools: [
+        createAmmPool({ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }),
+      ],
+    });
+
+    const result = recordMarketMetricsToEventStream({
+      simulationId,
+      baselineProjection,
+      currentProjection,
+      baselineAt: 0,
+      issuedAt: 100,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      appendIdempotencyKey: 'market-metrics:tick-edu',
+      educationSystemPolicy,
+    });
+
+    // score 200 derives level 3 (thresholds 20, 70, 180 met).
+    expect(result.projection.economicComposition?.educationDistribution).toEqual({
+      0: 0,
+      1: 0,
+      2: 0,
+      3: 1,
+      4: 0,
+      5: 0,
+    });
+    // Replaying the recorded event onto a fresh projection reproduces the slice.
+    const compositionEvent = result.events.find(
+      (event) => event.type === 'EconomicCompositionRecorded',
+    );
+    expect(compositionEvent).toBeDefined();
+    const replayed = applyWorldEvent(
+      createWorldProjection({ agents: [] }),
+      compositionEvent!,
+    );
+    expect(replayed.economicComposition?.educationDistribution).toEqual({
+      0: 0,
+      1: 0,
+      2: 0,
+      3: 1,
+      4: 0,
+      5: 0,
+    });
+  });
 });

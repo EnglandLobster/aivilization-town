@@ -194,7 +194,10 @@ export function assertAgentRequestLoanPayload(payload: unknown): AgentRequestLoa
   return assertBankAmountPayload(payload, 'AgentRequestLoan');
 }
 
-function assertBankAmountPayload(payload: unknown, commandType: string): { readonly amount: number } {
+function assertBankAmountPayload(
+  payload: unknown,
+  commandType: string,
+): { readonly amount: number } {
   if (!isRecord(payload)) {
     throw new Error(`${commandType} payload must be an object`);
   }
@@ -212,6 +215,10 @@ export type AgentGiveResourcePayload = {
 
 export type AgentApplyJobPayload = {
   readonly occupationName: string;
+};
+
+export type AgentApplyEducationExamPayload = {
+  readonly targetLevel: number;
 };
 
 export type AgentUpgradeResidentialTierPayload = {
@@ -806,6 +813,20 @@ export function assertAgentApplyJobPayload(payload: unknown): AgentApplyJobPaylo
   return {
     occupationName,
   };
+}
+
+export function assertAgentApplyEducationExamPayload(
+  payload: unknown,
+): AgentApplyEducationExamPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentApplyEducationExam payload must be an object');
+  }
+  const targetLevel = payload['targetLevel'];
+  if (typeof targetLevel !== 'number' || !Number.isInteger(targetLevel)) {
+    throw new Error('AgentApplyEducationExam targetLevel must be an integer');
+  }
+
+  return { targetLevel };
 }
 
 export function assertAgentUpgradeResidentialTierPayload(

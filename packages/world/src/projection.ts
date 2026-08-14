@@ -16,6 +16,10 @@ import {
   classifySocialCommitmentIntent,
   createDirectedSocialRelationKey,
   decaySocialRelation,
+  type EducationLevel,
+  type EducationExamResolutionStatus,
+  type EducationExamTargetLevel,
+  type EducationTrack,
   type PhysiologicalState,
   type PhysiologicalDistressState,
   type RecruitmentApplicationResolutionStatus,
@@ -46,6 +50,20 @@ export type WorldAgentState = {
   readonly residentialTier: number;
   readonly job: string | null;
   readonly inventory: Inventory;
+  /**
+   * Discrete education level under education-system-v2. Optional so legacy
+   * snapshots and registrations stay byte-for-byte compatible; absent means the
+   * level is derived from `educationScore` via the education-system policy
+   * thresholds.
+   */
+  readonly educationLevel?: EducationLevel;
+  /**
+   * Academic/vocational track, assigned when an exam-gated promotion splits
+   * tracks (planned later stage). Absent means the default academic track.
+   */
+  readonly educationTrack?: EducationTrack;
+  /** Cumulative exam attempts under the exam-release stage; absent means zero. */
+  readonly examAttempts?: number;
   readonly durableGoods?: readonly {
     readonly lotId: string;
     readonly commodityName: string;
@@ -120,6 +138,8 @@ export type WorldJobApplicationState = {
   readonly occupationName: string;
   readonly residentialTier: number;
   readonly educationScore: number;
+  /** Effective score used for employer ranking when a vocational bonus applied. */
+  readonly effectiveEducationScore?: number;
   readonly submittedAt: number;
   readonly status: 'pending' | RecruitmentApplicationResolutionStatus;
   readonly resolvedAt?: number;
@@ -135,6 +155,32 @@ export type WorldRecruitmentCycleState = {
   readonly applicationCount: number;
   readonly acceptedCount: number;
   readonly rejectedCount: number;
+};
+
+export type WorldEducationExamApplicationState = {
+  readonly applicationId: string;
+  readonly cycleNumber: number;
+  readonly agentId: AgentId;
+  readonly targetLevel: EducationExamTargetLevel;
+  readonly educationScore: number;
+  readonly submittedAt: number;
+  readonly status: 'pending' | EducationExamResolutionStatus;
+  readonly resolvedAt?: number;
+  readonly resolutionReason?: string;
+};
+
+export type WorldEducationExamCycleState = {
+  readonly cycleNumber: number;
+  readonly cycleStartedAt: number;
+  readonly cycleEndedAt: number;
+  readonly completedAt: number;
+  readonly policyVersion: string;
+  readonly applicationCount: number;
+  readonly admittedCount: number;
+  readonly rejectedCount: number;
+  readonly applicationsByLevel: Readonly<Record<string, number>>;
+  readonly admittedByLevel: Readonly<Record<string, number>>;
+  readonly cutoffScoresByLevel: Readonly<Record<string, number>>;
 };
 
 export type WorldMarketPriceIndexState = {
@@ -174,6 +220,12 @@ export type WorldEconomicCompositionState = {
   readonly gini: number;
   readonly deposits: number;
   readonly loansOutstanding: number;
+  /**
+   * Agent headcount per discrete education level ('0'..'5'); optional so
+   * legacy snapshots and events recorded before the education-system
+   * observability stage stay byte-for-byte compatible.
+   */
+  readonly educationDistribution?: Readonly<Record<string, number>>;
 };
 
 export type WorldLocationObservationState = {
@@ -280,6 +332,8 @@ export type WorldProjection = {
   };
   readonly jobApplications: readonly WorldJobApplicationState[];
   readonly recruitmentCycles: readonly WorldRecruitmentCycleState[];
+  readonly educationExamApplications: readonly WorldEducationExamApplicationState[];
+  readonly educationExamCycles: readonly WorldEducationExamCycleState[];
   readonly physiologicalDistressByAgent: Readonly<Record<string, PhysiologicalDistressState>>;
   readonly locationObservations: readonly WorldLocationObservationState[];
   readonly conversationRecords: readonly WorldConversationRecordState[];
@@ -372,6 +426,29 @@ export function enforceWorldProjectionMemoryRetention(
   };
 }
 
+/**
+ * Fills the education-exam arrays introduced by education-system-v2 on legacy
+ * snapshots that predate them. Checkpoint hydration deserializes the stored
+ * projection verbatim, so a pre-exam snapshot would otherwise surface
+ * `undefined` arrays to the 放榜 settlement, the per-cycle application dedupe
+ * guard and the agent decision context.
+ */
+export function normalizeLegacyWorldProjectionSnapshot(
+  projection: WorldProjection,
+): WorldProjection {
+  if (
+    projection.educationExamApplications !== undefined &&
+    projection.educationExamCycles !== undefined
+  ) {
+    return projection;
+  }
+  return {
+    ...projection,
+    educationExamApplications: projection.educationExamApplications ?? [],
+    educationExamCycles: projection.educationExamCycles ?? [],
+  };
+}
+
 export function createWorldProjection(input: {
   readonly agents: readonly WorldAgentStateInput[];
   readonly enterprises?: readonly WorldEnterpriseState[];
@@ -382,6 +459,8 @@ export function createWorldProjection(input: {
   readonly marketPriceIndices?: readonly WorldMarketPriceIndexState[];
   readonly jobApplications?: readonly WorldJobApplicationState[];
   readonly recruitmentCycles?: readonly WorldRecruitmentCycleState[];
+  readonly educationExamApplications?: readonly WorldEducationExamApplicationState[];
+  readonly educationExamCycles?: readonly WorldEducationExamCycleState[];
   readonly physiologicalDistressByAgent?: Readonly<Record<string, PhysiologicalDistressState>>;
   readonly locationObservations?: readonly WorldLocationObservationState[];
   readonly conversationRecords?: readonly WorldConversationRecordState[];
@@ -477,6 +556,9 @@ export function createWorldProjection(input: {
     marketPriceIndices: (input.marketPriceIndices ?? []).map(cloneMarketPriceIndex),
     jobApplications: input.jobApplications?.map((application) => ({ ...application })) ?? [],
     recruitmentCycles: input.recruitmentCycles?.map((cycle) => ({ ...cycle })) ?? [],
+    educationExamApplications:
+      input.educationExamApplications?.map((application) => ({ ...application })) ?? [],
+    educationExamCycles: input.educationExamCycles?.map((cycle) => ({ ...cycle })) ?? [],
     physiologicalDistressByAgent: clonePhysiologicalDistressByAgent(
       input.physiologicalDistressByAgent ?? {},
     ),
@@ -782,8 +864,18 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         transactionId: event.id,
         reason: `external-trade-${event.payload.direction}`,
         ...(event.payload.direction === 'export'
-          ? { fromSector: 'external', fromId: 'external-market', toSector: traderSector, toId: traderId }
-          : { fromSector: traderSector, fromId: traderId, toSector: 'external', toId: 'external-market' }),
+          ? {
+              fromSector: 'external',
+              fromId: 'external-market',
+              toSector: traderSector,
+              toId: traderId,
+            }
+          : {
+              fromSector: traderSector,
+              fromId: traderId,
+              toSector: 'external',
+              toId: 'external-market',
+            }),
         amount: event.payload.totalCurrency,
       });
       const balanceBefore =
@@ -942,6 +1034,9 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             occupationName: event.payload.occupationName,
             residentialTier: event.payload.residentialTier,
             educationScore: event.payload.educationScore,
+            ...(event.payload.effectiveEducationScore === undefined
+              ? {}
+              : { effectiveEducationScore: event.payload.effectiveEducationScore }),
             submittedAt: event.occurredAt,
             status: 'pending',
           },
@@ -988,6 +1083,67 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             applicationCount: event.payload.applicationCount,
             acceptedCount: event.payload.acceptedCount,
             rejectedCount: event.payload.rejectedCount,
+          },
+        ],
+      };
+    case 'EducationExamApplicationSubmitted':
+      return {
+        ...projection,
+        educationExamApplications: [
+          ...projection.educationExamApplications,
+          {
+            applicationId: event.payload.applicationId,
+            cycleNumber: event.payload.cycleNumber,
+            agentId: event.payload.agentId,
+            targetLevel: event.payload.targetLevel,
+            educationScore: event.payload.educationScore,
+            submittedAt: event.occurredAt,
+            status: 'pending',
+          },
+        ],
+      };
+    case 'EducationExamResolved': {
+      assertMatchingPendingEducationExamApplication(projection, event.payload);
+      // A rejected resolution is also the agent's exam-attempt bookkeeping: the
+      // counter moves only here, never in the EducationLevelChanged reducer.
+      const resolvedProjection = {
+        ...projection,
+        educationExamApplications: projection.educationExamApplications.map((application) =>
+          application.applicationId === event.payload.applicationId
+            ? {
+                ...application,
+                status: event.payload.status,
+                resolvedAt: event.occurredAt,
+                resolutionReason: event.payload.reason,
+              }
+            : application,
+        ),
+      };
+      if (event.payload.status !== 'rejected') {
+        return resolvedProjection;
+      }
+      return updateAgent(resolvedProjection, event.payload.agentId, (agent) => ({
+        ...agent,
+        examAttempts: (agent.examAttempts ?? 0) + 1,
+      }));
+    }
+    case 'EducationExamCycleCompleted':
+      return {
+        ...projection,
+        educationExamCycles: [
+          ...projection.educationExamCycles,
+          {
+            cycleNumber: event.payload.cycleNumber,
+            cycleStartedAt: event.payload.cycleStartedAt,
+            cycleEndedAt: event.payload.cycleEndedAt,
+            completedAt: event.occurredAt,
+            policyVersion: event.payload.policyVersion,
+            applicationCount: event.payload.applicationCount,
+            admittedCount: event.payload.admittedCount,
+            rejectedCount: event.payload.rejectedCount,
+            applicationsByLevel: { ...event.payload.applicationsByLevel },
+            admittedByLevel: { ...event.payload.admittedByLevel },
+            cutoffScoresByLevel: { ...event.payload.cutoffScoresByLevel },
           },
         ],
       };
@@ -1161,6 +1317,61 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...agent,
         educationScore: event.payload.nextEducationScore,
       }));
+    case 'EducationLevelChanged':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        educationLevel: event.payload.nextLevel,
+        ...(event.payload.track === undefined ? {} : { educationTrack: event.payload.track }),
+      }));
+    case 'EducationCompulsoryFeeCovered': {
+      // Treasury-covered tuition follows the PublicBudgetSpent treatment: a
+      // transfer from the treasury into the public education service account
+      // that leaves moneySupply unchanged. The self-paid share follows the
+      // legacy education-investment treatment and leaves circulation.
+      const treasuryProjection =
+        event.payload.coveredAmount > 0
+          ? applyMoneyTransferToSupply(
+              {
+                ...projection,
+                treasury: (projection.treasury ?? 0) - event.payload.coveredAmount,
+                // The covered tuition lands in the public education service
+                // account, mirroring the PublicBudgetSpent treatment.
+                publicBudget: {
+                  cumulativeSpendingByService: {
+                    ...(projection.publicBudget?.cumulativeSpendingByService ?? {}),
+                  },
+                  serviceBalances: {
+                    ...(projection.publicBudget?.serviceBalances ?? {}),
+                    education:
+                      (projection.publicBudget?.serviceBalances['education'] ?? 0) +
+                      event.payload.coveredAmount,
+                  },
+                  lastSettledAt: projection.publicBudget?.lastSettledAt ?? event.occurredAt,
+                },
+              },
+              {
+                transactionId: event.id,
+                reason: 'compulsory-education-tuition',
+                fromSector: 'treasury',
+                fromId: 'public-treasury',
+                toSector: 'public-service',
+                toId: 'education',
+                amount: event.payload.coveredAmount,
+              },
+            )
+          : projection;
+      return updateAgent(
+        {
+          ...treasuryProjection,
+          moneySupply: treasuryProjection.moneySupply - event.payload.selfPaidAmount,
+        },
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: agent.balance - event.payload.selfPaidAmount,
+        }),
+      );
+    }
     case 'AgentActivityTimeCommitted':
       return applyAgentActivityTimeCommitment(projection, event);
     case 'WagePaid': {
@@ -1942,6 +2153,30 @@ function assertMatchingPendingJobApplication(
   }
 }
 
+function assertMatchingPendingEducationExamApplication(
+  projection: WorldProjection,
+  payload: Extract<WorldEvent, { readonly type: 'EducationExamResolved' }>['payload'],
+): void {
+  const application = projection.educationExamApplications.find(
+    (candidate) => candidate.applicationId === payload.applicationId,
+  );
+  if (application === undefined) {
+    throw new Error(`unknown education exam application ${payload.applicationId}`);
+  }
+  if (
+    application.agentId !== payload.agentId ||
+    application.targetLevel !== payload.targetLevel ||
+    application.cycleNumber !== payload.cycleNumber
+  ) {
+    throw new Error(`education exam resolution does not match ${payload.applicationId}`);
+  }
+  if (application.status !== 'pending') {
+    throw new Error(
+      `education exam application ${payload.applicationId} is already ${application.status}`,
+    );
+  }
+}
+
 function markAssignedJobApplication(
   projection: WorldProjection,
   event: Extract<WorldEvent, { readonly type: 'JobAssigned' }>,
@@ -2003,6 +2238,9 @@ function cloneEconomicComposition(
     ...composition,
     composition: { ...composition.composition },
     enterprises: { ...composition.enterprises },
+    ...(composition.educationDistribution === undefined
+      ? {}
+      : { educationDistribution: { ...composition.educationDistribution } }),
   };
 }
 

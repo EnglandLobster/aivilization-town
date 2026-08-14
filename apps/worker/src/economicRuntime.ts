@@ -37,6 +37,9 @@ export function createProjectionBackedEconomicRuntimeConfig(
     marketMetrics: {
       baselineProjection: input.baselineProjection,
       baselineAt: input.baselineAt,
+      ...(input.basePolicies.educationSystem === undefined
+        ? {}
+        : { educationSystemPolicy: input.basePolicies.educationSystem }),
       ...(input.marketMetricAppendIdempotencyKey === undefined
         ? {}
         : { appendIdempotencyKey: input.marketMetricAppendIdempotencyKey }),

@@ -14,12 +14,16 @@ import {
   applyStochasticIllnessHealthDecay,
   calculateStochasticIllnessProbabilityPercent,
   calculateCompletedRecruitmentCycleNumbers,
+  evaluateAutomaticPromotion,
+  evaluateEducationExamCycle,
   evaluatePhysiologicalSafetyNet,
   evaluateResidentialArrears,
   evaluateResidentialUpkeep,
   evaluateSafetyNetSubsidy,
   settlePublicBudget,
   resolveRecruitmentCycle,
+  type EducationSystemPolicy,
+  type EducationLevel,
   type PhysiologicalSafetyNetPolicy,
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
@@ -65,6 +69,15 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly enterprise?: EnterprisePolicy;
   readonly tax?: TaxPolicy;
   readonly credit?: CreditPolicy;
+  /**
+   * Discrete education-system policy. When enabled, each settled agent whose
+   * score crossed the next compulsory threshold automatically advances one
+   * level (EducationLevelChanged), and each crossed exam-cycle boundary
+   * resolves the pending exam applications of that cycle (EducationExamResolved
+   * + EducationExamCycleCompleted). Absent or disabled never emits education
+   * events, keeping legacy runs byte-for-byte.
+   */
+  readonly educationSystem?: EducationSystemPolicy;
   readonly timeSettlementAmortization?: { readonly buckets: number };
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -125,7 +138,8 @@ export function handleAdvanceSimulationTimeCommand(input: {
     input.safetyNetSubsidy === undefined &&
     input.physiologicalSafetyNet === undefined &&
     input.recruitmentCycle === undefined &&
-    input.credit === undefined
+    input.credit === undefined &&
+    input.educationSystem?.enabled !== true
   ) {
     return events;
   }
@@ -269,6 +283,38 @@ export function handleAdvanceSimulationTimeCommand(input: {
             minHealth: input.stochasticIllness.minHealth,
           }),
         });
+      }
+    }
+
+    // Automatic promotion inside the compulsory stage fires at most once per
+    // agent and tick: the event sets `educationLevel`, so later settlements
+    // read the promoted state from the settlement projection. Agents without a
+    // recorded level climb from 0 (catch-up, one level per tick, capped at the
+    // compulsory stage — exam-gated levels never auto-advance).
+    if (input.educationSystem?.enabled === true) {
+      const educationPolicy = input.educationSystem;
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const settledAgent = settlementProjection.agents[agent.agentId] ?? agent;
+        const level = settledAgent.educationLevel ?? 0;
+        const nextLevel = evaluateAutomaticPromotion({
+          level,
+          score: settledAgent.educationScore,
+          policy: educationPolicy,
+        });
+        if (nextLevel === null) {
+          continue;
+        }
+        events.push(
+          makeEvent(input, events.length, 'EducationLevelChanged', {
+            agentId: agent.agentId,
+            previousLevel: level,
+            nextLevel,
+            reason: 'compulsory-automatic-promotion',
+          }),
+        );
       }
     }
 
@@ -458,6 +504,16 @@ export function handleAdvanceSimulationTimeCommand(input: {
     });
   }
 
+  if (input.educationSystem?.enabled === true) {
+    appendEducationExamCycleEvents({
+      input,
+      events,
+      previousSimulationTime: previous.now,
+      nextSimulationTime: next.now,
+      policy: input.educationSystem,
+    });
+  }
+
   return events;
 }
 
@@ -567,7 +623,9 @@ function appendExternalTradeBalanceDecayEvents(input: {
         decayExternalTradeBalance({ balance, policy }),
       ]),
     );
-    if (Object.entries(next).every(([commodityName, balance]) => balance === current[commodityName])) {
+    if (
+      Object.entries(next).every(([commodityName, balance]) => balance === current[commodityName])
+    ) {
       continue;
     }
     input.events.push(
@@ -742,7 +800,9 @@ function appendRecruitmentCycleEvents(input: {
         applicationId: application.applicationId,
         agentId: application.agentId,
         occupationName: application.occupationName,
-        educationScore: application.educationScore,
+        // The submission event records the bonus-adjusted effective score as
+        // the ranking fact; legacy applications rank by the raw score.
+        educationScore: application.effectiveEducationScore ?? application.educationScore,
         residentialTier: application.residentialTier,
         submittedAt: application.submittedAt,
       }));
@@ -821,6 +881,137 @@ function appendRecruitmentCycleEvents(input: {
         applicationCount: decision.resolutions.length,
         acceptedCount: decision.acceptedApplications.length,
         rejectedCount: decision.resolutions.length - decision.acceptedApplications.length,
+      }),
+    );
+  }
+}
+
+/**
+ * 放榜 settlement of the education exam cycles (education-system-v2). Each
+ * crossed exam-cycle boundary resolves every pending application of that cycle
+ * through the society ranking decision, emits one EducationExamResolved per
+ * application (plus an EducationLevelChanged for each admitted candidate —
+ * with the track assignment on 中考 admissions — and a 金榜题名/再接再厉 memory),
+ * and closes with the cycle summary. Rejected resolutions bump the agent's
+ * `examAttempts` in the reducer, never here.
+ */
+function appendEducationExamCycleEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+  readonly policy: EducationSystemPolicy;
+}): void {
+  const cycleNumbers = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: input.policy.examCycleDurationMs,
+  });
+
+  for (const cycleNumber of cycleNumbers) {
+    const applications = input.input.projection.educationExamApplications
+      .filter(
+        (application) =>
+          application.cycleNumber === cycleNumber && application.status === 'pending',
+      )
+      .map((application) => ({
+        applicationId: application.applicationId,
+        agentId: application.agentId,
+        targetLevel: application.targetLevel,
+        educationScore: application.educationScore,
+        submittedAt: application.submittedAt,
+      }));
+    const decision = evaluateEducationExamCycle({
+      applications,
+      cycleNumber,
+      policy: input.policy,
+    });
+
+    for (const resolution of decision.resolutions) {
+      const resolutionOffset = input.events.length;
+      input.events.push(
+        makeEvent(input.input, resolutionOffset, 'EducationExamResolved', {
+          applicationId: resolution.applicationId,
+          cycleNumber,
+          agentId: resolution.agentId as AgentId,
+          targetLevel: resolution.targetLevel,
+          status: resolution.status,
+          ...(resolution.track === undefined ? {} : { track: resolution.track }),
+          ...(resolution.cutoffScore === undefined ? {} : { cutoffScore: resolution.cutoffScore }),
+          reason: resolution.reason,
+        }),
+      );
+
+      const sourceEventOffsets = [resolutionOffset];
+      if (resolution.status === 'admitted') {
+        const agent = input.input.projection.agents[resolution.agentId as AgentId];
+        const promotionOffset = input.events.length;
+        input.events.push(
+          makeEvent(input.input, promotionOffset, 'EducationLevelChanged', {
+            agentId: resolution.agentId as AgentId,
+            previousLevel:
+              agent?.educationLevel ?? ((resolution.targetLevel - 1) as EducationLevel),
+            nextLevel: resolution.targetLevel,
+            ...(resolution.track === undefined ? {} : { track: resolution.track }),
+            reason: `education-exam-admission:cycle-${cycleNumber}`,
+          }),
+        );
+        sourceEventOffsets.push(promotionOffset);
+      }
+
+      input.events.push(
+        makeMemoryEvent(input.input, input.events.length, {
+          agentId: resolution.agentId as AgentId,
+          summary:
+            resolution.status === 'admitted'
+              ? `Education exam cycle ${cycleNumber} admitted you into level ${resolution.targetLevel}${resolution.track === undefined ? '' : ` (${resolution.track} track)`}.`
+              : `Education exam cycle ${cycleNumber} rejected your level-${resolution.targetLevel} application: ${resolution.reason}.`,
+          status: resolution.status === 'admitted' ? 'succeeded' : 'failed',
+          sourceEventOffsets,
+          tags: [
+            'education-exam-cycle',
+            `education-exam-cycle:${cycleNumber}`,
+            `exam-target:${resolution.targetLevel}`,
+            resolution.status,
+          ],
+          consolidationHint:
+            resolution.status === 'admitted'
+              ? {
+                  kind: 'habit',
+                  patternKey: `education-exam-admitted:${resolution.targetLevel}`,
+                  statement: `Passed the level-${resolution.targetLevel} education exam.`,
+                }
+              : {
+                  kind: 'caution',
+                  patternKey: `education-exam-rejected:${resolution.targetLevel}:${resolution.reason}`,
+                  statement: `Level-${resolution.targetLevel} exam applications can fail because ${resolution.reason}; study more and try again.`,
+                },
+        }),
+      );
+    }
+
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'EducationExamCycleCompleted', {
+        cycleNumber,
+        cycleStartedAt: cycleNumber * input.policy.examCycleDurationMs,
+        cycleEndedAt: (cycleNumber + 1) * input.policy.examCycleDurationMs,
+        policyVersion: input.policy.policyVersion,
+        applicationCount: decision.resolutions.length,
+        admittedCount: decision.resolutions.filter((resolution) => resolution.status === 'admitted')
+          .length,
+        rejectedCount: decision.resolutions.filter((resolution) => resolution.status === 'rejected')
+          .length,
+        applicationsByLevel: Object.fromEntries(
+          decision.summaries.map((summary) => [summary.targetLevel, summary.applicationCount]),
+        ),
+        admittedByLevel: Object.fromEntries(
+          decision.summaries.map((summary) => [summary.targetLevel, summary.admittedCount]),
+        ),
+        cutoffScoresByLevel: Object.fromEntries(
+          decision.summaries
+            .filter((summary) => summary.cutoffScore !== undefined)
+            .map((summary) => [summary.targetLevel, summary.cutoffScore as number]),
+        ),
       }),
     );
   }

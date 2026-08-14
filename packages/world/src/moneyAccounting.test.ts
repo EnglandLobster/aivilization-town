@@ -458,6 +458,59 @@ describe('money accounting invariants', () => {
     expect(projection.externalTrade?.balancesByCommodity).toEqual({ Apple: 2 });
   });
 
+  test('compulsory education tuition is a treasury transfer; only the self-paid share burns', () => {
+    const initial = createWorldProjection({
+      agents: [createAgent('agent-1', 100)],
+      treasury: 200,
+      moneySupply: 1300,
+    });
+
+    const events: WorldEvent[] = [
+      // Treasury covers 15 (transfer to the public education service), agent
+      // pays the remaining 5 out of pocket (burn, legacy education treatment).
+      createEventEnvelope({
+        id: 'event-compulsory-fee',
+        simulationId: 'sim-1',
+        type: 'EducationCompulsoryFeeCovered',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          level: 1 as const,
+          durationSeconds: 3600,
+          coveredAmount: 15,
+          selfPaidAmount: 5,
+          reason: 'compulsory-education',
+        },
+        occurredAt: 1,
+        sequence: 1,
+      }),
+      // Automatic promotion records no money movement at all.
+      createEventEnvelope({
+        id: 'event-education-level',
+        simulationId: 'sim-1',
+        type: 'EducationLevelChanged',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          previousLevel: 0 as const,
+          nextLevel: 1 as const,
+          reason: 'compulsory-automatic-promotion',
+        },
+        occurredAt: 2,
+        sequence: 2,
+      }),
+    ];
+
+    const projection = replayEvents(initial, events, applyWorldEvent);
+    expect(projection.agents['agent-1']?.balance).toBe(95);
+    expect(projection.agents['agent-1']?.educationLevel).toBe(1);
+    expect(projection.treasury).toBe(185);
+    // The covered share is credited to the public education service account,
+    // mirroring the PublicBudgetSpent reducer.
+    expect(projection.publicBudget?.serviceBalances).toEqual({ education: 15 });
+    // Only the self-paid tuition left circulation; the covered share followed
+    // the PublicBudgetSpent treatment and left it unchanged.
+    expect(projection.moneySupply).toBe(1300 - 5);
+  });
+
   test('mixed event stream satisfies moneySupply == initial + minted − burned', () => {
     const initial = createWorldProjection({
       agents: [createAgent('agent-1', 100), createAgent('agent-2', 100, 2)],

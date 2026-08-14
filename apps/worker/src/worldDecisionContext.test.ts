@@ -392,6 +392,268 @@ describe('worker world decision context', () => {
     expect(withoutTax.fiscal).toBeUndefined();
   });
 
+  test('exposes the education level and stage only when the education system is enabled', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 100,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      educationExamApplications: [
+        {
+          applicationId: 'exam-app-1',
+          cycleNumber: 0,
+          agentId,
+          targetLevel: 3,
+          educationScore: 200,
+          submittedAt: 0,
+          status: 'pending',
+        },
+      ],
+      educationExamCycles: [
+        {
+          cycleNumber: 0,
+          cycleStartedAt: 0,
+          cycleEndedAt: 86_400_000,
+          completedAt: 86_400_000,
+          policyVersion: 'education-system-v2',
+          applicationCount: 4,
+          admittedCount: 2,
+          rejectedCount: 2,
+          applicationsByLevel: { 3: 4 },
+          admittedByLevel: { 3: 2 },
+          cutoffScoresByLevel: { 3: 250 },
+        },
+      ],
+    });
+    const educationSystem = {
+      policyVersion: 'education-system-v2',
+      enabled: true,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      source: 'test',
+    } as const;
+    const basePolicies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+
+    // score 100 derives level 2 (初中), which completes the compulsory stage.
+    const withSystem = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: { ...basePolicies, educationSystem },
+    });
+    expect(withSystem.agent.educationLevel).toBe(2);
+    expect(withSystem.agent.educationStage).toBe('初中(义务教育)');
+    expect(withSystem.agent.compulsoryEducationIncomplete).toBe(false);
+    expect(withSystem.agent.examAttempts).toBe(0);
+    // The next exam gate above level 2 is the 中考 (target 3): the context
+    // reports the current cycle's parked applications plus the latest completed
+    // cycle's admission rate (2/4) and cutoff.
+    expect(withSystem.agent.nextEducationExam).toEqual({
+      targetLevel: 3,
+      currentCycleApplications: 1,
+      previousCycleAdmissionRate: 0.5,
+      previousCycleCutoffScore: 250,
+    });
+    // Rational investment view (education-system-v3): the 中考 gate into level 3
+    // costs 80 more score points (~1.33h at the canonical 1/60 rate while
+    // unemployed) at the free compulsory tuition, and unlocks tier-5 wages.
+    expect(withSystem.agent.educationReturn).toMatchObject({
+      currentLevel: 2,
+      currentStage: '初中(义务教育)',
+      nextLevel: 3,
+      requiredScore: 180,
+      currentScore: 100,
+      isExamGated: true,
+      examAdmission: {
+        quota: 0.5,
+        lastCycleAdmissionRate: 0.5,
+        lastCycleCutoffScore: 250,
+      },
+      tuitionPerHour: 20,
+      compulsoryFree: true,
+      wageUpliftEstimate: { currentTierWage: 301, nextLevelMinTierWage: 429 },
+    });
+    expect(withSystem.agent.educationReturn?.expectedStudyHoursRemaining).toBeCloseTo(4 / 3);
+
+    // A level-1 agent (score 25) has not finished the compulsory stage.
+    const primaryProjection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 25,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const primary = createWorldDecisionContextFromProjection({
+      projection: primaryProjection,
+      agentId,
+      policies: { ...basePolicies, educationSystem },
+    });
+    expect(primary.agent.educationLevel).toBe(1);
+    expect(primary.agent.educationStage).toBe('小学(义务教育)');
+    expect(primary.agent.compulsoryEducationIncomplete).toBe(true);
+    // Level 1 → level 2 is inside the compulsory stage: no exam gate, no
+    // admission outlook, and the wage uplift stops at the tier-3 ladder step.
+    expect(primary.agent.educationReturn).toMatchObject({
+      currentLevel: 1,
+      nextLevel: 2,
+      requiredScore: 70,
+      currentScore: 25,
+      isExamGated: false,
+      tuitionPerHour: 20,
+      compulsoryFree: true,
+      wageUpliftEstimate: { currentTierWage: 260, nextLevelMinTierWage: 301 },
+    });
+    expect(primary.agent.educationReturn?.examAdmission).toBeUndefined();
+    expect(primary.agent.educationReturn?.expectedStudyHoursRemaining).toBeCloseTo(0.75);
+
+    // An explicitly recorded level (and vocational track) wins over the score.
+    const trackedProjection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 400,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+          educationLevel: 3,
+          educationTrack: 'vocational',
+        },
+      ],
+    });
+    const tracked = createWorldDecisionContextFromProjection({
+      projection: trackedProjection,
+      agentId,
+      policies: { ...basePolicies, educationSystem },
+    });
+    expect(tracked.agent.educationStage).toBe('高中(中职)');
+
+    // Disabled or absent policy keeps the context education-system-free.
+    const withoutSystem = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: basePolicies,
+    });
+    expect(withoutSystem.agent.educationLevel).toBeUndefined();
+    expect(withoutSystem.agent.educationStage).toBeUndefined();
+    expect(withoutSystem.agent.compulsoryEducationIncomplete).toBeUndefined();
+    expect(withoutSystem.agent.examAttempts).toBeUndefined();
+    expect(withoutSystem.agent.nextEducationExam).toBeUndefined();
+    expect(withoutSystem.agent.educationReturn).toBeUndefined();
+    const disabled = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: { ...basePolicies, educationSystem: { ...educationSystem, enabled: false } },
+    });
+    expect(disabled.agent.educationLevel).toBeUndefined();
+    expect(disabled.agent.examAttempts).toBeUndefined();
+    expect(disabled.agent.nextEducationExam).toBeUndefined();
+    expect(disabled.agent.educationReturn).toBeUndefined();
+  });
+
+  test('mirrors the vocational-track job bonus in occupation rules', () => {
+    const createProjection = (track: 'academic' | 'vocational') =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId,
+            physiology: { energy: 45, satiety: 30, health: 90 },
+            educationScore: 150,
+            educationLevel: 3,
+            educationTrack: track,
+            balance: 100,
+            residentialTier: 3,
+            job: null,
+            inventory: { Sushi: 1 },
+          },
+        ],
+      });
+    const educationSystem = {
+      policyVersion: 'education-system-v3',
+      enabled: true,
+      levelScoreThresholds: [20, 70, 180, 320, 450],
+      compulsoryLevels: [1, 2],
+      levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+      employedStudyEfficiencyRatio: 0.3,
+      examCycleDurationMs: 86_400_000,
+      admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+      vocationalTrackShare: 0.5,
+      vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+      source: 'test',
+    } as const;
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      educationSystem,
+      jobApplication: {
+        // Cashier eligibilityShare 0.56 puts the knowledge threshold at 160:
+        // raw 150 fails, the 中职 tier-3 bonus (+10) makes the agent eligible.
+        populationEducationScores: [160],
+        quotaByResidentialTier: [1, 1, 1],
+      },
+    };
+
+    const vocational = createWorldDecisionContextFromProjection({
+      projection: createProjection('vocational'),
+      agentId,
+      policies,
+    });
+    const cashierRule = vocational.rules?.occupations.find(
+      (rule) => rule.occupationName === 'Cashier',
+    );
+    expect(cashierRule).toMatchObject({
+      jobTier: 3,
+      effectiveEducationThreshold: 160,
+      effectiveEducationScore: 160,
+      eligible: true,
+      rejectionReasons: [],
+    });
+    // Tier-1 occupations carry no bonus, so no effective-score override.
+    const cleanerRule = vocational.rules?.occupations.find(
+      (rule) => rule.occupationName === 'Cleaner',
+    );
+    expect(cleanerRule?.effectiveEducationScore).toBeUndefined();
+
+    const academic = createWorldDecisionContextFromProjection({
+      projection: createProjection('academic'),
+      agentId,
+      policies,
+    });
+    const academicCashierRule = academic.rules?.occupations.find(
+      (rule) => rule.occupationName === 'Cashier',
+    );
+    expect(academicCashierRule?.effectiveEducationScore).toBeUndefined();
+    expect(academicCashierRule?.eligible).toBe(false);
+    expect(academicCashierRule?.rejectionReasons).toContain('education-too-low');
+  });
+
   test('exposes the banking position only when command policies carry a credit policy', () => {
     const bank = createBankState({ reserves: 10_000 });
     const projection = createWorldProjection({

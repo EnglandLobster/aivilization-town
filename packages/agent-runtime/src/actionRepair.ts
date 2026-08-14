@@ -24,6 +24,7 @@ export type AgentActionCommandType = Exclude<
 >;
 
 export const AGENT_ACTION_COMMAND_TYPES = [
+  'AgentApplyEducationExam',
   'AgentApplyJob',
   'AgentCloseEnterprise',
   'AgentConsume',

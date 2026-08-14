@@ -1,11 +1,111 @@
 import { createBranchPlan, type ActionSequenceGenerator } from '@aivilization/agent-runtime';
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
-import { applyWorldEvent, createWorldProjection, dispatchWorldCommand } from '@aivilization/world';
+import type { EducationSystemPolicy } from '@aivilization/society';
+import {
+  applyWorldEvent,
+  createWorldProjection,
+  dispatchWorldCommand,
+  type WorldAgentState,
+  type WorldCommandPolicies,
+} from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
   createEducationOpportunityCostAwareActionSequenceGenerator,
+  createEducationOpportunityCostRule,
   createExecutedEducationOpportunityCostMetrics,
 } from './index';
+
+const ruleEducationSystemPolicy: EducationSystemPolicy = {
+  policyVersion: 'education-system-v3',
+  enabled: true,
+  levelScoreThresholds: [20, 70, 180, 320, 450],
+  compulsoryLevels: [1, 2],
+  levelTuitionPerHour: { 0: 20, 1: 20, 2: 20, 3: 25, 4: 30, 5: 40 },
+  employedStudyEfficiencyRatio: 0.3,
+  examCycleDurationMs: 86_400_000,
+  admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
+  vocationalTrackShare: 0.5,
+  source: 'test-education-system',
+};
+
+function createRulePolicies(
+  overrides: Partial<WorldCommandPolicies> = {},
+): WorldCommandPolicies {
+  return {
+    satietyRecoveryByCommodity: {},
+    maxSatiety: 100,
+    wageCalculator: () => 10,
+    laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+    criticalThresholds: { energy: 1, health: 1 },
+    educationInvestment: { currencyCostPerHour: 20, inventoryCostsPerHour: {} },
+    ...overrides,
+  };
+}
+
+function createRuleAgent(input: {
+  readonly balance: number;
+  readonly educationScore?: number;
+  readonly educationLevel?: WorldAgentState['educationLevel'];
+}): WorldAgentState {
+  return {
+    agentId: asAgentId('agent-a'),
+    locationId: null,
+    physiology: { energy: 80, satiety: 80, health: 90 },
+    educationScore: input.educationScore ?? 0,
+    balance: input.balance,
+    residentialTier: 1,
+    job: null,
+    inventory: {},
+    ...(input.educationLevel === undefined ? {} : { educationLevel: input.educationLevel }),
+  };
+}
+
+describe('education opportunity-cost rule', () => {
+  test('prices compulsory-level study at the treasury-covered self-pay share', () => {
+    const rule = createEducationOpportunityCostRule({
+      agent: createRuleAgent({ balance: 5, educationScore: 25, educationLevel: 1 }),
+      policies: createRulePolicies({ educationSystem: ruleEducationSystemPolicy }),
+      treasuryBalance: 1000,
+    });
+
+    // The legacy flat estimate (10 for 1800s at 20/hour) would reject this
+    // low-balance agent; the settlement-aligned quote is fully covered.
+    expect(rule).toMatchObject({
+      directCurrencyCost: 0,
+      directInventoryCosts: {},
+      balanceAfterDirectCost: 5,
+      directlyAffordable: true,
+    });
+  });
+
+  test('prices non-compulsory levels at the level tuition rate', () => {
+    const rule = createEducationOpportunityCostRule({
+      agent: createRuleAgent({ balance: 100, educationScore: 400, educationLevel: 4 }),
+      policies: createRulePolicies({ educationSystem: ruleEducationSystemPolicy }),
+      treasuryBalance: 1000,
+    });
+
+    // Level-4 tuition is 30/hour; the canonical study session is 1800s.
+    expect(rule).toMatchObject({ directCurrencyCost: 15, directlyAffordable: true });
+  });
+
+  test('keeps the legacy flat estimate when the education system is disabled or absent', () => {
+    for (const policies of [
+      createRulePolicies(),
+      createRulePolicies({
+        educationSystem: { ...ruleEducationSystemPolicy, enabled: false },
+      }),
+    ]) {
+      const rule = createEducationOpportunityCostRule({
+        agent: createRuleAgent({ balance: 100 }),
+        policies,
+        treasuryBalance: 1000,
+      });
+
+      expect(rule).toMatchObject({ directCurrencyCost: 10, directlyAffordable: true });
+    }
+  });
+});
 
 describe('education opportunity-cost action authority', () => {
   test('replaces LLM-declared study costs with the authoritative duration-prorated estimate', async () => {

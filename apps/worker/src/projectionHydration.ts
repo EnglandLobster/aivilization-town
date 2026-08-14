@@ -11,6 +11,7 @@ import {
 import {
   applyWorldEvent,
   enforceWorldProjectionMemoryRetention,
+  normalizeLegacyWorldProjectionSnapshot,
   type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
@@ -64,7 +65,9 @@ export function hydrateWorldProjectionFromEventStream(
   });
   const replayFromSequence = checkpointHydration?.fromSequence ?? fromSequence;
   const initialProjection = enforceWorldProjectionMemoryRetention(
-    checkpointHydration?.projection ?? input.initialProjection,
+    normalizeLegacyWorldProjectionSnapshot(
+      checkpointHydration?.projection ?? input.initialProjection,
+    ),
   );
   const events = input.eventStore
     .readStream(input.streamName, { afterSequence: replayFromSequence })

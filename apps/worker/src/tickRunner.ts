@@ -53,6 +53,7 @@ import {
   type WorldEvent,
   type WorldProjection,
 } from '@aivilization/world';
+import type { EducationSystemPolicy } from '@aivilization/society';
 import {
   runWorkerAgentCycle,
   type WorkerAgentCycleResult,
@@ -166,6 +167,12 @@ export type WorkerTickMarketMetricsInput = {
    */
   readonly currentMarketOverride?: WorldDecisionMarketOverride;
   readonly baselineMarketOverride?: WorldDecisionMarketOverride;
+  /**
+   * Enabled education-system policy used to record the per-level agent
+   * headcount (`educationDistribution`) on the composition event. Absent or
+   * disabled omits the field, keeping legacy runs byte-for-byte compatible.
+   */
+  readonly educationSystemPolicy?: EducationSystemPolicy;
 };
 
 export type WorkerTickMarketObservationsInput = {
@@ -419,6 +426,9 @@ export async function runWorkerSimulationTick(
       ...(input.marketMetrics.currentMarketOverride === undefined
         ? {}
         : { currentMarketOverride: input.marketMetrics.currentMarketOverride }),
+      ...(input.marketMetrics.educationSystemPolicy === undefined
+        ? {}
+        : { educationSystemPolicy: input.marketMetrics.educationSystemPolicy }),
       simulationId: input.simulationId,
       baselineAt: input.marketMetrics.baselineAt,
       issuedAt: input.issuedAt,

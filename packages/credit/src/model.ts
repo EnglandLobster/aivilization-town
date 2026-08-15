@@ -20,7 +20,7 @@ export type BankState = {
   readonly creditHistoryByAgent: Readonly<Record<string, CreditHistory>>;
 };
 
-export type LoanStatus = 'active' | 'repaid' | 'defaulted';
+export type LoanStatus = 'active' | 'repaid' | 'defaulted' | 'written-off';
 
 export type LoanState = {
   readonly loanId: LoanId;

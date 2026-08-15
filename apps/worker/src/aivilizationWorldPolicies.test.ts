@@ -11,11 +11,19 @@ import {
   createWorldProjection,
   dispatchWorldCommand,
 } from '@aivilization/world';
-import { assertTownConditionsPolicy } from '@aivilization/society';
+import {
+  assertTownConditionsPolicy,
+  assertValidLifecyclePolicy,
+  assertValidTownCalendarPolicy,
+  assertValidWellbeingPolicy,
+} from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
+  createAivilizationTownCalendarPolicy,
+  createAivilizationTownLifecyclePolicy,
   createAivilizationTownConditionsPolicy,
   createAivilizationTownWeatherPolicy,
+  createAivilizationTownWellbeingPolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -370,6 +378,130 @@ describe('AIvilization default world command policies', () => {
       createAivilizationWorldCommandPolicies('seed', undefined, { townConflict: true })(projection)
         .conflict?.policyVersion,
     ).toBe('town-conflict-v1');
+  });
+
+  test('declares the town wellbeing policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townWellbeing');
+    expect(off.parameters).not.toHaveProperty('townWellbeing');
+    expect(JSON.stringify(off)).not.toContain('town-wellbeing-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townWellbeing: true });
+    expect(on.policyVersions).toMatchObject({ townWellbeing: 'town-wellbeing-v1' });
+    expect(on.parameters.townWellbeing).toMatchObject({
+      policyVersion: 'town-wellbeing-v1',
+      initialValue: 50,
+      baseline: 50,
+      convergencePerHour: 2,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townWellbeing',
+          provenance: 'experimental',
+          policyVersion: 'town-wellbeing-v1',
+        }),
+      ]),
+    );
+
+    const policy = createAivilizationTownWellbeingPolicy();
+    expect(policy.policyVersion).toBe('town-wellbeing-v1');
+    expect(() => assertValidWellbeingPolicy(policy)).not.toThrow();
+
+    // The opt-in policy reaches command policies only when the switch is on.
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).wellbeing).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townWellbeing: true })(projection)
+        .wellbeing?.policyVersion,
+    ).toBe('town-wellbeing-v1');
+  });
+
+  test('declares the town calendar policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townCalendar');
+    expect(off.parameters).not.toHaveProperty('townCalendar');
+    expect(JSON.stringify(off)).not.toContain('town-calendar-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townCalendar: true });
+    expect(on.policyVersions).toMatchObject({ townCalendar: 'town-calendar-v1' });
+    expect(on.parameters.townCalendar).toMatchObject({
+      policyVersion: 'town-calendar-v1',
+      dayLengthMs: 86_400_000,
+      physiologicalDecay: { energyPerHour: 6.25, satietyPerHour: 12.5 },
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townCalendar',
+          provenance: 'experimental',
+          policyVersion: 'town-calendar-v1',
+        }),
+      ]),
+    );
+
+    const policy = createAivilizationTownCalendarPolicy();
+    expect(policy.policyVersion).toBe('town-calendar-v1');
+    expect(() => assertValidTownCalendarPolicy(policy)).not.toThrow();
+
+    // The opt-in policy reaches command policies only when the switch is on.
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).calendar).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townCalendar: true })(projection)
+        .calendar?.policyVersion,
+    ).toBe('town-calendar-v1');
+  });
+
+  test('declares the town lifecycle policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townLifecycle');
+    expect(off.parameters).not.toHaveProperty('townLifecycle');
+    expect(JSON.stringify(off)).not.toContain('town-lifecycle-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townLifecycle: true });
+    expect(on.policyVersions).toMatchObject({ townLifecycle: 'town-lifecycle-v1' });
+    expect(on.parameters.townLifecycle).toMatchObject({
+      policyVersion: 'town-lifecycle-v1',
+      dayLengthMs: 86_400_000,
+      stageThresholdsDays: { teen: 15, adult: 21, elderly: 70 },
+      minLifespanDays: 90,
+      maxLifespanDays: 130,
+      pensionPerHour: 1,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townLifecycle',
+          provenance: 'experimental',
+          policyVersion: 'town-lifecycle-v1',
+        }),
+      ]),
+    );
+
+    const policy = createAivilizationTownLifecyclePolicy();
+    expect(policy.policyVersion).toBe('town-lifecycle-v1');
+    expect(() => assertValidLifecyclePolicy(policy)).not.toThrow();
+
+    // The opt-in policy reaches command policies only when the switch is on.
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).lifecycle).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townLifecycle: true })(projection)
+        .lifecycle?.policyVersion,
+    ).toBe('town-lifecycle-v1');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

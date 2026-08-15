@@ -13,6 +13,11 @@ import {
   type WorldCommandPolicies,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
+import {
+  createAivilizationTownCalendarPolicy,
+  createAivilizationTownLifecyclePolicy,
+  createAivilizationTownWellbeingPolicy,
+} from './experimentalFeatures';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
 import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDirectory';
 
@@ -977,6 +982,213 @@ describe('worker world decision context', () => {
       policies: policiesWithoutLifestyle,
     });
     expect(withoutPolicy.agent.lifestyle).toBeUndefined();
+  });
+
+  test('exposes the wellbeing value and band only when command policies carry a wellbeing policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+          wellbeing: 85,
+        },
+        {
+          agentId: asAgentId('agent-legacy'),
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      wellbeing: createAivilizationTownWellbeingPolicy(),
+    };
+
+    // The settled durable value is read verbatim; the band is derived, never
+    // recomputed from factors.
+    const settled = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(settled.agent.wellbeing).toEqual({ value: 85, band: 'thriving' });
+
+    // Legacy agents without a settled value fall back to the policy initial.
+    const legacy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: asAgentId('agent-legacy'),
+      policies,
+    });
+    expect(legacy.agent.wellbeing).toEqual({ value: 50, band: 'steady' });
+
+    const policiesWithoutWellbeing: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutPolicy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutWellbeing,
+    });
+    expect(withoutPolicy.agent.wellbeing).toBeUndefined();
+  });
+
+  test('exposes the lifecycle view only when command policies carry a lifecycle policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+          lifeStage: 'elderly',
+          retiredAtMs: 86_400_000,
+        },
+        {
+          agentId: asAgentId('agent-legacy'),
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      clock: { now: 2 * 86_400_000, tickDurationMs: 3_600_000 },
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      lifecycle: createAivilizationTownLifecyclePolicy(),
+    };
+
+    // Stage and retirement come verbatim from the projection; the age is
+    // derived with the registration rule (legacy agents count from time 0:
+    // age = 2 + 21 = 23 days).
+    const settled = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(settled.agent.lifecycle).toEqual({ stage: 'elderly', ageDays: 23, retired: true });
+
+    const legacy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: asAgentId('agent-legacy'),
+      policies,
+    });
+    expect(legacy.agent.lifecycle).toEqual({ stage: 'adult', ageDays: 23, retired: false });
+
+    const policiesWithoutLifecycle: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+    };
+    const withoutPolicy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: policiesWithoutLifecycle,
+    });
+    expect(withoutPolicy.agent.lifecycle).toBeUndefined();
+  });
+
+  test('exposes the calendar phase only when command policies carry a calendar policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      clock: { now: 0, tickDurationMs: 1000 },
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 35 },
+      calendar: createAivilizationTownCalendarPolicy(),
+    };
+
+    // No TownDayPhaseChanged has settled yet: the context falls back to the
+    // pure clock function (night, day 0, ending at 0.175 of the day).
+    const beforeEvents = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies,
+    });
+    expect(beforeEvents.calendar).toEqual({
+      dayIndex: 0,
+      phase: 'night',
+      phaseEndsAtMs: 15_120_000,
+      nextPhase: 'dawn',
+      dayLengthMs: 86_400_000,
+    });
+
+    // After a settled transition the slice drives the view (day fraction 0.35
+    // → 'day', ending at 0.8, followed by 'dusk').
+    const withSlice = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'Cleaner',
+          inventory: {},
+        },
+      ],
+      clock: { now: 30_240_000, tickDurationMs: 1000 },
+      calendar: { dayIndex: 0, phase: 'day', since: 25_920_000 },
+    });
+    const withEvents = createWorldDecisionContextFromProjection({
+      projection: withSlice,
+      agentId,
+      policies,
+    });
+    expect(withEvents.calendar).toEqual({
+      dayIndex: 0,
+      phase: 'day',
+      phaseEndsAtMs: 69_120_000,
+      nextPhase: 'dusk',
+      dayLengthMs: 86_400_000,
+    });
+
+    const withoutPolicy = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 250,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 20, health: 35 },
+      },
+    });
+    expect(withoutPolicy.calendar).toBeUndefined();
   });
 
   test('exposes direct study costs, foregone wages, and the post-study reserve', () => {

@@ -1,5 +1,10 @@
 import type { AgentId } from '@aivilization/sim-core';
-import type { EducationLevel, LifestyleTier } from '@aivilization/society';
+import type {
+  EducationLevel,
+  LifecycleStage,
+  LifestyleTier,
+  WellbeingBand,
+} from '@aivilization/society';
 
 export type WorldDecisionAgentContext = {
   readonly agentId: AgentId;
@@ -78,6 +83,31 @@ export type WorldDecisionAgentContext = {
    * guardrails — settlement never consumes it.
    */
   readonly lifestyle?: LifestyleTier;
+  /**
+   * Optional durable lifecycle view (town-lifecycle-v1): the agent's settled
+   * life stage, current age, and retirement status. Present only when the
+   * resolved command policies carry a lifecycle policy; the stage and
+   * retirement flag come straight from the projection, the age is derived
+   * with the same registration-based rule the settlement uses. Read-path
+   * only — settlement never consumes this context.
+   */
+  readonly lifecycle?: {
+    readonly stage: LifecycleStage;
+    readonly ageDays: number;
+    readonly retired: boolean;
+  };
+  /**
+   * Optional durable wellbeing view (town-wellbeing-v1): the authoritative
+   * settled scalar plus its derived band. Present only when the resolved
+   * command policies carry a wellbeing policy; the value comes straight from
+   * the projection (absent durable value means the policy initialValue), and
+   * the band is derived read-path state — settlement never consumes this
+   * context.
+   */
+  readonly wellbeing?: {
+    readonly value: number;
+    readonly band: WellbeingBand;
+  };
   readonly job: string | null;
   readonly inventory: Readonly<Record<string, number>>;
   readonly durableGoods?: readonly {
@@ -316,6 +346,20 @@ export type WorldDecisionWeatherContext = {
 };
 
 /**
+ * Optional town day/night calendar visible to agent planning (town-calendar
+ * switch). Present only when the town-calendar policy is enabled; exposes the
+ * current phase, when it ends, and what follows so schedules can be
+ * day/night-aware. Read-path only — settlement never consumes this context.
+ */
+export type WorldDecisionCalendarContext = {
+  readonly dayIndex: number;
+  readonly phase: string;
+  readonly phaseEndsAtMs: number;
+  readonly nextPhase: string;
+  readonly dayLengthMs: number;
+};
+
+/**
  * A derived town condition visible to agent planning. Present only when the
  * town-conditions policy is enabled;
  * conditions are derived from durable physiology axes, weather, and location
@@ -387,6 +431,7 @@ export type WorldDecisionContext = {
   readonly market: WorldDecisionMarketContext;
   readonly society?: WorldDecisionSocietyContext;
   readonly weather?: WorldDecisionWeatherContext;
+  readonly calendar?: WorldDecisionCalendarContext;
   readonly conditions?: readonly WorldDecisionConditionContext[];
   readonly fiscal?: WorldDecisionFiscalContext;
   readonly externalTrade?: readonly WorldDecisionExternalTradeCommodityContext[];
@@ -415,6 +460,10 @@ export type WorldDecisionContextTrace = {
   readonly remoteSocietyAgentCount?: number;
   readonly hasWeather?: boolean;
   readonly weatherCurrent?: string;
+  readonly hasCalendar?: boolean;
+  readonly calendarDayIndex?: number;
+  readonly calendarPhase?: string;
+  readonly calendarNextPhase?: string;
   readonly conditionCount?: number;
   readonly conditionKinds?: readonly string[];
   readonly durableGoodCount?: number;
@@ -482,6 +531,14 @@ export function createWorldDecisionContextTrace(
     ...(context.weather === undefined
       ? {}
       : { hasWeather: true, weatherCurrent: context.weather.current }),
+    ...(context.calendar === undefined
+      ? {}
+      : {
+          hasCalendar: true,
+          calendarDayIndex: context.calendar.dayIndex,
+          calendarPhase: context.calendar.phase,
+          calendarNextPhase: context.calendar.nextPhase,
+        }),
     ...(context.conditions === undefined
       ? {}
       : {

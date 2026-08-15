@@ -1,33 +1,56 @@
 import { advanceClock, createSeededRandom, rollProbabilityPercent } from '@aivilization/sim-core';
 import {
+  calculateNetWorth,
   decayExternalTradeBalance,
   rebalanceMarketPoolLiquidity,
   validateExternalTradePolicy,
   type ExternalMarketLiquidityPolicy,
   type ExternalTradePolicy,
 } from '@aivilization/economy';
-import type { AgentId, CommandEnvelope } from '@aivilization/sim-core';
+import type { AgentId, CommandEnvelope, LoanId } from '@aivilization/sim-core';
 import type { EnterprisePolicy } from '@aivilization/enterprise';
-import type { CreditPolicy } from '@aivilization/credit';
 import {
+  applyCreditDomainEvent,
+  decideLiquidateDeceasedCustomer,
+  type BankState,
+} from '@aivilization/credit';
+import type { CreditPolicy } from '@aivilization/credit';
+import { decideLeaveEnterprise } from '@aivilization/enterprise';
+import {
+  applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
   applyStochasticIllnessHealthDecay,
   assertValidLandValuePolicy,
+  assertValidTownCalendarPolicy,
   calculateStochasticIllnessProbabilityPercent,
   calculateCompletedRecruitmentCycleNumbers,
+  deriveEducationLevel,
   evaluateAutomaticPromotion,
   evaluateEducationExamCycle,
+  evaluateIllnessDeath,
+  evaluateLifestyleTier,
+  evaluateOldAgeDeath,
   evaluatePhysiologicalSafetyNet,
   evaluateRegionalLandValue,
   evaluateResidentialArrears,
   evaluateResidentialUpkeep,
+  evaluateRetirement,
   evaluateSafetyNetSubsidy,
+  evaluateWellbeing,
+  calculatePensionAccrual,
+  deriveAgentAgeMs,
+  deriveLifecycleStage,
+  listTownDayPhaseStarts,
+  resolveAgentLifespanMs,
   resolveResidentialUpkeepRate,
+  resolveTownDayPhase,
   settlePublicBudget,
   resolveRecruitmentCycle,
   type EducationSystemPolicy,
   type EducationLevel,
   type LandValuePolicy,
+  type LifecyclePolicy,
+  type LifestylePolicy,
   type PhysiologicalSafetyNetPolicy,
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
@@ -37,11 +60,14 @@ import {
   type StochasticIllnessPolicy,
   type ConsumptionPolicy,
   type TaxPolicy,
+  type TownCalendarPolicy,
+  type WellbeingPolicy,
 } from '@aivilization/society';
 import { assertAdvanceSimulationTimePayload } from '../commands';
 import type { WorldEvent } from '../events';
 import { applyWorldEvent, type WorldAgentState, type WorldProjection } from '../projection';
 import {
+  iterateMarketPoolsByRegion,
   regionIdFromPoolKey,
   resolveAgentRegion,
   resolveMarketPoolKey,
@@ -68,6 +94,25 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly weather?: TownWeatherPolicy;
+  /**
+   * Optional town-calendar policy (town-calendar-v1). When present,
+   * AdvanceSimulationTime emits one TownDayPhaseChanged per crossed phase
+   * start (never merged across phases) and settles the passive physiological
+   * decay per agent and interval. Omitted keeps the world calendar-free and
+   * decay-free, byte-for-byte identical to legacy runs.
+   */
+  readonly calendar?: TownCalendarPolicy;
+  /**
+   * Optional town-lifecycle policy (town-lifecycle-v1). When present, the
+   * lifecycle block settles at the END of each settlement interval (the agent
+   * was alive for that interval's charges): stage transitions (AgentAged),
+   * forced retirement with the treasury pension (AgentRetired + PensionPaid),
+   * and pre-rolled-lifespan or illness deaths with full estate liquidation
+   * (EnterpriseEmployeeLeft, LoanWrittenOff/DepositForfeited, AgentDied).
+   * Omitted keeps the population static, byte-for-byte identical to legacy
+   * runs.
+   */
+  readonly lifecycle?: LifecyclePolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly landValue?: LandValuePolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
@@ -89,6 +134,21 @@ export function handleAdvanceSimulationTimeCommand(input: {
    * events, keeping legacy runs byte-for-byte.
    */
   readonly educationSystem?: EducationSystemPolicy;
+  /**
+   * Optional lifestyle (wealth-tier) policy, consumed only as a wellbeing
+   * factor input: the per-agent lifestyle tier is derived with the same
+   * evaluateLifestyleTier function and region-visible market pools the read
+   * path uses. Absent keeps the lifestyle contribution at 0.
+   */
+  readonly lifestyle?: LifestylePolicy;
+  /**
+   * Optional town-wellbeing policy (town-wellbeing-v1). When present,
+   * AdvanceSimulationTime settles the durable per-agent wellbeing scalar after
+   * the physiology and safety-net effects (so it reads this tick's freshest
+   * axes) and emits WellbeingChanged whenever the value moves. Absent keeps
+   * runs wellbeing-free, byte-for-byte identical to legacy runs.
+   */
+  readonly wellbeing?: WellbeingPolicy;
   readonly timeSettlementAmortization?: { readonly buckets: number };
   readonly nextSequence: number;
 }): WorldEvent[] {
@@ -109,6 +169,12 @@ export function handleAdvanceSimulationTimeCommand(input: {
     input,
     events,
     payload,
+    nextSimulationTime: next.now,
+  });
+  appendTownDayPhaseChangedEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
     nextSimulationTime: next.now,
   });
   appendExpiredDurableGoodEvents({ input, events, nextSimulationTime: next.now });
@@ -153,11 +219,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
     input.sleepDeprivation === undefined &&
     input.stochasticIllness === undefined &&
     input.weather === undefined &&
+    input.calendar === undefined &&
+    input.lifecycle === undefined &&
     input.residentialUpkeep === undefined &&
     input.safetyNetSubsidy === undefined &&
     input.physiologicalSafetyNet === undefined &&
     input.recruitmentCycle === undefined &&
     input.credit === undefined &&
+    input.wellbeing === undefined &&
     input.educationSystem?.enabled !== true
   ) {
     return events;
@@ -170,6 +239,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
   const balanceByAgent = new Map<AgentId, number>();
   const arrearsByAgent = new Map<AgentId, number>();
   const tierByAgent = new Map<AgentId, number>();
+  const wellbeingByAgent = new Map<AgentId, number>();
+  // Lifecycle block bookkeeping: agents that died or retired during this
+  // advance. Dead agents are excluded from every later settlement of the same
+  // advance (their projection entry is gone; the fallback in the interval
+  // agents list would otherwise resurrect the stale snapshot); both sets also
+  // cancel pending job/exam applications resolved after the settlement loop.
+  const deceasedAgentIds = new Set<AgentId>();
+  const retiredAgentIds = new Set<AgentId>();
 
   // Optional per-agent settlement amortization: each agent settles only when its
   // stable bucket matches the current tick. Missed cadences are replayed one by
@@ -214,6 +291,29 @@ export function handleAdvanceSimulationTimeCommand(input: {
       ),
     ),
   ].sort((left, right) => left - right);
+  // In-advance travel arrivals per agent: each switches the region the
+  // agent's residential upkeep prices against from its arrivesAt on. Derived
+  // from the projection transit slice — the same fact appendCompletedTravel
+  // Arrivals settles — so merged and per-cadence advances charge identically.
+  const regionArrivalsByAgent = new Map<
+    AgentId,
+    readonly { readonly atMs: number; readonly regionId: string }[]
+  >();
+  for (const transit of Object.values(input.projection.transitByAgent ?? {})) {
+    if (transit.arrivesAt <= previous.now || transit.arrivesAt > next.now) {
+      continue;
+    }
+    const arrivals = [
+      ...(regionArrivalsByAgent.get(transit.agentId) ?? []),
+      {
+        atMs: transit.arrivesAt,
+        regionId: resolveRegionId(
+          input.projection.locations[transit.toLocationId]?.regionId,
+        ),
+      },
+    ].sort((left, right) => left.atMs - right.atMs);
+    regionArrivalsByAgent.set(transit.agentId, arrivals);
+  }
   let settlementProjection = input.projection;
   // Running town-bank state across settlement times; the credit domain decides
   // each accrual boundary and this adapter applies the emitted events locally
@@ -225,6 +325,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     const agents = allAgents
       .filter(
         (agent) =>
+          !deceasedAgentIds.has(agent.agentId) &&
           settlementIntervalsByAgent
             .get(agent.agentId)
             ?.some((interval) => interval.currentSimulationTime === currentSettlementTime) === true,
@@ -305,6 +406,32 @@ export function handleAdvanceSimulationTimeCommand(input: {
       }
     }
 
+    // Passive physiological decay (town-calendar-v1) settles after the active
+    // physiology effects and before wellbeing so the same tick's wellbeing
+    // reads the decayed energy/satiety. The decay is linear and floored at
+    // zero — strictly additive — yet it still replays interval by interval so
+    // amortized catch-up matches the per-cadence event sequence.
+    if (input.calendar !== undefined) {
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const interval = currentInterval(agent);
+        appendPhysiologyTimeEffect({
+          input,
+          events,
+          physiologyByAgent,
+          agent,
+          reason: 'passive-decay',
+          nextPhysiology: applyPassivePhysiologicalDecay({
+            previous: getCurrentPhysiology(physiologyByAgent, agent),
+            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            decay: input.calendar.physiologicalDecay,
+          }),
+        });
+      }
+    }
+
     // Automatic promotion inside the compulsory stage fires at most once per
     // agent and tick: the event sets `educationLevel`, so later settlements
     // read the promoted state from the settlement projection. Agents without a
@@ -317,7 +444,13 @@ export function handleAdvanceSimulationTimeCommand(input: {
           continue;
         }
         const settledAgent = settlementProjection.agents[agent.agentId] ?? agent;
-        const level = settledAgent.educationLevel ?? 0;
+        // Missing persisted level derives from the score with the SAME domain
+        // function every read path uses (decision context, exams, production)
+        // — otherwise a high-score legacy seed would read as university on
+        // the read path yet restart promotion from level 0 on the write path.
+        const level =
+          settledAgent.educationLevel ??
+          deriveEducationLevel(settledAgent.educationScore, educationPolicy);
         const nextLevel = evaluateAutomaticPromotion({
           level,
           score: settledAgent.educationScore,
@@ -355,10 +488,11 @@ export function handleAdvanceSimulationTimeCommand(input: {
             : resolveUpkeepRateSegments({
                 previousSimulationTime: interval.previousSimulationTime,
                 currentSimulationTime: interval.currentSimulationTime,
-                regionId: resolveAgentRegion({
+                regionAtStart: resolveAgentRegion({
                   projection: input.projection,
                   agentLocationId: agent.locationId,
                 }),
+                regionArrivals: regionArrivalsByAgent.get(agent.agentId) ?? [],
                 timeline: landValue.timeline,
               });
         for (const segment of segments) {
@@ -504,6 +638,25 @@ export function handleAdvanceSimulationTimeCommand(input: {
       });
     }
 
+    // Wellbeing settles after the physiology and safety-net effects so it reads
+    // this tick's freshest axes, balances, and arrears from the running maps.
+    if (input.wellbeing !== undefined) {
+      appendWellbeingEvents({
+        input,
+        events,
+        agents,
+        physiologyByAgent,
+        balanceByAgent,
+        arrearsByAgent,
+        tierByAgent,
+        wellbeingByAgent,
+        projection: settlementProjection,
+        intervalFor: currentInterval,
+        policy: input.wellbeing,
+        ...(input.lifestyle === undefined ? {} : { lifestyle: input.lifestyle }),
+      });
+    }
+
     // Credit daily accrual settles after household charges and safety nets so
     // auto-collection sees the agent's post-subsidy cash for the interval.
     if (input.credit !== undefined && creditBank !== undefined) {
@@ -530,11 +683,37 @@ export function handleAdvanceSimulationTimeCommand(input: {
     }
 
     settlementProjection = events.slice(eventStart).reduce(applyWorldEvent, settlementProjection);
+
+    // Lifecycle settles at the END of each interval: the agent was alive for
+    // this interval's charges and benefits, and aging/retirement/death take
+    // effect from the next interval on. The block re-folds its own events so
+    // the next interval (and the recruitment/exam cycles below) read
+    // post-lifecycle state — released jobs, gone agents.
+    if (input.lifecycle !== undefined) {
+      const lifecycleStart = events.length;
+      creditBank = appendLifecycleSettlementEvents({
+        handlerInput: input,
+        payload,
+        policy: input.lifecycle,
+        events,
+        agents,
+        projection: settlementProjection,
+        bank: creditBank,
+        physiologyByAgent,
+        balanceByAgent,
+        intervalFor: currentInterval,
+        deceasedAgentIds,
+        retiredAgentIds,
+      });
+      settlementProjection = events
+        .slice(lifecycleStart)
+        .reduce(applyWorldEvent, settlementProjection);
+    }
   }
 
   if (amortization !== undefined) {
     for (const agent of allAgents) {
-      if (!shouldSettleAgent(agent)) {
+      if (!shouldSettleAgent(agent) || deceasedAgentIds.has(agent.agentId)) {
         continue;
       }
       events.push(
@@ -554,6 +733,9 @@ export function handleAdvanceSimulationTimeCommand(input: {
       previousSimulationTime: previous.now,
       nextSimulationTime: next.now,
       policy: input.recruitmentCycle,
+      ...(deceasedAgentIds.size === 0 && retiredAgentIds.size === 0
+        ? {}
+        : { excludeAgentIds: excludeFromApplicationSettlement(deceasedAgentIds, retiredAgentIds) }),
     });
   }
 
@@ -564,6 +746,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
       previousSimulationTime: previous.now,
       nextSimulationTime: next.now,
       policy: input.educationSystem,
+      ...(deceasedAgentIds.size === 0 ? {} : { excludeAgentIds: deceasedAgentIds }),
     });
   }
 
@@ -913,39 +1096,67 @@ function appendRegionalLandValueEvents(input: {
 }
 
 /**
- * Splits an upkeep settlement interval at every land value boundary inside it
- * so each segment is priced against the index in effect for that segment. A
- * boundary exactly at the interval start applies to the whole interval; a
- * boundary exactly at the end belongs to the next interval.
+ * Splits an upkeep settlement interval at every land value boundary AND every
+ * in-advance travel arrival of the agent inside it, so each segment is priced
+ * against the index of the region the agent actually lived in during that
+ * segment. A boundary exactly at the interval start applies to the whole
+ * interval; one exactly at the end belongs to the next interval (mirroring
+ * step-by-step advances, where an arrival at the interval end only affects
+ * the NEXT interval's projection). Without this segmentation a merged
+ * multi-cadence advance would price the whole interval at the pre-advance
+ * region and diverge from per-cadence settlement.
  */
 function resolveUpkeepRateSegments(input: {
   readonly previousSimulationTime: number;
   readonly currentSimulationTime: number;
-  readonly regionId: string;
+  /** Region effective at the interval start (the pre-advance location). */
+  readonly regionAtStart: string;
+  /**
+   * In-advance travel arrivals of this agent, chronological: each switches
+   * the effective region from its atMs on.
+   */
+  readonly regionArrivals: readonly {
+    readonly atMs: number;
+    readonly regionId: string;
+  }[];
   readonly timeline: RegionalLandValueTimeline;
 }): readonly { readonly durationSeconds: number; readonly landValueIndex?: number }[] {
-  const indexAt = (at: number): number | undefined => {
+  const regionAt = (at: number): string => {
+    let region = input.regionAtStart;
+    for (const arrival of input.regionArrivals) {
+      if (arrival.atMs > at) {
+        break;
+      }
+      region = arrival.regionId;
+    }
+    return region;
+  };
+  const indexAt = (at: number, regionId: string): number | undefined => {
     let value: number | undefined;
     for (const entry of input.timeline) {
       if (entry.settledAt > at) {
         break;
       }
-      const candidate = entry.indexByRegion[input.regionId];
+      const candidate = entry.indexByRegion[regionId];
       if (candidate !== undefined) {
         value = candidate;
       }
     }
     return value;
   };
-  const splitPoints = input.timeline
-    .map((entry) => entry.settledAt)
-    .filter((at) => at > input.previousSimulationTime && at < input.currentSimulationTime);
+  const splitPoints = [
+    ...input.timeline.map((entry) => entry.settledAt),
+    ...input.regionArrivals.map((arrival) => arrival.atMs),
+  ]
+    .filter((at) => at > input.previousSimulationTime && at < input.currentSimulationTime)
+    .sort((left, right) => left - right);
   const points = [input.previousSimulationTime, ...splitPoints, input.currentSimulationTime];
   const segments: { durationSeconds: number; landValueIndex?: number }[] = [];
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index] as number;
     const end = points[index + 1] as number;
-    const landValueIndex = indexAt(start);
+    const regionId = regionAt(start);
+    const landValueIndex = indexAt(start, regionId);
     segments.push({
       durationSeconds: (end - start) / 1000,
       ...(landValueIndex === undefined ? {} : { landValueIndex }),
@@ -1051,18 +1262,462 @@ function createInventorySummary(inventory: Readonly<Record<string, number>>): st
     .join(', ');
 }
 
+/** Union of agents whose pending applications must not resolve anymore. */
+function excludeFromApplicationSettlement(
+  deceasedAgentIds: ReadonlySet<AgentId>,
+  retiredAgentIds: ReadonlySet<AgentId>,
+): ReadonlySet<AgentId> {
+  const excluded = new Set<AgentId>(deceasedAgentIds);
+  for (const agentId of retiredAgentIds) {
+    excluded.add(agentId);
+  }
+  return excluded;
+}
+
+/**
+ * Lifecycle settlement (town-lifecycle-v1), running at the END of each
+ * settlement interval. Per agent, in agentId order:
+ *
+ * 1. Aging — the stage is a pure function of the registration timestamp, the
+ *    interval end, and the policy thresholds; an AgentAged event fires only on
+ *    a stage change.
+ * 2. Forced retirement — an elderly agent still holding a job is released
+ *    from every enterprise membership (EnterpriseEmployeeLeft, enterpriseId
+ *    order) and marked retired (AgentRetired). Pension accrues from the NEXT
+ *    interval on.
+ * 3. Death — old age once the pre-rolled lifespan is reached (the roll is
+ *    derived only from the agent id and stable run seed material, so every
+ *    partition and every replay derives the identical lifespan), or illness
+ *    below the health threshold with a per-agent, per-interval seeded roll
+ *    (mirroring the stochastic-illness convention). The estate liquidates:
+ *    enterprise memberships released, bank positions settled through the
+ *    credit aggregate (loans written off, deposits forfeited — pure book
+ *    operations, supply unchanged), and the circulating balance burned with
+ *    the AgentDied event (destroyed out of circulation).
+ * 4. Pension — retired, living agents accrue pensionPerHour linearly, paid
+ *    from the treasury (clamped to the running balance, mirroring the
+ *    safety-net convention) or minted when the projection carries no treasury
+ *    slice.
+ *
+ * Returns the evolved town-bank state so the next interval's credit accrual
+ * settles against the written-off book; the caller re-folds the emitted
+ * events into the settlement projection.
+ */
+function appendLifecycleSettlementEvents(input: {
+  readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly payload: { readonly deltaMs: number };
+  readonly policy: LifecyclePolicy;
+  readonly events: WorldEvent[];
+  readonly agents: readonly WorldAgentState[];
+  readonly projection: WorldProjection;
+  readonly bank: BankState | undefined;
+  readonly physiologyByAgent: ReadonlyMap<AgentId, WorldAgentState['physiology']>;
+  readonly balanceByAgent: Map<AgentId, number>;
+  readonly intervalFor: (agent: WorldAgentState) => {
+    readonly previousSimulationTime: number;
+    readonly currentSimulationTime: number;
+  };
+  readonly deceasedAgentIds: Set<AgentId>;
+  readonly retiredAgentIds: Set<AgentId>;
+}): BankState | undefined {
+  const { policy, projection } = input;
+  let bank = input.bank;
+  // Running treasury across the pensions of this interval (the projection
+  // slice is only folded after the whole block), mirroring the safety net.
+  const treasuryFunded = projection.treasury !== undefined;
+  let treasuryBalance = projection.treasury ?? 0;
+  const simulationSeedMaterial =
+    input.handlerInput.randomSeed ?? input.handlerInput.command.simulationId;
+
+  const releaseEnterpriseMemberships = (agent: WorldAgentState, previousJob: string): void => {
+    for (const enterprise of Object.values(projection.enterprises)
+      .filter((candidate) => candidate.employeeAgentIds.includes(agent.agentId))
+      .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))) {
+      const decision = decideLeaveEnterprise({ enterprise, agentId: agent.agentId });
+      if (decision.status === 'rejected') {
+        throw new Error(
+          `lifecycle settlement failed to release ${agent.agentId} from ${enterprise.enterpriseId}: ${decision.reason}`,
+        );
+      }
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'EnterpriseEmployeeLeft', {
+          enterpriseId: enterprise.enterpriseId,
+          agentId: agent.agentId,
+          occupationName: enterprise.occupationName,
+          previousJob,
+        }),
+      );
+    }
+  };
+
+  for (const agent of input.agents) {
+    if (input.deceasedAgentIds.has(agent.agentId)) {
+      continue;
+    }
+    const interval = input.intervalFor(agent);
+    const registeredAtMs = agent.registration?.registeredAt ?? 0;
+    const ageMs = deriveAgentAgeMs({
+      nowMs: interval.currentSimulationTime,
+      registeredAtMs,
+      policy,
+    });
+    const ageDays = ageMs / policy.dayLengthMs;
+    const stage = deriveLifecycleStage({ ageMs, policy });
+    const previousStage = agent.lifeStage ?? 'adult';
+    if (stage !== previousStage) {
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'AgentAged', {
+          agentId: agent.agentId,
+          previousStage,
+          nextStage: stage,
+          ageDays,
+          changedAt: interval.currentSimulationTime,
+          policyVersion: policy.policyVersion,
+          reason: 'aging',
+        }),
+      );
+    }
+
+    let job = agent.job;
+    let retiredAtMs = agent.retiredAtMs;
+    if (evaluateRetirement({ stage, hasJob: job !== null })) {
+      if (job === null) {
+        throw new Error(`retirement decision requires a job for ${agent.agentId}`);
+      }
+      releaseEnterpriseMemberships(agent, job);
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'AgentRetired', {
+          agentId: agent.agentId,
+          previousJob: job,
+          retiredAtMs: interval.currentSimulationTime,
+          ageDays,
+          policyVersion: policy.policyVersion,
+          reason: 'forced-retirement',
+        }),
+      );
+      job = null;
+      retiredAtMs = interval.currentSimulationTime;
+      input.retiredAgentIds.add(agent.agentId);
+    }
+
+    // Pension accrues for every interval that starts after the retirement
+    // interval (the retirement itself fired at an interval end). Paid BEFORE
+    // the death check: the agent was alive for this whole interval, so the
+    // dying agent receives their final pension and the estate burn settles
+    // the post-pension balance.
+    if (retiredAtMs !== undefined && retiredAtMs <= interval.previousSimulationTime) {
+      const accrual = calculatePensionAccrual({
+        elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+        policy,
+      });
+      const amount = treasuryFunded ? Math.min(accrual, treasuryBalance) : accrual;
+      if (amount > 0) {
+        const previousBalance = getCurrentBalance(input.balanceByAgent, agent);
+        input.events.push(
+          makeEvent(input.handlerInput, input.events.length, 'PensionPaid', {
+            agentId: agent.agentId,
+            amount,
+            previousBalance,
+            nextBalance: previousBalance + amount,
+            fundingSource: treasuryFunded ? 'treasury' : 'mint',
+            pensionPerHour: policy.pensionPerHour,
+            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            settledAt: interval.currentSimulationTime,
+            policyVersion: policy.policyVersion,
+            reason: 'retirement-pension',
+          }),
+        );
+        input.balanceByAgent.set(agent.agentId, previousBalance + amount);
+        if (treasuryFunded) {
+          treasuryBalance -= amount;
+        }
+      }
+    }
+
+    const lifespanMs = resolveAgentLifespanMs({
+      agentId: agent.agentId,
+      simulationSeedMaterial,
+      policy,
+    });
+    let cause: 'old-age' | 'illness' | null = null;
+    if (evaluateOldAgeDeath({ ageMs, lifespanMs })) {
+      cause = 'old-age';
+    } else {
+      const health = getCurrentPhysiology(input.physiologyByAgent, agent).health;
+      const roll = createSeededRandom(
+        createIllnessDeathSeed({
+          input: { handlerInput: input.handlerInput, payload: input.payload },
+          agentId: agent.agentId,
+          evaluatedAt: interval.currentSimulationTime,
+        }),
+      ).nextFloat();
+      if (
+        evaluateIllnessDeath({
+          health,
+          elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+          roll,
+          policy,
+        })
+      ) {
+        cause = 'illness';
+      }
+    }
+
+    if (cause !== null) {
+      if (job !== null) {
+        releaseEnterpriseMemberships(agent, job);
+      }
+      let depositForfeited = 0;
+      const writtenOffLoanIds: LoanId[] = [];
+      if (bank !== undefined) {
+        const liquidation = decideLiquidateDeceasedCustomer({
+          bank,
+          agentId: agent.agentId,
+          settledAt: interval.currentSimulationTime,
+        });
+        if (liquidation.status === 'rejected') {
+          throw new Error(
+            `estate liquidation rejected for ${agent.agentId}: ${liquidation.reason}`,
+          );
+        }
+        for (const domainEvent of liquidation.events) {
+          if (domainEvent.type === 'LoanWrittenOff') {
+            input.events.push(
+              makeEvent(input.handlerInput, input.events.length, 'LoanWrittenOff', {
+                loanId: domainEvent.loanId,
+                borrowerAgentId: domainEvent.borrowerAgentId,
+                writtenOffAt: domainEvent.writtenOffAt,
+                outstandingPrincipal: domainEvent.outstandingPrincipal,
+                outstandingInterest: domainEvent.outstandingInterest,
+                reason: 'borrower-deceased',
+              }),
+            );
+            writtenOffLoanIds.push(domainEvent.loanId);
+          } else if (domainEvent.type === 'DepositForfeited') {
+            input.events.push(
+              makeEvent(input.handlerInput, input.events.length, 'DepositForfeited', {
+                agentId: domainEvent.agentId,
+                forfeitedAmount: domainEvent.forfeitedAmount,
+                forfeitedAt: domainEvent.forfeitedAt,
+                reason: 'depositor-deceased',
+              }),
+            );
+            depositForfeited = domainEvent.forfeitedAmount;
+          }
+          bank = applyCreditDomainEvent(bank, domainEvent);
+        }
+      }
+      const burnedCurrency = getCurrentBalance(input.balanceByAgent, agent);
+      // Open social matters die with either party: a later expiry or
+      // fulfillment would emit memory events for the deceased and crash the
+      // settlement, so death voids the matter with the neutral 'expired'
+      // closure (no betrayal outcome — dying is not betraying).
+      for (const matter of Object.values(projection.socialMatters ?? {})
+        .filter(
+          (candidate) =>
+            candidate.status !== 'closed' &&
+            (candidate.assigneeAgentId === agent.agentId ||
+              candidate.initiatorAgentId === agent.agentId),
+        )
+        .sort((left, right) => left.matterId.localeCompare(right.matterId))) {
+        input.events.push(
+          makeEvent(input.handlerInput, input.events.length, 'MatterClosed', {
+            matterId: matter.matterId,
+            closure: 'expired',
+            closedAt: interval.currentSimulationTime,
+          }),
+        );
+      }
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'AgentDied', {
+          agentId: agent.agentId,
+          cause,
+          diedAt: interval.currentSimulationTime,
+          ageDays,
+          lifespanDays: lifespanMs / policy.dayLengthMs,
+          retired: retiredAtMs !== undefined,
+          policyVersion: policy.policyVersion,
+          estate: {
+            burnedCurrency,
+            inventoryByCommodity: Object.fromEntries(
+              Object.entries(agent.inventory)
+                .filter(([, quantity]) => quantity > 0)
+                .sort(([left], [right]) => left.localeCompare(right)),
+            ),
+            depositForfeited,
+            writtenOffLoanIds,
+          },
+        }),
+      );
+      input.deceasedAgentIds.add(agent.agentId);
+      continue;
+    }
+  }
+  return bank;
+}
+
+function createIllnessDeathSeed(input: {
+  readonly input: {
+    readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+    readonly payload: { readonly deltaMs: number };
+  };
+  readonly agentId: AgentId;
+  readonly evaluatedAt: number;
+}): string {
+  const { handlerInput, payload } = input.input;
+  return [
+    'agent-illness-death',
+    ...(handlerInput.randomSeed === undefined ? [] : [handlerInput.randomSeed]),
+    handlerInput.command.simulationId,
+    handlerInput.command.id,
+    handlerInput.projection.clock.now,
+    payload.deltaMs,
+    input.evaluatedAt,
+    input.agentId,
+  ].join(':');
+}
+
+
+/**
+ * Per-agent wellbeing settlement (town-wellbeing-v1). The running value lives
+ * in `wellbeingByAgent` across the catch-up intervals of one advance (the same
+ * convention as the physiology/balance maps), seeded from the durable
+ * projection value or the policy initialValue for legacy agents. The lifestyle
+ * factor reuses evaluateLifestyleTier with the pools visible in the agent's
+ * region — never a recomputed formula — and the relation factors are means
+ * over the agent's own outgoing relation scores, iterated in sorted key order
+ * so the result is iteration-order independent.
+ */
+function appendWellbeingEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly agents: readonly WorldAgentState[];
+  readonly physiologyByAgent: ReadonlyMap<AgentId, WorldAgentState['physiology']>;
+  readonly balanceByAgent: ReadonlyMap<AgentId, number>;
+  readonly arrearsByAgent: ReadonlyMap<AgentId, number>;
+  readonly tierByAgent: ReadonlyMap<AgentId, number>;
+  readonly wellbeingByAgent: Map<AgentId, number>;
+  readonly projection: WorldProjection;
+  readonly intervalFor: (agent: WorldAgentState) => {
+    readonly previousSimulationTime: number;
+    readonly currentSimulationTime: number;
+  };
+  readonly policy: WellbeingPolicy;
+  readonly lifestyle?: LifestylePolicy;
+}): void {
+  for (const agent of input.agents) {
+    const interval = input.intervalFor(agent);
+    const previous = getCurrentWellbeing(input.wellbeingByAgent, agent, input.policy);
+    const physiology = getCurrentPhysiology(input.physiologyByAgent, agent);
+    const lifestyleTier =
+      input.lifestyle === undefined
+        ? undefined
+        : evaluateLifestyleTier({
+            netWorth: calculateNetWorth({
+              currencyBalance: getCurrentBalance(input.balanceByAgent, agent),
+              inventory: agent.inventory,
+              pools: [
+                ...iterateMarketPoolsByRegion(
+                  input.projection,
+                  resolveAgentRegion({
+                    projection: input.projection,
+                    agentLocationId: agent.locationId,
+                  }),
+                ),
+              ],
+            }),
+            policy: input.lifestyle,
+          });
+    const relations = summarizeAgentWellbeingRelations(input.projection, agent.agentId);
+    const evaluation = evaluateWellbeing({
+      previous,
+      inputs: {
+        health: physiology.health,
+        energy: physiology.energy,
+        satiety: physiology.satiety,
+        employed: agent.job !== null,
+        residentialTier: input.tierByAgent.get(agent.agentId) ?? agent.residentialTier,
+        ...(lifestyleTier === undefined ? {} : { lifestyleTier }),
+        upkeepArrears: input.arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0,
+        distressActive: input.projection.physiologicalDistressByAgent[agent.agentId] !== undefined,
+        meanPositiveRelation: relations.meanPositiveRelation,
+        meanNegativeRelation: relations.meanNegativeRelation,
+        elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+      },
+      policy: input.policy,
+    });
+    if (evaluation.next === previous) {
+      continue;
+    }
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'WellbeingChanged', {
+        agentId: agent.agentId,
+        previous,
+        next: evaluation.next,
+        target: evaluation.target,
+        factorContributions: evaluation.factorContributions,
+        policyVersion: input.policy.policyVersion,
+        settledAt: interval.currentSimulationTime,
+        reason: 'time-settlement',
+      }),
+    );
+    input.wellbeingByAgent.set(agent.agentId, evaluation.next);
+  }
+}
+
+function getCurrentWellbeing(
+  wellbeingByAgent: ReadonlyMap<AgentId, number>,
+  agent: WorldAgentState,
+  policy: WellbeingPolicy,
+): number {
+  return wellbeingByAgent.get(agent.agentId) ?? agent.wellbeing ?? policy.initialValue;
+}
+
+function summarizeAgentWellbeingRelations(
+  projection: WorldProjection,
+  agentId: AgentId,
+): { readonly meanPositiveRelation: number; readonly meanNegativeRelation: number } {
+  let positiveTotal = 0;
+  let positiveCount = 0;
+  let negativeTotal = 0;
+  let negativeCount = 0;
+  for (const key of Object.keys(projection.socialRelations).sort((left, right) =>
+    left.localeCompare(right),
+  )) {
+    const relation = projection.socialRelations[key];
+    if (relation === undefined || relation.sourceAgentId !== agentId) {
+      continue;
+    }
+    if (relation.relationScore > 0) {
+      positiveTotal += relation.relationScore;
+      positiveCount += 1;
+    } else if (relation.relationScore < 0) {
+      negativeTotal += -relation.relationScore;
+      negativeCount += 1;
+    }
+  }
+  return {
+    meanPositiveRelation: positiveCount === 0 ? 0 : positiveTotal / positiveCount,
+    meanNegativeRelation: negativeCount === 0 ? 0 : negativeTotal / negativeCount,
+  };
+}
+
+
 function appendRecruitmentCycleEvents(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly events: WorldEvent[];
   readonly previousSimulationTime: number;
   readonly nextSimulationTime: number;
   readonly policy: RecruitmentCyclePolicy;
+  /** Agents whose pending applications die with them (deceased or retired). */
+  readonly excludeAgentIds?: ReadonlySet<AgentId>;
 }): void {
   const cycleNumbers = calculateCompletedRecruitmentCycleNumbers({
     previousSimulationTime: input.previousSimulationTime,
     nextSimulationTime: input.nextSimulationTime,
     cycleDurationMs: input.policy.cycleDurationMs,
   });
+  const excludeAgentIds = input.excludeAgentIds ?? new Set<AgentId>();
   const jobByAgent = new Map(
     Object.values(input.input.projection.agents).map(
       (agent) => [agent.agentId, agent.job] as const,
@@ -1073,7 +1728,9 @@ function appendRecruitmentCycleEvents(input: {
     const applications = input.input.projection.jobApplications
       .filter(
         (application) =>
-          application.cycleNumber === cycleNumber && application.status === 'pending',
+          application.cycleNumber === cycleNumber &&
+          application.status === 'pending' &&
+          !excludeAgentIds.has(application.agentId),
       )
       .map((application) => ({
         applicationId: application.applicationId,
@@ -1180,6 +1837,8 @@ function appendEducationExamCycleEvents(input: {
   readonly previousSimulationTime: number;
   readonly nextSimulationTime: number;
   readonly policy: EducationSystemPolicy;
+  /** Agents whose pending exam applications die with them (deceased). */
+  readonly excludeAgentIds?: ReadonlySet<AgentId>;
 }): void {
   const cycleNumbers = calculateCompletedRecruitmentCycleNumbers({
     previousSimulationTime: input.previousSimulationTime,
@@ -1191,7 +1850,9 @@ function appendEducationExamCycleEvents(input: {
     const applications = input.input.projection.educationExamApplications
       .filter(
         (application) =>
-          application.cycleNumber === cycleNumber && application.status === 'pending',
+          application.cycleNumber === cycleNumber &&
+          application.status === 'pending' &&
+          !(input.excludeAgentIds ?? new Set<AgentId>()).has(application.agentId),
       )
       .map((application) => ({
         applicationId: application.applicationId,
@@ -1450,6 +2111,55 @@ function createWeatherTransitionSeed(input: {
     input.input.projection.clock.now,
     input.payload.deltaMs,
   ].join(':');
+}
+
+/**
+ * Emits one TownDayPhaseChanged per phase start crossed by this advance,
+ * never merging multiple crossed phases into one event (AGENTS.md §6: a
+ * stateful cadence effect replays boundary by boundary). The phase timeline
+ * is a pure function of the simulation clock and the calendar policy table —
+ * no RNG, no carried state — so every partition advancing the same clock with
+ * the same policy derives byte-identical events. That purity is what makes
+ * the command-policy wiring (unlike authority-scoped weather) safe: identical
+ * inputs force identical outputs everywhere, and replay re-derives the same
+ * sequence. The previous phase is read off the same pure function, so the
+ * projection calendar slice stays a read cache rather than a settlement input.
+ */
+function appendTownDayPhaseChangedEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.calendar;
+  if (policy === undefined) {
+    return;
+  }
+  assertValidTownCalendarPolicy(policy);
+  let currentPhase = resolveTownDayPhase({
+    atMs: input.previousSimulationTime,
+    policy,
+  }).phase;
+  for (const start of listTownDayPhaseStarts({
+    fromMs: input.previousSimulationTime,
+    toMs: input.nextSimulationTime,
+    policy,
+  })) {
+    if (start.phase === currentPhase) {
+      continue;
+    }
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'TownDayPhaseChanged', {
+        policyVersion: policy.policyVersion,
+        dayIndex: start.dayIndex,
+        previousPhase: currentPhase,
+        phase: start.phase,
+        startedAtMs: start.atMs,
+        endsAtMs: start.phaseEndsAtMs,
+      }),
+    );
+    currentPhase = start.phase;
+  }
 }
 
 /** Expiry settlement during time advance (data-driven; no-op on legacy runs). */

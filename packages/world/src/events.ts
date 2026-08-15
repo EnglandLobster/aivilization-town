@@ -182,6 +182,29 @@ export type SafetyNetGrantedPayload = {
   readonly reason: 'persistent-physiological-distress';
 };
 
+/**
+ * Durable per-agent wellbeing scalar settled during time advancement
+ * (town-wellbeing-v1). `previous`/`next` carry the durable value before/after
+ * this step, `target` the clamped instantaneous target the value converges
+ * toward; replaying the event restores `next` verbatim, so no recomputation
+ * ever happens in the projection.
+ */
+export type WellbeingChangedPayload = {
+  readonly agentId: AgentId;
+  readonly previous: number;
+  readonly next: number;
+  readonly target: number;
+  /**
+   * Signed per-factor contributions that produced `target`, recorded for
+   * observability. Optional so legacy consumers can ignore it; never read by
+   * the projection.
+   */
+  readonly factorContributions?: Readonly<Record<string, number>>;
+  readonly policyVersion: string;
+  readonly settledAt: number;
+  readonly reason: 'time-settlement';
+};
+
 export type EducationChangedPayload = {
   readonly agentId: AgentId;
   readonly previousEducationScore: number;
@@ -957,6 +980,135 @@ export type WeatherChangedPayload = {
 };
 
 /**
+ * A town-calendar day/night phase transition settled by the
+ * AdvanceSimulationTime handler under the town-calendar policy. Phases are a
+ * pure function of the simulation clock and the policy table, so the recorded
+ * facts (`startedAtMs`/`endsAtMs`/`dayIndex`) always agree with an
+ * independent re-derivation; one event is emitted per crossed phase start,
+ * never merged across phases.
+ */
+export type TownDayPhaseChangedPayload = {
+  readonly policyVersion: string;
+  readonly dayIndex: number;
+  readonly previousPhase: string;
+  readonly phase: string;
+  readonly startedAtMs: number;
+  readonly endsAtMs: number;
+};
+
+/**
+ * A lifecycle stage transition settled by the AdvanceSimulationTime handler
+ * under the town-lifecycle policy (town-lifecycle-v1). The stage is a pure
+ * function of the agent's registration timestamp, the simulation clock, and
+ * the policy thresholds; `ageDays` records the age at the transition so
+ * replay needs no recomputation. 'child'/'teen' stages are reserved for a
+ * future birth mechanism — every registered agent starts as 'adult'.
+ */
+export type AgentAgedPayload = {
+  readonly agentId: AgentId;
+  readonly previousStage: 'child' | 'teen' | 'adult' | 'elderly';
+  readonly nextStage: 'child' | 'teen' | 'adult' | 'elderly';
+  readonly ageDays: number;
+  readonly changedAt: number;
+  readonly policyVersion: string;
+  readonly reason: 'aging';
+};
+
+/**
+ * Forced retirement settled by the lifecycle block of AdvanceSimulationTime:
+ * an elderly agent still holding a job stops working and starts accruing the
+ * hourly pension. `retiredAtMs` is the settlement instant the projection
+ * stores; the companion EnterpriseEmployeeLeft events (one per membership)
+ * precede this event in the same batch.
+ */
+export type AgentRetiredPayload = {
+  readonly agentId: AgentId;
+  readonly previousJob: string;
+  readonly retiredAtMs: number;
+  readonly ageDays: number;
+  readonly policyVersion: string;
+  readonly reason: 'forced-retirement';
+};
+
+/**
+ * One pension accrual interval for a retired, living agent, paid from the
+ * public treasury (a transfer between circulating accounts — supply
+ * unchanged). When the projection carries no treasury slice the payment is
+ * minted, mirroring the WagePaid/SubsidyPaid funding-source convention.
+ * Retirement fires at the end of a settlement interval, so the first pension
+ * covers the interval AFTER the retirement interval.
+ */
+export type PensionPaidPayload = {
+  readonly agentId: AgentId;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly fundingSource: 'treasury' | 'mint';
+  readonly pensionPerHour: number;
+  readonly elapsedMs: number;
+  readonly settledAt: number;
+  readonly policyVersion: string;
+  readonly reason: 'retirement-pension';
+};
+
+/**
+ * A death settled at the END of a settlement interval (the agent was alive for
+ * the interval's other settlements). The reducer removes the agent from the
+ * projection and burns the estate's circulating currency — a destruction out
+ * of circulation (AGENTS.md §7 category 3), reducing moneySupply by
+ * `estate.burnedCurrency` with the death estate as the counterpart record.
+ * Inventory items perish with the holder (recorded for observability, no
+ * currency effect). Bank positions settle through the companion
+ * LoanWrittenOff/DepositForfeited events emitted just before this event.
+ */
+export type AgentDiedPayload = {
+  readonly agentId: AgentId;
+  readonly cause: 'old-age' | 'illness';
+  readonly diedAt: number;
+  readonly ageDays: number;
+  readonly lifespanDays: number;
+  readonly retired: boolean;
+  readonly policyVersion: string;
+  readonly estate: {
+    /** Circulating currency burned with the estate; reduces moneySupply. */
+    readonly burnedCurrency: number;
+    /** Inventory items that perished with the holder, per commodity. */
+    readonly inventoryByCommodity: Readonly<Record<string, number>>;
+    /** Deposit liability extinguished via DepositForfeited (0 when none). */
+    readonly depositForfeited: number;
+    /** Loan ids written off via LoanWrittenOff, in emission order. */
+    readonly writtenOffLoanIds: readonly LoanId[];
+  };
+};
+
+/**
+ * The bank wrote a deceased borrower's loan off its book (credit
+ * 'LoanWrittenOff' domain event). No cash moves: the loan money was already
+ * circulating, so moneySupply is unchanged and the borrower's credit history
+ * is untouched (death is not a behavioral default).
+ */
+export type LoanWrittenOffPayload = {
+  readonly loanId: LoanId;
+  readonly borrowerAgentId: AgentId;
+  readonly writtenOffAt: number;
+  readonly outstandingPrincipal: number;
+  readonly outstandingInterest: number;
+  readonly reason: 'borrower-deceased';
+};
+
+/**
+ * A deceased depositor's deposit liability was extinguished (credit
+ * 'DepositForfeited' domain event). No cash moves and moneySupply is
+ * unchanged: the bank keeps the cash, the claim dies with the depositor.
+ */
+export type DepositForfeitedPayload = {
+  readonly agentId: AgentId;
+  readonly forfeitedAmount: number;
+  readonly forfeitedAt: number;
+  readonly reason: 'depositor-deceased';
+};
+
+/**
  * A bulletin accepted for the town board but not yet effective: residents
  * become aware of it (BulletinPosted) once simulation time reaches
  * bulletin.effectiveAt.
@@ -1078,6 +1230,23 @@ export type AgentOwnershipArrivedPayload = {
     readonly residentialTier: number;
     readonly job: string | null;
     readonly inventory: Inventory;
+    /**
+     * Durable wellbeing scalar at transfer time. Optional so pre-wellbeing
+     * arrival events stay replayable; absent means the policy initialValue.
+     */
+    readonly wellbeing?: number;
+    /** Durable lifecycle stage at transfer time; absent means 'adult' (legacy). */
+    readonly lifeStage?: 'child' | 'teen' | 'adult' | 'elderly';
+    /** Retirement timestamp at transfer time; absent means not retired. */
+    readonly retiredAtMs?: number;
+    /**
+     * Education aggregate state at transfer time. Optional so pre-education
+     * arrival events stay replayable; absent means the destination derives
+     * the level from educationScore (the same fallback every read path uses).
+     */
+    readonly educationLevel?: EducationLevel;
+    readonly educationTrack?: EducationTrack;
+    readonly examAttempts?: number;
   };
 };
 
@@ -1114,6 +1283,7 @@ export type WorldEventPayloadByType = {
   readonly PhysiologyChanged: PhysiologyChangedPayload;
   readonly PhysiologicalDistressChanged: PhysiologicalDistressChangedPayload;
   readonly SafetyNetGranted: SafetyNetGrantedPayload;
+  readonly WellbeingChanged: WellbeingChangedPayload;
   readonly EducationInvestmentPaid: EducationInvestmentPaidPayload;
   readonly EducationChanged: EducationChangedPayload;
   readonly EducationLevelChanged: EducationLevelChangedPayload;
@@ -1150,6 +1320,13 @@ export type WorldEventPayloadByType = {
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;
   readonly WeatherChanged: WeatherChangedPayload;
+  readonly TownDayPhaseChanged: TownDayPhaseChangedPayload;
+  readonly AgentAged: AgentAgedPayload;
+  readonly AgentRetired: AgentRetiredPayload;
+  readonly PensionPaid: PensionPaidPayload;
+  readonly AgentDied: AgentDiedPayload;
+  readonly LoanWrittenOff: LoanWrittenOffPayload;
+  readonly DepositForfeited: DepositForfeitedPayload;
   readonly BulletinScheduled: BulletinScheduledPayload;
   readonly BulletinPosted: BulletinPostedPayload;
   readonly MatterRaised: MatterRaisedPayload;

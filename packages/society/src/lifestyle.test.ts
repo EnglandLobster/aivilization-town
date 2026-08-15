@@ -102,6 +102,24 @@ describe('evaluateNonSurvivalSpendCapRatio', () => {
     expect(ratioAt(250)).toBeCloseTo(0.3, 10);
   });
 
+  test('clamps the FINAL ratio to [0, 1] so valid bases never exceed a full share', () => {
+    // baseRatio 0.8 (valid policy) × max multiplier 1.5 = 1.2 — rejected
+    // downstream before the clamp; now clamped to 1 here.
+    expect(
+      evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.8, wellbeing: 100 }),
+    ).toBe(1);
+    expect(
+      evaluateNonSurvivalSpendCapRatio({
+        baseRatio: 0.8,
+        wellbeing: 100,
+        multiplierRange: [1, 2],
+      }),
+    ).toBe(1);
+    expect(
+      evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.3, wellbeing: 0 }),
+    ).toBeCloseTo(0.15, 10);
+  });
+
   test('rejects invalid inputs', () => {
     expect(() => evaluateNonSurvivalSpendCapRatio({ baseRatio: -1 })).toThrow('non-negative');
     expect(() => evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.2, wellbeing: Number.NaN })).toThrow();

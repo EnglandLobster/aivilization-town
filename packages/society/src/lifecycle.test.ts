@@ -24,6 +24,7 @@ const policy: LifecyclePolicy = {
   illnessDeathHealthThreshold: 30,
   illnessDeathProbabilityPerSettlementScale: 20,
   pensionPerHour: 1.5,
+  settlementCadenceMs: DAY_MS,
 };
 
 describe('deriveAgentAgeMs', () => {
@@ -260,6 +261,12 @@ describe('assertValidLifecyclePolicy', () => {
     expect(() =>
       assertValidLifecyclePolicy({ ...policy, minLifespanDays: 140 }),
     ).toThrow('minLifespanDays must not exceed maxLifespanDays');
+  });
+
+  it('rejects a non-positive settlement cadence', () => {
+    expect(() => assertValidLifecyclePolicy({ ...policy, settlementCadenceMs: 0 })).toThrow(
+      'settlementCadenceMs must be a positive finite number',
+    );
   });
 
   it('rejects negative risk or pension parameters', () => {

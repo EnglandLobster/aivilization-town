@@ -437,7 +437,7 @@ export function handleAgentApplyJobCommand(input: {
       `duplicate application for ${payload.occupationName} in recruitment cycle ${cycleNumber}`,
     );
   }
-  // education-system-v3: vocational-track (中职) applicants are evaluated at
+  // education-system-v4: vocational-track (中职) applicants are evaluated at
   // their effective education score (raw + tier bonus) for both the
   // eligibility check and the employer ranking; the effective score is
   // recorded on the submission event so replay never recomputes it.

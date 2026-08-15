@@ -1246,6 +1246,12 @@ export type AgentOwnershipArrivedPayload = {
     /** Retirement timestamp at transfer time; absent means not retired. */
     readonly retiredAtMs?: number;
     /**
+     * Registration-time anchor at transfer (the full registration record does
+     * not travel). Absent on legacy arrivals: the migrant then counts age from
+     * simulation time zero, matching scenario-seeded agents.
+     */
+    readonly registeredAtMs?: number;
+    /**
      * Education aggregate state at transfer time. Optional so pre-education
      * arrival events stay replayable; absent means the destination derives
      * the level from educationScore (the same fallback every read path uses).

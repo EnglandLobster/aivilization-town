@@ -151,7 +151,7 @@ export type WorldDecisionEducationExamContext = {
 };
 
 /**
- * Rational investment view of the education ladder (education-system-v3): what
+ * Rational investment view of the education ladder (education-system-v4): what
  * the next level costs (score, study hours at the canonical rate, tuition) and
  * what it returns (exam admission odds, estimated wage uplift from the job-tier
  * catalog). Read-only planning context — settlement never consumes it. Present
@@ -229,7 +229,7 @@ export type WorldDecisionOccupationRule = {
   readonly effectiveEducationThreshold: number;
   /**
    * The agent's bonus-adjusted education score for this occupation
-   * (vocational-track tier bonus, education-system-v3). Present only when it
+   * (vocational-track tier bonus, education-system-v4). Present only when it
    * differs from the raw educationScore; eligibility and employer ranking both
    * use it.
    */

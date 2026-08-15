@@ -65,7 +65,7 @@ const policies: WorldCommandPolicies = {
 };
 
 const educationSystemPolicy: EducationSystemPolicy = {
-  policyVersion: 'education-system-v3',
+  policyVersion: 'education-system-v4',
   enabled: true,
   levelScoreThresholds: [20, 70, 180, 320, 450],
   compulsoryLevels: [1, 2],

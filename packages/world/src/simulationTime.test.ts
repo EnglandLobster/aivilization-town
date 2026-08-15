@@ -1658,6 +1658,70 @@ describe('town wellbeing settlement', () => {
     });
   });
 
+  test('reads a distress transition from this interval immediately, not one interval late', () => {
+    // Regression: wellbeing used to read the pre-fold projection state, so a
+    // distress started by this interval's safety net only hit the target on
+    // the NEXT interval. The batch scan sees it immediately.
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-wellbeing'),
+          locationId: null,
+          physiology: { energy: 50, satiety: 25, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 3,
+          job: 'Farmer',
+          inventory: {},
+        },
+      ],
+      clock: { now: 0, tickDurationMs: 3_600_000 },
+    });
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-wellbeing-distress-freshness',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 3_600_000 },
+        issuedAt: 0,
+      }),
+      projection,
+      policies: {
+        ...wellbeingPolicies,
+        calendar: {
+          policyVersion: 'town-calendar-v1',
+          dayLengthMs: 86_400_000,
+          phases: [{ phase: 'day', startFraction: 0 }],
+          physiologicalDecay: { energyPerHour: 6.25, satietyPerHour: 12.5 },
+        },
+        physiologicalSafetyNet: {
+          policyVersion: 'physiological-safety-net-v1',
+          criticalThresholds: { satiety: 20, energy: 20, health: 20 },
+          persistenceDurationMs: 0,
+          grantCooldownMs: Number.MAX_SAFE_INTEGER,
+          essentialInventoryTargets: { Apple: 1 },
+        },
+      },
+      nextSequence: 1,
+    });
+    // The passive decay drains satiety to 0 within the tick; the safety net
+    // flags distress in the SAME interval and the wellbeing target must
+    // include the distress coefficient now instead of one interval late.
+    const distressEvent = events.find(
+      (event) =>
+        event.type === 'PhysiologicalDistressChanged' &&
+        event.payload.agentId === 'agent-wellbeing' &&
+        event.payload.status === 'active',
+    );
+    expect(distressEvent).toBeDefined();
+    const wellbeingEvent = events.find(
+      (event) => event.type === 'WellbeingChanged' && event.payload.agentId === 'agent-wellbeing',
+    );
+    if (wellbeingEvent?.type !== 'WellbeingChanged') throw new Error('unreachable');
+    expect(wellbeingEvent.payload.factorContributions).toMatchObject({ distress: -8 });
+  });
+
   test('factors in only the agent’s own outgoing social relations', () => {
     const relation = (
       sourceAgentId: string,
@@ -2190,6 +2254,9 @@ describe('town lifecycle settlement', () => {
     illnessDeathHealthThreshold: 30,
     illnessDeathProbabilityPerSettlementScale: 20,
     pensionPerHour: 1,
+    // Test grid: one tick = one cadence chunk, so single-tick advances are
+    // already per-cadence; the equivalence test below uses a finer grid.
+    settlementCadenceMs: DAY_MS,
   };
   const lifecyclePolicies: WorldCommandPolicies = {
     ...policies,
@@ -2570,6 +2637,106 @@ describe('town lifecycle settlement', () => {
     expect(settled.bank?.deposits).toEqual({});
     expect(settled.bank?.loans['loan-1']).toMatchObject({ status: 'written-off' });
     expect(settled.moneySupply).toBe(moneySupplyBefore - 80);
+  });
+
+  test("a matter expiring in the same advance as its assignee's death closes exactly once", () => {
+    // Regression: the pre-loop expiry settlement and the death voiding both
+    // targeted the matter from the stale projection; the reducer rejects the
+    // second close and the whole batch stopped replaying.
+    const deathPolicy: LifecyclePolicy = {
+      ...lifecyclePolicy,
+      stageThresholdsDays: { teen: 15, adult: 21, elderly: 40 },
+      minLifespanDays: 22,
+      maxLifespanDays: 22,
+    };
+    const projection = createWorldProjection({
+      agents: [lifecycleAgent({ balance: 10 })],
+      socialMatters: [
+        {
+          matterId: 'matter-dying',
+          kind: 'help-request',
+          status: 'open',
+          initiatorAgentId: asAgentId('agent-citizen'),
+          topic: 'firewood',
+          statement: 'Needs firewood before winter.',
+          responses: [],
+          createdAt: 0,
+          // Expires inside this very advance — the expiry settlement fires
+          // first, the death voiding must skip the already-closed matter.
+          expiresAt: Math.floor(DAY_MS / 2),
+        },
+      ],
+      clock: { now: 0, tickDurationMs: DAY_MS },
+    });
+
+    const events = advance(projection, 1, { ...policies, lifecycle: deathPolicy });
+    const matterClosures = events.filter((event) => event.type === 'MatterClosed');
+    expect(events.some((event) => event.type === 'AgentDied')).toBe(true);
+    expect(matterClosures).toHaveLength(1);
+    expect(matterClosures[0]).toMatchObject({
+      payload: { matterId: 'matter-dying', closure: 'expired' },
+    });
+    // The whole batch replays cleanly onto the original projection.
+    expect(() => events.reduce(applyWorldEvent, projection)).not.toThrow();
+  });
+
+  test('a merged multi-cadence advance settles lifecycle per cadence, matching step-by-step', () => {
+    // Retirement at day 1, pension for days 2 and 3, old-age death at day 3:
+    // one three-day advance must emit the same lifecycle event sequence as
+    // three one-day advances (probabilistic + stateful effects never merge).
+    const cadencePolicy: LifecyclePolicy = {
+      ...lifecyclePolicy,
+      settlementCadenceMs: DAY_MS,
+      minLifespanDays: 24,
+      maxLifespanDays: 24,
+    };
+    const pol = { ...policies, lifecycle: cadencePolicy };
+    const build = () =>
+      createWorldProjection({
+        agents: [lifecycleAgent({ job: 'Farmer', balance: 50 })],
+        treasury: 100,
+        clock: { now: 0, tickDurationMs: DAY_MS },
+      });
+
+    let stepped = build();
+    const stepEvents: WorldEvent[] = [];
+    for (let tick = 1; tick <= 3; tick += 1) {
+      const events = advance(stepped, tick, pol);
+      stepEvents.push(...events);
+      stepped = events.reduce(applyWorldEvent, stepped);
+    }
+
+    // advance() sends one-day deltas; the merged run needs a single command
+    // spanning the whole window — dispatch directly.
+    const merged = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-lifecycle-merged-3d',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 3 * DAY_MS },
+        issuedAt: 0,
+      }),
+      projection: build(),
+      policies: pol,
+      nextSequence: 10,
+    });
+
+    const lifecycleTypes = (events: readonly WorldEvent[]) =>
+      events
+        .filter((event) =>
+          ['AgentAged', 'AgentRetired', 'PensionPaid', 'AgentDied'].includes(event.type),
+        )
+        .map((event) => event.type);
+    expect(lifecycleTypes(merged)).toEqual(['AgentAged', 'AgentRetired', 'PensionPaid', 'PensionPaid', 'AgentDied']);
+    expect(lifecycleTypes(stepEvents)).toEqual(lifecycleTypes(merged));
+
+    const burn = (events: readonly WorldEvent[]) => {
+      const died = events.find((event) => event.type === 'AgentDied');
+      return died?.type === 'AgentDied' ? died.payload.estate.burnedCurrency : undefined;
+    };
+    expect(burn(merged)).toBe(burn(stepEvents));
+    expect(burn(merged)).toBe(52);
   });
 
   test('is deterministic: redispatching the same command yields identical events', () => {

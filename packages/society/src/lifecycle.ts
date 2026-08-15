@@ -56,6 +56,15 @@ export type LifecyclePolicy = {
   readonly illnessDeathProbabilityPerSettlementScale: number;
   /** Hourly pension paid to retired agents from the public treasury. */
   readonly pensionPerHour: number;
+  /**
+   * Maximum settlement interval length for lifecycle effects. A single
+   * advance spanning multiple cadences is split at this grid so aging,
+   * retirement+pension, and per-cadence illness-death rolls replay boundary
+   * by boundary — a merged multi-day advance then settles identically to
+   * per-cadence advances (the repo's cadence-equivalence rule for
+   * probabilistic and stateful effects).
+   */
+  readonly settlementCadenceMs: number;
   readonly source?: string;
 };
 
@@ -231,6 +240,9 @@ export function assertValidLifecyclePolicy(policy: LifecyclePolicy): void {
     'illnessDeathProbabilityPerSettlementScale',
   );
   assertNonNegativeFinite(policy.pensionPerHour, 'pensionPerHour');
+  if (!Number.isFinite(policy.settlementCadenceMs) || policy.settlementCadenceMs <= 0) {
+    throw new Error('lifecycle settlementCadenceMs must be a positive finite number');
+  }
 }
 
 function assertNonNegativeFinite(value: number, name: string): void {

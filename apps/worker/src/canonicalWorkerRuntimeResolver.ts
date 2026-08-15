@@ -499,6 +499,9 @@ function resolveLifestyleSynthesisConstraint(input: {
       ...(input.policies.wellbeing === undefined
         ? {}
         : { wellbeing: input.agent.wellbeing ?? input.policies.wellbeing.initialValue }),
+      ...(policy.wellbeingSpendCapMultiplierRange === undefined
+        ? {}
+        : { multiplierRange: policy.wellbeingSpendCapMultiplierRange }),
     }),
     survivalCommodities: Object.keys(input.policies.satietyRecoveryByCommodity),
   };

@@ -194,6 +194,7 @@ export type ScenarioTownLifecyclePolicyConfig = {
   readonly illnessDeathHealthThreshold: number;
   readonly illnessDeathProbabilityPerSettlementScale: number;
   readonly pensionPerHour: number;
+  readonly settlementCadenceMs: number;
   readonly source: string;
 };
 
@@ -251,6 +252,9 @@ export type ScenarioLifestylePolicyConfig = {
   // below [0] struggling, below [1] stable, below [2] comfortable, else affluent.
   readonly netWorthBoundaries: readonly [number, number, number];
   readonly strugglingNonSurvivalSpendCapRatio: number;
+  // Optional wellbeing modulation range for the spend cap (final value
+  // clamped to [0, 1] by the evaluator); omitted keeps the static ratio.
+  readonly wellbeingSpendCapMultiplierRange?: readonly [number, number];
   readonly source: string;
 };
 
@@ -371,7 +375,7 @@ export type ScenarioProductionEfficiencyPolicyConfig = {
   readonly educationScoreForMaxEfficiency: number;
   /**
    * Per-level multiplier applied to the education efficiency factor
-   * (education-system-v3), indexed by discrete education level 0..5. Only
+   * (education-system-v4), indexed by discrete education level 0..5. Only
    * applies when the caller supplies the agent's education level; legacy
    * continuous-score runs omit the level and keep the un-multiplied factor.
    */
@@ -556,7 +560,7 @@ const healthcarePolicySource =
 const educationInvestmentPolicySource =
   'AIvilization v0 Section 3.2.1 requires resource-consuming education; education-investment-v1 is a repository policy decision because the paper does not specify cost rates';
 const educationSystemPolicySource =
-  'Town education system; education-system-v3 discrete levels, the nine-year compulsory stage (levels 1-2), level thresholds and tuition rates, the employed-study efficiency penalty, the exam-release parameters (cycle cadence, per-level admission quotas, vocational track share), and the vocational-track job-tier education bonus are repository policy decisions because the paper models education as a continuous score';
+  'Town education system; education-system-v4 discrete levels, the nine-year compulsory stage (levels 1-2), level thresholds and tuition rates, the employed-study efficiency penalty, the exam-release parameters (cycle cadence, per-level admission quotas, vocational track share), and the vocational-track job-tier education bonus are repository policy decisions because the paper models education as a continuous score';
 const wagePolicySource =
   'AIvilization v0 Section 3.2.4 defines static and dynamic wage regimes; wage-regime-v1 is a repository policy decision because the paper does not specify Phi or the short-term shock process';
 const jobApplicationPolicySource =
@@ -574,7 +578,7 @@ const townBulletinPolicySource =
 const socialMattersPolicySource =
   'Social matters state machine; social-matters-v1 lifecycle and expiry parameters are repository policy decisions because the paper does not model social matters';
 const townConflictPolicySource =
-  'Town conflict system; town-conflict-v1 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
+  'Town conflict system; town-conflict-v2 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
 const townWellbeingPolicySource =
   'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
 const townCalendarPolicySource =
@@ -819,7 +823,7 @@ export const aivilizationSocialMattersPolicyDefaults = {
   source: socialMattersPolicySource,
 } as const satisfies ScenarioSocialMattersPolicyConfig;
 
-export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v1';
+export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v2';
 
 /**
  * Town conflict system. Opt-in via the
@@ -932,6 +936,10 @@ export const aivilizationTownLifecyclePolicyDefaults = {
   illnessDeathHealthThreshold: 30,
   illnessDeathProbabilityPerSettlementScale: 20,
   pensionPerHour: 1,
+  // One simulation day: aging/retirement/pension/death replay day by day even
+  // inside a merged multi-day advance (probabilistic + stateful effects must
+  // not be merged across cadences).
+  settlementCadenceMs: 86_400_000,
   source: townLifecyclePolicySource,
 } as const satisfies ScenarioTownLifecyclePolicyConfig;
 
@@ -960,7 +968,7 @@ export const aivilizationHealthcarePolicyDefaults = {
   },
 } as const satisfies ScenarioHealthcarePolicyDefaults;
 
-export const EDUCATION_SYSTEM_POLICY_VERSION = 'education-system-v3';
+export const EDUCATION_SYSTEM_POLICY_VERSION = 'education-system-v4';
 
 /**
  * Town education system. Education becomes a discrete six-level ladder
@@ -974,7 +982,7 @@ export const EDUCATION_SYSTEM_POLICY_VERSION = 'education-system-v3';
  * admission cycle releases per examCycleDurationMs boundary, each level group
  * admits its top `ceil(applicants × quota)` candidates by score, and admitted
  * 中考 candidates split into the academic (普高) and vocational (中职) tracks at
- * the vocationalTrackShare ratio. Under education-system-v3, vocational-track
+ * the vocationalTrackShare ratio. Under education-system-v4, vocational-track
  * (中职, level 3) applicants to skilled-manual occupations are evaluated at an
  * effective education score (raw + vocationalTrackJobTierBonus[tier]) for both
  * eligibility and employer ranking.
@@ -1089,6 +1097,9 @@ export const aivilizationLifestylePolicyDefaults = {
   policyVersion: LIFESTYLE_POLICY_VERSION,
   netWorthBoundaries: [500, 2000, 10000],
   strugglingNonSurvivalSpendCapRatio: 0.3,
+  // Manifest-visible modulation range for the wellbeing spend-cap interlock;
+  // the final ratio is clamped to [0, 1] inside the evaluator.
+  wellbeingSpendCapMultiplierRange: [0.5, 1.5],
   source: lifestylePolicySource,
 } as const satisfies ScenarioLifestylePolicyConfig;
 

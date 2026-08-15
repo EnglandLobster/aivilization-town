@@ -508,13 +508,13 @@ describe('local runtime town executable composition', () => {
       }).townConflictEnabled,
     ).toBe(true);
 
-    // The resolved run manifest only declares town-conflict-v1 when enabled.
+    // The resolved run manifest only declares town-conflict-v2 when enabled.
     const disabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-conflict-v1');
+    expect(disabledManifest).not.toContain('town-conflict-v2');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -523,7 +523,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-conflict-v1');
+    expect(enabledManifest).toContain('town-conflict-v2');
   });
 
   test('town wellbeing is off by default and enabled by flag or env', () => {

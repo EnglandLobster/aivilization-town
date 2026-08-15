@@ -19,6 +19,14 @@ export type LifestylePolicy = {
   // spendable balance. Survival spending (food purchases, medical treatment)
   // is exempt.
   readonly strugglingNonSurvivalSpendCapRatio: number;
+  /**
+   * Optional wellbeing modulation range for the cap (town-wellbeing
+   * interlock): the effective ratio = base × multiplier, the multiplier
+   * lerping inside this range by (wellbeing − 50)/100. The FINAL ratio is
+   * clamped to [0, 1] so a valid base can never produce a downstream-invalid
+   * share. Absent keeps the static ratio.
+   */
+  readonly wellbeingSpendCapMultiplierRange?: readonly [number, number];
   readonly source: string;
 };
 
@@ -32,6 +40,7 @@ export type LifestylePolicy = {
 export function evaluateNonSurvivalSpendCapRatio(input: {
   readonly baseRatio: number;
   readonly wellbeing?: number;
+  readonly multiplierRange?: readonly [number, number];
 }): number {
   if (!Number.isFinite(input.baseRatio) || input.baseRatio < 0) {
     throw new Error('non-survival spend cap ratio must be non-negative finite');
@@ -42,8 +51,23 @@ export function evaluateNonSurvivalSpendCapRatio(input: {
   if (!Number.isFinite(input.wellbeing)) {
     throw new Error('wellbeing must be finite');
   }
-  const multiplier = Math.max(0.5, Math.min(1.5, 1 + (input.wellbeing - 50) / 100));
-  return input.baseRatio * multiplier;
+  const [minMultiplier, maxMultiplier] = input.multiplierRange ?? [0.5, 1.5];
+  if (
+    !Number.isFinite(minMultiplier) ||
+    !Number.isFinite(maxMultiplier) ||
+    minMultiplier <= 0 ||
+    maxMultiplier < minMultiplier
+  ) {
+    throw new Error('wellbeing spend-cap multiplier range must be [positive min, max ≥ min]');
+  }
+  const multiplier = Math.max(
+    minMultiplier,
+    Math.min(maxMultiplier, 1 + (input.wellbeing - 50) / 100),
+  );
+  // The final value is a share of the spendable balance: clamp to [0, 1] so a
+  // valid base ratio can never produce a share the action-synthesis budget
+  // guardrails reject.
+  return Math.max(0, Math.min(1, input.baseRatio * multiplier));
 }
 
 export function evaluateLifestyleTier(input: {
@@ -87,5 +111,15 @@ function assertValidLifestylePolicy(policy: LifestylePolicy): void {
   const ratio = policy.strugglingNonSurvivalSpendCapRatio;
   if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
     throw new Error('lifestyle strugglingNonSurvivalSpendCapRatio must be between 0 and 1');
+  }
+  const range = policy.wellbeingSpendCapMultiplierRange;
+  if (
+    range !== undefined &&
+    (!Number.isFinite(range[0]) ||
+      !Number.isFinite(range[1]) ||
+      range[0] <= 0 ||
+      range[1] < range[0])
+  ) {
+    throw new Error('lifestyle wellbeingSpendCapMultiplierRange must be [positive min, max ≥ min]');
   }
 }

@@ -1859,6 +1859,9 @@ function appendEducationExamCycleEvents(input: {
         agentId: application.agentId,
         targetLevel: application.targetLevel,
         educationScore: application.educationScore,
+        ...(application.effectiveEducationScore === undefined
+          ? {}
+          : { effectiveEducationScore: application.effectiveEducationScore }),
         submittedAt: application.submittedAt,
       }));
     const decision = evaluateEducationExamCycle({

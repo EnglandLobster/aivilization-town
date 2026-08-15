@@ -446,6 +446,9 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentAttack', unknown>,
         projection: input.projection,
         ...(input.policies.conflict === undefined ? {} : { conflict: input.policies.conflict }),
+        ...(input.policies.wellbeing === undefined
+          ? {}
+          : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentIntervene':
@@ -742,6 +745,9 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentApplyEducationExam', unknown>,
         projection: input.projection,
         policy: input.policies.educationSystem,
+        ...(input.policies.wellbeing === undefined
+          ? {}
+          : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentUpgradeResidentialTier':

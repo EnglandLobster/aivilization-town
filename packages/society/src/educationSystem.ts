@@ -74,6 +74,16 @@ export type EducationSystemPolicy = {
    * unlimited retakes.
    */
   readonly maxExamAttempts?: number;
+  /**
+   * Optional wellbeing exam-score bonus (town-wellbeing interlock): when the
+   * run also carries a wellbeing policy, exam submissions snapshot
+   * `educationScore + evaluateWellbeingExamScoreBonus(...)` as the ranking
+   * score. Linear in (wellbeing − 50)/50, clamped to ±maxBonus; absent keeps
+   * ranking on the raw score, byte-for-byte identical to legacy runs.
+   */
+  readonly wellbeingExamScoreBonus?: {
+    readonly maxBonus: number;
+  };
   readonly source: string;
 };
 
@@ -149,6 +159,13 @@ export function validateEducationSystemPolicy(policy: EducationSystemPolicy): vo
     if (!Number.isFinite(bonus) || bonus < 0) {
       throw new Error(`education system vocational track bonus for tier ${tier} must be non-negative`);
     }
+  }
+  if (
+    policy.wellbeingExamScoreBonus !== undefined &&
+    (!Number.isFinite(policy.wellbeingExamScoreBonus.maxBonus) ||
+      policy.wellbeingExamScoreBonus.maxBonus < 0)
+  ) {
+    throw new Error('education system wellbeingExamScoreBonus.maxBonus must be non-negative');
   }
   if (
     policy.maxExamAttempts !== undefined &&

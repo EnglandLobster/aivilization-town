@@ -1,5 +1,6 @@
 import { asAgentId, asLocationId, createCommandEnvelope } from '@aivilization/sim-core';
 import { isIncapacitated } from '@aivilization/society';
+import { createDirectedSocialRelationKey } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -386,5 +387,101 @@ describe('town conflict commands', () => {
       legacyPolicies,
     ).reduce(applyWorldEvent, projection);
     expect(updated.conflictRecords).toBeUndefined();
+  });
+});
+
+describe('town conflict wellbeing grievance shift', () => {
+  const wellbeingPolicy = {
+    policyVersion: 'town-wellbeing-v1',
+    initialValue: 50,
+    minValue: 0,
+    maxValue: 100,
+    baseline: 50,
+    convergencePerHour: 2,
+    coefficients: {
+      health: 10,
+      energy: 6,
+      satiety: 6,
+      employed: 4,
+      unemployed: -6,
+      residentialTier: [0, -4, -2, 0, 2, 4, 6],
+      lifestyleTier: [-6, -2, 2, 6],
+      upkeepArrearsPerUnit: -0.05,
+      distress: -8,
+      positiveRelation: 6,
+      negativeRelation: -8,
+    },
+  };
+  const shiftPolicies: WorldCommandPolicies = {
+    ...policies,
+    conflict: { ...conflictPolicy, wellbeingGrievanceShift: { maxShift: 0.2 } },
+    wellbeing: wellbeingPolicy,
+  };
+
+  function attackerWith(input: {
+    readonly wellbeing?: number;
+    readonly relationScore: number;
+  }): WorldProjection {
+    const projection = createProjection();
+    return {
+      ...projection,
+      agents: {
+        ...projection.agents,
+        ...(input.wellbeing === undefined
+          ? {}
+          : {
+              'agent-1': {
+                ...projection.agents['agent-1']!,
+                wellbeing: input.wellbeing,
+              },
+            }),
+      },
+      socialRelations: {
+        [createDirectedSocialRelationKey({
+          sourceAgentId: asAgentId('agent-1'),
+          targetAgentId: asAgentId('agent-2'),
+        })]: {
+          sourceAgentId: asAgentId('agent-1'),
+          targetAgentId: asAgentId('agent-2'),
+          relationScore: input.relationScore,
+          attitudeScore: input.relationScore,
+          relationLabel: 'strained' as const,
+          interactionCount: 2,
+          lastInteractionSummary: 'They talked.',
+        },
+      },
+    };
+  }
+
+  test('a distressed attacker lashes out at a merely neutral relation', () => {
+    // Effective threshold = 0 + 0.2 × (50 − 10)/50 = +0.16 → relation +0.1 counts.
+    const events = run(
+      attackerWith({ wellbeing: 10, relationScore: 0.1 }),
+      { agentId: 'agent-1', type: 'AgentAttack', payload: { targetAgentId: 'agent-2' } },
+      shiftPolicies,
+    );
+    expect(events.some((event) => event.type === 'AttackRecorded')).toBe(true);
+  });
+
+  test('a thriving attacker needs genuine hostility', () => {
+    // Effective threshold = 0 + 0.2 × (50 − 90)/50 = −0.16 → relation −0.1 is
+    // NOT below it: mild friction no longer licenses an attack.
+    const events = run(
+      attackerWith({ wellbeing: 90, relationScore: -0.1 }),
+      { agentId: 'agent-1', type: 'AgentAttack', payload: { targetAgentId: 'agent-2' } },
+      shiftPolicies,
+    );
+    expect(rejection(events)).toContain('grievance');
+  });
+
+  test('without the wellbeing policy the static threshold is byte-for-byte legacy', () => {
+    // Same mildly positive relation, no wellbeing policy → still rejected
+    // exactly as before the interlock existed.
+    const events = run(
+      attackerWith({ relationScore: 0.1 }),
+      { agentId: 'agent-1', type: 'AgentAttack', payload: { targetAgentId: 'agent-2' } },
+      { ...policies, conflict: { ...conflictPolicy, wellbeingGrievanceShift: { maxShift: 0.2 } } },
+    );
+    expect(rejection(events)).toContain('grievance');
   });
 });

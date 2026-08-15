@@ -192,6 +192,13 @@ const canonicalEducationSystemPolicy: EducationSystemPolicy = {
   vocationalTrackJobTierBonus: {
     ...aivilizationEducationSystemPolicyDefaults.vocationalTrackJobTierBonus,
   },
+  ...(aivilizationEducationSystemPolicyDefaults.wellbeingExamScoreBonus === undefined
+    ? {}
+    : {
+        wellbeingExamScoreBonus: {
+          ...aivilizationEducationSystemPolicyDefaults.wellbeingExamScoreBonus,
+        },
+      }),
   source: aivilizationEducationSystemPolicyDefaults.source,
 };
 validateEducationSystemPolicy(canonicalEducationSystemPolicy);

@@ -32,6 +32,17 @@ export type TownConflictPolicy = {
   readonly minHealthAfterAttack: number;
   /** Fraction of the hostility deltas witnesses apply against the attacker. */
   readonly witnessAttitudePenaltyScale: number;
+  /**
+   * Optional wellbeing grievance shift (town-wellbeing interlock): when the
+   * attacker carries a settled wellbeing, the strained-relation threshold
+   * shifts by maxShift × (50 − wellbeing)/50 — distressed attackers lash out
+   * at merely neutral relations, thriving ones need genuine hostility.
+   * Betrayal evidence is never affected. Absent keeps the static threshold,
+   * byte-for-byte identical to legacy runs.
+   */
+  readonly wellbeingGrievanceShift?: {
+    readonly maxShift: number;
+  };
 };
 
 /**
@@ -70,6 +81,11 @@ export function resolveConflictGrievance(input: {
   readonly attackerAgentId: AgentId;
   readonly targetAgentId: AgentId;
   readonly grievanceRelationThreshold: number;
+  /** Attacker's settled wellbeing; absent skips the wellbeing shift entirely. */
+  readonly attackerWellbeing?: number;
+  readonly wellbeingGrievanceShift?: {
+    readonly maxShift: number;
+  };
 }): ConflictGrievance | undefined {
   // Betrayal evidence outranks a merely strained relation: a breached
   // commitment or breached matter where the target wronged the attacker.
@@ -109,11 +125,15 @@ export function resolveConflictGrievance(input: {
     targetAgentId: input.targetAgentId,
   });
   const relation = input.relations[relationKey];
-  if (
-    relation !== undefined &&
-    relation.relationScore < input.grievanceRelationThreshold
-  ) {
-    return { kind: 'strained-relation', relationScore: relation.relationScore };
+  if (relation !== undefined) {
+    const effectiveThreshold =
+      input.wellbeingGrievanceShift === undefined || input.attackerWellbeing === undefined
+        ? input.grievanceRelationThreshold
+        : input.grievanceRelationThreshold +
+          (input.wellbeingGrievanceShift.maxShift * (50 - input.attackerWellbeing)) / 50;
+    if (relation.relationScore < effectiveThreshold) {
+      return { kind: 'strained-relation', relationScore: relation.relationScore };
+    }
   }
   return undefined;
 }

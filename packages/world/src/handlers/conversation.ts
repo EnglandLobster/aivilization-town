@@ -1,11 +1,25 @@
-import type { SocialKnowledgeClaim, SocialKnowledgeClaimStatus } from '@aivilization/memory';
-import { asConversationId, type AgentId, type CommandEnvelope } from '@aivilization/sim-core';
+import {
+  createMemoryProvenance,
+  createShortTermMemoryRecord,
+  type SocialKnowledgeClaim,
+  type SocialKnowledgeClaimStatus,
+} from '@aivilization/memory';
+import {
+  asConversationId,
+  createSeededRandom,
+  type AgentId,
+  type CommandEnvelope,
+} from '@aivilization/sim-core';
 import {
   classifySocialCommitmentIntent,
   evaluateConversationSocialOutcomes,
   evaluateConversationSocialOutcomesFromSignals,
   evaluateConversationSocialOutcomesFromSignalSeverities,
+  evaluateDiscoursePropagation,
+  HEARSAY_CHAIN_TAG_PREFIX,
   isSocialSignalName,
+  parseHearsayChainDepth,
+  type TownDiscoursePolicy,
 } from '@aivilization/society';
 import type { AgentStartConversationPayload } from '../commands';
 import { assertAgentStartConversationPayload } from '../commands';
@@ -27,6 +41,15 @@ export function handleAgentStartConversationCommand(input: {
   readonly command: CommandEnvelope<'AgentStartConversation', unknown>;
   readonly projection: WorldProjection;
   readonly socialMatters?: SocialMattersPolicy;
+  /**
+   * Optional town-discourse policy (town-discourse-v1). When present, each
+   * conversation direction can additionally carry one of the speaker's
+   * eligible recent memories to the listener as a hearsay copy with a
+   * deterministically distorted importance (rolls seeded per command and
+   * direction). Absent keeps conversations byte-for-byte identical to legacy
+   * runs.
+   */
+  readonly discourse?: TownDiscoursePolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -239,6 +262,15 @@ export function handleAgentStartConversationCommand(input: {
       },
     }),
   ];
+  appendDiscoursePropagationEvents({
+    input,
+    events,
+    policy: input.discourse,
+    directions: [
+      { speakerAgentId: agent.agentId, listenerAgentId: targetAgent.agentId },
+      { speakerAgentId: targetAgent.agentId, listenerAgentId: agent.agentId },
+    ],
+  });
   appendConversationMatterEvents({
     input,
     events,
@@ -249,6 +281,96 @@ export function handleAgentStartConversationCommand(input: {
     ...(input.socialMatters === undefined ? {} : { policy: input.socialMatters }),
   });
   return events;
+}
+
+/**
+ * Hearsay propagation (town-discourse-v1): one extra ShortTermMemoryRecorded
+ * per direction, decided by the society pure rule. Candidates come from the
+ * projection's bounded recent-memory cache (explicitly a read cache, not the
+ * authoritative memory repository — a speaker whose records were evicted
+ * from the cache simply has nothing to share this turn). The rolls are
+ * derived only from the command envelope and the clock, so every replay and
+ * every partition re-derives identical copies.
+ */
+function appendDiscoursePropagationEvents(input: {
+  readonly input: {
+    readonly command: CommandEnvelope<'AgentStartConversation', unknown>;
+    readonly projection: WorldProjection;
+    readonly nextSequence: number;
+  };
+  readonly events: WorldEvent[];
+  readonly policy: TownDiscoursePolicy | undefined;
+  readonly directions: readonly {
+    readonly speakerAgentId: AgentId;
+    readonly listenerAgentId: AgentId;
+  }[];
+}): void {
+  const policy = input.policy;
+  if (policy === undefined) {
+    return;
+  }
+  for (const direction of input.directions) {
+    const rng = createSeededRandom(
+      [
+        'town-discourse-propagation',
+        input.input.command.simulationId,
+        input.input.command.id,
+        input.input.projection.clock.now,
+        `${direction.speakerAgentId}->${direction.listenerAgentId}`,
+      ].join(':'),
+    );
+    const speakerRecords = input.input.projection.memoryRecords.filter(
+      (record) => record.agentId === direction.speakerAgentId,
+    );
+    const decision = evaluateDiscoursePropagation({
+      candidates: speakerRecords.map((record) => ({
+        recordId: record.id,
+        importanceScore: record.importanceScore,
+        tags: record.tags,
+        ...(record.provenance === undefined
+          ? {}
+          : {
+              provenanceKind: record.provenance.kind,
+              provenanceStatus: record.provenance.status,
+            }),
+        chainDepth: parseHearsayChainDepth(record.tags),
+      })),
+      policy,
+      gateRoll: rng.nextFloat(),
+      distortionRoll: rng.nextFloat(),
+    });
+    if (decision === null) {
+      continue;
+    }
+    const sourceRecord = speakerRecords.find((record) => record.id === decision.candidate.recordId);
+    if (sourceRecord === undefined) {
+      continue;
+    }
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'ShortTermMemoryRecorded', {
+        record: createShortTermMemoryRecord({
+          id: `${input.input.command.id}:memory:hearsay-${input.events.length}`,
+          agentId: direction.listenerAgentId,
+          kind: sourceRecord.kind,
+          status: sourceRecord.status,
+          summary: `Heard from ${direction.speakerAgentId}: ${sourceRecord.summary}`,
+          occurredAt: input.input.command.issuedAt,
+          importanceScore: decision.distortedImportance,
+          source: {
+            commandId: input.input.command.id,
+            eventIds: [...sourceRecord.source.eventIds],
+          },
+          tags: stableUnique([
+            ...sourceRecord.tags.filter((tag) => !tag.startsWith(HEARSAY_CHAIN_TAG_PREFIX)),
+            'hearsay',
+            `${HEARSAY_CHAIN_TAG_PREFIX}${decision.nextChainDepth}`,
+            `from:${direction.speakerAgentId}`,
+          ]),
+          provenance: createMemoryProvenance({ kind: 'hearsay' }),
+        }),
+      }),
+    );
+  }
 }
 
 function formatConversationSummary(
@@ -278,8 +400,7 @@ function resolveSuppliedConversationTurnSignals(input: {
       entry.signals.every(
         (signal) =>
           isSocialSignalName(signal.signal) &&
-          (signal.severity === undefined ||
-            (signal.severity >= 0 && signal.severity <= 1)),
+          (signal.severity === undefined || (signal.severity >= 0 && signal.severity <= 1)),
       ),
   );
   return usable ? input.turnSignals : undefined;
@@ -288,9 +409,7 @@ function resolveSuppliedConversationTurnSignals(input: {
 function hasSuppliedSignalSeverities(
   turnSignals: NonNullable<AgentStartConversationPayload['turnSignals']>,
 ): boolean {
-  return turnSignals.some((entry) =>
-    entry.signals.some((signal) => signal.severity !== undefined),
-  );
+  return turnSignals.some((entry) => entry.signals.some((signal) => signal.severity !== undefined));
 }
 
 function extractSocialKnowledgeClaims(

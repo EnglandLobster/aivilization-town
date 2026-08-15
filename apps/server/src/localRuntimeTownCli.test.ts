@@ -124,6 +124,7 @@ describe('local runtime town executable composition', () => {
       townWellbeingEnabled: false,
       townCalendarEnabled: false,
       townLifecycleEnabled: false,
+      townDiscourseEnabled: false,
     });
   });
 
@@ -201,6 +202,7 @@ describe('local runtime town executable composition', () => {
       townWellbeingEnabled: false,
       townCalendarEnabled: false,
       townLifecycleEnabled: false,
+      townDiscourseEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -662,6 +664,48 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('town-lifecycle-v1');
+  });
+
+  test('town discourse is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townDiscourseEnabled).toBe(
+      false,
+    );
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-discourse', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townDiscourseEnabled,
+    ).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_DISCOURSE: '1' },
+      }).townDiscourseEnabled,
+    ).toBe(true);
+
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-discourse-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_DISCOURSE: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-discourse-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

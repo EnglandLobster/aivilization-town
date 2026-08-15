@@ -93,6 +93,7 @@ export type AivilizationExperimentalPolicySwitches = {
   readonly townWellbeing?: boolean;
   readonly townCalendar?: boolean;
   readonly townLifecycle?: boolean;
+  readonly townDiscourse?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -453,6 +454,7 @@ export {
   createAivilizationTownCalendarPolicy,
   createAivilizationTownConditionsPolicy,
   createAivilizationTownConflictPolicy,
+  createAivilizationTownDiscoursePolicy,
   createAivilizationTownLifecyclePolicy,
   createAivilizationTownWeatherPolicy,
   createAivilizationTownWellbeingPolicy,
@@ -509,6 +511,12 @@ export function createAivilizationWorldPolicyManifest(
      * parameters; omitted/false keeps the manifest lifecycle-free.
      */
     readonly townLifecycle?: boolean;
+    /**
+     * Opt-in town-discourse switch. When
+     * true the manifest declares the town-discourse policy version and
+     * parameters; omitted/false keeps the manifest discourse-free.
+     */
+    readonly townDiscourse?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins

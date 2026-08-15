@@ -136,6 +136,16 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    * current memories instead of a stale or empty candidate set.
    */
   readonly newMemoryRecords?: readonly ShortTermMemoryRecord[];
+  /**
+   * Agents this partition no longer holds because they permanently left the
+   * simulation (death or out-migration settled partition-locally — the
+   * authority never settles population turnover by design). The authority
+   * removes them from its projection, the ownership ledger, and any pending
+   * transfer/move so no global settlement can ever reference a ghost
+   * resident. Idempotent on replay (unknown ids are skipped) and kept out of
+   * the fingerprint like newAgents.
+   */
+  readonly departedAgentIds?: readonly string[];
 };
 
 /**
@@ -277,6 +287,11 @@ export type SimulationWideAuthorityOperation =
        * the sync carried no new records.
        */
       readonly mergedMemoryRecordIds?: readonly string[];
+      /**
+       * Agents removed from the authority's ledger by this sync (permanent
+       * departure reported by the owner partition). Absent when none.
+       */
+      readonly removedAgentIds?: readonly AgentId[];
       readonly status: 'completed';
       readonly events: readonly [];
     }
@@ -593,11 +608,14 @@ export function createSimulationWideAuthority(input: {
   // authority's copy simply does not age (wellbeing/calculator-style scalar
   // drift on its copy is benign and unsettled there).
   const resolvePolicies = (projection: WorldProjection): WorldCommandPolicies => {
-    const { lifecycle: strippedLifecycle, migration: strippedMigration, ...commandPolicies } =
-      resolveWorldCommandPolicies({
-        policies: input.policies,
-        projection,
-      });
+    const {
+      lifecycle: strippedLifecycle,
+      migration: strippedMigration,
+      ...commandPolicies
+    } = resolveWorldCommandPolicies({
+      policies: input.policies,
+      projection,
+    });
     void strippedLifecycle;
     void strippedMigration;
     return {
@@ -1276,6 +1294,27 @@ export function createSimulationWideAuthority(input: {
           const agents = { ...state.projection.agents };
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const registeredAgentIds: AgentId[] = [];
+          const removedAgentIds: AgentId[] = [];
+          for (const rawDepartedId of [...(request.departedAgentIds ?? [])].sort()) {
+            const departedId = asAgentId(rawDepartedId);
+            const owner = owners[departedId];
+            const known = agents[departedId] !== undefined;
+            if (!known && owner === undefined) {
+              // Idempotent replay: the departure was already journaled.
+              continue;
+            }
+            if (owner !== undefined && owner !== partitionKey) {
+              throw new Error(
+                `departure report for ${departedId} must come from owner partition ${owner}, not ${partitionKey}`,
+              );
+            }
+            if (known && owner === undefined) {
+              throw new Error(`departure report for unowned Agent ${departedId}`);
+            }
+            delete agents[departedId];
+            delete owners[departedId];
+            removedAgentIds.push(departedId);
+          }
           for (const record of newAgents) {
             const agentId = asAgentId(record.agentId);
             if (owners[agentId] !== undefined) {
@@ -1346,14 +1385,39 @@ export function createSimulationWideAuthority(input: {
             ...(mergedMemoryRecords.length === 0
               ? {}
               : { mergedMemoryRecordIds: mergedMemoryRecords.map((record) => record.id) }),
+            ...(removedAgentIds.length === 0 ? {} : { removedAgentIds }),
             status: 'completed',
             events: [],
           };
+          const cleanedPendingTransfers =
+            removedAgentIds.length === 0
+              ? undefined
+              : (() => {
+                  const pendingTransfers = { ...(state.pendingTransfers ?? {}) };
+                  for (const removedId of removedAgentIds) {
+                    delete pendingTransfers[removedId];
+                  }
+                  return pendingTransfers;
+                })();
+          const cleanedPendingMoves =
+            removedAgentIds.length === 0
+              ? undefined
+              : (() => {
+                  const pendingMoves = { ...(state.pendingMoves ?? {}) };
+                  for (const removedId of removedAgentIds) {
+                    delete pendingMoves[removedId];
+                  }
+                  return pendingMoves;
+                })();
           return {
             state: {
               ...state,
               projection: { ...state.projection, agents, memoryRecords },
               ownerPartitionKeyByAgentId: owners,
+              ...(cleanedPendingTransfers === undefined
+                ? {}
+                : { pendingTransfers: cleanedPendingTransfers }),
+              ...(cleanedPendingMoves === undefined ? {} : { pendingMoves: cleanedPendingMoves }),
             },
             operation,
           };

@@ -460,7 +460,15 @@ export type EnterpriseClosedPayload = {
   readonly returnedBalance: number;
   readonly returnedInventory: Inventory;
   readonly employeeAgentIds: readonly AgentId[];
-  readonly reason: 'owner-closed' | 'insolvent';
+  readonly reason: 'owner-closed' | 'insolvent' | 'owner-departed';
+  /**
+   * Owner-departure closure only: the firm's cash burned out of the town
+   * economy (the owner left; nobody inherits) and the inventory that
+   * perished with the firm. returnedBalance/returnedInventory stay zero on
+   * this variant; the departed owner is excluded from employeeAgentIds.
+   */
+  readonly burnedBalance?: number;
+  readonly burnedInventory?: Inventory;
 };
 
 export type IncomeTaxChargedPayload = {

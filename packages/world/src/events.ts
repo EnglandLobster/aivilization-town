@@ -1089,6 +1089,32 @@ export type AgentDiedPayload = {
 };
 
 /**
+ * A happiness-driven departure settled at the END of a settlement interval
+ * (town-migration-v1, CS2 NotHappy): the agent was alive for the interval's
+ * other settlements, then left town. The reducer removes the agent exactly
+ * like a death — the estate accounting is shared (AGENTS.md §7 category 3:
+ * the departing agent's circulating currency moves out of the town economy,
+ * moneySupply falls by estate.burnedCurrency with the out-migration
+ * counterpart recorded).
+ */
+export type AgentEmigratedPayload = {
+  readonly agentId: AgentId;
+  readonly cause: 'dissatisfaction';
+  readonly emigratedAt: number;
+  /** Settled wellbeing that drove the departure (the policy fallback when unset). */
+  readonly wellbeing: number;
+  /** Age at departure in simulation days; present only with a lifecycle policy. */
+  readonly ageDays?: number;
+  readonly policyVersion: string;
+  readonly estate: {
+    readonly burnedCurrency: number;
+    readonly inventoryByCommodity: Readonly<Record<string, number>>;
+    readonly depositForfeited: number;
+    readonly writtenOffLoanIds: readonly LoanId[];
+  };
+};
+
+/**
  * The bank wrote a deceased borrower's loan off its book (credit
  * 'LoanWrittenOff' domain event). No cash moves: the loan money was already
  * circulating, so moneySupply is unchanged and the borrower's credit history
@@ -1376,6 +1402,7 @@ export type WorldEventPayloadByType = {
   readonly AgentRetired: AgentRetiredPayload;
   readonly PensionPaid: PensionPaidPayload;
   readonly AgentDied: AgentDiedPayload;
+  readonly AgentEmigrated: AgentEmigratedPayload;
   readonly LoanWrittenOff: LoanWrittenOffPayload;
   readonly DepositForfeited: DepositForfeitedPayload;
   readonly PetitionRaised: PetitionRaisedPayload;

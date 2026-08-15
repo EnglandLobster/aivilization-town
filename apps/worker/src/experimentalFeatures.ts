@@ -4,6 +4,7 @@ import {
   aivilizationTownCalendarPolicyDefaults,
   aivilizationTownConditionsPolicyDefaults,
   aivilizationCollectiveActionPolicyDefaults,
+  aivilizationOutMigrationPolicyDefaults,
   aivilizationTownConflictPolicyDefaults,
   aivilizationTownDiscoursePolicyDefaults,
   aivilizationTownLifecyclePolicyDefaults,
@@ -14,11 +15,13 @@ import {
   assertTownConditionsPolicy,
   assertValidCollectiveActionPolicy,
   assertValidLifecyclePolicy,
+  assertValidOutMigrationPolicy,
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
   type CollectiveActionPolicy,
   type LifecyclePolicy,
+  type OutMigrationPolicy,
   type TownDiscoursePolicy,
   type TownCalendarPolicy,
   type TownConditionsPolicy,
@@ -43,7 +46,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townCalendar'
   | 'townLifecycle'
   | 'townDiscourse'
-  | 'townCollectiveAction';
+  | 'townCollectiveAction'
+  | 'townMigration';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -177,6 +181,17 @@ export function createAivilizationTownCalendarPolicy(): TownCalendarPolicy {
     physiologicalDecay: { ...aivilizationTownCalendarPolicyDefaults.physiologicalDecay },
   };
   assertValidTownCalendarPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationOutMigrationPolicy(): OutMigrationPolicy {
+  const policy: OutMigrationPolicy = {
+    policyVersion: aivilizationOutMigrationPolicyDefaults.policyVersion,
+    maxProbabilityPerHour: aivilizationOutMigrationPolicyDefaults.maxProbabilityPerHour,
+    fallbackWellbeing: aivilizationOutMigrationPolicyDefaults.fallbackWellbeing,
+    settlementCadenceMs: aivilizationOutMigrationPolicyDefaults.settlementCadenceMs,
+  };
+  assertValidOutMigrationPolicy(policy);
   return policy;
 }
 
@@ -473,6 +488,32 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         collectiveAction: createAivilizationCollectiveActionPolicy(),
+      }),
+    },
+    {
+      key: 'townMigration',
+      policyVersion: aivilizationOutMigrationPolicyDefaults.policyVersion,
+      cliFlag: '--town-migration',
+      envVar: 'AIVILIZATION_TOWN_MIGRATION',
+      helpTitle: 'Happiness-driven out-migration (CS2 NotHappy shape)',
+      helpLines: [
+        'Out-migration is a repository-specific extension (not a paper mechanism): pass',
+        '--town-migration on or AIVILIZATION_TOWN_MIGRATION=1 to roll the CS2 NotHappy',
+        'departure rule per agent and cadence — persistently unhappy agents leave town',
+        'with the full estate liquidation (jobs released, loans written off, deposits',
+        'forfeited, currency burned out of the town economy). The probability follows',
+        'the CS2 polynomial of happiness, zero near wellbeing 48, capped at 1%/h.',
+        'Runs without --town-wellbeing stay migration-free (fallback wellbeing 50).',
+        'In-migration is a future extension. Disabled by default.',
+      ],
+      registrySource:
+        'Out-migration is not a paper mechanism; the departure shape cap, fallback wellbeing, and cadence are repository-defined (CS2 NotHappy benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationOutMigrationPolicyDefaults,
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        migration: createAivilizationOutMigrationPolicy(),
       }),
     },
   ];

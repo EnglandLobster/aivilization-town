@@ -126,6 +126,7 @@ describe('local runtime town executable composition', () => {
       townLifecycleEnabled: false,
       townDiscourseEnabled: false,
       townCollectiveActionEnabled: false,
+      townMigrationEnabled: false,
     });
   });
 
@@ -205,6 +206,7 @@ describe('local runtime town executable composition', () => {
       townLifecycleEnabled: false,
       townDiscourseEnabled: false,
       townCollectiveActionEnabled: false,
+      townMigrationEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -750,6 +752,48 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('collective-action-v1');
+  });
+
+  test('town migration is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townMigrationEnabled).toBe(
+      false,
+    );
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-migration', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townMigrationEnabled,
+    ).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_MIGRATION: '1' },
+      }).townMigrationEnabled,
+    ).toBe(true);
+
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-migration-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_MIGRATION: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-migration-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

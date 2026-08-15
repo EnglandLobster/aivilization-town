@@ -95,6 +95,7 @@ export type AivilizationExperimentalPolicySwitches = {
   readonly townLifecycle?: boolean;
   readonly townDiscourse?: boolean;
   readonly townCollectiveAction?: boolean;
+  readonly townMigration?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -463,6 +464,7 @@ export {
   createAivilizationTownConditionsPolicy,
   createAivilizationTownConflictPolicy,
   createAivilizationCollectiveActionPolicy,
+  createAivilizationOutMigrationPolicy,
   createAivilizationTownDiscoursePolicy,
   createAivilizationTownLifecyclePolicy,
   createAivilizationTownWeatherPolicy,
@@ -532,6 +534,12 @@ export function createAivilizationWorldPolicyManifest(
      * parameters; omitted/false keeps the manifest petition-free.
      */
     readonly townCollectiveAction?: boolean;
+    /**
+     * Opt-in town-migration switch. When
+     * true the manifest declares the town-migration policy version and
+     * parameters; omitted/false keeps the manifest migration-free.
+     */
+    readonly townMigration?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins

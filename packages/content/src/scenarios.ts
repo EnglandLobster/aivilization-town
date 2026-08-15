@@ -173,6 +173,14 @@ export type ScenarioTownCalendarPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioOutMigrationPolicyConfig = {
+  readonly policyVersion: string;
+  readonly maxProbabilityPerHour: number;
+  readonly fallbackWellbeing: number;
+  readonly settlementCadenceMs: number;
+  readonly source: string;
+};
+
 export type ScenarioCollectiveActionPolicyConfig = {
   readonly policyVersion: string;
   readonly petitionSignatureThreshold: number;
@@ -590,6 +598,8 @@ const townWellbeingPolicySource =
   'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
 const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
+const outMigrationPolicySource =
+  'Out-migration; town-migration-v1 caps and cadence for the CS2 NotHappy departure shape are repository policy decisions, because the paper does not model population turnover';
 const collectiveActionPolicySource =
   'Collective action; collective-action-v1 petition threshold and expiry are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model collective action';
 const townDiscoursePolicySource =
@@ -951,6 +961,25 @@ export const aivilizationTownLifecyclePolicyDefaults = {
   settlementCadenceMs: 86_400_000,
   source: townLifecyclePolicySource,
 } as const satisfies ScenarioTownLifecyclePolicyConfig;
+
+export const TOWN_MIGRATION_POLICY_VERSION = 'town-migration-v1';
+
+/**
+ * Happiness-driven out-migration (town-migration switch): the CS2 NotHappy
+ * polynomial shape (zero crossing near wellbeing 48) capped at 1%/h — a
+ * desperate agent has roughly a one-in-five chance per simulation day, a
+ * content one never leaves. fallbackWellbeing 50 keeps flag-off runs
+ * migration-free (the interlock with town-wellbeing is explicit). Departure
+ * liquidation reuses the lifecycle estate path; in-migration is a future
+ * extension.
+ */
+export const aivilizationOutMigrationPolicyDefaults = {
+  policyVersion: TOWN_MIGRATION_POLICY_VERSION,
+  maxProbabilityPerHour: 1,
+  fallbackWellbeing: 50,
+  settlementCadenceMs: 86_400_000,
+  source: outMigrationPolicySource,
+} as const satisfies ScenarioOutMigrationPolicyConfig;
 
 export const COLLECTIVE_ACTION_POLICY_VERSION = 'collective-action-v1';
 

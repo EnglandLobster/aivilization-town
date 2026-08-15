@@ -1893,6 +1893,189 @@ describe('town wellbeing settlement', () => {
   });
 });
 
+describe('town out-migration settlement', () => {
+  const HOUR_MS = 3_600_000;
+  // One 24h window as a single cadence chunk: the CS2 shape peaks near
+  // 14%/h at wellbeing 0, so a full day saturates past 100% and the
+  // departure becomes test-certain (the cap never binds at 100).
+  const DAY_WINDOW_MS = 24 * HOUR_MS;
+  const migrationPolicy = {
+    policyVersion: 'town-migration-v1',
+    maxProbabilityPerHour: 100,
+    fallbackWellbeing: 50,
+    settlementCadenceMs: DAY_WINDOW_MS,
+  };
+  const migrationPolicies = { ...policies, migration: migrationPolicy };
+
+  function migrant(overrides: Record<string, unknown> = {}) {
+    return {
+      agentId: asAgentId('agent-unhappy'),
+      locationId: null,
+      physiology: { energy: 50, satiety: 50, health: 100 },
+      educationScore: 0,
+      balance: 120,
+      residentialTier: 1,
+      job: null,
+      inventory: { Bread: 3 },
+      wellbeing: 0,
+      ...overrides,
+    };
+  }
+
+  function advanceDay(
+    projection: WorldProjection,
+    tickIndex: number,
+    overridePolicies: WorldCommandPolicies = migrationPolicies,
+  ) {
+    return dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: `command-migration-${tickIndex}`,
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: DAY_WINDOW_MS },
+        issuedAt: tickIndex * DAY_WINDOW_MS,
+      }),
+      projection,
+      policies: overridePolicies,
+      nextSequence: tickIndex * 10,
+    });
+  }
+
+  test('a persistently unhappy agent leaves with the full estate liquidation', () => {
+    const projection = createWorldProjection({
+      agents: [
+        migrant(),
+        {
+          ...migrant({ balance: 10 }),
+          agentId: asAgentId('agent-content'),
+          wellbeing: 75,
+        },
+      ],
+      bank: {
+        balance: 1000,
+        deposits: { 'agent-unhappy': 200 },
+        loans: {
+          'loan-m': {
+            loanId: asLoanId('loan-m'),
+            borrowerAgentId: asAgentId('agent-unhappy'),
+            principal: 150,
+            dailyInterestRate: 0.01,
+            termDays: 30,
+            issuedAt: 0,
+            accruedInterest: 5,
+            lastAccrualAt: 0,
+            missedPayments: 0,
+            status: 'active',
+          },
+        },
+        creditHistoryByAgent: {},
+      },
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+    const moneySupplyBefore = projection.moneySupply;
+
+    const events = advanceDay(projection, 1);
+    expect(events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'LoanWrittenOff',
+      'DepositForfeited',
+      'AgentEmigrated',
+    ]);
+    expect(events[3]).toMatchObject({
+      type: 'AgentEmigrated',
+      payload: {
+        agentId: 'agent-unhappy',
+        cause: 'dissatisfaction',
+        emigratedAt: DAY_WINDOW_MS,
+        wellbeing: 0,
+        policyVersion: 'town-migration-v1',
+        estate: {
+          burnedCurrency: 120,
+          inventoryByCommodity: { Bread: 3 },
+          depositForfeited: 200,
+          writtenOffLoanIds: ['loan-m'],
+        },
+      },
+    });
+
+    const settled = events.reduce(applyWorldEvent, projection);
+    expect(settled.agents['agent-unhappy']).toBeUndefined();
+    expect(settled.agents['agent-content']).toBeDefined();
+    // Credit ops are book-only; only the estate burn leaves the economy.
+    expect(settled.moneySupply).toBe(moneySupplyBefore - 120);
+    expect(settled.bank?.balance).toBe(1000);
+    expect(settled.bank?.deposits).toEqual({});
+
+    // The departed stay gone; the content agent never leaves.
+    const next = advanceDay(settled, 2);
+    expect(next.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+  });
+
+  test('content agents, unset wellbeing, and flag-off runs never migrate', () => {
+    const contentProjection = createWorldProjection({
+      agents: [migrant({ wellbeing: 75 })],
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+    expect(
+      advanceDay(contentProjection, 1).some((event) => event.type === 'AgentEmigrated'),
+    ).toBe(false);
+
+    // Without the settled scalar the policy fallback (50) keeps the town
+    // closed — the interlock with town-wellbeing is explicit.
+    const noWellbeingProjection = createWorldProjection({
+      agents: [migrant({ wellbeing: undefined })],
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+    expect(
+      advanceDay(noWellbeingProjection, 1).some((event) => event.type === 'AgentEmigrated'),
+    ).toBe(false);
+
+    // Without the migration policy the advance stays byte-for-byte legacy.
+    const flagOff = advanceDay(
+      createWorldProjection({
+        agents: [migrant()],
+        clock: { now: 0, tickDurationMs: HOUR_MS },
+      }),
+      1,
+      policies,
+    );
+    expect(flagOff.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+  });
+
+  test('is deterministic: redispatching the same command yields identical events', () => {
+    const build = () =>
+      createWorldProjection({
+        agents: [migrant()],
+        clock: { now: 0, tickDurationMs: HOUR_MS },
+      });
+    const command = createCommandEnvelope({
+      id: 'command-migration-determinism',
+      simulationId: 'sim-1',
+      source: 'system',
+      type: 'AdvanceSimulationTime',
+      payload: { deltaMs: DAY_WINDOW_MS },
+      issuedAt: 0,
+    });
+    const first = dispatchWorldCommand({
+      command,
+      projection: build(),
+      policies: migrationPolicies,
+      nextSequence: 7,
+    });
+    const second = dispatchWorldCommand({
+      command,
+      projection: build(),
+      policies: migrationPolicies,
+      nextSequence: 7,
+    });
+    expect(second).toEqual(first);
+    expect(first.some((event) => event.type === 'AgentEmigrated')).toBe(true);
+  });
+});
+
+
+
 describe('town calendar and passive decay', () => {
   const DAY = 86_400_000;
   const calendarPolicy: TownCalendarPolicy = {

@@ -9,6 +9,7 @@ export * from './discourse';
 export * from './healthcare';
 export * from './landValue';
 export * from './lifecycle';
+export * from './migration';
 export * from './lifestyle';
 export * from './occupation-catalog';
 export * from './occupation';

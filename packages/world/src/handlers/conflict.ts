@@ -1,5 +1,5 @@
 import type { AgentId, CommandEnvelope, CoreCommandType, LocationId } from '@aivilization/sim-core';
-import { createDirectedSocialRelationKey } from '@aivilization/society';
+import { createDirectedSocialRelationKey, type WellbeingPolicy } from '@aivilization/society';
 import {
   assertAgentAttackPayload,
   assertAgentConfrontPayload,
@@ -96,6 +96,12 @@ export function handleAgentAttackCommand(input: {
   readonly command: CommandEnvelope<'AgentAttack', unknown>;
   readonly projection: WorldProjection;
   readonly conflict?: TownConflictPolicy;
+  /**
+   * Optional town-wellbeing policy: with a conflict policy carrying
+   * wellbeingGrievanceShift, the attacker's settled wellbeing (or the policy
+   * initialValue for legacy agents) shifts the strained-relation threshold.
+   */
+  readonly wellbeing?: WellbeingPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -121,6 +127,12 @@ export function handleAgentAttackCommand(input: {
     attackerAgentId: agent.agentId,
     targetAgentId: payload.targetAgentId,
     grievanceRelationThreshold: policy.grievanceRelationThreshold,
+    ...(input.wellbeing === undefined || policy.wellbeingGrievanceShift === undefined
+      ? {}
+      : {
+          attackerWellbeing: agent.wellbeing ?? input.wellbeing.initialValue,
+          wellbeingGrievanceShift: policy.wellbeingGrievanceShift,
+        }),
   });
   if (grievance === undefined) {
     return rejectCommand(

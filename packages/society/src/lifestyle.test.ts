@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { evaluateLifestyleTier, type LifestylePolicy } from './index';
+import {
+  evaluateLifestyleTier,
+  evaluateNonSurvivalSpendCapRatio,
+  type LifestylePolicy,
+} from './index';
 
 const policy: LifestylePolicy = {
   policyVersion: 'lifestyle-test',
@@ -78,5 +82,28 @@ describe('lifestyle tier evaluation', () => {
     expect(() =>
       evaluateLifestyleTier({ netWorth: 100, policy: { ...policy, policyVersion: ' ' } }),
     ).toThrow(/policyVersion must not be empty/);
+  });
+});
+
+describe('evaluateNonSurvivalSpendCapRatio', () => {
+  test('returns the base ratio unchanged without a wellbeing input', () => {
+    expect(evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.2 })).toBe(0.2);
+  });
+
+  test('modulates the cap linearly in (wellbeing − 50)/100, clamped to ×[0.5, 1.5]', () => {
+    const ratioAt = (wellbeing: number) =>
+      evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.2, wellbeing });
+    expect(ratioAt(50)).toBeCloseTo(0.2, 10);
+    // Distressed agents clamp discretionary spending harder (survival mode).
+    expect(ratioAt(0)).toBeCloseTo(0.1, 10);
+    expect(ratioAt(-100)).toBeCloseTo(0.1, 10);
+    // Content agents get a modest loosening.
+    expect(ratioAt(100)).toBeCloseTo(0.3, 10);
+    expect(ratioAt(250)).toBeCloseTo(0.3, 10);
+  });
+
+  test('rejects invalid inputs', () => {
+    expect(() => evaluateNonSurvivalSpendCapRatio({ baseRatio: -1 })).toThrow('non-negative');
+    expect(() => evaluateNonSurvivalSpendCapRatio({ baseRatio: 0.2, wellbeing: Number.NaN })).toThrow();
   });
 });

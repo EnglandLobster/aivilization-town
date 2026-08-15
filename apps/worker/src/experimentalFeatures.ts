@@ -134,6 +134,13 @@ export function createAivilizationTownConflictPolicy(): TownConflictPolicy {
     minHealthAfterAttack: aivilizationTownConflictPolicyDefaults.minHealthAfterAttack,
     witnessAttitudePenaltyScale:
       aivilizationTownConflictPolicyDefaults.witnessAttitudePenaltyScale,
+    ...(aivilizationTownConflictPolicyDefaults.wellbeingGrievanceShift === undefined
+      ? {}
+      : {
+          wellbeingGrievanceShift: {
+            ...aivilizationTownConflictPolicyDefaults.wellbeingGrievanceShift,
+          },
+        }),
   };
 }
 

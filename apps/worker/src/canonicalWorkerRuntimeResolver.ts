@@ -22,7 +22,7 @@ import {
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
 import { calculateNetWorth } from '@aivilization/economy';
-import { evaluateLifestyleTier } from '@aivilization/society';
+import { evaluateLifestyleTier, evaluateNonSurvivalSpendCapRatio } from '@aivilization/society';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
@@ -491,7 +491,15 @@ function resolveLifestyleSynthesisConstraint(input: {
       }),
       policy,
     }),
-    nonSurvivalSpendCapRatio: policy.strugglingNonSurvivalSpendCapRatio,
+    // With a wellbeing policy active, the settled scalar modulates the cap
+    // (distressed → tighter survival budget); legacy agents fall back to the
+    // policy initialValue, runs without the flag keep the static ratio.
+    nonSurvivalSpendCapRatio: evaluateNonSurvivalSpendCapRatio({
+      baseRatio: policy.strugglingNonSurvivalSpendCapRatio,
+      ...(input.policies.wellbeing === undefined
+        ? {}
+        : { wellbeing: input.agent.wellbeing ?? input.policies.wellbeing.initialValue }),
+    }),
     survivalCommodities: Object.keys(input.policies.satietyRecoveryByCommodity),
   };
 }

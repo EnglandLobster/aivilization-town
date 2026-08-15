@@ -1779,51 +1779,10 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           balance: event.payload.nextBalance,
         }),
       );
-    case 'AgentDied': {
-      const agent = projection.agents[event.payload.agentId];
-      if (agent === undefined) {
-        throw new Error(`cannot replay death of unknown agent ${event.payload.agentId}`);
-      }
-      const agents = { ...projection.agents };
-      delete agents[event.payload.agentId];
-      const transitByAgent = { ...(projection.transitByAgent ?? {}) };
-      delete transitByAgent[event.payload.agentId];
-      const timeSettlementByAgent = { ...(projection.timeSettlementByAgent ?? {}) };
-      delete timeSettlementByAgent[event.payload.agentId];
-      const deceased: WorldProjection = {
-        ...projection,
-        agents,
-        transitByAgent,
-        timeSettlementByAgent,
-        // Death durably cancels the deceased's pending applications: later
-        // commands must never resolve a job or exam application for an agent
-        // that no longer exists (same-command settlement filters its own
-        // pre-fold reads; this purge covers every later command).
-        jobApplications: withoutPendingApplicationsOf(
-          projection.jobApplications,
-          event.payload.agentId,
-        ),
-        educationExamApplications: withoutPendingApplicationsOf(
-          projection.educationExamApplications,
-          event.payload.agentId,
-        ),
-      };
-      // The estate's circulating currency is destroyed out of circulation
-      // (transfer to the external death-estate counterpart, AGENTS.md §7
-      // category 3); inventory perishes with the holder and needs no money
-      // movement. A broke agent burns nothing.
-      return event.payload.estate.burnedCurrency > 0
-        ? applyMoneyTransferToSupply(deceased, {
-            transactionId: event.id,
-            reason: 'death-estate-burned',
-            fromSector: 'agent',
-            fromId: event.payload.agentId,
-            toSector: 'external',
-            toId: 'death-estate',
-            amount: event.payload.estate.burnedCurrency,
-          })
-        : deceased;
-    }
+    case 'AgentDied':
+      return applyAgentDeparture(projection, event.payload.agentId, event.payload.estate, event.id);
+    case 'AgentEmigrated':
+      return applyAgentDeparture(projection, event.payload.agentId, event.payload.estate, event.id);
     case 'BulletinScheduled': {
       const bulletins = projection.bulletins ?? [];
       if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
@@ -1837,16 +1796,14 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ],
       };
     }
-  
+
     case 'PetitionRaised': {
       if (
         (projection.petitions ?? []).some(
           (petition) => petition.petitionId === event.payload.petition.petitionId,
         )
       ) {
-        throw new Error(
-          `cannot replay duplicate petition ${event.payload.petition.petitionId}`,
-        );
+        throw new Error(`cannot replay duplicate petition ${event.payload.petition.petitionId}`);
       }
       return {
         ...projection,
@@ -1862,9 +1819,7 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
     case 'PetitionSigned': {
       const petition = requirePetition(projection, event.payload.petitionId);
       if (petition.status !== 'open') {
-        throw new Error(
-          `cannot sign ${petition.status} petition ${petition.petitionId}`,
-        );
+        throw new Error(`cannot sign ${petition.status} petition ${petition.petitionId}`);
       }
       if (petition.signatureAgentIds.includes(event.payload.agentId)) {
         throw new Error(
@@ -1926,7 +1881,8 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             : candidate,
         ),
       };
-    }  case 'BulletinPosted': {
+    }
+    case 'BulletinPosted': {
       const bulletins = projection.bulletins ?? [];
       const bulletinId = event.payload.bulletin.bulletinId;
       if (bulletins.some((bulletin) => bulletin.bulletinId === bulletinId)) {
@@ -2299,10 +2255,7 @@ function applyConversationCommitmentChanges(
   return commitments;
 }
 
-function requirePetition(
-  projection: WorldProjection,
-  petitionId: string,
-): WorldPetitionState {
+function requirePetition(projection: WorldProjection, petitionId: string): WorldPetitionState {
   const petition = (projection.petitions ?? []).find(
     (candidate) => candidate.petitionId === petitionId,
   );
@@ -2655,6 +2608,52 @@ function applyMoneyTransferToSupply(
  */
 export function resolveAgentAgeAnchorMs(agent: WorldAgentState): number {
   return agent.registration?.registeredAt ?? agent.registeredAtMs ?? 0;
+}
+
+/**
+ * Shared reducer effect of a permanent departure (death or out-migration):
+ * remove the agent, cancel their pending applications, and move the estate's
+ * circulating currency out of the town economy (AGENTS.md §7 category 3;
+ * inventory perishes/travels with the holder, no currency effect).
+ */
+function applyAgentDeparture(
+  projection: WorldProjection,
+  agentId: AgentId,
+  estate: { readonly burnedCurrency: number },
+  eventId: string,
+): WorldProjection {
+  const agent = projection.agents[agentId];
+  if (agent === undefined) {
+    throw new Error(`cannot replay departure of unknown agent ${agentId}`);
+  }
+  const agents = { ...projection.agents };
+  delete agents[agentId];
+  const transitByAgent = { ...(projection.transitByAgent ?? {}) };
+  delete transitByAgent[agentId];
+  const timeSettlementByAgent = { ...(projection.timeSettlementByAgent ?? {}) };
+  delete timeSettlementByAgent[agentId];
+  const departed: WorldProjection = {
+    ...projection,
+    agents,
+    transitByAgent,
+    timeSettlementByAgent,
+    jobApplications: withoutPendingApplicationsOf(projection.jobApplications, agentId),
+    educationExamApplications: withoutPendingApplicationsOf(
+      projection.educationExamApplications,
+      agentId,
+    ),
+  };
+  return estate.burnedCurrency > 0
+    ? applyMoneyTransferToSupply(departed, {
+        transactionId: eventId,
+        reason: 'departure-estate-burned',
+        fromSector: 'agent',
+        fromId: agentId,
+        toSector: 'external',
+        toId: 'departure-estate',
+        amount: estate.burnedCurrency,
+      })
+    : departed;
 }
 
 /** Drops an agent's pending applications (job or exam); used by death and

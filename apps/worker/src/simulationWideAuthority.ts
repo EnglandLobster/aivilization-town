@@ -593,11 +593,13 @@ export function createSimulationWideAuthority(input: {
   // authority's copy simply does not age (wellbeing/calculator-style scalar
   // drift on its copy is benign and unsettled there).
   const resolvePolicies = (projection: WorldProjection): WorldCommandPolicies => {
-    const { lifecycle: strippedLifecycle, ...commandPolicies } = resolveWorldCommandPolicies({
-      policies: input.policies,
-      projection,
-    });
+    const { lifecycle: strippedLifecycle, migration: strippedMigration, ...commandPolicies } =
+      resolveWorldCommandPolicies({
+        policies: input.policies,
+        projection,
+      });
     void strippedLifecycle;
+    void strippedMigration;
     return {
       ...commandPolicies,
       ...(input.regionalMarketsEnabled === true ? { regionalMarkets: { enabled: true } } : {}),

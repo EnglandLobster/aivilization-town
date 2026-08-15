@@ -6,7 +6,7 @@ import {
 import type { WorldSocialMatterState } from './matters';
 import type { WorldSocialCommitmentState } from './projection';
 
-export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v1';
+export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v2';
 
 /**
  * Versioned town-conflict policy. The

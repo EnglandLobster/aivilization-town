@@ -25,6 +25,7 @@ describe('lifecycle projection facts', () => {
           wellbeing: 66,
           lifeStage: 'elderly' as const,
           retiredAtMs: 86_400_000,
+          registeredAtMs: 5 * 86_400_000,
           educationLevel: 4 as const,
           educationTrack: 'vocational' as const,
           examAttempts: 2,
@@ -42,6 +43,9 @@ describe('lifecycle projection facts', () => {
       retiredAtMs: 86_400_000,
       job: null,
       wellbeing: 66,
+      // The registration anchor survives the migration: lifecycle age keeps
+      // counting from the original registration, not from time zero.
+      registeredAtMs: 5 * 86_400_000,
       // The education aggregate survives the migration: vocational track,
       // production/job multipliers, and exam-attempt caps do not reset.
       educationLevel: 4,

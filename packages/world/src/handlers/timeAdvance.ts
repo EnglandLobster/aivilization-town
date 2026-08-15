@@ -65,7 +65,12 @@ import {
 } from '@aivilization/society';
 import { assertAdvanceSimulationTimePayload } from '../commands';
 import type { WorldEvent } from '../events';
-import { applyWorldEvent, type WorldAgentState, type WorldProjection } from '../projection';
+import {
+  applyWorldEvent,
+  resolveAgentAgeAnchorMs,
+  type WorldAgentState,
+  type WorldProjection,
+} from '../projection';
 import {
   iterateMarketPoolsByRegion,
   regionIdFromPoolKey,
@@ -263,23 +268,37 @@ export function handleAdvanceSimulationTimeCommand(input: {
   const settlementTickIndex =
     amortization === undefined ? 0 : Math.floor(next.now / payload.deltaMs);
   const previousSettledAt = (agent: WorldAgentState): number =>
-    input.projection.timeSettlementByAgent?.[agent.agentId] ??
-    agent.registration?.registeredAt ??
-    0;
+    input.projection.timeSettlementByAgent?.[agent.agentId] ?? resolveAgentAgeAnchorMs(agent);
   const shouldSettleAgent = (agent: WorldAgentState): boolean =>
     amortization === undefined ||
     settlementTickIndex % amortization.buckets ===
       hashAgentSettlementBucket(agent.agentId) % amortization.buckets;
+  // Lifecycle effects (probabilistic illness death, stateful retirement +
+  // pension) must replay per cadence: with a lifecycle policy every advance is
+  // split at the policy's settlement grid even without amortization, so a
+  // merged multi-cadence advance settles identically to step-by-step ones.
+  // Without the policy the single-interval legacy behavior is preserved
+  // byte-for-byte.
+  const lifecycleSettlementCadenceMs =
+    input.lifecycle === undefined || next.now === previous.now
+      ? undefined
+      : Math.min(payload.deltaMs, input.lifecycle.settlementCadenceMs);
   const settlementIntervalsByAgent = new Map(
     allAgents.map((agent) => [
       agent.agentId,
       shouldSettleAgent(agent)
         ? amortization === undefined
-          ? [{ previousSimulationTime: previous.now, currentSimulationTime: next.now }]
+          ? lifecycleSettlementCadenceMs === undefined
+            ? [{ previousSimulationTime: previous.now, currentSimulationTime: next.now }]
+            : createSettlementIntervals({
+                previousSettledAt: previous.now,
+                nextSettledAt: next.now,
+                cadenceMs: lifecycleSettlementCadenceMs,
+              })
           : createSettlementIntervals({
               previousSettledAt: previousSettledAt(agent),
               nextSettledAt: next.now,
-              cadenceMs: payload.deltaMs,
+              cadenceMs: lifecycleSettlementCadenceMs ?? payload.deltaMs,
             })
         : [],
     ]),
@@ -307,9 +326,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
       ...(regionArrivalsByAgent.get(transit.agentId) ?? []),
       {
         atMs: transit.arrivesAt,
-        regionId: resolveRegionId(
-          input.projection.locations[transit.toLocationId]?.regionId,
-        ),
+        regionId: resolveRegionId(input.projection.locations[transit.toLocationId]?.regionId),
       },
     ].sort((left, right) => left.atMs - right.atMs);
     regionArrivalsByAgent.set(transit.agentId, arrivals);
@@ -1321,6 +1338,15 @@ function appendLifecycleSettlementEvents(input: {
   readonly retiredAgentIds: Set<AgentId>;
 }): BankState | undefined {
   const { policy, projection } = input;
+  // Matters already closed earlier in THIS batch (e.g. the pre-loop expiry
+  // settlement, or a previous death in the same advance): the settlement
+  // projection lags those events, but the reducer rejects a second close, so
+  // the death voiding must skip them explicitly.
+  const closedMatterIds = new Set(
+    input.events
+      .filter((event) => event.type === 'MatterClosed')
+      .map((event) => event.payload.matterId),
+  );
   let bank = input.bank;
   // Running treasury across the pensions of this interval (the projection
   // slice is only folded after the whole block), mirroring the safety net.
@@ -1516,6 +1542,7 @@ function appendLifecycleSettlementEvents(input: {
         .filter(
           (candidate) =>
             candidate.status !== 'closed' &&
+            !closedMatterIds.has(candidate.matterId) &&
             (candidate.assigneeAgentId === agent.agentId ||
               candidate.initiatorAgentId === agent.agentId),
         )
@@ -1527,6 +1554,7 @@ function appendLifecycleSettlementEvents(input: {
             closedAt: interval.currentSimulationTime,
           }),
         );
+        closedMatterIds.add(matter.matterId);
       }
       input.events.push(
         makeEvent(input.handlerInput, input.events.length, 'AgentDied', {
@@ -1576,7 +1604,6 @@ function createIllnessDeathSeed(input: {
     input.agentId,
   ].join(':');
 }
-
 
 /**
  * Per-agent wellbeing settlement (town-wellbeing-v1). The running value lives
@@ -1629,6 +1656,12 @@ function appendWellbeingEvents(input: {
             policy: input.lifestyle,
           });
     const relations = summarizeAgentWellbeingRelations(input.projection, agent.agentId);
+    // Distress freshness: the physiological safety net settles EARLIER in this
+    // same interval and its PhysiologicalDistressChanged events are not yet
+    // folded into the projection — read the transition off the emitted batch
+    // (last event wins) so a distress starting or clearing THIS interval moves
+    // the wellbeing target immediately instead of one interval late.
+    const distressActive = isDistressActiveInBatch(input.projection, input.events, agent.agentId);
     const evaluation = evaluateWellbeing({
       previous,
       inputs: {
@@ -1639,7 +1672,7 @@ function appendWellbeingEvents(input: {
         residentialTier: input.tierByAgent.get(agent.agentId) ?? agent.residentialTier,
         ...(lifestyleTier === undefined ? {} : { lifestyleTier }),
         upkeepArrears: input.arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0,
-        distressActive: input.projection.physiologicalDistressByAgent[agent.agentId] !== undefined,
+        distressActive,
         meanPositiveRelation: relations.meanPositiveRelation,
         meanNegativeRelation: relations.meanNegativeRelation,
         elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
@@ -1663,6 +1696,21 @@ function appendWellbeingEvents(input: {
     );
     input.wellbeingByAgent.set(agent.agentId, evaluation.next);
   }
+}
+
+function isDistressActiveInBatch(
+  projection: WorldProjection,
+  events: readonly WorldEvent[],
+  agentId: AgentId,
+): boolean {
+  let active = projection.physiologicalDistressByAgent[agentId] !== undefined;
+  for (const event of events) {
+    if (event.type !== 'PhysiologicalDistressChanged' || event.payload.agentId !== agentId) {
+      continue;
+    }
+    active = event.payload.status === 'active';
+  }
+  return active;
 }
 
 function getCurrentWellbeing(
@@ -1701,7 +1749,6 @@ function summarizeAgentWellbeingRelations(
     meanNegativeRelation: negativeCount === 0 ? 0 : negativeTotal / negativeCount,
   };
 }
-
 
 function appendRecruitmentCycleEvents(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];

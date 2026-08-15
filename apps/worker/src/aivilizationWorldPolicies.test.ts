@@ -351,12 +351,12 @@ describe('AIvilization default world command policies', () => {
   test('declares the town conflict policy in the manifest only when the switch is on', () => {
     const off = createAivilizationWorldPolicyManifest();
     expect(off.policyVersions).not.toHaveProperty('townConflict');
-    expect(JSON.stringify(off)).not.toContain('town-conflict-v1');
+    expect(JSON.stringify(off)).not.toContain('town-conflict-v2');
 
     const on = createAivilizationWorldPolicyManifest({ townConflict: true });
-    expect(on.policyVersions).toMatchObject({ townConflict: 'town-conflict-v1' });
+    expect(on.policyVersions).toMatchObject({ townConflict: 'town-conflict-v2' });
     expect(on.parameters.townConflict).toMatchObject({
-      policyVersion: 'town-conflict-v1',
+      policyVersion: 'town-conflict-v2',
       baseDamage: 15,
       grievanceRelationThreshold: 0,
     });
@@ -367,7 +367,7 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townConflict',
           provenance: 'experimental',
-          policyVersion: 'town-conflict-v1',
+          policyVersion: 'town-conflict-v2',
         }),
       ]),
     );
@@ -379,7 +379,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed', undefined, { townConflict: true })(projection)
         .conflict?.policyVersion,
-    ).toBe('town-conflict-v1');
+    ).toBe('town-conflict-v2');
   });
 
   test('declares the town wellbeing policy in the manifest only when the switch is on', () => {
@@ -539,9 +539,9 @@ describe('AIvilization default world command policies', () => {
 
   test('declares the canonical education system policy in the manifest and registry', () => {
     const manifest = createAivilizationWorldPolicyManifest();
-    expect(manifest.policyVersions).toMatchObject({ educationSystem: 'education-system-v3' });
+    expect(manifest.policyVersions).toMatchObject({ educationSystem: 'education-system-v4' });
     expect(manifest.parameters.educationSystem).toMatchObject({
-      policyVersion: 'education-system-v3',
+      policyVersion: 'education-system-v4',
       enabled: true,
       levelScoreThresholds: [20, 70, 180, 320, 450],
       compulsoryLevels: [1, 2],
@@ -559,7 +559,7 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'educationSystem',
           provenance: 'repository-defined',
-          policyVersion: 'education-system-v3',
+          policyVersion: 'education-system-v4',
         }),
       ]),
     );
@@ -571,7 +571,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed')(projection).educationSystem,
     ).toMatchObject({
-      policyVersion: 'education-system-v3',
+      policyVersion: 'education-system-v4',
       enabled: true,
       vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
     });
@@ -749,6 +749,7 @@ describe('AIvilization default world command policies', () => {
       policyVersion: 'lifestyle-v1',
       netWorthBoundaries: [500, 2000, 10000],
       strugglingNonSurvivalSpendCapRatio: 0.3,
+      wellbeingSpendCapMultiplierRange: [0.5, 1.5],
       source: aivilizationLifestylePolicyDefaults.source,
     });
     expect(policies.credit).toEqual({ ...aivilizationCreditPolicyDefaults });

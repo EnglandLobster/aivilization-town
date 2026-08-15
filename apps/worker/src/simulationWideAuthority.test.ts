@@ -6,6 +6,11 @@ import { asAgentId, asLocationId, asSimulationId, type PartitionKey } from '@aiv
 import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
+  createAivilizationTownLifecyclePolicy,
+} from './experimentalFeatures';
+import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
+import { createShortTermMemoryRecord } from '@aivilization/memory';
+import {
   SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH,
   createSimulationWideAuthority,
   verifySimulationWideAuthorityJournal,
@@ -776,6 +781,84 @@ describe('simulation-wide authority', () => {
   });
 });
 
+describe('authority lifecycle and memory-sync scoping', () => {
+  function lease() {
+    return {
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 1000,
+    } as const;
+  }
+
+  test('authority time advance never settles lifecycle even when the policy is wired in', () => {
+    // The authority's per-agent view is partial and its advance command ids
+    // differ from the partition's, so settling lifecycle there would derive a
+    // SECOND set of life/death facts. resolvePolicies strips the policy.
+    const baseResolver = createAivilizationWorldCommandPolicies('authority-test');
+    const authority = createAuthority(
+      undefined,
+      false,
+      {},
+      (projection: Parameters<WorldCommandPolicyResolver>[0]) => ({
+        ...baseResolver(projection),
+        lifecycle: createAivilizationTownLifecyclePolicy(),
+      }),
+    );
+    const operations = authority.advanceTime({
+      operationId: 'advance-lifecycle-scoping',
+      ...lease(),
+      deltaMs: 200 * 86_400_000,
+    });
+    const lifecycleTypes = ['AgentAged', 'AgentRetired', 'PensionPaid', 'AgentDied'];
+    for (const operation of operations) {
+      expect(
+        operation.events.filter((event) => lifecycleTypes.includes(event.type)),
+      ).toEqual([]);
+    }
+  });
+
+  test('location sync merges memory records idempotently into the bounded authority cache', () => {
+    const authority = createAuthority();
+    const record = createShortTermMemoryRecord({
+      id: 'memory-sync-1',
+      agentId: asAgentId(agentA),
+      kind: 'action',
+      status: 'succeeded',
+      summary: 'Repaired the well pump.',
+      occurredAt: 10,
+      importanceScore: 0.7,
+      source: { eventIds: [] },
+      tags: ['repair'],
+    });
+    const request = {
+      operationId: 'location-sync-memory-1',
+      partitionKey: partitionA,
+      ...lease(),
+      agentLocations: [{ agentId: agentA, locationId: 'school' }],
+      newMemoryRecords: [record],
+    };
+    const first = authority.syncPartitionAgentLocations(request);
+    if (first.kind !== 'location-sync') throw new Error('expected location-sync');
+    expect(first.mergedMemoryRecordIds).toEqual(['memory-sync-1']);
+    expect(
+      authority
+        .getSnapshot()
+        .projection.memoryRecords.some((existing) => existing.id === 'memory-sync-1'),
+    ).toBe(true);
+
+    // Idempotent replay: a crash re-issues the same sync; the journal returns
+    // the recorded operation verbatim and create() never re-runs — the cache
+    // keeps exactly one copy of the record.
+    const replay = authority.syncPartitionAgentLocations({ ...request });
+    expect(replay).toEqual(first);
+    expect(
+      authority
+        .getSnapshot()
+        .projection.memoryRecords.filter((existing) => existing.id === 'memory-sync-1'),
+    ).toHaveLength(1);
+  });
+});
+
 function createAuthority(
   rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-')),
   usesTravelRoute = false,
@@ -783,10 +866,11 @@ function createAuthority(
     readonly agentALocationId?: string;
     readonly agentBLocationId?: string;
   } = {},
+  policies: WorldCommandPolicyResolver = createAivilizationWorldCommandPolicies('authority-test'),
 ) {
   return createSimulationWideAuthority({
     rootDir,
-    policies: createAivilizationWorldCommandPolicies('authority-test'),
+    policies,
     seed: {
       manifestId: 'manifest-1',
       simulationId,

@@ -85,6 +85,31 @@ export type CreditDomainEvent =
         readonly agentId: AgentId;
         readonly amount: number;
       }[];
+    }
+  | {
+      /**
+       * A borrower died with the loan still outstanding: the bank writes the
+       * asset off its book (no cash moves — the loan money was already
+       * circulating). Death is not a behavioral default, so the borrower's
+       * credit history is untouched.
+       */
+      readonly type: 'LoanWrittenOff';
+      readonly loanId: LoanId;
+      readonly borrowerAgentId: AgentId;
+      readonly writtenOffAt: number;
+      readonly outstandingPrincipal: number;
+      readonly outstandingInterest: number;
+    }
+  | {
+      /**
+       * A depositor died with no heirs: the deposit liability is extinguished
+       * and the bank keeps the cash (no transfer, supply unchanged). Emitted
+       * only for a positive deposit balance.
+       */
+      readonly type: 'DepositForfeited';
+      readonly agentId: AgentId;
+      readonly forfeitedAmount: number;
+      readonly forfeitedAt: number;
     };
 
 export type CreditDecision =
@@ -228,6 +253,48 @@ export function decideRepayLoan(input: {
     missedPayments: loan.missedPayments,
     status: split.status,
   });
+}
+
+/**
+ * Estate liquidation of a deceased customer: every active loan is written off
+ * (the bank absorbs the loss; no cash moves) and any deposit is forfeited
+ * (the liability is extinguished; no cash moves). Pure book operations, so
+ * the money supply is untouched. Loans settle first in loanId order, then the
+ * deposit forfeiture; an estate with neither yields no events.
+ */
+export function decideLiquidateDeceasedCustomer(input: {
+  readonly bank: BankState | undefined;
+  readonly agentId: AgentId;
+  readonly settledAt: number;
+}): CreditDecision {
+  const bank = requireBank(input.bank);
+  if (bank.status === 'rejected') {
+    return bank;
+  }
+  if (!Number.isFinite(input.settledAt) || input.settledAt < 0) {
+    return rejected('liquidation settledAt must be non-negative finite');
+  }
+  const events: CreditDomainEvent[] = [];
+  for (const loan of activeLoansByBorrower(bank.bank, input.agentId)) {
+    events.push({
+      type: 'LoanWrittenOff',
+      loanId: loan.loanId,
+      borrowerAgentId: loan.borrowerAgentId,
+      writtenOffAt: input.settledAt,
+      outstandingPrincipal: loan.principal,
+      outstandingInterest: loan.accruedInterest,
+    });
+  }
+  const deposit = bank.bank.deposits[input.agentId] ?? 0;
+  if (deposit > 0) {
+    events.push({
+      type: 'DepositForfeited',
+      agentId: input.agentId,
+      forfeitedAmount: deposit,
+      forfeitedAt: input.settledAt,
+    });
+  }
+  return { status: 'accepted', events };
 }
 
 /** Interest-first, principal-second split shared by all repayment paths. */
@@ -391,6 +458,31 @@ export function applyCreditDomainEvent(
         throw new Error('deposit interest payout exceeds bank cash');
       }
       return normalizeBankState({ ...current, balance: current.balance - total });
+    }
+    case 'LoanWrittenOff': {
+      const loan = requireActiveLoan(current, event.loanId);
+      if (
+        Math.abs(loan.principal - event.outstandingPrincipal) > 1e-6 ||
+        Math.abs(loan.accruedInterest - event.outstandingInterest) > 1e-6
+      ) {
+        throw new Error(`loan write-off payload does not match the loan book ${event.loanId}`);
+      }
+      return normalizeBankState({
+        ...current,
+        loans: {
+          ...current.loans,
+          [event.loanId]: { ...loan, status: 'written-off', lastAccrualAt: event.writtenOffAt },
+        },
+      });
+    }
+    case 'DepositForfeited': {
+      const deposit = current.deposits[event.agentId] ?? 0;
+      if (event.forfeitedAmount <= 0 || Math.abs(deposit - event.forfeitedAmount) > 1e-9) {
+        throw new Error(`deposit forfeiture does not match the depositor ledger ${event.agentId}`);
+      }
+      const deposits = { ...current.deposits };
+      delete deposits[event.agentId];
+      return normalizeBankState({ ...current, deposits });
     }
   }
 }

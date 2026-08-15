@@ -128,6 +128,60 @@ export type ScenarioTownConflictPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownWellbeingPolicyConfig = {
+  readonly policyVersion: string;
+  readonly initialValue: number;
+  readonly minValue: number;
+  readonly maxValue: number;
+  readonly baseline: number;
+  readonly convergencePerHour: number;
+  readonly coefficients: {
+    readonly health: number;
+    readonly energy: number;
+    readonly satiety: number;
+    readonly employed: number;
+    readonly unemployed: number;
+    readonly residentialTier: readonly number[];
+    readonly lifestyleTier: readonly number[];
+    readonly upkeepArrearsPerUnit: number;
+    readonly distress: number;
+    readonly positiveRelation: number;
+    readonly negativeRelation: number;
+  };
+  readonly source: string;
+};
+
+export type ScenarioTownCalendarPolicyConfig = {
+  readonly policyVersion: string;
+  readonly dayLengthMs: number;
+  readonly phases: readonly {
+    readonly phase: string;
+    readonly startFraction: number;
+  }[];
+  readonly physiologicalDecay: {
+    readonly energyPerHour: number;
+    readonly satietyPerHour: number;
+  };
+  readonly source: string;
+};
+
+export type ScenarioTownLifecyclePolicyConfig = {
+  readonly policyVersion: string;
+  readonly dayLengthMs: number;
+  readonly stageThresholdsDays: {
+    readonly teen: number;
+    readonly adult: number;
+    readonly elderly: number;
+  };
+  readonly minLifespanDays: number;
+  readonly maxLifespanDays: number;
+  readonly illnessDeathHealthThreshold: number;
+  readonly illnessDeathProbabilityPerSettlementScale: number;
+  readonly pensionPerHour: number;
+  readonly source: string;
+};
+
+
 export type ScenarioIncomeTaxBracketConfig = {
   // Inclusive upper bound of the single wage payment this bracket covers;
   // null marks the top (uncapped) bracket.
@@ -497,6 +551,12 @@ const socialMattersPolicySource =
   'Social matters state machine; social-matters-v1 lifecycle and expiry parameters are repository policy decisions because the paper does not model social matters';
 const townConflictPolicySource =
   'Town conflict system; town-conflict-v1 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
+const townWellbeingPolicySource =
+  'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
+const townCalendarPolicySource =
+  'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
+const townLifecyclePolicySource =
+  'Town lifecycle; town-lifecycle-v1 stage thresholds, lifespan window, illness-death risk shape, and pension rate are repository policy decisions benchmarked against the CS2 citizen lifecycle (pre-rolled lifespan, illness death risk concentrated at low health, forced retirement), because the paper does not model population turnover';
 const taxPolicySource =
   'Town public finance; tax-regime-v2 brackets, the CS2-convention 10% neutral rate, the trade tax rate, and the dividend tax rate are repository policy decisions because the paper does not model taxation';
 const lifestylePolicySource =
@@ -753,6 +813,98 @@ export const aivilizationTownConflictPolicyDefaults = {
   witnessAttitudePenaltyScale: 0.5,
   source: townConflictPolicySource,
 } as const satisfies ScenarioTownConflictPolicyConfig;
+
+export const TOWN_WELLBEING_POLICY_VERSION = 'town-wellbeing-v1';
+
+/**
+ * Agent wellbeing (幸福感) authoritative state variable, benchmarked against
+ * the Cities: Skylines II citizen Happiness system. Opt-in via the
+ * town-wellbeing switch. AdvanceSimulationTime settles one per-agent scalar:
+ * the target is the baseline plus per-factor contributions (physiology axes
+ * normalized around 50, employment, housing/lifestyle tiers, upkeep arrears,
+ * safety-net distress, and social relation means), and the durable value
+ * converges toward it by at most convergencePerHour per hour, snapping onto
+ * the target once reachable so quiet agents stop emitting events. Coefficients
+ * stay mild: every single factor moves the target by at most 10.
+ */
+export const aivilizationTownWellbeingPolicyDefaults = {
+  policyVersion: TOWN_WELLBEING_POLICY_VERSION,
+  initialValue: 50,
+  minValue: 0,
+  maxValue: 100,
+  baseline: 50,
+  convergencePerHour: 2,
+  coefficients: {
+    health: 10,
+    energy: 6,
+    satiety: 6,
+    employed: 4,
+    unemployed: -6,
+    // Indexed by residentialTier (tiers start at 1; index 0 is unused).
+    residentialTier: [0, -4, -2, 0, 2, 4, 6],
+    // Indexed by the canonical lifestyle order struggling..affluent.
+    lifestyleTier: [-6, -2, 2, 6],
+    upkeepArrearsPerUnit: -0.05,
+    distress: -8,
+    positiveRelation: 6,
+    negativeRelation: -8,
+  },
+  source: townWellbeingPolicySource,
+} as const satisfies ScenarioTownWellbeingPolicyConfig;
+
+export const TOWN_CALENDAR_POLICY_VERSION = 'town-calendar-v1';
+
+/**
+ * Town day/night calendar and passive physiological decay, benchmarked against
+ * the Cities: Skylines II daily cycle. Opt-in via the town-calendar switch.
+ * One simulation day is 24 simulation hours (86_400_000 ms) — the same grid
+ * the land value and education exam cadences already use; at the default
+ * public timeScale (7 sim-ms per wall-ms tick of 1000 ms) a phase boundary
+ * becomes observable within minutes of wall time. Phase boundaries map the
+ * CS2 citizen sleep window (0.875 → 0.175) onto evening + night. Passive
+ * decay drains a full 100-point satiety axis in about 8 simulation hours and
+ * a full energy axis in about 16, so agents must eat roughly every workday
+ * and sleep once per day, matching the CS2 daily routine rhythm.
+ */
+export const aivilizationTownCalendarPolicyDefaults = {
+  policyVersion: TOWN_CALENDAR_POLICY_VERSION,
+  dayLengthMs: 86_400_000,
+  phases: [
+    { phase: 'night', startFraction: 0 },
+    { phase: 'dawn', startFraction: 0.175 },
+    { phase: 'day', startFraction: 0.3 },
+    { phase: 'dusk', startFraction: 0.8 },
+    { phase: 'evening', startFraction: 0.875 },
+  ],
+  physiologicalDecay: { energyPerHour: 6.25, satietyPerHour: 12.5 },
+  source: townCalendarPolicySource,
+} as const satisfies ScenarioTownCalendarPolicyConfig;
+
+export const TOWN_LIFECYCLE_POLICY_VERSION = 'town-lifecycle-v1';
+
+/**
+ * Population lifecycle minimal set, benchmarked against the Cities: Skylines
+ * II citizen lifecycle. Opt-in via the town-lifecycle switch. Every agent is
+ * an adult at registration (child/teen are reserved for a future birth
+ * mechanism); agents turn elderly after 70 simulation days, die of old age at
+ * a per-agent pre-rolled lifespan in [90, 130] days, and can die of illness
+ * only below health 30 with quadratically concentrated risk (CS2's
+ * `(10 − health/10)²` shape). Elderly agents holding a job are forcibly
+ * retired and paid an hourly pension from the public treasury (1/hour keeps a
+ * pensioner above the physiological safety net without competing with wages).
+ */
+export const aivilizationTownLifecyclePolicyDefaults = {
+  policyVersion: TOWN_LIFECYCLE_POLICY_VERSION,
+  dayLengthMs: 86_400_000,
+  stageThresholdsDays: { teen: 15, adult: 21, elderly: 70 },
+  minLifespanDays: 90,
+  maxLifespanDays: 130,
+  illnessDeathHealthThreshold: 30,
+  illnessDeathProbabilityPerSettlementScale: 20,
+  pensionPerHour: 1,
+  source: townLifecyclePolicySource,
+} as const satisfies ScenarioTownLifecyclePolicyConfig;
+
 
 export const aivilizationHealthcarePolicyDefaults = {
   seeDoctorTreatmentCost: {

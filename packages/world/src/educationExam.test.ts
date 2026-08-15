@@ -1,4 +1,10 @@
-import { asAgentId, createCommandEnvelope, replayEvents } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  asEventId,
+  createCommandEnvelope,
+  createEventEnvelope,
+  replayEvents,
+} from '@aivilization/sim-core';
 import type { EducationSystemPolicy, EducationTrack } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -87,6 +93,67 @@ function dispatch(
   const events = dispatchWorldCommand({ command, projection, policies, nextSequence });
   return { events, projection: events.reduce(applyWorldEvent, projection) };
 }
+
+describe('education-exam application after departure', () => {
+  test('a cross-partition departure cancels the pending application and never crashes the cycle', () => {
+    const projection = createWorldProjection({
+      agents: [createAgent({ agentId: 'agent-1', educationScore: 200, educationLevel: 2 })],
+      moneySupply: 1000,
+    });
+
+    // Park the application for cycle 0.
+    const submitted = dispatch(
+      projection,
+      createPolicies({ educationSystem }),
+      applyExamCommand('agent-1', 3, 'park'),
+      1,
+    );
+    expect(
+      submitted.projection.educationExamApplications.filter(
+        (application) => application.status === 'pending',
+      ),
+    ).toHaveLength(1);
+
+    // The authority hands ownership to another partition: the departure event
+    // lands on the source projection BEFORE the exam cycle settles here.
+    const departed = applyWorldEvent(
+      submitted.projection,
+      createEventEnvelope({
+        id: asEventId('event-departure-1'),
+        simulationId: 'sim-education-exam',
+        commandId: 'command-transfer-1',
+        type: 'AgentOwnershipDeparted',
+        payload: {
+          agentId: asAgentId('agent-1'),
+          toPartitionKey: 'partition-b',
+          transferOperationId: 'transfer-1',
+        },
+        occurredAt: 0,
+        sequence: 50,
+      }),
+    );
+    // The pending application died with the departure; resolved history would stay.
+    expect(departed.educationExamApplications).toEqual([]);
+
+    // Crossing the exam cycle boundary must settle cleanly — no resolution and
+    // no memory event for the departed agent (this used to throw
+    // 'unknown agent' and fail the whole AdvanceSimulationTime).
+    const settlement = dispatchWorldCommand({
+      command: advanceCommand('cycle-after-departure', 0),
+      projection: departed,
+      policies: createPolicies({ educationSystem }),
+      nextSequence: 100,
+    });
+    expect(
+      settlement.filter((event) => event.type === 'EducationExamResolved'),
+    ).toEqual([]);
+    expect(
+      settlement.filter(
+        (event) => event.type === 'ShortTermMemoryRecorded' && event.payload.record.agentId === 'agent-1',
+      ),
+    ).toEqual([]);
+  });
+});
 
 describe('education-exam application', () => {
   test('parks an eligible application for the current exam cycle', () => {

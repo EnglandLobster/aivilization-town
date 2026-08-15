@@ -15,7 +15,10 @@ import {
   type BankState,
 } from '@aivilization/credit';
 import type { CreditPolicy } from '@aivilization/credit';
-import { decideLeaveEnterprise } from '@aivilization/enterprise';
+import {
+  decideCloseEnterpriseOnOwnerDeparture,
+  decideLeaveEnterprise,
+} from '@aivilization/enterprise';
 import {
   applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
@@ -1413,6 +1416,40 @@ function appendLifecycleSettlementEvents(input: {
     if (job !== null) {
       releaseEnterpriseMemberships(agent, job);
     }
+    // Enterprises the departing agent OWNS close with their assets burned
+    // out of the town economy: there is nobody to return them to, and a
+    // ghost owner would break later dividend/close settlements. Employees
+    // (minus the departed owner) are released by the closure itself.
+    for (const enterprise of Object.values(projection.enterprises)
+      .filter((candidate) => candidate.ownerAgentId === agent.agentId)
+      .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))) {
+      const closure = decideCloseEnterpriseOnOwnerDeparture({
+        enterprise,
+        ownerAgentId: agent.agentId,
+        closedAt: settledAt,
+      });
+      if (closure.status === 'rejected') {
+        throw new Error(
+          `owner-departure closure rejected for ${enterprise.enterpriseId}: ${closure.reason}`,
+        );
+      }
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'EnterpriseClosed', {
+          enterpriseId: enterprise.enterpriseId,
+          ownerAgentId: agent.agentId,
+          returnedBalance: 0,
+          returnedInventory: {},
+          employeeAgentIds: enterprise.employeeAgentIds.filter(
+            (employeeAgentId) => employeeAgentId !== agent.agentId,
+          ),
+          reason: 'owner-departed',
+          burnedBalance: enterprise.balance,
+          burnedInventory: Object.fromEntries(
+            Object.entries(enterprise.inventory).filter(([, quantity]) => quantity > 0),
+          ),
+        }),
+      );
+    }
     let depositForfeited = 0;
     const writtenOffLoanIds: LoanId[] = [];
     if (bank !== undefined) {
@@ -1641,10 +1678,17 @@ function appendLifecycleSettlementEvents(input: {
     // through the shared path and leaves with their estate burned out of the
     // town economy.
     if (input.migration !== undefined) {
-      const wellbeing = agent.wellbeing ?? input.migration.fallbackWellbeing;
+      // Fresh wellbeing: the interval's WellbeingChanged events are already
+      // folded into the projection this block received, so read the refreshed
+      // agent state — a resident recovering above the zero-crossing this
+      // interval stays, one newly falling below it leaves now, not one
+      // interval late.
+      const liveAgent = projection.agents[agent.agentId] ?? agent;
+      const wellbeing = liveAgent.wellbeing ?? input.migration.fallbackWellbeing;
       const roll = createSeededRandom(
         createOutMigrationSeed({
-          input: { handlerInput: input.handlerInput, payload: input.payload },
+          input: { handlerInput: input.handlerInput },
+          policyVersion: input.migration.policyVersion,
           agentId: agent.agentId,
           evaluatedAt: interval.currentSimulationTime,
         }),
@@ -1690,24 +1734,29 @@ function summarizeInventory(agent: WorldAgentState): Readonly<Record<string, num
   );
 }
 
+/**
+ * Stable across dispatch shapes: the seed depends ONLY on the run seed
+ * material, the policy version, the agent, and the cadence boundary — never
+ * the command id, the pre-advance clock, or the batch's total deltaMs. A
+ * merged multi-cadence advance and per-cadence advances therefore draw the
+ * SAME roll at the same boundary (cross-command cadence equivalence).
+ */
 function createOutMigrationSeed(input: {
   readonly input: {
     readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
-    readonly payload: { readonly deltaMs: number };
   };
+  readonly policyVersion: string;
   readonly agentId: AgentId;
   readonly evaluatedAt: number;
 }): string {
-  const { handlerInput, payload } = input.input;
+  const { handlerInput } = input.input;
   return [
     'agent-out-migration',
     ...(handlerInput.randomSeed === undefined ? [] : [handlerInput.randomSeed]),
     handlerInput.command.simulationId,
-    handlerInput.command.id,
-    handlerInput.projection.clock.now,
-    payload.deltaMs,
-    input.evaluatedAt,
+    input.policyVersion,
     input.agentId,
+    input.evaluatedAt,
   ].join(':');
 }
 function createIllnessDeathSeed(input: {

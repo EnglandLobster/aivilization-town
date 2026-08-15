@@ -50,6 +50,38 @@ export type SleepDeprivationHealthDecayPolicy = {
   readonly minHealth: number;
 };
 
+/**
+ * Passive per-hour physiological decay rates applied while time advances
+ * (town-calendar-v1 sub-configuration). Linear and clamped at zero, hence
+ * strictly additive across settlement intervals: decaying by a merged window
+ * equals decaying interval by interval exactly, even across the zero floor.
+ * Health is never touched by passive decay.
+ */
+export type PassivePhysiologicalDecayPolicy = {
+  readonly energyPerHour: number;
+  readonly satietyPerHour: number;
+};
+
+export function applyPassivePhysiologicalDecay(input: {
+  readonly previous: PhysiologicalState;
+  readonly elapsedMs: number;
+  readonly decay: PassivePhysiologicalDecayPolicy;
+}): PhysiologicalState {
+  assertNonNegativeFinite(input.previous.energy, 'energy');
+  assertNonNegativeFinite(input.previous.satiety, 'satiety');
+  assertNonNegativeFinite(input.previous.health, 'health');
+  assertNonNegativeFinite(input.elapsedMs, 'elapsedMs');
+  assertNonNegativeFinite(input.decay.energyPerHour, 'decay.energyPerHour');
+  assertNonNegativeFinite(input.decay.satietyPerHour, 'decay.satietyPerHour');
+
+  const elapsedHours = input.elapsedMs / 3_600_000;
+  return {
+    energy: Math.max(0, input.previous.energy - input.decay.energyPerHour * elapsedHours),
+    satiety: Math.max(0, input.previous.satiety - input.decay.satietyPerHour * elapsedHours),
+    health: input.previous.health,
+  };
+}
+
 export type SleepDeprivationHealthDecayInput = PhysiologicalState &
   SleepDeprivationHealthDecayPolicy & {
     readonly durationSeconds: number;

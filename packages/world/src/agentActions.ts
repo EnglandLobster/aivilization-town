@@ -12,7 +12,10 @@ import type {
   SafetyNetSubsidyPolicy,
   SleepDeprivationHealthDecayPolicy,
   StochasticIllnessPolicy,
+  TownCalendarPolicy,
   TownConditionsPolicy,
+  LifecyclePolicy,
+  WellbeingPolicy,
 } from '@aivilization/society';
 import type { TownBulletinPolicy } from './bulletin';
 import type { TownConflictPolicy } from './conflict';
@@ -186,6 +189,24 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly weather?: TownWeatherPolicy;
   /**
+   * Optional town-calendar policy (town-calendar-v1). When present,
+   * AdvanceSimulationTime emits one TownDayPhaseChanged per crossed phase
+   * start and settles the passive physiological decay (energy/satiety) per
+   * agent and interval before the wellbeing block. Omitted keeps the world
+   * calendar-free and decay-free, byte-for-byte identical to legacy runs.
+   */
+  readonly calendar?: TownCalendarPolicy;
+  /**
+   * Optional town-lifecycle policy (town-lifecycle-v1). When present, the
+   * lifecycle block of AdvanceSimulationTime settles aging (AgentAged),
+   * forced retirement with the treasury pension (AgentRetired/PensionPaid),
+   * and pre-rolled-lifespan or illness deaths with estate liquidation
+   * (EnterpriseEmployeeLeft + LoanWrittenOff/DepositForfeited +
+   * AgentDied). Omitted keeps the population static, byte-for-byte identical
+   * to legacy runs.
+   */
+  readonly lifecycle?: LifecyclePolicy;
+  /**
    * Optional town-condition catalog.
    * Read-path only: command handlers never consume it. When present, planning
    * context builders derive per-agent conditions from durable physiology axes,
@@ -261,6 +282,15 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    * read path lifestyle-free, byte-for-byte identical to legacy runs.
    */
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
+  /**
+   * Optional town-wellbeing policy (town-wellbeing-v1). When present,
+   * AdvanceSimulationTime settles the durable per-agent wellbeing scalar from
+   * the current tick's physiology, employment, housing, lifestyle, arrears,
+   * distress, and social relation factors, emitting WellbeingChanged whenever
+   * the value moves. Omitted keeps runs wellbeing-free, byte-for-byte
+   * identical to legacy runs.
+   */
+  readonly wellbeing?: WellbeingPolicy;
   readonly jobApplication?: {
     readonly populationEducationScores: readonly number[];
     readonly quotaByResidentialTier: readonly number[];
@@ -308,6 +338,8 @@ export function dispatchWorldCommand(input: {
           ? {}
           : { stochasticIllness: input.policies.stochasticIllness }),
         ...(input.policies.weather === undefined ? {} : { weather: input.policies.weather }),
+        ...(input.policies.calendar === undefined ? {} : { calendar: input.policies.calendar }),
+        ...(input.policies.lifecycle === undefined ? {} : { lifecycle: input.policies.lifecycle }),
         ...(input.policies.residentialUpkeep === undefined
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),
@@ -344,6 +376,12 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.educationSystem === undefined
           ? {}
           : { educationSystem: input.policies.educationSystem }),
+        ...(input.policies.lifestyle === undefined
+          ? {}
+          : { lifestyle: input.policies.lifestyle }),
+        ...(input.policies.wellbeing === undefined
+          ? {}
+          : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentPostBulletin':

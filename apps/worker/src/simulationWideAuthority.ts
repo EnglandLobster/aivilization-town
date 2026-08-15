@@ -1662,13 +1662,16 @@ function createInboxDeliveries(
       // receive the full advance event set (transfer moves) have them inline;
       // everyone else gets just those events. WeatherChanged rides along too:
       // weather settles only on the authority, so without delivery no partition
-      // stream ever records the transition.
+      // stream ever records the transition. TownDayPhaseChanged rides along for
+      // the same reason: phases are a pure clock function, so the town-wide
+      // copy is always identical to what a local advance would have derived.
       const townWideEvents = operation.events.filter(
         (event) =>
           event.type === 'BulletinPosted' ||
           event.type === 'MatterClosed' ||
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||
+          event.type === 'TownDayPhaseChanged' ||
           // Matter-expiry closures carry the parties' memory records; they
           // must ride along so each owner partition materializes them.
           event.type === 'ShortTermMemoryRecorded',
@@ -1764,6 +1767,20 @@ function createOwnershipTransferEvents(input: {
         residentialTier: state.residentialTier,
         job: state.job,
         inventory: { ...state.inventory },
+        // Optional durable wellbeing travels with the transfer so the receiving
+        // partition does not silently reset it to the policy initialValue.
+        ...(state.wellbeing === undefined ? {} : { wellbeing: state.wellbeing }),
+        // Lifecycle facts travel too: a transferred retiree keeps the pension
+        // accrual and stage; a transferred elderly agent re-retires on arrival
+        // settlement if a job slipped through.
+        ...(state.lifeStage === undefined ? {} : { lifeStage: state.lifeStage }),
+        ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
+        // Education aggregate travels too: losing it on migration would reset
+        // the vocational track, production/job multipliers, and exam-attempt
+        // caps to the score-derived defaults.
+        ...(state.educationLevel === undefined ? {} : { educationLevel: state.educationLevel }),
+        ...(state.educationTrack === undefined ? {} : { educationTrack: state.educationTrack }),
+        ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
       },
     },
     occurredAt: input.occurredAt,

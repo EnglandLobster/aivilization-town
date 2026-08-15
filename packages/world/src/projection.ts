@@ -78,6 +78,26 @@ export type WorldAgentState = {
    * registrations stay byte-for-byte compatible; absent means zero arrears.
    */
   readonly upkeepArrears?: number;
+  /**
+   * Durable wellbeing scalar (town-wellbeing-v1), settled during time
+   * advancement via WellbeingChanged. Optional so legacy snapshots and
+   * registrations stay byte-for-byte compatible; absent means the policy
+   * initialValue (legacy).
+   */
+  readonly wellbeing?: number;
+  /**
+   * Durable lifecycle stage (town-lifecycle-v1), updated by AgentAged.
+   * Optional so legacy snapshots and registrations stay byte-for-byte
+   * compatible; absent means 'adult' (every registered agent is an adult at
+   * registration).
+   */
+  readonly lifeStage?: 'child' | 'teen' | 'adult' | 'elderly';
+  /**
+   * Simulation time the agent was forcibly retired (town-lifecycle-v1), set
+   * by AgentRetired. Agents carrying this field accrue the hourly pension;
+   * absent means not retired.
+   */
+  readonly retiredAtMs?: number;
   readonly registration?: {
     readonly registrationId: string;
     readonly policyVersion: string;
@@ -294,6 +314,19 @@ export type WorldAgentTransitState = {
   readonly reason: string;
 };
 
+/**
+ * Simulation-wide calendar slice (town-calendar-v1): the day/night phase
+ * currently in effect. `since` is the simulation time the phase started (the
+ * startedAtMs of the last TownDayPhaseChanged event). The phase is a pure
+ * function of the clock and the calendar policy, so this slice is a cache of
+ * the last settled transition, never an independent source of truth.
+ */
+export type WorldCalendarState = {
+  readonly dayIndex: number;
+  readonly phase: string;
+  readonly since: number;
+};
+
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
@@ -382,6 +415,14 @@ export type WorldProjection = {
    * snapshots byte-for-byte compatible.
    */
   readonly weather?: WorldWeatherState;
+  /**
+   * Optional simulation-wide calendar slice (town-calendar-v1), present only
+   * when the town-calendar policy has produced at least one TownDayPhaseChanged
+   * event (or the projection was created with an explicit initial phase).
+   * Omitted keeps legacy snapshots byte-for-byte compatible. `since` is the
+   * simulation time the current phase started.
+   */
+  readonly calendar?: WorldCalendarState;
   /**
    * Optional town-bulletin board state (opt-in town-bulletin switch). Absent
    * on legacy projections; present (possibly empty) once the board is used.
@@ -476,6 +517,13 @@ export function createWorldProjection(input: {
   readonly socialCommitments?: readonly WorldSocialCommitmentState[];
   readonly socialRelations?: readonly SocialRelationState[];
   readonly weather?: WorldWeatherState;
+  readonly calendar?: WorldCalendarState;
+  /**
+   * Optional initial in-flight travel slice (per-agent transit state), used
+   * by snapshot hydration and tests. Omitted keeps the projection
+   * transit-free until a move command creates state.
+   */
+  readonly transitByAgent?: Readonly<Record<string, WorldAgentTransitState>>;
   readonly treasury?: number;
   /**
    * Optional initial town-bank state, typically seeded from scenario reserves
@@ -586,6 +634,17 @@ export function createWorldProjection(input: {
     activityTimeByAgent: {},
     transitByAgent: {},
     ...(input.weather === undefined ? {} : { weather: { ...input.weather } }),
+    ...(input.transitByAgent === undefined
+      ? {}
+      : {
+          transitByAgent: Object.fromEntries(
+            Object.entries(input.transitByAgent).map(([agentId, transit]) => [
+              agentId,
+              { ...transit },
+            ]),
+          ),
+        }),
+    ...(input.calendar === undefined ? {} : { calendar: { ...input.calendar } }),
     ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
     ...(input.bank === undefined ? {} : { bank: normalizeBankState(input.bank) }),
     ...(input.economicComposition === undefined
@@ -1312,6 +1371,11 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
       return applyPhysiologicalDistressChange(projection, event);
     case 'SafetyNetGranted':
       return applySafetyNetGrant(projection, event);
+    case 'WellbeingChanged':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        wellbeing: event.payload.next,
+      }));
     case 'EducationInvestmentPaid':
       return updateAgent(
         {
@@ -1635,6 +1699,104 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
           since: event.payload.transitionedAt,
         },
       };
+    case 'TownDayPhaseChanged':
+      return {
+        ...projection,
+        calendar: {
+          dayIndex: event.payload.dayIndex,
+          phase: event.payload.phase,
+          since: event.payload.startedAtMs,
+        },
+      };
+    case 'AgentAged':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        lifeStage: event.payload.nextStage,
+      }));
+    case 'AgentRetired':
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        job: null,
+        retiredAtMs: event.payload.retiredAtMs,
+      }));
+    case 'PensionPaid':
+      // Treasury-funded pensions transfer between circulating accounts
+      // (supply unchanged); runs without a treasury slice mint instead,
+      // mirroring the WagePaid/SubsidyPaid funding-source convention.
+      return updateAgent(
+        event.payload.fundingSource === 'treasury'
+          ? applyMoneyTransferToSupply(
+              { ...projection, treasury: (projection.treasury ?? 0) - event.payload.amount },
+              {
+                transactionId: event.id,
+                reason: 'retirement-pension',
+                fromSector: 'treasury',
+                fromId: 'public-treasury',
+                toSector: 'agent',
+                toId: event.payload.agentId,
+                amount: event.payload.amount,
+              },
+            )
+          : applyMoneyTransferToSupply(projection, {
+              transactionId: event.id,
+              reason: 'minted-pension',
+              fromSector: 'monetary-authority',
+              fromId: 'system',
+              toSector: 'agent',
+              toId: event.payload.agentId,
+              amount: event.payload.amount,
+            }),
+        event.payload.agentId,
+        (agent) => ({
+          ...agent,
+          balance: event.payload.nextBalance,
+        }),
+      );
+    case 'AgentDied': {
+      const agent = projection.agents[event.payload.agentId];
+      if (agent === undefined) {
+        throw new Error(`cannot replay death of unknown agent ${event.payload.agentId}`);
+      }
+      const agents = { ...projection.agents };
+      delete agents[event.payload.agentId];
+      const transitByAgent = { ...(projection.transitByAgent ?? {}) };
+      delete transitByAgent[event.payload.agentId];
+      const timeSettlementByAgent = { ...(projection.timeSettlementByAgent ?? {}) };
+      delete timeSettlementByAgent[event.payload.agentId];
+      const deceased: WorldProjection = {
+        ...projection,
+        agents,
+        transitByAgent,
+        timeSettlementByAgent,
+        // Death durably cancels the deceased's pending applications: later
+        // commands must never resolve a job or exam application for an agent
+        // that no longer exists (same-command settlement filters its own
+        // pre-fold reads; this purge covers every later command).
+        jobApplications: withoutPendingApplicationsOf(
+          projection.jobApplications,
+          event.payload.agentId,
+        ),
+        educationExamApplications: withoutPendingApplicationsOf(
+          projection.educationExamApplications,
+          event.payload.agentId,
+        ),
+      };
+      // The estate's circulating currency is destroyed out of circulation
+      // (transfer to the external death-estate counterpart, AGENTS.md §7
+      // category 3); inventory perishes with the holder and needs no money
+      // movement. A broke agent burns nothing.
+      return event.payload.estate.burnedCurrency > 0
+        ? applyMoneyTransferToSupply(deceased, {
+            transactionId: event.id,
+            reason: 'death-estate-burned',
+            fromSector: 'agent',
+            fromId: event.payload.agentId,
+            toSector: 'external',
+            toId: 'death-estate',
+            amount: event.payload.estate.burnedCurrency,
+          })
+        : deceased;
+    }
     case 'BulletinScheduled': {
       const bulletins = projection.bulletins ?? [];
       if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
@@ -1835,6 +1997,19 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ...projection,
         agents,
         transitByAgent,
+        // Departure cancels the migrant's pending applications in the source
+        // projection: the later recruitment/exam cycles of THIS partition must
+        // never resolve an application for an agent that now lives elsewhere
+        // (the memory-event lookup would crash the whole advance). The
+        // migrant re-applies on the destination partition next cycle.
+        jobApplications: withoutPendingApplicationsOf(
+          projection.jobApplications,
+          event.payload.agentId,
+        ),
+        educationExamApplications: withoutPendingApplicationsOf(
+          projection.educationExamApplications,
+          event.payload.agentId,
+        ),
       };
     }
     case 'AgentOwnershipArrived': {
@@ -1857,6 +2032,14 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             residentialTier: state.residentialTier,
             job: state.job,
             inventory: { ...state.inventory },
+            ...(state.wellbeing === undefined ? {} : { wellbeing: state.wellbeing }),
+            ...(state.lifeStage === undefined ? {} : { lifeStage: state.lifeStage }),
+            ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
+            ...(state.educationLevel === undefined ? {} : { educationLevel: state.educationLevel }),
+            ...(state.educationTrack === undefined
+              ? {}
+              : { educationTrack: state.educationTrack }),
+            ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
           },
         },
       };
@@ -2335,4 +2518,14 @@ function applyMoneyTransferToSupply(
     ...projection,
     moneySupply: projection.moneySupply + calculateCirculatingMoneyDelta(transaction),
   };
+}
+
+/** Drops an agent's pending applications (job or exam); used by death and
+ * cross-partition departure so later cycles never resolve for a missing agent. */
+function withoutPendingApplicationsOf<
+  TApplication extends { readonly agentId: AgentId; readonly status: string },
+>(applications: readonly TApplication[], agentId: AgentId): readonly TApplication[] {
+  return applications.filter(
+    (application) => application.agentId !== agentId || application.status !== 'pending',
+  );
 }

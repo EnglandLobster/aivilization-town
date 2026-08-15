@@ -48,12 +48,25 @@ describe('world decision context trace', () => {
 
     expect(createWorldDecisionContextTrace(base).hasWeather).toBeUndefined();
     expect(createWorldDecisionContextTrace(base).conditionCount).toBeUndefined();
+    expect(createWorldDecisionContextTrace(base).hasCalendar).toBeUndefined();
     expect(
       createWorldDecisionContextTrace({
         ...base,
         weather: { current: 'rainy', since: 3_600_000 },
       }),
     ).toMatchObject({ hasWeather: true, weatherCurrent: 'rainy' });
+    expect(
+      createWorldDecisionContextTrace({
+        ...base,
+        calendar: {
+          dayIndex: 2,
+          phase: 'day',
+          phaseEndsAtMs: 241_920_000,
+          nextPhase: 'dusk',
+          dayLengthMs: 86_400_000,
+        },
+      }),
+    ).toMatchObject({ hasCalendar: true, calendarDayIndex: 2, calendarPhase: 'day' });
     expect(
       createWorldDecisionContextTrace({
         ...base,

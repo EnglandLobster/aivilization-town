@@ -107,6 +107,26 @@ export function applyCreditProjectionEvent(
         (agent) => ({ ...agent, balance: event.payload.borrowerNextBalance }),
       );
     }
+    case 'LoanWrittenOff':
+      // Pure book operation: no cash moves, so no agent balance update and no
+      // supply assertion (the loan money was already circulating).
+      return applyBankEvent(projection, {
+        type: 'LoanWrittenOff',
+        loanId: event.payload.loanId,
+        borrowerAgentId: event.payload.borrowerAgentId,
+        writtenOffAt: event.payload.writtenOffAt,
+        outstandingPrincipal: event.payload.outstandingPrincipal,
+        outstandingInterest: event.payload.outstandingInterest,
+      });
+    case 'DepositForfeited':
+      // Pure book operation: the deposit liability is extinguished without a
+      // transfer; the bank keeps the cash and moneySupply is unchanged.
+      return applyBankEvent(projection, {
+        type: 'DepositForfeited',
+        agentId: event.payload.agentId,
+        forfeitedAmount: event.payload.forfeitedAmount,
+        forfeitedAt: event.payload.forfeitedAt,
+      });
     case 'DepositInterestPaid': {
       let next = applyBankEvent(projection, {
         type: 'DepositInterestPaid',

@@ -1,11 +1,23 @@
 import {
   aivilizationSocialMattersPolicyDefaults,
   aivilizationTownBulletinPolicyDefaults,
+  aivilizationTownCalendarPolicyDefaults,
   aivilizationTownConditionsPolicyDefaults,
   aivilizationTownConflictPolicyDefaults,
+  aivilizationTownLifecyclePolicyDefaults,
   aivilizationTownWeatherPolicyDefaults,
+  aivilizationTownWellbeingPolicyDefaults,
 } from '@aivilization/content';
-import { assertTownConditionsPolicy, type TownConditionsPolicy } from '@aivilization/society';
+import {
+  assertTownConditionsPolicy,
+  assertValidLifecyclePolicy,
+  assertValidTownCalendarPolicy,
+  assertValidWellbeingPolicy,
+  type LifecyclePolicy,
+  type TownCalendarPolicy,
+  type TownConditionsPolicy,
+  type WellbeingPolicy,
+} from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
   type SocialMattersPolicy,
@@ -20,7 +32,10 @@ export type AivilizationExperimentalFeatureKey =
   | 'townConditions'
   | 'townBulletin'
   | 'socialMatters'
-  | 'townConflict';
+  | 'townConflict'
+  | 'townWellbeing'
+  | 'townCalendar'
+  | 'townLifecycle';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -120,6 +135,52 @@ export function createAivilizationTownConflictPolicy(): TownConflictPolicy {
     witnessAttitudePenaltyScale:
       aivilizationTownConflictPolicyDefaults.witnessAttitudePenaltyScale,
   };
+}
+
+export function createAivilizationTownWellbeingPolicy(): WellbeingPolicy {
+  const policy: WellbeingPolicy = {
+    policyVersion: aivilizationTownWellbeingPolicyDefaults.policyVersion,
+    initialValue: aivilizationTownWellbeingPolicyDefaults.initialValue,
+    minValue: aivilizationTownWellbeingPolicyDefaults.minValue,
+    maxValue: aivilizationTownWellbeingPolicyDefaults.maxValue,
+    baseline: aivilizationTownWellbeingPolicyDefaults.baseline,
+    convergencePerHour: aivilizationTownWellbeingPolicyDefaults.convergencePerHour,
+    coefficients: {
+      ...aivilizationTownWellbeingPolicyDefaults.coefficients,
+      residentialTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.residentialTier],
+      lifestyleTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.lifestyleTier],
+    },
+  };
+  assertValidWellbeingPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationTownCalendarPolicy(): TownCalendarPolicy {
+  const policy: TownCalendarPolicy = {
+    policyVersion: aivilizationTownCalendarPolicyDefaults.policyVersion,
+    dayLengthMs: aivilizationTownCalendarPolicyDefaults.dayLengthMs,
+    phases: aivilizationTownCalendarPolicyDefaults.phases.map((phase) => ({ ...phase })),
+    physiologicalDecay: { ...aivilizationTownCalendarPolicyDefaults.physiologicalDecay },
+  };
+  assertValidTownCalendarPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationTownLifecyclePolicy(): LifecyclePolicy {
+  const policy: LifecyclePolicy = {
+    policyVersion: aivilizationTownLifecyclePolicyDefaults.policyVersion,
+    dayLengthMs: aivilizationTownLifecyclePolicyDefaults.dayLengthMs,
+    stageThresholdsDays: { ...aivilizationTownLifecyclePolicyDefaults.stageThresholdsDays },
+    minLifespanDays: aivilizationTownLifecyclePolicyDefaults.minLifespanDays,
+    maxLifespanDays: aivilizationTownLifecyclePolicyDefaults.maxLifespanDays,
+    illnessDeathHealthThreshold:
+      aivilizationTownLifecyclePolicyDefaults.illnessDeathHealthThreshold,
+    illnessDeathProbabilityPerSettlementScale:
+      aivilizationTownLifecyclePolicyDefaults.illnessDeathProbabilityPerSettlementScale,
+    pensionPerHour: aivilizationTownLifecyclePolicyDefaults.pensionPerHour,
+  };
+  assertValidLifecyclePolicy(policy);
+  return policy;
 }
 
 export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExperimentalFeatureSpec[] =
@@ -241,6 +302,83 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         conflict: createAivilizationTownConflictPolicy(),
+      }),
+    },
+    {
+      key: 'townWellbeing',
+      policyVersion: aivilizationTownWellbeingPolicyDefaults.policyVersion,
+      cliFlag: '--town-wellbeing',
+      envVar: 'AIVILIZATION_TOWN_WELLBEING',
+      helpTitle: 'Authoritative agent wellbeing state variable',
+      helpLines: [
+        'Agent wellbeing is a repository-specific extension (not a paper mechanism): pass',
+        '--town-wellbeing on or AIVILIZATION_TOWN_WELLBEING=1 to settle the durable per-agent',
+        'town-wellbeing-v1 scalar during time advancement and expose it in planning contexts.',
+        'Disabled by default.',
+      ],
+      registrySource:
+        'The agent wellbeing state variable is not a paper mechanism; baseline, convergence, and factor coefficients are repository-defined (CS2 Happiness benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationTownWellbeingPolicyDefaults,
+        coefficients: {
+          ...aivilizationTownWellbeingPolicyDefaults.coefficients,
+          residentialTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.residentialTier],
+          lifestyleTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.lifestyleTier],
+        },
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        wellbeing: createAivilizationTownWellbeingPolicy(),
+      }),
+    },
+    {
+      key: 'townCalendar',
+      policyVersion: aivilizationTownCalendarPolicyDefaults.policyVersion,
+      cliFlag: '--town-calendar',
+      envVar: 'AIVILIZATION_TOWN_CALENDAR',
+      helpTitle: 'Town day/night calendar and passive physiological decay',
+      helpLines: [
+        'The town calendar is a repository-specific extension (not a paper mechanism): pass',
+        '--town-calendar on or AIVILIZATION_TOWN_CALENDAR=1 to settle the town-calendar-v1',
+        'day/night phase events and the passive energy/satiety decay during time advancement.',
+        'Phases are a pure function of the simulation clock and policy, so every partition',
+        'derives identical results. Disabled by default.',
+      ],
+      registrySource:
+        'The town calendar is not a paper mechanism; day length, phase boundaries, and decay rates are repository-defined (CS2 daily-cycle benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationTownCalendarPolicyDefaults,
+        phases: aivilizationTownCalendarPolicyDefaults.phases.map((phase) => ({ ...phase })),
+        physiologicalDecay: { ...aivilizationTownCalendarPolicyDefaults.physiologicalDecay },
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        calendar: createAivilizationTownCalendarPolicy(),
+      }),
+    },
+    {
+      key: 'townLifecycle',
+      policyVersion: aivilizationTownLifecyclePolicyDefaults.policyVersion,
+      cliFlag: '--town-lifecycle',
+      envVar: 'AIVILIZATION_TOWN_LIFECYCLE',
+      helpTitle: 'Population lifecycle: aging, retirement, death, and pension',
+      helpLines: [
+        'The town lifecycle is a repository-specific extension (not a paper mechanism): pass',
+        '--town-lifecycle on or AIVILIZATION_TOWN_LIFECYCLE=1 to settle the town-lifecycle-v1',
+        'stage transitions, forced retirement with a treasury-funded pension, and pre-rolled',
+        'lifespan or illness deaths during time advancement. Deaths liquidate the estate:',
+        'enterprise jobs released, loans written off, deposits forfeited, and the circulating',
+        'balance burned out of the money supply. Disabled by default.',
+      ],
+      registrySource:
+        'The town lifecycle is not a paper mechanism; stage thresholds, lifespan window, illness-death risk, and pension rate are repository-defined (CS2 citizen-lifecycle benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationTownLifecyclePolicyDefaults,
+        stageThresholdsDays: { ...aivilizationTownLifecyclePolicyDefaults.stageThresholdsDays },
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        lifecycle: createAivilizationTownLifecyclePolicy(),
       }),
     },
   ];

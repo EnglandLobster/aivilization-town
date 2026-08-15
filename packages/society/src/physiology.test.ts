@@ -3,6 +3,7 @@ import {
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
+  applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
   applyStochasticIllnessHealthDecay,
   calculateStochasticIllnessProbabilityPercent,
@@ -311,5 +312,78 @@ describe('physiology', () => {
       reason: 'policy-invalid',
       detail: 'maxEnergy must be positive',
     });
+  });
+});
+
+describe('passive physiological decay', () => {
+  const decay = { energyPerHour: 6.25, satietyPerHour: 12.5 } as const;
+
+  test('decays energy and satiety linearly without touching health', () => {
+    expect(
+      applyPassivePhysiologicalDecay({
+        previous: { energy: 100, satiety: 80, health: 90 },
+        elapsedMs: 3_600_000,
+        decay,
+      }),
+    ).toEqual({ energy: 93.75, satiety: 67.5, health: 90 });
+  });
+
+  test('is a no-op for zero elapsed time', () => {
+    expect(
+      applyPassivePhysiologicalDecay({
+        previous: { energy: 40, satiety: 30, health: 20 },
+        elapsedMs: 0,
+        decay,
+      }),
+    ).toEqual({ energy: 40, satiety: 30, health: 20 });
+  });
+
+  test('floors at zero instead of going negative', () => {
+    expect(
+      applyPassivePhysiologicalDecay({
+        previous: { energy: 5, satiety: 5, health: 90 },
+        elapsedMs: 3_600_000,
+        decay,
+      }),
+    ).toEqual({ energy: 0, satiety: 0, health: 90 });
+  });
+
+  test('is strictly additive across interval splits, including across the zero floor', () => {
+    const previous = { energy: 10, satiety: 3, health: 90 };
+    const merged = applyPassivePhysiologicalDecay({
+      previous,
+      elapsedMs: 7_200_000,
+      decay,
+    });
+    const stepped = applyPassivePhysiologicalDecay({
+      previous: applyPassivePhysiologicalDecay({ previous, elapsedMs: 3_600_000, decay }),
+      elapsedMs: 3_600_000,
+      decay,
+    });
+    expect(stepped).toEqual(merged);
+  });
+
+  test('rejects non-finite or negative inputs', () => {
+    expect(() =>
+      applyPassivePhysiologicalDecay({
+        previous: { energy: Number.NaN, satiety: 0, health: 0 },
+        elapsedMs: 1,
+        decay,
+      }),
+    ).toThrow('energy must be non-negative');
+    expect(() =>
+      applyPassivePhysiologicalDecay({
+        previous: { energy: 0, satiety: 0, health: 0 },
+        elapsedMs: -1,
+        decay,
+      }),
+    ).toThrow('elapsedMs must be non-negative');
+    expect(() =>
+      applyPassivePhysiologicalDecay({
+        previous: { energy: 0, satiety: 0, health: 0 },
+        elapsedMs: 1,
+        decay: { energyPerHour: -1, satietyPerHour: 0 },
+      }),
+    ).toThrow('decay.energyPerHour must be non-negative');
   });
 });

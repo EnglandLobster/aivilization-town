@@ -28,6 +28,8 @@ import {
   deriveAgentConditions,
   deriveEducationLevel,
   describeEducationStage,
+  describeWellbeingBand,
+  deriveAgentAgeMs,
   EDUCATION_EXAM_TARGET_LEVELS,
   EDUCATION_SYSTEM_MAX_LEVEL,
   evaluateEffectiveEducationScoreForOccupation,
@@ -37,7 +39,9 @@ import {
   type EducationExamTargetLevel,
   type EducationLevel,
   type EducationSystemPolicy,
+  type LifecyclePolicy,
   resolveResidentialUpkeepRate,
+  resolveTownDayPhase,
 } from '@aivilization/society';
 import type {
   WorldAgentState,
@@ -149,6 +153,15 @@ export function createWorldDecisionContextFromProjection(input: {
         marketPools,
         ...(input.policies === undefined ? {} : { policies: input.policies }),
       }),
+      ...createWellbeingDecisionContext({
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
+      ...createLifecycleDecisionContext({
+        projection: input.projection,
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
       ...createBankingDecisionContext({
         projection: input.projection,
         agent,
@@ -202,6 +215,7 @@ export function createWorldDecisionContextFromProjection(input: {
       ? {}
       : { society: createSocietyDecisionContext(input.societyDirectory) }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
+    ...createCalendarDecisionContext(input),
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
     ...createExternalTradeDecisionContext({
@@ -595,6 +609,99 @@ function createLifestyleDecisionContext(input: {
       }),
       policy,
     }),
+  };
+}
+
+/**
+ * Expose the town day/night calendar when the resolved command policies carry
+ * a calendar policy. The current phase comes from the projection calendar
+ * slice (the settled TownDayPhaseChanged cache); before the first transition
+ * event it falls back to the same pure clock function the settlement uses.
+ * nextPhase/phaseEndsAtMs are derived with that same resolveTownDayPhase —
+ * never recomputed business rules. Returns an empty object when the policy is
+ * absent so policy-free runs keep the context calendar-free.
+ */
+function createCalendarDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'calendar'> | Record<string, never> {
+  const policy = input.policies?.calendar;
+  if (policy === undefined) {
+    return {};
+  }
+  const slice = input.projection.calendar;
+  const resolved = resolveTownDayPhase({
+    atMs: slice?.since ?? input.projection.clock.now,
+    policy,
+  });
+  const dayIndex = slice?.dayIndex ?? resolved.dayIndex;
+  const nextPhase = resolveTownDayPhase({ atMs: resolved.phaseEndsAtMs, policy }).phase;
+  return {
+    calendar: {
+      dayIndex,
+      phase: resolved.phase,
+      phaseEndsAtMs: resolved.phaseEndsAtMs,
+      nextPhase,
+      dayLengthMs: policy.dayLengthMs,
+    },
+  };
+}
+
+/**
+ * Expose the agent's durable wellbeing when the resolved command policies
+ * carry a wellbeing policy. The value comes straight from the projection (the
+ * authoritative settled state; absent means the policy initialValue for legacy
+ * agents) and the band is derived with describeWellbeingBand — the context
+ * never recomputes the settlement target. Returns an empty object when the
+ * policy is absent so policy-free runs keep the context wellbeing-free.
+ */
+/**
+ * Expose the agent's lifecycle when the resolved command policies carry a
+ * lifecycle policy. The stage and retirement flag come straight from the
+ * durable projection state (absent stage means 'adult', every registered
+ * agent is an adult at registration); the age is derived with the same
+ * registration-based rule the settlement uses — never recomputed stage
+ * decisions. Returns an empty object when the policy is absent so
+ * policy-free runs keep the context lifecycle-free.
+ */
+function createLifecycleDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionAgentContext, 'lifecycle'> | Record<string, never> {
+  const policy: LifecyclePolicy | undefined = input.policies?.lifecycle;
+  if (policy === undefined) {
+    return {};
+  }
+  const ageDays =
+    deriveAgentAgeMs({
+      nowMs: input.projection.clock.now,
+      registeredAtMs: input.agent.registration?.registeredAt ?? 0,
+      policy,
+    }) / policy.dayLengthMs;
+  return {
+    lifecycle: {
+      stage: input.agent.lifeStage ?? 'adult',
+      ageDays,
+      retired: input.agent.retiredAtMs !== undefined,
+    },
+  };
+}
+
+function createWellbeingDecisionContext(input: {
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionAgentContext, 'wellbeing'> | Record<string, never> {
+  const policy = input.policies?.wellbeing;
+  if (policy === undefined) {
+    return {};
+  }
+  const value = input.agent.wellbeing ?? policy.initialValue;
+  return {
+    wellbeing: {
+      value,
+      band: describeWellbeingBand(value, policy.bandThresholds),
+    },
   };
 }
 

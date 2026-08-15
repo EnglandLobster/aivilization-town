@@ -4,6 +4,7 @@ import {
   applyCreditDomainEvent,
   decideDeposit,
   decideIssueLoan,
+  decideLiquidateDeceasedCustomer,
   decideRepayLoan,
   decideWithdraw,
   splitLoanPayment,
@@ -547,3 +548,138 @@ function loan(overrides: Partial<LoanState> = {}): LoanState {
     ...overrides,
   };
 }
+
+describe('deceased-customer estate liquidation', () => {
+  const deceasedId = asAgentId('deceased');
+
+  function bankWithLoanAndDeposit(): BankState {
+    // The deceased deposits 4,000 (bank cash 4,000), then borrows 2,000
+    // (bank cash 2,000, deposit ledger still 4,000).
+    return [
+      { type: 'DepositMade' as const, agentId: deceasedId, amount: 4_000 },
+      {
+        type: 'LoanIssued' as const,
+        loanId: asLoanId('loan-1'),
+        borrowerAgentId: deceasedId,
+        principal: 2_000,
+        dailyInterestRate: 0.01,
+        termDays: 30,
+        issuedAt: 0,
+      },
+    ].reduce<BankState | undefined>(applyCreditDomainEvent, undefined) as BankState;
+  }
+
+  test('writes off active loans without moving bank cash', () => {
+    const decision = decideLiquidateDeceasedCustomer({
+      bank: bankWithLoanAndDeposit(),
+      agentId: deceasedId,
+      settledAt: 86_400_000,
+    });
+    expect(decision.status).toBe('accepted');
+    if (decision.status !== 'accepted') throw new Error('unreachable');
+    expect(decision.events).toEqual([
+      {
+        type: 'LoanWrittenOff',
+        loanId: asLoanId('loan-1'),
+        borrowerAgentId: deceasedId,
+        writtenOffAt: 86_400_000,
+        outstandingPrincipal: 2_000,
+        outstandingInterest: 0,
+      },
+      {
+        type: 'DepositForfeited',
+        agentId: deceasedId,
+        forfeitedAmount: 4_000,
+        forfeitedAt: 86_400_000,
+      },
+    ]);
+    const bank = decision.events.reduce(applyCreditDomainEvent, bankWithLoanAndDeposit());
+    // Pure book operations: cash untouched, loan marked written-off, deposit
+    // liability extinguished, credit history untouched (death is not default).
+    expect(bank.balance).toBe(2_000);
+    expect(bank.loans['loan-1']).toMatchObject({ status: 'written-off', principal: 2_000 });
+    expect(bank.deposits).toEqual({});
+    expect(bank.creditHistoryByAgent[deceasedId]).toEqual(undefined);
+  });
+
+  test('returns no events for a customer with no loans and no deposits', () => {
+    const decision = decideLiquidateDeceasedCustomer({
+      bank: bankWithLoanAndDeposit(),
+      agentId: asAgentId('stranger'),
+      settledAt: 1_000,
+    });
+    expect(decision).toEqual({ status: 'accepted', events: [] });
+  });
+
+  test('rejected without a bank and on invalid settledAt', () => {
+    expect(
+      decideLiquidateDeceasedCustomer({
+        bank: undefined,
+        agentId: borrowerId,
+        settledAt: 0,
+      }).status,
+    ).toBe('rejected');
+    expect(
+      decideLiquidateDeceasedCustomer({
+        bank: bankWithLoanAndDeposit(),
+        agentId: borrowerId,
+        settledAt: -1,
+      }).status,
+    ).toBe('rejected');
+  });
+
+  test('replay rejects a write-off whose payload disagrees with the book', () => {
+    const bank = bankWithLoanAndDeposit();
+    expect(() =>
+      applyCreditDomainEvent(bank, {
+        type: 'LoanWrittenOff',
+        loanId: asLoanId('loan-1'),
+        borrowerAgentId: depositorId,
+        writtenOffAt: 0,
+        outstandingPrincipal: 2_001,
+        outstandingInterest: 0,
+      }),
+    ).toThrow('does not match the loan book');
+    expect(() =>
+      applyCreditDomainEvent(bank, {
+        type: 'DepositForfeited',
+        agentId: depositorId,
+        forfeitedAmount: 3_999,
+        forfeitedAt: 0,
+      }),
+    ).toThrow('does not match the depositor ledger');
+  });
+
+  test('replay refuses to settle a written-off loan again', () => {
+    const bank = [
+      { type: 'DepositMade' as const, agentId: borrowerId, amount: 1_000 },
+      {
+        type: 'LoanIssued' as const,
+        loanId: asLoanId('loan-2'),
+        borrowerAgentId: borrowerId,
+        principal: 500,
+        dailyInterestRate: 0.01,
+        termDays: 30,
+        issuedAt: 0,
+      },
+      {
+        type: 'LoanWrittenOff' as const,
+        loanId: asLoanId('loan-2'),
+        borrowerAgentId: borrowerId,
+        writtenOffAt: 0,
+        outstandingPrincipal: 500,
+        outstandingInterest: 0,
+      },
+    ].reduce<BankState | undefined>(applyCreditDomainEvent, undefined) as BankState;
+    expect(() =>
+      applyCreditDomainEvent(bank, {
+        type: 'LoanWrittenOff',
+        loanId: asLoanId('loan-2'),
+        borrowerAgentId: borrowerId,
+        writtenOffAt: 1,
+        outstandingPrincipal: 500,
+        outstandingInterest: 0,
+      }),
+    ).toThrow('cannot settle written-off loan');
+  });
+});

@@ -102,28 +102,47 @@ export function createSimulationCommandRouter(input: {
   // record so the authority admits them to the ledger before any global
   // settlement references them.
   let lastSyncedLocationsFingerprint: string | undefined;
+  // Record ids already merged into the authority's memory cache: the delta
+  // sent with each sync stays as small as the partition's own new memories,
+  // and the authority skips known ids so replayed syncs stay idempotent.
+  const syncedMemoryRecordIds = new Set<string>();
   const syncPartitionLocations = (projection: WorldProjection): void => {
     const agentLocations = Object.values(projection.agents)
       .map((agent) => ({ agentId: agent.agentId, locationId: agent.locationId }))
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
     const fingerprint = JSON.stringify(agentLocations);
-    if (fingerprint === lastSyncedLocationsFingerprint) {
+    const newMemoryRecords = projection.memoryRecords
+      .filter((record) => !syncedMemoryRecordIds.has(record.id))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    if (fingerprint === lastSyncedLocationsFingerprint && newMemoryRecords.length === 0) {
       return;
     }
+    // The memory delta joins the operation id: without it, a memory-only
+    // change (locations unchanged) would reuse the previous id and the
+    // authority would replay the journaled no-memory operation instead of
+    // merging the new records. Idempotent for identical re-issued deltas.
+    const memoryMarker =
+      newMemoryRecords.length === 0
+        ? 'mem-none'
+        : `mem-${newMemoryRecords.length}-${newMemoryRecords[newMemoryRecords.length - 1]?.id}`;
     const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
     const newAgents = Object.values(projection.agents)
       .filter((agent) => knownOwners[agent.agentId] === undefined)
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
     const lease = input.lease();
     input.authority.syncPartitionAgentLocations({
-      operationId: `location-sync:${input.partitionKey}:${fingerprint}`,
+      operationId: `location-sync:${input.partitionKey}:${fingerprint}:${memoryMarker}`,
       workerId: lease.workerId,
       observedAt: lease.observedAt,
       durationMs: lease.durationMs,
       partitionKey: input.partitionKey,
       agentLocations,
       ...(newAgents.length === 0 ? {} : { newAgents }),
+      ...(newMemoryRecords.length === 0 ? {} : { newMemoryRecords }),
     });
+    for (const record of newMemoryRecords) {
+      syncedMemoryRecordIds.add(record.id);
+    }
     lastSyncedLocationsFingerprint = fingerprint;
   };
   // The tick advances the partition clock before drafting agent commands, while
@@ -371,16 +390,14 @@ async function settleGlobalDraft(input: {
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
     }
-    if (draft.type === 'AgentMoveTo') {      const payload = draft.payload as AgentMoveToPayload;
+    if (draft.type === 'AgentMoveTo') {
+      const payload = draft.payload as AgentMoveToPayload;
       // Destination ownership comes from manifest-declared location affinity;
       // anything unaffiliated keeps the mover's current owner.
-      const currentOwner =
-        authority.getSnapshot().ownerPartitionKeyByAgentId[draft.actorId];
+      const currentOwner = authority.getSnapshot().ownerPartitionKeyByAgentId[draft.actorId];
       const affinityOwner = input.resolveLocationOwner?.(payload.targetLocationId);
       const destinationPartitionKey =
-        affinityOwner === undefined || affinityOwner === currentOwner
-          ? undefined
-          : affinityOwner;
+        affinityOwner === undefined || affinityOwner === currentOwner ? undefined : affinityOwner;
       const cognitiveSnapshot =
         destinationPartitionKey === undefined || input.captureCognitiveSnapshot === undefined
           ? undefined
@@ -396,9 +413,7 @@ async function settleGlobalDraft(input: {
         agentId: draft.actorId,
         targetLocationId: payload.targetLocationId,
         ...(payload.reason === undefined ? {} : { reason: payload.reason }),
-        ...(destinationPartitionKey === undefined
-          ? {}
-          : { destinationPartitionKey }),
+        ...(destinationPartitionKey === undefined ? {} : { destinationPartitionKey }),
         ...(cognitiveSnapshot === undefined ? {} : { cognitiveSnapshot }),
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
@@ -435,7 +450,10 @@ async function settleGlobalDraft(input: {
   }
 }
 
-function resequence(events: readonly WorldEvent[], startingSequence: number): readonly WorldEvent[] {
+function resequence(
+  events: readonly WorldEvent[],
+  startingSequence: number,
+): readonly WorldEvent[] {
   return events.map((event, index) => ({
     ...event,
     sequence: startingSequence + index,

@@ -43,6 +43,7 @@ import {
   resolveResidentialUpkeepRate,
   resolveTownDayPhase,
 } from '@aivilization/society';
+import { resolveAgentAgeAnchorMs } from '@aivilization/world';
 import type {
   WorldAgentState,
   WorldCommandPolicies,
@@ -676,7 +677,7 @@ function createLifecycleDecisionContext(input: {
   const ageDays =
     deriveAgentAgeMs({
       nowMs: input.projection.clock.now,
-      registeredAtMs: input.agent.registration?.registeredAt ?? 0,
+      registeredAtMs: resolveAgentAgeAnchorMs(input.agent),
       policy,
     }) / policy.dayLengthMs;
   return {

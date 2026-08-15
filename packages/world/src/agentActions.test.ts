@@ -2631,7 +2631,7 @@ describe('agent job application command handling', () => {
   });
 
   const vocationalBonusEducationSystem: EducationSystemPolicy = {
-    policyVersion: 'education-system-v3',
+    policyVersion: 'education-system-v4',
     enabled: true,
     levelScoreThresholds: [20, 70, 180, 320, 450],
     compulsoryLevels: [1, 2],
@@ -2641,7 +2641,7 @@ describe('agent job application command handling', () => {
     admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
     vocationalTrackShare: 0.5,
     vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
-    source: 'test-education-system-v3',
+    source: 'test-education-system-v4',
   };
 
   test('AgentApplyJob evaluates vocational-track applicants at their effective education score', () => {

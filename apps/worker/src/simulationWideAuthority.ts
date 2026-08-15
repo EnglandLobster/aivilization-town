@@ -325,6 +325,19 @@ export type SimulationWideAuthorityOperation =
     }
   | {
       /**
+       * A petition command (raise/sign) settled against the one authoritative
+       * world state. Petition state is town-wide shared truth, so every
+       * partition materializes the operation's events.
+       */
+      readonly kind: 'petition';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly petitionId: string;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
+      /**
        * A conflict command (confront/attack/intervene) settled against the one
        * authoritative world state, with world-adjudicated grievance, damage,
        * and witness fallout.
@@ -412,6 +425,14 @@ export type SimulationWideAuthorityService = {
   readonly settleBulletin: (
     request: SimulationWideBulletinRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'bulletin' };
+  readonly settlePetition: (
+    request: SimulationWideAuthorityLease & {
+      readonly operationId: string;
+      readonly agentId: AgentId;
+      readonly commandType: 'AgentRaisePetition' | 'AgentSignPetition';
+      readonly payload: unknown;
+    },
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'petition' };
   readonly settleMatter: (
     request: SimulationWideMatterRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'matter' };
@@ -825,6 +846,70 @@ export function createSimulationWideAuthority(input: {
             bulletinId: bulletinEvent.payload.bulletin.bulletinId,
             status: bulletinEvent.type === 'BulletinPosted' ? 'posted' : 'scheduled',
             events,
+          };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settlePetition(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'petition',
+          agentId: request.agentId,
+          commandType: request.commandType,
+          payload: request.payload,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-petition-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: request.agentId,
+              source: 'agent-runtime',
+              type: request.commandType,
+              payload: request.payload,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new Error(`simulation-wide petition rejected: ${rejection.payload.reason}`);
+          }
+          const petitionEvent = events.find(
+            (event) =>
+              event.type === 'PetitionRaised' ||
+              event.type === 'PetitionSigned' ||
+              event.type === 'PetitionThresholdReached',
+          );
+          if (petitionEvent === undefined) {
+            throw new Error('simulation-wide petition settlement produced no petition event');
+          }
+          const petitionId =
+            petitionEvent.type === 'PetitionRaised'
+              ? petitionEvent.payload.petition.petitionId
+              : petitionEvent.payload.petitionId;
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'petition' }
+          > = {
+            kind: 'petition',
+            operationId: request.operationId,
+            fencingToken,
+            petitionId,
+            events,
+            status: 'completed',
           };
           return {
             state: {
@@ -1603,6 +1688,14 @@ function createInboxDeliveries(
         events: operation.events,
       }));
     // Social matters are town-wide too: every partition tracks the board.
+    case 'petition':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: operation.events,
+      }));
     case 'matter':
       return partitionKeys.map((partitionKey) => ({
         operationId: operation.operationId,
@@ -1743,6 +1836,8 @@ function createInboxDeliveries(
       const townWideEvents = operation.events.filter(
         (event) =>
           event.type === 'BulletinPosted' ||
+          event.type === 'PetitionExpired' ||
+          event.type === 'PetitionThresholdReached' ||
           event.type === 'MatterClosed' ||
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||

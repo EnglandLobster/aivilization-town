@@ -14,6 +14,7 @@ import type {
   StochasticIllnessPolicy,
   TownCalendarPolicy,
   TownConditionsPolicy,
+  CollectiveActionPolicy,
   LifecyclePolicy,
   TownDiscoursePolicy,
   WellbeingPolicy,
@@ -35,6 +36,10 @@ import {
   handleAgentPostBulletinCommand,
   handleIssueTownBulletinCommand,
 } from './handlers/bulletin';
+import {
+  handleAgentRaisePetitionCommand,
+  handleAgentSignPetitionCommand,
+} from './handlers/petition';
 import { handleAgentStartConversationCommand } from './handlers/conversation';
 import { handleAgentConsumeCommand } from './handlers/consumption';
 import {
@@ -215,6 +220,13 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly discourse?: TownDiscoursePolicy;
   /**
+   * Optional collective-action policy (collective-action-v1). When present,
+   * AgentRaisePetition/AgentSignPetition settle petitions (aggregate →
+   * threshold → town-wide event). Omitted rejects both commands and keeps
+   * the world petition-free.
+   */
+  readonly collectiveAction?: CollectiveActionPolicy;
+  /**
    * Optional town-condition catalog.
    * Read-path only: command handlers never consume it. When present, planning
    * context builders derive per-agent conditions from durable physiology axes,
@@ -386,6 +398,24 @@ export function dispatchWorldCommand(input: {
           : { educationSystem: input.policies.educationSystem }),
         ...(input.policies.lifestyle === undefined ? {} : { lifestyle: input.policies.lifestyle }),
         ...(input.policies.wellbeing === undefined ? {} : { wellbeing: input.policies.wellbeing }),
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentRaisePetition':
+      return handleAgentRaisePetitionCommand({
+        command: input.command as CommandEnvelope<'AgentRaisePetition', unknown>,
+        projection: input.projection,
+        ...(input.policies.collectiveAction === undefined
+          ? {}
+          : { collectiveAction: input.policies.collectiveAction }),
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentSignPetition':
+      return handleAgentSignPetitionCommand({
+        command: input.command as CommandEnvelope<'AgentSignPetition', unknown>,
+        projection: input.projection,
+        ...(input.policies.collectiveAction === undefined
+          ? {}
+          : { collectiveAction: input.policies.collectiveAction }),
         nextSequence: input.nextSequence,
       });
     case 'AgentPostBulletin':

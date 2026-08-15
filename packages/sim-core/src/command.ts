@@ -39,6 +39,8 @@ export type CoreCommandType =
   | 'AgentExportCommodity'
   | 'AgentImportCommodity'
   | 'AgentPostBulletin'
+  | 'AgentRaisePetition'
+  | 'AgentSignPetition'
   | 'IssueTownBulletin'
   | 'AgentRaiseMatter'
   | 'AgentRespondMatter'

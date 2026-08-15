@@ -275,6 +275,44 @@ export function assertIssueTownBulletinPayload(payload: unknown): IssueTownBulle
   return assertBulletinPayload(payload, 'IssueTownBulletin');
 }
 
+export type AgentRaisePetitionPayload = {
+  readonly topic: string;
+  readonly statement: string;
+};
+
+export type AgentSignPetitionPayload = {
+  readonly petitionId: string;
+};
+
+export function assertAgentRaisePetitionPayload(payload: unknown): AgentRaisePetitionPayload {
+  const candidate = payload as Partial<AgentRaisePetitionPayload>;
+  if (
+    typeof candidate.topic !== 'string' ||
+    candidate.topic.trim().length === 0 ||
+    candidate.topic.length > 100
+  ) {
+    throw new Error('AgentRaisePetition topic must be a non-empty string of at most 100 chars');
+  }
+  if (
+    typeof candidate.statement !== 'string' ||
+    candidate.statement.trim().length === 0 ||
+    candidate.statement.length > 1000
+  ) {
+    throw new Error(
+      'AgentRaisePetition statement must be a non-empty string of at most 1000 chars',
+    );
+  }
+  return { topic: candidate.topic.trim(), statement: candidate.statement.trim() };
+}
+
+export function assertAgentSignPetitionPayload(payload: unknown): AgentSignPetitionPayload {
+  const candidate = payload as Partial<AgentSignPetitionPayload>;
+  if (typeof candidate.petitionId !== 'string' || candidate.petitionId.trim().length === 0) {
+    throw new Error('AgentSignPetition petitionId must be a non-empty string');
+  }
+  return { petitionId: candidate.petitionId.trim() };
+}
+
 export type AgentRaiseMatterPayload = {
   readonly topic: string;
   readonly statement: string;

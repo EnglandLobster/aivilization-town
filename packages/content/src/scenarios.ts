@@ -173,6 +173,13 @@ export type ScenarioTownCalendarPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioCollectiveActionPolicyConfig = {
+  readonly policyVersion: string;
+  readonly petitionSignatureThreshold: number;
+  readonly petitionExpiryMs: number;
+  readonly source: string;
+};
+
 export type ScenarioTownDiscoursePolicyConfig = {
   readonly policyVersion: string;
   readonly propagationProbabilityPercent: number;
@@ -583,6 +590,8 @@ const townWellbeingPolicySource =
   'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
 const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
+const collectiveActionPolicySource =
+  'Collective action; collective-action-v1 petition threshold and expiry are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model collective action';
 const townDiscoursePolicySource =
   'Town discourse propagation; town-discourse-v1 propagation probability, importance distortion range, and hearsay chain depth are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model information propagation';
 const townLifecyclePolicySource =
@@ -942,6 +951,23 @@ export const aivilizationTownLifecyclePolicyDefaults = {
   settlementCadenceMs: 86_400_000,
   source: townLifecyclePolicySource,
 } as const satisfies ScenarioTownLifecyclePolicyConfig;
+
+export const COLLECTIVE_ACTION_POLICY_VERSION = 'collective-action-v1';
+
+/**
+ * Petition minimal set (town-collective-action switch): signatures aggregate
+ * on the authority; crossing the threshold (raiser included) fires a
+ * town-wide PetitionThresholdReached for observability and future governance
+ * inputs (P6). Strikes and other ledger-touching collective action stay out
+ * of scope until their accounting impact is argued. Threshold 3 keeps a
+ * petition reachable by a small friend group, not a single malcontent.
+ */
+export const aivilizationCollectiveActionPolicyDefaults = {
+  policyVersion: COLLECTIVE_ACTION_POLICY_VERSION,
+  petitionSignatureThreshold: 3,
+  petitionExpiryMs: 3 * 86_400_000,
+  source: collectiveActionPolicySource,
+} as const satisfies ScenarioCollectiveActionPolicyConfig;
 
 export const TOWN_DISCOURSE_POLICY_VERSION = 'town-discourse-v1';
 

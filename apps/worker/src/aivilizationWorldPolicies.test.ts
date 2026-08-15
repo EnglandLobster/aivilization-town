@@ -13,6 +13,7 @@ import {
 } from '@aivilization/world';
 import {
   assertTownConditionsPolicy,
+  assertValidCollectiveActionPolicy,
   assertValidLifecyclePolicy,
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
@@ -20,6 +21,7 @@ import {
 } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
+  createAivilizationCollectiveActionPolicy,
   createAivilizationTownCalendarPolicy,
   createAivilizationTownDiscoursePolicy,
   createAivilizationTownLifecyclePolicy,
@@ -535,6 +537,41 @@ describe('AIvilization default world command policies', () => {
       createAivilizationWorldCommandPolicies('seed', undefined, { townDiscourse: true })(projection)
         .discourse?.policyVersion,
     ).toBe('town-discourse-v1');
+  });
+
+  test('declares the collective action policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townCollectiveAction');
+    expect(off.parameters).not.toHaveProperty('townCollectiveAction');
+    expect(JSON.stringify(off)).not.toContain('collective-action-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townCollectiveAction: true });
+    expect(on.policyVersions).toMatchObject({
+      townCollectiveAction: 'collective-action-v1',
+    });
+    expect(on.parameters.townCollectiveAction).toMatchObject({
+      policyVersion: 'collective-action-v1',
+      petitionSignatureThreshold: 3,
+      petitionExpiryMs: 3 * 86_400_000,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const policy = createAivilizationCollectiveActionPolicy();
+    expect(policy.policyVersion).toBe('collective-action-v1');
+    expect(() => assertValidCollectiveActionPolicy(policy)).not.toThrow();
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(
+      createAivilizationWorldCommandPolicies('seed')(projection).collectiveAction,
+    ).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, {
+        townCollectiveAction: true,
+      })(projection).collectiveAction?.policyVersion,
+    ).toBe('collective-action-v1');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

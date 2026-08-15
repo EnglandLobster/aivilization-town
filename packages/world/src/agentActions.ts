@@ -15,6 +15,7 @@ import type {
   TownCalendarPolicy,
   TownConditionsPolicy,
   LifecyclePolicy,
+  TownDiscoursePolicy,
   WellbeingPolicy,
 } from '@aivilization/society';
 import type { TownBulletinPolicy } from './bulletin';
@@ -207,6 +208,13 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly lifecycle?: LifecyclePolicy;
   /**
+   * Optional town-discourse policy (town-discourse-v1). When present,
+   * AgentStartConversation can additionally propagate one of the speaker's
+   * recent memories to the listener as a distorted hearsay copy. Omitted
+   * keeps conversations byte-for-byte identical to legacy runs.
+   */
+  readonly discourse?: TownDiscoursePolicy;
+  /**
    * Optional town-condition catalog.
    * Read-path only: command handlers never consume it. When present, planning
    * context builders derive per-agent conditions from durable physiology axes,
@@ -376,12 +384,8 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.educationSystem === undefined
           ? {}
           : { educationSystem: input.policies.educationSystem }),
-        ...(input.policies.lifestyle === undefined
-          ? {}
-          : { lifestyle: input.policies.lifestyle }),
-        ...(input.policies.wellbeing === undefined
-          ? {}
-          : { wellbeing: input.policies.wellbeing }),
+        ...(input.policies.lifestyle === undefined ? {} : { lifestyle: input.policies.lifestyle }),
+        ...(input.policies.wellbeing === undefined ? {} : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentPostBulletin':
@@ -446,9 +450,7 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentAttack', unknown>,
         projection: input.projection,
         ...(input.policies.conflict === undefined ? {} : { conflict: input.policies.conflict }),
-        ...(input.policies.wellbeing === undefined
-          ? {}
-          : { wellbeing: input.policies.wellbeing }),
+        ...(input.policies.wellbeing === undefined ? {} : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentIntervene':
@@ -498,6 +500,7 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.socialMatters === undefined
           ? {}
           : { socialMatters: input.policies.socialMatters }),
+        ...(input.policies.discourse === undefined ? {} : { discourse: input.policies.discourse }),
         nextSequence: input.nextSequence,
       });
     case 'AgentStudy':
@@ -745,9 +748,7 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentApplyEducationExam', unknown>,
         projection: input.projection,
         policy: input.policies.educationSystem,
-        ...(input.policies.wellbeing === undefined
-          ? {}
-          : { wellbeing: input.policies.wellbeing }),
+        ...(input.policies.wellbeing === undefined ? {} : { wellbeing: input.policies.wellbeing }),
         nextSequence: input.nextSequence,
       });
     case 'AgentUpgradeResidentialTier':

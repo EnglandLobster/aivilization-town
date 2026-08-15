@@ -1,15 +1,6 @@
-import {
-  asAgentId,
-  asLocationId,
-  asLoanId,
-  createCommandEnvelope,
-} from '@aivilization/sim-core';
+import { asAgentId, asLocationId, asLoanId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import type {
-  LifecyclePolicy,
-  TownCalendarPolicy,
-  WellbeingPolicy,
-} from '@aivilization/society';
+import type { LifecyclePolicy, TownCalendarPolicy, WellbeingPolicy } from '@aivilization/society';
 import {
   applyWorldEvent,
   assertAdvanceSimulationTimePayload,
@@ -1127,8 +1118,7 @@ describe('regional land value and upkeep pricing', () => {
     const chargesOf = (events: readonly WorldEvent[], agentId: string) =>
       events
         .filter(
-          (event) =>
-            event.type === 'ResidentialUpkeepCharged' && event.payload.agentId === agentId,
+          (event) => event.type === 'ResidentialUpkeepCharged' && event.payload.agentId === agentId,
         )
         .map((event) =>
           event.type === 'ResidentialUpkeepCharged' ? event.payload.amount : Number.NaN,
@@ -1869,9 +1859,7 @@ describe('town wellbeing settlement', () => {
       timeSettlementAmortization: { buckets: 1 },
     };
     const collect = (events: ReturnType<typeof advanceWellbeing>) =>
-      events
-        .filter((event) => event.type === 'WellbeingChanged')
-        .map((event) => event.payload);
+      events.filter((event) => event.type === 'WellbeingChanged').map((event) => event.payload);
 
     let plain = createWellbeingProjection();
     let amortized = createWellbeingProjection();
@@ -2017,9 +2005,9 @@ describe('town out-migration settlement', () => {
       agents: [migrant({ wellbeing: 75 })],
       clock: { now: 0, tickDurationMs: HOUR_MS },
     });
-    expect(
-      advanceDay(contentProjection, 1).some((event) => event.type === 'AgentEmigrated'),
-    ).toBe(false);
+    expect(advanceDay(contentProjection, 1).some((event) => event.type === 'AgentEmigrated')).toBe(
+      false,
+    );
 
     // Without the settled scalar the policy fallback (50) keeps the town
     // closed — the interlock with town-wellbeing is explicit.
@@ -2041,6 +2029,200 @@ describe('town out-migration settlement', () => {
       policies,
     );
     expect(flagOff.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+  });
+
+  test('a departing enterprise owner closes the firm with its assets burned', () => {
+    const projection = createWorldProjection({
+      agents: [
+        migrant({ job: null }),
+        {
+          ...migrant({ balance: 10 }),
+          agentId: asAgentId('agent-employee'),
+          job: 'Farmer',
+          wellbeing: 75,
+        },
+      ],
+      enterprises: [
+        {
+          enterpriseId: 'ent-founder',
+          name: 'Founder Farm',
+          ownerAgentId: asAgentId('agent-unhappy'),
+          occupationName: 'Farmer',
+          balance: 300,
+          inventory: { Wheat: 5 },
+          maxEmployees: 4,
+          employeeAgentIds: [asAgentId('agent-employee')],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+        },
+      ],
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+    const moneySupplyBefore = projection.moneySupply;
+
+    const events = advanceDay(projection, 1);
+    const types = events.map((event) => event.type);
+    expect(types).toContain('EnterpriseClosed');
+    expect(types).toContain('AgentEmigrated');
+    // The closure precedes the terminal departure event.
+    expect(types.indexOf('EnterpriseClosed')).toBeLessThan(types.indexOf('AgentEmigrated'));
+    const closure = events.find((event) => event.type === 'EnterpriseClosed');
+    expect(closure).toMatchObject({
+      payload: {
+        enterpriseId: 'ent-founder',
+        ownerAgentId: 'agent-unhappy',
+        returnedBalance: 0,
+        reason: 'owner-departed',
+        burnedBalance: 300,
+        burnedInventory: { Wheat: 5 },
+        employeeAgentIds: ['agent-employee'],
+      },
+    });
+
+    const settled = events.reduce(applyWorldEvent, projection);
+    expect(settled.agents['agent-unhappy']).toBeUndefined();
+    expect(settled.agents['agent-employee']).toMatchObject({ job: null });
+    expect(settled.enterprises['ent-founder']).toMatchObject({ status: 'closed' });
+    // Agent estate burn 120 + enterprise burn 300 both leave the economy.
+    expect(settled.moneySupply).toBe(moneySupplyBefore - 120 - 300);
+  });
+
+  test('a merged multi-cadence advance draws the same roll as step-by-step at each boundary', () => {
+    // Regression: the seed used to embed the command id, the pre-advance
+    // clock, and the batch deltaMs, so a merged three-day advance and three
+    // one-day advances drew DIFFERENT rolls at the same cadence boundary.
+    const cadencePolicy = {
+      ...migrationPolicy,
+      maxProbabilityPerHour: 100,
+      settlementCadenceMs: HOUR_MS,
+    };
+    const BOUNDARIES = 24;
+    const pol = { ...policies, migration: cadencePolicy };
+    const build = () =>
+      createWorldProjection({
+        agents: [migrant({ wellbeing: 0 })],
+        clock: { now: 0, tickDurationMs: HOUR_MS },
+      });
+
+    let stepped = build();
+    const stepEvents: WorldEvent[] = [];
+    for (let tick = 1; tick <= BOUNDARIES; tick += 1) {
+      const events = dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: `command-migration-step-${tick}`,
+          simulationId: 'sim-1',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: HOUR_MS },
+          issuedAt: tick * HOUR_MS,
+        }),
+        projection: stepped,
+        policies: pol,
+        nextSequence: tick * 10,
+      });
+      stepEvents.push(...events);
+      stepped = events.reduce(applyWorldEvent, stepped);
+    }
+
+    const merged = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'command-migration-merged-24h',
+        simulationId: 'sim-1',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: BOUNDARIES * HOUR_MS },
+        issuedAt: 0,
+      }),
+      projection: build(),
+      policies: pol,
+      nextSequence: 10,
+    });
+
+    // Identical departure verdict and identical boundary timing.
+    const steppedEmigration = stepEvents.find((event) => event.type === 'AgentEmigrated');
+    const mergedEmigration = merged.find((event) => event.type === 'AgentEmigrated');
+    expect(steppedEmigration?.payload.emigratedAt).toBe(mergedEmigration?.payload.emigratedAt);
+    expect(steppedEmigration ?? mergedEmigration).toBeDefined();
+  });
+
+  test('migration reads the wellbeing settled THIS interval, not the stale snapshot', () => {
+    // One 24h interval: the wellbeing block settles first and folds, so the
+    // migration decision sees the refreshed value. Case A: a resident whose
+    // wellbeing collapses this interval (75 → target 0 with fast convergence)
+    // leaves NOW. Case B: a resident recovering from 0 to a target above the
+    // zero-crossing stays.
+    const collapse = {
+      policyVersion: 'town-wellbeing-v1',
+      initialValue: 50,
+      minValue: 0,
+      maxValue: 100,
+      baseline: 0,
+      convergencePerHour: 100,
+      coefficients: {
+        health: 0,
+        energy: 0,
+        satiety: 0,
+        employed: 0,
+        unemployed: 0,
+        residentialTier: [0, 0, 0, 0, 0, 0, 0],
+        lifestyleTier: [0, 0, 0, 0],
+        upkeepArrearsPerUnit: 0,
+        distress: 0,
+        positiveRelation: 0,
+        negativeRelation: 0,
+      },
+    };
+    const recover = {
+      ...collapse,
+      baseline: 100,
+    };
+    const migrantAt = (wellbeing: number, policy: unknown) => ({
+      agentId: asAgentId('agent-unhappy'),
+      locationId: null,
+      physiology: { energy: 50, satiety: 50, health: 100 },
+      educationScore: 0,
+      balance: 50,
+      residentialTier: 1,
+      job: null,
+      inventory: {},
+      wellbeing,
+      ...(typeof policy === 'object' ? {} : {}),
+    });
+    const advanceOne = (policies: WorldCommandPolicies) =>
+      dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: 'command-migration-freshness',
+          simulationId: 'sim-1',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: DAY_WINDOW_MS },
+          issuedAt: 0,
+        }),
+        projection: createWorldProjection({
+          agents: [
+            policies.wellbeing === collapse ? migrantAt(75, collapse) : migrantAt(0, recover),
+          ],
+          clock: { now: 0, tickDurationMs: HOUR_MS },
+        }),
+        policies,
+        nextSequence: 1,
+      });
+
+    // Case A: stale read would see 75 (never leaves); fresh read sees 0
+    // (probability saturated over 24h) → departs.
+    const collapsed = advanceOne({ ...migrationPolicies, wellbeing: collapse });
+    expect(collapsed.some((event) => event.type === 'AgentEmigrated')).toBe(true);
+    expect(collapsed.find((event) => event.type === 'WellbeingChanged')?.payload).toMatchObject({
+      previous: 75,
+      next: 0,
+    });
+
+    // Case B: stale read would see 0 (leaves); fresh read sees 100 → stays.
+    const recovered = advanceOne({ ...migrationPolicies, wellbeing: recover });
+    expect(recovered.some((event) => event.type === 'AgentEmigrated')).toBe(false);
   });
 
   test('is deterministic: redispatching the same command yields identical events', () => {
@@ -2073,8 +2255,6 @@ describe('town out-migration settlement', () => {
     expect(first.some((event) => event.type === 'AgentEmigrated')).toBe(true);
   });
 });
-
-
 
 describe('town calendar and passive decay', () => {
   const DAY = 86_400_000;
@@ -2178,10 +2358,13 @@ describe('town calendar and passive decay', () => {
 
     // Replaying the recorded stream reproduces the slice; redispatching the
     // same command regenerates the identical events (pure clock function).
-    const replayed = events.reduce(applyWorldEvent, createWorldProjection({
-      agents: [],
-      clock: { now: 0, tickDurationMs: DAY },
-    }));
+    const replayed = events.reduce(
+      applyWorldEvent,
+      createWorldProjection({
+        agents: [],
+        clock: { now: 0, tickDurationMs: DAY },
+      }),
+    );
     expect(replayed.calendar).toEqual(updated.calendar);
     expect(
       advanceCalendar(
@@ -2272,14 +2455,18 @@ describe('town calendar and passive decay', () => {
       7_200_000,
     ).reduce(applyWorldEvent, makeProjection());
     let stepped = makeProjection();
-    stepped = advanceCalendar(stepped, 'command-calendar-decay-step-1', 3_600_000, 3_600_000).reduce(
-      applyWorldEvent,
+    stepped = advanceCalendar(
       stepped,
-    );
-    stepped = advanceCalendar(stepped, 'command-calendar-decay-step-2', 3_600_000, 7_200_000).reduce(
-      applyWorldEvent,
+      'command-calendar-decay-step-1',
+      3_600_000,
+      3_600_000,
+    ).reduce(applyWorldEvent, stepped);
+    stepped = advanceCalendar(
       stepped,
-    );
+      'command-calendar-decay-step-2',
+      3_600_000,
+      7_200_000,
+    ).reduce(applyWorldEvent, stepped);
     expect(stepped.agents['agent-decay']?.physiology).toEqual(
       merged.agents['agent-decay']?.physiology,
     );
@@ -2377,12 +2564,10 @@ describe('town calendar and passive decay', () => {
     let plain = makeProjection();
     const plainByTick = [];
     for (let tick = 1; tick <= 4; tick += 1) {
-      plain = advanceCalendar(
+      plain = advanceCalendar(plain, `command-plain-${tick}`, 3_600_000, tick * 3_600_000).reduce(
+        applyWorldEvent,
         plain,
-        `command-plain-${tick}`,
-        3_600_000,
-        tick * 3_600_000,
-      ).reduce(applyWorldEvent, plain);
+      );
       plainByTick.push({
         a: plain.agents['agent-a']?.physiology,
         b: plain.agents['agent-b']?.physiology,
@@ -2446,7 +2631,9 @@ describe('town lifecycle settlement', () => {
     lifecycle: lifecyclePolicy,
   };
 
-  function lifecycleAgent(overrides: Partial<Parameters<typeof createWorldProjection>[0]['agents'][number]> = {}) {
+  function lifecycleAgent(
+    overrides: Partial<Parameters<typeof createWorldProjection>[0]['agents'][number]> = {},
+  ) {
     return {
       agentId: asAgentId('agent-citizen'),
       locationId: null,
@@ -2528,10 +2715,7 @@ describe('town lifecycle settlement', () => {
     // Pension accrues from the interval AFTER the retirement interval; a
     // treasury-funded pension is a transfer (supply unchanged).
     const second = advance(projection, 2);
-    expect(second.map((event) => event.type)).toEqual([
-      'SimulationTimeAdvanced',
-      'PensionPaid',
-    ]);
+    expect(second.map((event) => event.type)).toEqual(['SimulationTimeAdvanced', 'PensionPaid']);
     expect(second[1]).toMatchObject({
       type: 'PensionPaid',
       payload: {
@@ -2564,10 +2748,7 @@ describe('town lifecycle settlement', () => {
       clock: { now: 0, tickDurationMs: DAY_MS },
     });
     const first = advance(projection, 1);
-    expect(first.map((event) => event.type)).toEqual([
-      'SimulationTimeAdvanced',
-      'PensionPaid',
-    ]);
+    expect(first.map((event) => event.type)).toEqual(['SimulationTimeAdvanced', 'PensionPaid']);
     expect(first[1]).toMatchObject({
       payload: { amount: 0.5, previousBalance: 10, nextBalance: 10.5 },
     });
@@ -2658,9 +2839,7 @@ describe('town lifecycle settlement', () => {
       maxLifespanDays: 24,
     };
     let projection = createWorldProjection({
-      agents: [
-        lifecycleAgent({ job: 'Farmer', balance: 50, inventory: { Bread: 2 } }),
-      ],
+      agents: [lifecycleAgent({ job: 'Farmer', balance: 50, inventory: { Bread: 2 } })],
       treasury: 100,
       clock: { now: 0, tickDurationMs: DAY_MS },
     });
@@ -2911,7 +3090,13 @@ describe('town lifecycle settlement', () => {
           ['AgentAged', 'AgentRetired', 'PensionPaid', 'AgentDied'].includes(event.type),
         )
         .map((event) => event.type);
-    expect(lifecycleTypes(merged)).toEqual(['AgentAged', 'AgentRetired', 'PensionPaid', 'PensionPaid', 'AgentDied']);
+    expect(lifecycleTypes(merged)).toEqual([
+      'AgentAged',
+      'AgentRetired',
+      'PensionPaid',
+      'PensionPaid',
+      'AgentDied',
+    ]);
     expect(lifecycleTypes(stepEvents)).toEqual(lifecycleTypes(merged));
 
     const burn = (events: readonly WorldEvent[]) => {

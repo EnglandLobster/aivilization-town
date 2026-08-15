@@ -108,17 +108,32 @@ export function createSimulationCommandRouter(input: {
   // sent with each sync stays as small as the partition's own new memories,
   // and the authority skips known ids so replayed syncs stay idempotent.
   const syncedMemoryRecordIds = new Set<string>();
+  // Agents this router has ever reported to the authority: a previously
+  // reported resident missing from the current projection permanently left
+  // the simulation (death or out-migration settled partition-locally), and
+  // the authority must drop them from its ledger before any global
+  // settlement references a ghost resident.
+  let lastReportedAgentIds = new Set<string>();
   const syncPartitionLocations = (projection: WorldProjection): void => {
     const agentLocations = Object.values(projection.agents)
       .map((agent) => ({ agentId: agent.agentId, locationId: agent.locationId }))
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
     const fingerprint = JSON.stringify(agentLocations);
+    const currentAgentIds = new Set<string>(agentLocations.map((entry) => entry.agentId as string));
+    const departedAgentIds = [...lastReportedAgentIds]
+      .filter((agentId) => !currentAgentIds.has(agentId))
+      .sort();
     const newMemoryRecords = projection.memoryRecords
       .filter((record) => !syncedMemoryRecordIds.has(record.id))
       .sort((left, right) => left.id.localeCompare(right.id));
-    if (fingerprint === lastSyncedLocationsFingerprint && newMemoryRecords.length === 0) {
+    if (
+      fingerprint === lastSyncedLocationsFingerprint &&
+      newMemoryRecords.length === 0 &&
+      departedAgentIds.length === 0
+    ) {
       return;
     }
+    lastReportedAgentIds = currentAgentIds;
     // The memory delta joins the operation id: without it, a memory-only
     // change (locations unchanged) would reuse the previous id and the
     // authority would replay the journaled no-memory operation instead of

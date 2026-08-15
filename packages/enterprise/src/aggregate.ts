@@ -247,6 +247,29 @@ export function decideCloseEnterprise(input: {
   return accepted({ type: 'EnterpriseClosed', closedAt: input.closedAt });
 }
 
+/**
+ * Owner-departure closure (death or out-migration): the owner permanently
+ * left the town, so there is nobody to return the firm's assets to. The
+ * enterprise closes with its cash and inventory burned out of the town
+ * economy (the world adapter settles the burn); employees are released by
+ * the closure itself. Not reachable through any agent command — only the
+ * population-turnover settlement invokes it.
+ */
+export function decideCloseEnterpriseOnOwnerDeparture(input: {
+  readonly enterprise: EnterpriseState;
+  readonly ownerAgentId: AgentId;
+  readonly closedAt: number;
+}): EnterpriseDecision {
+  const enterprise = normalizeAndValidate(input.enterprise);
+  if (enterprise.status === 'closed') {
+    return rejected('enterprise is already closed');
+  }
+  if (enterprise.ownerAgentId !== input.ownerAgentId) {
+    return rejected('owner-departure closure requires the owning agent');
+  }
+  return accepted({ type: 'EnterpriseClosed', closedAt: input.closedAt });
+}
+
 export function applyEnterpriseDomainEvent(
   state: EnterpriseState | undefined,
   event: EnterpriseDomainEvent,

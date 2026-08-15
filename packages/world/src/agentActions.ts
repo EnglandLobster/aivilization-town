@@ -16,6 +16,7 @@ import type {
   TownConditionsPolicy,
   CollectiveActionPolicy,
   LifecyclePolicy,
+  OutMigrationPolicy,
   TownDiscoursePolicy,
   WellbeingPolicy,
 } from '@aivilization/society';
@@ -227,6 +228,14 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly collectiveAction?: CollectiveActionPolicy;
   /**
+   * Optional out-migration policy (town-migration-v1). When present, the
+   * population-turnover block of AdvanceSimulationTime additionally rolls
+   * the CS2 NotHappy departure per agent and cadence; departing agents
+   * liquidate through the shared estate path. Omitted keeps the population
+   * closed, byte-for-byte identical to legacy runs.
+   */
+  readonly migration?: OutMigrationPolicy;
+  /**
    * Optional town-condition catalog.
    * Read-path only: command handlers never consume it. When present, planning
    * context builders derive per-agent conditions from durable physiology axes,
@@ -360,6 +369,7 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.weather === undefined ? {} : { weather: input.policies.weather }),
         ...(input.policies.calendar === undefined ? {} : { calendar: input.policies.calendar }),
         ...(input.policies.lifecycle === undefined ? {} : { lifecycle: input.policies.lifecycle }),
+        ...(input.policies.migration === undefined ? {} : { migration: input.policies.migration }),
         ...(input.policies.residentialUpkeep === undefined
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),

@@ -408,8 +408,11 @@ describe('education-system automatic promotion', () => {
   });
 
   test('level-0 agents enroll into primary school once the entry threshold is met', () => {
+    // RECORDED level 0 (e.g. explicitly seeded): promotion machinery fires.
+    // Agents WITHOUT a recorded level derive from the score instead — covered
+    // by the unified-fallback test below.
     const projection = createWorldProjection({
-      agents: [createAgent({ agentId: 'agent-1', educationScore: 20 })],
+      agents: [createAgent({ agentId: 'agent-1', educationScore: 20, educationLevel: 0 })],
       moneySupply: 1000,
     });
 
@@ -447,6 +450,50 @@ describe('education-system automatic promotion', () => {
       });
       expect(events.filter((event) => event.type === 'EducationLevelChanged')).toEqual([]);
     }
+  });
+
+  test('derives the promotion baseline from the score for agents without a recorded level', () => {
+    // Legacy seeds and pre-education snapshots carry no educationLevel. Every
+    // read path derives the level from the score; the write path must use the
+    // SAME function, otherwise a score-200 agent reads as level 3 yet used to
+    // restart promotion from level 0 and get persisted down to primary.
+    const projection = createWorldProjection({
+      agents: [
+        createAgent({ agentId: 'agent-veteran', educationScore: 200 }),
+        createAgent({ agentId: 'agent-fresh', educationScore: 10 }),
+      ],
+      moneySupply: 2000,
+    });
+    const policies = createPolicies({ educationSystem });
+
+    const firstTick = dispatchWorldCommand({
+      command: advanceCommand('unified-fallback-1'),
+      projection,
+      policies,
+      nextSequence: 1,
+    });
+    // The veteran derives to level 3 (thresholds 20/70/180 met) — beyond the
+    // compulsory stage, so no auto-promotion fires and nothing gets persisted
+    // below the read-path interpretation.
+    expect(
+      firstTick.filter(
+        (event) =>
+          event.type === 'EducationLevelChanged' &&
+          event.payload.agentId === 'agent-veteran',
+      ),
+    ).toEqual([]);
+    // The fresh agent derives to level 0 (threshold 20 unmet): promotion from
+    // 0 to 1 still requires the threshold, so it stays put too.
+    expect(
+      firstTick.filter(
+        (event) =>
+          event.type === 'EducationLevelChanged' && event.payload.agentId === 'agent-fresh',
+      ),
+    ).toEqual([]);
+
+    const updated = firstTick.reduce(applyWorldEvent, projection);
+    expect(updated.agents['agent-veteran']?.educationLevel).toBeUndefined();
+    expect(updated.agents['agent-fresh']?.educationLevel).toBeUndefined();
   });
 });
 

@@ -90,6 +90,9 @@ export type AivilizationExperimentalPolicySwitches = {
   readonly townBulletin?: boolean;
   readonly socialMatters?: boolean;
   readonly townConflict?: boolean;
+  readonly townWellbeing?: boolean;
+  readonly townCalendar?: boolean;
+  readonly townLifecycle?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -440,9 +443,12 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
 export {
   createAivilizationSocialMattersPolicy,
   createAivilizationTownBulletinPolicy,
+  createAivilizationTownCalendarPolicy,
   createAivilizationTownConditionsPolicy,
   createAivilizationTownConflictPolicy,
+  createAivilizationTownLifecyclePolicy,
   createAivilizationTownWeatherPolicy,
+  createAivilizationTownWellbeingPolicy,
 } from './experimentalFeatures';
 
 export function createAivilizationWorldPolicyManifest(
@@ -478,6 +484,24 @@ export function createAivilizationWorldPolicyManifest(
      * parameters; omitted/false keeps the manifest conflict-free.
      */
     readonly townConflict?: boolean;
+    /**
+     * Opt-in town-wellbeing switch. When
+     * true the manifest declares the town-wellbeing policy version and
+     * parameters; omitted/false keeps the manifest wellbeing-free.
+     */
+    readonly townWellbeing?: boolean;
+    /**
+     * Opt-in town-calendar switch. When
+     * true the manifest declares the town-calendar policy version and
+     * parameters; omitted/false keeps the manifest calendar-free.
+     */
+    readonly townCalendar?: boolean;
+    /**
+     * Opt-in town-lifecycle switch. When
+     * true the manifest declares the town-lifecycle policy version and
+     * parameters; omitted/false keeps the manifest lifecycle-free.
+     */
+    readonly townLifecycle?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins

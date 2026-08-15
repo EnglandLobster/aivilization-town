@@ -88,6 +88,9 @@ export type LocalRuntimeTownCliConfig = {
   readonly townBulletinEnabled: boolean;
   readonly socialMattersEnabled: boolean;
   readonly townConflictEnabled: boolean;
+  readonly townWellbeingEnabled: boolean;
+  readonly townCalendarEnabled: boolean;
+  readonly townLifecycleEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -203,6 +206,9 @@ export function resolveLocalRuntimeTownCliConfig(
   const townBulletinEnabled = experimentalFeatureEnabled.townBulletin;
   const socialMattersEnabled = experimentalFeatureEnabled.socialMatters;
   const townConflictEnabled = experimentalFeatureEnabled.townConflict;
+  const townWellbeingEnabled = experimentalFeatureEnabled.townWellbeing;
+  const townCalendarEnabled = experimentalFeatureEnabled.townCalendar;
+  const townLifecycleEnabled = experimentalFeatureEnabled.townLifecycle;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -226,6 +232,9 @@ export function resolveLocalRuntimeTownCliConfig(
     townBulletinEnabled,
     socialMattersEnabled,
     townConflictEnabled,
+    townWellbeingEnabled,
+    townCalendarEnabled,
+    townLifecycleEnabled,
   };
 }
 
@@ -272,6 +281,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
         townBulletin: config.townBulletinEnabled,
         socialMatters: config.socialMattersEnabled,
         townConflict: config.townConflictEnabled,
+        townWellbeing: config.townWellbeingEnabled,
+        townCalendar: config.townCalendarEnabled,
+        townLifecycle: config.townLifecycleEnabled,
       },
       // The paper-ablation cohort pins the education system off so the Section
       // 5.1 baseline keeps the legacy continuous-score education semantics.
@@ -475,6 +487,9 @@ type ParsedOptions = {
   readonly townBulletin?: string;
   readonly socialMatters?: string;
   readonly townConflict?: string;
+  readonly townWellbeing?: string;
+  readonly townCalendar?: string;
+  readonly townLifecycle?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {

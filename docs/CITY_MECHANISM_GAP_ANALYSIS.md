@@ -23,6 +23,9 @@
 - 现状：地点为图节点（`packages/world/src/projection.ts` `WorldLocationState`），
   `mapPosition` 仅供渲染；住宅只是 Agent 身上的 `residentialTier` 数值，无地块/房产实体；
   `zoning|construct|building` 在模拟代码中零命中。
+  （2026-08-14 更新：地点已有 `capacity` 与双区域 `regionId`，人口+流动性驱动的
+  区域地价指数已落地 `packages/society/src/landValue.ts`，调节住宅维护费；
+  地块/房产实体与建造仍为零。）
 - CS 级需求：zoning（住宅/商业/工业分区）、建筑随需求生长/升级/废弃、
   地价系统（区位/服务覆盖/环境定价）、可建造路网。
 - AI-native 加成：Agent 自主决定开店/买地/建房，城市形态成为社会涌现结果。
@@ -42,11 +45,16 @@
 
 ### D. 人口生命周期与心理
 
-- 现状：人口固定（仅注册/迁出）；无出生/衰老/死亡/家庭（grep 零命中）；
-  无可模拟幸福感状态变量（`mood` 仅为记忆画像反思类别）；
-  energy/satiety 不随时间被动衰减，仅劳动消耗。
-- 缺：生命周期（成长→上学→工作→退休→死亡）、家庭/household、人口迁入迁出、
-  幸福感/满意度指标。论文 §4.4 分层长跑的成熟社会也需要人口更替。
+- 现状（2026-08-15 更新）：**生命周期最小集已落地**（flag `town-lifecycle` 默认关）——
+  年龄阶段（adult→elderly，child/teen 预留给未来生育机制）、预掷寿命老死
+  （seeded RNG 派生，任意时刻可重推导）、低健康病死、强制退休（释放企业职位 +
+  treasury 养老金转移）、死亡清算（贷款冲销/存款没收/流通余额销毁）。
+  幸福感权威状态变量（`town-wellbeing`）与昼夜日历 + 生理被动衰减
+  （`town-calendar`）亦已落地。
+- 仍缺：出生/家庭/household（S4 缓做）、殡葬/丧亲、人口迁入迁出（P7）、
+  病死率对医疗服务的联动（P5）。
+  （2026-08-14 更新：CS2 拆包证实幸福感是其社会模拟总线——驱动迁出/犯罪/毕业，
+  见 `docs/reports/CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` P1/P3。）
 
 ### E. 宏观治理与财政（玩法层缺失）
 
@@ -59,23 +67,27 @@
 ### F. 环境动态
 
 - 现状：时钟为单调毫秒数（`packages/sim-core/src/time.ts`），世界层无昼夜日历
-  （昼夜仅在 Agent 日程层）；无天气/季节/灾害/污染；初级资源凭空产出（`inputs: {}`），无储量；
-  唯一外生冲击为 per-agent 随机疾病（1%/小时）。
+  （昼夜仅在 Agent 日程层）；初级资源凭空产出（`inputs: {}`），无储量。
+  （2026-08-14 更新：7 种天气 Markov 链已落地 `packages/world/src/weather.ts`，
+  接生理状况 soaked/cold 与前端图层，flag `town-weather` 默认关；季节/灾害/污染仍缺。）
 - 缺：世界时钟层昼夜与日历（营业/作息联动）、天气季节影响生产、资源节点与枯竭、
   偶发灾害。昼夜是成本最低、城市感最强的一项。
 
 ### G. 公共话语与制度涌现（AI-native 超车点，CS 完全没有）
 
-- 现状：社交仅点对点对话；无广播/公告/媒体/公共频道（grep 确认）。
-- 缺：镇级公共频道（公告板/广场演讲/报纸）、信息与谣言传播模型、规范与法律形成、
-  集体行动（罢工/抗议/选举）。本项目架构（LLM 市民 + 社会记忆 + 权威结算）天然适合，
+- 现状：（2026-08-14 更新：已有突破）镇级公告频道 `AgentPostBulletin`/`IssueTownBulletin`
+  （`packages/world/src/bulletin.ts`，高优先级抢占反应）、社会事项 help-request/commitment
+  多人响应-裁决生命周期（`packages/world/src/matters.ts`）、冲突目击者态度传染
+  （`town-conflict-v1`，flag 默认关）。
+- 仍缺：信息/谣言沿社会网络的传播模型、规范与法律形成、集体行动（罢工/抗议/选举）、
+  持久群组/公共讨论版。本项目架构（LLM 市民 + 社会记忆 + 权威结算）天然适合，
   是"更 AI-native"的实证支撑。
 
 ### H. 前端体验
 
-- 现状：观测台偏运维视角（SLO 表、trace 面板，`apps/web` 5 个 tab）；
-  Town 页为静态地图 + overlay。
-- 缺：活的城市视图——Agent 实时移动、建筑生长、地价热力图、事件流 ticker。
+- 现状：（2026-08-14 更新）观测台已重构为活城画布：tilesheet 渲染 + agent 移动插值 +
+  点选 + 天气图层（`apps/web/public/ui/map/`），5 个 drill-down workspace + inspector。
+- 仍缺：地价热力图、需求条、事件流 ticker。
 
 ## 经济系统改造进展（2026-08-13，已落地）
 
@@ -124,7 +136,48 @@ E 的治理命令面（税率/预算仍是参数而非参与者可调命令）�
 剩余缺口：儿童年龄阶段（无年龄概念，新生 agent 直接成人）、学校建筑与容量约束、
 教师雇员（教育目前无劳动力投入）——均依赖 GAP A（空间/建造）与 D（人口生命周期）先行。
 
+### 社会模拟总线进展（2026-08-15，P1–P3 已落地）
+
+对标 `CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` §4 的 P1–P3，三阶段全部按
+"flag 先行 → 确定性/replay/幂等三关 → authority 结算"落地，默认全关：
+
+- **P1 幸福感权威状态变量**（`--town-wellbeing`）：`society/wellbeing.ts` 纯决策函数
+  （目标 = baseline + Σ因子，按 convergencePerHour 收敛，到步长 snap 定点停止发事件）；
+  world 在 time settlement 逐区间结算 `WellbeingChanged`（读取当 tick 最新
+  生理/安全网/欠费/生活方式/关系输入）；决策上下文暴露 value+band。
+- **P2 昼夜日历 + 生理被动衰减**（`--town-calendar`）：`society/calendar.ts` 纯函数
+  相位时钟（整毫秒相位网格、半开窗口枚举）；`TownDayPhaseChanged` 逐相位事件；
+  energy/satiety 线性被动衰减（floor 0，严格可加）先于 wellbeing 同 tick 结算。
+- **P3 生命周期最小集**（`--town-lifecycle`）：年龄阶段（预掷寿命由 agentId+seed
+  派生，任意时刻可重推导）、老死/病死（CS2 病死率二次方形状）、强制退休
+  （企业职位释放 + treasury 养老金转移，无国库切片时铸造）、死亡清算
+  （credit 领域新增 `decideLiquidateDeceasedCustomer`：贷款冲销/存款没收均为
+  纯账面操作、moneySupply 不变；流通余额销毁入 external/death-estate、
+  moneySupply 等额下降；未决求职/考试申请与未决事项随死亡取消）。
+  账本冲击论证：死亡是 AGENTS.md §7 第 3 类"移出流通"；跨分区所有权转移
+  携带 lifeStage/retiredAtMs。
+
+### CS2 社会/游戏机制拆包对比（2026-08-14，新增）
+
+基于 `tools/cs2/decomp` 全量反编译，经济/教育之外的两块——**市民社会模拟**与**城市游戏机制**——
+已逐项对比并给出落地方案，详见 `docs/reports/CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md`：
+
+- CS2 社会模拟的枢纽是**幸福感/福祉权威状态变量**（26 因子目标值收敛），驱动迁出/犯罪/毕业；
+  我们目前只有派生条件标签（`society/conditions.ts`），这是下一步第一优先级（新文档 P1）。
+- CS2 城市层的核心是**需求公式→建造→地价→税收**负反馈环；我们的入口是"需求信号→人口流动"，
+  排在生命周期落地之后（新文档 P7）。
+- 生命周期的死亡模型（预掷寿命曲线）与我们的 seeded RNG 天然兼容（新文档 P3）。
+- 公共话语（信息传播/集体行动）是 CS2 完全没有的 AI-native 超车点，已有公告/事项/冲突基础
+  （新文档 P4）。
+- 不建议照搬：XP/里程碑/发展树、玩家金库四本账、电水图流、车道级交通（新文档 §5）。
+
 ## 推进顺序建议（按 ROI，尊重确定性 event-sourcing + authority 三关：确定性/replay/幂等）
+
+> 2026-08-14 起以 `CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` §4 的 P1–P8 为准
+> （P1 幸福感 / P2 昼夜日历 / P3 生命周期 / P4 公共话语 / P5 服务短缺 / P6 治理命令面 /
+> P7 需求与人口流动 / P8 空间建造物流）。
+> **2026-08-15 进度：P1–P3 已落地（flag 默认关），下一项 P4 公共话语深化。**
+> 以下为原始排序，保留作历史脉络：
 
 1. **F 昼夜/日历 + D 生理被动衰减**：小改动，小镇立刻"有日子过"。
 2. **G 公共频道 + 信息传播**：纯增量系统，AI-native 差异化最大，不与现有机制冲突。

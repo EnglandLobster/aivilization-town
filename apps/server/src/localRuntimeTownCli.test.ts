@@ -121,6 +121,9 @@ describe('local runtime town executable composition', () => {
       townBulletinEnabled: false,
       socialMattersEnabled: false,
       townConflictEnabled: false,
+      townWellbeingEnabled: false,
+      townCalendarEnabled: false,
+      townLifecycleEnabled: false,
     });
   });
 
@@ -195,6 +198,9 @@ describe('local runtime town executable composition', () => {
       townBulletinEnabled: false,
       socialMattersEnabled: false,
       townConflictEnabled: false,
+      townWellbeingEnabled: false,
+      townCalendarEnabled: false,
+      townLifecycleEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -516,6 +522,146 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('town-conflict-v1');
+  });
+
+  test('town wellbeing is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: wellbeing settlement is disabled, so runs stay wellbeing-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townWellbeingEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-wellbeing', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townWellbeingEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_WELLBEING: '1' },
+      }).townWellbeingEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-wellbeing-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-wellbeing-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_WELLBEING: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-wellbeing-v1');
+  });
+
+  test('town calendar is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: the calendar is disabled, so runs stay calendar/decay-free.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCalendarEnabled).toBe(false);
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-calendar', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townCalendarEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_CALENDAR: '1' },
+      }).townCalendarEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-calendar-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-calendar-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_CALENDAR: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-calendar-v1');
+  });
+
+  test('town lifecycle is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    // Default: the lifecycle is disabled, so the population stays static.
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townLifecycleEnabled).toBe(
+      false,
+    );
+
+    // Explicit opt-in via CLI flag.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-lifecycle', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townLifecycleEnabled,
+    ).toBe(true);
+
+    // Explicit opt-in via env.
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_LIFECYCLE: '1' },
+      }).townLifecycleEnabled,
+    ).toBe(true);
+
+    // The resolved run manifest only declares town-lifecycle-v1 when enabled.
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('town-lifecycle-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_LIFECYCLE: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('town-lifecycle-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

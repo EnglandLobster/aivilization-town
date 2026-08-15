@@ -30,6 +30,7 @@ import {
   evaluateIllnessDeath,
   evaluateLifestyleTier,
   evaluateOldAgeDeath,
+  evaluateOutMigrationDecision,
   evaluatePhysiologicalSafetyNet,
   evaluateRegionalLandValue,
   evaluateResidentialArrears,
@@ -51,6 +52,7 @@ import {
   type LandValuePolicy,
   type LifecyclePolicy,
   type LifestylePolicy,
+  type OutMigrationPolicy,
   type PhysiologicalSafetyNetPolicy,
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
@@ -118,6 +120,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
    * runs.
    */
   readonly lifecycle?: LifecyclePolicy;
+  /**
+   * Optional out-migration policy (town-migration-v1). When present, the
+   * population-turnover block additionally evaluates the CS2 NotHappy
+   * departure rule per agent and cadence: persistently unhappy agents leave
+   * town with the full estate liquidation (shared with death). Omitted keeps
+   * the population closed, byte-for-byte identical to legacy runs.
+   */
+  readonly migration?: OutMigrationPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly landValue?: LandValuePolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
@@ -227,6 +237,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
     input.weather === undefined &&
     input.calendar === undefined &&
     input.lifecycle === undefined &&
+    input.migration === undefined &&
     input.residentialUpkeep === undefined &&
     input.safetyNetSubsidy === undefined &&
     input.physiologicalSafetyNet === undefined &&
@@ -274,32 +285,37 @@ export function handleAdvanceSimulationTimeCommand(input: {
     amortization === undefined ||
     settlementTickIndex % amortization.buckets ===
       hashAgentSettlementBucket(agent.agentId) % amortization.buckets;
-  // Lifecycle effects (probabilistic illness death, stateful retirement +
-  // pension) must replay per cadence: with a lifecycle policy every advance is
-  // split at the policy's settlement grid even without amortization, so a
-  // merged multi-cadence advance settles identically to step-by-step ones.
-  // Without the policy the single-interval legacy behavior is preserved
+  // Population-turnover effects (probabilistic illness death and out-migration
+  // rolls, stateful retirement + pension) must replay per cadence: with a
+  // lifecycle or migration policy every advance is split at the finest
+  // present settlement grid even without amortization, so a merged
+  // multi-cadence advance settles identically to step-by-step ones. Without
+  // either policy the single-interval legacy behavior is preserved
   // byte-for-byte.
-  const lifecycleSettlementCadenceMs =
-    input.lifecycle === undefined || next.now === previous.now
+  const turnoverSettlementCadenceMs =
+    (input.lifecycle === undefined && input.migration === undefined) || next.now === previous.now
       ? undefined
-      : Math.min(payload.deltaMs, input.lifecycle.settlementCadenceMs);
+      : Math.min(
+          payload.deltaMs,
+          ...(input.lifecycle === undefined ? [] : [input.lifecycle.settlementCadenceMs]),
+          ...(input.migration === undefined ? [] : [input.migration.settlementCadenceMs]),
+        );
   const settlementIntervalsByAgent = new Map(
     allAgents.map((agent) => [
       agent.agentId,
       shouldSettleAgent(agent)
         ? amortization === undefined
-          ? lifecycleSettlementCadenceMs === undefined
+          ? turnoverSettlementCadenceMs === undefined
             ? [{ previousSimulationTime: previous.now, currentSimulationTime: next.now }]
             : createSettlementIntervals({
                 previousSettledAt: previous.now,
                 nextSettledAt: next.now,
-                cadenceMs: lifecycleSettlementCadenceMs,
+                cadenceMs: turnoverSettlementCadenceMs,
               })
           : createSettlementIntervals({
               previousSettledAt: previousSettledAt(agent),
               nextSettledAt: next.now,
-              cadenceMs: lifecycleSettlementCadenceMs ?? payload.deltaMs,
+              cadenceMs: turnoverSettlementCadenceMs ?? payload.deltaMs,
             })
         : [],
     ]),
@@ -707,12 +723,13 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // effect from the next interval on. The block re-folds its own events so
     // the next interval (and the recruitment/exam cycles below) read
     // post-lifecycle state — released jobs, gone agents.
-    if (input.lifecycle !== undefined) {
+    if (input.lifecycle !== undefined || input.migration !== undefined) {
       const lifecycleStart = events.length;
       creditBank = appendLifecycleSettlementEvents({
         handlerInput: input,
         payload,
         policy: input.lifecycle,
+        ...(input.migration === undefined ? {} : { migration: input.migration }),
         events,
         agents,
         projection: settlementProjection,
@@ -1324,7 +1341,8 @@ function excludeFromApplicationSettlement(
 function appendLifecycleSettlementEvents(input: {
   readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly payload: { readonly deltaMs: number };
-  readonly policy: LifecyclePolicy;
+  readonly policy: LifecyclePolicy | undefined;
+  readonly migration?: OutMigrationPolicy;
   readonly events: WorldEvent[];
   readonly agents: readonly WorldAgentState[];
   readonly projection: WorldProjection;
@@ -1338,11 +1356,11 @@ function appendLifecycleSettlementEvents(input: {
   readonly deceasedAgentIds: Set<AgentId>;
   readonly retiredAgentIds: Set<AgentId>;
 }): BankState | undefined {
-  const { policy, projection } = input;
+  const { projection } = input;
   // Matters already closed earlier in THIS batch (e.g. the pre-loop expiry
-  // settlement, or a previous death in the same advance): the settlement
+  // settlement, or a previous departure in the same advance): the settlement
   // projection lags those events, but the reducer rejects a second close, so
-  // the death voiding must skip them explicitly.
+  // the departure voiding must skip them explicitly.
   const closedMatterIds = new Set(
     input.events
       .filter((event) => event.type === 'MatterClosed')
@@ -1363,7 +1381,7 @@ function appendLifecycleSettlementEvents(input: {
       const decision = decideLeaveEnterprise({ enterprise, agentId: agent.agentId });
       if (decision.status === 'rejected') {
         throw new Error(
-          `lifecycle settlement failed to release ${agent.agentId} from ${enterprise.enterpriseId}: ${decision.reason}`,
+          `population turnover settlement failed to release ${agent.agentId} from ${enterprise.enterpriseId}: ${decision.reason}`,
         );
       }
       input.events.push(
@@ -1377,21 +1395,118 @@ function appendLifecycleSettlementEvents(input: {
     }
   };
 
+  // Shared departure liquidation (death and out-migration): release enterprise
+  // memberships, settle bank positions through the credit aggregate (pure
+  // book operations), void open social matters with the neutral closure, and
+  // report the estate summary for the terminal event. The circulating
+  // balance burns with the terminal event's reducer (out of the town
+  // economy, AGENTS.md §7 category 3).
+  const emitDepartureLiquidation = (
+    agent: WorldAgentState,
+    job: string | null,
+    settledAt: number,
+  ): {
+    readonly burnedCurrency: number;
+    readonly depositForfeited: number;
+    readonly writtenOffLoanIds: LoanId[];
+  } => {
+    if (job !== null) {
+      releaseEnterpriseMemberships(agent, job);
+    }
+    let depositForfeited = 0;
+    const writtenOffLoanIds: LoanId[] = [];
+    if (bank !== undefined) {
+      const liquidation = decideLiquidateDeceasedCustomer({
+        bank,
+        agentId: agent.agentId,
+        settledAt,
+      });
+      if (liquidation.status === 'rejected') {
+        throw new Error(`estate liquidation rejected for ${agent.agentId}: ${liquidation.reason}`);
+      }
+      for (const domainEvent of liquidation.events) {
+        if (domainEvent.type === 'LoanWrittenOff') {
+          input.events.push(
+            makeEvent(input.handlerInput, input.events.length, 'LoanWrittenOff', {
+              loanId: domainEvent.loanId,
+              borrowerAgentId: domainEvent.borrowerAgentId,
+              writtenOffAt: domainEvent.writtenOffAt,
+              outstandingPrincipal: domainEvent.outstandingPrincipal,
+              outstandingInterest: domainEvent.outstandingInterest,
+              reason: 'borrower-deceased',
+            }),
+          );
+          writtenOffLoanIds.push(domainEvent.loanId);
+        } else if (domainEvent.type === 'DepositForfeited') {
+          input.events.push(
+            makeEvent(input.handlerInput, input.events.length, 'DepositForfeited', {
+              agentId: domainEvent.agentId,
+              forfeitedAmount: domainEvent.forfeitedAmount,
+              forfeitedAt: domainEvent.forfeitedAt,
+              reason: 'depositor-deceased',
+            }),
+          );
+          depositForfeited = domainEvent.forfeitedAmount;
+        }
+        bank = applyCreditDomainEvent(bank, domainEvent);
+      }
+    }
+    // Open social matters die with either party: a later expiry or
+    // fulfillment would emit memory events for the departed and crash the
+    // settlement, so the departure voids the matter with the neutral
+    // 'expired' closure (no betrayal outcome — leaving is not betraying).
+    for (const matter of Object.values(projection.socialMatters ?? {})
+      .filter(
+        (candidate) =>
+          candidate.status !== 'closed' &&
+          !closedMatterIds.has(candidate.matterId) &&
+          (candidate.assigneeAgentId === agent.agentId ||
+            candidate.initiatorAgentId === agent.agentId),
+      )
+      .sort((left, right) => left.matterId.localeCompare(right.matterId))) {
+      input.events.push(
+        makeEvent(input.handlerInput, input.events.length, 'MatterClosed', {
+          matterId: matter.matterId,
+          closure: 'expired',
+          closedAt: settledAt,
+        }),
+      );
+      closedMatterIds.add(matter.matterId);
+    }
+    return {
+      burnedCurrency: getCurrentBalance(input.balanceByAgent, agent),
+      depositForfeited,
+      writtenOffLoanIds,
+    };
+  };
+
   for (const agent of input.agents) {
     if (input.deceasedAgentIds.has(agent.agentId)) {
       continue;
     }
     const interval = input.intervalFor(agent);
-    const registeredAtMs = agent.registration?.registeredAt ?? 0;
-    const ageMs = deriveAgentAgeMs({
-      nowMs: interval.currentSimulationTime,
-      registeredAtMs,
-      policy,
-    });
-    const ageDays = ageMs / policy.dayLengthMs;
-    const stage = deriveLifecycleStage({ ageMs, policy });
+    const policy = input.policy;
+    let job = agent.job;
+    let retiredAtMs = agent.retiredAtMs;
+    const ageMs =
+      policy === undefined
+        ? undefined
+        : deriveAgentAgeMs({
+            nowMs: interval.currentSimulationTime,
+            registeredAtMs: resolveAgentAgeAnchorMs(agent),
+            policy,
+          });
+    const ageDays =
+      policy === undefined || ageMs === undefined ? undefined : ageMs / policy.dayLengthMs;
+    const stage =
+      policy === undefined || ageMs === undefined ? null : deriveLifecycleStage({ ageMs, policy });
     const previousStage = agent.lifeStage ?? 'adult';
-    if (stage !== previousStage) {
+    if (
+      policy !== undefined &&
+      stage !== null &&
+      ageDays !== undefined &&
+      stage !== previousStage
+    ) {
       input.events.push(
         makeEvent(input.handlerInput, input.events.length, 'AgentAged', {
           agentId: agent.agentId,
@@ -1405,9 +1520,11 @@ function appendLifecycleSettlementEvents(input: {
       );
     }
 
-    let job = agent.job;
-    let retiredAtMs = agent.retiredAtMs;
-    if (evaluateRetirement({ stage, hasJob: job !== null })) {
+    if (
+      policy !== undefined &&
+      stage !== null &&
+      evaluateRetirement({ stage, hasJob: job !== null })
+    ) {
       if (job === null) {
         throw new Error(`retirement decision requires a job for ${agent.agentId}`);
       }
@@ -1417,7 +1534,7 @@ function appendLifecycleSettlementEvents(input: {
           agentId: agent.agentId,
           previousJob: job,
           retiredAtMs: interval.currentSimulationTime,
-          ageDays,
+          ageDays: ageDays ?? 0,
           policyVersion: policy.policyVersion,
           reason: 'forced-retirement',
         }),
@@ -1429,10 +1546,14 @@ function appendLifecycleSettlementEvents(input: {
 
     // Pension accrues for every interval that starts after the retirement
     // interval (the retirement itself fired at an interval end). Paid BEFORE
-    // the death check: the agent was alive for this whole interval, so the
-    // dying agent receives their final pension and the estate burn settles
-    // the post-pension balance.
-    if (retiredAtMs !== undefined && retiredAtMs <= interval.previousSimulationTime) {
+    // the departure checks: the agent was present for this whole interval, so
+    // the departing agent receives their final pension and the estate burn
+    // settles the post-pension balance.
+    if (
+      policy !== undefined &&
+      retiredAtMs !== undefined &&
+      retiredAtMs <= interval.previousSimulationTime
+    ) {
       const accrual = calculatePensionAccrual({
         elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
         policy,
@@ -1461,130 +1582,134 @@ function appendLifecycleSettlementEvents(input: {
       }
     }
 
-    const lifespanMs = resolveAgentLifespanMs({
-      agentId: agent.agentId,
-      simulationSeedMaterial,
-      policy,
-    });
-    let cause: 'old-age' | 'illness' | null = null;
-    if (evaluateOldAgeDeath({ ageMs, lifespanMs })) {
-      cause = 'old-age';
-    } else {
-      const health = getCurrentPhysiology(input.physiologyByAgent, agent).health;
+    if (policy !== undefined && ageMs !== undefined) {
+      const lifespanMs = resolveAgentLifespanMs({
+        agentId: agent.agentId,
+        simulationSeedMaterial,
+        policy,
+      });
+      let cause: 'old-age' | 'illness' | null = null;
+      if (evaluateOldAgeDeath({ ageMs, lifespanMs })) {
+        cause = 'old-age';
+      } else {
+        const health = getCurrentPhysiology(input.physiologyByAgent, agent).health;
+        const roll = createSeededRandom(
+          createIllnessDeathSeed({
+            input: { handlerInput: input.handlerInput, payload: input.payload },
+            agentId: agent.agentId,
+            evaluatedAt: interval.currentSimulationTime,
+          }),
+        ).nextFloat();
+        if (
+          evaluateIllnessDeath({
+            health,
+            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            roll,
+            policy,
+          })
+        ) {
+          cause = 'illness';
+        }
+      }
+
+      if (cause !== null) {
+        const estate = emitDepartureLiquidation(agent, job, interval.currentSimulationTime);
+        input.events.push(
+          makeEvent(input.handlerInput, input.events.length, 'AgentDied', {
+            agentId: agent.agentId,
+            cause,
+            diedAt: interval.currentSimulationTime,
+            ageDays: ageDays ?? 0,
+            lifespanDays: lifespanMs / policy.dayLengthMs,
+            retired: retiredAtMs !== undefined,
+            policyVersion: policy.policyVersion,
+            estate: {
+              burnedCurrency: estate.burnedCurrency,
+              inventoryByCommodity: summarizeInventory(agent),
+              depositForfeited: estate.depositForfeited,
+              writtenOffLoanIds: estate.writtenOffLoanIds,
+            },
+          }),
+        );
+        input.deceasedAgentIds.add(agent.agentId);
+        continue;
+      }
+    }
+
+    // Out-migration (town-migration-v1, CS2 NotHappy): the same per-cadence
+    // roll discipline as illness death; the departing agent liquidates
+    // through the shared path and leaves with their estate burned out of the
+    // town economy.
+    if (input.migration !== undefined) {
+      const wellbeing = agent.wellbeing ?? input.migration.fallbackWellbeing;
       const roll = createSeededRandom(
-        createIllnessDeathSeed({
+        createOutMigrationSeed({
           input: { handlerInput: input.handlerInput, payload: input.payload },
           agentId: agent.agentId,
           evaluatedAt: interval.currentSimulationTime,
         }),
       ).nextFloat();
       if (
-        evaluateIllnessDeath({
-          health,
+        evaluateOutMigrationDecision({
+          wellbeing,
           elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
           roll,
-          policy,
+          policy: input.migration,
         })
       ) {
-        cause = 'illness';
-      }
-    }
-
-    if (cause !== null) {
-      if (job !== null) {
-        releaseEnterpriseMemberships(agent, job);
-      }
-      let depositForfeited = 0;
-      const writtenOffLoanIds: LoanId[] = [];
-      if (bank !== undefined) {
-        const liquidation = decideLiquidateDeceasedCustomer({
-          bank,
-          agentId: agent.agentId,
-          settledAt: interval.currentSimulationTime,
-        });
-        if (liquidation.status === 'rejected') {
-          throw new Error(
-            `estate liquidation rejected for ${agent.agentId}: ${liquidation.reason}`,
-          );
-        }
-        for (const domainEvent of liquidation.events) {
-          if (domainEvent.type === 'LoanWrittenOff') {
-            input.events.push(
-              makeEvent(input.handlerInput, input.events.length, 'LoanWrittenOff', {
-                loanId: domainEvent.loanId,
-                borrowerAgentId: domainEvent.borrowerAgentId,
-                writtenOffAt: domainEvent.writtenOffAt,
-                outstandingPrincipal: domainEvent.outstandingPrincipal,
-                outstandingInterest: domainEvent.outstandingInterest,
-                reason: 'borrower-deceased',
-              }),
-            );
-            writtenOffLoanIds.push(domainEvent.loanId);
-          } else if (domainEvent.type === 'DepositForfeited') {
-            input.events.push(
-              makeEvent(input.handlerInput, input.events.length, 'DepositForfeited', {
-                agentId: domainEvent.agentId,
-                forfeitedAmount: domainEvent.forfeitedAmount,
-                forfeitedAt: domainEvent.forfeitedAt,
-                reason: 'depositor-deceased',
-              }),
-            );
-            depositForfeited = domainEvent.forfeitedAmount;
-          }
-          bank = applyCreditDomainEvent(bank, domainEvent);
-        }
-      }
-      const burnedCurrency = getCurrentBalance(input.balanceByAgent, agent);
-      // Open social matters die with either party: a later expiry or
-      // fulfillment would emit memory events for the deceased and crash the
-      // settlement, so death voids the matter with the neutral 'expired'
-      // closure (no betrayal outcome — dying is not betraying).
-      for (const matter of Object.values(projection.socialMatters ?? {})
-        .filter(
-          (candidate) =>
-            candidate.status !== 'closed' &&
-            !closedMatterIds.has(candidate.matterId) &&
-            (candidate.assigneeAgentId === agent.agentId ||
-              candidate.initiatorAgentId === agent.agentId),
-        )
-        .sort((left, right) => left.matterId.localeCompare(right.matterId))) {
+        const estate = emitDepartureLiquidation(agent, job, interval.currentSimulationTime);
         input.events.push(
-          makeEvent(input.handlerInput, input.events.length, 'MatterClosed', {
-            matterId: matter.matterId,
-            closure: 'expired',
-            closedAt: interval.currentSimulationTime,
+          makeEvent(input.handlerInput, input.events.length, 'AgentEmigrated', {
+            agentId: agent.agentId,
+            cause: 'dissatisfaction',
+            emigratedAt: interval.currentSimulationTime,
+            wellbeing,
+            ...(ageDays === undefined ? {} : { ageDays }),
+            policyVersion: input.migration.policyVersion,
+            estate: {
+              burnedCurrency: estate.burnedCurrency,
+              inventoryByCommodity: summarizeInventory(agent),
+              depositForfeited: estate.depositForfeited,
+              writtenOffLoanIds: estate.writtenOffLoanIds,
+            },
           }),
         );
-        closedMatterIds.add(matter.matterId);
+        input.deceasedAgentIds.add(agent.agentId);
+        continue;
       }
-      input.events.push(
-        makeEvent(input.handlerInput, input.events.length, 'AgentDied', {
-          agentId: agent.agentId,
-          cause,
-          diedAt: interval.currentSimulationTime,
-          ageDays,
-          lifespanDays: lifespanMs / policy.dayLengthMs,
-          retired: retiredAtMs !== undefined,
-          policyVersion: policy.policyVersion,
-          estate: {
-            burnedCurrency,
-            inventoryByCommodity: Object.fromEntries(
-              Object.entries(agent.inventory)
-                .filter(([, quantity]) => quantity > 0)
-                .sort(([left], [right]) => left.localeCompare(right)),
-            ),
-            depositForfeited,
-            writtenOffLoanIds,
-          },
-        }),
-      );
-      input.deceasedAgentIds.add(agent.agentId);
-      continue;
     }
   }
   return bank;
 }
 
+function summarizeInventory(agent: WorldAgentState): Readonly<Record<string, number>> {
+  return Object.fromEntries(
+    Object.entries(agent.inventory)
+      .filter(([, quantity]) => quantity > 0)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function createOutMigrationSeed(input: {
+  readonly input: {
+    readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+    readonly payload: { readonly deltaMs: number };
+  };
+  readonly agentId: AgentId;
+  readonly evaluatedAt: number;
+}): string {
+  const { handlerInput, payload } = input.input;
+  return [
+    'agent-out-migration',
+    ...(handlerInput.randomSeed === undefined ? [] : [handlerInput.randomSeed]),
+    handlerInput.command.simulationId,
+    handlerInput.command.id,
+    handlerInput.projection.clock.now,
+    payload.deltaMs,
+    input.evaluatedAt,
+    input.agentId,
+  ].join(':');
+}
 function createIllnessDeathSeed(input: {
   readonly input: {
     readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
@@ -2221,8 +2346,7 @@ function appendPetitionExpiryEvents(input: {
 }): void {
   const due = (input.input.projection.petitions ?? [])
     .filter(
-      (petition) =>
-        petition.status === 'open' && petition.expiresAt <= input.nextSimulationTime,
+      (petition) => petition.status === 'open' && petition.expiresAt <= input.nextSimulationTime,
     )
     .sort(
       (left, right) =>

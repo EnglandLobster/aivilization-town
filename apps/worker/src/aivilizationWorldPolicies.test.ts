@@ -15,6 +15,7 @@ import {
   assertTownConditionsPolicy,
   assertValidCollectiveActionPolicy,
   assertValidLifecyclePolicy,
+  assertValidOutMigrationPolicy,
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
@@ -22,6 +23,7 @@ import {
 import { describe, expect, test } from 'vitest';
 import {
   createAivilizationCollectiveActionPolicy,
+  createAivilizationOutMigrationPolicy,
   createAivilizationTownCalendarPolicy,
   createAivilizationTownDiscoursePolicy,
   createAivilizationTownLifecyclePolicy,
@@ -572,6 +574,38 @@ describe('AIvilization default world command policies', () => {
         townCollectiveAction: true,
       })(projection).collectiveAction?.policyVersion,
     ).toBe('collective-action-v1');
+  });
+
+  test('declares the out-migration policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townMigration');
+    expect(off.parameters).not.toHaveProperty('townMigration');
+    expect(JSON.stringify(off)).not.toContain('town-migration-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townMigration: true });
+    expect(on.policyVersions).toMatchObject({ townMigration: 'town-migration-v1' });
+    expect(on.parameters.townMigration).toMatchObject({
+      policyVersion: 'town-migration-v1',
+      maxProbabilityPerHour: 1,
+      fallbackWellbeing: 50,
+      settlementCadenceMs: 86_400_000,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const policy = createAivilizationOutMigrationPolicy();
+    expect(policy.policyVersion).toBe('town-migration-v1');
+    expect(() => assertValidOutMigrationPolicy(policy)).not.toThrow();
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).migration).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(
+        projection,
+      ).migration?.policyVersion,
+    ).toBe('town-migration-v1');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

@@ -89,6 +89,7 @@ export type CoreEventType =
   | 'AgentRetired'
   | 'PensionPaid'
   | 'AgentDied'
+  | 'AgentEmigrated'
   | 'BulletinScheduled'
   | 'BulletinPosted'
   | 'PetitionRaised'

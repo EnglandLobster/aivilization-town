@@ -22,6 +22,30 @@ export type LifestylePolicy = {
   readonly source: string;
 };
 
+/**
+ * Wellbeing-modulated non-survival spend-cap ratio (town-wellbeing ×
+ * lifestyle interlock): the struggling-tier cap tightens for distressed
+ * agents (survival mode) and loosens slightly for content ones — a ×[0.5,
+ * 1.5] multiplier linear in (wellbeing − 50)/100. Absent wellbeing returns
+ * the base ratio unchanged (read-path only; settlement never consumes this).
+ */
+export function evaluateNonSurvivalSpendCapRatio(input: {
+  readonly baseRatio: number;
+  readonly wellbeing?: number;
+}): number {
+  if (!Number.isFinite(input.baseRatio) || input.baseRatio < 0) {
+    throw new Error('non-survival spend cap ratio must be non-negative finite');
+  }
+  if (input.wellbeing === undefined) {
+    return input.baseRatio;
+  }
+  if (!Number.isFinite(input.wellbeing)) {
+    throw new Error('wellbeing must be finite');
+  }
+  const multiplier = Math.max(0.5, Math.min(1.5, 1 + (input.wellbeing - 50) / 100));
+  return input.baseRatio * multiplier;
+}
+
 export function evaluateLifestyleTier(input: {
   readonly netWorth: number;
   readonly policy: LifestylePolicy;

@@ -184,6 +184,8 @@ export type WorldEducationExamApplicationState = {
   readonly agentId: AgentId;
   readonly targetLevel: EducationExamTargetLevel;
   readonly educationScore: number;
+  /** Ranking-score snapshot (e.g. wellbeing-adjusted); absent ranks on raw. */
+  readonly effectiveEducationScore?: number;
   readonly submittedAt: number;
   readonly status: 'pending' | EducationExamResolutionStatus;
   readonly resolvedAt?: number;
@@ -1169,6 +1171,9 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             agentId: event.payload.agentId,
             targetLevel: event.payload.targetLevel,
             educationScore: event.payload.educationScore,
+            ...(event.payload.effectiveEducationScore === undefined
+              ? {}
+              : { effectiveEducationScore: event.payload.effectiveEducationScore }),
             submittedAt: event.occurredAt,
             status: 'pending',
           },

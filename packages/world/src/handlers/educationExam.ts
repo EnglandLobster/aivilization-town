@@ -3,7 +3,9 @@ import {
   calculateRecruitmentCycleNumber,
   deriveEducationLevel,
   evaluateEducationExamEligibility,
+  evaluateWellbeingExamScoreBonus,
   type EducationSystemPolicy,
+  type WellbeingPolicy,
 } from '@aivilization/society';
 import { assertAgentApplyEducationExamPayload } from '../commands';
 import type { WorldEvent } from '../events';
@@ -26,6 +28,13 @@ export function handleAgentApplyEducationExamCommand(input: {
   readonly command: CommandEnvelope<'AgentApplyEducationExam', unknown>;
   readonly projection: WorldProjection;
   readonly policy: EducationSystemPolicy;
+  /**
+   * Optional town-wellbeing policy: when present (and the education policy
+   * carries a wellbeingExamScoreBonus), the submission snapshots a
+   * wellbeing-adjusted ranking score. Absent keeps submissions byte-for-byte
+   * identical to pre-wellbeing runs.
+   */
+  readonly wellbeing?: WellbeingPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -82,6 +91,13 @@ export function handleAgentApplyEducationExamCommand(input: {
 
   const targetLevel = eligibilityResult.payload.targetLevel;
   const applicationId = `${input.command.id}:application`;
+  const wellbeingBonus =
+    input.wellbeing === undefined || input.policy.wellbeingExamScoreBonus === undefined
+      ? undefined
+      : evaluateWellbeingExamScoreBonus({
+          wellbeing: agent.wellbeing ?? input.wellbeing.initialValue,
+          policy: input.policy,
+        });
   return [
     makeEvent(input, 0, 'EducationExamApplicationSubmitted', {
       applicationId,
@@ -89,6 +105,9 @@ export function handleAgentApplyEducationExamCommand(input: {
       agentId: agent.agentId,
       targetLevel,
       educationScore: agent.educationScore,
+      ...(wellbeingBonus === undefined
+        ? {}
+        : { effectiveEducationScore: agent.educationScore + wellbeingBonus }),
     }),
     makeMemoryEvent(input, 1, {
       summary: `Submitted an application for the level-${targetLevel} education exam in exam cycle ${cycleNumber}.`,

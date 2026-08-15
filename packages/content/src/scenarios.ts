@@ -125,6 +125,14 @@ export type ScenarioTownConflictPolicyConfig = {
   readonly attackerEnergyCost: number;
   readonly minHealthAfterAttack: number;
   readonly witnessAttitudePenaltyScale: number;
+  /**
+   * Optional wellbeing grievance shift (active only when the run also carries
+   * a town-wellbeing policy): the strained-relation threshold shifts by
+   * maxShift × (50 − wellbeing)/50. Omitted keeps the static threshold.
+   */
+  readonly wellbeingGrievanceShift?: {
+    readonly maxShift: number;
+  };
   readonly source: string;
 };
 
@@ -328,6 +336,15 @@ export type ScenarioEducationSystemPolicyConfig = {
   readonly vocationalTrackJobTierBonus: Readonly<Record<string, number>>;
   /** Optional cap on cumulative exam attempts per agent; omitted allows retakes. */
   readonly maxExamAttempts?: number;
+  /**
+   * Optional wellbeing exam-score bonus (active only when the run also
+   * carries a town-wellbeing policy): submissions snapshot a
+   * wellbeing-adjusted ranking score, linear in (wellbeing − 50)/50 clamped
+   * to ±maxBonus. Omitted keeps ranking on the raw score.
+   */
+  readonly wellbeingExamScoreBonus?: {
+    readonly maxBonus: number;
+  };
   readonly source: string;
 };
 
@@ -811,6 +828,10 @@ export const aivilizationTownConflictPolicyDefaults = {
   attackerEnergyCost: 10,
   minHealthAfterAttack: 0,
   witnessAttitudePenaltyScale: 0.5,
+  // relationScore ∈ [−1, 1]: a max shift of 0.2 means a fully distressed
+  // attacker (wellbeing 0) treats relations below +0.2 as strained, while a
+  // thriving one (wellbeing 100) needs genuine hostility below −0.2.
+  wellbeingGrievanceShift: { maxShift: 0.2 },
   source: townConflictPolicySource,
 } as const satisfies ScenarioTownConflictPolicyConfig;
 
@@ -943,6 +964,10 @@ export const aivilizationEducationSystemPolicyDefaults = {
   admissionQuotaByLevel: { 3: 0.5, 4: 0.25, 5: 0.1 },
   vocationalTrackShare: 0.5,
   vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
+  // ±10 score points on a 0-450 scale: a nudge on competitive position, never
+  // enough to cross an eligibility threshold on its own (eligibility always
+  // checks the raw score).
+  wellbeingExamScoreBonus: { maxBonus: 10 },
   source: educationSystemPolicySource,
 } as const satisfies ScenarioEducationSystemPolicyConfig;
 

@@ -264,6 +264,12 @@ export type EducationExamApplicationSubmittedPayload = {
   readonly agentId: AgentId;
   readonly targetLevel: EducationExamTargetLevel;
   readonly educationScore: number;
+  /**
+   * Ranking-score snapshot (educationScore + submission-time bonuses, e.g.
+   * the town-wellbeing exam bonus). Optional so pre-wellbeing submissions
+   * replay unchanged; the cycle ranks on it when present.
+   */
+  readonly effectiveEducationScore?: number;
 };
 
 /**

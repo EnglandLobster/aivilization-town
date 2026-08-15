@@ -15,11 +15,13 @@ import {
   assertTownConditionsPolicy,
   assertValidLifecyclePolicy,
   assertValidTownCalendarPolicy,
+  assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
 } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
   createAivilizationTownCalendarPolicy,
+  createAivilizationTownDiscoursePolicy,
   createAivilizationTownLifecyclePolicy,
   createAivilizationTownConditionsPolicy,
   createAivilizationTownWeatherPolicy,
@@ -502,6 +504,37 @@ describe('AIvilization default world command policies', () => {
       createAivilizationWorldCommandPolicies('seed', undefined, { townLifecycle: true })(projection)
         .lifecycle?.policyVersion,
     ).toBe('town-lifecycle-v1');
+  });
+
+  test('declares the town discourse policy in the manifest only when the switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townDiscourse');
+    expect(off.parameters).not.toHaveProperty('townDiscourse');
+    expect(JSON.stringify(off)).not.toContain('town-discourse-v1');
+
+    const on = createAivilizationWorldPolicyManifest({ townDiscourse: true });
+    expect(on.policyVersions).toMatchObject({ townDiscourse: 'town-discourse-v1' });
+    expect(on.parameters.townDiscourse).toMatchObject({
+      policyVersion: 'town-discourse-v1',
+      propagationProbabilityPercent: 40,
+      importanceMultiplierRange: [0.7, 1.3],
+      maxChainDepth: 3,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const policy = createAivilizationTownDiscoursePolicy();
+    expect(policy.policyVersion).toBe('town-discourse-v1');
+    expect(() => assertValidTownDiscoursePolicy(policy)).not.toThrow();
+
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).discourse).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townDiscourse: true })(projection)
+        .discourse?.policyVersion,
+    ).toBe('town-discourse-v1');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

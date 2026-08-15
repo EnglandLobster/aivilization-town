@@ -5,6 +5,7 @@ import {
   createCommandEnvelope,
   type CoreCommandType,
 } from '@aivilization/sim-core';
+import { createMemoryProvenance, createShortTermMemoryRecord } from '@aivilization/memory';
 import type { EducationSystemPolicy, ResidentialPhysiologyCapPolicy } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -26,6 +27,7 @@ import {
   handleAgentWorkCommand,
   handleAdvanceSimulationTimeCommand,
   handleRegisterAgentCommand,
+  type WorldEvent,
   type WorldProjection,
 } from './index';
 
@@ -3608,6 +3610,120 @@ describe('agent conversation command handling', () => {
       'ShortTermMemoryRecorded',
       'ShortTermMemoryRecorded',
     ]);
+    // No discourse policy: the command above emitted exactly the legacy five
+    // events, byte-for-byte. Re-running WITH a discourse policy propagates one
+    // eligible speaker memory per direction as a distorted hearsay copy.
+    const discourseProjection = (): WorldProjection => ({
+      ...projection,
+      memoryRecords: [
+        createShortTermMemoryRecord({
+          id: 'memory-speaker-secret',
+          agentId: asAgentId('agent-1'),
+          kind: 'action',
+          status: 'succeeded',
+          summary: 'Found a shortcut through the old mill.',
+          occurredAt: 10,
+          importanceScore: 0.8,
+          source: { eventIds: [] },
+          tags: ['exploration'],
+        }),
+        // Eligibility guard: exhausted hearsay must not outrank the secret.
+        createShortTermMemoryRecord({
+          id: 'memory-speaker-stale-hearsay',
+          agentId: asAgentId('agent-1'),
+          kind: 'observation',
+          status: 'observed',
+          summary: 'Heard about a faraway fair.',
+          occurredAt: 11,
+          importanceScore: 0.95,
+          source: { eventIds: [] },
+          tags: ['hearsay-chain:3'],
+          provenance: createMemoryProvenance({ kind: 'hearsay' }),
+        }),
+        createShortTermMemoryRecord({
+          id: 'memory-other-agent',
+          agentId: asAgentId('agent-2'),
+          kind: 'action',
+          status: 'succeeded',
+          summary: 'Bought bread at the market.',
+          occurredAt: 12,
+          importanceScore: 0.9,
+          source: { eventIds: [] },
+          tags: ['shopping'],
+        }),
+      ],
+    });
+    const discoursePolicy = {
+      policyVersion: 'town-discourse-v1',
+      propagationProbabilityPercent: 100,
+      importanceMultiplierRange: [1.25, 1.25] as [number, number],
+      maxChainDepth: 3,
+    };
+    const discourseCommand = createCommandEnvelope({
+      id: 'command-conversation-discourse',
+      simulationId: 'sim-1',
+      actorId: 'agent-1',
+      type: 'AgentStartConversation',
+      payload: {
+        targetAgentId: 'agent-2',
+        topic: 'homework',
+        relationDelta: 0.2,
+        attitudeDelta: 0.1,
+        turns: [
+          {
+            speakerAgentId: 'agent-1',
+            utterance: 'Do you want to study together?',
+            intent: 'invite-study',
+          },
+          {
+            speakerAgentId: 'agent-2',
+            utterance: 'Yes, let us review after class.',
+            intent: 'share-information',
+          },
+        ],
+      },
+      issuedAt: 90,
+    });
+    const withDiscourse = handleAgentStartConversationCommand({
+      command: discourseCommand,
+      projection: discourseProjection(),
+      nextSequence: 1,
+      discourse: discoursePolicy,
+    });
+
+    // Probability 100 and a fixed ×1.25 multiplier are roll-independent:
+    // agent-1's eligible top memory (the 0.8 secret; the 0.95 hearsay sits at
+    // the chain cap) reaches agent-2 clamped to 1, and agent-2's 0.9 shopping
+    // memory reaches agent-1 clamped to 1.
+    const hearsay = withDiscourse.filter(
+      (event): event is Extract<WorldEvent, { type: 'ShortTermMemoryRecorded' }> =>
+        event.type === 'ShortTermMemoryRecorded' &&
+        event.payload.record.provenance?.kind === 'hearsay',
+    );
+    expect(hearsay).toHaveLength(2);
+    expect(
+      hearsay.find((event) => event.payload.record.agentId === 'agent-2')?.payload.record,
+    ).toMatchObject({
+      summary: 'Heard from agent-1: Found a shortcut through the old mill.',
+      importanceScore: 1,
+      tags: ['exploration', 'hearsay', 'hearsay-chain:1', 'from:agent-1'],
+    });
+    expect(
+      hearsay.find((event) => event.payload.record.agentId === 'agent-1')?.payload.record,
+    ).toMatchObject({
+      summary: 'Heard from agent-2: Bought bread at the market.',
+      importanceScore: 1,
+      tags: ['shopping', 'hearsay', 'hearsay-chain:1', 'from:agent-2'],
+    });
+
+    // Determinism: redispatching the same command derives identical events.
+    const repeat = handleAgentStartConversationCommand({
+      command: discourseCommand,
+      projection: discourseProjection(),
+      nextSequence: 1,
+      discourse: discoursePolicy,
+    });
+    expect(repeat).toEqual(withDiscourse);
     expect(events[0]).toMatchObject({
       type: 'ConversationRecorded',
       payload: {

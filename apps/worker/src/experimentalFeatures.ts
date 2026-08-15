@@ -4,6 +4,7 @@ import {
   aivilizationTownCalendarPolicyDefaults,
   aivilizationTownConditionsPolicyDefaults,
   aivilizationTownConflictPolicyDefaults,
+  aivilizationTownDiscoursePolicyDefaults,
   aivilizationTownLifecyclePolicyDefaults,
   aivilizationTownWeatherPolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
@@ -12,8 +13,10 @@ import {
   assertTownConditionsPolicy,
   assertValidLifecyclePolicy,
   assertValidTownCalendarPolicy,
+  assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
   type LifecyclePolicy,
+  type TownDiscoursePolicy,
   type TownCalendarPolicy,
   type TownConditionsPolicy,
   type WellbeingPolicy,
@@ -35,7 +38,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townConflict'
   | 'townWellbeing'
   | 'townCalendar'
-  | 'townLifecycle';
+  | 'townLifecycle'
+  | 'townDiscourse';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -132,8 +136,7 @@ export function createAivilizationTownConflictPolicy(): TownConflictPolicy {
     maxDamage: aivilizationTownConflictPolicyDefaults.maxDamage,
     attackerEnergyCost: aivilizationTownConflictPolicyDefaults.attackerEnergyCost,
     minHealthAfterAttack: aivilizationTownConflictPolicyDefaults.minHealthAfterAttack,
-    witnessAttitudePenaltyScale:
-      aivilizationTownConflictPolicyDefaults.witnessAttitudePenaltyScale,
+    witnessAttitudePenaltyScale: aivilizationTownConflictPolicyDefaults.witnessAttitudePenaltyScale,
     ...(aivilizationTownConflictPolicyDefaults.wellbeingGrievanceShift === undefined
       ? {}
       : {
@@ -170,6 +173,20 @@ export function createAivilizationTownCalendarPolicy(): TownCalendarPolicy {
     physiologicalDecay: { ...aivilizationTownCalendarPolicyDefaults.physiologicalDecay },
   };
   assertValidTownCalendarPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationTownDiscoursePolicy(): TownDiscoursePolicy {
+  const policy: TownDiscoursePolicy = {
+    policyVersion: aivilizationTownDiscoursePolicyDefaults.policyVersion,
+    propagationProbabilityPercent:
+      aivilizationTownDiscoursePolicyDefaults.propagationProbabilityPercent,
+    importanceMultiplierRange: [
+      ...aivilizationTownDiscoursePolicyDefaults.importanceMultiplierRange,
+    ] as [number, number],
+    maxChainDepth: aivilizationTownDiscoursePolicyDefaults.maxChainDepth,
+  };
+  assertValidTownDiscoursePolicy(policy);
   return policy;
 }
 
@@ -329,7 +346,9 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
         ...aivilizationTownWellbeingPolicyDefaults,
         coefficients: {
           ...aivilizationTownWellbeingPolicyDefaults.coefficients,
-          residentialTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.residentialTier],
+          residentialTier: [
+            ...aivilizationTownWellbeingPolicyDefaults.coefficients.residentialTier,
+          ],
           lifestyleTier: [...aivilizationTownWellbeingPolicyDefaults.coefficients.lifestyleTier],
         },
       }),
@@ -386,6 +405,33 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         lifecycle: createAivilizationTownLifecyclePolicy(),
+      }),
+    },
+    {
+      key: 'townDiscourse',
+      policyVersion: aivilizationTownDiscoursePolicyDefaults.policyVersion,
+      cliFlag: '--town-discourse',
+      envVar: 'AIVILIZATION_TOWN_DISCOURSE',
+      helpTitle: 'Hearsay memory propagation over conversations',
+      helpLines: [
+        'The town discourse propagation is a repository-specific extension (not a paper',
+        'mechanism): pass --town-discourse on or AIVILIZATION_TOWN_DISCOURSE=1 so each',
+        "conversation direction can carry one of the speaker's recent memories to the",
+        'listener as a hearsay copy with a deterministically distorted importance and a',
+        'bounded re-share chain depth. Rolls are seeded per command and direction, so',
+        'replays derive identical copies. Disabled by default.',
+      ],
+      registrySource:
+        'The town discourse propagation is not a paper mechanism; propagation probability, distortion range, and chain depth are repository-defined (AI-native mechanism with no CS2 counterpart).',
+      createManifestParameters: () => ({
+        ...aivilizationTownDiscoursePolicyDefaults,
+        importanceMultiplierRange: [
+          ...aivilizationTownDiscoursePolicyDefaults.importanceMultiplierRange,
+        ] as [number, number],
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        discourse: createAivilizationTownDiscoursePolicy(),
       }),
     },
   ];

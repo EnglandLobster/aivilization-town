@@ -136,6 +136,21 @@ E 的治理命令面（税率/预算仍是参数而非参与者可调命令）�
 剩余缺口：儿童年龄阶段（无年龄概念，新生 agent 直接成人）、学校建筑与容量约束、
 教师雇员（教育目前无劳动力投入）——均依赖 GAP A（空间/建造）与 D（人口生命周期）先行。
 
+### 公共话语进展（2026-08-15，P4a 已落地）
+
+- **P4c 幸福感三消费端**：考试录取快照加成（education-system 可选
+  wellbeingExamScoreBonus ±10 分，资格线仍按原始分）、冲突 strained-relation
+  门槛平移（town-conflict 可选 wellbeingGrievanceShift 0.2，困顿者易怒）、
+  拮据档非生存消费上限 ×[0.5,1.5] 调制（读路径）。全部可选字段，flag 关闭
+  时逐字节兼容。
+- **P4a hearsay 记忆传播**（`--town-discourse`，默认关）：`society/discourse.ts`
+  纯决策——对话每个方向以 40% 概率把说话者一条合格近期记忆传给听者，
+  重要度在 ×[0.7,1.3] 内按种子 roll 失真，hearsay 链深 3 跳后不再转述
+  （谣言自然衰减）；implanted/corrected/doubtful/past 永不传播。world 在
+  对话结算时以 ShortTermMemoryRecorded 事件落地（provenance=hearsay，
+  memory 检索已内建 hearsay 降权）；roll 仅由命令封套+时钟派生，replay
+  可重推导。候选来自 projection 的 256 条近期记忆读缓存（明确非权威库）。
+
 ### 社会模拟总线进展（2026-08-15，P1–P3 已落地）
 
 对标 `CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` §4 的 P1–P3，三阶段全部按
@@ -176,7 +191,7 @@ E 的治理命令面（税率/预算仍是参数而非参与者可调命令）�
 > 2026-08-14 起以 `CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` §4 的 P1–P8 为准
 > （P1 幸福感 / P2 昼夜日历 / P3 生命周期 / P4 公共话语 / P5 服务短缺 / P6 治理命令面 /
 > P7 需求与人口流动 / P8 空间建造物流）。
-> **2026-08-15 进度：P1–P3 已落地（flag 默认关），下一项 P4 公共话语深化。**
+> **2026-08-15 进度：P1–P3 与 P4a/P4c 已落地（flag 默认关），下一项 P4b 集体行动。**
 > 以下为原始排序，保留作历史脉络：
 
 1. **F 昼夜/日历 + D 生理被动衰减**：小改动，小镇立刻"有日子过"。

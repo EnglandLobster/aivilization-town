@@ -173,6 +173,14 @@ export type ScenarioTownCalendarPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownDiscoursePolicyConfig = {
+  readonly policyVersion: string;
+  readonly propagationProbabilityPercent: number;
+  readonly importanceMultiplierRange: readonly [number, number];
+  readonly maxChainDepth: number;
+  readonly source: string;
+};
+
 export type ScenarioTownLifecyclePolicyConfig = {
   readonly policyVersion: string;
   readonly dayLengthMs: number;
@@ -188,7 +196,6 @@ export type ScenarioTownLifecyclePolicyConfig = {
   readonly pensionPerHour: number;
   readonly source: string;
 };
-
 
 export type ScenarioIncomeTaxBracketConfig = {
   // Inclusive upper bound of the single wage payment this bracket covers;
@@ -572,6 +579,8 @@ const townWellbeingPolicySource =
   'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
 const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
+const townDiscoursePolicySource =
+  'Town discourse propagation; town-discourse-v1 propagation probability, importance distortion range, and hearsay chain depth are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model information propagation';
 const townLifecyclePolicySource =
   'Town lifecycle; town-lifecycle-v1 stage thresholds, lifespan window, illness-death risk shape, and pension rate are repository policy decisions benchmarked against the CS2 citizen lifecycle (pre-rolled lifespan, illness death risk concentrated at low health, forced retirement), because the paper does not model population turnover';
 const taxPolicySource =
@@ -926,6 +935,23 @@ export const aivilizationTownLifecyclePolicyDefaults = {
   source: townLifecyclePolicySource,
 } as const satisfies ScenarioTownLifecyclePolicyConfig;
 
+export const TOWN_DISCOURSE_POLICY_VERSION = 'town-discourse-v1';
+
+/**
+ * Hearsay memory propagation over conversations (town-discourse switch):
+ * each conversation direction carries one of the speaker's eligible recent
+ * memories to the listener with probability 40%, its importance re-rolled
+ * within ×[0.7, 1.3] (gossip inflates or deflates), and hearsay copies stop
+ * re-sharing after 3 hops so rumors decay instead of circulating forever.
+ * The memory package already ranks hearsay below firsthand on retrieval.
+ */
+export const aivilizationTownDiscoursePolicyDefaults = {
+  policyVersion: TOWN_DISCOURSE_POLICY_VERSION,
+  propagationProbabilityPercent: 40,
+  importanceMultiplierRange: [0.7, 1.3] as [number, number],
+  maxChainDepth: 3,
+  source: townDiscoursePolicySource,
+} as const satisfies ScenarioTownDiscoursePolicyConfig;
 
 export const aivilizationHealthcarePolicyDefaults = {
   seeDoctorTreatmentCost: {

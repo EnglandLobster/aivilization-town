@@ -4,6 +4,7 @@ export * from './educationExam';
 export * from './calendar';
 export * from './conditions';
 export * from './consumption';
+export * from './discourse';
 export * from './healthcare';
 export * from './landValue';
 export * from './lifecycle';

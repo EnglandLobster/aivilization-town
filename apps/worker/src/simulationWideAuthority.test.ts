@@ -92,8 +92,16 @@ describe('simulation-wide authority', () => {
       targetAgentId: agentB,
       topic: 'fish supply',
       turns: [
-        { speakerAgentId: agentA, utterance: 'Could we coordinate fish supply?', intent: 'cooperate' },
-        { speakerAgentId: agentB, utterance: 'Yes, I can share market information.', intent: 'cooperate' },
+        {
+          speakerAgentId: agentA,
+          utterance: 'Could we coordinate fish supply?',
+          intent: 'cooperate',
+        },
+        {
+          speakerAgentId: agentB,
+          utterance: 'Yes, I can share market information.',
+          intent: 'cooperate',
+        },
       ],
     });
     const snapshot = authority.getSnapshot();
@@ -343,11 +351,9 @@ describe('simulation-wide authority', () => {
       { operationKind: 'move' },
       { operationKind: 'time-advanced' },
     ]);
-    expect(
-      sourceAfter[1]!.events.every(
-        (event) => event.type === 'AgentOwnershipDeparted',
-      ),
-    ).toBe(true);
+    expect(sourceAfter[1]!.events.every((event) => event.type === 'AgentOwnershipDeparted')).toBe(
+      true,
+    );
     const destinationAfter = authority.readInbox({
       partitionKey: partitionB,
       consumerId: 'materializer-b',
@@ -355,9 +361,7 @@ describe('simulation-wide authority', () => {
     expect(destinationAfter).toMatchObject([{ operationKind: 'time-advanced' }]);
     expect(destinationAfter[0]!.cognitiveSnapshot).toEqual(snapshot);
     expect(
-      destinationAfter[0]!.events.every(
-        (event) => event.type === 'AgentOwnershipArrived',
-      ),
+      destinationAfter[0]!.events.every((event) => event.type === 'AgentOwnershipArrived'),
     ).toBe(true);
   });
 
@@ -716,15 +720,16 @@ describe('simulation-wide authority', () => {
     const restarted = createAuthority(rootDir);
 
     expect(replay).toEqual(acknowledgement);
-    expect(restarted.readInbox({ partitionKey: partitionA, consumerId: 'projection-materializer' }))
-      .toMatchObject({
-        cursor: {
-          partitionKey: partitionA,
-          consumerId: 'projection-materializer',
-          throughFencingToken: 1,
-        },
-        deliveries: [],
-      });
+    expect(
+      restarted.readInbox({ partitionKey: partitionA, consumerId: 'projection-materializer' }),
+    ).toMatchObject({
+      cursor: {
+        partitionKey: partitionA,
+        consumerId: 'projection-materializer',
+        throughFencingToken: 1,
+      },
+      deliveries: [],
+    });
   });
 
   test('rolls a persisted operation forward when the audit completion record is missing', () => {
@@ -738,7 +743,12 @@ describe('simulation-wide authority', () => {
       agentId: agentA,
       trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
     });
-    const journalPath = join(rootDir, 'simulation-wide-authority', simulationId, 'operations.jsonl');
+    const journalPath = join(
+      rootDir,
+      'simulation-wide-authority',
+      simulationId,
+      'operations.jsonl',
+    );
     const durableRows = readFileSync(journalPath, 'utf8')
       .split('\n')
       .filter((row) => row.length > 0)
@@ -746,7 +756,11 @@ describe('simulation-wide authority', () => {
     writeFileSync(journalPath, `${durableRows.join('\n')}\n`);
 
     expect(
-      createAuthority(rootDir).recover({ workerId: 'recovery-worker', observedAt: 2, durationMs: 100 }),
+      createAuthority(rootDir).recover({
+        workerId: 'recovery-worker',
+        observedAt: 2,
+        durationMs: 100,
+      }),
     ).toEqual(['trade-needs-recovery']);
     expect(readFileSync(journalPath, 'utf8')).toContain('"recordType":"completed"');
   });
@@ -756,7 +770,10 @@ describe('simulation-wide authority', () => {
     const authority = createAuthority(rootDir);
     const lockDir = join(rootDir, 'simulation-wide-authority', simulationId, '.writer-lease');
     mkdirSync(lockDir, { recursive: true });
-    writeFileSync(join(lockDir, 'lease.json'), JSON.stringify({ workerId: 'other', expiresAt: 100 }));
+    writeFileSync(
+      join(lockDir, 'lease.json'),
+      JSON.stringify({ workerId: 'other', expiresAt: 100 }),
+    );
 
     expect(() =>
       authority.settleTrade({
@@ -842,6 +859,58 @@ describe('authority petition settlement', () => {
   });
 });
 
+describe('authority departure sync', () => {
+  function lease() {
+    return { workerId: 'worker-a', observedAt: 1, durationMs: 1000 } as const;
+  }
+
+  test('a reported departure removes the ghost resident from the authority ledger', () => {
+    const authority = createAuthority();
+    // Baseline: the authority knows agentA (partition A) and agentB.
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+
+    // The router reports its CURRENT residents (the departed one is absent
+    // from the location list) plus the departure of the previously reported
+    // agent it no longer holds.
+    const first = authority.syncPartitionAgentLocations({
+      operationId: 'location-sync-departure-1',
+      ...lease(),
+      partitionKey: partitionA,
+      agentLocations: [],
+      departedAgentIds: [agentA],
+    });
+    if (first.kind !== 'location-sync') throw new Error('expected location-sync');
+    expect(first.removedAgentIds).toEqual([agentA]);
+    const snapshot = authority.getSnapshot();
+    expect(snapshot.projection.agents[agentA]).toBeUndefined();
+    expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBeUndefined();
+    // The other partition's resident is untouched.
+    expect(snapshot.ownerPartitionKeyByAgentId[agentB]).toBe(partitionB);
+
+    // Idempotent replay: a crash re-issues the same sync; the already-removed
+    // id is skipped and nothing else changes.
+    const replay = authority.syncPartitionAgentLocations({
+      operationId: 'location-sync-departure-1',
+      ...lease(),
+      partitionKey: partitionA,
+      agentLocations: [],
+      departedAgentIds: [agentA],
+    });
+    expect(replay).toEqual(first);
+
+    // A departure report from the WRONG partition is rejected.
+    expect(() =>
+      authority.syncPartitionAgentLocations({
+        operationId: 'location-sync-departure-wrong-owner',
+        ...lease(),
+        partitionKey: partitionA,
+        agentLocations: [{ agentId: agentB, locationId: 'school' }],
+        departedAgentIds: [agentB],
+      }),
+    ).toThrow('must come from owner partition');
+  });
+});
+
 describe('authority lifecycle and memory-sync scoping', () => {
   function lease() {
     return {
@@ -872,9 +941,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
     });
     const lifecycleTypes = ['AgentAged', 'AgentRetired', 'PensionPaid', 'AgentDied'];
     for (const operation of operations) {
-      expect(
-        operation.events.filter((event) => lifecycleTypes.includes(event.type)),
-      ).toEqual([]);
+      expect(operation.events.filter((event) => lifecycleTypes.includes(event.type))).toEqual([]);
     }
   });
 

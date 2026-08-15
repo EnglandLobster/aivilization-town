@@ -185,6 +185,34 @@ export function applyEnterpriseProjectionEvent(
       return next;
     }
     case 'EnterpriseClosed': {
+      if (event.payload.reason === 'owner-departed') {
+        // The owner permanently left the town: nothing returns to them. The
+        // firm's cash burns out of the town economy (the departure carried
+        // the owner out; the firm's inventory perishes with it), employees
+        // are released, and the enterprise record closes.
+        let departed = updateEnterprise(projection, event.payload.enterpriseId, (enterprise) =>
+          applyEnterpriseDomainEvent(enterprise, {
+            type: 'EnterpriseClosed',
+            closedAt: event.occurredAt,
+          }),
+        );
+        const burned = event.payload.burnedBalance ?? 0;
+        if (burned > 0) {
+          const transaction = createMoneyTransfer({
+            transactionId: event.id,
+            reason: 'enterprise-owner-departure-burned',
+            from: economicAccount('enterprise', event.payload.enterpriseId),
+            to: economicAccount('external', 'departure-estate'),
+            amount: burned,
+          });
+          assertMoneySupplyDelta({ transaction, moneySupplyDelta: -burned });
+          departed = { ...departed, moneySupply: departed.moneySupply - burned };
+        }
+        for (const employeeAgentId of event.payload.employeeAgentIds) {
+          departed = updateAgent(departed, employeeAgentId, (agent) => ({ ...agent, job: null }));
+        }
+        return departed;
+      }
       if (event.payload.returnedBalance > 0) {
         assertDomesticTransfer({
           transactionId: event.id,

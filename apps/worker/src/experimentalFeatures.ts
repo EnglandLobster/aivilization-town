@@ -3,6 +3,7 @@ import {
   aivilizationTownBulletinPolicyDefaults,
   aivilizationTownCalendarPolicyDefaults,
   aivilizationTownConditionsPolicyDefaults,
+  aivilizationCollectiveActionPolicyDefaults,
   aivilizationTownConflictPolicyDefaults,
   aivilizationTownDiscoursePolicyDefaults,
   aivilizationTownLifecyclePolicyDefaults,
@@ -11,10 +12,12 @@ import {
 } from '@aivilization/content';
 import {
   assertTownConditionsPolicy,
+  assertValidCollectiveActionPolicy,
   assertValidLifecyclePolicy,
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
+  type CollectiveActionPolicy,
   type LifecyclePolicy,
   type TownDiscoursePolicy,
   type TownCalendarPolicy,
@@ -39,7 +42,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townWellbeing'
   | 'townCalendar'
   | 'townLifecycle'
-  | 'townDiscourse';
+  | 'townDiscourse'
+  | 'townCollectiveAction';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -173,6 +177,17 @@ export function createAivilizationTownCalendarPolicy(): TownCalendarPolicy {
     physiologicalDecay: { ...aivilizationTownCalendarPolicyDefaults.physiologicalDecay },
   };
   assertValidTownCalendarPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationCollectiveActionPolicy(): CollectiveActionPolicy {
+  const policy: CollectiveActionPolicy = {
+    policyVersion: aivilizationCollectiveActionPolicyDefaults.policyVersion,
+    petitionSignatureThreshold:
+      aivilizationCollectiveActionPolicyDefaults.petitionSignatureThreshold,
+    petitionExpiryMs: aivilizationCollectiveActionPolicyDefaults.petitionExpiryMs,
+  };
+  assertValidCollectiveActionPolicy(policy);
   return policy;
 }
 
@@ -433,6 +448,31 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         discourse: createAivilizationTownDiscoursePolicy(),
+      }),
+    },
+    {
+      key: 'townCollectiveAction',
+      policyVersion: aivilizationCollectiveActionPolicyDefaults.policyVersion,
+      cliFlag: '--town-collective-action',
+      envVar: 'AIVILIZATION_TOWN_COLLECTIVE_ACTION',
+      helpTitle: 'Petition collective action: raise, sign, threshold',
+      helpLines: [
+        'The petition collective action is a repository-specific extension (not a paper',
+        'mechanism): pass --town-collective-action on or',
+        'AIVILIZATION_TOWN_COLLECTIVE_ACTION=1 to let agents raise and sign town',
+        'petitions. Signatures aggregate on the simulation-wide authority; crossing the',
+        'threshold (default 3, raiser included) fires a town-wide',
+        'PetitionThresholdReached for observability and future governance inputs.',
+        'Open petitions expire after 3 simulation days. Disabled by default.',
+      ],
+      registrySource:
+        'The petition collective action is not a paper mechanism; threshold and expiry are repository-defined (AI-native mechanism with no CS2 counterpart).',
+      createManifestParameters: () => ({
+        ...aivilizationCollectiveActionPolicyDefaults,
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        collectiveAction: createAivilizationCollectiveActionPolicy(),
       }),
     },
   ];

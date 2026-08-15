@@ -36,6 +36,7 @@ import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './eve
 import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
 import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
+import type { WorldPetitionState } from './petition';
 import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
 import type { WorldConflictRecord } from './conflict';
 import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise';
@@ -438,6 +439,11 @@ export type WorldProjection = {
    */
   readonly bulletins?: readonly WorldBulletinState[];
   /**
+   * Optional town petition slice (collective-action switch). Absent on legacy
+   * projections; present (possibly empty) once petitions are used.
+   */
+  readonly petitions?: readonly WorldPetitionState[];
+  /**
    * Optional social-matter board state (opt-in social-matters switch), keyed
    * by matterId. Absent on legacy projections.
    */
@@ -548,6 +554,7 @@ export function createWorldProjection(input: {
   readonly economicComposition?: WorldEconomicCompositionState;
   readonly bankruptEnterpriseTotal?: number;
   readonly bulletins?: readonly WorldBulletinState[];
+  readonly petitions?: readonly WorldPetitionState[];
   readonly socialMatters?: readonly WorldSocialMatterState[];
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
@@ -666,6 +673,14 @@ export function createWorldProjection(input: {
       ? {}
       : {
           bulletins: input.bulletins.map((bulletin) => ({ ...bulletin })),
+        }),
+    ...(input.petitions === undefined
+      ? {}
+      : {
+          petitions: input.petitions.map((petition) => ({
+            ...petition,
+            signatureAgentIds: [...petition.signatureAgentIds],
+          })),
         }),
     ...(input.socialMatters === undefined
       ? {}
@@ -1822,7 +1837,96 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
         ],
       };
     }
-    case 'BulletinPosted': {
+  
+    case 'PetitionRaised': {
+      if (
+        (projection.petitions ?? []).some(
+          (petition) => petition.petitionId === event.payload.petition.petitionId,
+        )
+      ) {
+        throw new Error(
+          `cannot replay duplicate petition ${event.payload.petition.petitionId}`,
+        );
+      }
+      return {
+        ...projection,
+        petitions: [
+          ...(projection.petitions ?? []),
+          {
+            ...event.payload.petition,
+            signatureAgentIds: [...event.payload.petition.signatureAgentIds],
+          },
+        ],
+      };
+    }
+    case 'PetitionSigned': {
+      const petition = requirePetition(projection, event.payload.petitionId);
+      if (petition.status !== 'open') {
+        throw new Error(
+          `cannot sign ${petition.status} petition ${petition.petitionId}`,
+        );
+      }
+      if (petition.signatureAgentIds.includes(event.payload.agentId)) {
+        throw new Error(
+          `agent ${event.payload.agentId} already signed petition ${petition.petitionId}`,
+        );
+      }
+      if (petition.signatureAgentIds.length + 1 !== event.payload.signatureCount) {
+        throw new Error(
+          `petition signature count disagrees with the book for ${petition.petitionId}`,
+        );
+      }
+      return {
+        ...projection,
+        petitions: (projection.petitions ?? []).map((candidate) =>
+          candidate.petitionId === petition.petitionId
+            ? {
+                ...candidate,
+                signatureAgentIds: [...candidate.signatureAgentIds, event.payload.agentId],
+              }
+            : candidate,
+        ),
+      };
+    }
+    case 'PetitionThresholdReached': {
+      const petition = requirePetition(projection, event.payload.petitionId);
+      if (petition.status !== 'open') {
+        throw new Error(
+          `petition ${petition.petitionId} is ${petition.status}, cannot reach threshold`,
+        );
+      }
+      if (event.payload.signatureCount !== petition.signatureAgentIds.length) {
+        throw new Error(
+          `petition threshold count disagrees with the book for ${petition.petitionId}`,
+        );
+      }
+      return {
+        ...projection,
+        petitions: (projection.petitions ?? []).map((candidate) =>
+          candidate.petitionId === petition.petitionId
+            ? {
+                ...candidate,
+                status: 'threshold-reached' as const,
+                thresholdReachedAt: event.payload.reachedAt,
+              }
+            : candidate,
+        ),
+      };
+    }
+    case 'PetitionExpired': {
+      const petition = requirePetition(projection, event.payload.petitionId);
+      if (petition.status !== 'open') {
+        throw new Error(`petition ${petition.petitionId} is ${petition.status}, cannot expire`);
+      }
+      return {
+        ...projection,
+        petitions: (projection.petitions ?? []).map((candidate) =>
+          candidate.petitionId === petition.petitionId
+            ? { ...candidate, status: 'expired' as const }
+            : candidate,
+        ),
+      };
+    }  case 'BulletinPosted': {
       const bulletins = projection.bulletins ?? [];
       const bulletinId = event.payload.bulletin.bulletinId;
       if (bulletins.some((bulletin) => bulletin.bulletinId === bulletinId)) {
@@ -2193,6 +2297,19 @@ function applyConversationCommitmentChanges(
     };
   }
   return commitments;
+}
+
+function requirePetition(
+  projection: WorldProjection,
+  petitionId: string,
+): WorldPetitionState {
+  const petition = (projection.petitions ?? []).find(
+    (candidate) => candidate.petitionId === petitionId,
+  );
+  if (petition === undefined) {
+    throw new Error(`unknown petition ${petitionId}`);
+  }
+  return petition;
 }
 
 function requireSocialMatter(

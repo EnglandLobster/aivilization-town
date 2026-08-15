@@ -27,6 +27,7 @@ import type {
 import type { TownWeatherKind } from './weather';
 import type { TownBulletin } from './bulletin';
 import type { WorldSocialMatterState } from './matters';
+import type { WorldPetitionState } from './petition';
 import type { ConflictGrievance } from './conflict';
 
 export const RUNTIME_AGENT_REGISTRATION_POLICY_VERSION = 'runtime-agent-registration-v3';
@@ -1115,6 +1116,44 @@ export type DepositForfeitedPayload = {
 };
 
 /**
+ * A petition raised by one resident (collective-action-v1). The payload
+ * carries the full petition snapshot; the raiser's signature is included.
+ */
+export type PetitionRaisedPayload = {
+  readonly petition: WorldPetitionState;
+  readonly policyVersion: string;
+};
+
+/** One signature on an open petition. */
+export type PetitionSignedPayload = {
+  readonly petitionId: string;
+  readonly agentId: AgentId;
+  readonly previousSignatureCount: number;
+  readonly signatureCount: number;
+};
+
+/**
+ * The petition crossed the policy threshold: a town-wide observable fact,
+ * consumed by observability today and reserved as the governance input for
+ * the town-level policy commands (roadmap P6). Fired at most once per
+ * petition, immediately after the crossing PetitionSigned event.
+ */
+export type PetitionThresholdReachedPayload = {
+  readonly petitionId: string;
+  readonly topic: string;
+  readonly signatureCount: number;
+  readonly threshold: number;
+  readonly reachedAt: number;
+  readonly policyVersion: string;
+};
+
+/** An open petition expired without reaching its threshold. */
+export type PetitionExpiredPayload = {
+  readonly petitionId: string;
+  readonly expiredAt: number;
+};
+
+/**
  * A bulletin accepted for the town board but not yet effective: residents
  * become aware of it (BulletinPosted) once simulation time reaches
  * bulletin.effectiveAt.
@@ -1339,6 +1378,10 @@ export type WorldEventPayloadByType = {
   readonly AgentDied: AgentDiedPayload;
   readonly LoanWrittenOff: LoanWrittenOffPayload;
   readonly DepositForfeited: DepositForfeitedPayload;
+  readonly PetitionRaised: PetitionRaisedPayload;
+  readonly PetitionSigned: PetitionSignedPayload;
+  readonly PetitionThresholdReached: PetitionThresholdReachedPayload;
+  readonly PetitionExpired: PetitionExpiredPayload;
   readonly BulletinScheduled: BulletinScheduledPayload;
   readonly BulletinPosted: BulletinPostedPayload;
   readonly MatterRaised: MatterRaisedPayload;

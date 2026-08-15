@@ -6,6 +6,7 @@ import { asAgentId, asLocationId, asSimulationId, type PartitionKey } from '@aiv
 import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
+  createAivilizationCollectiveActionPolicy,
   createAivilizationTownLifecyclePolicy,
 } from './experimentalFeatures';
 import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
@@ -778,6 +779,66 @@ describe('simulation-wide authority', () => {
         trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
       }),
     ).not.toThrow();
+  });
+});
+
+describe('authority petition settlement', () => {
+  function lease() {
+    return { workerId: 'worker-a', observedAt: 1, durationMs: 1000 } as const;
+  }
+
+  test('settles raise and sign on the authority and delivers events to every partition', () => {
+    const baseResolver = createAivilizationWorldCommandPolicies('authority-test');
+    const authority = createAuthority(undefined, false, {}, (projection) => ({
+      ...baseResolver(projection),
+      collectiveAction: createAivilizationCollectiveActionPolicy(),
+    }));
+    const raised = authority.settlePetition({
+      operationId: 'petition-raise-1',
+      ...lease(),
+      agentId: agentA,
+      commandType: 'AgentRaisePetition',
+      payload: { topic: 'street-lights', statement: 'The square is dark at night.' },
+    });
+    if (raised.kind !== 'petition') throw new Error('expected petition operation');
+    expect(raised.petitionId).toBe(`simulation-wide-petition-petition-raise-1:petition`);
+    expect(raised.events.map((event) => event.type)).toContain('PetitionRaised');
+    expect(
+      authority
+        .getSnapshot()
+        .projection.petitions?.some(
+          (petition) => petition.petitionId === raised.petitionId && petition.status === 'open',
+        ),
+    ).toBe(true);
+
+    // Both partitions receive the full event set (town-wide shared truth).
+    for (const partitionKey of [partitionA, partitionB]) {
+      const inbox = authority.readInbox({ partitionKey, consumerId: 'materializer-test' });
+      expect(
+        inbox.deliveries.some(
+          (delivery) =>
+            delivery.operationId === 'petition-raise-1' &&
+            delivery.events.some((event) => event.type === 'PetitionRaised'),
+        ),
+      ).toBe(true);
+    }
+
+    // Second signature from the other partition aggregates on the same petition.
+    const signed = authority.settlePetition({
+      operationId: 'petition-sign-1',
+      ...lease(),
+      agentId: agentB,
+      commandType: 'AgentSignPetition',
+      payload: { petitionId: raised.petitionId },
+    });
+    if (signed.kind !== 'petition') throw new Error('expected petition operation');
+    expect(signed.events.map((event) => event.type)).toContain('PetitionSigned');
+    expect(
+      authority
+        .getSnapshot()
+        .projection.petitions?.find((petition) => petition.petitionId === raised.petitionId)
+        ?.signatureAgentIds,
+    ).toEqual([agentA, agentB]);
   });
 });
 

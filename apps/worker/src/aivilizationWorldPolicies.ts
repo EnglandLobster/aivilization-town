@@ -216,7 +216,7 @@ export type AivilizationWorldCommandPolicyOptions = {
   /**
    * Optional education-system policy override (e.g. the paper-ablation profile
    * pins `enabled: false` to keep the legacy continuous-score semantics).
-   * Omitted uses the canonical education-system-v3 defaults.
+   * Omitted uses the canonical education-system-v4 defaults.
    */
   readonly educationSystem?: EducationSystemPolicy;
 };
@@ -347,6 +347,13 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
       ],
       strugglingNonSurvivalSpendCapRatio:
         aivilizationLifestylePolicyDefaults.strugglingNonSurvivalSpendCapRatio,
+      ...(aivilizationLifestylePolicyDefaults.wellbeingSpendCapMultiplierRange === undefined
+        ? {}
+        : {
+            wellbeingSpendCapMultiplierRange: [
+              ...aivilizationLifestylePolicyDefaults.wellbeingSpendCapMultiplierRange,
+            ] as [number, number],
+          }),
       source: aivilizationLifestylePolicyDefaults.source,
     },
     consumption: { ...canonicalConsumptionPolicy, rules: { ...canonicalConsumptionPolicy.rules } },

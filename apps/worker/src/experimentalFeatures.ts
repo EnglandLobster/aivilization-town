@@ -202,6 +202,7 @@ export function createAivilizationTownLifecyclePolicy(): LifecyclePolicy {
     illnessDeathProbabilityPerSettlementScale:
       aivilizationTownLifecyclePolicyDefaults.illnessDeathProbabilityPerSettlementScale,
     pensionPerHour: aivilizationTownLifecyclePolicyDefaults.pensionPerHour,
+    settlementCadenceMs: aivilizationTownLifecyclePolicyDefaults.settlementCadenceMs,
   };
   assertValidLifecyclePolicy(policy);
   return policy;

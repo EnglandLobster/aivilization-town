@@ -477,7 +477,7 @@ describe('worker world decision context', () => {
       previousCycleAdmissionRate: 0.5,
       previousCycleCutoffScore: 250,
     });
-    // Rational investment view (education-system-v3): the 中考 gate into level 3
+    // Rational investment view (education-system-v4): the 中考 gate into level 3
     // costs 80 more score points (~1.33h at the canonical 1/60 rate while
     // unemployed) at the free compulsory tuition, and unlocks tier-5 wages.
     expect(withSystem.agent.educationReturn).toMatchObject({
@@ -599,7 +599,7 @@ describe('worker world decision context', () => {
         ],
       });
     const educationSystem = {
-      policyVersion: 'education-system-v3',
+      policyVersion: 'education-system-v4',
       enabled: true,
       levelScoreThresholds: [20, 70, 180, 320, 450],
       compulsoryLevels: [1, 2],

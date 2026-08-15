@@ -11,7 +11,7 @@ export type ProductionAgentState = {
   readonly residentialTier: number;
   readonly educationScore?: number;
   /**
-   * Discrete education level (education-system-v3). When the efficiency policy
+   * Discrete education level (education-system-v4). When the efficiency policy
    * carries `educationLevelMultipliers`, the education factor is multiplied by
    * the level's multiplier; omitted keeps the legacy score-only factor.
    */

@@ -409,7 +409,7 @@ describe('describeEducationStage', () => {
 describe('evaluateEffectiveEducationScoreForOccupation', () => {
   const v3Policy: EducationSystemPolicy = {
     ...policy,
-    policyVersion: 'education-system-v3',
+    policyVersion: 'education-system-v4',
     vocationalTrackJobTierBonus: { 2: 20, 3: 10 },
   };
 

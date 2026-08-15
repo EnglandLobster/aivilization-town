@@ -19,9 +19,11 @@ import {
   type PartitionKey,
   type SimulationId,
 } from '@aivilization/sim-core';
+import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
+  WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT,
   type AgentStartConversationTurnPayload,
   type AgentTradePayload,
   type AgentPostBulletinPayload,
@@ -125,6 +127,15 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    * and the tick boundary re-issues an identical idempotent request.
    */
   readonly newAgents?: readonly WorldAgentState[];
+  /**
+   * Recent short-term memory records accumulated in the reporting partition,
+   * merged into the authority projection's bounded memory cache by record id
+   * (idempotent replays skip known ids). Kept out of the fingerprint for the
+   * same crash-replay reason as newAgents. This is what keeps authority-settled
+   * conversations (and their hearsay propagation) supplied with the speakers'
+   * current memories instead of a stale or empty candidate set.
+   */
+  readonly newMemoryRecords?: readonly ShortTermMemoryRecord[];
 };
 
 /**
@@ -260,6 +271,12 @@ export type SimulationWideAuthorityOperation =
        * refreshed locations of already-known Agents.
        */
       readonly registeredAgentIds?: readonly AgentId[];
+      /**
+       * Memory record ids merged into the authority's bounded cache by this
+       * sync (the partition-side delta of short-term memories). Absent when
+       * the sync carried no new records.
+       */
+      readonly mergedMemoryRecordIds?: readonly string[];
       readonly status: 'completed';
       readonly events: readonly [];
     }
@@ -410,7 +427,12 @@ export type SimulationWideAuthorityService = {
   readonly syncPartitionAgentLocations: (
     request: SimulationWideLocationSyncRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'location-sync' };
-  readonly advanceTime: (input: SimulationWideAuthorityLease & { readonly operationId: string; readonly deltaMs: number }) => readonly SimulationWideAuthorityOperation[];
+  readonly advanceTime: (
+    input: SimulationWideAuthorityLease & {
+      readonly operationId: string;
+      readonly deltaMs: number;
+    },
+  ) => readonly SimulationWideAuthorityOperation[];
   /**
    * Read the per-partition inbox without moving its cursor. Consumers must
    * explicitly acknowledge a contiguous prefix after their local projection
@@ -424,12 +446,14 @@ export type SimulationWideAuthorityService = {
     readonly cursor: SimulationWideAuthorityInboxCursor | undefined;
     readonly deliveries: readonly SimulationWideAuthorityInboxDelivery[];
   };
-  readonly acknowledgeInbox: (input: SimulationWideAuthorityLease & {
-    readonly operationId: string;
-    readonly partitionKey: PartitionKey;
-    readonly consumerId: string;
-    readonly throughFencingToken: number;
-  }) => Extract<SimulationWideAuthorityOperation, { readonly kind: 'inbox-materialized' }>;
+  readonly acknowledgeInbox: (
+    input: SimulationWideAuthorityLease & {
+      readonly operationId: string;
+      readonly partitionKey: PartitionKey;
+      readonly consumerId: string;
+      readonly throughFencingToken: number;
+    },
+  ) => Extract<SimulationWideAuthorityOperation, { readonly kind: 'inbox-materialized' }>;
   readonly recover: (lease: SimulationWideAuthorityLease) => readonly string[];
 };
 
@@ -537,19 +561,37 @@ export function createSimulationWideAuthority(input: {
   // Resolve the world command policies for a given projection, threading the
   // regional-markets flag through so the AgentTrade handler gates trades on
   // regional co-location when regional markets are enabled.
-  const resolvePolicies = (projection: WorldProjection): WorldCommandPolicies => ({
-    ...resolveWorldCommandPolicies({ policies: input.policies, projection }),
-    ...(input.regionalMarketsEnabled === true
-      ? { regionalMarkets: { enabled: true } }
-      : {}),
-    ...(input.townWeather === undefined ? {} : { weather: input.townWeather }),
-  });
+  //
+  // Lifecycle is STRIPPED here on purpose: the authority's per-agent
+  // physiology/balances are a partial view (per-agent settlement events are
+  // not redelivered to it), and illness-death rolls embed the command id of
+  // whichever side settles — if the authority also ran the lifecycle block,
+  // it and the owner partition would derive TWO sets of life/death facts and
+  // later global settlements/transfers would reference divergent truths.
+  // Life-and-death authority stays with the owner partition streams; the
+  // authority's copy simply does not age (wellbeing/calculator-style scalar
+  // drift on its copy is benign and unsettled there).
+  const resolvePolicies = (projection: WorldProjection): WorldCommandPolicies => {
+    const { lifecycle: strippedLifecycle, ...commandPolicies } = resolveWorldCommandPolicies({
+      policies: input.policies,
+      projection,
+    });
+    void strippedLifecycle;
+    return {
+      ...commandPolicies,
+      ...(input.regionalMarketsEnabled === true ? { regionalMarkets: { enabled: true } } : {}),
+      ...(input.townWeather === undefined ? {} : { weather: input.townWeather }),
+    };
+  };
 
   const mutate = <TOperation extends SimulationWideAuthorityOperation>(inputMutation: {
     readonly operationId: string;
     readonly requestFingerprint: string;
     readonly lease: SimulationWideAuthorityLease;
-    readonly create: (state: SimulationWideAuthoritySnapshot, fencingToken: number) => MutationResult<TOperation>;
+    readonly create: (
+      state: SimulationWideAuthoritySnapshot,
+      fencingToken: number,
+    ) => MutationResult<TOperation>;
   }): TOperation => {
     return withWriterLease({ directory: lockDirectory, lease: inputMutation.lease }, () => {
       const state = readSnapshot(statePath);
@@ -603,13 +645,15 @@ export function createSimulationWideAuthority(input: {
     readonly lease: SimulationWideAuthorityLease;
     readonly actorId: AgentId;
     readonly commandType: 'AgentTrade' | 'AgentStartConversation';
-    readonly payload: AgentTradePayload | {
-      readonly targetAgentId: AgentId;
-      readonly topic: string;
-      readonly relationDelta: number;
-      readonly attitudeDelta: number;
-      readonly turns: readonly AgentStartConversationTurnPayload[];
-    };
+    readonly payload:
+      | AgentTradePayload
+      | {
+          readonly targetAgentId: AgentId;
+          readonly topic: string;
+          readonly relationDelta: number;
+          readonly attitudeDelta: number;
+          readonly turns: readonly AgentStartConversationTurnPayload[];
+        };
     readonly createOperation: (input: {
       readonly fencingToken: number;
       readonly events: readonly WorldEvent[];
@@ -638,7 +682,9 @@ export function createSimulationWideAuthority(input: {
         });
         const rejection = events.find((event) => event.type === 'ActionRejected');
         if (rejection?.type === 'ActionRejected') {
-          throw new Error(`simulation-wide ${inputCommand.kind} rejected: ${rejection.payload.reason}`);
+          throw new Error(
+            `simulation-wide ${inputCommand.kind} rejected: ${rejection.payload.reason}`,
+          );
         }
         const operation = inputCommand.createOperation({ fencingToken, events, state });
         return {
@@ -769,15 +815,17 @@ export function createSimulationWideAuthority(input: {
           ) {
             throw new Error('simulation-wide bulletin settlement produced no bulletin event');
           }
-          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'bulletin' }> =
-            {
-              kind: 'bulletin',
-              operationId: request.operationId,
-              fencingToken,
-              bulletinId: bulletinEvent.payload.bulletin.bulletinId,
-              status: bulletinEvent.type === 'BulletinPosted' ? 'posted' : 'scheduled',
-              events,
-            };
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'bulletin' }
+          > = {
+            kind: 'bulletin',
+            operationId: request.operationId,
+            fencingToken,
+            bulletinId: bulletinEvent.payload.bulletin.bulletinId,
+            status: bulletinEvent.type === 'BulletinPosted' ? 'posted' : 'scheduled',
+            events,
+          };
           return {
             state: {
               ...state,
@@ -911,7 +959,8 @@ export function createSimulationWideAuthority(input: {
         },
       });
     },
-    transferAgent(request) {      const agentId = asAgentId(request.agentId);
+    transferAgent(request) {
+      const agentId = asAgentId(request.agentId);
       const destinationLocationId = asLocationId(request.destinationLocationId);
       return mutate({
         operationId: request.operationId,
@@ -952,7 +1001,10 @@ export function createSimulationWideAuthority(input: {
           }
           const projection = events.reduce(applyWorldEvent, state.projection);
           const arrived = events.some((event) => event.type === 'AgentLocationChanged');
-          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'transfer' }> = {
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'transfer' }
+          > = {
             kind: 'transfer',
             operationId: request.operationId,
             fencingToken,
@@ -1004,8 +1056,7 @@ export function createSimulationWideAuthority(input: {
         lease: request,
         create: (state, fencingToken) => {
           const ownerPartitionKey = requireOwner(state, agentId);
-          const destinationPartitionKey =
-            request.destinationPartitionKey ?? ownerPartitionKey;
+          const destinationPartitionKey = request.destinationPartitionKey ?? ownerPartitionKey;
           if (!state.partitionKeys.includes(destinationPartitionKey)) {
             throw new Error(`unknown destination partition ${destinationPartitionKey}`);
           }
@@ -1038,14 +1089,10 @@ export function createSimulationWideAuthority(input: {
           const arrived = events.some((event) => event.type === 'AgentLocationChanged');
           const crossOwner = destinationPartitionKey !== ownerPartitionKey;
           if (crossOwner && request.cognitiveSnapshot === undefined) {
-            throw new Error(
-              `cross-owner move for ${agentId} requires a cognitive snapshot`,
-            );
+            throw new Error(`cross-owner move for ${agentId} requires a cognitive snapshot`);
           }
           if (!crossOwner && request.cognitiveSnapshot !== undefined) {
-            throw new Error(
-              `same-owner move for ${agentId} must not carry a cognitive snapshot`,
-            );
+            throw new Error(`same-owner move for ${agentId} must not carry a cognitive snapshot`);
           }
           // Cross-owner completion emits paired ownership events: the source
           // stream stops tracking the Agent, the destination stream begins.
@@ -1182,6 +1229,23 @@ export function createSimulationWideAuthority(input: {
             agents[agentId] = { ...agent, locationId };
             updatedAgentIds.push(agentId);
           }
+          // Merge the partition's memory delta into the bounded authority
+          // cache: unknown record ids append (id-first idempotency — a
+          // replayed sync after a crash skips records it already merged),
+          // then the cache re-trims to its cap.
+          const mergedMemoryRecords = [...(request.newMemoryRecords ?? [])]
+            .filter(
+              (record) =>
+                !state.projection.memoryRecords.some((existing) => existing.id === record.id),
+            )
+            .sort((left, right) => left.id.localeCompare(right.id));
+          const memoryRecords =
+            mergedMemoryRecords.length === 0
+              ? state.projection.memoryRecords
+              : [
+                  ...state.projection.memoryRecords,
+                  ...mergedMemoryRecords.map((record) => ({ ...record })),
+                ].slice(-WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT);
           const operation: Extract<
             SimulationWideAuthorityOperation,
             { readonly kind: 'location-sync' }
@@ -1192,13 +1256,16 @@ export function createSimulationWideAuthority(input: {
             partitionKey,
             updatedAgentIds,
             ...(registeredAgentIds.length === 0 ? {} : { registeredAgentIds }),
+            ...(mergedMemoryRecords.length === 0
+              ? {}
+              : { mergedMemoryRecordIds: mergedMemoryRecords.map((record) => record.id) }),
             status: 'completed',
             events: [],
           };
           return {
             state: {
               ...state,
-              projection: { ...state.projection, agents },
+              projection: { ...state.projection, agents, memoryRecords },
               ownerPartitionKeyByAgentId: owners,
             },
             operation,
@@ -1290,14 +1357,12 @@ export function createSimulationWideAuthority(input: {
               agentId: asAgentId(agentId),
               ownerPartitionKey: pendingMove.ownerPartitionKey,
               destinationPartitionKey: pendingMove.destinationPartitionKey,
-              departureEvents:
-                completionEvents === undefined ? [] : [completionEvents.departure],
+              departureEvents: completionEvents === undefined ? [] : [completionEvents.departure],
               arrivalEvents:
                 completionEvents === undefined
                   ? events.filter(
                       (event) =>
-                        event.type === 'AgentLocationChanged' &&
-                        event.payload.agentId === agentId,
+                        event.type === 'AgentLocationChanged' && event.payload.agentId === agentId,
                     )
                   : [completionEvents.arrival],
               ...(pendingMove.cognitiveSnapshot === undefined
@@ -1305,7 +1370,10 @@ export function createSimulationWideAuthority(input: {
                 : { cognitiveSnapshot: pendingMove.cognitiveSnapshot }),
             });
           }
-          const primary: Extract<SimulationWideAuthorityOperation, { readonly kind: 'time-advanced' }> = {
+          const primary: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'time-advanced' }
+          > = {
             kind: 'time-advanced',
             operationId: request.operationId,
             fencingToken,
@@ -1439,7 +1507,8 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
   const simulationId = seed.simulationId as SimulationId;
   if (seed.manifestId.trim().length === 0) throw new Error('manifestId must not be empty');
   const partitionKeys = [...new Set(seed.partitionKeys)].sort();
-  if (partitionKeys.length === 0) throw new Error('simulation-wide authority requires partition keys');
+  if (partitionKeys.length === 0)
+    throw new Error('simulation-wide authority requires partition keys');
   const owners: Record<string, PartitionKey> = {};
   for (const owner of seed.owners) {
     if (owners[owner.agentId] !== undefined) {
@@ -1454,7 +1523,10 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
     owners[owner.agentId] = owner.partitionKey;
   }
   const agentIds = Object.keys(seed.projection.agents).sort();
-  if (agentIds.length !== Object.keys(owners).length || agentIds.some((agentId) => owners[agentId] === undefined)) {
+  if (
+    agentIds.length !== Object.keys(owners).length ||
+    agentIds.some((agentId) => owners[agentId] === undefined)
+  ) {
     throw new Error('every simulation-wide Agent must have exactly one owner');
   }
   const withoutId = {
@@ -1487,7 +1559,10 @@ function requireOwner(state: SimulationWideAuthoritySnapshot, agentId: AgentId):
   return owner;
 }
 
-function assertKnownPartition(state: SimulationWideAuthoritySnapshot, partitionKey: PartitionKey): void {
+function assertKnownPartition(
+  state: SimulationWideAuthoritySnapshot,
+  partitionKey: PartitionKey,
+): void {
   if (!state.partitionKeys.includes(partitionKey)) {
     throw new Error(`unknown simulation-wide partition ${partitionKey}`);
   }
@@ -1690,11 +1765,7 @@ function createInboxDeliveries(
       }
       for (const move of operation.completedMoves) {
         addEvents(move.ownerPartitionKey, move.departureEvents);
-        addEvents(
-          move.destinationPartitionKey,
-          move.arrivalEvents,
-          move.cognitiveSnapshot,
-        );
+        addEvents(move.destinationPartitionKey, move.arrivalEvents, move.cognitiveSnapshot);
       }
       return [...byPartition.entries()].map(([partitionKey, entry]) => ({
         operationId: operation.operationId,
@@ -1775,6 +1846,11 @@ function createOwnershipTransferEvents(input: {
         // settlement if a job slipped through.
         ...(state.lifeStage === undefined ? {} : { lifeStage: state.lifeStage }),
         ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
+        // The registration anchor travels so the migrant keeps their true age
+        // (the full registration record stays behind in the source stream).
+        ...(state.registration === undefined
+          ? {}
+          : { registeredAtMs: state.registration.registeredAt }),
         // Education aggregate travels too: losing it on migration would reset
         // the vocational track, production/job multipliers, and exam-attempt
         // caps to the score-derived defaults.
@@ -1808,12 +1884,18 @@ function assertContiguousInboxAcknowledgement(input: {
   const deliveries = Object.values(input.state.operations)
     .map((entry) => entry.operation)
     .flatMap((operation) =>
-      createInboxDeliveries(operation, input.state.partitionKeys, input.state.ownerPartitionKeyByAgentId),
+      createInboxDeliveries(
+        operation,
+        input.state.partitionKeys,
+        input.state.ownerPartitionKeyByAgentId,
+      ),
     )
     .filter((delivery) => delivery.partitionKey === input.partitionKey)
     .filter((delivery) => delivery.fencingToken > input.afterFencingToken)
     .sort((left, right) => left.fencingToken - right.fencingToken);
-  const expected = deliveries.find((delivery) => delivery.fencingToken >= input.throughFencingToken);
+  const expected = deliveries.find(
+    (delivery) => delivery.fencingToken >= input.throughFencingToken,
+  );
   if (expected === undefined || expected.fencingToken !== input.throughFencingToken) {
     throw new Error(
       `inbox acknowledgement must stop at a delivered fencing token for ${input.partitionKey}`,
@@ -1838,10 +1920,13 @@ function readSnapshot(path: string): SimulationWideAuthoritySnapshot {
   return parsed;
 }
 
-function withWriterLease<TResult>(input: {
-  readonly directory: string;
-  readonly lease: SimulationWideAuthorityLease;
-}, operation: () => TResult): TResult {
+function withWriterLease<TResult>(
+  input: {
+    readonly directory: string;
+    readonly lease: SimulationWideAuthorityLease;
+  },
+  operation: () => TResult,
+): TResult {
   validateLease(input.lease);
   acquireLease(input.directory, input.lease);
   try {
@@ -1862,7 +1947,11 @@ function acquireLease(directory: string, lease: SimulationWideAuthorityLease): v
       ? (JSON.parse(readFileSync(leasePath, 'utf8')) as { readonly expiresAt?: unknown })
       : undefined;
     const expiresAt = existing?.expiresAt;
-    if (typeof expiresAt === 'number' && Number.isFinite(expiresAt) && expiresAt < lease.observedAt) {
+    if (
+      typeof expiresAt === 'number' &&
+      Number.isFinite(expiresAt) &&
+      expiresAt < lease.observedAt
+    ) {
       rmSync(directory, { recursive: true, force: true });
       mkdirSync(directory);
     } else {
@@ -1896,9 +1985,7 @@ function computeJournalChainHash(
   return sha256Hex(`${previousChainHash}:${stableStringify(body)}`);
 }
 
-function verifyJournalChainRecords(
-  records: readonly ParsedAuthorityJournalRecord[],
-): {
+function verifyJournalChainRecords(records: readonly ParsedAuthorityJournalRecord[]): {
   readonly valid: boolean;
   readonly firstBrokenRecordIndex?: number;
   readonly latestChainHash: string;
@@ -1984,7 +2071,11 @@ function writeAtomically(path: string, content: string): void {
 }
 
 function isAlreadyExists(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { readonly code?: unknown }).code === 'EEXIST';
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { readonly code?: unknown }).code === 'EEXIST'
+  );
 }
 
 function stableStringify(value: unknown): string {

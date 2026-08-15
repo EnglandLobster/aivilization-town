@@ -98,6 +98,13 @@ export type WorldAgentState = {
    * absent means not retired.
    */
   readonly retiredAtMs?: number;
+  /**
+   * Registration-time anchor carried by cross-partition ownership transfers
+   * (the full registration record does not travel). The lifecycle age
+   * derivation prefers the registration record and falls back to this anchor,
+   * so a migrant keeps their true age instead of snapping back to time zero.
+   */
+  readonly registeredAtMs?: number;
   readonly registration?: {
     readonly registrationId: string;
     readonly policyVersion: string;
@@ -2040,10 +2047,9 @@ export function applyWorldEvent(projection: WorldProjection, event: WorldEvent):
             ...(state.wellbeing === undefined ? {} : { wellbeing: state.wellbeing }),
             ...(state.lifeStage === undefined ? {} : { lifeStage: state.lifeStage }),
             ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
+            ...(state.registeredAtMs === undefined ? {} : { registeredAtMs: state.registeredAtMs }),
             ...(state.educationLevel === undefined ? {} : { educationLevel: state.educationLevel }),
-            ...(state.educationTrack === undefined
-              ? {}
-              : { educationTrack: state.educationTrack }),
+            ...(state.educationTrack === undefined ? {} : { educationTrack: state.educationTrack }),
             ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
           },
         },
@@ -2523,6 +2529,15 @@ function applyMoneyTransferToSupply(
     ...projection,
     moneySupply: projection.moneySupply + calculateCirculatingMoneyDelta(transaction),
   };
+}
+
+/**
+ * Age anchor for lifecycle derivations: the registration record when present
+ * (partition-local agents), else the transfer-carried anchor, else simulation
+ * time zero (scenario-seeded legacy agents).
+ */
+export function resolveAgentAgeAnchorMs(agent: WorldAgentState): number {
+  return agent.registration?.registeredAt ?? agent.registeredAtMs ?? 0;
 }
 
 /** Drops an agent's pending applications (job or exam); used by death and

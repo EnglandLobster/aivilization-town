@@ -32,7 +32,9 @@ import type {
   AgentMoveToPayload,
   AgentObserveLocationPayload,
   AgentProducePayload,
+  AgentRaisePetitionPayload,
   AgentSeeDoctorPayload,
+  AgentSignPetitionPayload,
   AgentStartConversationPayload,
   AgentUpgradeResidentialTierPayload,
   AgentSleepPayload,
@@ -41,6 +43,7 @@ import type {
   AgentWorkPayload,
   WorldCommandPolicies,
 } from '@aivilization/world';
+import type { CollectiveActionPolicy } from '@aivilization/society';
 import type {
   WorkerDomainRuntimeFactoryInput,
   WorkerDomainRuntimeRegistration,
@@ -181,7 +184,7 @@ export function createCanonicalDomainRuntimeRegistrations(
     createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
     createTradeDomainRuntimeRegistration(config.trade),
     createSleepDomainRuntimeRegistration(config.sleep),
-    createSocialDomainRuntimeRegistration(config.social),
+    createSocialDomainRuntimeRegistration(config.social, policies?.collectiveAction),
     createProductionDomainRuntimeRegistration(
       config.production,
       policies?.production,
@@ -552,8 +555,59 @@ export function createEatDomainRuntimeRegistration(
   };
 }
 
+/**
+ * Deterministic petition proposal (collective-action-v1): sign the newest
+ * open petition this agent has not signed; otherwise, when the settled
+ * wellbeing band is distressed, raise a town-welfare petition (deduplicated
+ * per open topic by the handler). These proposals also put the petition
+ * commandTypes into the per-agent allowedCommandTypes so the LLM can
+ * generate richer petition actions.
+ */
+function resolveSocialPetitionProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly collectiveActionPolicy?: CollectiveActionPolicy;
+}): CanonicalActionProposal | undefined {
+  const policy = input.collectiveActionPolicy;
+  if (policy === undefined) {
+    return undefined;
+  }
+  const agent = input.context.agent;
+  const open = (input.context.projection.petitions ?? [])
+    .filter((petition) => petition.status === 'open')
+    .sort(
+      (left, right) =>
+        right.raisedAt - left.raisedAt || left.petitionId.localeCompare(right.petitionId),
+    );
+  const unsigned = open.find((petition) => !petition.signatureAgentIds.includes(agent.agentId));
+  if (unsigned !== undefined) {
+    return {
+      id: `${createCanonicalActionId('social', input.selectedSubtask)}-sign-petition`,
+      description: `Sign the petition on ${unsigned.topic}.`,
+      commandType: 'AgentSignPetition',
+      priority: input.selectedSubtask.score,
+      payload: { petitionId: unsigned.petitionId },
+    };
+  }
+  const wellbeing = agent.wellbeing ?? 50;
+  if (wellbeing >= 20) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('social', input.selectedSubtask)}-raise-petition`,
+    description: 'Raise a petition about town welfare.',
+    commandType: 'AgentRaisePetition',
+    priority: input.selectedSubtask.score,
+    payload: {
+      topic: 'town-welfare',
+      statement: 'Living conditions in town have become too hard; we ask for relief.',
+    },
+  };
+}
+
 export function createSocialDomainRuntimeRegistration(
   config: SocialDomainRuntimeConfig = {},
+  collectiveActionPolicy?: CollectiveActionPolicy,
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'social',
@@ -568,6 +622,17 @@ export function createSocialDomainRuntimeRegistration(
             : (context.projection.agents[config.targetAgentId]?.locationId ??
               DEFAULT_DOMAIN_LOCATION_IDS.social),
         propose: (selectedSubtask) => {
+          // Collective action outranks dyadic plans when it applies: signing
+          // an open petition the agent has not signed, or raising one when
+          // their settled wellbeing is distressed enough to organize.
+          const petitionProposal = resolveSocialPetitionProposal({
+            context,
+            selectedSubtask,
+            ...(collectiveActionPolicy === undefined ? {} : { collectiveActionPolicy }),
+          });
+          if (petitionProposal !== undefined) {
+            return petitionProposal;
+          }
           const socialPlan = resolveCanonicalSocialPlan({
             context,
             selectedSubtask,
@@ -843,7 +908,9 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentGiveResource', AgentGiveResourcePayload>
   | AtomicActionProposal<'AgentStartConversation', AgentStartConversationPayload>
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
-  | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>;
+  | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
+  | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
+  | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>;
 
 function resolveSocialResourceGift(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;

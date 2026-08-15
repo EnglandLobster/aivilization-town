@@ -345,6 +345,17 @@ export type WorldDecisionWeatherContext = {
   readonly since: number;
 };
 
+/** One open petition visible to agent planning (collective-action switch). */
+export type WorldDecisionPetitionContext = {
+  readonly petitionId: string;
+  readonly topic: string;
+  readonly statement: string;
+  readonly signatureCount: number;
+  readonly threshold: number;
+  readonly signedByMe: boolean;
+  readonly expiresAt: number;
+};
+
 /**
  * Optional town day/night calendar visible to agent planning (town-calendar
  * switch). Present only when the town-calendar policy is enabled; exposes the
@@ -432,6 +443,12 @@ export type WorldDecisionContext = {
   readonly society?: WorldDecisionSocietyContext;
   readonly weather?: WorldDecisionWeatherContext;
   readonly calendar?: WorldDecisionCalendarContext;
+  /**
+   * Open petitions visible to agent planning (town-collective-action switch):
+   * latest first, capped, present only when the resolved command policies
+   * carry a collective-action policy. Read-path only.
+   */
+  readonly petitions?: readonly WorldDecisionPetitionContext[];
   readonly conditions?: readonly WorldDecisionConditionContext[];
   readonly fiscal?: WorldDecisionFiscalContext;
   readonly externalTrade?: readonly WorldDecisionExternalTradeCommodityContext[];
@@ -461,6 +478,7 @@ export type WorldDecisionContextTrace = {
   readonly hasWeather?: boolean;
   readonly weatherCurrent?: string;
   readonly hasCalendar?: boolean;
+  readonly petitionCount?: number;
   readonly calendarDayIndex?: number;
   readonly calendarPhase?: string;
   readonly calendarNextPhase?: string;
@@ -531,6 +549,9 @@ export function createWorldDecisionContextTrace(
     ...(context.weather === undefined
       ? {}
       : { hasWeather: true, weatherCurrent: context.weather.current }),
+    ...(context.petitions === undefined
+      ? {}
+      : { petitionCount: context.petitions.length }),
     ...(context.calendar === undefined
       ? {}
       : {

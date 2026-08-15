@@ -169,6 +169,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   ];
   appendCompletedTravelArrivals({ input, events, nextSimulationTime: next.now });
   appendDueBulletinEvents({ input, events, nextSimulationTime: next.now });
+  appendPetitionExpiryEvents({ input, events, nextSimulationTime: next.now });
   appendMatterExpiryEvents({ input, events, nextSimulationTime: next.now });
   appendWeatherTransitionEvent({
     input,
@@ -2209,6 +2210,31 @@ function appendTownDayPhaseChangedEvents(input: {
       }),
     );
     currentPhase = start.phase;
+  }
+}
+
+/** Open petitions that expired within this advance; no policy, no-op without the slice. */
+function appendPetitionExpiryEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly nextSimulationTime: number;
+}): void {
+  const due = (input.input.projection.petitions ?? [])
+    .filter(
+      (petition) =>
+        petition.status === 'open' && petition.expiresAt <= input.nextSimulationTime,
+    )
+    .sort(
+      (left, right) =>
+        left.expiresAt - right.expiresAt || left.petitionId.localeCompare(right.petitionId),
+    );
+  for (const petition of due) {
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'PetitionExpired', {
+        petitionId: petition.petitionId,
+        expiredAt: petition.expiresAt,
+      }),
+    );
   }
 }
 

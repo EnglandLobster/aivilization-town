@@ -2,6 +2,7 @@ export * from './education';
 export * from './educationSystem';
 export * from './educationExam';
 export * from './calendar';
+export * from './collectiveAction';
 export * from './conditions';
 export * from './consumption';
 export * from './discourse';

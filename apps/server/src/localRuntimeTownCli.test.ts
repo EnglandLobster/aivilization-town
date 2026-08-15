@@ -125,6 +125,7 @@ describe('local runtime town executable composition', () => {
       townCalendarEnabled: false,
       townLifecycleEnabled: false,
       townDiscourseEnabled: false,
+      townCollectiveActionEnabled: false,
     });
   });
 
@@ -203,6 +204,7 @@ describe('local runtime town executable composition', () => {
       townCalendarEnabled: false,
       townLifecycleEnabled: false,
       townDiscourseEnabled: false,
+      townCollectiveActionEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -706,6 +708,48 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('town-discourse-v1');
+  });
+
+  test('town collective action is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+
+    expect(
+      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCollectiveActionEnabled,
+    ).toBe(false);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-collective-action', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townCollectiveActionEnabled,
+    ).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_COLLECTIVE_ACTION: '1' },
+      }).townCollectiveActionEnabled,
+    ).toBe(true);
+
+    const disabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabledManifest).not.toContain('collective-action-v1');
+    const enabledManifest = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_COLLECTIVE_ACTION: '1' },
+        }),
+      ),
+    );
+    expect(enabledManifest).toContain('collective-action-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

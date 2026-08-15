@@ -48,6 +48,8 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
   // Bulletin posts are town-wide facts, so they settle against the one
   // authoritative board instead of a partition-local projection.
   'AgentPostBulletin',
+  'AgentRaisePetition',
+  'AgentSignPetition',
   // Social matters are likewise town-wide board state.
   'AgentRaiseMatter',
   'AgentRespondMatter',
@@ -343,6 +345,18 @@ async function settleGlobalDraft(input: {
         targetAgentId: payload.targetAgentId,
         topic: payload.topic,
         turns: payload.turns,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (draft.type === 'AgentRaisePetition' || draft.type === 'AgentSignPetition') {
+      const operation = authority.settlePetition({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload,
       });
       return { draft, events: resequence(operation.events, nextSequence), settled: true };
     }

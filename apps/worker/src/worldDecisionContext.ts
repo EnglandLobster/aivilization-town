@@ -217,6 +217,7 @@ export function createWorldDecisionContextFromProjection(input: {
       : { society: createSocietyDecisionContext(input.societyDirectory) }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
     ...createCalendarDecisionContext(input),
+    ...createPetitionDecisionContext(input),
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
     ...createExternalTradeDecisionContext({
@@ -622,6 +623,41 @@ function createLifestyleDecisionContext(input: {
  * never recomputed business rules. Returns an empty object when the policy is
  * absent so policy-free runs keep the context calendar-free.
  */
+/**
+ * Open petitions for planning, when the resolved command policies carry a
+ * collective-action policy. Read straight off the projection slice (the
+ * authoritative shared state, replicated town-wide by the authority);
+ * latest-raised first, capped at 8 so the context stays bounded.
+ */
+function createPetitionDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'petitions'> | Record<string, never> {
+  const policy = input.policies?.collectiveAction;
+  if (policy === undefined) {
+    return {};
+  }
+  const open = (input.projection.petitions ?? [])
+    .filter((petition) => petition.status === 'open')
+    .sort((left, right) => right.raisedAt - left.raisedAt || left.petitionId.localeCompare(right.petitionId))
+    .slice(0, 8);
+  if (open.length === 0) {
+    return {};
+  }
+  return {
+    petitions: open.map((petition) => ({
+      petitionId: petition.petitionId,
+      topic: petition.topic,
+      statement: petition.statement,
+      signatureCount: petition.signatureAgentIds.length,
+      threshold: policy.petitionSignatureThreshold,
+      signedByMe: petition.signatureAgentIds.includes(input.agentId),
+      expiresAt: petition.expiresAt,
+    })),
+  };
+}
+
 function createCalendarDecisionContext(input: {
   readonly projection: WorldProjection;
   readonly policies?: WorldCommandPolicies;

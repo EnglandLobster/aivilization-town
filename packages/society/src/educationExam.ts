@@ -24,8 +24,45 @@ export type EducationExamApplication = {
   readonly agentId: string;
   readonly targetLevel: EducationExamTargetLevel;
   readonly educationScore: number;
+  /**
+   * Ranking score snapshot recorded at submission when a wellbeing bonus (or
+   * any future submission-time adjustment) applied; absent ranks on the raw
+   * educationScore. Recorded as a final fact so cycle replay never recomputes
+   * the bonus (the same convention as recruitment's effectiveEducationScore).
+   */
+  readonly effectiveEducationScore?: number;
   readonly submittedAt: number;
 };
+
+/**
+ * Wellbeing exam-score bonus (education × town-wellbeing interlock): linear
+ * in (wellbeing − 50)/50 and clamped to ±maxBonus — content candidates get a
+ * modest edge, distressed candidates a modest drag. Pure; the caller
+ * snapshots the result into the application at submission time.
+ */
+export function evaluateWellbeingExamScoreBonus(input: {
+  readonly wellbeing: number;
+  readonly policy: EducationSystemPolicy;
+}): number {
+  const config = input.policy.wellbeingExamScoreBonus;
+  if (config === undefined) {
+    return 0;
+  }
+  if (!Number.isFinite(input.wellbeing)) {
+    throw new Error('wellbeing exam bonus requires a finite wellbeing value');
+  }
+  const maxBonus = config.maxBonus;
+  if (!Number.isFinite(maxBonus) || maxBonus < 0) {
+    throw new Error('wellbeingExamScoreBonus.maxBonus must be non-negative finite');
+  }
+  const bonus = (maxBonus * (input.wellbeing - 50)) / 50;
+  return Math.max(-maxBonus, Math.min(maxBonus, bonus));
+}
+
+/** Ranking score of an application: the snapshot when present, else the raw. */
+export function resolveExamRankingScore(application: EducationExamApplication): number {
+  return application.effectiveEducationScore ?? application.educationScore;
+}
 
 export type EducationExamEligibilityRejectionReason =
   | 'policy-disabled'
@@ -179,7 +216,10 @@ export function evaluateEducationExamCycle(input: {
     const quota = input.policy.admissionQuotaByLevel[String(targetLevel)] ?? 0;
     const admittedCount = Math.min(group.length, Math.ceil(group.length * quota));
     const admitted = group.slice(0, admittedCount);
-    const cutoffScore = admitted[admitted.length - 1]?.educationScore;
+    const cutoffScore =
+      admitted[admitted.length - 1] === undefined
+        ? undefined
+        : resolveExamRankingScore(admitted[admitted.length - 1] as EducationExamApplication);
 
     const trackByApplicationId = new Map<string, EducationTrack>();
     if (targetLevel === 3 && admitted.length > 0) {
@@ -226,7 +266,7 @@ function compareExamCandidates(
   right: EducationExamApplication,
 ): number {
   return (
-    right.educationScore - left.educationScore ||
+    resolveExamRankingScore(right) - resolveExamRankingScore(left) ||
     left.agentId.localeCompare(right.agentId) ||
     left.applicationId.localeCompare(right.applicationId)
   );
@@ -249,6 +289,12 @@ function validateExamApplications(applications: readonly EducationExamApplicatio
     }
     if (!Number.isFinite(application.educationScore) || application.educationScore < 0) {
       throw new Error('education exam educationScore must be non-negative');
+    }
+    if (
+      application.effectiveEducationScore !== undefined &&
+      !Number.isFinite(application.effectiveEducationScore)
+    ) {
+      throw new Error('education exam effectiveEducationScore must be finite');
     }
     if (!Number.isFinite(application.submittedAt) || application.submittedAt < 0) {
       throw new Error('education exam submittedAt must be non-negative');

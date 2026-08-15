@@ -2,9 +2,10 @@ import { describe, expect, test } from 'vitest';
 import {
   evaluateEducationExamCycle,
   evaluateEducationExamEligibility,
+  evaluateWellbeingExamScoreBonus,
   type EducationExamApplication,
 } from './educationExam';
-import type { EducationSystemPolicy } from './educationSystem';
+import { validateEducationSystemPolicy, type EducationSystemPolicy } from './educationSystem';
 
 const policy: EducationSystemPolicy = {
   policyVersion: 'education-system-v2',
@@ -380,5 +381,70 @@ describe('evaluateEducationExamCycle', () => {
         policy,
       }),
     ).toThrow(/duplicate education exam application for/);
+  });
+});
+
+describe('wellbeing exam-score bonus', () => {
+  const bonusPolicy: EducationSystemPolicy = {
+    ...policy,
+    wellbeingExamScoreBonus: { maxBonus: 10 },
+  };
+
+  test('is linear in (wellbeing − 50)/50 and clamped to ±maxBonus', () => {
+    const bonusAt = (wellbeing: number) =>
+      evaluateWellbeingExamScoreBonus({ wellbeing, policy: bonusPolicy });
+    expect(bonusAt(50)).toBe(0);
+    expect(bonusAt(75)).toBeCloseTo(5, 10);
+    expect(bonusAt(25)).toBeCloseTo(-5, 10);
+    expect(bonusAt(100)).toBe(10);
+    expect(bonusAt(0)).toBe(-10);
+    expect(bonusAt(150)).toBe(10);
+    expect(bonusAt(-50)).toBe(-10);
+  });
+
+  test('returns zero without the policy config and rejects invalid inputs', () => {
+    expect(evaluateWellbeingExamScoreBonus({ wellbeing: 0, policy })).toBe(0);
+    expect(() =>
+      evaluateWellbeingExamScoreBonus({ wellbeing: Number.NaN, policy: bonusPolicy }),
+    ).toThrow('finite wellbeing');
+    expect(() =>
+      validateEducationSystemPolicy({ ...policy, wellbeingExamScoreBonus: { maxBonus: -1 } }),
+    ).toThrow('non-negative');
+  });
+
+  test('ranking admits by the effective snapshot and reports it as the cutoff', () => {
+    // Same raw scores; the content candidate's +10 snapshot outranks the
+    // distressed candidate's −10 snapshot at a one-seat quota.
+    const decision = evaluateEducationExamCycle({
+      applications: [
+        {
+          applicationId: 'application-distressed',
+          agentId: 'agent-distressed',
+          targetLevel: 3,
+          educationScore: 200,
+          effectiveEducationScore: 190,
+          submittedAt: 0,
+        },
+        {
+          applicationId: 'application-content',
+          agentId: 'agent-content',
+          targetLevel: 3,
+          educationScore: 200,
+          effectiveEducationScore: 210,
+          submittedAt: 1,
+        },
+      ],
+      cycleNumber: 0,
+      policy: bonusPolicy,
+    });
+    const admitted = decision.resolutions.find(
+      (resolution) => resolution.status === 'admitted',
+    );
+    expect(admitted?.agentId).toBe('agent-content');
+    expect(admitted?.cutoffScore).toBe(210);
+    expect(
+      decision.resolutions.find((resolution) => resolution.agentId === 'agent-distressed')
+        ?.status,
+    ).toBe('rejected');
   });
 });

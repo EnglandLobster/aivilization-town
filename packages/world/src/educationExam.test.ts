@@ -598,3 +598,87 @@ describe('education-exam cycle release (放榜)', () => {
     expect(replayed.educationExamCycles).toHaveLength(1);
   });
 });
+
+describe('education-exam wellbeing bonus snapshot', () => {
+  test('snapshots a wellbeing-adjusted ranking score only when both policies are present', () => {
+    const projection = createWorldProjection({
+      agents: [
+        // No settled wellbeing: falls back to the policy initialValue (50),
+        // so the bonus is exactly 0 — the snapshot records score + 0.
+        createAgent({ agentId: 'agent-neutral', educationScore: 200, educationLevel: 2 }),
+        // Settled distressed wellbeing 20: bonus −6 → snapshot 194.
+        createAgent({ agentId: 'agent-sad', educationScore: 200, educationLevel: 2 }),
+      ],
+      moneySupply: 1000,
+    });
+    const withWellbeing = { ...projection };
+    // Give the sad agent a settled wellbeing scalar via the projection input.
+    const sadAgent = {
+      ...withWellbeing.agents['agent-sad']!,
+      wellbeing: 20,
+    };
+    const seeded = {
+      ...withWellbeing,
+      agents: { ...withWellbeing.agents, 'agent-sad': sadAgent },
+    } as typeof projection;
+    const policies = createPolicies({
+      educationSystem: { ...educationSystem, wellbeingExamScoreBonus: { maxBonus: 10 } },
+      wellbeing: {
+        policyVersion: 'town-wellbeing-v1',
+        initialValue: 50,
+        minValue: 0,
+        maxValue: 100,
+        baseline: 50,
+        convergencePerHour: 2,
+        coefficients: {
+          health: 10,
+          energy: 6,
+          satiety: 6,
+          employed: 4,
+          unemployed: -6,
+          residentialTier: [0, -4, -2, 0, 2, 4, 6],
+          lifestyleTier: [-6, -2, 2, 6],
+          upkeepArrearsPerUnit: -0.05,
+          distress: -8,
+          positiveRelation: 6,
+          negativeRelation: -8,
+        },
+      },
+    });
+
+    const neutral = dispatch(
+      seeded,
+      policies,
+      applyExamCommand('agent-neutral', 3, 'wb-neutral'),
+      1,
+    );
+    expect(neutral.events[0]).toMatchObject({
+      type: 'EducationExamApplicationSubmitted',
+      payload: { educationScore: 200, effectiveEducationScore: 200 },
+    });
+
+    const sad = dispatch(seeded, policies, applyExamCommand('agent-sad', 3, 'wb-sad'), 20);
+    expect(sad.events[0]).toMatchObject({
+      payload: { educationScore: 200, effectiveEducationScore: 194 },
+    });
+    expect(sad.projection.educationExamApplications[0]).toMatchObject({
+      effectiveEducationScore: 194,
+    });
+
+    // Without the wellbeing policy the submission stays byte-for-byte legacy:
+    // no snapshot field at all.
+    const legacy = dispatch(
+      seeded,
+      createPolicies({ educationSystem }),
+      applyExamCommand('agent-neutral', 3, 'wb-legacy'),
+      40,
+    );
+    expect(legacy.events[0]).toMatchObject({
+      payload: { educationScore: 200 },
+    });
+    expect(
+      (legacy.events[0] as { payload: Record<string, unknown> }).payload
+        .effectiveEducationScore,
+    ).toBeUndefined();
+  });
+});

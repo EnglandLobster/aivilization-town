@@ -115,6 +115,74 @@ describe('canonical worker runtime resolver', () => {
     expect(binding?.actionSynthesis?.lifestyle).toMatchObject({ tier: 'struggling' });
   });
 
+  test('modulates the struggling non-survival spend cap with the settled wellbeing', async () => {
+    const strugglingAgent = (wellbeing?: number) => ({
+      ...createAgent(agentA),
+      balance: 100,
+      inventory: {},
+      ...(wellbeing === undefined ? {} : { wellbeing }),
+    });
+    const lifestylePolicy = {
+      policyVersion: 'lifestyle-v1',
+      netWorthBoundaries: [500, 2_000, 10_000] as [number, number, number],
+      strugglingNonSurvivalSpendCapRatio: 0.3,
+      source: 'test',
+    };
+    const wellbeingPolicy = {
+      policyVersion: 'town-wellbeing-v1',
+      initialValue: 50,
+      minValue: 0,
+      maxValue: 100,
+      baseline: 50,
+      convergencePerHour: 2,
+      coefficients: {
+        health: 10,
+        energy: 6,
+        satiety: 6,
+        employed: 4,
+        unemployed: -6,
+        residentialTier: [0, -4, -2, 0, 2, 4, 6],
+        lifestyleTier: [-6, -2, 2, 6],
+        upkeepArrearsPerUnit: -0.05,
+        distress: -8,
+        positiveRelation: 6,
+        negativeRelation: -8,
+      },
+    };
+    const resolveWith = async (agent: WorldAgentState, withWellbeing: boolean) =>
+      (
+        await createCanonicalWorkerRuntimeResolver({
+          simulationId,
+          policies: {
+            ...policies,
+            lifestyle: lifestylePolicy,
+            ...(withWellbeing ? { wellbeing: wellbeingPolicy } : {}),
+          },
+        })({
+          agentId: agentA,
+          agent,
+          projection: createProjection(),
+          activeObjective: createObjective({ agentId: agentA }),
+          planRecord: createPlanRecord({ agentId: agentA, domain: 'study' }),
+        })
+      )?.actionSynthesis?.lifestyle;
+
+    // Without the wellbeing flag the static ratio survives byte-for-byte.
+    expect(await resolveWith(strugglingAgent(), false)).toMatchObject({
+      tier: 'struggling',
+      nonSurvivalSpendCapRatio: 0.3,
+    });
+    // Distressed (wellbeing 0): cap tightens to ×0.5 — survival mode.
+    expect(await resolveWith(strugglingAgent(0), true)).toMatchObject({
+      nonSurvivalSpendCapRatio: 0.15,
+    });
+    // Legacy agent without a settled scalar falls back to the policy
+    // initialValue 50 — the neutral multiplier leaves the cap unchanged.
+    expect(await resolveWith(strugglingAgent(), true)).toMatchObject({
+      nonSurvivalSpendCapRatio: 0.3,
+    });
+  });
+
   test('builds tick agents from active plans with canonical planners and repair', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const planRepository = new InMemoryBranchPlanRepository();

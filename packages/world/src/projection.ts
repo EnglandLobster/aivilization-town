@@ -37,6 +37,10 @@ import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
 import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
 import type { WorldPetitionState } from './petition';
+import {
+  appendWorldTownPulseRecord,
+  type WorldTownPulseRecord,
+} from './townPulse';
 import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
 import type { WorldConflictRecord } from './conflict';
 import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise';
@@ -454,6 +458,15 @@ export type WorldProjection = {
    * legacy projections.
    */
   readonly conflictRecords?: readonly WorldConflictRecord[];
+  /**
+   * Bounded town-pulse ring (read model, world-decision-context-view v3):
+   * the most recent town-wide occurrences (death/emigration/arrival/petition
+   * threshold/weather/enterprise lifecycle), newest last, capped at
+   * WORLD_TOWN_PULSE_RING_CAPACITY. Deterministic from the event stream;
+   * settlement never consumes it. Always present (empty for projections
+   * predating the ring or built without one).
+   */
+  readonly townPulse: readonly WorldTownPulseRecord[];
   readonly socialRelations: Readonly<Record<string, SocialRelationState>>;
   readonly memoryRecords: readonly ShortTermMemoryRecord[];
   readonly rejectedActions: readonly {
@@ -503,7 +516,8 @@ export function normalizeLegacyWorldProjectionSnapshot(
 ): WorldProjection {
   if (
     projection.educationExamApplications !== undefined &&
-    projection.educationExamCycles !== undefined
+    projection.educationExamCycles !== undefined &&
+    projection.townPulse !== undefined
   ) {
     return projection;
   }
@@ -511,6 +525,9 @@ export function normalizeLegacyWorldProjectionSnapshot(
     ...projection,
     educationExamApplications: projection.educationExamApplications ?? [],
     educationExamCycles: projection.educationExamCycles ?? [],
+    // Pre-ring snapshots carry no pulse; the ring then rebuilds from events
+    // replayed after the snapshot sequence.
+    townPulse: projection.townPulse ?? [],
   };
 }
 
@@ -556,6 +573,11 @@ export function createWorldProjection(input: {
   readonly bulletins?: readonly WorldBulletinState[];
   readonly petitions?: readonly WorldPetitionState[];
   readonly socialMatters?: readonly WorldSocialMatterState[];
+  /**
+   * Optional initial town-pulse ring (snapshot hydration); omitted starts
+   * empty and the ring rebuilds deterministically from replayed events.
+   */
+  readonly townPulse?: readonly WorldTownPulseRecord[];
 }): WorldProjection {
   const locations: Record<string, WorldLocationState> = {};
   for (const location of input.locations ?? []) {
@@ -689,6 +711,7 @@ export function createWorldProjection(input: {
             input.socialMatters.map((matter) => [matter.matterId, cloneSocialMatter(matter)]),
           ),
         }),
+    townPulse: input.townPulse?.map((record) => ({ ...record })) ?? [],
     socialRelations,
     memoryRecords: [],
     rejectedActions: [],
@@ -758,7 +781,25 @@ function validateSpatialLocations(locations: Readonly<Record<string, WorldLocati
   }
 }
 
-export function applyWorldEvent(projection: WorldProjection, event: WorldEvent): WorldProjection {
+export function applyWorldEvent(
+  sourceProjection: WorldProjection,
+  event: WorldEvent,
+): WorldProjection {
+  // Town-pulse ring first: it snapshots subject names from the PRE-event
+  // state (death/emigration remove the agent, closure may drop the
+  // enterprise), so it must run before every event-specific reducer below.
+  // The pulsed projection then shadows the source name so the reducers below
+  // are untouched.
+  const townPulse = appendWorldTownPulseRecord({
+    records: sourceProjection.townPulse,
+    event,
+    resolveAgentDisplayName: (agentId) =>
+      sourceProjection.agents[agentId]?.registration?.displayName,
+    resolveEnterpriseName: (enterpriseId) =>
+      sourceProjection.enterprises[enterpriseId]?.name,
+  });
+  const projection =
+    townPulse === sourceProjection.townPulse ? sourceProjection : { ...sourceProjection, townPulse };
   const enterpriseProjection = applyEnterpriseProjectionEvent(projection, event);
   if (enterpriseProjection !== undefined) {
     return enterpriseProjection;

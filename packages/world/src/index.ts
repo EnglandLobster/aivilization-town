@@ -10,6 +10,7 @@ export * from './matters';
 export * from './projection';
 export * from './regionalMarkets';
 export * from './spatial';
+export * from './townPulse';
 export * from './weather';
 
 export type WorldModuleStatus = {

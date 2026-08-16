@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalWorldRuntimeStorage, runLocalWorldRuntimeStep } from './index';
+import { CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES } from './ambientObservationMemory';
 
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
@@ -465,6 +466,7 @@ describe('local world runtime step', () => {
       steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
       ambientObservationMemory: {
         enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
         reactionEvaluator: () => ({
           decision: {
             kind: 'ignore',

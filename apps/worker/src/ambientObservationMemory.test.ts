@@ -9,6 +9,7 @@ import {
 import { createWorldProjection, type WorldEvent } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
+  CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
   createAmbientObservationMemoryRecords,
   createCanonicalAmbientObservationMemoryPolicyManifest,
   createCanonicalAmbientObservationMemoryRuntimeInput,
@@ -27,6 +28,7 @@ describe('ambient observation memory', () => {
 
     const result = createAmbientObservationMemoryRecords({
       tickId: 'tick-ambient',
+      visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
       events: [
         createEventEnvelope({
           id: 'event-conversation',
@@ -87,6 +89,9 @@ describe('ambient observation memory', () => {
   test('records trade events for nearby non-traders', () => {
     const result = createAmbientObservationMemoryRecords({
       tickId: 'tick-trade',
+      // TradeExecuted is converter-supported but excluded from the canonical
+      // list; exercising it requires an explicit visibility configuration.
+      visibleEventTypes: ['TradeExecuted'],
       events: [
         createEventEnvelope({
           id: 'event-trade',
@@ -140,6 +145,7 @@ describe('ambient observation memory', () => {
   test('returns an empty result when visible events have no co-located observers', () => {
     const result = createAmbientObservationMemoryRecords({
       tickId: 'tick-empty',
+      visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
       events: [
         createEventEnvelope({
           id: 'event-study',
@@ -225,6 +231,37 @@ describe('ambient observation memory', () => {
     });
   });
 
+  test('observes nothing when no visibility list is configured (fail-closed)', () => {
+    const result = createAmbientObservationMemoryRecords({
+      tickId: 'tick-fail-closed',
+      events: [
+        createEventEnvelope({
+          id: 'event-fail-closed-conversation',
+          simulationId: 'sim-1',
+          type: 'ConversationRecorded',
+          occurredAt: 600,
+          sequence: 1,
+          payload: {
+            conversationId: asConversationId('conversation-fail-closed'),
+            initiatorAgentId: agentOne,
+            participantAgentIds: [agentOne, agentTwo],
+            locationId: townSquare,
+            topic: 'market prices',
+            turns: [],
+          },
+        }) satisfies WorldEvent,
+      ],
+      projection: createProjection({ agentThreeLocation: townSquare }),
+      occurredAt: 625,
+    });
+
+    expect(result).toEqual({
+      observedEventCount: 0,
+      recordCount: 0,
+      records: [],
+    });
+  });
+
   test('selects a deterministic bounded observer cohort instead of the first agent ids', () => {
     const agents = Array.from({ length: 9 }, (_, index) =>
       createAgent(asAgentId(`agent-${index + 1}`), townSquare),
@@ -260,6 +297,7 @@ describe('ambient observation memory', () => {
       projection,
       occurredAt: 525,
       maxObserversPerEvent: 4,
+      visibleEventTypes: ['AgentLocationChanged'] as const,
     };
 
     const first = createAmbientObservationMemoryRecords(input);

@@ -5,7 +5,9 @@ import {
   asSimulationId,
   createEventEnvelope,
   replayEvents,
+  type AgentId,
 } from '@aivilization/sim-core';
+import type { SocialRelationState } from '@aivilization/society';
 import {
   applyWorldEvent,
   createBankState,
@@ -180,24 +182,215 @@ describe('worker world decision context', () => {
       societyDirectory,
     });
 
+    // Context-view v2 trim (§7 step 2 budget binding): local partition stays
+    // complete; the unrelated foreign agent-b is no longer visible.
     expect(context.society).toMatchObject({
       directoryId: societyDirectory.directoryId,
       partitionBoundaries: [
         { partitionKey: 'world-east', lastAppliedSequence: 12 },
         { partitionKey: 'world-main', lastAppliedSequence: 9 },
       ],
-      agents: [
-        { agentId: 'agent-a', ownerPartitionKey: 'world-main' },
-        {
-          agentId: 'agent-b',
-          ownerPartitionKey: 'world-east',
-          job: 'Cashier',
-          displayName: 'B',
-        },
-      ],
+      agents: [{ agentId: 'agent-a', ownerPartitionKey: 'world-main' }],
     });
+    expect(
+      context.society?.agents.some((societyAgent) => societyAgent.agentId === 'agent-b'),
+    ).toBe(false);
     expect(JSON.stringify(context.society)).not.toContain('Apple');
     expect(JSON.stringify(context.society)).not.toContain('balance');
+  });
+
+  test('keeps foreign-partition directory entries only when a relation record exists', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          locationId: null,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      socialRelations: [
+        createRelation({
+          sourceAgentId: agentId,
+          targetAgentId: asAgentId('agent-b'),
+          relationScore: 0.7,
+          relationLabel: 'friend',
+        }),
+      ],
+    });
+    const societyDirectory = createSocietyDirectoryFixture();
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      societyDirectory,
+    });
+
+    expect(context.society?.agents.map((societyAgent) => societyAgent.agentId)).toEqual([
+      'agent-a',
+      'agent-b',
+    ]);
+    expect(context.agent.relations).toEqual([
+      {
+        agentId: asAgentId('agent-b'),
+        displayName: 'B',
+        direction: 'outgoing',
+        relationLabel: 'friend',
+        relationScore: 0.7,
+        attitudeScore: 0.1,
+        interactionCount: 3,
+      },
+    ]);
+  });
+
+  test('exposes strongest directed relations without narrative summaries and drops stale counterparts', () => {
+    const projection = createWorldProjection({
+      agents: [
+        createLocalAgent(agentId),
+        createLocalAgent(asAgentId('agent-b')),
+        createLocalAgent(asAgentId('agent-c')),
+        createLocalAgent(asAgentId('agent-d')),
+      ],
+      socialRelations: [
+        createRelation({
+          sourceAgentId: agentId,
+          targetAgentId: asAgentId('agent-b'),
+          relationScore: 0.8,
+          relationLabel: 'close-friend',
+        }),
+        createRelation({
+          sourceAgentId: asAgentId('agent-c'),
+          targetAgentId: agentId,
+          relationScore: -0.6,
+          relationLabel: 'strained',
+        }),
+        createRelation({
+          sourceAgentId: agentId,
+          targetAgentId: asAgentId('agent-d'),
+          relationScore: 0.2,
+          relationLabel: 'acquaintance',
+        }),
+        // Stale record: the counterpart left the town (neither local agents
+        // nor the directory lists it) and must not resurrect as a ghost.
+        createRelation({
+          sourceAgentId: agentId,
+          targetAgentId: asAgentId('agent-ghost'),
+          relationScore: 0.9,
+          relationLabel: 'best-friend',
+        }),
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId });
+
+    expect(context.agent.relations).toEqual([
+      {
+        agentId: asAgentId('agent-b'),
+        direction: 'outgoing',
+        relationLabel: 'close-friend',
+        relationScore: 0.8,
+        attitudeScore: 0.1,
+        interactionCount: 3,
+      },
+      {
+        agentId: asAgentId('agent-c'),
+        direction: 'incoming',
+        relationLabel: 'strained',
+        relationScore: -0.6,
+        attitudeScore: 0.1,
+        interactionCount: 3,
+      },
+      {
+        agentId: asAgentId('agent-d'),
+        direction: 'outgoing',
+        relationLabel: 'acquaintance',
+        relationScore: 0.2,
+        attitudeScore: 0.1,
+        interactionCount: 3,
+      },
+    ]);
+    expect(JSON.stringify(context.agent.relations)).not.toContain('lastInteractionSummary');
+    expect(JSON.stringify(context.agent.relations)).not.toContain('chatted at the market');
+  });
+
+  test('caps the relations section at the eight strongest entries', () => {
+    const socialRelations = Array.from({ length: 10 }, (_, index) =>
+      createRelation({
+        sourceAgentId: agentId,
+        targetAgentId: asAgentId(`agent-r${index}`),
+        relationScore: 0.1 + index * 0.05,
+        relationLabel: 'friend',
+      }),
+    );
+    const projection = createWorldProjection({
+      agents: [
+        createLocalAgent(agentId),
+        ...Array.from({ length: 10 }, (_, index) =>
+          createLocalAgent(asAgentId(`agent-r${index}`)),
+        ),
+      ],
+      socialRelations,
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId });
+
+    expect(context.agent.relations).toHaveLength(8);
+    // Weakest two (r0, r1) are dropped; strongest first.
+    expect(context.agent.relations?.map((relation) => relation.agentId)).toEqual([
+      asAgentId('agent-r9'),
+      asAgentId('agent-r8'),
+      asAgentId('agent-r7'),
+      asAgentId('agent-r6'),
+      asAgentId('agent-r5'),
+      asAgentId('agent-r4'),
+      asAgentId('agent-r3'),
+      asAgentId('agent-r2'),
+    ]);
+  });
+
+  test('caps foreign-partition society entries at sixteen strongest relations', () => {
+    const foreignCount = 20;
+    const socialRelations = Array.from({ length: foreignCount }, (_, index) =>
+      createRelation({
+        sourceAgentId: agentId,
+        targetAgentId: asAgentId(`agent-f${String(index).padStart(2, '0')}`),
+        relationScore: 0.05 + index * 0.01,
+        relationLabel: 'friend',
+      }),
+    );
+    const projection = createWorldProjection({
+      agents: [createLocalAgent(agentId)],
+      socialRelations,
+    });
+    const societyDirectory = createSocietyDirectoryFixture({
+      foreignAgentIds: socialRelations.map(
+        (relation) => relation.targetAgentId,
+      ),
+    });
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      societyDirectory,
+    });
+
+    // Local self plus the 16 strongest foreign relations (f20..f05 by score);
+    // the four weakest foreign relations are trimmed.
+    const visibleForeignIds = (context.society?.agents ?? [])
+      .map((societyAgent) => societyAgent.agentId)
+      .filter((visibleAgentId) => visibleAgentId !== 'agent-a');
+    expect(visibleForeignIds).toHaveLength(16);
+    expect(visibleForeignIds).not.toContain(asAgentId('agent-f00'));
+    expect(visibleForeignIds).not.toContain(asAgentId('agent-f01'));
+    expect(visibleForeignIds).not.toContain(asAgentId('agent-f02'));
+    expect(visibleForeignIds).not.toContain(asAgentId('agent-f03'));
+    expect(visibleForeignIds).toContain(asAgentId('agent-f19'));
+    // The relations section itself stays capped at eight.
+    expect(context.agent.relations).toHaveLength(8);
   });
 
   test('captures dynamic agent state and sorted AMM spot prices from projection', () => {
@@ -1680,3 +1873,84 @@ describe('worker housing decision context', () => {
     expect(context.agent.residentialUpkeepRatePerHour).toBeUndefined();
   });
 });
+
+function createLocalAgent(localAgentId: AgentId) {
+  return {
+    agentId: localAgentId,
+    locationId: null,
+    physiology: { energy: 45, satiety: 30, health: 90 },
+    educationScore: 31,
+    balance: 100,
+    residentialTier: 1,
+    job: null,
+    inventory: {},
+  };
+}
+
+function createRelation(input: {
+  readonly sourceAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly relationScore: number;
+  readonly relationLabel: SocialRelationState['relationLabel'];
+}): SocialRelationState {
+  return {
+    sourceAgentId: input.sourceAgentId,
+    targetAgentId: input.targetAgentId,
+    relationScore: input.relationScore,
+    attitudeScore: 0.1,
+    relationLabel: input.relationLabel,
+    interactionCount: 3,
+    lastInteractionSummary: 'chatted at the market',
+  };
+}
+
+function createSocietyDirectoryFixture(
+  input: { readonly foreignAgentIds?: readonly AgentId[] } = {},
+): LocalSimulationSocietyDirectory {
+  const foreignAgentIds = input.foreignAgentIds ?? [asAgentId('agent-b')];
+  return {
+    schemaVersion: 'local-simulation-society-directory-v1',
+    directoryId: `local-simulation-society-directory:sha256:${'a'.repeat(64)}`,
+    manifestId: 'town-runtime',
+    simulationId: asSimulationId('sim-1'),
+    partitionBoundaries: [
+      {
+        partitionKey: 'world-east',
+        lastAppliedSequence: 12,
+        snapshotSequence: 12,
+        simulationTime: 1_000,
+      },
+      {
+        partitionKey: 'world-main',
+        lastAppliedSequence: 9,
+        snapshotSequence: 9,
+        simulationTime: 1_000,
+      },
+    ],
+    agents: [
+      {
+        agentId,
+        ownerPartitionKey: 'world-main',
+        ownerLastAppliedSequence: 9,
+        publicState: {
+          locationId: asLocationId('market'),
+          job: null,
+          residentialTier: 1,
+          educationScore: 31,
+        },
+      },
+      ...foreignAgentIds.map((foreignAgentId) => ({
+        agentId: foreignAgentId,
+        ownerPartitionKey: 'world-east',
+        ownerLastAppliedSequence: 12,
+        publicState: {
+          locationId: asLocationId('market'),
+          job: 'Commuter',
+          residentialTier: 2,
+          educationScore: 60,
+          ...(foreignAgentId === asAgentId('agent-b') ? { displayName: 'B' } : {}),
+        },
+      })),
+    ],
+  };
+}

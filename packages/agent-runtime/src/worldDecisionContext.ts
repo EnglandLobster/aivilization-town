@@ -117,6 +117,17 @@ export type WorldDecisionAgentContext = {
     readonly value: number;
     readonly band: WellbeingBand;
   };
+  /**
+   * Optional social-graph view (context-view v2): this agent's strongest
+   * directed relations, sorted by |relationScore| and capped at
+   * {@link DECISION_RELATIONS_MAX_COUNT}. Both directions are listed as
+   * separate entries ('outgoing' = my disposition toward them, 'incoming' =
+   * theirs toward me) so no aggregation semantics are invented; narrative
+   * interaction summaries deliberately stay out (they live in memory) to
+   * avoid triple-representing the same relation —
+   * docs/AGENT_CONTEXT_DESIGN.md §4 right 2.
+   */
+  readonly relations?: readonly WorldDecisionRelationContext[];
   readonly job: string | null;
   readonly inventory: Readonly<Record<string, number>>;
   readonly durableGoods?: readonly {
@@ -135,6 +146,26 @@ export type WorldDecisionBankingLoanContext = {
   readonly accruedInterest: number;
   /** Read-model estimate of the amortization installments still ahead. */
   readonly remainingTermDays: number;
+};
+
+/**
+ * One directed social relation as seen by the owning agent. Direction is
+ * explicit because the underlying relation records are directed; entries for
+ * the same counterpart in both directions are two rows, never merged.
+ */
+export type WorldDecisionRelationContext = {
+  /** The counterpart agent this relation points at (or comes from). */
+  readonly agentId: AgentId;
+  /** Counterpart's sanitized display name when the society directory has it. */
+  readonly displayName?: string;
+  /** 'outgoing' = my disposition toward them; 'incoming' = theirs toward me. */
+  readonly direction: 'outgoing' | 'incoming';
+  /** Relation label straight from the social settlement (e.g. 'friend'). */
+  readonly relationLabel: string;
+  /** Signed relation score; |score| drives the section's ordering. */
+  readonly relationScore: number;
+  readonly attitudeScore: number;
+  readonly interactionCount: number;
 };
 
 export type WorldDecisionBankingContext = {
@@ -471,6 +502,8 @@ export type WorldDecisionContextTrace = {
   /** Present when the identity view carried the citizen's own sanitized display name. */
   readonly hasDisplayName?: boolean;
   readonly displayNameLength?: number;
+  /** Present when the social-graph view carried at least one relation entry. */
+  readonly relationCount?: number;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
   readonly hasBalance: boolean;
@@ -533,6 +566,9 @@ export function createWorldDecisionContextTrace(
     ...(context.agent.displayName === undefined
       ? {}
       : { hasDisplayName: true, displayNameLength: context.agent.displayName.length }),
+    ...(context.agent.relations === undefined
+      ? {}
+      : { relationCount: context.agent.relations.length }),
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
       Number.isFinite(context.agent.physiology.satiety) &&
@@ -615,10 +651,27 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v1';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v2';
 
 /** Hard cap for any free-text field entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
+
+/**
+ * Cap for the agent's own relations section. Deliberately aligned with the
+ * agent-cycle memory retrieval limit (8): relations carry the structured
+ * facts, memory retrieval keeps the narratives — one quota each, no overlap
+ * (docs/AGENT_CONTEXT_DESIGN.md §4 right 2 dedup rule).
+ */
+export const DECISION_RELATIONS_MAX_COUNT = 8;
+
+/**
+ * Cap for foreign-partition society entries that survive the relations-based
+ * trim. Local-partition entries stay uncapped (they are the agent's actual
+ * neighbors); foreign entries appear only when a relation record exists, at
+ * most this many, strongest first (docs/AGENT_CONTEXT_DESIGN.md §7 step 2
+ * budget binding — K=16 per the review's §11.3 question 6 stance).
+ */
+export const DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT = 16;
 
 /**
  * Sanitize a display name before it enters any prompt payload: strip C0/C1

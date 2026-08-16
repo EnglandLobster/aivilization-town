@@ -24,6 +24,86 @@ import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDi
 const agentId = asAgentId('agent-a');
 
 describe('worker world decision context', () => {
+  test('exposes the sanitized own display name in the identity view', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          locationId: null,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: 'cook',
+          inventory: {},
+          registration: {
+            registrationId: 'register-agent-a',
+            policyVersion: 'runtime-agent-registration-v3',
+            creatorId: 'participant-7',
+            source: 'human',
+            displayName: '  Li\u0000\u200b Na  ',
+            registeredAt: 0,
+            provenance: 'post-bootstrap-command',
+          },
+        },
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId });
+
+    expect(context.agent.displayName).toBe('Li Na');
+  });
+
+  test('caps over-long registration names and omits the field without a registration', () => {
+    const longName = 'V'.repeat(80);
+    const withLongName = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          locationId: null,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+          registration: {
+            registrationId: 'register-agent-a',
+            policyVersion: 'runtime-agent-registration-v3',
+            creatorId: 'participant-7',
+            source: 'human',
+            displayName: longName,
+            registeredAt: 0,
+            provenance: 'post-bootstrap-command',
+          },
+        },
+      ],
+    });
+    const withoutRegistration = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          locationId: null,
+          physiology: { energy: 45, satiety: 30, health: 90 },
+          educationScore: 31,
+          balance: 100,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+
+    expect(
+      createWorldDecisionContextFromProjection({ projection: withLongName, agentId })
+        .agent.displayName,
+    ).toBe('V'.repeat(64));
+    expect(
+      createWorldDecisionContextFromProjection({ projection: withoutRegistration, agentId })
+        .agent.displayName,
+    ).toBeUndefined();
+  });
+
   test('binds a versioned cross-partition society directory without copying private state', () => {
     const projection = createWorldProjection({
       locations: [

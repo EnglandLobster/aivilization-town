@@ -121,6 +121,91 @@ describe('LLM action sequence generation seam', () => {
     expect(requestContent).toContain('"spotPrice":304.5');
   });
 
+  test('persona framing: golden parse with an identity-bearing context', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-action-sequence',
+      responses: [
+        {
+          providerId: 'scripted-action-sequence',
+          model: 'sequence-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            actions: [
+              {
+                id: 'llm-eat-fish',
+                description: 'Eat Fish from inventory.',
+                commandType: 'AgentEat',
+                payload: { commodityName: 'Fish', quantity: 1 },
+                rationale: 'Satiety is low; eating first protects health.',
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    const result = await proposeActionSequenceWithLlm({
+      agentId,
+      issuedAt: 240,
+      plan: createContextualPlan(),
+      selectedSubtask: selectedEatSubtask,
+      signals: [],
+      deterministicActions: deterministicEatActions,
+      worldDecisionContext: createPersonaWorldDecisionContext(),
+      provider: scripted.provider,
+      model: 'sequence-model',
+      requestId: 'sequence-persona-golden-parse',
+    });
+
+    expect(result).toMatchObject({ status: 'accepted', source: 'llm' });
+    const systemMessage = scripted.getRequests()[0]?.messages[0]?.content ?? '';
+    expect(systemMessage).toContain('You are acting as Li Na — adult Stock Clerk of this town.');
+    expect(systemMessage).toContain('You are the AIvilization Action Sequence Generation module');
+    expect(systemMessage).toContain('must not contradict the JSON state');
+  });
+
+  test('persona framing stays neutral when the context carries no display name', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-action-sequence',
+      responses: [
+        {
+          providerId: 'scripted-action-sequence',
+          model: 'sequence-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            actions: [
+              {
+                id: 'llm-eat-fish',
+                description: 'Eat Fish from inventory.',
+                commandType: 'AgentEat',
+                payload: { commodityName: 'Fish', quantity: 1 },
+                rationale: 'Satiety is low; eating first protects health.',
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await proposeActionSequenceWithLlm({
+      agentId,
+      issuedAt: 250,
+      plan: createContextualPlan(),
+      selectedSubtask: selectedEatSubtask,
+      signals: [],
+      deterministicActions: deterministicEatActions,
+      worldDecisionContext: createWorldDecisionContext(),
+      provider: scripted.provider,
+      model: 'sequence-model',
+      requestId: 'sequence-neutral-framing',
+    });
+
+    const systemMessage = scripted.getRequests()[0]?.messages[0]?.content ?? '';
+    expect(systemMessage).not.toContain('You are acting as');
+    expect(systemMessage).not.toContain('must not contradict the JSON state');
+    expect(systemMessage).toContain('You are the AIvilization Action Sequence Generation module');
+  });
+
   test('falls back when an LLM action sequence emits an unknown command type', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-action-sequence',
@@ -359,6 +444,17 @@ function createWorldDecisionContext(): WorldDecisionContext {
         overall: 1.5,
         ratios: { Fish: 1.5 },
       },
+    },
+  };
+}
+
+function createPersonaWorldDecisionContext(): WorldDecisionContext {
+  return {
+    ...createWorldDecisionContext(),
+    agent: {
+      ...createWorldDecisionContext().agent,
+      displayName: 'Li Na',
+      lifecycle: { stage: 'adult', ageDays: 9_125, retired: false },
     },
   };
 }

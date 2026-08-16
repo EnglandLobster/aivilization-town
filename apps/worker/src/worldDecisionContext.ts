@@ -17,10 +17,15 @@ import type {
   WorldDecisionExternalTradeCommodityContext,
   WorldDecisionOccupationRule,
   WorldDecisionProductionRule,
+  WorldDecisionRelationContext,
   WorldDecisionResidentialUpgradeRule,
   WorldDecisionRulesContext,
 } from '@aivilization/agent-runtime';
-import { sanitizeDecisionDisplayName } from '@aivilization/agent-runtime';
+import {
+  DECISION_RELATIONS_MAX_COUNT,
+  DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
+  sanitizeDecisionDisplayName,
+} from '@aivilization/agent-runtime';
 import type { AgentId } from '@aivilization/sim-core';
 import {
   calculateApplicationQuota,
@@ -126,6 +131,28 @@ export function createWorldDecisionContextFromProjection(input: {
   // name, sanitized at this boundary — the society directory has always
   // exposed other agents' names while the agent itself stayed anonymous.
   const displayName = sanitizeDecisionDisplayName(agent.registration?.displayName);
+  // Social-graph view (§4 right 2) + the society-directory trim input (§7
+  // step 2 budget binding): relations are collected in full, sorted by
+  // |relationScore|; the section takes the top slice and the directory trim
+  // consumes the complete set. Relation records merge across partitions
+  // (localSimulationSocietyProjection), so a counterpart may legitimately be
+  // absent from the local projection while listed in the directory.
+  const directoryAgentIds =
+    input.societyDirectory === undefined
+      ? undefined
+      : new Set(input.societyDirectory.agents.map((directoryAgent) => directoryAgent.agentId));
+  const relationEntries = collectAgentRelationEntries({
+    projection: input.projection,
+    agentId: input.agentId,
+    ...(directoryAgentIds === undefined ? {} : { directoryAgentIds }),
+  });
+  const relations =
+    relationEntries.length === 0
+      ? undefined
+      : attachRelationDisplayNames(
+          relationEntries.slice(0, DECISION_RELATIONS_MAX_COUNT),
+          input.societyDirectory,
+        );
 
   const marketPools = resolveAgentMarketPools({
     projection: input.projection,
@@ -150,6 +177,7 @@ export function createWorldDecisionContextFromProjection(input: {
       agentId: agent.agentId,
       locationId: agent.locationId,
       ...(displayName === undefined ? {} : { displayName }),
+      ...(relations === undefined ? {} : { relations }),
       physiology: { ...agent.physiology },
       educationScore: agent.educationScore,
       balance: agent.balance,
@@ -220,7 +248,12 @@ export function createWorldDecisionContextFromProjection(input: {
     },
     ...(input.societyDirectory === undefined
       ? {}
-      : { society: createSocietyDecisionContext(input.societyDirectory) }),
+      : {
+          society: createSocietyDecisionContext(input.societyDirectory, {
+            agentId: input.agentId,
+            relationEntries,
+          }),
+        }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
     ...createCalendarDecisionContext(input),
     ...createPetitionDecisionContext(input),
@@ -834,12 +867,49 @@ function createHousingDecisionContext(input: {
   };
 }
 
-function createSocietyDecisionContext(directory: LocalSimulationSocietyDirectory) {
+function createSocietyDecisionContext(
+  directory: LocalSimulationSocietyDirectory,
+  input: {
+    readonly agentId: AgentId;
+    readonly relationEntries: readonly WorldDecisionRelationContext[];
+  },
+) {
+  // §7 step 2 budget binding: the full cross-partition directory scales with
+  // total population; the per-agent view keeps every local-partition neighbor
+  // (they share the agent's actual market and places) and admits foreign
+  // agents only when a relation record exists, strongest first, capped at
+  // DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT.
+  const strongestRelationScoreByCounterpart = new Map<string, number>();
+  for (const entry of input.relationEntries) {
+    const strongest = Math.abs(entry.relationScore);
+    const known = strongestRelationScoreByCounterpart.get(entry.agentId);
+    if (known === undefined || strongest > known) {
+      strongestRelationScoreByCounterpart.set(entry.agentId, strongest);
+    }
+  }
+  const foreignAllowed = new Set(
+    [...strongestRelationScoreByCounterpart.entries()]
+      .sort(
+        ([leftId, leftScore], [rightId, rightScore]) =>
+          rightScore - leftScore || leftId.localeCompare(rightId),
+      )
+      .slice(0, DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT)
+      .map(([agentId]) => agentId),
+  );
+  const self = directory.agents.find((agent) => agent.agentId === input.agentId);
+  const visibleAgents =
+    self === undefined
+      ? directory.agents
+      : directory.agents.filter(
+          (agent) =>
+            agent.ownerPartitionKey === self.ownerPartitionKey ||
+            foreignAllowed.has(agent.agentId),
+        );
   return {
     directoryId: directory.directoryId,
     simulationId: directory.simulationId,
     partitionBoundaries: directory.partitionBoundaries.map((boundary) => ({ ...boundary })),
-    agents: directory.agents.map((agent) => ({
+    agents: visibleAgents.map((agent) => ({
       agentId: agent.agentId,
       ownerPartitionKey: agent.ownerPartitionKey,
       ownerLastAppliedSequence: agent.ownerLastAppliedSequence,
@@ -858,6 +928,76 @@ function createSocietyDecisionContext(directory: LocalSimulationSocietyDirectory
         : { transit: { ...agent.publicState.transit } }),
     })),
   };
+}
+
+/**
+ * Collect every directed relation record that involves the agent, sorted by
+ * |relationScore| (agentId then outgoing-first as deterministic tiebreaks).
+ * Narrative interaction summaries stay out — they live in memory retrieval
+ * (§4 right 2 dedup rule). Counterparts known to neither the local projection
+ * nor the society directory (stale records after death/emigration) are
+ * filtered so they cannot resurrect ghosts in the read view; remote agents
+ * listed only in the directory are legitimate (relations merge across
+ * partitions).
+ */
+function collectAgentRelationEntries(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly directoryAgentIds?: ReadonlySet<string>;
+}): readonly WorldDecisionRelationContext[] {
+  return Object.values(input.projection.socialRelations)
+    .filter((relation) => {
+      if (
+        (relation.sourceAgentId !== input.agentId && relation.targetAgentId !== input.agentId) ||
+        relation.sourceAgentId === relation.targetAgentId
+      ) {
+        return false;
+      }
+      const counterpart =
+        relation.sourceAgentId === input.agentId
+          ? relation.targetAgentId
+          : relation.sourceAgentId;
+      return (
+        input.projection.agents[counterpart] !== undefined ||
+        input.directoryAgentIds?.has(counterpart) === true
+      );
+    })
+    .map((relation) => {
+      const outgoing = relation.sourceAgentId === input.agentId;
+      return {
+        agentId: outgoing ? relation.targetAgentId : relation.sourceAgentId,
+        direction: outgoing ? ('outgoing' as const) : ('incoming' as const),
+        relationLabel: relation.relationLabel,
+        relationScore: relation.relationScore,
+        attitudeScore: relation.attitudeScore,
+        interactionCount: relation.interactionCount,
+      };
+    })
+    .sort(
+      (left, right) =>
+        Math.abs(right.relationScore) - Math.abs(left.relationScore) ||
+        left.agentId.localeCompare(right.agentId) ||
+        (left.direction === right.direction ? 0 : left.direction === 'outgoing' ? -1 : 1),
+    );
+}
+
+function attachRelationDisplayNames(
+  entries: readonly WorldDecisionRelationContext[],
+  directory: LocalSimulationSocietyDirectory | undefined,
+): readonly WorldDecisionRelationContext[] {
+  if (directory === undefined) {
+    return entries;
+  }
+  const displayNames = new Map<string, string>();
+  for (const agent of directory.agents) {
+    if (agent.publicState.displayName !== undefined) {
+      displayNames.set(agent.agentId, agent.publicState.displayName);
+    }
+  }
+  return entries.map((entry) => {
+    const displayName = displayNames.get(entry.agentId);
+    return displayName === undefined ? entry : { ...entry, displayName };
+  });
 }
 
 function resolveLatestPriceIndex(

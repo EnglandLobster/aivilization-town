@@ -16,6 +16,65 @@ const agentId = asAgentId('agent-a');
 const hourMs = 60 * 60 * 1000;
 
 describe('LLM daily planner seam', () => {
+
+  test('persona framing wraps the daily planning system prompt for identity-bearing contexts', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-daily-planner',
+      responses: [
+        {
+          providerId: 'scripted-daily-planner',
+          model: 'daily-planner-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            agentId,
+            dayStart: 0,
+            generatedAt: 8 * hourMs,
+            summary: 'Morning routine, work, evening rest.',
+            items: [
+              {
+                id: 'morning-routine',
+                description: 'Morning routine at home.',
+                priority: 2,
+                startsAtOffsetMs: 6 * hourMs,
+                endsAtOffsetMs: 8 * hourMs,
+                affinityTags: ['rest'],
+                source: 'baseline',
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    const base = createWorldDecisionContext();
+    await proposeDailyPlanWithLlm({
+      agentId,
+      issuedAt: 8 * hourMs,
+      agent: {
+        job: 'Stock Clerk',
+        locationId: 'home',
+        physiology: { energy: 70, satiety: 80, health: 100 },
+      },
+      worldDecisionContext: {
+        ...base,
+        agent: {
+          ...base.agent,
+          displayName: 'Li Na',
+          lifecycle: { stage: 'adult', ageDays: 9_125, retired: false },
+        },
+      },
+      provider: scripted.provider,
+      model: 'daily-planner-model',
+      requestId: 'daily-plan-persona-framing',
+      maxAttempts: 1,
+    });
+
+    const systemMessage = scripted.getRequests()[0]?.messages[0]?.content ?? '';
+    expect(systemMessage).toContain('You are acting as Li Na — adult Stock Clerk of this town.');
+    expect(systemMessage).toContain('You are the AIvilization daily planning module');
+    expect(systemMessage).toContain('must not contradict the JSON state');
+  });
+
   test('accepts a structured LLM daily plan proposal after schema and daily-plan validation', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-daily-planner',

@@ -9,6 +9,15 @@ import type {
 export type WorldDecisionAgentContext = {
   readonly agentId: AgentId;
   readonly locationId: string | null;
+  /**
+   * The citizen's own display name, sanitized at the adapter boundary via
+   * {@link sanitizeDecisionDisplayName} (control characters stripped,
+   * whitespace collapsed, hard length cap) so free-text registration data can
+   * never become a prompt-injection surface. The agent previously saw every
+   * other citizen's name in the society directory but never its own —
+   * docs/AGENT_CONTEXT_DESIGN.md §3 problem 1.
+   */
+  readonly displayName?: string;
   readonly physiology: {
     readonly energy: number;
     readonly satiety: number;
@@ -459,6 +468,9 @@ export type WorldDecisionContext = {
 export type WorldDecisionContextTrace = {
   readonly agentId: AgentId;
   readonly hasLocationId: boolean;
+  /** Present when the identity view carried the citizen's own sanitized display name. */
+  readonly hasDisplayName?: boolean;
+  readonly displayNameLength?: number;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
   readonly hasBalance: boolean;
@@ -518,6 +530,9 @@ export function createWorldDecisionContextTrace(
   return {
     agentId: context.agent.agentId,
     hasLocationId: context.agent.locationId !== undefined,
+    ...(context.agent.displayName === undefined
+      ? {}
+      : { hasDisplayName: true, displayNameLength: context.agent.displayName.length }),
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
       Number.isFinite(context.agent.physiology.satiety) &&
@@ -591,4 +606,77 @@ export function createWorldDecisionContextTrace(
     educationInvestmentPreservesMinimumBalanceReserve:
       context.rules?.educationOpportunityCost?.preservesMinimumBalanceReserve ?? false,
   };
+}
+
+/**
+ * Version of the read-path context view (identity hygiene rules, section
+ * caps, framing composition). It changes LLM inputs and therefore behavior
+ * trajectories, but never settlement or event replay, so it deliberately
+ * does NOT occupy a domain policyVersion slot —
+ * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
+ */
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v1';
+
+/** Hard cap for any free-text field entering prompts (injection hygiene). */
+export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
+
+/**
+ * Sanitize a display name before it enters any prompt payload: strip C0/C1
+ * control characters, zero-width joiners and bidi marks (prompt-injection
+ * surface), collapse whitespace, trim, and cap the length on a code-point
+ * boundary. Returns undefined for names that sanitize to nothing.
+ */
+export function sanitizeDecisionDisplayName(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const cleaned = value
+    // eslint-disable-next-line no-control-regex -- matching control characters is this sanitizer's purpose
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length === 0) {
+    return undefined;
+  }
+  const characters = Array.from(cleaned);
+  return characters.length <= DECISION_FREE_TEXT_MAX_LENGTH
+    ? cleaned
+    : characters.slice(0, DECISION_FREE_TEXT_MAX_LENGTH).join('');
+}
+
+/**
+ * Compose the one-sentence citizen framing for persona-style system prompts
+ * ("You are acting as Li Na — retired carpenter of this town."). Pure
+ * derivation from authoritative context fields; no narrative invention —
+ * the framing must never state facts that are not in the JSON payload.
+ * Returns null when the agent has no displayName, in which case callers
+ * keep the neutral module framing.
+ */
+export function describeCitizenFraming(agent: WorldDecisionAgentContext): string | null {
+  const displayName = agent.displayName;
+  if (displayName === undefined || displayName.length === 0) {
+    return null;
+  }
+  const descriptors: string[] = [];
+  if (agent.lifecycle !== undefined) {
+    descriptors.push(agent.lifecycle.retired ? 'retired' : agent.lifecycle.stage);
+  }
+  descriptors.push(agent.job === null || agent.job.length === 0 ? 'resident' : agent.job);
+  return `You are acting as ${displayName} — ${descriptors.join(' ')} of this town.`;
+}
+
+/**
+ * Wrap a stage's neutral module system prompt with the citizen framing for
+ * persona-style stages (action sequence, social dialogue, daily planning —
+ * docs/AGENT_CONTEXT_DESIGN.md §6.1). Without a framing the module prompt is
+ * returned untouched, so non-persona runs and legacy contexts are unaffected.
+ */
+export function composePersonaSystemPrompt(input: {
+  readonly framing: string | null;
+  readonly modulePrompt: string;
+}): string {
+  if (input.framing === null) {
+    return input.modulePrompt;
+  }
+  return `${input.framing} ${input.modulePrompt} The citizen framing must not contradict the JSON state; all authoritative facts live in the JSON payload.`;
 }

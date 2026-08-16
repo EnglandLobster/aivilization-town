@@ -19,7 +19,9 @@ import {
   type ActionSequenceGeneratorInput,
 } from './actionSequenceGeneration';
 import {
+  composePersonaSystemPrompt,
   createWorldDecisionContextTrace,
+  describeCitizenFraming,
   type WorldDecisionContext,
 } from './worldDecisionContext';
 
@@ -182,8 +184,14 @@ function createActionSequenceMessages(
   return [
     {
       role: 'system',
-      content:
-        'You are the AIvilization Action Sequence Generation module. Translate the selected abstract subtask into a concrete sequence of atomic world actions. Use current state, memory, profile, prices, and deterministic fallback actions as guardrails. Return JSON matching the aivilization_action_sequence_generation schema.',
+      content: composePersonaSystemPrompt({
+        framing:
+          input.worldDecisionContext === undefined
+            ? null
+            : describeCitizenFraming(input.worldDecisionContext.agent),
+        modulePrompt:
+          'You are the AIvilization Action Sequence Generation module. Translate the selected abstract subtask into a concrete sequence of atomic world actions. Use current state, memory, profile, prices, and deterministic fallback actions as guardrails. Return JSON matching the aivilization_action_sequence_generation schema.',
+      }),
     },
     {
       role: 'user',

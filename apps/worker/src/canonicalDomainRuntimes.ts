@@ -894,7 +894,7 @@ type ContextualDomainMicroPlannerInput = {
   readonly resolveTargetLocationId?: (selectedSubtask: PrioritizedSubtask) => LocationId | null;
 };
 
-type CanonicalActionProposal =
+export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentEat', AgentEatPayload>
   | AtomicActionProposal<'AgentMoveTo', AgentMoveToPayload>
   | AtomicActionProposal<'AgentObserveLocation', AgentObserveLocationPayload>
@@ -911,6 +911,44 @@ type CanonicalActionProposal =
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>;
+
+/**
+ * Runtime mirror of the canonical proposal command types. `satisfies` pins it
+ * to the union (no invented types); the exhaustive flag below fails to compile
+ * when a new union member is not mirrored here. The reactive-correction
+ * whitelist must cover every entry (AGENT_CONTEXT_DESIGN.md §5 whitelist
+ * reconciliation) — enforced by test in canonicalDomainRuntimes.test.ts.
+ */
+export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
+  'AgentEat',
+  'AgentMoveTo',
+  'AgentObserveLocation',
+  'AgentStudy',
+  'AgentSleep',
+  'AgentSeeDoctor',
+  'AgentWork',
+  'AgentApplyJob',
+  'AgentApplyEducationExam',
+  'AgentTrade',
+  'AgentGiveResource',
+  'AgentStartConversation',
+  'AgentProduce',
+  'AgentUpgradeResidentialTier',
+  'AgentRaisePetition',
+  'AgentSignPetition',
+] as const satisfies readonly CanonicalActionProposal['commandType'][];
+
+// Non-distributive: a distributive conditional over never collapses to never,
+// which would defeat the check.
+type RequireNever<T> = [T] extends [never] ? true : never;
+
+/** Compiles only while the runtime list above mirrors the union exhaustively. */
+export const CANONICAL_COMMAND_TYPE_LIST_IS_EXHAUSTIVE: RequireNever<
+  Exclude<
+    CanonicalActionProposal['commandType'],
+    (typeof CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES)[number]
+  >
+> = true;
 
 function resolveSocialResourceGift(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;

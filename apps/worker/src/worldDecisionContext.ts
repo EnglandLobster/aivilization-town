@@ -20,6 +20,7 @@ import type {
   WorldDecisionResidentialUpgradeRule,
   WorldDecisionRulesContext,
 } from '@aivilization/agent-runtime';
+import { sanitizeDecisionDisplayName } from '@aivilization/agent-runtime';
 import type { AgentId } from '@aivilization/sim-core';
 import {
   calculateApplicationQuota,
@@ -121,6 +122,10 @@ export function createWorldDecisionContextFromProjection(input: {
   if (agent === undefined) {
     throw new Error(`cannot create world decision context for unknown agent ${input.agentId}`);
   }
+  // Identity view (AGENT_CONTEXT_DESIGN.md §4 right 1): the citizen's own
+  // name, sanitized at this boundary — the society directory has always
+  // exposed other agents' names while the agent itself stayed anonymous.
+  const displayName = sanitizeDecisionDisplayName(agent.registration?.displayName);
 
   const marketPools = resolveAgentMarketPools({
     projection: input.projection,
@@ -144,6 +149,7 @@ export function createWorldDecisionContextFromProjection(input: {
     agent: {
       agentId: agent.agentId,
       locationId: agent.locationId,
+      ...(displayName === undefined ? {} : { displayName }),
       physiology: { ...agent.physiology },
       educationScore: agent.educationScore,
       balance: agent.balance,

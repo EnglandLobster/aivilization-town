@@ -28,6 +28,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentApplyJob',
   'AgentCloseEnterprise',
   'AgentConsume',
+  'AgentDeposit',
   'AgentEat',
   'AgentFoundEnterprise',
   'AgentFundEnterprise',
@@ -37,6 +38,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentObserveLocation',
   'AgentProduce',
   'AgentRaisePetition',
+  'AgentRequestLoan',
   'AgentSeeDoctor',
   'AgentSignPetition',
   'AgentSleep',
@@ -44,6 +46,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentStudy',
   'AgentTrade',
   'AgentUpgradeResidentialTier',
+  'AgentWithdraw',
   'AgentWork',
 ] as const satisfies readonly AgentActionCommandType[];
 

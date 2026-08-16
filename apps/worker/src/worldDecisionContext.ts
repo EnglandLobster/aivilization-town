@@ -22,6 +22,7 @@ import type {
   WorldDecisionRulesContext,
 } from '@aivilization/agent-runtime';
 import {
+  DECISION_ENTERPRISE_MAX_COUNT,
   DECISION_RELATIONS_MAX_COUNT,
   DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
   DECISION_TOWN_PULSE_MAX_COUNT,
@@ -267,7 +268,11 @@ export function createWorldDecisionContextFromProjection(input: {
       marketPools,
       ...(input.policies === undefined ? {} : { policies: input.policies }),
     }),
-    ...createEnterpriseDecisionContext(input),
+    ...createEnterpriseDecisionContext({
+      projection: input.projection,
+      agentId: input.agentId,
+      ...(input.policies === undefined ? {} : { policies: input.policies }),
+    }),
     ...(rules === undefined ? {} : { rules }),
   };
 }
@@ -311,13 +316,34 @@ function createTownPulseDecisionContext(input: {
 
 function createEnterpriseDecisionContext(input: {
   readonly projection: WorldProjection;
+  readonly agentId: AgentId;
   readonly policies?: WorldCommandPolicies;
 }): Pick<WorldDecisionContext, 'enterprises'> | Record<string, never> {
   if (input.policies?.enterprise === undefined) {
     return {};
   }
+  // §7 step 4 budget binding: tiered relevance — own employment/ownership
+  // first, then open job postings, then the rest — deterministic id order
+  // within a tier, capped at DECISION_ENTERPRISE_MAX_COUNT. (Enterprises
+  // carry no region field, so the design doc's same-region tier degrades to
+  // the general tail; recorded as an open item in the doc.)
+  const tierOf = (enterprise: (typeof input.projection.enterprises)[string]): number => {
+    if (
+      enterprise.ownerAgentId === input.agentId ||
+      enterprise.employeeAgentIds.includes(input.agentId) ||
+      (enterprise.ownershipShares?.[input.agentId] ?? 0) > 0
+    ) {
+      return 0;
+    }
+    return (enterprise.jobPosting?.openSlots ?? 0) > 0 ? 1 : 2;
+  };
   return {
     enterprises: Object.values(input.projection.enterprises)
+      .sort(
+        (left, right) =>
+          tierOf(left) - tierOf(right) || left.enterpriseId.localeCompare(right.enterpriseId),
+      )
+      .slice(0, DECISION_ENTERPRISE_MAX_COUNT)
       .map((enterprise) => ({
         enterpriseId: enterprise.enterpriseId,
         name: enterprise.name,
@@ -349,8 +375,7 @@ function createEnterpriseDecisionContext(input: {
           ? {}
           : { jobPosting: { ...enterprise.jobPosting } }),
         wageArrears: enterprise.wageArrears ?? 0,
-      }))
-      .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId)),
+      })),
   };
 }
 

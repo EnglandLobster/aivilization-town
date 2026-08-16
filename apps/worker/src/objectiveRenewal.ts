@@ -37,6 +37,7 @@ import {
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import { DEFAULT_BANKING_ACTION_PROPOSER_POLICY } from './canonicalDomainRuntimes';
 import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
 import { publishPlanningSession } from './planningSessionPublication';
 
@@ -416,6 +417,53 @@ function scoreObjectiveCandidates(
       affinityTags: createPhysiologyMaintenanceAffinityTags(input.agent),
       score: 100,
       rationale: 'Physiology is below a safe operating threshold.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    });
+  }
+
+  // Banking candidate (AGENT_CONTEXT_DESIGN.md §7 step 4): fires only under
+  // the same rigid gates as the banking domain proposer — physiological need
+  // plus a balance gap the credit limit can cover. Never "borrow because
+  // credit exists".
+  const banking = input.worldDecisionContext?.agent.banking;
+  const survivalGap =
+    DEFAULT_BANKING_ACTION_PROPOSER_POLICY.survivalBalanceFloor - input.agent.balance;
+  if (physiologyDanger && banking !== undefined && survivalGap > 0 && banking.maxLoanAmount >= survivalGap) {
+    candidates.push({
+      id: 'survival-bridge-loan',
+      statement: 'Bridge the survival shortfall with a town-bank loan and repay it from wages.',
+      priority: 3,
+      affinityTags: ['banking', 'finance', 'survival'],
+      score: 90,
+      rationale:
+        'Physiology is below a safe threshold and the balance cannot cover recovery; the town bank can bridge the gap within the credit limit.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    });
+  }
+
+  // Enterprise candidate: an active enterprise is hiring and the position is
+  // open to this agent — the cheapest ladder step on the work side.
+  const hiringEnterprise = input.worldDecisionContext?.enterprises
+    ?.filter(
+      (enterprise) =>
+        enterprise.status === 'active' &&
+        (enterprise.jobPosting?.openSlots ?? 0) > 0 &&
+        !enterprise.employeeAgentIds.includes(input.agent.agentId) &&
+        enterprise.ownerAgentId !== input.agent.agentId,
+    )
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
+  if (hiringEnterprise !== undefined) {
+    candidates.push({
+      id: 'join-hiring-enterprise',
+      statement: `Take the open position at ${hiringEnterprise.name}, which is hiring.`,
+      priority: 2,
+      affinityTags: ['enterprise', 'work', 'income'],
+      score: 55,
+      rationale: 'An active town enterprise posts open slots and the agent does not work there yet.',
       shortTermMemoryContextIds: [],
       profileEntryKeys: [],
       profileEvidenceRecordIds: [],

@@ -16,10 +16,13 @@ import {
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
 import type { EducationSystemPolicy, SocialRelationState } from '@aivilization/society';
 import {
+  createBankState,
   createWorldProjection,
   type WorldAgentState,
+  type WorldBankState,
   type WorldCommandPolicies,
   type WorldEducationExamApplicationState,
+  type WorldEnterpriseState,
   type WorldLocationObservationState,
   type WorldProjection,
 } from '@aivilization/world';
@@ -46,6 +49,8 @@ const domainOrder = [
   'residential',
   'health',
   'eat',
+  'banking',
+  'enterprise',
 ] as const;
 const policies: WorldCommandPolicies = {
   satietyRecoveryByCommodity: { Apple: 10, Bread: 15 },
@@ -65,6 +70,55 @@ const policies: WorldCommandPolicies = {
     costs: [{ targetResidentialTier: 2, currencyCost: 100, inventoryCosts: { Wood: 1 } }],
   },
 };
+
+const creditPolicy: NonNullable<WorldCommandPolicies['credit']> = {
+  policyVersion: 'test-credit-v1',
+  depositDailyInterestRate: 0.0001,
+  loanDailyInterestRate: 0.001,
+  loanTermDays: 10,
+  accrualCadenceMs: 86_400_000,
+  reserveRatio: 0.1,
+  maxLoansPerAgent: 2,
+  graceMissedPayments: 2,
+  baseLoanLimit: 200,
+  creditLimitRepaidBonusRatio: 0.1,
+  creditLimitDefaultPenaltyRatio: 0.5,
+  creditLimitMinMultiplier: 0.5,
+  creditLimitMaxMultiplier: 2,
+  source: 'test',
+};
+
+const enterprisePolicy: NonNullable<WorldCommandPolicies['enterprise']> = {
+  policyVersion: 'test-enterprise-v1',
+  minimumInitialCapital: 100,
+  maximumInitialCapital: 1_000,
+  maximumEmployees: 4,
+};
+
+function createEnterpriseState(input: {
+  readonly enterpriseId: string;
+  readonly ownerAgentId: AgentId;
+  readonly jobPostingOpenSlots?: number;
+}): WorldEnterpriseState {
+  return {
+    enterpriseId: input.enterpriseId,
+    name: `Enterprise ${input.enterpriseId}`,
+    ownerAgentId: input.ownerAgentId,
+    occupationName: 'Baker',
+    balance: 100,
+    inventory: {},
+    maxEmployees: 3,
+    employeeAgentIds: [],
+    status: 'active',
+    foundedAt: 0,
+    cumulativeSales: 0,
+    cumulativePurchases: 0,
+    cumulativeWages: 0,
+    ...(input.jobPostingOpenSlots === undefined
+      ? {}
+      : { jobPosting: { wageOffer: 12, openSlots: input.jobPostingOpenSlots } }),
+  };
+}
 
 const educationSystemPolicy: EducationSystemPolicy = {
   policyVersion: 'education-system-v4',
@@ -104,6 +158,135 @@ describe('canonical domain runtimes', () => {
     expect(new Set(CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES).size).toBe(
       CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES.length,
     );
+  });
+
+  test('proposes a survival bridge loan only under the rigid banking gates', async () => {
+    const needyAgent = createAgent({
+      agentId: agentA,
+      balance: 10,
+      physiology: { energy: 25, satiety: 50, health: 100 },
+    });
+    const binding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: needyAgent,
+        projection: createProjection({
+          agents: [needyAgent],
+          marketPools: [],
+          bank: createBankState({ reserves: 10_000 }),
+        }),
+      }),
+      {},
+      { ...policies, credit: creditPolicy },
+    );
+
+    // Gap = 50 - 10 = 40; no active loans; base limit 200 covers it.
+    expect(firstProposal(binding.microPlanners, 'banking')).toMatchObject({
+      commandType: 'AgentRequestLoan',
+      payload: { amount: 40 },
+      priority: 10,
+    });
+  });
+
+  test('keeps the banking domain on observe without a physiological gap or credit', async () => {
+    // Physiology healthy: no survival gap, no loan even with a thin balance.
+    const healthyAgent = createAgent({
+      agentId: agentA,
+      balance: 10,
+      physiology: { energy: 80, satiety: 80, health: 100 },
+    });
+    const healthy = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: healthyAgent,
+        projection: createProjection({
+          agents: [healthyAgent],
+          marketPools: [],
+          bank: createBankState({ reserves: 10_000 }),
+        }),
+      }),
+      {},
+      { ...policies, credit: creditPolicy },
+    );
+    expect(firstProposal(healthy.microPlanners, 'banking')).toMatchObject({
+      commandType: 'AgentObserveLocation',
+    });
+
+    // No credit policy: the domain never nominates loans.
+    const unbanked = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: createAgent({
+          agentId: agentA,
+          balance: 10,
+          physiology: { energy: 25, satiety: 50, health: 100 },
+        }),
+        projection: createProjection({
+          agents: [createAgent({ agentId: agentA, balance: 10, physiology: { energy: 25, satiety: 50, health: 100 } })],
+          marketPools: [],
+          bank: createBankState({ reserves: 10_000 }),
+        }),
+      }),
+      {},
+      policies,
+    );
+    expect(firstProposal(unbanked.microPlanners, 'banking')).toMatchObject({
+      commandType: 'AgentObserveLocation',
+    });
+  });
+
+  test('proposes enterprise join for open postings and funding for owners', async () => {
+    const worker = createAgent({ agentId: agentA, balance: 500 });
+    const joinBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: worker,
+        projection: createProjection({
+          agents: [worker, createAgent({ agentId: agentB })],
+          marketPools: [],
+          enterprises: [createEnterpriseState({ enterpriseId: 'e-1', ownerAgentId: agentB, jobPostingOpenSlots: 2 })],
+        }),
+      }),
+      {},
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    expect(firstProposal(joinBinding.microPlanners, 'enterprise')).toMatchObject({
+      commandType: 'AgentJoinEnterprise',
+      payload: { enterpriseId: 'e-1' },
+    });
+
+    // No posting and not an owner: observe only.
+    const outsider = createAgent({ agentId: agentA, balance: 500 });
+    const observeBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: outsider,
+        projection: createProjection({
+          agents: [outsider, createAgent({ agentId: agentB })],
+          marketPools: [],
+          enterprises: [createEnterpriseState({ enterpriseId: 'e-1', ownerAgentId: agentB })],
+        }),
+      }),
+      {},
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    expect(firstProposal(observeBinding.microPlanners, 'enterprise')).toMatchObject({
+      commandType: 'AgentObserveLocation',
+    });
+
+    // Owner above the funding floor funds the enterprise with the surplus.
+    const owner = createAgent({ agentId: agentA, balance: 160 });
+    const fundBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: owner,
+        projection: createProjection({
+          agents: [owner],
+          marketPools: [],
+          enterprises: [createEnterpriseState({ enterpriseId: 'e-1', ownerAgentId: agentA })],
+        }),
+      }),
+      { enterprise: { fundingOwnerBalanceFloor: 100 } },
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    expect(firstProposal(fundBinding.microPlanners, 'enterprise')).toMatchObject({
+      commandType: 'AgentFundEnterprise',
+      payload: { enterpriseId: 'e-1', amount: 60 },
+    });
   });
 
   test('resolves canonical contextual planners that support affinity-tag-only subtasks', async () => {
@@ -1519,9 +1702,13 @@ function createProjection(input: {
   readonly educationExamApplications?: readonly WorldEducationExamApplicationState[];
   readonly locationObservations?: readonly WorldLocationObservationState[];
   readonly socialRelations?: readonly SocialRelationState[];
+  readonly bank?: WorldBankState;
+  readonly enterprises?: readonly WorldEnterpriseState[];
 }): WorldProjection {
   return createWorldProjection({
     agents: input.agents,
+    ...(input.bank === undefined ? {} : { bank: input.bank }),
+    ...(input.enterprises === undefined ? {} : { enterprises: input.enterprises }),
     ...(input.locations === undefined ? {} : { locations: input.locations }),
     ...(input.locationObservations === undefined
       ? {}
@@ -1544,11 +1731,12 @@ function createAgent(input: {
   readonly educationScore?: number;
   readonly educationLevel?: WorldAgentState['educationLevel'];
   readonly balance?: number;
+  readonly physiology?: WorldAgentState['physiology'];
 }): WorldAgentState {
   return {
     agentId: input.agentId,
     locationId: input.locationId ?? null,
-    physiology: { energy: 50, satiety: 50, health: 100 },
+    physiology: input.physiology ?? { energy: 50, satiety: 50, health: 100 },
     educationScore: input.educationScore ?? 0,
     balance: input.balance ?? 1000,
     residentialTier: input.residentialTier ?? 1,

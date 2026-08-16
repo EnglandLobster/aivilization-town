@@ -683,7 +683,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v3';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v4';
 
 /** Hard cap for any free-text field entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
@@ -704,6 +704,13 @@ export const DECISION_RELATIONS_MAX_COUNT = 8;
  * budget binding — K=16 per the review's §11.3 question 6 stance).
  */
 export const DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT = 16;
+
+/**
+ * Cap for the enterprises section (§7 step 4 budget binding): tiered by
+ * relevance — own employment/ownership first, then open job postings, then
+ * the rest — deterministic enterpriseId order within a tier, capped here.
+ */
+export const DECISION_ENTERPRISE_MAX_COUNT = 8;
 
 /** Cap for the town-pulse section — the "recent town news" a citizen hears. */
 export const DECISION_TOWN_PULSE_MAX_COUNT = 6;

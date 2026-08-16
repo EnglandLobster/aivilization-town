@@ -28,11 +28,14 @@ import type {
   AgentApplyEducationExamPayload,
   AgentApplyJobPayload,
   AgentEatPayload,
+  AgentFundEnterprisePayload,
   AgentGiveResourcePayload,
+  AgentJoinEnterprisePayload,
   AgentMoveToPayload,
   AgentObserveLocationPayload,
   AgentProducePayload,
   AgentRaisePetitionPayload,
+  AgentRequestLoanPayload,
   AgentSeeDoctorPayload,
   AgentSignPetitionPayload,
   AgentStartConversationPayload,
@@ -43,6 +46,7 @@ import type {
   AgentWorkPayload,
   WorldCommandPolicies,
 } from '@aivilization/world';
+import { activeLoansByBorrower, resolveCreditLimit } from '@aivilization/world';
 import type { CollectiveActionPolicy } from '@aivilization/society';
 import type {
   WorkerDomainRuntimeFactoryInput,
@@ -64,7 +68,9 @@ export type CanonicalDomainName =
   | 'production'
   | 'residential'
   | 'health'
-  | 'eat';
+  | 'eat'
+  | 'banking'
+  | 'enterprise';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -142,6 +148,8 @@ export type CanonicalDomainRuntimeConfig = {
   readonly social?: SocialDomainRuntimeConfig;
   readonly production?: ProductionDomainRuntimeConfig;
   readonly residential?: ResidentialDomainRuntimeConfig;
+  readonly banking?: BankingDomainRuntimeConfig;
+  readonly enterprise?: EnterpriseDomainRuntimeConfig;
 };
 
 const DEFAULT_OCCUPATION_NAME = 'Cleaner';
@@ -169,6 +177,12 @@ const DEFAULT_DOMAIN_LOCATION_IDS: Readonly<Record<CanonicalDomainName, Location
   residential: asLocationId('residential-block'),
   health: asLocationId('clinic'),
   eat: asLocationId('restaurant'),
+  // No dedicated bank premise exists in scenarios; bank commands settle
+  // against the town-bank aggregate wherever the citizen stands, so the
+  // market doubles as the financial anchor. Enterprise actions anchor at the
+  // workshop like other productive work.
+  banking: asLocationId('market'),
+  enterprise: asLocationId('workshop'),
 };
 
 export function createCanonicalDomainRuntimeRegistrations(
@@ -196,6 +210,8 @@ export function createCanonicalDomainRuntimeRegistrations(
     ),
     createHealthDomainRuntimeRegistration(config.health),
     createEatDomainRuntimeRegistration(config.eat, policies?.satietyRecoveryByCommodity),
+    createBankingDomainRuntimeRegistration(config.banking, policies?.credit),
+    createEnterpriseDomainRuntimeRegistration(config.enterprise, policies?.enterprise),
   ];
 }
 
@@ -910,7 +926,10 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
-  | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>;
+  | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
+  | AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload>
+  | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
+  | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>;
 
 /**
  * Runtime mirror of the canonical proposal command types. `satisfies` pins it
@@ -936,6 +955,9 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentUpgradeResidentialTier',
   'AgentRaisePetition',
   'AgentSignPetition',
+  'AgentRequestLoan',
+  'AgentJoinEnterprise',
+  'AgentFundEnterprise',
 ] as const satisfies readonly CanonicalActionProposal['commandType'][];
 
 // Non-distributive: a distributive conditional over never collapses to never,
@@ -949,6 +971,246 @@ export const CANONICAL_COMMAND_TYPE_LIST_IS_EXHAUSTIVE: RequireNever<
     (typeof CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES)[number]
   >
 > = true;
+
+export const BANKING_ACTION_PROPOSER_POLICY_VERSION = 'banking-action-proposer-v1';
+
+/**
+ * Versioned gates for the banking domain's deterministic loan proposal
+ * (AGENT_CONTEXT_DESIGN.md §5: rigid conditions — never "has credit, takes
+ * credit"). The macro backstop is the credit domain's reserve-ratio
+ * constraint; this policy only governs when the proposer nominates a loan.
+ */
+export type BankingActionProposerPolicy = {
+  readonly policyVersion: string;
+  /**
+   * Balance floor: below it, together with an active physiological need, a
+   * deterministic survival gap exists and a bridge loan is nominated.
+   */
+  readonly survivalBalanceFloor: number;
+};
+
+export const DEFAULT_BANKING_ACTION_PROPOSER_POLICY: BankingActionProposerPolicy = {
+  policyVersion: BANKING_ACTION_PROPOSER_POLICY_VERSION,
+  survivalBalanceFloor: 50,
+};
+
+export function assertValidBankingActionProposerPolicy(policy: BankingActionProposerPolicy): void {
+  if (policy.policyVersion.trim().length === 0) {
+    throw new Error('banking action proposer policyVersion must not be empty');
+  }
+  if (!Number.isFinite(policy.survivalBalanceFloor) || policy.survivalBalanceFloor <= 0) {
+    throw new Error('banking action proposer survivalBalanceFloor must be positive finite');
+  }
+}
+
+export type BankingDomainRuntimeConfig = {
+  /** Overrides the survival balance floor of the proposer policy. */
+  readonly survivalBalanceFloor?: number;
+};
+
+export type EnterpriseDomainRuntimeConfig = {
+  /** Minimum balance the owner keeps before funding their own enterprise. */
+  readonly fundingOwnerBalanceFloor?: number;
+};
+
+const DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR = 100;
+
+/**
+ * Deterministic survival-bridge loan proposal. All gates are rigid: a bank
+ * must exist, an active physiological need (the same energy/satiety/health
+ * bands objective renewal uses), a positive balance gap under the proposer
+ * floor, a free concurrency slot, and a credit limit that covers the whole
+ * gap. Any gate failing means no nomination — the agent falls back to
+ * observe, never to "borrow because the limit exists".
+ */
+export function resolveBankingLoanProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly creditPolicy: NonNullable<WorldCommandPolicies['credit']>;
+  readonly proposerPolicy: BankingActionProposerPolicy;
+}): AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload> | undefined {
+  const bank = input.context.projection.bank;
+  if (bank === undefined) {
+    return undefined;
+  }
+  const agent = input.context.agent;
+  const physiologyNeed =
+    agent.physiology.energy < 30 || agent.physiology.satiety < 30 || agent.physiology.health < 50;
+  if (!physiologyNeed) {
+    return undefined;
+  }
+  const gap = input.proposerPolicy.survivalBalanceFloor - agent.balance;
+  if (!(gap > 0)) {
+    return undefined;
+  }
+  if (activeLoansByBorrower(bank, agent.agentId).length >= input.creditPolicy.maxLoansPerAgent) {
+    return undefined;
+  }
+  const maxLoanAmount = resolveCreditLimit({
+    history: bank.creditHistoryByAgent[agent.agentId],
+    policy: input.creditPolicy,
+  });
+  if (maxLoanAmount < gap) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('banking', input.selectedSubtask)}-survival-loan`,
+    description: `Request a bank bridge loan of ${Math.ceil(gap)} to cover the survival shortfall.`,
+    commandType: 'AgentRequestLoan',
+    priority: input.selectedSubtask.score,
+    payload: { amount: Math.ceil(gap) },
+  };
+}
+
+/**
+ * Deterministic employment proposal: join the alphabetically-first active
+ * enterprise the agent neither works for nor owns, that posts open slots and
+ * still has employee headroom.
+ */
+export function resolveEnterpriseJoinProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+}): AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload> | undefined {
+  const agent = input.context.agent;
+  const candidate = Object.values(input.context.projection.enterprises)
+    .filter((enterprise) => enterprise.status === 'active')
+    .filter(
+      (enterprise) =>
+        enterprise.ownerAgentId !== agent.agentId &&
+        !enterprise.employeeAgentIds.includes(agent.agentId),
+    )
+    .filter((enterprise) => (enterprise.jobPosting?.openSlots ?? 0) > 0)
+    .filter((enterprise) => enterprise.employeeAgentIds.length < enterprise.maxEmployees)
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
+  if (candidate === undefined) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('enterprise', input.selectedSubtask)}-join`,
+    description: `Join ${candidate.name} — it is hiring with ${candidate.jobPosting?.openSlots} open slot(s).`,
+    commandType: 'AgentJoinEnterprise',
+    priority: input.selectedSubtask.score,
+    payload: { enterpriseId: candidate.enterpriseId },
+  };
+}
+
+/**
+ * Deterministic funding proposal: the owner of an active enterprise funds it
+ * with everything above the configured owner-balance floor.
+ */
+export function resolveEnterpriseFundProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly fundingOwnerBalanceFloor: number;
+}): AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload> | undefined {
+  const agent = input.context.agent;
+  const owned = Object.values(input.context.projection.enterprises)
+    .filter(
+      (enterprise) =>
+        enterprise.ownerAgentId === agent.agentId && enterprise.status === 'active',
+    )
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
+  if (owned === undefined) {
+    return undefined;
+  }
+  const fundable = agent.balance - input.fundingOwnerBalanceFloor;
+  if (!(fundable > 0)) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('enterprise', input.selectedSubtask)}-fund`,
+    description: `Invest ${Math.floor(fundable)} of surplus balance into ${owned.name}.`,
+    commandType: 'AgentFundEnterprise',
+    priority: input.selectedSubtask.score,
+    payload: { enterpriseId: owned.enterpriseId, amount: Math.floor(fundable) },
+  };
+}
+
+export function createBankingDomainRuntimeRegistration(
+  config: BankingDomainRuntimeConfig = {},
+  creditPolicy?: WorldCommandPolicies['credit'],
+): WorkerDomainRuntimeRegistration {
+  const proposerPolicy: BankingActionProposerPolicy = {
+    ...DEFAULT_BANKING_ACTION_PROPOSER_POLICY,
+    ...(config.survivalBalanceFloor === undefined
+      ? {}
+      : { survivalBalanceFloor: config.survivalBalanceFloor }),
+  };
+  assertValidBankingActionProposerPolicy(proposerPolicy);
+  return {
+    domain: 'banking',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'banking',
+        context,
+        planRecord: context.planRecord,
+        resolveTargetLocationId: () => DEFAULT_DOMAIN_LOCATION_IDS.banking,
+        propose: (selectedSubtask) => {
+          if (creditPolicy !== undefined) {
+            const loanProposal = resolveBankingLoanProposal({
+              context,
+              selectedSubtask,
+              creditPolicy,
+              proposerPolicy,
+            });
+            if (loanProposal !== undefined) {
+              return loanProposal;
+            }
+          }
+          return {
+            id: createCanonicalActionId('banking', selectedSubtask),
+            description: `Check the bank's rates before ${selectedSubtask.description}.`,
+            commandType: 'AgentObserveLocation',
+            priority: selectedSubtask.score,
+            payload: { focus: selectedSubtask.description },
+          };
+        },
+      }),
+    ],
+  };
+}
+
+export function createEnterpriseDomainRuntimeRegistration(
+  config: EnterpriseDomainRuntimeConfig = {},
+  enterprisePolicy?: WorldCommandPolicies['enterprise'],
+): WorkerDomainRuntimeRegistration {
+  const fundingOwnerBalanceFloor =
+    config.fundingOwnerBalanceFloor ?? DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR;
+  return {
+    domain: 'enterprise',
+    createMicroPlanners: (context) => [
+      createContextualDomainMicroPlanner({
+        domain: 'enterprise',
+        context,
+        planRecord: context.planRecord,
+        resolveTargetLocationId: () => DEFAULT_DOMAIN_LOCATION_IDS.enterprise,
+        propose: (selectedSubtask) => {
+          if (enterprisePolicy !== undefined) {
+            const joinProposal = resolveEnterpriseJoinProposal({ context, selectedSubtask });
+            if (joinProposal !== undefined) {
+              return joinProposal;
+            }
+            const fundProposal = resolveEnterpriseFundProposal({
+              context,
+              selectedSubtask,
+              fundingOwnerBalanceFloor,
+            });
+            if (fundProposal !== undefined) {
+              return fundProposal;
+            }
+          }
+          return {
+            id: createCanonicalActionId('enterprise', selectedSubtask),
+            description: `Observe the town's enterprises before ${selectedSubtask.description}.`,
+            commandType: 'AgentObserveLocation',
+            priority: selectedSubtask.score,
+            payload: { focus: selectedSubtask.description },
+          };
+        },
+      }),
+    ],
+  };
+}
 
 function resolveSocialResourceGift(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;

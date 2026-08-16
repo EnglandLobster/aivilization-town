@@ -352,6 +352,71 @@ describe('worker world decision context', () => {
     ]);
   });
 
+  test('caps the enterprises section with tiered relevance at eight entries', () => {
+    const enterpriseCount = 12;
+    const enterprises = Array.from({ length: enterpriseCount }, (_, index) => ({
+      enterpriseId: `e-${String(index).padStart(2, '0')}`,
+      name: `Enterprise ${index}`,
+      // e-00 is owned by the agent (tier 0); e-03/e-04 post openings (tier 1);
+      // the rest are plain context (tier 2).
+      ownerAgentId:
+        index === 0 ? agentId : asAgentId(`owner-${String(index).padStart(2, '0')}`),
+      occupationName: 'Baker',
+      balance: 100,
+      inventory: {},
+      maxEmployees: 3,
+      employeeAgentIds: [],
+      status: 'active' as const,
+      foundedAt: 0,
+      cumulativeSales: 0,
+      cumulativePurchases: 0,
+      cumulativeWages: 0,
+      ...(index === 3 || index === 4 ? { jobPosting: { wageOffer: 12, openSlots: 1 } } : {}),
+    }));
+    const agents = [
+      createLocalAgent(agentId),
+      ...enterprises
+        .filter((enterprise) => enterprise.ownerAgentId !== agentId)
+        .map((enterprise) => createLocalAgent(enterprise.ownerAgentId)),
+    ];
+    const projection = createWorldProjection({
+      agents,
+      enterprises,
+    });
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies: {
+        satietyRecoveryByCommodity: {},
+        maxSatiety: 100,
+        wageCalculator: () => 250,
+        laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+        criticalThresholds: { energy: 20, health: 35 },
+        enterprise: {
+          policyVersion: 'test-enterprise-v1',
+          minimumInitialCapital: 100,
+          maximumInitialCapital: 1000,
+          maximumEmployees: 4,
+        },
+      },
+    });
+
+    // Cap 8: own enterprise first, then the two postings, then the six
+    // lowest-id plain enterprises.
+    expect(context.enterprises).toHaveLength(8);
+    expect(context.enterprises?.map((enterprise) => enterprise.enterpriseId)).toEqual([
+      'e-00',
+      'e-03',
+      'e-04',
+      'e-01',
+      'e-02',
+      'e-05',
+      'e-06',
+      'e-07',
+    ]);
+  });
+
   test('exposes recent town-pulse news newest first within the simulation-day window', () => {
     const dayMs = 86_400_000;
     const now = 5 * dayMs;

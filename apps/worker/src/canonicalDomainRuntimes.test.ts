@@ -1,4 +1,5 @@
 import {
+  AGENT_ACTION_COMMAND_TYPES,
   createBranchPlan,
   type BranchPlan,
   type BranchPlanRecord,
@@ -24,6 +25,7 @@ import {
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
+  CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES,
   createCanonicalDomainRuntimeRegistrations,
   createDomainRuntimeResolver,
   resolveProductionTargetCommodityName,
@@ -87,6 +89,21 @@ describe('canonical domain runtimes', () => {
     const registrations = createCanonicalDomainRuntimeRegistrations();
 
     expect(registrations.map((registration) => registration.domain)).toEqual(domainOrder);
+  });
+
+  test('every canonical action proposal command type is whitelisted for reactive correction', () => {
+    // AGENT_CONTEXT_DESIGN.md §5 whitelist reconciliation: the canonical set
+    // and the repair whitelist drifted independently (AgentGiveResource was
+    // proposed but not whitelisted). This guards canonical ⊆ whitelist.
+    const whitelist: readonly string[] = AGENT_ACTION_COMMAND_TYPES;
+    const missing = CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES.filter(
+      (commandType) => !whitelist.includes(commandType),
+    );
+
+    expect(missing).toEqual([]);
+    expect(new Set(CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES).size).toBe(
+      CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES.length,
+    );
   });
 
   test('resolves canonical contextual planners that support affinity-tag-only subtasks', async () => {

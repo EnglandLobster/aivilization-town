@@ -24,7 +24,9 @@ import {
   type SocialDialogueTurnProposal,
 } from './socialDialogueGeneration';
 import {
+  composePersonaSystemPrompt,
   createWorldDecisionContextTrace,
+  describeCitizenFraming,
   type WorldDecisionContext,
 } from './worldDecisionContext';
 
@@ -196,8 +198,14 @@ function createSocialDialogueMessages(
   return [
     {
       role: 'system',
-      content:
-        'You are the AIvilization Social Dialogue Generation module. Write a compact natural-language two-party conversation for an existing AgentStartConversation action. Return JSON matching the aivilization_social_dialogue_generation schema.',
+      content: composePersonaSystemPrompt({
+        framing:
+          input.worldDecisionContext === undefined
+            ? null
+            : describeCitizenFraming(input.worldDecisionContext.agent),
+        modulePrompt:
+          'You are the AIvilization Social Dialogue Generation module. Write a compact natural-language two-party conversation for an existing AgentStartConversation action. Return JSON matching the aivilization_social_dialogue_generation schema.',
+      }),
     },
     {
       role: 'user',

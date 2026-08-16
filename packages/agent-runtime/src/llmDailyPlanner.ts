@@ -21,7 +21,12 @@ import {
   type DailyPlanItem,
   type DailyPlanItemSource,
 } from './dailyPlanning';
-import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
+import {
+  composePersonaSystemPrompt,
+  createWorldDecisionContextTrace,
+  describeCitizenFraming,
+  type WorldDecisionContext,
+} from './worldDecisionContext';
 
 export type LlmDailyPlanProposal = DailyPlan;
 
@@ -197,8 +202,14 @@ function createDailyPlannerMessages(
   return [
     {
       role: 'system',
-      content:
-        'You are the AIvilization daily planning module. Return only JSON matching the aivilization_daily_plan schema. Propose broad daily agenda chunks; never propose world commands, object mutations, dialogue, or 5-15 minute action decomposition.',
+      content: composePersonaSystemPrompt({
+        framing:
+          input.worldDecisionContext === undefined
+            ? null
+            : describeCitizenFraming(input.worldDecisionContext.agent),
+        modulePrompt:
+          'You are the AIvilization daily planning module. Return only JSON matching the aivilization_daily_plan schema. Propose broad daily agenda chunks; never propose world commands, object mutations, dialogue, or 5-15 minute action decomposition.',
+      }),
     },
     {
       role: 'user',

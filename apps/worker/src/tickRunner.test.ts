@@ -47,6 +47,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createAivilizationWorldCommandPolicies, dispatchCommandDraftsToWorldEventStream, runWorkerSimulationTick } from './index';
+import { CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES } from './ambientObservationMemory';
 
 const simulationId = asSimulationId('sim-1');
 const agentOne = asAgentId('agent-1');
@@ -1500,7 +1501,10 @@ describe('worker tick runner', () => {
       eventStore,
       streamName: partition.eventStreamName,
       expectedVersion: 0,
-      ambientObservationMemory: { enabled: true },
+      ambientObservationMemory: {
+        enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
+      },
       agents: [
         {
           agentId: agentOne,
@@ -1557,7 +1561,10 @@ describe('worker tick runner', () => {
       eventStore,
       streamName: partition.eventStreamName,
       expectedVersion: 0,
-      ambientObservationMemory: { enabled: true },
+      ambientObservationMemory: {
+        enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
+      },
       agents: [
         {
           agentId: agentOne,
@@ -1639,6 +1646,7 @@ describe('worker tick runner', () => {
       expectedVersion: 0,
       ambientObservationMemory: {
         enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
         reactionEvaluator: ({ memory }) => {
           evaluatedMemoryIds.push(memory.id);
           return {
@@ -1714,6 +1722,7 @@ describe('worker tick runner', () => {
       expectedVersion: 0,
       ambientObservationMemory: {
         enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
         reactionEvaluator: (input) => {
           captured.push({
             agentId: input.agentId,
@@ -1779,6 +1788,7 @@ describe('worker tick runner', () => {
       expectedVersion: 0,
       ambientObservationMemory: {
         enabled: true,
+        visibleEventTypes: CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES,
         reactionEvaluator: () => ({
           decision: {
             kind: 'ignore',

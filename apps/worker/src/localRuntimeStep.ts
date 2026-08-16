@@ -13,6 +13,7 @@ import {
 import type { WorkerTownBulletinIssuer } from './steering';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
+import { createCanonicalAmbientObservationMemoryRuntimeInput } from './ambientObservationMemory';
 import {
   runWorkerSimulationTick,
   type WorkerTickAgentInput,
@@ -256,7 +257,10 @@ function createTickAmbientObservationMemoryInput(input: LocalWorldRuntimeStepInp
   readonly ambientObservationMemory: WorkerTickAmbientObservationMemoryInput;
 } {
   return {
-    ambientObservationMemory: input.ambientObservationMemory ?? { enabled: true },
+    // Explicit canonical default: ambient visibility must never fall back to
+    // an unconfigured list (fail-closed since AGENT_CONTEXT_DESIGN.md step 3).
+    ambientObservationMemory:
+      input.ambientObservationMemory ?? createCanonicalAmbientObservationMemoryRuntimeInput(),
   };
 }
 

@@ -24,6 +24,8 @@ import type {
 import {
   DECISION_RELATIONS_MAX_COUNT,
   DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
+  DECISION_TOWN_PULSE_MAX_COUNT,
+  DECISION_TOWN_PULSE_WINDOW_DAYS,
   sanitizeDecisionDisplayName,
 } from '@aivilization/agent-runtime';
 import type { AgentId } from '@aivilization/sim-core';
@@ -255,6 +257,7 @@ export function createWorldDecisionContextFromProjection(input: {
           }),
         }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
+    ...createTownPulseDecisionContext(input),
     ...createCalendarDecisionContext(input),
     ...createPetitionDecisionContext(input),
     ...createConditionDecisionContext(input),
@@ -267,6 +270,43 @@ export function createWorldDecisionContextFromProjection(input: {
     ...createEnterpriseDecisionContext(input),
     ...(rules === undefined ? {} : { rules }),
   };
+}
+
+function createTownPulseDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'townPulse'> | Record<string, never> {
+  if (input.projection.townPulse.length === 0) {
+    return {};
+  }
+  // Day length follows the calendar policy (24h-equivalent fallback); the
+  // window drops stale news, the sort is newest-first with event sequence as
+  // the deterministic tiebreak, and the cap bounds the section.
+  const dayLengthMs = input.policies?.calendar?.dayLengthMs ?? 86_400_000;
+  const windowStartMs =
+    input.projection.clock.now - DECISION_TOWN_PULSE_WINDOW_DAYS * dayLengthMs;
+  const entries = input.projection.townPulse
+    .filter((record) => record.occurredAt >= windowStartMs)
+    .sort((left, right) => right.occurredAt - left.occurredAt || right.sequence - left.sequence)
+    .slice(0, DECISION_TOWN_PULSE_MAX_COUNT)
+    .map((record) => {
+      const subjectDisplayName = sanitizeDecisionDisplayName(record.subjectDisplayName);
+      const subjectEnterpriseName = sanitizeDecisionDisplayName(record.subjectEnterpriseName);
+      return {
+        kind: record.kind,
+        atMs: record.occurredAt,
+        ...(record.subjectAgentId === undefined ? {} : { subjectAgentId: record.subjectAgentId }),
+        ...(subjectDisplayName === undefined ? {} : { subjectDisplayName }),
+        ...(subjectEnterpriseName === undefined ? {} : { subjectEnterpriseName }),
+        ...(record.detail === undefined || record.detail.length === 0
+          ? {}
+          : { detail: record.detail }),
+      };
+    });
+  if (entries.length === 0) {
+    return {};
+  }
+  return { townPulse: entries };
 }
 
 function createEnterpriseDecisionContext(input: {

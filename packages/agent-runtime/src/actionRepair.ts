@@ -31,6 +31,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentEat',
   'AgentFoundEnterprise',
   'AgentFundEnterprise',
+  'AgentGiveResource',
   'AgentJoinEnterprise',
   'AgentMoveTo',
   'AgentObserveLocation',

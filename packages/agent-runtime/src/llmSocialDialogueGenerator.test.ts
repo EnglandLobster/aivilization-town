@@ -15,6 +15,67 @@ const agentId = asAgentId('agent-1');
 const targetAgentId = asAgentId('agent-2');
 
 describe('LLM social dialogue generation seam', () => {
+
+  test('persona framing wraps the dialogue system prompt for identity-bearing contexts', async () => {
+    const scripted = createScriptedLlmProvider({
+      providerId: 'scripted-social-dialogue',
+      responses: [
+        {
+          providerId: 'scripted-social-dialogue',
+          model: 'dialogue-model',
+          finishReason: 'stop',
+          content: JSON.stringify({
+            dialogue: {
+              topic: 'checking in',
+              relationDelta: 0.05,
+              attitudeDelta: 0.02,
+              rationale: 'A brief friendly exchange.',
+              turns: [
+                {
+                  speakerAgentId: 'agent-1',
+                  utterance: 'Morning! Busy day at the market?',
+                  intent: 'greet',
+                },
+                {
+                  speakerAgentId: 'agent-2',
+                  utterance: 'Morning, Li Na. Quite busy indeed.',
+                  intent: 'respond',
+                },
+              ],
+            },
+          }),
+        },
+      ],
+    });
+
+    const base = createWorldDecisionContext();
+    await proposeSocialDialogueWithLlm({
+      agentId,
+      issuedAt: 410,
+      plan: createContextualPlan(),
+      selectedSubtask,
+      action,
+      deterministicPayload,
+      signals: [],
+      worldDecisionContext: {
+        ...base,
+        agent: {
+          ...base.agent,
+          displayName: 'Li Na',
+          lifecycle: { stage: 'adult', ageDays: 9_125, retired: false },
+        },
+      },
+      provider: scripted.provider,
+      model: 'dialogue-model',
+      requestId: 'social-dialogue-persona-framing',
+    });
+
+    const systemMessage = scripted.getRequests()[0]?.messages[0]?.content ?? '';
+    expect(systemMessage).toContain('You are acting as Li Na — adult Stock Clerk of this town.');
+    expect(systemMessage).toContain('You are the AIvilization Social Dialogue Generation module');
+    expect(systemMessage).toContain('must not contradict the JSON state');
+  });
+
   test('accepts a valid LLM-generated conversation with world and memory context', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-social-dialogue',

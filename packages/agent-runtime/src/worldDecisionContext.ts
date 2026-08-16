@@ -380,6 +380,24 @@ export type WorldDecisionSocietyContext = {
  * context exposes it for situational awareness only — it does not change any
  * activity policy. `since` is the simulation time the current weather started.
  */
+export type WorldDecisionTownPulseEntry = {
+  readonly kind:
+    | 'death'
+    | 'emigration'
+    | 'arrival'
+    | 'petition-threshold'
+    | 'weather-change'
+    | 'enterprise-founded'
+    | 'enterprise-closed';
+  readonly atMs: number;
+  readonly subjectAgentId?: AgentId;
+  /** Sanitized subject name captured at event time (departure removes the agent). */
+  readonly subjectDisplayName?: string;
+  readonly subjectEnterpriseName?: string;
+  /** Machine-readable qualifier (cause, weather transition, petition topic). */
+  readonly detail?: string;
+};
+
 export type WorldDecisionWeatherContext = {
   readonly current: string;
   readonly since: number;
@@ -480,6 +498,17 @@ export type WorldDecisionEnterpriseContext = {
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
+  /**
+   * Optional town-pulse view (context-view v3): recent town-wide occurrences
+   * (deaths, departures, arrivals, petition thresholds, weather shifts,
+   * enterprise lifecycle) derived deterministically from the projection's
+   * bounded pulse ring, newest first, capped at
+   * {@link DECISION_TOWN_PULSE_MAX_COUNT} within a
+   * {@link DECISION_TOWN_PULSE_WINDOW_DAYS}-day window. Hearsay by nature —
+   * citizens learn town news by hearing it, not by omniscience
+   * (docs/AGENT_CONTEXT_DESIGN.md §4 right 3).
+   */
+  readonly townPulse?: readonly WorldDecisionTownPulseEntry[];
   readonly society?: WorldDecisionSocietyContext;
   readonly weather?: WorldDecisionWeatherContext;
   readonly calendar?: WorldDecisionCalendarContext;
@@ -504,6 +533,8 @@ export type WorldDecisionContextTrace = {
   readonly displayNameLength?: number;
   /** Present when the social-graph view carried at least one relation entry. */
   readonly relationCount?: number;
+  /** Present when the town-pulse view carried at least one news entry. */
+  readonly townPulseCount?: number;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
   readonly hasBalance: boolean;
@@ -569,6 +600,7 @@ export function createWorldDecisionContextTrace(
     ...(context.agent.relations === undefined
       ? {}
       : { relationCount: context.agent.relations.length }),
+    ...(context.townPulse === undefined ? {} : { townPulseCount: context.townPulse.length }),
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
       Number.isFinite(context.agent.physiology.satiety) &&
@@ -651,7 +683,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v2';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v3';
 
 /** Hard cap for any free-text field entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
@@ -672,6 +704,16 @@ export const DECISION_RELATIONS_MAX_COUNT = 8;
  * budget binding — K=16 per the review's §11.3 question 6 stance).
  */
 export const DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT = 16;
+
+/** Cap for the town-pulse section — the "recent town news" a citizen hears. */
+export const DECISION_TOWN_PULSE_MAX_COUNT = 6;
+
+/**
+ * Town-pulse time window in simulation days (day length follows the calendar
+ * policy, 24h wall-clock-equivalent when absent). Records older than the
+ * window are stale news and dropped.
+ */
+export const DECISION_TOWN_PULSE_WINDOW_DAYS = 3;
 
 /**
  * Sanitize a display name before it enters any prompt payload: strip C0/C1

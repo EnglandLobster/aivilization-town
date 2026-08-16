@@ -352,6 +352,75 @@ describe('worker world decision context', () => {
     ]);
   });
 
+  test('exposes recent town-pulse news newest first within the simulation-day window', () => {
+    const dayMs = 86_400_000;
+    const now = 5 * dayMs;
+    const projection = createWorldProjection({
+      agents: [createLocalAgent(agentId)],
+      clock: { now, tickDurationMs: 1000 },
+      townPulse: [
+        {
+          sequence: 1,
+          occurredAt: now - 4 * dayMs, // outside the 3-day window: stale
+          kind: 'weather-change',
+          detail: 'clear->rain',
+        },
+        {
+          sequence: 2,
+          occurredAt: now - 2 * dayMs,
+          kind: 'death',
+          subjectAgentId: asAgentId('agent-old'),
+          subjectDisplayName: '  Old​ Resident  ',
+          detail: 'old-age',
+        },
+        {
+          sequence: 3,
+          occurredAt: now - dayMs,
+          kind: 'petition-threshold',
+          detail: 'town-welfare',
+        },
+        {
+          sequence: 4,
+          occurredAt: now - dayMs,
+          kind: 'arrival',
+          subjectAgentId: asAgentId('agent-new'),
+          subjectDisplayName: 'Newcomer',
+        },
+      ],
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId });
+
+    expect(context.townPulse).toEqual([
+      // Same timestamp: higher event sequence wins the tiebreak.
+      {
+        kind: 'arrival',
+        atMs: now - dayMs,
+        subjectAgentId: asAgentId('agent-new'),
+        subjectDisplayName: 'Newcomer',
+      },
+      { kind: 'petition-threshold', atMs: now - dayMs, detail: 'town-welfare' },
+      {
+        kind: 'death',
+        atMs: now - 2 * dayMs,
+        subjectAgentId: asAgentId('agent-old'),
+        subjectDisplayName: 'Old Resident',
+        detail: 'old-age',
+      },
+    ]);
+  });
+
+  test('omits the town pulse section when the ring is empty', () => {
+    const projection = createWorldProjection({
+      agents: [createLocalAgent(agentId)],
+      clock: { now: 0, tickDurationMs: 1000 },
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId });
+
+    expect(context.townPulse).toBeUndefined();
+  });
+
   test('caps foreign-partition society entries at sixteen strongest relations', () => {
     const foreignCount = 20;
     const socialRelations = Array.from({ length: foreignCount }, (_, index) =>

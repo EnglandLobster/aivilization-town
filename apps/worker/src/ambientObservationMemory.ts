@@ -67,6 +67,11 @@ export function createAmbientObservationMemoryRecords(input: {
   readonly occurredAt: number;
   readonly importanceScore?: number;
   readonly maxObserversPerEvent?: number;
+  /**
+   * Event types eligible for bystander observation. Absent means NO types
+   * are visible (fail-closed) — composition roots pass this explicitly
+   * (see {@link createCanonicalAmbientObservationMemoryRuntimeInput}).
+   */
   readonly visibleEventTypes?: readonly WorldEvent['type'][];
 }): WorkerAmbientObservationMemoryResult {
   assertNonEmpty(input.tickId, 'tickId');
@@ -86,7 +91,11 @@ export function createAmbientObservationMemoryRecords(input: {
     .filter((event): event is VisibleWorldEvent => event !== undefined)
     .filter(
       (event) =>
-        input.visibleEventTypes === undefined || input.visibleEventTypes.includes(event.type),
+        // Fail-closed: an unconfigured visibility list observes nothing. The
+        // previous default-allow behavior let non-canonical runtimes fan out
+        // every convertible event type (AGENT_CONTEXT_DESIGN.md §4 right 3
+        // precondition fix); composition roots must pass the list explicitly.
+        input.visibleEventTypes !== undefined && input.visibleEventTypes.includes(event.type),
     );
   const records = visibleEvents.flatMap((event) =>
     createObserverRecords({

@@ -52,7 +52,13 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
       currencyReserve: pool.currencyReserve,
       ...(pool.regionId === undefined ? {} : { regionId: pool.regionId }),
     })),
-    moneySupply: input.moneySupply ?? calculateCirculatingMoneySupply(input.preset),
+    moneySupply:
+      input.moneySupply ??
+      calculateCirculatingMoneySupply({
+        preset: input.preset,
+        ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
+        ...(input.bankReserves === undefined ? {} : { bankReserves: input.bankReserves }),
+      }),
     ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
     ...(input.bankReserves === undefined
       ? {}
@@ -60,6 +66,14 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
   });
 }
 
-function calculateCirculatingMoneySupply(preset: ScenarioPreset): number {
-  return preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0);
+function calculateCirculatingMoneySupply(input: {
+  readonly preset: ScenarioPreset;
+  readonly treasury?: number;
+  readonly bankReserves?: number;
+}): number {
+  return (
+    input.preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0) +
+    (input.treasury ?? 0) +
+    (input.bankReserves ?? 0)
+  );
 }

@@ -320,11 +320,10 @@ function createManifest(
         partitionKey: partition.partitionKey,
         scenarioPresetId: preset.id,
         marketPools,
-        // The treasury and the bank cash account are circulating accounts, so
-        // their seeds count towards the initial money supply alongside pool
-        // reserves and agent balances.
+        // The treasury and town-bank cash are circulating accounts alongside
+        // agents. AMM market reserves are explicit external counterpart
+        // accounts and therefore must NOT inflate the domestic money supply.
         moneySupply:
-          marketPools.reduce((total, pool) => total + pool.currencyReserve, 0) +
           preset.agentSeeds.reduce((total, agent) => total + agent.balance, 0) +
           (config.initialTreasury ?? 0) +
           (config.initialBankReserves ?? 0),

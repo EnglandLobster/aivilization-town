@@ -43,7 +43,7 @@ describe('scenario projection adapter', () => {
     });
   });
 
-  test('defaults initial money supply to circulating agent balances unless overridden', () => {
+  test('defaults money supply to domestic circulating accounts and excludes market reserves', () => {
     const [firstAgent, secondAgent] = aivilizationAblationScenarioPreset.agentSeeds;
     if (firstAgent === undefined || secondAgent === undefined) {
       throw new Error('expected ablation preset agents');
@@ -57,6 +57,17 @@ describe('scenario projection adapter', () => {
     };
 
     expect(createWorldProjectionFromScenario({ preset }).moneySupply).toBe(42);
+    expect(
+      createWorldProjectionFromScenario({
+        preset,
+        marketPools: createCommodityMarketPoolSeeds({
+          commodityReserve: 100,
+          currencyReserve: 1_000,
+        }),
+        treasury: 50,
+        bankReserves: 200,
+      }).moneySupply,
+    ).toBe(292);
     expect(createWorldProjectionFromScenario({ preset, moneySupply: 100 }).moneySupply).toBe(100);
   });
 

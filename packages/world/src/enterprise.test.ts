@@ -214,10 +214,12 @@ describe('agent enterprises', () => {
           retainedEarnings: 200,
         },
       ],
-      moneySupply: 550,
+      moneySupply: 650,
+      treasury: 100,
     });
     const dividendPolicies: WorldCommandPolicies = {
       ...policies,
+      safetyNetSubsidy: { minimumBalance: 100, maxSubsidy: 100 },
       enterprise: {
         ...policies.enterprise!,
         dividend: {
@@ -251,7 +253,10 @@ describe('agent enterprises', () => {
       cumulativeDividends: 100,
     });
     expect(updated.agents.owner?.balance).toBe(150);
-    expect(updated.moneySupply).toBe(550);
+    // The same-command dividend is visible to the later subsidy decision, so
+    // the owner does not also receive stale-balance welfare.
+    expect(updated.treasury).toBe(100);
+    expect(updated.moneySupply).toBe(650);
   });
 
   test('marks persistent insolvency, declares bankruptcy, and liquidates atomically', () => {
@@ -704,8 +709,8 @@ describe('agent enterprises', () => {
           retainedEarnings: 200,
         },
       ],
-      moneySupply: 550,
-      treasury: 0,
+      moneySupply: 650,
+      treasury: 100,
     });
     const dividendTaxPolicies: WorldCommandPolicies = {
       ...policies,
@@ -720,6 +725,12 @@ describe('agent enterprises', () => {
         tradeTaxRate: 0,
         dividendTaxRate: 0.1,
         source: 'test',
+      },
+      publicBudget: {
+        policyVersion: 'budget-test-v1',
+        cadenceMs: 1_000,
+        minimumTreasuryReserve: 50,
+        allocations: [{ service: 'education', amountPerCadence: 50 }],
       },
     };
     const events = dispatchWorldCommand({
@@ -737,16 +748,17 @@ describe('agent enterprises', () => {
     });
     expect(events.map((event) => event.type)).toEqual([
       'SimulationTimeAdvanced',
+      'PublicBudgetSpent',
       'EnterpriseDividendPaid',
       'DividendTaxCharged',
     ]);
-    expect(events[2]).toMatchObject({
+    expect(events[3]).toMatchObject({
       payload: {
         enterpriseId: 'profitable-co',
         dividendAmount: 100,
         amount: 10,
-        previousTreasury: 0,
-        nextTreasury: 10,
+        previousTreasury: 50,
+        nextTreasury: 60,
       },
     });
     const updated = events.reduce(applyWorldEvent, projection);
@@ -755,9 +767,9 @@ describe('agent enterprises', () => {
       retainedEarnings: 90,
       cumulativeDividends: 100,
     });
-    expect(updated.treasury).toBe(10);
+    expect(updated.treasury).toBe(60);
     expect(updated.agents.owner?.balance).toBe(150);
-    expect(updated.moneySupply).toBe(550);
+    expect(updated.moneySupply).toBe(650);
   });
 
   test('skips the dividend tax when the enterprise cannot cover it or the policy has no rate', () => {

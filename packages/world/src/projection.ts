@@ -1880,6 +1880,14 @@ export function applyWorldEvent(
         ],
       };
     case 'SimulationTimeAdvanced':
+      if (
+        event.payload.socialRelationDecayPolicyVersion !== undefined &&
+        event.payload.socialRelationDecayPolicyVersion !== 'social-relation-decay-v1'
+      ) {
+        throw new Error(
+          `unsupported social relation decay policy ${event.payload.socialRelationDecayPolicyVersion}`,
+        );
+      }
       return {
         ...projection,
         clock: { ...event.payload.next },

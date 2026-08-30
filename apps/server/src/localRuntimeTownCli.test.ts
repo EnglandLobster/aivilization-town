@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FileLocalSimulationRuntimeResolvedRunManifestRepository } from '@aivilization/worker';
 import { createTownStaticBearerCredentialDigest } from '@aivilization/api';
+import { createBranchPlan } from '@aivilization/agent-runtime';
 import { asAgentId } from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import {
@@ -1007,7 +1008,57 @@ describe('local runtime town executable composition', () => {
     const input = createCanonicalLocalRuntimeTownServerInput(config, 100, {
       daemonAutoStart: false,
     });
-    const runtime = await createLocalRuntimeTownApi(input);
+    // This regression owns the executable -> profile -> metric wiring, not 100
+    // independent planning cycles (covered by the canonical cohort tests).
+    // Keep all 100 seeded residents in the projection while suppressing Agent
+    // actions so the test remains a fast, deterministic integration boundary.
+    const { canonicalAgents: suppressedCanonicalAgents, ...metricWiringInput } = input;
+    void suppressedCanonicalAgents;
+    const resourceAgentId = input.scenarioPresets[0]?.agentSeeds[0]?.agentId;
+    if (resourceAgentId === undefined) {
+      throw new Error('survival composition test requires one seeded Agent');
+    }
+    const runtime = await createLocalRuntimeTownApi({
+      ...metricWiringInput,
+      agentProvider: () => [
+        {
+          agentId: resourceAgentId,
+          observedStateSummary: 'seed one renewable resource observation',
+          plan: createBranchPlan({
+            objective: 'observe local food capacity',
+            branches: [
+              {
+                id: 'resource-observation',
+                objective: 'harvest one Apple',
+                subtasks: [
+                  { id: 'harvest-apple', description: 'harvest one Apple', basePriority: 1 },
+                ],
+              },
+            ],
+          }),
+          signals: [],
+          microPlanners: [
+            {
+              domain: 'production',
+              supports: ({ subtaskId }) => subtaskId === 'harvest-apple',
+              propose: () => [
+                {
+                  id: 'harvest-apple',
+                  description: 'harvest one Apple',
+                  commandType: 'AgentProduce',
+                  payload: {
+                    commodityName: 'Apple',
+                    quantity: 1,
+                    availableLaborSeconds: 1,
+                  },
+                },
+              ],
+            },
+          ],
+          simulate: ({ action }) => ({ status: 'accepted' as const, action }),
+        },
+      ],
+    });
     const backend = runtime.host.registry.getBackend({
       simulationId: 'aivilization-survival-town-100',
       partitionKey: 'world-main',

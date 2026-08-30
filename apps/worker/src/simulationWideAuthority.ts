@@ -29,6 +29,9 @@ import {
   type AgentStartConversationTurnPayload,
   type AgentTradePayload,
   type AgentPostBulletinPayload,
+  type AgentDepositPayload,
+  type AgentRequestLoanPayload,
+  type AgentWithdrawPayload,
   type TownWeatherPolicy,
   type WorldAgentState,
   type WorldCommandPolicies,
@@ -95,6 +98,13 @@ export type SimulationWideTradeRequest = SimulationWideAuthorityLease & {
   readonly operationId: string;
   readonly agentId: string;
   readonly trade: AgentTradePayload;
+};
+
+export type SimulationWideCreditRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: string;
+  readonly commandType: 'AgentDeposit' | 'AgentWithdraw' | 'AgentRequestLoan';
+  readonly payload: AgentDepositPayload | AgentWithdrawPayload | AgentRequestLoanPayload;
 };
 
 export type SimulationWideConversationRequest = SimulationWideAuthorityLease & {
@@ -239,6 +249,14 @@ export type SimulationWideMatterRequest = SimulationWideAuthorityLease & {
 };
 
 export type SimulationWideAuthorityOperation =
+  | {
+      readonly kind: 'credit';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly ownerPartitionKey: PartitionKey;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
   | {
       /** A rejected global command, durably delivered to its owner partition. */
       readonly kind: 'command-rejected';
@@ -507,6 +525,9 @@ export type SimulationWideAuthorityService = {
   readonly settleTrade: (
     request: SimulationWideTradeRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'trade' };
+  readonly settleCredit: (
+    request: SimulationWideCreditRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'credit' };
   readonly settleConversation: (
     request: SimulationWideConversationRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'conversation' };
@@ -715,6 +736,46 @@ export function createSimulationWideAuthority(input: {
     };
   };
 
+  // Authority clock advancement owns global cadences and the single bank, but
+  // never re-runs owner-partition household/enterprise/resource settlement.
+  // Partition state is synchronized after its local time phase; charging those
+  // effects here again would make credit collection observe double rent,
+  // welfare, illness, or production effects.
+  const resolveTimePolicies = (projection: WorldProjection): WorldCommandPolicies => {
+    const {
+      educationSystem: strippedEducationSystem,
+      sleepDeprivation: strippedSleepDeprivation,
+      starvation: strippedStarvation,
+      stochasticIllness: strippedStochasticIllness,
+      renewableResources: strippedRenewableResources,
+      lifecycle: strippedLifecycle,
+      migration: strippedMigration,
+      residentialUpkeep: strippedResidentialUpkeep,
+      safetyNetSubsidy: strippedSafetyNetSubsidy,
+      physiologicalSafetyNet: strippedPhysiologicalSafetyNet,
+      wellbeing: strippedWellbeing,
+      publicBudget: strippedPublicBudget,
+      enterprise: strippedEnterprise,
+      timeSettlementAmortization: strippedTimeSettlementAmortization,
+      ...authorityTimePolicies
+    } = resolvePolicies(projection);
+    void strippedEducationSystem;
+    void strippedSleepDeprivation;
+    void strippedStarvation;
+    void strippedStochasticIllness;
+    void strippedRenewableResources;
+    void strippedLifecycle;
+    void strippedMigration;
+    void strippedResidentialUpkeep;
+    void strippedSafetyNetSubsidy;
+    void strippedPhysiologicalSafetyNet;
+    void strippedWellbeing;
+    void strippedPublicBudget;
+    void strippedEnterprise;
+    void strippedTimeSettlementAmortization;
+    return authorityTimePolicies;
+  };
+
   const mutate = <TOperation extends SimulationWideAuthorityOperation>(inputMutation: {
     readonly operationId: string;
     readonly requestFingerprint: string;
@@ -858,6 +919,80 @@ export function createSimulationWideAuthority(input: {
           events,
           status: 'completed',
         }),
+      });
+    },
+    settleCredit(request) {
+      const agentId = asAgentId(request.agentId);
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'credit',
+          agentId,
+          commandType: request.commandType,
+          payload: request.payload,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const commandId = `simulation-wide-credit-${request.operationId}`;
+          const creditEvents = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: commandId,
+              simulationId: state.simulationId,
+              actorId: agentId,
+              source: 'agent-runtime',
+              type: request.commandType,
+              payload: request.payload,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = creditEvents.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new SimulationWideCommandRejectedError(
+              'credit',
+              rejection.payload.reason,
+              creditEvents,
+            );
+          }
+          const creditProjection = creditEvents.reduce(applyWorldEvent, state.projection);
+          if (creditProjection.bank === undefined || policies.credit === undefined) {
+            throw new Error('simulation-wide credit settlement produced no town bank state');
+          }
+          const bankSnapshot = createEventEnvelope({
+            id: `${commandId}:event:bank-snapshot`,
+            simulationId: state.simulationId,
+            commandId,
+            type: 'TownBankSnapshotRecorded',
+            payload: {
+              bank: creditProjection.bank,
+              recordedAt: request.observedAt,
+              reason: 'credit-command' as const,
+              policyVersion: policies.credit.policyVersion,
+            },
+            occurredAt: request.observedAt,
+            sequence: state.revision + creditEvents.length + 1,
+          });
+          const events = [...creditEvents, bankSnapshot];
+          const operation: Extract<SimulationWideAuthorityOperation, { readonly kind: 'credit' }> =
+            {
+              kind: 'credit',
+              operationId: request.operationId,
+              fencingToken,
+              ownerPartitionKey: requireOwner(state, agentId),
+              events,
+              status: 'completed',
+            };
+          return {
+            state: {
+              ...state,
+              projection: applyWorldEvent(creditProjection, bankSnapshot),
+            },
+            operation,
+          };
+        },
       });
     },
     settleConversation(request) {
@@ -1726,10 +1861,11 @@ export function createSimulationWideAuthority(input: {
         }),
         lease: request,
         create: (state, fencingToken) => {
-          const policies = resolvePolicies(state.projection);
-          const events = dispatchWorldCommand({
+          const policies = resolveTimePolicies(state.projection);
+          const commandId = `simulation-wide-advance-${request.operationId}`;
+          let events = dispatchWorldCommand({
             command: createCommandEnvelope({
-              id: `simulation-wide-advance-${request.operationId}`,
+              id: commandId,
               simulationId: state.simulationId,
               source: 'system',
               type: 'AdvanceSimulationTime',
@@ -1740,7 +1876,36 @@ export function createSimulationWideAuthority(input: {
             policies,
             nextSequence: state.revision + 1,
           });
-          const projection = events.reduce(applyWorldEvent, state.projection);
+          let projection = events.reduce(applyWorldEvent, state.projection);
+          const creditAccrued = events.some(
+            (event) =>
+              event.type === 'LoanRepaid' ||
+              event.type === 'LoanDefaulted' ||
+              event.type === 'DepositInterestPaid' ||
+              event.type === 'LoanWrittenOff' ||
+              event.type === 'DepositForfeited',
+          );
+          if (creditAccrued) {
+            if (projection.bank === undefined || policies.credit === undefined) {
+              throw new Error('credit accrual produced no authoritative town bank state');
+            }
+            const bankSnapshot = createEventEnvelope({
+              id: `${commandId}:event:bank-snapshot`,
+              simulationId: state.simulationId,
+              commandId,
+              type: 'TownBankSnapshotRecorded',
+              payload: {
+                bank: projection.bank,
+                recordedAt: state.projection.clock.now + request.deltaMs,
+                reason: 'credit-accrual' as const,
+                policyVersion: policies.credit.policyVersion,
+              },
+              occurredAt: request.observedAt,
+              sequence: state.revision + events.length + 1,
+            });
+            events = [...events, bankSnapshot];
+            projection = applyWorldEvent(projection, bankSnapshot);
+          }
           const movedAgentIds = events
             .filter((event) => event.type === 'AgentLocationChanged')
             .map((event) => event.payload.agentId);
@@ -2057,6 +2222,19 @@ function createInboxDeliveries(
           events: operation.events,
         },
       ];
+    case 'credit': {
+      const bankSnapshotEvents = operation.events.filter(
+        (event) => event.type === 'TownBankSnapshotRecorded',
+      );
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events:
+          partitionKey === operation.ownerPartitionKey ? operation.events : bankSnapshotEvents,
+      }));
+    }
     case 'trade':
       return [
         {
@@ -2227,9 +2405,41 @@ function createInboxDeliveries(
         }
         byPartition.set(partitionKey, entry);
       };
+      const fullRecipients = new Set<PartitionKey>();
       for (const transfer of operation.completedTransfers) {
-        addEvents(transfer.sourcePartitionKey, operation.events);
-        addEvents(transfer.destinationPartitionKey, operation.events);
+        fullRecipients.add(transfer.sourcePartitionKey);
+        fullRecipients.add(transfer.destinationPartitionKey);
+      }
+      for (const partitionKey of fullRecipients) {
+        // A completed legacy transfer receives the full time-advance payload,
+        // but credit cash movements are owner-scoped. Convert the aggregate
+        // deposit-interest event into one per-Agent event and discard remote
+        // borrowers' repayment/default events. The final bank snapshot remains
+        // town-wide and replaces the aggregate exactly once.
+        addEvents(
+          partitionKey,
+          createPartitionCreditTimeEvents(
+            operation.events,
+            partitionKey,
+            ownerPartitionKeyByAgentId,
+          ),
+        );
+      }
+      for (const event of operation.events) {
+        if (event.type === 'LoanRepaid' || event.type === 'LoanDefaulted') {
+          const owner = ownerPartitionKeyByAgentId[event.payload.borrowerAgentId];
+          if (owner !== undefined && !fullRecipients.has(owner)) addEvents(owner, [event]);
+          continue;
+        }
+        if (event.type === 'DepositInterestPaid') {
+          for (const payment of event.payload.payments) {
+            const owner = ownerPartitionKeyByAgentId[payment.agentId];
+            if (owner === undefined || fullRecipients.has(owner)) continue;
+            addEvents(owner, [
+              createBankInterestCreditedEvent(event, payment),
+            ]);
+          }
+        }
       }
       // Town-wide board updates during this advance (bulletin activations,
       // matter expiries and their breach outcomes): partitions that already
@@ -2249,16 +2459,12 @@ function createInboxDeliveries(
           event.type === 'WeatherChanged' ||
           event.type === 'TownDayPhaseChanged' ||
           event.type === 'RegionalServiceQualityUpdated' ||
+          event.type === 'TownBankSnapshotRecorded' ||
           // Matter-expiry closures carry the parties' memory records; they
           // must ride along so each owner partition materializes them.
           event.type === 'ShortTermMemoryRecorded',
       );
       if (townWideEvents.length > 0) {
-        const fullRecipients = new Set<PartitionKey>();
-        for (const transfer of operation.completedTransfers) {
-          fullRecipients.add(transfer.sourcePartitionKey);
-          fullRecipients.add(transfer.destinationPartitionKey);
-        }
         for (const partitionKey of partitionKeys) {
           if (!fullRecipients.has(partitionKey)) {
             addEvents(partitionKey, townWideEvents);
@@ -2285,6 +2491,53 @@ function createInboxDeliveries(
     case 'location-sync':
       return [];
   }
+}
+
+function createPartitionCreditTimeEvents(
+  events: readonly WorldEvent[],
+  partitionKey: PartitionKey,
+  ownerPartitionKeyByAgentId: Readonly<Record<string, PartitionKey>>,
+): readonly WorldEvent[] {
+  return events.flatMap((event) => {
+    if (event.type === 'DepositInterestPaid') {
+      return event.payload.payments
+        .filter(
+          (payment) => ownerPartitionKeyByAgentId[payment.agentId] === partitionKey,
+        )
+        .map((payment) => createBankInterestCreditedEvent(event, payment));
+    }
+    if (event.type === 'LoanRepaid' || event.type === 'LoanDefaulted') {
+      return ownerPartitionKeyByAgentId[event.payload.borrowerAgentId] === partitionKey
+        ? [event]
+        : [];
+    }
+    // These lifecycle events only mutate the bank aggregate. The following
+    // TownBankSnapshotRecorded event carries the authoritative result without
+    // exposing a deceased Agent owned by another partition.
+    if (event.type === 'LoanWrittenOff' || event.type === 'DepositForfeited') {
+      return [];
+    }
+    return [event];
+  });
+}
+
+function createBankInterestCreditedEvent(
+  event: Extract<WorldEvent, { readonly type: 'DepositInterestPaid' }>,
+  payment: (typeof event.payload.payments)[number],
+): WorldEvent {
+  return createEventEnvelope({
+    id: `${event.id}:credit:${payment.agentId}`,
+    simulationId: event.simulationId,
+    ...(event.commandId === undefined ? {} : { commandId: event.commandId }),
+    type: 'BankInterestCredited',
+    payload: {
+      ...payment,
+      paidAt: event.payload.paidAt,
+      policyVersion: event.payload.policyVersion,
+    },
+    occurredAt: event.occurredAt,
+    sequence: event.sequence,
+  });
 }
 
 function createCursorKey(partitionKey: PartitionKey, consumerId: string): string {

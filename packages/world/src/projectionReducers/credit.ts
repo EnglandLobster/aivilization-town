@@ -6,6 +6,7 @@ import {
 } from '@aivilization/economy';
 import {
   applyCreditDomainEvent,
+  normalizeBankState,
   TOWN_BANK_ACCOUNT_OWNER_ID,
   type CreditDomainEvent,
 } from '@aivilization/credit';
@@ -24,6 +25,15 @@ export function applyCreditProjectionEvent(
   event: WorldEvent,
 ): WorldProjection | undefined {
   switch (event.type) {
+    case 'TownBankSnapshotRecorded':
+      return { ...projection, bank: normalizeBankState(event.payload.bank) };
+    case 'BankInterestCredited': {
+      assertBankTransfer(event, 'bank', event.payload.agentId, event.payload.amount);
+      return updateAgent(projection, event.payload.agentId, (agent) => ({
+        ...agent,
+        balance: event.payload.nextBalance,
+      }));
+    }
     case 'DepositMade': {
       assertBankTransfer(event, 'agent', event.payload.agentId, event.payload.amount);
       return updateAgent(

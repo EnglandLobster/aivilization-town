@@ -68,6 +68,8 @@ export type CoreEventType =
   | 'LoanRepaid'
   | 'LoanDefaulted'
   | 'DepositInterestPaid'
+  | 'BankInterestCredited'
+  | 'TownBankSnapshotRecorded'
   | 'LoanWrittenOff'
   | 'DepositForfeited'
   | 'MarketPriceIndexRecorded'

@@ -2412,6 +2412,7 @@ describe('worker tick runner', () => {
     const commandRouter: NonNullable<
       Parameters<typeof runWorkerSimulationTick>[0]['commandRouter']
     > = {
+      syncPartitionState: () => undefined,
       routeCommandDrafts: (routeInput) =>
         Promise.resolve({
           ...dispatchCommandDraftsToWorldEventStream(routeInput),
@@ -2458,6 +2459,7 @@ describe('worker tick runner', () => {
     const commandRouter: NonNullable<
       Parameters<typeof runWorkerSimulationTick>[0]['commandRouter']
     > = {
+      syncPartitionState: () => undefined,
       routeCommandDrafts: (routeInput) =>
         Promise.resolve({
           ...dispatchCommandDraftsToWorldEventStream(routeInput),

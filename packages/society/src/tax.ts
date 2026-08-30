@@ -58,7 +58,7 @@ export function evaluateDividendTax(input: { amount: number; policy: TaxPolicy }
   return input.amount * (input.policy.dividendTaxRate ?? 0);
 }
 
-function assertValidTaxPolicy(policy: TaxPolicy): void {
+export function assertValidTaxPolicy(policy: TaxPolicy): void {
   if (policy.policyVersion.trim().length === 0) {
     throw new Error('tax policyVersion must not be empty');
   }

@@ -22,6 +22,7 @@ import {
 import {
   applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
+  applyStarvationHealthDecay,
   applyStochasticIllnessHealthDecay,
   assertValidServiceQualityPolicy,
   assertValidLandValuePolicy,
@@ -66,6 +67,7 @@ import {
   type TownPublicService,
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
+  type StarvationHealthDecayPolicy,
   type StochasticIllnessPolicy,
   type ConsumptionPolicy,
   type TaxPolicy,
@@ -107,6 +109,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly projection: WorldProjection;
   readonly randomSeed?: string;
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
+  readonly starvation?: StarvationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
   readonly weather?: TownWeatherPolicy;
   /**
@@ -249,6 +252,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
 
   if (
     input.sleepDeprivation === undefined &&
+    input.starvation === undefined &&
     input.stochasticIllness === undefined &&
     input.weather === undefined &&
     input.calendar === undefined &&
@@ -309,12 +313,16 @@ export function handleAdvanceSimulationTimeCommand(input: {
   // either policy the single-interval legacy behavior is preserved
   // byte-for-byte.
   const turnoverSettlementCadenceMs =
-    (input.lifecycle === undefined && input.migration === undefined) || next.now === previous.now
+    (input.lifecycle === undefined &&
+      input.migration === undefined &&
+      input.starvation === undefined) ||
+    next.now === previous.now
       ? undefined
       : Math.min(
           payload.deltaMs,
           ...(input.lifecycle === undefined ? [] : [input.lifecycle.settlementCadenceMs]),
           ...(input.migration === undefined ? [] : [input.migration.settlementCadenceMs]),
+          ...(input.starvation === undefined ? [] : [input.starvation.settlementCadenceMs]),
         );
   const settlementIntervalsByAgent = new Map(
     allAgents.map((agent) => [
@@ -477,6 +485,31 @@ export function handleAdvanceSimulationTimeCommand(input: {
             previous: getCurrentPhysiology(physiologyByAgent, agent),
             elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
             decay: input.calendar.physiologicalDecay,
+          }),
+        });
+      }
+    }
+
+    // Starvation observes the post-calendar satiety value for this cadence.
+    // Its policy cadence participates in interval enumeration above, so the
+    // threshold crossing and health loss replay identically for merged and
+    // step-by-step advances.
+    if (input.starvation !== undefined) {
+      for (const agent of agents) {
+        if (!shouldSettleAgent(agent)) {
+          continue;
+        }
+        const interval = currentInterval(agent);
+        appendPhysiologyTimeEffect({
+          input,
+          events,
+          physiologyByAgent,
+          agent,
+          reason: 'starvation',
+          nextPhysiology: applyStarvationHealthDecay({
+            ...getCurrentPhysiology(physiologyByAgent, agent),
+            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            policy: input.starvation,
           }),
         });
       }
@@ -739,12 +772,17 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // effect from the next interval on. The block re-folds its own events so
     // the next interval (and the recruitment/exam cycles below) read
     // post-lifecycle state — released jobs, gone agents.
-    if (input.lifecycle !== undefined || input.migration !== undefined) {
+    if (
+      input.lifecycle !== undefined ||
+      input.migration !== undefined ||
+      input.starvation !== undefined
+    ) {
       const lifecycleStart = events.length;
       creditBank = appendLifecycleSettlementEvents({
         handlerInput: input,
         payload,
         policy: input.lifecycle,
+        ...(input.starvation === undefined ? {} : { starvation: input.starvation }),
         ...(input.migration === undefined ? {} : { migration: input.migration }),
         events,
         agents,
@@ -1487,6 +1525,7 @@ function appendLifecycleSettlementEvents(input: {
   readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly payload: { readonly deltaMs: number };
   readonly policy: LifecyclePolicy | undefined;
+  readonly starvation?: StarvationHealthDecayPolicy;
   readonly migration?: OutMigrationPolicy;
   readonly events: WorldEvent[];
   readonly agents: readonly WorldAgentState[];
@@ -1668,15 +1707,19 @@ function appendLifecycleSettlementEvents(input: {
     let job = agent.job;
     let retiredAtMs = agent.retiredAtMs;
     const ageMs =
-      policy === undefined
-        ? undefined
-        : deriveAgentAgeMs({
+      policy !== undefined
+        ? deriveAgentAgeMs({
             nowMs: interval.currentSimulationTime,
             registeredAtMs: resolveAgentAgeAnchorMs(agent),
             policy,
-          });
+          })
+        : input.starvation === undefined
+          ? undefined
+          : Math.max(0, interval.currentSimulationTime - resolveAgentAgeAnchorMs(agent));
     const ageDays =
-      policy === undefined || ageMs === undefined ? undefined : ageMs / policy.dayLengthMs;
+      ageMs === undefined
+        ? undefined
+        : ageMs / (policy?.dayLengthMs ?? input.starvation?.dayLengthMs ?? 86_400_000);
     const stage =
       policy === undefined || ageMs === undefined ? null : deriveLifecycleStage({ ageMs, policy });
     const previousStage = agent.lifeStage ?? 'adult';
@@ -1761,16 +1804,32 @@ function appendLifecycleSettlementEvents(input: {
       }
     }
 
-    if (policy !== undefined && ageMs !== undefined) {
-      const lifespanMs = resolveAgentLifespanMs({
-        agentId: agent.agentId,
-        simulationSeedMaterial,
-        policy,
-      });
-      let cause: 'old-age' | 'illness' | null = null;
-      if (evaluateOldAgeDeath({ ageMs, lifespanMs })) {
+    const physiology = getCurrentPhysiology(input.physiologyByAgent, agent);
+    const starvationDeath =
+      input.starvation !== undefined &&
+      physiology.satiety < input.starvation.satietyThreshold &&
+      physiology.health <= input.starvation.deathHealthThreshold;
+    if (starvationDeath || (policy !== undefined && ageMs !== undefined)) {
+      const lifespanMs =
+        policy === undefined
+          ? undefined
+          : resolveAgentLifespanMs({
+              agentId: agent.agentId,
+              simulationSeedMaterial,
+              policy,
+            });
+      let cause: 'old-age' | 'illness' | 'starvation' | null = starvationDeath
+        ? 'starvation'
+        : null;
+      if (
+        cause === null &&
+        policy !== undefined &&
+        ageMs !== undefined &&
+        lifespanMs !== undefined &&
+        evaluateOldAgeDeath({ ageMs, lifespanMs })
+      ) {
         cause = 'old-age';
-      } else {
+      } else if (cause === null && policy !== undefined) {
         const health = getCurrentPhysiology(input.physiologyByAgent, agent).health;
         const roll = createSeededRandom(
           createIllnessDeathSeed({
@@ -1799,9 +1858,14 @@ function appendLifecycleSettlementEvents(input: {
             cause,
             diedAt: interval.currentSimulationTime,
             ageDays: ageDays ?? 0,
-            lifespanDays: lifespanMs / policy.dayLengthMs,
+            ...(lifespanMs === undefined || policy === undefined
+              ? {}
+              : { lifespanDays: lifespanMs / policy.dayLengthMs }),
             retired: retiredAtMs !== undefined,
-            policyVersion: policy.policyVersion,
+            policyVersion:
+              cause === 'starvation' && input.starvation !== undefined
+                ? input.starvation.policyVersion
+                : (policy?.policyVersion ?? 'unknown-population-turnover-policy'),
             estate: {
               burnedCurrency: estate.burnedCurrency,
               inventoryByCommodity: summarizeInventory(agent),

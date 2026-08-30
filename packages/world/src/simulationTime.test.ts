@@ -1,6 +1,11 @@
 import { asAgentId, asLocationId, asLoanId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import type { LifecyclePolicy, TownCalendarPolicy, WellbeingPolicy } from '@aivilization/society';
+import type {
+  LifecyclePolicy,
+  StarvationHealthDecayPolicy,
+  TownCalendarPolicy,
+  WellbeingPolicy,
+} from '@aivilization/society';
 import {
   applyWorldEvent,
   assertAdvanceSimulationTimePayload,
@@ -2608,6 +2613,112 @@ describe('town calendar and passive decay', () => {
     expect(amortizedByTick[1]?.a).toEqual(plainByTick[1]?.a);
     expect(amortizedByTick[3]?.a).toEqual(plainByTick[3]?.a);
     expect(plainByTick[3]?.a).toEqual({ energy: 75, satiety: 50, health: 100 });
+  });
+});
+
+describe('starvation settlement', () => {
+  const HOUR_MS = 3_600_000;
+  const starvation: StarvationHealthDecayPolicy = {
+    policyVersion: 'starvation-health-decay-v1',
+    settlementCadenceMs: HOUR_MS,
+    dayLengthMs: 24 * HOUR_MS,
+    satietyThreshold: 20,
+    healthDecayPerHourAtZeroSatiety: 4,
+    minHealth: 0,
+    deathHealthThreshold: 0,
+  };
+
+  function hungryProjection(health = 100): WorldProjection {
+    return createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-hungry'),
+          locationId: null,
+          physiology: { energy: 50, satiety: 0, health },
+          educationScore: 0,
+          balance: 10,
+          residentialTier: 1,
+          job: null,
+          inventory: { Bread: 2 },
+        },
+      ],
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+  }
+
+  function advanceStarvation(
+    projection: WorldProjection,
+    commandId: string,
+    deltaMs: number,
+  ): readonly WorldEvent[] {
+    return dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: commandId,
+        simulationId: 'sim-starvation',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs },
+        issuedAt: projection.clock.now,
+      }),
+      projection,
+      policies: { ...policies, starvation },
+      nextSequence: 1,
+    });
+  }
+
+  test('settles every missed cadence and is equivalent to stepped advances', () => {
+    const initial = hungryProjection();
+    const mergedEvents = advanceStarvation(initial, 'starvation-merged', 2 * HOUR_MS);
+    const merged = mergedEvents.reduce(applyWorldEvent, initial);
+
+    const firstEvents = advanceStarvation(initial, 'starvation-step-1', HOUR_MS);
+    const first = firstEvents.reduce(applyWorldEvent, initial);
+    const secondEvents = advanceStarvation(first, 'starvation-step-2', HOUR_MS);
+    const stepped = secondEvents.reduce(applyWorldEvent, first);
+
+    expect(
+      mergedEvents
+        .filter((event) => event.type === 'PhysiologyChanged')
+        .map((event) => event.payload),
+    ).toEqual([
+      expect.objectContaining({ reason: 'starvation', next: { energy: 50, satiety: 0, health: 96 } }),
+      expect.objectContaining({ reason: 'starvation', next: { energy: 50, satiety: 0, health: 92 } }),
+    ]);
+    expect(merged.agents['agent-hungry']?.physiology).toEqual(
+      stepped.agents['agent-hungry']?.physiology,
+    );
+  });
+
+  test('records starvation as the deterministic death cause and liquidates the estate', () => {
+    const initial = hungryProjection(6);
+    const supplyBefore = initial.moneySupply;
+    const events = advanceStarvation(initial, 'starvation-death', 2 * HOUR_MS);
+    expect(events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'PhysiologyChanged',
+      'PhysiologyChanged',
+      'AgentDied',
+    ]);
+    expect(events[3]).toMatchObject({
+      type: 'AgentDied',
+      payload: {
+        agentId: 'agent-hungry',
+        cause: 'starvation',
+        ageDays: 2 / 24,
+        retired: false,
+        policyVersion: 'starvation-health-decay-v1',
+        estate: {
+          burnedCurrency: 10,
+          inventoryByCommodity: { Bread: 2 },
+        },
+      },
+    });
+    if (events[3]?.type !== 'AgentDied') throw new Error('expected starvation death');
+    expect(events[3].payload.lifespanDays).toBeUndefined();
+
+    const replayed = events.reduce(applyWorldEvent, initial);
+    expect(replayed.agents['agent-hungry']).toBeUndefined();
+    expect(replayed.moneySupply).toBe(supplyBefore - 10);
   });
 });
 

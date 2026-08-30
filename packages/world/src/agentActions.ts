@@ -12,6 +12,7 @@ import type {
   ServiceQualityPolicy,
   SafetyNetSubsidyPolicy,
   SleepDeprivationHealthDecayPolicy,
+  StarvationHealthDecayPolicy,
   StochasticIllnessPolicy,
   TownCalendarPolicy,
   TownConditionsPolicy,
@@ -201,6 +202,8 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
     readonly treatmentCost?: MedicalTreatmentCostPolicy;
   };
   readonly sleepDeprivation?: SleepDeprivationHealthDecayPolicy;
+  /** Optional starvation pressure; omitted preserves legacy non-lethal hunger. */
+  readonly starvation?: StarvationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
   /**
    * Optional town-weather policy. When
@@ -379,6 +382,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.sleepDeprivation === undefined
           ? {}
           : { sleepDeprivation: input.policies.sleepDeprivation }),
+        ...(input.policies.starvation === undefined
+          ? {}
+          : { starvation: input.policies.starvation }),
         ...(input.policies.stochasticIllness === undefined
           ? {}
           : { stochasticIllness: input.policies.stochasticIllness }),

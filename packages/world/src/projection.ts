@@ -940,36 +940,46 @@ export function applyWorldEvent(
         throw new Error(`cannot replay duplicate agent registration ${event.payload.agentId}`);
       }
       const initialState = event.payload.initialState;
-      return {
-        ...projection,
-        agents: {
-          ...projection.agents,
-          [event.payload.agentId]: {
-            agentId: event.payload.agentId,
-            ...initialState,
-            physiology: { ...initialState.physiology },
-            inventory: { ...initialState.inventory },
-            registration: {
-              registrationId: event.payload.registrationId,
-              policyVersion: event.payload.policyVersion,
-              creatorId: event.payload.creatorId,
-              source: event.payload.source,
-              displayName: event.payload.displayName,
-              registeredAt: event.occurredAt,
-              provenance: 'post-bootstrap-command',
-              ...(event.payload.humanAttribution === undefined
-                ? {}
-                : {
-                    humanAttribution: {
-                      ...event.payload.humanAttribution,
-                      principalRoles: [...event.payload.humanAttribution.principalRoles],
-                    },
-                  }),
+      return applyMoneyTransferToSupply(
+        {
+          ...projection,
+          agents: {
+            ...projection.agents,
+            [event.payload.agentId]: {
+              agentId: event.payload.agentId,
+              ...initialState,
+              physiology: { ...initialState.physiology },
+              inventory: { ...initialState.inventory },
+              registration: {
+                registrationId: event.payload.registrationId,
+                policyVersion: event.payload.policyVersion,
+                creatorId: event.payload.creatorId,
+                source: event.payload.source,
+                displayName: event.payload.displayName,
+                registeredAt: event.occurredAt,
+                provenance: 'post-bootstrap-command',
+                ...(event.payload.humanAttribution === undefined
+                  ? {}
+                  : {
+                      humanAttribution: {
+                        ...event.payload.humanAttribution,
+                        principalRoles: [...event.payload.humanAttribution.principalRoles],
+                      },
+                    }),
+              },
             },
           },
         },
-        moneySupply: projection.moneySupply + event.payload.moneySupplyDelta,
-      };
+        {
+          transactionId: event.id,
+          reason: 'runtime-agent-registration',
+          fromSector: 'monetary-authority',
+          fromId: 'runtime-registration',
+          toSector: 'agent',
+          toId: event.payload.agentId,
+          amount: event.payload.moneySupplyDelta,
+        },
+      );
     }
     case 'AgentRegistrationRejected':
       return {
@@ -1444,10 +1454,15 @@ export function applyWorldEvent(
     case 'ResidentialTierUpgraded':
       // The upgrade fee is burned: it leaves circulation entirely.
       return updateAgent(
-        {
-          ...projection,
-          moneySupply: projection.moneySupply - event.payload.currencyCost,
-        },
+        applyMoneyTransferToSupply(projection, {
+          transactionId: event.id,
+          reason: 'residential-tier-upgrade',
+          fromSector: 'agent',
+          fromId: event.payload.agentId,
+          toSector: 'external',
+          toId: 'housing-construction',
+          amount: event.payload.currencyCost,
+        }),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -1477,10 +1492,15 @@ export function applyWorldEvent(
       };
     case 'ResidentialUpkeepCharged':
       return updateAgent(
-        {
-          ...projection,
-          moneySupply: projection.moneySupply - event.payload.amount,
-        },
+        applyMoneyTransferToSupply(projection, {
+          transactionId: event.id,
+          reason: 'residential-upkeep',
+          fromSector: 'agent',
+          fromId: event.payload.agentId,
+          toSector: 'external',
+          toId: 'housing-maintenance',
+          amount: event.payload.amount,
+        }),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -1489,10 +1509,15 @@ export function applyWorldEvent(
       );
     case 'MedicalTreatmentCharged':
       return updateAgent(
-        {
-          ...projection,
-          moneySupply: projection.moneySupply - event.payload.amount,
-        },
+        applyMoneyTransferToSupply(projection, {
+          transactionId: event.id,
+          reason: 'medical-treatment',
+          fromSector: 'agent',
+          fromId: event.payload.agentId,
+          toSector: 'external',
+          toId: 'medical-services',
+          amount: event.payload.amount,
+        }),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -1600,10 +1625,15 @@ export function applyWorldEvent(
       }));
     case 'EducationInvestmentPaid':
       return updateAgent(
-        {
-          ...projection,
-          moneySupply: projection.moneySupply - event.payload.currencyCost,
-        },
+        applyMoneyTransferToSupply(projection, {
+          transactionId: event.id,
+          reason: 'education-investment',
+          fromSector: 'agent',
+          fromId: event.payload.agentId,
+          toSector: 'external',
+          toId: 'education-services',
+          amount: event.payload.currencyCost,
+        }),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -1660,10 +1690,17 @@ export function applyWorldEvent(
             )
           : projection;
       return updateAgent(
-        {
-          ...treasuryProjection,
-          moneySupply: treasuryProjection.moneySupply - event.payload.selfPaidAmount,
-        },
+        event.payload.selfPaidAmount === 0
+          ? treasuryProjection
+          : applyMoneyTransferToSupply(treasuryProjection, {
+              transactionId: `${event.id}:self-paid`,
+              reason: 'compulsory-education-self-payment',
+              fromSector: 'agent',
+              fromId: event.payload.agentId,
+              toSector: 'external',
+              toId: 'education-services',
+              amount: event.payload.selfPaidAmount,
+            }),
         event.payload.agentId,
         (agent) => ({
           ...agent,
@@ -3009,6 +3046,12 @@ function applyMoneyTransferToSupply(
     readonly amount: number;
   },
 ): WorldProjection {
+  // A zero-valued factual settlement (for example an upkeep cadence fully
+  // covered by arrears) has no accounting entries. Economy correctly rejects
+  // zero-entry transfers, so preserve it as an explicit projection no-op.
+  if (input.amount === 0) {
+    return projection;
+  }
   const transaction = createMoneyTransfer({
     transactionId: input.transactionId,
     reason: input.reason,

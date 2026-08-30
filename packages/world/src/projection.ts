@@ -34,7 +34,11 @@ import {
   type WorldEnterpriseState,
 } from './enterprise';
 import { normalizeBankState, type WorldBankState } from './credit';
-import type { AgentActivityKind, AgentActivityTimeCommittedPayload } from './events';
+import type {
+  AgentActivityKind,
+  AgentActivityTimeCommittedPayload,
+  EconomicCompositionRecordedPayload,
+} from './events';
 import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
 import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
@@ -283,6 +287,7 @@ export type WorldEconomicCompositionState = {
    * observability stage stay byte-for-byte compatible.
    */
   readonly educationDistribution?: Readonly<Record<string, number>>;
+  readonly survival?: EconomicCompositionRecordedPayload['survival'];
 };
 
 export type WorldLocationObservationState = {
@@ -372,6 +377,16 @@ export type WorldRenewableResourceState = {
   readonly updatedAt: number;
 };
 
+export type WorldSurvivalOutcomesState = {
+  readonly deathsByCause: Readonly<Record<string, number>>;
+  readonly emigrated: number;
+};
+
+export type WorldResourceFlowMetricsState = {
+  readonly cumulativeExtractedByCommodity: Readonly<Record<string, number>>;
+  readonly scarcityRejectionsByCommodity: Readonly<Record<string, number>>;
+};
+
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
@@ -385,6 +400,9 @@ export type WorldProjection = {
   readonly renewableResources?: Readonly<
     Record<string, Readonly<Record<string, WorldRenewableResourceState>>>
   >;
+  /** Cumulative carrying-capacity experiment outcomes reconstructed from events. */
+  readonly survivalOutcomes?: WorldSurvivalOutcomesState;
+  readonly resourceFlowMetrics?: WorldResourceFlowMetricsState;
   readonly moneySupply: number;
   readonly marketPriceIndices: readonly WorldMarketPriceIndexState[];
   /**
@@ -958,15 +976,27 @@ export function applyWorldEvent(
         updatedAt: event.payload.settledThrough,
       });
     case 'RenewableResourceExtracted':
-      return updateRenewableResource(projection, {
-        regionId: event.payload.regionId,
-        commodityName: event.payload.commodityName,
-        stock: event.payload.nextStock,
-        carryingCapacity: event.payload.carryingCapacity,
-        lastRegenerationAt: event.payload.lastRegenerationAt,
-        policyVersion: event.payload.policyVersion,
-        updatedAt: event.occurredAt,
-      });
+      return {
+        ...updateRenewableResource(projection, {
+          regionId: event.payload.regionId,
+          commodityName: event.payload.commodityName,
+          stock: event.payload.nextStock,
+          carryingCapacity: event.payload.carryingCapacity,
+          lastRegenerationAt: event.payload.lastRegenerationAt,
+          policyVersion: event.payload.policyVersion,
+          updatedAt: event.occurredAt,
+        }),
+        resourceFlowMetrics: {
+          cumulativeExtractedByCommodity: incrementMetric(
+            projection.resourceFlowMetrics?.cumulativeExtractedByCommodity,
+            event.payload.commodityName,
+            event.payload.extractedStock,
+          ),
+          scarcityRejectionsByCommodity: {
+            ...projection.resourceFlowMetrics?.scarcityRejectionsByCommodity,
+          },
+        },
+      };
     case 'CommodityProduced':
       return updateAgent(
         event.payload.enterpriseId === undefined
@@ -1864,6 +1894,20 @@ export function applyWorldEvent(
       return {
         ...projection,
         rejectedActions: [...projection.rejectedActions, event.payload],
+        ...(resolveScarcityRejectionCommodity(event.payload.reason) === undefined
+          ? {}
+          : {
+              resourceFlowMetrics: {
+                cumulativeExtractedByCommodity: {
+                  ...projection.resourceFlowMetrics?.cumulativeExtractedByCommodity,
+                },
+                scarcityRejectionsByCommodity: incrementMetric(
+                  projection.resourceFlowMetrics?.scarcityRejectionsByCommodity,
+                  resolveScarcityRejectionCommodity(event.payload.reason)!,
+                  1,
+                ),
+              },
+            }),
       };
     case 'GovernanceChangeRejected':
       return projection;
@@ -1929,9 +1973,35 @@ export function applyWorldEvent(
         }),
       );
     case 'AgentDied':
-      return applyAgentDeparture(projection, event.payload.agentId, event.payload.estate, event.id);
+      return applyAgentDeparture(
+        {
+          ...projection,
+          survivalOutcomes: {
+            deathsByCause: incrementMetric(
+              projection.survivalOutcomes?.deathsByCause,
+              event.payload.cause,
+              1,
+            ),
+            emigrated: projection.survivalOutcomes?.emigrated ?? 0,
+          },
+        },
+        event.payload.agentId,
+        event.payload.estate,
+        event.id,
+      );
     case 'AgentEmigrated':
-      return applyAgentDeparture(projection, event.payload.agentId, event.payload.estate, event.id);
+      return applyAgentDeparture(
+        {
+          ...projection,
+          survivalOutcomes: {
+            deathsByCause: { ...projection.survivalOutcomes?.deathsByCause },
+            emigrated: (projection.survivalOutcomes?.emigrated ?? 0) + 1,
+          },
+        },
+        event.payload.agentId,
+        event.payload.estate,
+        event.id,
+      );
     case 'BulletinScheduled': {
       const bulletins = projection.bulletins ?? [];
       if (bulletins.some((bulletin) => bulletin.bulletinId === event.payload.bulletin.bulletinId)) {
@@ -2667,7 +2737,29 @@ function cloneEconomicComposition(
     ...(composition.educationDistribution === undefined
       ? {}
       : { educationDistribution: { ...composition.educationDistribution } }),
+    ...(composition.survival === undefined
+      ? {}
+      : {
+          survival: {
+            ...composition.survival,
+            deathsByCause: { ...composition.survival.deathsByCause },
+            resources: composition.survival.resources.map((resource) => ({ ...resource })),
+          },
+        }),
   };
+}
+
+function incrementMetric(
+  current: Readonly<Record<string, number>> | undefined,
+  key: string,
+  delta: number,
+): Readonly<Record<string, number>> {
+  return { ...current, [key]: (current?.[key] ?? 0) + delta };
+}
+
+function resolveScarcityRejectionCommodity(reason: string): string | undefined {
+  const match = /^insufficient-renewable-resource: (.+?) requires /u.exec(reason);
+  return match?.[1];
 }
 
 function updateRenewableResource(

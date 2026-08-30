@@ -59,6 +59,7 @@ const DEFAULT_SHUTDOWN_FAILURE_EXIT_CODE = 1;
 const supportedProfileIds = new Set<LocalRuntimeTownDaemonScenarioProfileId>([
   'smoke-25',
   'default-100',
+  'survival-town-100',
   'headless-stress-1000',
   'recovery-drill-25',
   'ablation-80',
@@ -209,20 +210,24 @@ export function resolveLocalRuntimeTownCliConfig(
     ]),
   ) as Record<AivilizationExperimentalFeatureKey, boolean>;
   const townWeatherEnabled = experimentalFeatureEnabled.townWeather;
-  const townConditionsEnabled = experimentalFeatureEnabled.townConditions;
+  const survivalTownProfile = profileId === 'survival-town-100';
+  const townConditionsEnabled =
+    experimentalFeatureEnabled.townConditions || survivalTownProfile;
   const townBulletinEnabled = experimentalFeatureEnabled.townBulletin;
   const socialMattersEnabled = experimentalFeatureEnabled.socialMatters;
   const townConflictEnabled = experimentalFeatureEnabled.townConflict;
-  const townWellbeingEnabled = experimentalFeatureEnabled.townWellbeing;
-  const townCalendarEnabled = experimentalFeatureEnabled.townCalendar;
-  const townLifecycleEnabled = experimentalFeatureEnabled.townLifecycle;
+  const townWellbeingEnabled = experimentalFeatureEnabled.townWellbeing || survivalTownProfile;
+  const townCalendarEnabled = experimentalFeatureEnabled.townCalendar || survivalTownProfile;
+  const townLifecycleEnabled = experimentalFeatureEnabled.townLifecycle || survivalTownProfile;
   const townDiscourseEnabled = experimentalFeatureEnabled.townDiscourse;
   const townCollectiveActionEnabled = experimentalFeatureEnabled.townCollectiveAction;
-  const townMigrationEnabled = experimentalFeatureEnabled.townMigration;
+  const townMigrationEnabled = experimentalFeatureEnabled.townMigration || survivalTownProfile;
   const townServiceQualityEnabled = experimentalFeatureEnabled.townServiceQuality;
   const townGovernanceEnabled = experimentalFeatureEnabled.townGovernance;
-  const townSurvivalPressureEnabled = experimentalFeatureEnabled.townSurvivalPressure;
-  const townCarryingCapacityEnabled = experimentalFeatureEnabled.townCarryingCapacity;
+  const townSurvivalPressureEnabled =
+    experimentalFeatureEnabled.townSurvivalPressure || survivalTownProfile;
+  const townCarryingCapacityEnabled =
+    experimentalFeatureEnabled.townCarryingCapacity || survivalTownProfile;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -459,7 +464,7 @@ export function createLocalRuntimeTownCliHelp(): string {
     'Usage: pnpm --filter @aivilization/server start -- [options]',
     '',
     'Options:',
-    '  --profile <id>       smoke-25 | default-100 | headless-stress-1000 | recovery-drill-25 | ablation-80',
+    '  --profile <id>       smoke-25 | default-100 | survival-town-100 | headless-stress-1000 | recovery-drill-25 | ablation-80',
     '  --planner-variant <variant>  default | without-branch | without-objective-decomposition',
     '  --paper-ablation-task <id>   task-1 | task-2 | task-3 | task-4 (requires ablation-80)',
     '  --root-dir <path>    Durable runtime root (experiment variants/tasks are isolated)',

@@ -17,6 +17,7 @@ import type {
 export type LocalRuntimeTownDaemonScenarioProfileId =
   | 'smoke-25'
   | 'default-100'
+  | 'survival-town-100'
   | 'headless-stress-1000'
   | 'recovery-drill-25'
   | 'ablation-80';
@@ -108,6 +109,25 @@ const profileConfigs = {
       { partitionKey: 'world-main', agentCount: 50, label: 'Main' },
       { partitionKey: 'world-east', agentCount: 50, label: 'East' },
     ],
+  },
+  'survival-town-100': {
+    profileId: 'survival-town-100',
+    manifestId: 'aivilization-survival-town-100',
+    name: 'AIvilization Survival Town 100',
+    description:
+      'Single-partition 100-agent carrying-capacity experiment for food scarcity, adaptation, inequality, migration, and mortality emergence.',
+    headless: false,
+    commandConsumerIdPrefix: 'survival-town-worker',
+    tickBatchSize: 2,
+    tickIntervalMs: 100,
+    maxJobsPerPoll: 2,
+    scheduleIntervalMs: 1_000,
+    recoveryIntervalMs: 1_000,
+    commodityReserve: 100,
+    currencyReserve: 1_000,
+    initialTreasury: 50_000,
+    initialBankReserves: 200_000,
+    partitions: [{ partitionKey: 'world-main', agentCount: 100, label: 'Survival Town' }],
   },
   'headless-stress-1000': {
     profileId: 'headless-stress-1000',

@@ -448,9 +448,14 @@ describe('AIvilization default world command policies', () => {
       townCarryingCapacity: 'renewable-resources-v1',
     });
     expect(on.policyVersions).not.toHaveProperty('physiologicalSafetyNet');
+    expect(on.policyVersions).not.toHaveProperty('externalMarket');
     expect(on.parameters.survival.physiologicalSafetyNet).toEqual({
       enabled: false,
       reason: 'no-unfunded-inventory-grants',
+    });
+    expect(on.parameters.externalMarket).toEqual({
+      enabled: false,
+      reason: 'explicit-external-trade-only',
     });
     expect(on.parameters.townCarryingCapacity).toMatchObject({
       policyVersion: 'renewable-resources-v1',
@@ -486,6 +491,7 @@ describe('AIvilization default world command policies', () => {
       policyVersion: 'renewable-resources-v1',
     });
     expect(carryingCapacity.physiologicalSafetyNet).toBeUndefined();
+    expect(carryingCapacity.externalMarket).toBeUndefined();
   });
 
   test('declares the town conditions catalog in the manifest only when the switch is on', () => {

@@ -94,6 +94,18 @@ pnpm --filter @aivilization/server start -- \
   --llm-mode deterministic
 ```
 
+To run the single-partition 100-Agent carrying-capacity experiment (finite primary resources,
+passive hunger, starvation mortality, wellbeing, lifecycle, and migration), use:
+
+```sh
+pnpm --filter @aivilization/server start -- \
+  --profile survival-town-100 \
+  --llm-mode deterministic
+```
+
+See [`docs/SURVIVAL_TOWN_EXPERIMENT.md`](docs/SURVIVAL_TOWN_EXPERIMENT.md) for its causal boundary,
+metrics, and current evidence limitations.
+
 The default server listens on `127.0.0.1:3000`. Runtime state is durable under
 `.aivilization/runtime/` unless `--root-dir` is supplied. Run `pnpm --filter @aivilization/server
 start -- --help` for profiles, planner variants, ports, roots, seeds, and provider options.

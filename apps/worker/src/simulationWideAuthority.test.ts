@@ -308,7 +308,8 @@ describe('simulation-wide authority', () => {
     ).toHaveLength(1);
     expect(
       [sourceAdvance, destinationAdvance].flatMap(
-        (delivery) => delivery?.events.filter((event) => event.type === 'DepositInterestPaid') ?? [],
+        (delivery) =>
+          delivery?.events.filter((event) => event.type === 'DepositInterestPaid') ?? [],
       ),
     ).toEqual([]);
     expect(
@@ -1130,6 +1131,42 @@ describe('authority departure sync', () => {
     const authority = createAuthority();
     // Baseline: the authority knows agentA (partition A) and agentB.
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    authority.syncPartitionAgentLocations({
+      operationId: 'location-sync-departure-runtime-baseline',
+      ...lease(),
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      partitionRuntimeState: {
+        activityTimeByAgent: {
+          [agentA]: {
+            agentId: agentA,
+            activity: 'labor',
+            commandType: 'AgentWork',
+            policyVersion: 'exclusive-agent-activity-time-v1',
+            settlementTiming: 'effects-at-commit',
+            startedAt: 0,
+            durationSeconds: 10,
+            availableAt: 10_000,
+            committedAt: 0,
+          },
+        },
+        transitByAgent: {
+          [agentA]: {
+            agentId: agentA,
+            fromLocationId: asLocationId('town-square'),
+            toLocationId: asLocationId('market'),
+            routeLocationIds: [asLocationId('town-square'), asLocationId('market')],
+            spatialPolicyVersion: 'spatial-test-v1',
+            baseTravelDurationSeconds: 10,
+            congestionMultiplier: 1,
+            travelDurationSeconds: 10,
+            departedAt: 0,
+            arrivesAt: 10_000,
+            reason: 'test',
+          },
+        },
+      },
+    });
 
     // The router reports its CURRENT residents (the departed one is absent
     // from the location list) plus the departure of the previously reported
@@ -1146,6 +1183,8 @@ describe('authority departure sync', () => {
     const snapshot = authority.getSnapshot();
     expect(snapshot.projection.agents[agentA]).toBeUndefined();
     expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBeUndefined();
+    expect(snapshot.projection.activityTimeByAgent[agentA]).toBeUndefined();
+    expect(snapshot.projection.transitByAgent?.[agentA]).toBeUndefined();
     // The other partition's resident is untouched.
     expect(snapshot.ownerPartitionKeyByAgentId[agentB]).toBe(partitionB);
 
@@ -1170,6 +1209,44 @@ describe('authority departure sync', () => {
         departedAgentIds: [agentB],
       }),
     ).toThrow('must come from owner partition');
+  });
+
+  test('rejects removal while an owner enterprise is still operational', () => {
+    const authority = createAuthority();
+    authority.syncPartitionAgentLocations({
+      operationId: 'location-sync-enterprise-active',
+      ...lease(),
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      enterpriseStates: [
+        {
+          enterpriseId: 'enterprise-a',
+          name: 'Enterprise A',
+          ownerAgentId: agentA,
+          occupationName: 'Cleaner',
+          balance: 100,
+          inventory: {},
+          maxEmployees: 2,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+        },
+      ],
+    });
+
+    expect(() =>
+      authority.syncPartitionAgentLocations({
+        operationId: 'location-sync-enterprise-invalid-departure',
+        ...lease(),
+        partitionKey: partitionA,
+        agentLocations: [],
+        departedAgentIds: [agentA],
+      }),
+    ).toThrow('requires closed enterprise enterprise-a');
+    expect(authority.getSnapshot().projection.agents[agentA]).toBeDefined();
   });
 });
 

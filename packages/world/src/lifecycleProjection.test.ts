@@ -1,6 +1,11 @@
 import { asAgentId, asEventId, createEventEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
-import { applyWorldEvent, createWorldProjection, type WorldEvent } from './index';
+import {
+  applyWorldEvent,
+  createWorldProjection,
+  type AgentActivityTimeCommittedPayload,
+  type WorldEvent,
+} from './index';
 
 describe('lifecycle projection facts', () => {
   test('ownership arrival rebuilds the agent with durable lifecycle facts', () => {
@@ -88,7 +93,7 @@ describe('lifecycle projection facts', () => {
   });
 
   test('death cancels the deceased pending applications but keeps resolved history', () => {
-    const projection = createWorldProjection({
+    const initial = createWorldProjection({
       agents: [
         {
           agentId: asAgentId('agent-dying'),
@@ -133,8 +138,37 @@ describe('lifecycle projection facts', () => {
           status: 'pending',
         },
       ],
+      physiologicalDistressByAgent: {
+        'agent-dying': {
+          policyVersion: 'physiological-safety-net-test',
+          distressStartedAt: 0,
+          lowAxes: ['health'],
+          lastGrantedAt: null,
+        },
+      },
       clock: { now: 0, tickDurationMs: 1000 },
     });
+    const projection = applyWorldEvent(
+      initial,
+      createEventEnvelope({
+        id: asEventId('event-activity-1'),
+        simulationId: 'sim-1',
+        commandId: 'command-action-1',
+        type: 'AgentActivityTimeCommitted',
+        payload: {
+          agentId: asAgentId('agent-dying'),
+          activity: 'labor',
+          commandType: 'AgentWork',
+          policyVersion: 'exclusive-agent-activity-time-v1',
+          settlementTiming: 'effects-at-commit',
+          startedAt: 0,
+          durationSeconds: 10,
+          availableAt: 10_000,
+        } satisfies AgentActivityTimeCommittedPayload,
+        occurredAt: 0,
+        sequence: 1,
+      }),
+    );
 
     const settled = applyWorldEvent(
       projection,
@@ -164,10 +198,43 @@ describe('lifecycle projection facts', () => {
     );
 
     expect(settled.agents['agent-dying']).toBeUndefined();
+    expect(settled.activityTimeByAgent['agent-dying']).toBeUndefined();
+    expect(settled.physiologicalDistressByAgent['agent-dying']).toBeUndefined();
     expect(settled.jobApplications.map((application) => application.applicationId)).toEqual([
       'application-resolved',
       'application-other',
     ]);
     expect(settled.moneySupply).toBe(projection.moneySupply - 25);
+  });
+
+  test('hydrates closed enterprise history after its owner permanently departed', () => {
+    const enterprise = {
+      enterpriseId: 'enterprise-closed',
+      name: 'Closed Workshop',
+      ownerAgentId: asAgentId('agent-departed'),
+      occupationName: 'Cleaner',
+      balance: 0,
+      inventory: {},
+      maxEmployees: 2,
+      employeeAgentIds: [],
+      status: 'closed' as const,
+      foundedAt: 0,
+      closedAt: 1000,
+      cumulativeSales: 0,
+      cumulativePurchases: 0,
+      cumulativeWages: 0,
+    };
+
+    expect(
+      createWorldProjection({ agents: [], enterprises: [enterprise] }).enterprises[
+        enterprise.enterpriseId
+      ],
+    ).toMatchObject({ status: 'closed', ownerAgentId: 'agent-departed' });
+    expect(() =>
+      createWorldProjection({
+        agents: [],
+        enterprises: [{ ...enterprise, status: 'active' }],
+      }),
+    ).toThrow('enterprise enterprise-closed has unknown owner');
   });
 });

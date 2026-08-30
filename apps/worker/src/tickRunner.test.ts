@@ -2503,6 +2503,55 @@ describe('worker tick runner', () => {
     expect(snapshotStore.loadSnapshot(result.snapshot)).toEqual(result.projection);
   });
 
+  test('does not checkpoint when interrupted recovery defers an authority inbox append', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    const commandRouter: NonNullable<
+      Parameters<typeof runWorkerSimulationTick>[0]['commandRouter']
+    > = {
+      syncPartitionState: () => undefined,
+      routeCommandDrafts: (routeInput) =>
+        Promise.resolve({
+          ...dispatchCommandDraftsToWorldEventStream(routeInput),
+          hasUnstreamedAuthorityEvents: true as const,
+        }),
+    };
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-interrupted-authority-recovery',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      checkpointing: {
+        partitionKey: partition.partitionKey,
+        checkpointStore,
+        snapshotStore,
+      },
+      commandRouter,
+      materializeAuthorityEvents: ({ projection }) =>
+        Promise.resolve({ projection, authorityEventsMaterialized: false }),
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    expect(result.checkpoint).toBeUndefined();
+    expect(result.snapshot).toBeUndefined();
+    expect(
+      checkpointStore.getLatestCheckpoint({
+        simulationId,
+        partitionKey: partition.partitionKey,
+      }),
+    ).toBeUndefined();
+  });
+
   test('replays a whole tick idempotently from the same starting expected version', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

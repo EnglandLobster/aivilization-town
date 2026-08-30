@@ -409,6 +409,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 return {
                   projection: result.projection,
                   marketOverride: { marketPools: authorityProjection.marketPools },
+                  ...(recoveringInterruptedTick === true
+                    ? { authorityEventsMaterialized: false as const }
+                    : {}),
                 };
               },
               // Operator town bulletins settle against the one authoritative

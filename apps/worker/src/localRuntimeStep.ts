@@ -37,6 +37,12 @@ export type LocalWorldRuntimePreTickMaterializeHook = (input: {
 }) => Promise<{
   readonly projection: WorldProjection;
   /**
+   * False when an interrupted-tick replay deliberately leaves newly settled
+   * authority facts in the authority inbox. The tick must then avoid saving
+   * its in-memory projection against an older partition stream version.
+   */
+  readonly authorityEventsMaterialized?: boolean;
+  /**
    * The authoritative unified market sampled once for this tick. When present,
    * agents plan and the price index is derived against these global pools rather
    * than the partition projection's own (which only reflects this partition's

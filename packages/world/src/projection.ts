@@ -30,10 +30,11 @@ import {
 import type { WorldEvent } from './events';
 import {
   applyEnterpriseDomainEvent,
+  assertValidEnterpriseState,
   normalizeEnterpriseState,
   type WorldEnterpriseState,
 } from './enterprise';
-import { normalizeBankState, type WorldBankState } from './credit';
+import { assertValidBankState, normalizeBankState, type WorldBankState } from './credit';
 import type {
   AgentActivityKind,
   AgentActivityTimeCommittedPayload,
@@ -705,7 +706,14 @@ export function createWorldProjection(input: {
     if (agents[enterprise.ownerAgentId] === undefined && enterprise.status !== 'closed') {
       throw new Error(`enterprise ${enterprise.enterpriseId} has unknown owner`);
     }
-    enterprises[enterprise.enterpriseId] = normalizeEnterpriseState(enterprise);
+    const normalized = normalizeEnterpriseState(enterprise);
+    assertValidEnterpriseState(normalized);
+    enterprises[enterprise.enterpriseId] = normalized;
+  }
+
+  const bank = input.bank === undefined ? undefined : normalizeBankState(input.bank);
+  if (bank !== undefined) {
+    assertValidBankState(bank);
   }
 
   return {
@@ -751,7 +759,7 @@ export function createWorldProjection(input: {
         }),
     ...(input.calendar === undefined ? {} : { calendar: { ...input.calendar } }),
     ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
-    ...(input.bank === undefined ? {} : { bank: normalizeBankState(input.bank) }),
+    ...(bank === undefined ? {} : { bank }),
     ...(input.economicComposition === undefined
       ? {}
       : { economicComposition: cloneEconomicComposition(input.economicComposition) }),

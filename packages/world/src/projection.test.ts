@@ -16,6 +16,20 @@ import {
 } from './index';
 
 describe('world projection', () => {
+  test('rejects an invalid bank snapshot at the world hydration boundary', () => {
+    expect(() =>
+      createWorldProjection({
+        agents: [],
+        bank: {
+          balance: -1,
+          deposits: {},
+          loans: {},
+          creditHistoryByAgent: {},
+        },
+      }),
+    ).toThrow('bank balance must be non-negative finite');
+  });
+
   test('keeps only bounded recent memory records in the non-authoritative projection cache', () => {
     const agentId = asAgentId('agent-1');
     const initial = createWorldProjection({ agents: [] });

@@ -120,6 +120,7 @@ describe('local simulation lifecycle controller', () => {
       nextTickIndex: 1,
       lastAppliedSequence: 0,
       updatedAt: 1000,
+      completedTickCount: 0,
     });
 
     const restartedStorage = createLocalWorldRuntimeStorage({
@@ -147,6 +148,88 @@ describe('local simulation lifecycle controller', () => {
     expect(
       restartedStorage.eventStore.getStreamVersion(restartedStorage.partition.eventStreamName),
     ).toBe(2);
+  });
+
+  test('continues only the remaining ticks after a completed tick boundary was persisted', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const first = await createController({ storage, initialProjection, tickBatchSize: 1 }).start({
+      ...createRequest(1000),
+      operationId: 'interrupted-after-tick-one',
+    });
+    storage.lifecycleStateStore.saveState({
+      ...first.state,
+      status: 'running',
+      nextTickIndex: 2,
+      lastAppliedSequence: 1,
+      updatedAt: 1000,
+      completedTickCount: 1,
+    });
+
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const resumed = await createController({
+      storage: restartedStorage,
+      initialProjection,
+      tickBatchSize: 2,
+    }).start({ ...createRequest(5000), operationId: 'recovery-after-tick-one' });
+
+    expect(resumed).toMatchObject({
+      status: 'completed',
+      state: {
+        nextTickIndex: 3,
+        lastAppliedSequence: 2,
+        completedTickCount: 2,
+      },
+      loop: {
+        completedTickCount: 1,
+        steps: [{ tickIndex: 2 }],
+        projection: { clock: { now: 2000 } },
+      },
+    });
+  });
+
+  test('resumes only the unfinished remainder of a batch paused between ticks', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    let pauseCheckCount = 0;
+    const paused = await createController({
+      storage,
+      initialProjection,
+      pauseBeforeTick: () => {
+        pauseCheckCount += 1;
+        return pauseCheckCount === 2;
+      },
+    }).start({ ...createRequest(1000), operationId: 'pause-mid-batch' });
+
+    expect(paused).toMatchObject({
+      status: 'paused',
+      state: { nextTickIndex: 2, completedTickCount: 1 },
+    });
+    const resumed = await createController({ storage, initialProjection }).start({
+      ...createRequest(2000),
+      operationId: 'resume-mid-batch',
+    });
+
+    expect(resumed).toMatchObject({
+      status: 'completed',
+      state: { nextTickIndex: 3, completedTickCount: 2 },
+      loop: { completedTickCount: 1, steps: [{ tickIndex: 2 }] },
+    });
+    expect(storage.eventStore.getStreamVersion(storage.partition.eventStreamName)).toBe(2);
   });
 
   test('rejects a genuinely concurrent start within one controller instance', async () => {

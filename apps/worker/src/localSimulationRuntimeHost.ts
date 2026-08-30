@@ -36,6 +36,7 @@ import {
 } from './localSimulationSocietyProjection';
 import {
   createSimulationWideAuthority,
+  SimulationWideAuthorityPartitionBarrierError,
   type SimulationWideAuthoritySeed,
   type SimulationWideAuthorityService,
 } from './simulationWideAuthority';
@@ -376,12 +377,13 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                         result.projection.clock.tickDurationMs)
                     : result.projection.clock.now;
                 if (authorityClockNow < targetClockNow) {
-                  authority!.advanceTime({
+                  await advanceAuthorityAtPartitionBarrier({
+                    authority: authority!,
                     operationId: `advance-time-to:${targetClockNow}`,
                     workerId: leaseNow.workerId,
                     observedAt: leaseNow.observedAt,
                     durationMs: leaseNow.durationMs,
-                    deltaMs: targetClockNow - authorityClockNow,
+                    targetClockNow,
                   });
                   result = await materialize({ lease: leaseNow });
                 }
@@ -487,6 +489,45 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     ...(authority === undefined ? {} : { authority }),
     materializers,
   };
+}
+
+async function advanceAuthorityAtPartitionBarrier(input: {
+  readonly authority: SimulationWideAuthorityService;
+  readonly operationId: string;
+  readonly workerId: string;
+  readonly observedAt: SimulationTimestamp;
+  readonly durationMs: number;
+  readonly targetClockNow: number;
+}): Promise<void> {
+  const waitStartedAt = Date.now();
+  const waitTimeoutMs = Math.max(1_000, input.durationMs);
+  while (true) {
+    const authorityClockNow = input.authority.getSnapshot().projection.clock.now;
+    if (authorityClockNow >= input.targetClockNow) {
+      return;
+    }
+    try {
+      input.authority.advanceTime({
+        operationId: input.operationId,
+        workerId: input.workerId,
+        observedAt: input.observedAt,
+        durationMs: input.durationMs,
+        deltaMs: input.targetClockNow - authorityClockNow,
+      });
+      return;
+    } catch (error) {
+      if (!(error instanceof SimulationWideAuthorityPartitionBarrierError)) {
+        throw error;
+      }
+      if (Date.now() - waitStartedAt >= waitTimeoutMs) {
+        throw new Error(
+          `timed out waiting for every partition to publish through authority clock ${error.requiredClockNow}`,
+          { cause: error },
+        );
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+  }
 }
 
 /**

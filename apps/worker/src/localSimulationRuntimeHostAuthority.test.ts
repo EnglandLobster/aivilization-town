@@ -44,6 +44,78 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host simulation-wide authority wiring', () => {
+  test('waits at the authority clock barrier when one partition reaches the next tick first', async () => {
+    const rootDir = createRootDir();
+    const manifest = createManifest();
+    let releaseMainPartition!: () => void;
+    let reportMainPartitionBlocked!: () => void;
+    const mainPartitionBlocked = new Promise<void>((resolve) => {
+      reportMainPartitionBlocked = resolve;
+    });
+    const mainPartitionGate = new Promise<void>((resolve) => {
+      releaseMainPartition = resolve;
+    });
+    let blockedMainProvider = false;
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: {
+        ...manifest,
+        defaults: { ...manifest.defaults, tickBatchSize: 2 },
+      },
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      agentProvider: async ({ storage }) => {
+        if (storage.partition.partitionKey === 'world-main' && !blockedMainProvider) {
+          blockedMainProvider = true;
+          reportMainPartitionBlocked();
+          await mainPartitionGate;
+        }
+        return [];
+      },
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+
+    const mainStart = host.registry.api.startSimulation({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+      operationId: 'barrier-cycle',
+    });
+    let eastSettled = false;
+    const eastStart = host.registry.api
+      .startSimulation({
+        simulationId: 'sim-1',
+        partitionKey: 'world-east',
+        requestedAt: 200,
+        operationId: 'barrier-cycle',
+      })
+      .finally(() => {
+        eastSettled = true;
+      });
+
+    await mainPartitionBlocked;
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    expect(eastSettled).toBe(false);
+    releaseMainPartition();
+
+    await expect(Promise.all([mainStart, eastStart])).resolves.toMatchObject([
+      { status: 'completed', state: { nextTickIndex: 3 } },
+      { status: 'completed', state: { nextTickIndex: 3 } },
+    ]);
+    expect(host.authority?.getSnapshot()).toMatchObject({
+      projection: { clock: { now: 70_000 } },
+      partitionClockNowByKey: { 'world-main': 70_000, 'world-east': 70_000 },
+    });
+  });
+
   test('seeds the authority with the live partition treasury and bank reserves', async () => {
     const rootDir = createRootDir();
     const baseManifest = createManifest();

@@ -69,6 +69,34 @@ import {
  */
 export const SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION = 'simulation-wide-authority-v1';
 
+export class SimulationWideAuthorityPartitionBarrierError extends Error {
+  readonly requiredClockNow: number;
+  readonly laggingPartitions: readonly {
+    readonly partitionKey: PartitionKey;
+    readonly publishedClockNow?: number;
+  }[];
+
+  constructor(input: {
+    readonly requiredClockNow: number;
+    readonly laggingPartitions: readonly {
+      readonly partitionKey: PartitionKey;
+      readonly publishedClockNow?: number;
+    }[];
+  }) {
+    super(
+      `simulation-wide authority cannot advance from ${input.requiredClockNow}; lagging partition state: ${input.laggingPartitions
+        .map(
+          ({ partitionKey, publishedClockNow }) =>
+            `${partitionKey}@${publishedClockNow ?? 'missing'}`,
+        )
+        .join(', ')}`,
+    );
+    this.name = 'SimulationWideAuthorityPartitionBarrierError';
+    this.requiredClockNow = input.requiredClockNow;
+    this.laggingPartitions = input.laggingPartitions.map((partition) => ({ ...partition }));
+  }
+}
+
 export type SimulationWideAuthorityAgentOwner = {
   readonly agentId: AgentId;
   readonly partitionKey: PartitionKey;
@@ -2540,17 +2568,17 @@ function assertEveryPartitionPublishedThrough(
   requiredClockNow: number,
 ): void {
   const publishedClockNowByKey = resolvePartitionClockNowByKey(state);
-  const lagging = state.partitionKeys.filter(
-    (partitionKey) => (publishedClockNowByKey[partitionKey] ?? -1) < requiredClockNow,
-  );
-  if (lagging.length > 0) {
-    throw new Error(
-      `simulation-wide authority cannot advance from ${requiredClockNow}; lagging partition state: ${lagging
-        .map(
-          (partitionKey) => `${partitionKey}@${publishedClockNowByKey[partitionKey] ?? 'missing'}`,
-        )
-        .join(', ')}`,
-    );
+  const laggingPartitions = state.partitionKeys.flatMap((partitionKey) => {
+    const publishedClockNow = publishedClockNowByKey[partitionKey];
+    return (publishedClockNow ?? -1) < requiredClockNow
+      ? [{ partitionKey, ...(publishedClockNow === undefined ? {} : { publishedClockNow }) }]
+      : [];
+  });
+  if (laggingPartitions.length > 0) {
+    throw new SimulationWideAuthorityPartitionBarrierError({
+      requiredClockNow,
+      laggingPartitions,
+    });
   }
 }
 

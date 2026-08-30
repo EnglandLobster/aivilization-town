@@ -836,19 +836,45 @@ describe('simulation-wide authority', () => {
     expect(tampered.valid).toBe(false);
     expect(tampered.firstBrokenRecordIndex).toBe(0);
 
-    // A fresh authority over the tampered journal refuses further settlement
-    // instead of silently extending a broken chain.
-    const restarted = createAuthority(rootDir);
-    expect(() =>
-      restarted.settleTrade({
-        operationId: 'trade-chain-3',
-        workerId: 'worker-a',
-        observedAt: 3,
-        durationMs: 100,
-        agentId: agentA,
-        trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
-      }),
-    ).toThrow(/journal chain is broken/);
+    // A fresh authority over the tampered journal fails during bootstrap,
+    // before any caller can read or extend the compromised state.
+    expect(() => createAuthority(rootDir)).toThrow(/journal chain is broken/);
+  });
+
+  test('reloads the journal tail when alternating durable writers acquire the lease', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-alternating-writers-'));
+    const firstWriter = createAuthority(rootDir);
+    const secondWriter = createAuthority(rootDir);
+    firstWriter.settleTrade({
+      operationId: 'alternating-writer-trade-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    secondWriter.settleTrade({
+      operationId: 'alternating-writer-trade-2',
+      workerId: 'worker-b',
+      observedAt: 2,
+      durationMs: 100,
+      agentId: agentB,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    firstWriter.syncPartitionAgentLocations({
+      operationId: 'alternating-writer-location-sync-3',
+      workerId: 'worker-a',
+      observedAt: 3,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+    });
+
+    expect(verifySimulationWideAuthorityJournal({ rootDir, simulationId })).toMatchObject({
+      valid: true,
+      recordCount: 6,
+    });
+    expect(createAuthority(rootDir).getSnapshot().revision).toBe(3);
   });
 
   test('a successor authority instance continues the same durable ledger', () => {
@@ -915,6 +941,52 @@ describe('simulation-wide authority', () => {
     expect(() => createAuthority(rootDir)).toThrow(
       /state is missing while its audit journal exists.*restore the state from backup/,
     );
+  });
+
+  test('fails closed when committed state survives without its matching journal intent', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-missing-journal-'));
+    const authority = createAuthority(rootDir);
+    authority.settleTrade({
+      operationId: 'trade-before-journal-loss',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    rmSync(
+      join(
+        rootDir,
+        'simulation-wide-authority',
+        encodeURIComponent('unified-town'),
+        'operations.jsonl',
+      ),
+    );
+
+    expect(() => createAuthority(rootDir)).toThrow(/has no matching audit intent/);
+  });
+
+  test('rejects a corrupt financial aggregate in the authority state snapshot', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-corrupt-bank-'));
+    createAuthority(rootDir);
+    const statePath = join(
+      rootDir,
+      'simulation-wide-authority',
+      encodeURIComponent('unified-town'),
+      'state.json',
+    );
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as {
+      projection: { bank?: unknown };
+    };
+    persisted.projection.bank = {
+      balance: -1,
+      deposits: {},
+      loans: {},
+      creditHistoryByAgent: {},
+    };
+    writeFileSync(statePath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    expect(() => createAuthority(rootDir)).toThrow(/bank balance must be non-negative finite/);
   });
 
   test('keeps the global projection fresh through partition location syncs', () => {

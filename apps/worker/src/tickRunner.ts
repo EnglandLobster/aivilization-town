@@ -273,24 +273,43 @@ export async function runWorkerSimulationTick(
   let expectedVersion = input.expectedVersion ?? startingProjection.streamVersion;
   let marketOverride = input.marketOverride;
   let hasUnstreamedAuthorityEvents = false;
-  const timeAdvanceResult = dispatchWorldCommandToEventStream({
-    command: createCommandEnvelope({
-      id: `${input.tickId}-advance-time`,
-      simulationId: input.simulationId,
-      source: 'system',
-      type: 'AdvanceSimulationTime',
-      payload: { deltaMs: input.timeDeltaMs ?? projection.clock.tickDurationMs },
-      issuedAt: input.issuedAt,
-    }),
-    projection,
-    policies: input.policies,
-    eventStore: input.eventStore,
-    streamName: input.streamName,
-    appendIdempotencyKey: `${input.tickId}:append:time`,
-    expectedVersion,
-  });
-  projection = timeAdvanceResult.projection;
-  expectedVersion = timeAdvanceResult.appendResult.streamVersion;
+  const timeAppendIdempotencyKey = `${input.tickId}:append:time`;
+  const recoveredTimeAppend =
+    input.replayExistingAgentAppends === true
+      ? input.eventStore.getIdempotentAppend(timeAppendIdempotencyKey)
+      : undefined;
+  let timeAdvanceEvents: readonly WorldEvent[];
+  if (recoveredTimeAppend !== undefined) {
+    assertRecoveredAppendContinuesTick({
+      appendIdempotencyKey: timeAppendIdempotencyKey,
+      recoveredAppend: recoveredTimeAppend,
+      streamName: input.streamName,
+      expectedVersion,
+    });
+    projection = recoveredTimeAppend.appendedEvents.reduce(applyWorldEvent, projection);
+    expectedVersion = recoveredTimeAppend.streamVersion;
+    timeAdvanceEvents = recoveredTimeAppend.appendedEvents;
+  } else {
+    const timeAdvanceResult = dispatchWorldCommandToEventStream({
+      command: createCommandEnvelope({
+        id: `${input.tickId}-advance-time`,
+        simulationId: input.simulationId,
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: input.timeDeltaMs ?? projection.clock.tickDurationMs },
+        issuedAt: input.issuedAt,
+      }),
+      projection,
+      policies: input.policies,
+      eventStore: input.eventStore,
+      streamName: input.streamName,
+      appendIdempotencyKey: timeAppendIdempotencyKey,
+      expectedVersion,
+    });
+    projection = timeAdvanceResult.projection;
+    expectedVersion = timeAdvanceResult.appendResult.streamVersion;
+    timeAdvanceEvents = timeAdvanceResult.events;
+  }
   const agentResults: WorkerAgentCycleResult[] = [];
   const recoveredAgentEvents: WorldEvent[] = [];
   const skippedBusyAgentIds: AgentId[] = [];
@@ -311,14 +330,12 @@ export async function runWorkerSimulationTick(
           ? input.eventStore.getIdempotentAppend(appendIdempotencyKey)
           : undefined;
       if (recoveredAppend !== undefined) {
-        if (
-          recoveredAppend.streamName !== input.streamName ||
-          recoveredAppend.expectedVersion !== expectedVersion
-        ) {
-          throw new Error(
-            `recovered agent append ${appendIdempotencyKey} does not continue the interrupted tick`,
-          );
-        }
+        assertRecoveredAppendContinuesTick({
+          appendIdempotencyKey,
+          recoveredAppend,
+          streamName: input.streamName,
+          expectedVersion,
+        });
         projection = recoveredAppend.appendedEvents.reduce(applyWorldEvent, projection);
         expectedVersion = recoveredAppend.streamVersion;
         recoveredAgentEvents.push(...recoveredAppend.appendedEvents);
@@ -438,32 +455,49 @@ export async function runWorkerSimulationTick(
   const agentEvents = [...recoveredAgentEvents, ...agentResults.flatMap((result) => result.events)];
   let marketMetricEvents: readonly WorldEvent[] = [];
   if (input.marketMetrics !== undefined) {
-    const marketMetricsResult = recordMarketMetricsToEventStream({
-      baselineProjection: input.marketMetrics.baselineProjection,
-      currentProjection: projection,
-      ...(input.marketMetrics.baselineMarketOverride === undefined
-        ? {}
-        : { baselineMarketOverride: input.marketMetrics.baselineMarketOverride }),
-      ...(marketOverride === undefined && input.marketMetrics.currentMarketOverride === undefined
-        ? {}
-        : { currentMarketOverride: marketOverride ?? input.marketMetrics.currentMarketOverride }),
-      ...(input.marketMetrics.educationSystemPolicy === undefined
-        ? {}
-        : { educationSystemPolicy: input.marketMetrics.educationSystemPolicy }),
-      simulationId: input.simulationId,
-      baselineAt: input.marketMetrics.baselineAt,
-      issuedAt: input.issuedAt,
-      eventStore: input.eventStore,
-      streamName: input.streamName,
-      expectedVersion,
-      appendIdempotencyKey:
-        input.marketMetrics.appendIdempotencyKey ?? `${input.tickId}:append:market-price-index`,
-    });
-    projection = marketMetricsResult.projection;
-    expectedVersion = marketMetricsResult.appendResult.streamVersion;
-    marketMetricEvents = marketMetricsResult.events;
+    const marketAppendIdempotencyKey =
+      input.marketMetrics.appendIdempotencyKey ?? `${input.tickId}:append:market-price-index`;
+    const recoveredMarketAppend =
+      input.replayExistingAgentAppends === true
+        ? input.eventStore.getIdempotentAppend(marketAppendIdempotencyKey)
+        : undefined;
+    if (recoveredMarketAppend !== undefined) {
+      assertRecoveredAppendContinuesTick({
+        appendIdempotencyKey: marketAppendIdempotencyKey,
+        recoveredAppend: recoveredMarketAppend,
+        streamName: input.streamName,
+        expectedVersion,
+      });
+      projection = recoveredMarketAppend.appendedEvents.reduce(applyWorldEvent, projection);
+      expectedVersion = recoveredMarketAppend.streamVersion;
+      marketMetricEvents = recoveredMarketAppend.appendedEvents;
+    } else {
+      const marketMetricsResult = recordMarketMetricsToEventStream({
+        baselineProjection: input.marketMetrics.baselineProjection,
+        currentProjection: projection,
+        ...(input.marketMetrics.baselineMarketOverride === undefined
+          ? {}
+          : { baselineMarketOverride: input.marketMetrics.baselineMarketOverride }),
+        ...(marketOverride === undefined && input.marketMetrics.currentMarketOverride === undefined
+          ? {}
+          : { currentMarketOverride: marketOverride ?? input.marketMetrics.currentMarketOverride }),
+        ...(input.marketMetrics.educationSystemPolicy === undefined
+          ? {}
+          : { educationSystemPolicy: input.marketMetrics.educationSystemPolicy }),
+        simulationId: input.simulationId,
+        baselineAt: input.marketMetrics.baselineAt,
+        issuedAt: input.issuedAt,
+        eventStore: input.eventStore,
+        streamName: input.streamName,
+        expectedVersion,
+        appendIdempotencyKey: marketAppendIdempotencyKey,
+      });
+      projection = marketMetricsResult.projection;
+      expectedVersion = marketMetricsResult.appendResult.streamVersion;
+      marketMetricEvents = marketMetricsResult.events;
+    }
   }
-  const events = [...timeAdvanceResult.events, ...agentEvents, ...marketMetricEvents];
+  const events = [...timeAdvanceEvents, ...agentEvents, ...marketMetricEvents];
   const marketObservationRecording =
     input.marketObservations === undefined
       ? undefined
@@ -786,6 +820,22 @@ function createCycleId(tickId: string, index: number, agentId: AgentId): string 
 
 function createAppendIdempotencyKey(tickId: string, index: number, agentId: AgentId): string {
   return `${tickId}:append:${index + 1}:${agentId}`;
+}
+
+function assertRecoveredAppendContinuesTick(input: {
+  readonly appendIdempotencyKey: string;
+  readonly recoveredAppend: NonNullable<ReturnType<EventStore<WorldEvent>['getIdempotentAppend']>>;
+  readonly streamName: EventStreamName;
+  readonly expectedVersion: number;
+}): void {
+  if (
+    input.recoveredAppend.streamName !== input.streamName ||
+    input.recoveredAppend.expectedVersion !== input.expectedVersion
+  ) {
+    throw new Error(
+      `recovered append ${input.appendIdempotencyKey} does not continue the interrupted tick`,
+    );
+  }
 }
 
 function createCommandIdPrefix(tickId: string, index: number, agentId: AgentId): string {

@@ -606,4 +606,61 @@ describe('worker economic composition metrics', () => {
       5: 0,
     });
   });
+
+  test('records carrying-capacity stocks, scarcity, migration, and mortality outcomes', () => {
+    const base = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('survivor'),
+          physiology: { energy: 50, satiety: 50, health: 50 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const projection: WorldProjection = {
+      ...base,
+      renewableResources: {
+        'town-center': {
+          Apple: {
+            commodityName: 'Apple',
+            stock: 2,
+            carryingCapacity: 10,
+            lastRegenerationAt: 3_600_000,
+            policyVersion: 'renewable-resources-v1',
+            updatedAt: 3_600_000,
+          },
+        },
+      },
+      resourceFlowMetrics: {
+        cumulativeExtractedByCommodity: { Apple: 8 },
+        scarcityRejectionsByCommodity: { Apple: 3 },
+      },
+      survivalOutcomes: {
+        deathsByCause: { starvation: 2, illness: 1 },
+        emigrated: 4,
+      },
+    };
+
+    const payload = createEconomicCompositionPayload({ projection, recordedAt: 4_000_000 });
+    expect(payload.survival).toEqual({
+      livingAgents: 1,
+      deathsByCause: { starvation: 2, illness: 1 },
+      emigrated: 4,
+      resources: [
+        {
+          regionId: 'town-center',
+          commodityName: 'Apple',
+          stock: 2,
+          carryingCapacity: 10,
+          stockRatio: 0.2,
+          cumulativeExtracted: 8,
+          scarcityRejections: 3,
+        },
+      ],
+    });
+  });
 });

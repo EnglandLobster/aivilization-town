@@ -773,6 +773,21 @@ export type EconomicCompositionRecordedPayload = {
    * education-system observability stage stay replay-compatible.
    */
   readonly educationDistribution?: Readonly<Record<string, number>>;
+  /** Optional carrying-capacity observation; absent on legacy/non-survival runs. */
+  readonly survival?: {
+    readonly livingAgents: number;
+    readonly deathsByCause: Readonly<Record<string, number>>;
+    readonly emigrated: number;
+    readonly resources: readonly {
+      readonly regionId: string;
+      readonly commodityName: string;
+      readonly stock: number;
+      readonly carryingCapacity: number;
+      readonly stockRatio: number;
+      readonly cumulativeExtracted: number;
+      readonly scarcityRejections: number;
+    }[];
+  };
 };
 
 export type ExternalMarketRebalancedPayload = {

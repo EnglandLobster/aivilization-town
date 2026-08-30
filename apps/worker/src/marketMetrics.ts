@@ -167,6 +167,38 @@ export function createEconomicCompositionPayload(input: {
       : {
           educationDistribution: countAgentsByEducationLevel(agents, educationSystemPolicy),
         }),
+    ...(projection.renewableResources === undefined && projection.survivalOutcomes === undefined
+      ? {}
+      : {
+          survival: {
+            livingAgents: agents.length,
+            deathsByCause: { ...projection.survivalOutcomes?.deathsByCause },
+            emigrated: projection.survivalOutcomes?.emigrated ?? 0,
+            resources: Object.entries(projection.renewableResources ?? {})
+              .flatMap(([regionId, resources]) =>
+                Object.values(resources).map((resource) => ({
+                  regionId,
+                  commodityName: resource.commodityName,
+                  stock: resource.stock,
+                  carryingCapacity: resource.carryingCapacity,
+                  stockRatio: resource.stock / resource.carryingCapacity,
+                  cumulativeExtracted:
+                    projection.resourceFlowMetrics?.cumulativeExtractedByCommodity[
+                      resource.commodityName
+                    ] ?? 0,
+                  scarcityRejections:
+                    projection.resourceFlowMetrics?.scarcityRejectionsByCommodity[
+                      resource.commodityName
+                    ] ?? 0,
+                })),
+              )
+              .sort(
+                (left, right) =>
+                  left.regionId.localeCompare(right.regionId) ||
+                  left.commodityName.localeCompare(right.commodityName),
+              ),
+          },
+        }),
   };
 }
 

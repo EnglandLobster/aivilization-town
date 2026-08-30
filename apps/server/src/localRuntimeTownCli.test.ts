@@ -958,6 +958,29 @@ describe('local runtime town executable composition', () => {
       },
     });
 
+    const survivalTown = resolveLocalRuntimeTownCliConfig({
+      argv: [
+        '--',
+        '--profile',
+        'survival-town-100',
+        '--llm-mode',
+        'deterministic',
+      ],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(survivalTown).toMatchObject({
+      townCalendarEnabled: true,
+      townConditionsEnabled: true,
+      townWellbeingEnabled: true,
+      townLifecycleEnabled: true,
+      townMigrationEnabled: true,
+      townSurvivalPressureEnabled: true,
+      townCarryingCapacityEnabled: true,
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(survivalTown)).not.toThrow();
+
     const multiPartition = resolveLocalRuntimeTownCliConfig({
       argv: [
         '--',

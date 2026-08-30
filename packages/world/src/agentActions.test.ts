@@ -1559,6 +1559,7 @@ describe('agent produce command handling', () => {
     });
     const afterFirst = firstEvents.reduce(applyWorldEvent, projection);
     expect(afterFirst.renewableResources?.['town-center']?.Apple?.stock).toBe(1);
+    expect(afterFirst.resourceFlowMetrics?.cumulativeExtractedByCommodity.Apple).toBe(4);
     expect(afterFirst.agents['agent-1']?.inventory).toEqual({ Apple: 4 });
 
     const rejected = handleAgentProduceCommand({
@@ -1582,6 +1583,8 @@ describe('agent produce command handling', () => {
       },
     });
     expect(rejected.every((event) => event.type !== 'CommodityProduced')).toBe(true);
+    const afterRejection = rejected.reduce(applyWorldEvent, afterFirst);
+    expect(afterRejection.resourceFlowMetrics?.scarcityRejectionsByCommodity.Apple).toBe(1);
   });
 
   test('AgentProduce deterministically catches up renewable stock before extraction', () => {

@@ -374,7 +374,9 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
       source: aivilizationLifestylePolicyDefaults.source,
     },
     consumption: { ...canonicalConsumptionPolicy, rules: { ...canonicalConsumptionPolicy.rules } },
-    externalMarket: { ...canonicalExternalMarketPolicy },
+    ...(experimental?.townCarryingCapacity === true
+      ? {}
+      : { externalMarket: { ...canonicalExternalMarketPolicy } }),
     publicBudget: {
       ...canonicalPublicBudgetPolicy,
       allocations: canonicalPublicBudgetPolicy.allocations.map((allocation) => ({ ...allocation })),
@@ -614,7 +616,9 @@ export function createAivilizationWorldPolicyManifest(
       tax: aivilizationTaxPolicyDefaults.policyVersion,
       lifestyle: aivilizationLifestylePolicyDefaults.policyVersion,
       consumption: canonicalConsumptionPolicy.policyVersion,
-      externalMarket: canonicalExternalMarketPolicy.policyVersion,
+      ...(input.townCarryingCapacity === true
+        ? {}
+        : { externalMarket: canonicalExternalMarketPolicy.policyVersion }),
       publicBudget: canonicalPublicBudgetPolicy.policyVersion,
       credit: canonicalCreditPolicy.policyVersion,
       externalTrade: canonicalExternalTradePolicy.policyVersion,
@@ -704,7 +708,14 @@ export function createAivilizationWorldPolicyManifest(
         ...canonicalConsumptionPolicy,
         rules: { ...canonicalConsumptionPolicy.rules },
       },
-      externalMarket: { ...canonicalExternalMarketPolicy },
+      ...(input.townCarryingCapacity === true
+        ? {
+            externalMarket: {
+              enabled: false,
+              reason: 'explicit-external-trade-only',
+            },
+          }
+        : { externalMarket: { ...canonicalExternalMarketPolicy } }),
       publicBudget: {
         ...canonicalPublicBudgetPolicy,
         allocations: canonicalPublicBudgetPolicy.allocations.map((allocation) => ({

@@ -77,6 +77,26 @@ describe('local runtime town daemon scenario profiles', () => {
     ]);
     expect(totalAgents(standard.scenarioPresets)).toBe(100);
 
+    const survivalTown = createLocalRuntimeTownDaemonScenarioProfile('survival-town-100');
+    expect(survivalTown).toMatchObject({
+      profileId: 'survival-town-100',
+      agentCount: 100,
+      headless: false,
+      manifest: {
+        id: 'aivilization-survival-town-100',
+        defaults: {
+          tickBatchSize: 2,
+          tickIntervalMs: 100,
+          commandConsumerIdPrefix: 'survival-town-worker',
+        },
+      },
+    });
+    expect(survivalTown.manifest.partitions).toHaveLength(1);
+    expect(totalAgents(survivalTown.scenarioPresets)).toBe(100);
+    expect(survivalTown.manifest.partitions[0]?.marketPools).toHaveLength(
+      commodities.length - 1,
+    );
+
     const stress = createLocalRuntimeTownDaemonScenarioProfile('headless-stress-1000');
     expect(stress).toMatchObject({
       profileId: 'headless-stress-1000',

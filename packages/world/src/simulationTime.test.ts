@@ -2719,6 +2719,10 @@ describe('starvation settlement', () => {
     const replayed = events.reduce(applyWorldEvent, initial);
     expect(replayed.agents['agent-hungry']).toBeUndefined();
     expect(replayed.moneySupply).toBe(supplyBefore - 10);
+    expect(replayed.survivalOutcomes).toEqual({
+      deathsByCause: { starvation: 1 },
+      emigrated: 0,
+    });
   });
 });
 

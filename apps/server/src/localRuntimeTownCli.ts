@@ -19,6 +19,8 @@ import {
   createAivilizationWorldCommandPolicies,
   createPaperMarketObservationRecordingConfig,
   createPaperPlannerAblationObjectiveProposer,
+  createWorldProjectionFromScenario,
+  resolveWorldCommandPolicies,
   type AivilizationExperimentalFeatureKey,
 } from '@aivilization/worker';
 import type { LocalRuntimeTownLlmConfig } from './localRuntimeTownLlm';
@@ -211,8 +213,7 @@ export function resolveLocalRuntimeTownCliConfig(
   ) as Record<AivilizationExperimentalFeatureKey, boolean>;
   const townWeatherEnabled = experimentalFeatureEnabled.townWeather;
   const survivalTownProfile = profileId === 'survival-town-100';
-  const townConditionsEnabled =
-    experimentalFeatureEnabled.townConditions || survivalTownProfile;
+  const townConditionsEnabled = experimentalFeatureEnabled.townConditions || survivalTownProfile;
   const townBulletinEnabled = experimentalFeatureEnabled.townBulletin;
   const socialMattersEnabled = experimentalFeatureEnabled.socialMatters;
   const townConflictEnabled = experimentalFeatureEnabled.townConflict;
@@ -296,37 +297,76 @@ export function createCanonicalLocalRuntimeTownServerInput(
   const ownedPresetIds = new Set(
     runtimeManifest.partitions.map((partition) => partition.scenarioPresetId),
   );
+  const scenarioPresets = profile.scenarioPresets.filter((preset) => ownedPresetIds.has(preset.id));
+  const policies = createAivilizationWorldCommandPolicies(
+    config.seed,
+    undefined,
+    {
+      townConditions: config.townConditionsEnabled,
+      townBulletin: config.townBulletinEnabled,
+      socialMatters: config.socialMattersEnabled,
+      townConflict: config.townConflictEnabled,
+      townWellbeing: config.townWellbeingEnabled,
+      townCalendar: config.townCalendarEnabled,
+      townLifecycle: config.townLifecycleEnabled,
+      townDiscourse: config.townDiscourseEnabled,
+      townCollectiveAction: config.townCollectiveActionEnabled,
+      townMigration: config.townMigrationEnabled,
+      townServiceQuality: config.townServiceQualityEnabled,
+      townGovernance: config.townGovernanceEnabled,
+      townSurvivalPressure: config.townSurvivalPressureEnabled,
+      townCarryingCapacity: config.townCarryingCapacityEnabled,
+    },
+    // The paper-ablation cohort pins the education system off so the Section
+    // 5.1 baseline keeps the legacy continuous-score education semantics.
+    educationSystemOverride === undefined
+      ? undefined
+      : { educationSystem: educationSystemOverride },
+  );
+  const survivalMarketMetrics =
+    config.profileId === 'survival-town-100'
+      ? (() => {
+          const partition = runtimeManifest.partitions[0];
+          if (partition === undefined || runtimeManifest.partitions.length !== 1) {
+            throw new Error('survival market metrics require exactly one owned partition');
+          }
+          const preset = scenarioPresets.find(
+            (candidate) => candidate.id === partition.scenarioPresetId,
+          );
+          if (preset === undefined) {
+            throw new Error(
+              `survival market metrics are missing scenario preset ${partition.scenarioPresetId}`,
+            );
+          }
+          const baselineProjection = createWorldProjectionFromScenario({
+            preset,
+            ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
+            ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+            ...(partition.initialTreasury === undefined
+              ? {}
+              : { treasury: partition.initialTreasury }),
+            ...(partition.initialBankReserves === undefined
+              ? {}
+              : { bankReserves: partition.initialBankReserves }),
+          });
+          const educationSystemPolicy = resolveWorldCommandPolicies({
+            policies,
+            projection: baselineProjection,
+          }).educationSystem;
+          return {
+            baselineProjection,
+            baselineAt: baselineProjection.clock.now,
+            ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
+          };
+        })()
+      : undefined;
 
   return {
     rootDir: config.rootDir,
     bootstrappedAt,
     manifest: runtimeManifest,
-    scenarioPresets: profile.scenarioPresets.filter((preset) => ownedPresetIds.has(preset.id)),
-    policies: createAivilizationWorldCommandPolicies(
-      config.seed,
-      undefined,
-      {
-        townConditions: config.townConditionsEnabled,
-        townBulletin: config.townBulletinEnabled,
-        socialMatters: config.socialMattersEnabled,
-        townConflict: config.townConflictEnabled,
-        townWellbeing: config.townWellbeingEnabled,
-        townCalendar: config.townCalendarEnabled,
-        townLifecycle: config.townLifecycleEnabled,
-        townDiscourse: config.townDiscourseEnabled,
-        townCollectiveAction: config.townCollectiveActionEnabled,
-        townMigration: config.townMigrationEnabled,
-        townServiceQuality: config.townServiceQualityEnabled,
-        townGovernance: config.townGovernanceEnabled,
-        townSurvivalPressure: config.townSurvivalPressureEnabled,
-        townCarryingCapacity: config.townCarryingCapacityEnabled,
-      },
-      // The paper-ablation cohort pins the education system off so the Section
-      // 5.1 baseline keeps the legacy continuous-score education semantics.
-      educationSystemOverride === undefined
-        ? undefined
-        : { educationSystem: educationSystemOverride },
-    ),
+    scenarioPresets,
+    policies,
     localizedPlanners: [],
     steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
     agents: [],
@@ -339,6 +379,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
             ),
           },
     plannerVariant: config.plannerVariant,
+    ...(survivalMarketMetrics === undefined ? {} : { marketMetrics: survivalMarketMetrics }),
     marketObservations: createPaperMarketObservationRecordingConfig(),
     resolvedRunManifest,
     runtimeRunQueue: { ...profile.runtimeRunQueue, autoStart: daemonAutoStart },

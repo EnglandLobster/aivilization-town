@@ -22,14 +22,12 @@ import {
   dispatchCommandDraftsToWorldEventStream,
   type DispatchCommandDraftsToEventStreamResult,
 } from './commandDispatch';
-import {
-  resolveWorldCommandPolicies,
-  type WorldCommandPolicySource,
-} from './worldCommandPolicySource';
+import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 import type {
   SimulationWideAuthorityLease,
   SimulationWideAuthorityService,
 } from './simulationWideAuthority';
+import { SimulationWideCommandRejectedError } from './simulationWideAuthority';
 import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 /**
@@ -106,7 +104,7 @@ export function createSimulationCommandRouter(input: {
   // partition-locally in the command drain) are reported with their full
   // record so the authority admits them to the ledger before any global
   // settlement references them.
-  let lastSyncedLocationsFingerprint: string | undefined;
+  let lastSyncedPartitionStateFingerprint: string | undefined;
   // Record ids already merged into the authority's memory cache: the delta
   // sent with each sync stays as small as the partition's own new memories,
   // and the authority skips known ids so replayed syncs stay idempotent.
@@ -118,10 +116,22 @@ export function createSimulationCommandRouter(input: {
   // settlement references a ghost resident.
   let lastReportedAgentIds = new Set<string>();
   const syncPartitionLocations = (projection: WorldProjection): void => {
-    const agentLocations = Object.values(projection.agents)
+    const agentStates = Object.values(projection.agents).sort((left, right) =>
+      left.agentId.localeCompare(right.agentId),
+    );
+    const agentLocations = agentStates
       .map((agent) => ({ agentId: agent.agentId, locationId: agent.locationId }))
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
-    const fingerprint = JSON.stringify(agentLocations);
+    const partitionAccounts = {
+      moneySupply: projection.moneySupply,
+      ...(projection.treasury === undefined ? {} : { treasury: projection.treasury }),
+      ...(projection.bank === undefined ? {} : { bank: projection.bank }),
+    };
+    const partitionRuntimeState = {
+      activityTimeByAgent: projection.activityTimeByAgent,
+      transitByAgent: projection.transitByAgent ?? {},
+    };
+    const fingerprint = JSON.stringify({ agentStates, partitionAccounts, partitionRuntimeState });
     const currentAgentIds = new Set<string>(agentLocations.map((entry) => entry.agentId as string));
     const departedAgentIds = [...lastReportedAgentIds]
       .filter((agentId) => !currentAgentIds.has(agentId))
@@ -130,7 +140,7 @@ export function createSimulationCommandRouter(input: {
       .filter((record) => !syncedMemoryRecordIds.has(record.id))
       .sort((left, right) => left.id.localeCompare(right.id));
     if (
-      fingerprint === lastSyncedLocationsFingerprint &&
+      fingerprint === lastSyncedPartitionStateFingerprint &&
       newMemoryRecords.length === 0 &&
       departedAgentIds.length === 0
     ) {
@@ -157,13 +167,16 @@ export function createSimulationCommandRouter(input: {
       durationMs: lease.durationMs,
       partitionKey: input.partitionKey,
       agentLocations,
+      agentStates,
+      partitionAccounts,
+      partitionRuntimeState,
       ...(newAgents.length === 0 ? {} : { newAgents }),
       ...(newMemoryRecords.length === 0 ? {} : { newMemoryRecords }),
     });
     for (const record of newMemoryRecords) {
       syncedMemoryRecordIds.add(record.id);
     }
-    lastSyncedLocationsFingerprint = fingerprint;
+    lastSyncedPartitionStateFingerprint = fingerprint;
   };
   // The tick advances the partition clock before drafting agent commands, while
   // the pre-tick materializer only catches the authority up to the pre-tick
@@ -191,18 +204,23 @@ export function createSimulationCommandRouter(input: {
   };
   return {
     routeCommandDrafts: async (routeInput) => {
-      syncPartitionLocations(routeInput.projection);
       const globalDrafts = routeInput.commandDrafts.filter((draft) =>
         GLOBAL_COMMAND_TYPES.has(draft.type),
       );
       if (globalDrafts.length === 0) {
+        syncPartitionLocations(routeInput.projection);
         return dispatchCommandDraftsToWorldEventStream(routeInput);
       }
+      // Advancing the global clock can run town cadence reducers against the
+      // authority's partial Agent copy. Refresh owner state afterwards so the
+      // global decision always sees the partition's current durable truth.
       syncAuthorityClock(routeInput.projection);
+      syncPartitionLocations(routeInput.projection);
       return routeMixedDrafts({
         routeInput,
         authority: input.authority,
         lease: input.lease(),
+        syncPartitionState: syncPartitionLocations,
         ...(input.resolveLocationOwner === undefined
           ? {}
           : { resolveLocationOwner: input.resolveLocationOwner }),
@@ -217,13 +235,13 @@ export function createSimulationCommandRouter(input: {
 type RoutedSettlement = {
   readonly draft: CommandDraft;
   readonly events: readonly WorldEvent[];
-  readonly settled: boolean;
 };
 
 async function routeMixedDrafts(input: {
   readonly routeInput: Parameters<SimulationCommandRouter['routeCommandDrafts']>[0];
   readonly authority: SimulationWideAuthorityService;
   readonly lease: SimulationWideAuthorityLease;
+  readonly syncPartitionState: (projection: WorldProjection) => void;
   readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
   readonly captureCognitiveSnapshot?: (input: {
     readonly agentId: string;
@@ -234,23 +252,52 @@ async function routeMixedDrafts(input: {
   const expectedVersion =
     routeInput.expectedVersion ?? routeInput.eventStore.getStreamVersion(routeInput.streamName);
 
-  // Phase 1: settle global drafts against the authority, collecting the events
-  // they produced. Partition-local drafts are dispatched later in phase 2 as one
-  // contiguous stream append, preserving the existing append idempotency key.
-  const settlements: RoutedSettlement[] = [];
+  // Phase 1: append partition-local drafts first. Authority events are delivered
+  // by the materializer only after this append, so decision order must match the
+  // durable replay order: local events, then global events. Applying global
+  // events to the working projection before deciding local drafts would let a
+  // local action spend a tax receipt or inventory change that does not yet exist
+  // in the partition stream.
+  const localDrafts = routeInput.commandDrafts.filter(
+    (draft) => !GLOBAL_COMMAND_TYPES.has(draft.type),
+  );
+  let localAppend: DispatchCommandDraftsToEventStreamResult | undefined;
   let workingProjection = routeInput.projection;
-  let nextSequence = expectedVersion + 1;
+  if (localDrafts.length > 0) {
+    localAppend = dispatchCommandDraftsToWorldEventStream({
+      commandDrafts: localDrafts,
+      projection: workingProjection,
+      policies: routeInput.policies,
+      eventStore: routeInput.eventStore,
+      streamName: routeInput.streamName,
+      appendIdempotencyKey: `${routeInput.appendIdempotencyKey}:local`,
+      commandIdPrefix: `${routeInput.commandIdPrefix}-local`,
+      expectedVersion,
+    });
+    workingProjection = localAppend.projection;
+    input.syncPartitionState(workingProjection);
+  }
+
+  // Phase 2: settle global drafts against the authority and apply their facts
+  // after the local append in the in-tick working projection. The materializer
+  // persists them in this same order.
+  const settlements: RoutedSettlement[] = [];
+  const persistedVersion = localAppend?.appendResult.streamVersion ?? expectedVersion;
+  let nextSequence = persistedVersion + 1;
+  let globalDraftIndex = 0;
   for (const draft of routeInput.commandDrafts) {
     if (!GLOBAL_COMMAND_TYPES.has(draft.type)) {
       continue;
     }
+    globalDraftIndex += 1;
     const settlement = await settleGlobalDraft({
       draft,
       authority,
       lease,
-      commandIdPrefix: routeInput.commandIdPrefix,
-      projection: workingProjection,
-      policies: routeInput.policies,
+      // The ordinal is part of the durable authority operation identity: one
+      // synthesized batch may legitimately contain two commands of the same
+      // type by the same actor at the same simulation instant.
+      commandIdPrefix: `${routeInput.commandIdPrefix}-global-${globalDraftIndex}`,
       nextSequence,
       ...(input.resolveLocationOwner === undefined
         ? {}
@@ -264,26 +311,6 @@ async function routeMixedDrafts(input: {
       workingProjection = settlement.events.reduce(applyWorldEvent, workingProjection);
       nextSequence += settlement.events.length;
     }
-  }
-
-  const localDrafts = routeInput.commandDrafts.filter(
-    (draft) => !GLOBAL_COMMAND_TYPES.has(draft.type),
-  );
-
-  // Phase 2: partition-local drafts append to the partition stream as before.
-  let localAppend: DispatchCommandDraftsToEventStreamResult | undefined;
-  if (localDrafts.length > 0) {
-    localAppend = dispatchCommandDraftsToWorldEventStream({
-      commandDrafts: localDrafts,
-      projection: workingProjection,
-      policies: routeInput.policies,
-      eventStore: routeInput.eventStore,
-      streamName: routeInput.streamName,
-      appendIdempotencyKey: `${routeInput.appendIdempotencyKey}:local`,
-      commandIdPrefix: `${routeInput.commandIdPrefix}-local`,
-      expectedVersion,
-    });
-    workingProjection = localAppend.projection;
   }
 
   const globalCommands = settlements.map((settlement, index) =>
@@ -301,12 +328,12 @@ async function routeMixedDrafts(input: {
   const globalEvents = settlements.flatMap((settlement) => settlement.events);
 
   const commands: CommandEnvelope<CoreCommandType, unknown>[] = [
-    ...globalCommands,
     ...(localAppend?.commands ?? []),
+    ...globalCommands,
   ];
-  const events: WorldEvent[] = [...globalEvents, ...(localAppend?.events ?? [])];
+  const events: WorldEvent[] = [...(localAppend?.events ?? []), ...globalEvents];
 
-  const streamVersion = localAppend?.appendResult.streamVersion ?? expectedVersion;
+  const streamVersion = persistedVersion;
   const syntheticAppendResult: AppendToEventStreamResult<WorldEvent> = {
     appendedEvents: events,
     streamVersion,
@@ -329,8 +356,6 @@ async function settleGlobalDraft(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly lease: SimulationWideAuthorityLease;
   readonly commandIdPrefix: string;
-  readonly projection: WorldProjection;
-  readonly policies: WorldCommandPolicySource;
   readonly nextSequence: number;
   readonly resolveLocationOwner?: (locationId: string) => PartitionKey | undefined;
   readonly captureCognitiveSnapshot?: (input: {
@@ -338,7 +363,7 @@ async function settleGlobalDraft(input: {
     readonly capturedAt: number;
   }) => Promise<AgentCognitiveSnapshot>;
 }): Promise<RoutedSettlement> {
-  const { draft, authority, lease, commandIdPrefix, projection, policies, nextSequence } = input;
+  const { draft, authority, lease, commandIdPrefix, nextSequence } = input;
   const operationId = `${commandIdPrefix}:${draft.type}:${draft.actorId}:${draft.issuedAt}`;
   try {
     if (draft.type === 'AgentTrade') {
@@ -350,7 +375,7 @@ async function settleGlobalDraft(input: {
         agentId: draft.actorId,
         trade: draft.payload as AgentTradePayload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (draft.type === 'AgentStartConversation') {
       const payload = draft.payload as AgentStartConversationPayload;
@@ -364,7 +389,7 @@ async function settleGlobalDraft(input: {
         topic: payload.topic,
         turns: payload.turns,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (draft.type === 'AgentRaisePetition' || draft.type === 'AgentSignPetition') {
       const operation = authority.settlePetition({
@@ -376,7 +401,7 @@ async function settleGlobalDraft(input: {
         commandType: draft.type,
         payload: draft.payload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (
       draft.type === 'SetTaxPolicy' ||
@@ -392,7 +417,7 @@ async function settleGlobalDraft(input: {
         commandType: draft.type,
         payload: draft.payload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (draft.type === 'AgentPostBulletin') {
       const operation = authority.settleBulletin({
@@ -403,7 +428,7 @@ async function settleGlobalDraft(input: {
         authorAgentId: draft.actorId,
         bulletin: draft.payload as AgentPostBulletinPayload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (
       draft.type === 'AgentRaiseMatter' ||
@@ -420,7 +445,7 @@ async function settleGlobalDraft(input: {
         commandType: draft.type,
         payload: draft.payload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (
       draft.type === 'AgentConfront' ||
@@ -436,7 +461,7 @@ async function settleGlobalDraft(input: {
         commandType: draft.type,
         payload: draft.payload,
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     if (draft.type === 'AgentMoveTo') {
       const payload = draft.payload as AgentMoveToPayload;
@@ -464,37 +489,34 @@ async function settleGlobalDraft(input: {
         ...(destinationPartitionKey === undefined ? {} : { destinationPartitionKey }),
         ...(cognitiveSnapshot === undefined ? {} : { cognitiveSnapshot }),
       });
-      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+      return { draft, events: resequence(operation.events, nextSequence) };
     }
     // Unreachable: callers filter to GLOBAL_COMMAND_TYPES before settling. If a
     // future command type joins that set without a branch here, fail loudly.
     throw new Error(`simulation command router has no settlement branch for ${draft.type}`);
   } catch (error) {
-    // Authority settlement rejected the command (insufficient funds, unknown
-    // agent, co-location violation, etc.). Rather than fabricate an event, we
-    // re-dispatch the same draft against the partition projection. For a draft
-    // the authority just rejected, the partition dispatcher yields a matching
-    // ActionRejected event (plus a short-term-memory record) using the exact
-    // event schema the rest of the cycle already consumes — so the failed
-    // attempt is recorded and the tick continues, matching the partition path
-    // which returns rejection events instead of throwing.
-    const rejectionReason = error instanceof Error ? error.message : String(error);
-    void rejectionReason; // surfaced via the dispatcher's ActionRejected payload
-    const events = dispatchWorldCommand({
-      command: createCommandEnvelope({
-        id: operationId,
-        simulationId: draft.simulationId,
-        actorId: draft.actorId,
-        source: draft.source,
-        type: draft.type,
-        payload: draft.payload,
-        issuedAt: draft.issuedAt,
-      }),
-      projection,
-      policies: resolveWorldCommandPolicies({ policies, projection }),
-      nextSequence,
+    if (!(error instanceof SimulationWideCommandRejectedError)) {
+      throw error;
+    }
+    const ownerPartitionKey = authority.getSnapshot().ownerPartitionKeyByAgentId[draft.actorId];
+    if (ownerPartitionKey === undefined) {
+      throw new Error(`cannot record rejection for unowned Agent ${draft.actorId}`);
+    }
+    // Rejections are authority decisions too. Journal and inbox-deliver the
+    // exact domain events so a rejection after an accepted global command is
+    // replayed in fencing-token order instead of being appended ahead of the
+    // still-unmaterialized accepted event.
+    const operation = authority.recordRejectedCommand({
+      operationId: `${operationId}:rejection`,
+      workerId: lease.workerId,
+      observedAt: lease.observedAt,
+      durationMs: lease.durationMs,
+      partitionKey: ownerPartitionKey,
+      commandType: draft.type,
+      reason: error.reason,
+      events: error.events,
     });
-    return { draft, events, settled: false };
+    return { draft, events: resequence(operation.events, nextSequence) };
   }
 }
 

@@ -504,9 +504,12 @@ function createAuthoritySeed(input: {
  * region-tagged, not by a runtime switch: the switch only governs trade
  * settlement and agent decision context.
  *
- * money supply is the sum of every partition's money supply — the conserved
- * total town money. All partitions must declare the same pool key set; a
- * divergent key fails closed so no partition silently contributes a shallow pool.
+ * Money supply, treasury cash, and pristine bank reserves are summed across
+ * partitions because each partition seed contributes circulating accounts to
+ * the one town ledger. A non-pristine seed bank fails closed: merging live
+ * deposit/loan books by arithmetic would invent a second banking history.
+ * All partitions must declare the same pool key set; a divergent key fails
+ * closed so no partition silently contributes a shallow pool.
  */
 function mergeSeedProjection(
   partitions: readonly LocalSimulationRuntimeHostPartition[],
@@ -517,6 +520,10 @@ function mergeSeedProjection(
   const socialRelations: Record<string, (typeof base.socialRelations)[string]> = {};
   const marketPools: Record<string, AmmPool> = {};
   let moneySupply = 0;
+  let treasury = 0;
+  let hasTreasury = false;
+  let bankBalance = 0;
+  let hasBank = false;
   for (const partition of partitions) {
     const projection = partition.bootstrap.initialProjection;
     for (const [agentId, agent] of Object.entries(projection.agents)) {
@@ -552,6 +559,23 @@ function mergeSeedProjection(
             };
     }
     moneySupply += projection.moneySupply;
+    if (projection.treasury !== undefined) {
+      hasTreasury = true;
+      treasury += projection.treasury;
+    }
+    if (projection.bank !== undefined) {
+      if (
+        Object.keys(projection.bank.deposits).length > 0 ||
+        Object.keys(projection.bank.loans).length > 0 ||
+        Object.keys(projection.bank.creditHistoryByAgent).length > 0
+      ) {
+        throw new Error(
+          `simulation-wide authority seed partition ${partition.partitionKey} has a non-pristine bank ledger`,
+        );
+      }
+      hasBank = true;
+      bankBalance += projection.bank.balance;
+    }
   }
   assertUniformPoolKeySet(partitions, marketPools);
   return {
@@ -561,6 +585,17 @@ function mergeSeedProjection(
     socialRelations,
     marketPools,
     moneySupply,
+    ...(hasTreasury ? { treasury } : {}),
+    ...(hasBank
+      ? {
+          bank: {
+            balance: bankBalance,
+            deposits: {},
+            loans: {},
+            creditHistoryByAgent: {},
+          },
+        }
+      : {}),
   };
 }
 

@@ -788,6 +788,84 @@ describe('simulation command router', () => {
     ).not.toThrow();
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
   });
+
+  test('records an enterprise-affiliated cross-owner move as an Agent rejection', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+      resolveLocationOwner: (locationId) => (locationId === 'school' ? partitionB : undefined),
+      captureCognitiveSnapshot: ({ agentId, capturedAt }) =>
+        Promise.resolve({
+          schemaVersion: 'agent-cognitive-snapshot-v1',
+          agentId: asAgentId(agentId),
+          sourcePartitionKey: partitionA,
+          capturedAt,
+          shortTermMemory: [],
+          longTermProfile: {
+            agentId: asAgentId(agentId),
+            beliefs: [],
+            habits: [],
+            mood: [],
+            values: [],
+            personality: [],
+            socialRecords: [],
+          },
+          intention: {
+            agentId: asAgentId(agentId),
+            completedObjectives: [],
+            scheduledIntentions: [],
+            updatedAt: 0,
+          },
+        } satisfies AgentCognitiveSnapshot),
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentMoveTo',
+          payload: { targetLocationId: asLocationId('school') },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+        enterprise: true,
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-enterprise-move:agent-a',
+      commandIdPrefix: 'tick-enterprise-move:agent-a',
+    });
+
+    const rejection = result.events.find((event) => event.type === 'ActionRejected');
+    expect(rejection?.type === 'ActionRejected' ? rejection.payload : undefined).toEqual({
+      agentId: agentA,
+      commandType: 'AgentMoveTo',
+      reason:
+        'cross-partition movement requires leaving or closing enterprise affiliation first: fish-shop',
+    });
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    expect(
+      authority
+        .readInbox({ partitionKey: partitionA, consumerId: 'enterprise-move-rejection' })
+        .deliveries.some((delivery) => delivery.operationKind === 'command-rejected'),
+    ).toBe(true);
+  });
 });
 
 function createRouterAuthority(seedLocations: {

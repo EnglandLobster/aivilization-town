@@ -184,8 +184,18 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    * replicated to partitions as a snapshot.
    */
   readonly partitionAccounts?: Pick<WorldProjection, 'moneySupply' | 'treasury' | 'bank'>;
-  /** Owner-scoped busy/transit state required by global movement and trade authorization. */
-  readonly partitionRuntimeState?: Pick<WorldProjection, 'activityTimeByAgent' | 'transitByAgent'>;
+  /**
+   * Owner-scoped runtime state required by global authorization and exact
+   * cross-owner handoff. The authority mirrors these facts but never decides
+   * their household cadence.
+   */
+  readonly partitionRuntimeState?: Pick<
+    WorldProjection,
+    | 'activityTimeByAgent'
+    | 'transitByAgent'
+    | 'timeSettlementByAgent'
+    | 'physiologicalDistressByAgent'
+  >;
   /**
    * Full records for Agents the authority has never seen (runtime participant
    * registration settles partition-locally first). The reporting partition
@@ -1512,6 +1522,21 @@ export function createSimulationWideAuthority(input: {
           if (!state.partitionKeys.includes(destinationPartitionKey)) {
             throw new Error(`unknown destination partition ${destinationPartitionKey}`);
           }
+          const crossOwner = destinationPartitionKey !== ownerPartitionKey;
+          if (crossOwner) {
+            rejectCrossOwnerMoveWithEnterpriseAffiliation({
+              state,
+              agentId,
+              operationId: request.operationId,
+              observedAt: request.observedAt,
+            });
+          }
+          if (crossOwner && request.cognitiveSnapshot === undefined) {
+            throw new Error(`cross-owner move for ${agentId} requires a cognitive snapshot`);
+          }
+          if (!crossOwner && request.cognitiveSnapshot !== undefined) {
+            throw new Error(`same-owner move for ${agentId} must not carry a cognitive snapshot`);
+          }
           const policies = resolveWorldCommandPolicies({
             policies: input.policies,
             projection: state.projection,
@@ -1539,13 +1564,6 @@ export function createSimulationWideAuthority(input: {
           }
           const projection = events.reduce(applyWorldEvent, state.projection);
           const arrived = events.some((event) => event.type === 'AgentLocationChanged');
-          const crossOwner = destinationPartitionKey !== ownerPartitionKey;
-          if (crossOwner && request.cognitiveSnapshot === undefined) {
-            throw new Error(`cross-owner move for ${agentId} requires a cognitive snapshot`);
-          }
-          if (!crossOwner && request.cognitiveSnapshot !== undefined) {
-            throw new Error(`same-owner move for ${agentId} must not carry a cognitive snapshot`);
-          }
           // Cross-owner completion emits paired ownership events: the source
           // stream stops tracking the Agent, the destination stream begins.
           const transferEvents = crossOwner
@@ -1555,7 +1573,7 @@ export function createSimulationWideAuthority(input: {
                 agentId,
                 fromPartitionKey: ownerPartitionKey,
                 toPartitionKey: destinationPartitionKey,
-                agentState: projection.agents[agentId],
+                projection,
                 occurredAt: request.observedAt,
               })
             : undefined;
@@ -1850,12 +1868,24 @@ export function createSimulationWideAuthority(input: {
             }),
             removedAgentIds,
           );
-          const timeSettlementByAgent =
-            state.projection.timeSettlementByAgent === undefined
-              ? undefined
-              : withoutRecordKeys(state.projection.timeSettlementByAgent, removedAgentIds);
+          const timeSettlementByAgent = withoutRecordKeys(
+            mergeOwnerScopedRecord({
+              current: state.projection.timeSettlementByAgent ?? {},
+              reported: request.partitionRuntimeState?.timeSettlementByAgent,
+              owners,
+              partitionKey,
+              valueName: 'time-settlement',
+            }),
+            removedAgentIds,
+          );
           const physiologicalDistressByAgent = withoutRecordKeys(
-            state.projection.physiologicalDistressByAgent,
+            mergeOwnerScopedRecord({
+              current: state.projection.physiologicalDistressByAgent,
+              reported: request.partitionRuntimeState?.physiologicalDistressByAgent,
+              owners,
+              partitionKey,
+              valueName: 'physiological-distress',
+            }),
             removedAgentIds,
           );
           const operation: Extract<
@@ -1919,7 +1949,7 @@ export function createSimulationWideAuthority(input: {
             memoryRecords,
             activityTimeByAgent,
             transitByAgent,
-            ...(timeSettlementByAgent === undefined ? {} : { timeSettlementByAgent }),
+            timeSettlementByAgent,
             physiologicalDistressByAgent,
           };
           if (state.partitionKeys.length === 1 && request.partitionAccounts !== undefined) {
@@ -2149,7 +2179,7 @@ export function createSimulationWideAuthority(input: {
                   agentId: asAgentId(agentId),
                   fromPartitionKey: pendingMove.ownerPartitionKey,
                   toPartitionKey: pendingMove.destinationPartitionKey,
-                  agentState: projection.agents[agentId],
+                  projection,
                   occurredAt: request.observedAt,
                 })
               : undefined;
@@ -2852,6 +2882,49 @@ function createCursorKey(partitionKey: PartitionKey, consumerId: string): string
 }
 
 /**
+ * Enterprise aggregates and their payroll currently settle on the partition
+ * that owns all participating Agents. Moving an owner or employee to another
+ * execution partition without an enterprise handoff would leave an active
+ * aggregate in one projection and a missing participant in the other. Refuse
+ * that transition as an auditable Agent rejection instead of creating a
+ * replay-valid but unusable split aggregate.
+ */
+function rejectCrossOwnerMoveWithEnterpriseAffiliation(input: {
+  readonly state: SimulationWideAuthoritySnapshot;
+  readonly agentId: AgentId;
+  readonly operationId: string;
+  readonly observedAt: number;
+}): void {
+  const affiliations = Object.values(input.state.projection.enterprises)
+    .filter((enterprise) => enterprise.status !== 'closed')
+    .filter(
+      (enterprise) =>
+        enterprise.ownerAgentId === input.agentId ||
+        enterprise.employeeAgentIds.includes(input.agentId),
+    )
+    .map((enterprise) => enterprise.enterpriseId)
+    .sort();
+  if (affiliations.length === 0) {
+    return;
+  }
+  const reason = `cross-partition movement requires leaving or closing enterprise affiliation first: ${affiliations.join(', ')}`;
+  const event = createEventEnvelope({
+    id: `simulation-wide-move-enterprise-rejected-${input.operationId}`,
+    simulationId: input.state.simulationId,
+    commandId: `simulation-wide-move-${input.operationId}`,
+    type: 'ActionRejected',
+    payload: {
+      agentId: input.agentId,
+      commandType: 'AgentMoveTo',
+      reason,
+    },
+    occurredAt: input.observedAt,
+    sequence: input.state.revision + 1,
+  }) as WorldEvent;
+  throw new SimulationWideCommandRejectedError('move', reason, [event]);
+}
+
+/**
  * Build the paired ownership events for a cross-owner move completion. The
  * materializer interprets them per stream: the departure event ends the Agent's
  * presence in the source partition's projection, the arrival event begins it in
@@ -2865,13 +2938,13 @@ function createOwnershipTransferEvents(input: {
   readonly agentId: AgentId;
   readonly fromPartitionKey: PartitionKey;
   readonly toPartitionKey: PartitionKey;
-  readonly agentState: WorldProjection['agents'][string] | undefined;
+  readonly projection: WorldProjection;
   readonly occurredAt: number;
 }): { readonly departure: WorldEvent; readonly arrival: WorldEvent } {
-  if (input.agentState === undefined) {
+  const state = input.projection.agents[input.agentId];
+  if (state === undefined) {
     throw new Error(`cannot transfer unknown Agent ${input.agentId}`);
   }
-  const state = input.agentState;
   const departure = createEventEnvelope({
     id: `simulation-wide-departure-${input.operationId}`,
     simulationId: input.simulationId,
@@ -2920,6 +2993,20 @@ function createOwnershipTransferEvents(input: {
         ...(state.educationTrack === undefined ? {} : { educationTrack: state.educationTrack }),
         ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
       },
+      ...(input.projection.activityTimeByAgent[input.agentId] === undefined
+        ? {}
+        : { activityTime: { ...input.projection.activityTimeByAgent[input.agentId] } }),
+      ...(input.projection.timeSettlementByAgent?.[input.agentId] === undefined
+        ? {}
+        : { lastTimeSettledAt: input.projection.timeSettlementByAgent[input.agentId] }),
+      ...(input.projection.physiologicalDistressByAgent[input.agentId] === undefined
+        ? {}
+        : {
+            physiologicalDistress: {
+              ...input.projection.physiologicalDistressByAgent[input.agentId],
+              lowAxes: [...input.projection.physiologicalDistressByAgent[input.agentId]!.lowAxes],
+            },
+          }),
     },
     occurredAt: input.occurredAt,
     sequence: 1,

@@ -20,6 +20,7 @@ import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
 import { createShortTermMemoryRecord } from '@aivilization/memory';
 import {
   SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH,
+  SimulationWideCommandRejectedError,
   createSimulationWideAuthority,
   verifySimulationWideAuthorityJournal,
 } from './simulationWideAuthority';
@@ -396,6 +397,27 @@ describe('simulation-wide authority', () => {
   test('settles an immediate cross-owner move with paired ownership events and snapshot delivery', () => {
     const authority = createAuthority();
     const snapshot = createTestCognitiveSnapshot(agentA);
+    authority.syncPartitionAgentLocations({
+      operationId: 'sync-runtime-before-cross-owner-move',
+      workerId: 'worker-a',
+      observedAt: 0,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      partitionRuntimeState: {
+        activityTimeByAgent: {},
+        transitByAgent: {},
+        timeSettlementByAgent: { [agentA]: 0 },
+        physiologicalDistressByAgent: {
+          [agentA]: {
+            policyVersion: 'physiological-safety-net-test',
+            distressStartedAt: 0,
+            lowAxes: ['satiety'],
+            lastGrantedAt: null,
+          },
+        },
+      },
+    });
 
     const move = authority.settleMove({
       operationId: 'move-cross-owner',
@@ -441,6 +463,11 @@ describe('simulation-wide authority', () => {
     if (arrivalEvent?.type === 'AgentOwnershipArrived') {
       expect(arrivalEvent.payload.fromPartitionKey).toBe(partitionA);
       expect(arrivalEvent.payload.agentState.locationId).toBe(asLocationId('market'));
+      expect(arrivalEvent.payload.lastTimeSettledAt).toBe(0);
+      expect(arrivalEvent.payload.physiologicalDistress).toMatchObject({
+        distressStartedAt: 0,
+        lowAxes: ['satiety'],
+      });
     }
   });
 
@@ -507,6 +534,67 @@ describe('simulation-wide authority', () => {
     expect(
       destinationAfter[0]!.events.every((event) => event.type === 'AgentOwnershipArrived'),
     ).toBe(true);
+  });
+
+  test('rejects a cross-owner move that would split an active enterprise aggregate', () => {
+    const authority = createAuthority();
+    authority.syncPartitionAgentLocations({
+      operationId: 'enterprise-before-cross-owner-move',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      partitionKey: partitionA,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      enterpriseStates: [
+        {
+          enterpriseId: 'enterprise-owner-a',
+          name: 'Owner A Workshop',
+          ownerAgentId: agentA,
+          occupationName: 'Cleaner',
+          balance: 100,
+          inventory: {},
+          maxEmployees: 2,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+        },
+      ],
+    });
+
+    let rejection: unknown;
+    try {
+      authority.settleMove({
+        operationId: 'move-enterprise-owner-cross-partition',
+        workerId: 'worker-a',
+        observedAt: 2,
+        durationMs: 100,
+        agentId: agentA,
+        targetLocationId: 'market',
+        destinationPartitionKey: partitionB,
+        cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
+      });
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(SimulationWideCommandRejectedError);
+    expect(rejection).toMatchObject({
+      reason:
+        'cross-partition movement requires leaving or closing enterprise affiliation first: enterprise-owner-a',
+      events: [
+        {
+          type: 'ActionRejected',
+          payload: { agentId: agentA, commandType: 'AgentMoveTo' },
+        },
+      ],
+    });
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    expect(authority.getSnapshot().projection.enterprises['enterprise-owner-a']?.status).toBe(
+      'active',
+    );
   });
 
   test('guards the cognitive snapshot contract on cross-owner and same-owner moves', () => {
@@ -1165,6 +1253,15 @@ describe('authority departure sync', () => {
             reason: 'test',
           },
         },
+        timeSettlementByAgent: { [agentA]: 500 },
+        physiologicalDistressByAgent: {
+          [agentA]: {
+            policyVersion: 'physiological-safety-net-test',
+            distressStartedAt: 0,
+            lowAxes: ['satiety'],
+            lastGrantedAt: null,
+          },
+        },
       },
     });
 
@@ -1185,6 +1282,8 @@ describe('authority departure sync', () => {
     expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBeUndefined();
     expect(snapshot.projection.activityTimeByAgent[agentA]).toBeUndefined();
     expect(snapshot.projection.transitByAgent?.[agentA]).toBeUndefined();
+    expect(snapshot.projection.timeSettlementByAgent?.[agentA]).toBeUndefined();
+    expect(snapshot.projection.physiologicalDistressByAgent[agentA]).toBeUndefined();
     // The other partition's resident is untouched.
     expect(snapshot.ownerPartitionKeyByAgentId[agentB]).toBe(partitionB);
 

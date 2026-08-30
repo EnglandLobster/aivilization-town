@@ -577,6 +577,12 @@ export function enforceWorldProjectionMemoryRetention(
 export function normalizeLegacyWorldProjectionSnapshot(
   projection: WorldProjection,
 ): WorldProjection {
+  for (const enterprise of Object.values(projection.enterprises)) {
+    assertValidEnterpriseState(normalizeEnterpriseState(enterprise));
+  }
+  if (projection.bank !== undefined) {
+    assertValidBankState(normalizeBankState(projection.bank));
+  }
   if (
     projection.educationExamApplications !== undefined &&
     projection.educationExamCycles !== undefined &&

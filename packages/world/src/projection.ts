@@ -1476,6 +1476,36 @@ export function applyWorldEvent(
           inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
         }),
       );
+    case 'HousingCapacityExpanded': {
+      const location = projection.locations[event.payload.locationId];
+      if (location === undefined) {
+        throw new Error(`unknown housing location ${event.payload.locationId}`);
+      }
+      if (location.kind !== 'residence' || location.capacity === null) {
+        throw new Error(`location ${location.locationId} is not finite residential capacity`);
+      }
+      if (location.capacity !== event.payload.previousCapacity) {
+        throw new Error(
+          `housing capacity for ${location.locationId} expected ${event.payload.previousCapacity}, available ${location.capacity}`,
+        );
+      }
+      if (
+        event.payload.addedCapacity <= 0 ||
+        event.payload.nextCapacity !== event.payload.previousCapacity + event.payload.addedCapacity
+      ) {
+        throw new Error(`invalid housing capacity expansion for ${location.locationId}`);
+      }
+      return {
+        ...projection,
+        locations: {
+          ...projection.locations,
+          [location.locationId]: {
+            ...location,
+            capacity: event.payload.nextCapacity,
+          },
+        },
+      };
+    }
     case 'ResidentialTierDowngraded':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

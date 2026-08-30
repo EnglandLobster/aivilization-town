@@ -374,6 +374,60 @@ describe('canonical worker runtime resolver', () => {
     });
   });
 
+  test('dry-runs global housing demand with the society population instead of local headcount', () => {
+    const residence = asLocationId('residential-block');
+    const projection = createWorldProjection({
+      locations: [
+        {
+          locationId: residence,
+          name: 'Residential block',
+          kind: 'residence',
+          activityAffinities: ['residential'],
+          capacity: 2,
+        },
+      ],
+      agents: [
+        {
+          ...createAgent(agentA),
+          locationId: residence,
+          inventory: { Wood: 2 },
+        },
+      ],
+    });
+    const action: AtomicActionProposal = {
+      id: 'build-global-housing',
+      description: 'expand crowded housing',
+      commandType: 'AgentBuildHousing',
+      payload: { locationId: residence },
+    };
+    const simulate = createWorldCommandDryRunSimulator({
+      simulationId,
+      agentId: agentA,
+      projection,
+      policies: {
+        ...policies,
+        housingConstruction: {
+          policyVersion: 'town-construction-v1',
+          minimumOccupancyRatio: 0.8,
+          capacityPerProject: 5,
+          maximumLocationCapacity: 200,
+          inventoryCosts: { Wood: 2 },
+          builderSelection: 'lowest-agent-id-with-materials-per-partition',
+          locationSelection: 'lowest-capacity-then-id',
+        },
+      },
+      housingPopulation: 2,
+    });
+
+    const result = simulate({ action, selectedSubtask: selectedSubtask() });
+    expect(result.status).toBe('accepted');
+    expect(result.traceEvents?.map((event) => event.type)).toEqual([
+      'InventoryChanged',
+      'HousingCapacityExpanded',
+      'ShortTermMemoryRecorded',
+    ]);
+  });
+
   test('proposes and authoritatively dry-runs an advantageous owner enterprise export', async () => {
     const owner = createAgent(agentA);
     const projection = createWorldProjection({

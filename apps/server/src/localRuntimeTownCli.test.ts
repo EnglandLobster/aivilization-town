@@ -132,6 +132,7 @@ describe('local runtime town executable composition', () => {
       townGovernanceEnabled: false,
       townSurvivalPressureEnabled: false,
       townCarryingCapacityEnabled: false,
+      townConstructionEnabled: false,
     });
   });
 
@@ -216,6 +217,7 @@ describe('local runtime town executable composition', () => {
       townGovernanceEnabled: false,
       townSurvivalPressureEnabled: false,
       townCarryingCapacityEnabled: false,
+      townConstructionEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -1000,6 +1002,45 @@ describe('local runtime town executable composition', () => {
     });
     expect(() => createCanonicalLocalRuntimeTownServerInput(multiPartition)).toThrow(
       'town carrying capacity currently requires a single-partition profile',
+    );
+  });
+
+  test('town construction is opt-in, manifest-bound, and requires authority', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townConstructionEnabled).toBe(
+      false,
+    );
+    const enabled = resolveLocalRuntimeTownCliConfig({
+      ...base,
+      env: { AIVILIZATION_TOWN_CONSTRUCTION: '1' },
+    });
+    expect(enabled.townConstructionEnabled).toBe(true);
+    expect(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(enabled).payload.policies[
+        'policyVersions'
+      ],
+    ).toMatchObject({ townConstruction: 'town-construction-v1' });
+
+    const authorityOff = resolveLocalRuntimeTownCliConfig({
+      argv: [
+        '--',
+        '--llm-mode',
+        'deterministic',
+        '--simulation-wide-authority',
+        'off',
+        '--town-construction',
+        'on',
+      ],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(authorityOff)).toThrow(
+      'town construction requires the simulation-wide authority',
     );
   });
 

@@ -22,6 +22,7 @@ import {
   assertValidWellbeingPolicy,
   assertValidTownGovernancePolicy,
   assertValidStarvationHealthDecayPolicy,
+  assertValidHousingConstructionPolicy,
 } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -36,6 +37,7 @@ import {
   createAivilizationTownGovernancePolicy,
   createAivilizationStarvationHealthDecayPolicy,
   createAivilizationRenewableResourcePolicy,
+  createAivilizationHousingConstructionPolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -54,7 +56,7 @@ describe('AIvilization default world command policies', () => {
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v13',
+        contextView: 'world-decision-context-view-v14',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -90,7 +92,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v13',
+            contextViewVersion: 'world-decision-context-view-v14',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -889,6 +891,40 @@ describe('AIvilization default world command policies', () => {
       createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(projection)
         .migration?.policyVersion,
     ).toBe('town-migration-v3');
+  });
+
+  test('declares material-backed housing construction only when its switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townConstruction');
+    expect(off.parameters).not.toHaveProperty('townConstruction');
+
+    const on = createAivilizationWorldPolicyManifest({ townConstruction: true });
+    expect(on.policyVersions).toMatchObject({ townConstruction: 'town-construction-v1' });
+    expect(on.parameters.townConstruction).toMatchObject({
+      policyVersion: 'town-construction-v1',
+      minimumOccupancyRatio: 0.8,
+      capacityPerProject: 5,
+      maximumLocationCapacity: 200,
+      inventoryCosts: { Wood: 2 },
+      builderSelection: 'lowest-agent-id-with-materials-per-partition',
+      locationSelection: 'lowest-capacity-then-id',
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const policy = createAivilizationHousingConstructionPolicy();
+    expect(() => assertValidHousingConstructionPolicy(policy)).not.toThrow();
+    const projection = createWorldProjection({
+      agents: [createAgent({ index: 1, educationScore: 0 })],
+    });
+    expect(
+      createAivilizationWorldCommandPolicies('seed')(projection).housingConstruction,
+    ).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townConstruction: true })(
+        projection,
+      ).housingConstruction?.policyVersion,
+    ).toBe('town-construction-v1');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

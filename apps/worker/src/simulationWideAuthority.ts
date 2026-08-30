@@ -39,6 +39,7 @@ import {
   type AgentTradePayload,
   type AgentPostBulletinPayload,
   type AgentDepositPayload,
+  type AgentBuildHousingPayload,
   type AgentRequestLoanPayload,
   type AgentWithdrawPayload,
   type TownWeatherPolicy,
@@ -281,6 +282,12 @@ export type SimulationWideGovernanceRequest = SimulationWideAuthorityLease & {
   readonly humanAttribution?: HumanCommandAttribution;
 };
 
+export type SimulationWideConstructionRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly builderAgentId: AgentId;
+  readonly housing: AgentBuildHousingPayload;
+};
+
 /**
  * A conflict command (confront/attack/intervene) settled against the
  * authoritative world state. Conflict facts are town-wide, so every partition
@@ -507,6 +514,16 @@ export type SimulationWideAuthorityOperation =
       readonly status: 'completed';
     }
   | {
+      /** Material-backed housing expansion; capacity is global, inventory is owner-scoped. */
+      readonly kind: 'construction';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly ownerPartitionKey: PartitionKey;
+      readonly locationId: string;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
       /**
        * A conflict command (confront/attack/intervene) settled against the one
        * authoritative world state, with world-adjudicated grievance, damage,
@@ -615,6 +632,9 @@ export type SimulationWideAuthorityService = {
   readonly settleGovernance: (
     request: SimulationWideGovernanceRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'governance' };
+  readonly settleConstruction: (
+    request: SimulationWideConstructionRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'construction' };
   readonly settleMatter: (
     request: SimulationWideMatterRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'matter' };
@@ -1309,6 +1329,68 @@ export function createSimulationWideAuthority(input: {
             operationId: request.operationId,
             fencingToken,
             governanceRevision: changed.payload.governanceRevision,
+            events,
+            status: 'completed',
+          };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settleConstruction(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'construction',
+          builderAgentId: request.builderAgentId,
+          housing: request.housing,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const ownerPartitionKey = state.ownerPartitionKeyByAgentId[request.builderAgentId];
+          if (ownerPartitionKey === undefined) {
+            throw new Error(`cannot build housing for unowned Agent ${request.builderAgentId}`);
+          }
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-construction-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: request.builderAgentId,
+              source: 'agent-runtime',
+              type: 'AgentBuildHousing',
+              payload: request.housing,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies: resolvePolicies(state.projection),
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new SimulationWideCommandRejectedError(
+              'construction',
+              rejection.payload.reason,
+              events,
+            );
+          }
+          const expanded = events.find((event) => event.type === 'HousingCapacityExpanded');
+          if (expanded?.type !== 'HousingCapacityExpanded') {
+            throw new Error('simulation-wide construction settlement produced no capacity event');
+          }
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'construction' }
+          > = {
+            kind: 'construction',
+            operationId: request.operationId,
+            fencingToken,
+            ownerPartitionKey,
+            locationId: expanded.payload.locationId,
             events,
             status: 'completed',
           };
@@ -2700,6 +2782,17 @@ function createInboxDeliveries(
         partitionKey,
         operationKind: operation.kind,
         events: operation.events,
+      }));
+    case 'construction':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events:
+          partitionKey === operation.ownerPartitionKey
+            ? operation.events
+            : operation.events.filter((event) => event.type === 'HousingCapacityExpanded'),
       }));
     case 'matter':
       return partitionKeys.map((partitionKey) => ({

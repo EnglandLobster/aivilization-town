@@ -274,11 +274,15 @@ export function createWorldDecisionContextFromProjection(input: {
     ...(input.societyDirectory === undefined
       ? {}
       : {
-          society: createSocietyDecisionContext(input.societyDirectory, {
-            agentId: input.agentId,
-            relationEntries,
-            matterCounterpartAgentIds,
-          }),
+          society: createSocietyDecisionContext(
+            input.societyDirectory,
+            {
+              agentId: input.agentId,
+              relationEntries,
+              matterCounterpartAgentIds,
+            },
+            input.projection.locations,
+          ),
         }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
     ...createTownPulseDecisionContext(input),
@@ -1286,6 +1290,7 @@ function createSocietyDecisionContext(
     readonly relationEntries: readonly WorldDecisionRelationContext[];
     readonly matterCounterpartAgentIds: readonly AgentId[];
   },
+  locations: WorldProjection['locations'],
 ) {
   // §7 step 2 budget binding: the full cross-partition directory scales with
   // total population; the per-agent view keeps every local-partition neighbor
@@ -1321,6 +1326,32 @@ function createSocietyDecisionContext(
           (agent) =>
             agent.ownerPartitionKey === self.ownerPartitionKey || foreignAllowed.has(agent.agentId),
         );
+  const residences = Object.values(locations)
+    .filter((location) => location.kind === 'residence')
+    .sort((left, right) => left.locationId.localeCompare(right.locationId));
+  const finiteHousing =
+    residences.length > 0 && residences.every((location) => location.capacity !== null)
+      ? residences.map((location) => ({
+          locationId: location.locationId,
+          capacity: location.capacity as number,
+        }))
+      : undefined;
+  const totalResidentialCapacity = finiteHousing?.reduce(
+    (total, residence) => total + residence.capacity,
+    0,
+  );
+  const housing =
+    finiteHousing === undefined ||
+    totalResidentialCapacity === undefined ||
+    totalResidentialCapacity === 0
+      ? undefined
+      : {
+          population: directory.agents.length,
+          totalResidentialCapacity,
+          vacancies: Math.max(0, totalResidentialCapacity - directory.agents.length),
+          occupancyRatio: Math.min(1, directory.agents.length / totalResidentialCapacity),
+          residences: finiteHousing,
+        };
   return {
     directoryId: directory.directoryId,
     simulationId: directory.simulationId,
@@ -1343,6 +1374,7 @@ function createSocietyDecisionContext(
         ? {}
         : { transit: { ...agent.publicState.transit } }),
     })),
+    ...(housing === undefined ? {} : { housing }),
   };
 }
 

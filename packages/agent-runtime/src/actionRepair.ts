@@ -63,6 +63,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentStudy',
   'AgentTrade',
   'AgentUpgradeResidentialTier',
+  'AgentBuildHousing',
   'AgentWithdraw',
   'AgentWork',
   'SetTaxPolicy',

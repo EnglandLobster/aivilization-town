@@ -414,6 +414,21 @@ export type WorldDecisionSocietyContext = {
     readonly simulationTime: number;
   }[];
   readonly agents: readonly WorldDecisionSocietyAgentContext[];
+  /**
+   * Simulation-wide finite housing supply. Population is used as occupied
+   * demand because `locationId` is current physical presence, not a durable
+   * home assignment. Absent when any residence has unlimited capacity.
+   */
+  readonly housing?: {
+    readonly population: number;
+    readonly totalResidentialCapacity: number;
+    readonly vacancies: number;
+    readonly occupancyRatio: number;
+    readonly residences: readonly {
+      readonly locationId: string;
+      readonly capacity: number;
+    }[];
+  };
 };
 
 /**
@@ -832,7 +847,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v13';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v14';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

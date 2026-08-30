@@ -25,6 +25,7 @@ export type CoreCommandType =
   | 'AgentApplyJob'
   | 'AgentApplyEducationExam'
   | 'AgentUpgradeResidentialTier'
+  | 'AgentBuildHousing'
   | 'AgentWork'
   | 'AgentFoundEnterprise'
   | 'AgentJoinEnterprise'

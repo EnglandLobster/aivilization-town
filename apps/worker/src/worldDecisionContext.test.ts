@@ -119,6 +119,13 @@ describe('worker world decision context', () => {
           activityAffinities: ['trade'],
           capacity: null,
         },
+        {
+          locationId: asLocationId('residential-block'),
+          name: 'Residential block',
+          kind: 'residence',
+          activityAffinities: ['residential'],
+          capacity: 3,
+        },
       ],
       agents: [
         {
@@ -194,6 +201,13 @@ describe('worker world decision context', () => {
         { partitionKey: 'world-main', lastAppliedSequence: 9 },
       ],
       agents: [{ agentId: 'agent-a', ownerPartitionKey: 'world-main' }],
+      housing: {
+        population: 2,
+        totalResidentialCapacity: 3,
+        vacancies: 1,
+        occupancyRatio: 2 / 3,
+        residences: [{ locationId: 'residential-block', capacity: 3 }],
+      },
     });
     expect(context.society?.agents.some((societyAgent) => societyAgent.agentId === 'agent-b')).toBe(
       false,

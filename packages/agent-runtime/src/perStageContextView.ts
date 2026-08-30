@@ -59,6 +59,7 @@ type PerStageAgentContext = Pick<WorldDecisionAgentContext, 'agentId'> &
 
 type PerStageSocietyContext = Pick<WorldDecisionSocietyContext, 'directoryId' | 'simulationId'> & {
   readonly agents: readonly WorldDecisionSocietyAgentContext[];
+  readonly housing?: WorldDecisionSocietyContext['housing'];
 };
 
 /**
@@ -406,6 +407,7 @@ function createActionableContextView(
             directoryId: context.society.directoryId,
             simulationId: context.society.simulationId,
             agents: context.society.agents,
+            ...(context.society.housing === undefined ? {} : { housing: context.society.housing }),
           },
         }),
     ...(context.weather === undefined ? {} : { weather: context.weather }),

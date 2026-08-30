@@ -226,6 +226,10 @@ export type AgentUpgradeResidentialTierPayload = {
   readonly targetResidentialTier: number;
 };
 
+export type AgentBuildHousingPayload = {
+  readonly locationId: LocationId;
+};
+
 export type AdvanceSimulationTimePayload = {
   readonly deltaMs: number;
 };
@@ -290,7 +294,8 @@ export function assertSetTaxPolicyPayload(payload: unknown): SetTaxPolicyPayload
     }
     const upToAmount = candidate['upToAmount'];
     const rate = candidate['rate'];
-    if (upToAmount !== null) assertPositiveFinite(upToAmount, `SetTaxPolicy incomeTaxBrackets[${index}].upToAmount`);
+    if (upToAmount !== null)
+      assertPositiveFinite(upToAmount, `SetTaxPolicy incomeTaxBrackets[${index}].upToAmount`);
     assertFinite(rate, `SetTaxPolicy incomeTaxBrackets[${index}].rate`);
     return { upToAmount, rate };
   });
@@ -981,6 +986,17 @@ export function assertAgentUpgradeResidentialTierPayload(
   assertPositiveInteger(targetResidentialTier, 'AgentUpgradeResidentialTier targetResidentialTier');
 
   return { targetResidentialTier };
+}
+
+export function assertAgentBuildHousingPayload(payload: unknown): AgentBuildHousingPayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentBuildHousing payload must be an object');
+  }
+  const locationId = payload['locationId'];
+  if (typeof locationId !== 'string' || locationId.trim().length === 0) {
+    throw new Error('AgentBuildHousing locationId must not be empty');
+  }
+  return { locationId: asLocationId(locationId.trim()) };
 }
 
 export function assertAdvanceSimulationTimePayload(payload: unknown): AdvanceSimulationTimePayload {

@@ -37,6 +37,7 @@ export type CoreEventType =
   | 'JobAssigned'
   | 'RecruitmentCycleCompleted'
   | 'ResidentialTierUpgraded'
+  | 'HousingCapacityExpanded'
   | 'ResidentialTierDowngraded'
   | 'ResidentialUpkeepCharged'
   | 'ResidentialUpkeepArrearsUpdated'

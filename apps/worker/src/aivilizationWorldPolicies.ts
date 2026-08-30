@@ -119,6 +119,7 @@ export type AivilizationExperimentalPolicySwitches = {
   readonly townGovernance?: boolean;
   readonly townSurvivalPressure?: boolean;
   readonly townCarryingCapacity?: boolean;
+  readonly townConstruction?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -582,6 +583,7 @@ export function createAivilizationWorldPolicyManifest(
     readonly townGovernance?: boolean;
     readonly townSurvivalPressure?: boolean;
     readonly townCarryingCapacity?: boolean;
+    readonly townConstruction?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins

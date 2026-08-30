@@ -27,6 +27,7 @@ import {
   applyWorldEvent,
   dispatchWorldCommand,
   type AgentObserveLocationPayload,
+  type AgentBuildHousingPayload,
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
@@ -86,6 +87,7 @@ export type WorldCommandDryRunSimulatorConfig = {
   readonly issuedAt?: SimulationTimestamp;
   readonly nextSequence?: number;
   readonly commandIdPrefix?: string;
+  readonly housingPopulation?: number;
 };
 
 const DEFAULT_DRY_RUN_COMMAND_ID_PREFIX = 'canonical-runtime-dry-run';
@@ -140,6 +142,9 @@ export function createCanonicalWorkerRuntimeResolver(
         ...(config.commandIdPrefix === undefined
           ? {}
           : { commandIdPrefix: config.commandIdPrefix }),
+        ...(context.worldDecisionContext?.society?.housing === undefined
+          ? {}
+          : { housingPopulation: context.worldDecisionContext.society.housing.population }),
       }),
       repair,
       ...(config.replanningPolicy === undefined
@@ -281,6 +286,15 @@ function decideResidentialSubtaskCompletion(input: {
   readonly selectedSubtask: Parameters<CycleSubtaskCompletionPolicy>[0]['selectedSubtask'];
   readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
 }): ReturnType<CycleSubtaskCompletionPolicy> | undefined {
+  const constructionAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentBuildHousingAction);
+  if (constructionAction !== undefined) {
+    return {
+      status: 'in-progress',
+      reason: `expanded town housing at ${constructionAction.payload.locationId} before continuing the residential goal`,
+    };
+  }
   const residentialAction = input.simulationResults
     .map((result) => acceptedActionFromSimulationResult(result))
     .find(isAgentUpgradeResidentialTierAction);
@@ -344,6 +358,12 @@ function isAgentUpgradeResidentialTierAction(
   return action !== undefined && action.commandType === 'AgentUpgradeResidentialTier';
 }
 
+function isAgentBuildHousingAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<'AgentBuildHousing', AgentBuildHousingPayload> {
+  return action !== undefined && action.commandType === 'AgentBuildHousing';
+}
+
 export function createWorldCommandDryRunSimulator(
   config: WorldCommandDryRunSimulatorConfig,
 ): CycleActionSimulator {
@@ -371,6 +391,9 @@ export function createWorldCommandDryRunSimulator(
           projection: rolloutProjection,
         }),
         nextSequence: config.nextSequence ?? DEFAULT_DRY_RUN_SEQUENCE,
+        ...(config.housingPopulation === undefined
+          ? {}
+          : { housingPopulation: config.housingPopulation }),
       });
       const rejection = events.find((event) => event.type === 'ActionRejected');
       if (rejection !== undefined && rejection.type === 'ActionRejected') {

@@ -27,6 +27,7 @@ import { asLocationId, type AgentId, type LocationId } from '@aivilization/sim-c
 import type {
   AgentApplyEducationExamPayload,
   AgentApplyJobPayload,
+  AgentBuildHousingPayload,
   AgentEatPayload,
   AgentExportCommodityPayload,
   AgentFoundEnterprisePayload,
@@ -244,6 +245,7 @@ export function createCanonicalDomainRuntimeRegistrations(
     createResidentialDomainRuntimeRegistration(
       config.residential,
       policies?.residentialTierUpgrade,
+      policies?.housingConstruction,
     ),
     createHealthDomainRuntimeRegistration(config.health),
     createEatDomainRuntimeRegistration(config.eat, policies?.satietyRecoveryByCommodity),
@@ -1125,6 +1127,7 @@ export function createProductionDomainRuntimeRegistration(
 export function createResidentialDomainRuntimeRegistration(
   config: ResidentialDomainRuntimeConfig = {},
   upgradePolicy?: WorldCommandPolicies['residentialTierUpgrade'],
+  housingConstructionPolicy?: WorldCommandPolicies['housingConstruction'],
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'residential',
@@ -1134,6 +1137,14 @@ export function createResidentialDomainRuntimeRegistration(
         context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
+          const constructionProposal = resolveHousingConstructionProposal({
+            context,
+            selectedSubtask,
+            policy: housingConstructionPolicy,
+          });
+          if (constructionProposal !== undefined) {
+            return constructionProposal;
+          }
           const inferredTargetResidentialTier = resolveResidentialTargetTier({
             config,
             context,
@@ -1155,6 +1166,9 @@ export function createResidentialDomainRuntimeRegistration(
             }),
           };
         },
+        resolveTargetLocationId: () =>
+          resolveHousingConstructionLocationId(context, housingConstructionPolicy) ??
+          DEFAULT_DOMAIN_LOCATION_IDS.residential,
       }),
     ],
   };
@@ -1254,6 +1268,7 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentStartConversation', AgentStartConversationPayload>
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
+  | AtomicActionProposal<'AgentBuildHousing', AgentBuildHousingPayload>
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
   | SocialMatterActionProposal
@@ -1291,6 +1306,7 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentStartConversation',
   'AgentProduce',
   'AgentUpgradeResidentialTier',
+  'AgentBuildHousing',
   'AgentRaisePetition',
   'AgentSignPetition',
   'AgentRaiseMatter',
@@ -2292,6 +2308,58 @@ function createResidentialUpgradeResourceEstimate(input: {
       : { inventoryCosts: { ...cost.inventoryCosts } }),
   };
   return Object.keys(resourceEstimate).length === 0 ? {} : { resourceEstimate };
+}
+
+function resolveHousingConstructionProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly policy?: WorldCommandPolicies['housingConstruction'];
+}): AtomicActionProposal<'AgentBuildHousing', AgentBuildHousingPayload> | undefined {
+  const policy = input.policy;
+  const locationId = resolveHousingConstructionLocationId(input.context, policy);
+  const housing = input.context.worldDecisionContext?.society?.housing;
+  if (
+    policy === undefined ||
+    housing === undefined ||
+    locationId === undefined ||
+    housing.occupancyRatio < policy.minimumOccupancyRatio
+  ) {
+    return undefined;
+  }
+  const hasRequiredInventory = (inventory: Readonly<Record<string, number>>) =>
+    Object.entries(policy.inventoryCosts).every(
+      ([itemName, quantity]) => (inventory[itemName] ?? 0) >= quantity,
+    );
+  const electedBuilder = Object.values(input.context.projection.agents)
+    .filter((candidate) => hasRequiredInventory(candidate.inventory))
+    .sort((left, right) => left.agentId.localeCompare(right.agentId))[0];
+  if (electedBuilder?.agentId !== input.context.agent.agentId) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('residential', input.selectedSubtask)}-build`,
+    description: `Expand housing at ${locationId} while occupancy is ${Math.round(housing.occupancyRatio * 100)}%.`,
+    commandType: 'AgentBuildHousing',
+    priority: input.selectedSubtask.score,
+    payload: { locationId },
+    resourceEstimate: { inventoryCosts: { ...policy.inventoryCosts } },
+  };
+}
+
+function resolveHousingConstructionLocationId(
+  context: WorkerDomainRuntimeFactoryInput,
+  policy?: WorldCommandPolicies['housingConstruction'],
+): LocationId | undefined {
+  if (policy === undefined) {
+    return undefined;
+  }
+  return context.worldDecisionContext?.society?.housing?.residences
+    .filter((residence) => residence.capacity < policy.maximumLocationCapacity)
+    .sort(
+      (left, right) =>
+        left.capacity - right.capacity || left.locationId.localeCompare(right.locationId),
+    )
+    .map((residence) => asLocationId(residence.locationId))[0];
 }
 
 function resolveNextResidentialUpgradeTier(input: {

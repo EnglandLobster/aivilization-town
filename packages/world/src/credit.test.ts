@@ -607,6 +607,33 @@ describe('town bank daily credit cadence', () => {
 });
 
 describe('town bank replay safety', () => {
+  test('rejects a corrupt authority bank snapshot during replay', () => {
+    const projection = createWorldProjection({ agents: [] });
+    expect(() =>
+      applyWorldEvent(
+        projection,
+        createEventEnvelope({
+          id: 'event-invalid-bank-snapshot',
+          simulationId: 'sim-credit',
+          type: 'TownBankSnapshotRecorded',
+          payload: {
+            bank: {
+              balance: -1,
+              deposits: {},
+              loans: {},
+              creditHistoryByAgent: {},
+            },
+            recordedAt: 0,
+            reason: 'credit-command' as const,
+            policyVersion: 'credit-test',
+          },
+          occurredAt: 0,
+          sequence: 1,
+        }),
+      ),
+    ).toThrow('bank balance must be non-negative finite');
+  });
+
   test('the projection reducer rejects settlement events that contradict the book', () => {
     let projection = createBankingProjection();
     const issued = dispatchWorldCommand({

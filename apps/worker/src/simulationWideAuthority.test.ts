@@ -982,7 +982,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
     } as const;
   }
 
-  test('authority time advance never settles lifecycle even when the policy is wired in', () => {
+  test('authority time advance never settles owner-scoped lifecycle or starvation', () => {
     // The authority's per-agent view is partial and its advance command ids
     // differ from the partition's, so settling lifecycle there would derive a
     // SECOND set of life/death facts. resolvePolicies strips the policy.
@@ -994,6 +994,15 @@ describe('authority lifecycle and memory-sync scoping', () => {
       (projection: Parameters<WorldCommandPolicyResolver>[0]) => ({
         ...baseResolver(projection),
         lifecycle: createAivilizationTownLifecyclePolicy(),
+        starvation: {
+          policyVersion: 'starvation-health-decay-v1',
+          settlementCadenceMs: 3_600_000,
+          dayLengthMs: 86_400_000,
+          satietyThreshold: 101,
+          healthDecayPerHourAtZeroSatiety: 1_000,
+          minHealth: 0,
+          deathHealthThreshold: 0,
+        },
       }),
     );
     const operations = authority.advanceTime({
@@ -1003,7 +1012,13 @@ describe('authority lifecycle and memory-sync scoping', () => {
     });
     const lifecycleTypes = ['AgentAged', 'AgentRetired', 'PensionPaid', 'AgentDied'];
     for (const operation of operations) {
-      expect(operation.events.filter((event) => lifecycleTypes.includes(event.type))).toEqual([]);
+      expect(
+        operation.events.filter(
+          (event) =>
+            lifecycleTypes.includes(event.type) ||
+            (event.type === 'PhysiologyChanged' && event.payload.reason === 'starvation'),
+        ),
+      ).toEqual([]);
     }
   });
 

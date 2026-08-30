@@ -20,6 +20,7 @@ import {
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
   assertValidTownGovernancePolicy,
+  assertValidStarvationHealthDecayPolicy,
 } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -32,6 +33,7 @@ import {
   createAivilizationTownWeatherPolicy,
   createAivilizationTownWellbeingPolicy,
   createAivilizationTownGovernancePolicy,
+  createAivilizationStarvationHealthDecayPolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -47,7 +49,7 @@ describe('AIvilization default world command policies', () => {
         autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
-        contextView: 'world-decision-context-view-v9',
+        contextView: 'world-decision-context-view-v10',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -83,7 +85,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-      contextViewVersion: 'world-decision-context-view-v9',
+      contextViewVersion: 'world-decision-context-view-v10',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -375,6 +377,59 @@ describe('AIvilization default world command policies', () => {
       createAivilizationWorldCommandPolicies('seed', undefined, { townGovernance: true })(projection)
         .governance?.policyVersion,
     ).toBe('town-governance-v1');
+  });
+
+  test('declares starvation pressure only when its switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townSurvivalPressure');
+    expect(off.parameters).not.toHaveProperty('townSurvivalPressure');
+
+    const on = createAivilizationWorldPolicyManifest({ townSurvivalPressure: true });
+    expect(on.policyVersions).toMatchObject({
+      townSurvivalPressure: 'starvation-health-decay-v1',
+    });
+    expect(on.parameters.townSurvivalPressure).toMatchObject({
+      settlementCadenceMs: 3_600_000,
+      satietyThreshold: 20,
+      healthDecayPerHourAtZeroSatiety: 4,
+      deathHealthThreshold: 0,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townSurvivalPressure',
+          provenance: 'experimental',
+          policyVersion: 'starvation-health-decay-v1',
+        }),
+      ]),
+    );
+    const policy = createAivilizationStarvationHealthDecayPolicy();
+    expect(() => assertValidStarvationHealthDecayPolicy(policy)).not.toThrow();
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('survival-policy-agent'),
+          locationId: null,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).starvation).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, {
+        townSurvivalPressure: true,
+      })(projection).starvation,
+    ).toMatchObject({
+      policyVersion: 'starvation-health-decay-v1',
+      satietyThreshold: 20,
+    });
   });
 
   test('declares the town conditions catalog in the manifest only when the switch is on', () => {

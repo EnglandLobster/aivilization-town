@@ -621,7 +621,7 @@ export function createSimulationWideAuthority(input: {
   // regional-markets flag through so the AgentTrade handler gates trades on
   // regional co-location when regional markets are enabled.
   //
-  // Lifecycle is STRIPPED here on purpose: the authority's per-agent
+  // Lifecycle and starvation are STRIPPED here on purpose: the authority's per-agent
   // physiology/balances are a partial view (per-agent settlement events are
   // not redelivered to it), and illness-death rolls embed the command id of
   // whichever side settles — if the authority also ran the lifecycle block,
@@ -634,6 +634,7 @@ export function createSimulationWideAuthority(input: {
     const {
       lifecycle: strippedLifecycle,
       migration: strippedMigration,
+      starvation: strippedStarvation,
       ...commandPolicies
     } = resolveWorldCommandPolicies({
       policies: input.policies,
@@ -641,6 +642,7 @@ export function createSimulationWideAuthority(input: {
     });
     void strippedLifecycle;
     void strippedMigration;
+    void strippedStarvation;
     return {
       ...commandPolicies,
       ...(input.regionalMarketsEnabled === true ? { regionalMarkets: { enabled: true } } : {}),

@@ -53,6 +53,17 @@ export type ScenarioStochasticIllnessPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioStarvationHealthDecayPolicyConfig = {
+  readonly policyVersion: string;
+  readonly settlementCadenceMs: number;
+  readonly dayLengthMs: number;
+  readonly satietyThreshold: number;
+  readonly healthDecayPerHourAtZeroSatiety: number;
+  readonly minHealth: number;
+  readonly deathHealthThreshold: number;
+  readonly source: string;
+};
+
 export type ScenarioTownWeatherKind =
   | 'sunny'
   | 'cloudy'
@@ -430,6 +441,7 @@ export type ScenarioProductionEfficiencyPolicyConfig = {
 
 export type ScenarioSurvivalTimePolicyDefaults = {
   readonly sleepDeprivation: ScenarioSleepDeprivationPolicyConfig;
+  readonly starvation: ScenarioStarvationHealthDecayPolicyConfig;
   readonly stochasticIllness: ScenarioStochasticIllnessPolicyConfig;
   readonly residentialUpkeep: ScenarioResidentialUpkeepPolicyConfig;
   readonly physiologicalSafetyNet: ScenarioPhysiologicalSafetyNetPolicyConfig;
@@ -596,6 +608,8 @@ const residentialPhysiologyCapSource =
   'AIvilization v0 Section 3.1.1 residential-tier physiology bounds; Appendix A Table 6 shows tier 5 uses 500 caps';
 const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
+const starvationHealthDecayPolicySource =
+  'Survival pressure; starvation-health-decay-v1 converts sustained satiety deficit into deterministic health loss and death so survival outcomes depend on food access rather than action validity alone';
 const physiologicalSafetyNetPolicySource =
   'AIvilization v0 Section 3.1.1 requires essential subsidies after persistent low physiology; physiological-safety-net-v1 thresholds, persistence, cooldown, and inventory targets are repository policy decisions because the paper does not specify them';
 const healthcarePolicySource =
@@ -733,6 +747,16 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     healthDecayPerSecond: 0.005,
     minHealth: 10,
     source: survivalTimePolicySource,
+  },
+  starvation: {
+    policyVersion: 'starvation-health-decay-v1',
+    settlementCadenceMs: 3_600_000,
+    dayLengthMs: 86_400_000,
+    satietyThreshold: 20,
+    healthDecayPerHourAtZeroSatiety: 4,
+    minHealth: 0,
+    deathHealthThreshold: 0,
+    source: starvationHealthDecayPolicySource,
   },
   stochasticIllness: {
     illnessProbabilityPercentPerHour: 1,

@@ -96,6 +96,7 @@ export type LocalRuntimeTownCliConfig = {
   readonly townMigrationEnabled: boolean;
   readonly townServiceQualityEnabled: boolean;
   readonly townGovernanceEnabled: boolean;
+  readonly townSurvivalPressureEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -219,6 +220,7 @@ export function resolveLocalRuntimeTownCliConfig(
   const townMigrationEnabled = experimentalFeatureEnabled.townMigration;
   const townServiceQualityEnabled = experimentalFeatureEnabled.townServiceQuality;
   const townGovernanceEnabled = experimentalFeatureEnabled.townGovernance;
+  const townSurvivalPressureEnabled = experimentalFeatureEnabled.townSurvivalPressure;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -250,6 +252,7 @@ export function resolveLocalRuntimeTownCliConfig(
     townMigrationEnabled,
     townServiceQualityEnabled,
     townGovernanceEnabled,
+    townSurvivalPressureEnabled,
   };
 }
 
@@ -304,6 +307,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
         townMigration: config.townMigrationEnabled,
         townServiceQuality: config.townServiceQualityEnabled,
         townGovernance: config.townGovernanceEnabled,
+        townSurvivalPressure: config.townSurvivalPressureEnabled,
       },
       // The paper-ablation cohort pins the education system off so the Section
       // 5.1 baseline keeps the legacy continuous-score education semantics.
@@ -517,6 +521,7 @@ type ParsedOptions = {
   readonly townMigration?: string;
   readonly townServiceQuality?: string;
   readonly townGovernance?: string;
+  readonly townSurvivalPressure?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {

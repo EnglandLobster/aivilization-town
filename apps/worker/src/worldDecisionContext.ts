@@ -209,6 +209,10 @@ export function createWorldDecisionContextFromProjection(input: {
         ...(input.policies === undefined ? {} : { policies: input.policies }),
       }),
       ...createServiceQualityDecisionContext({ projection: input.projection, agent }),
+      ...createSurvivalPressureDecisionContext({
+        agent,
+        ...(input.policies === undefined ? {} : { policies: input.policies }),
+      }),
       ...createLifecycleDecisionContext({
         projection: input.projection,
         agent,
@@ -1099,6 +1103,36 @@ function createServiceQualityDecisionContext(input: {
       quality: summary.quality,
       ...(education === undefined ? {} : { education: education.quality }),
       ...(healthcare === undefined ? {} : { healthcare: healthcare.quality }),
+    },
+  };
+}
+
+function createSurvivalPressureDecisionContext(input: {
+  readonly agent: WorldAgentState;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionAgentContext, 'survivalPressure'> | Record<string, never> {
+  const policy = input.policies?.starvation;
+  if (policy === undefined) return {};
+  const deficitRatio = Math.max(
+    0,
+    (policy.satietyThreshold - input.agent.physiology.satiety) / policy.satietyThreshold,
+  );
+  const healthDecayPerHour = policy.healthDecayPerHourAtZeroSatiety * deficitRatio;
+  return {
+    survivalPressure: {
+      policyVersion: policy.policyVersion,
+      atRisk: deficitRatio > 0,
+      satietyThreshold: policy.satietyThreshold,
+      deficitRatio,
+      healthDecayPerHour,
+      estimatedHoursUntilDeath:
+        healthDecayPerHour <= 0
+          ? null
+          : Math.max(
+              0,
+              (input.agent.physiology.health - policy.deathHealthThreshold) /
+                healthDecayPerHour,
+            ),
     },
   };
 }

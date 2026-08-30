@@ -19,6 +19,8 @@ export type LocalScenarioRuntimeBootstrapInput = {
   readonly preset: ScenarioPreset;
   readonly marketPools?: readonly ScenarioMarketPoolSeed[];
   readonly moneySupply?: number;
+  readonly treasury?: number;
+  readonly bankReserves?: number;
   readonly bootstrappedAt: SimulationTimestamp;
 };
 
@@ -43,6 +45,8 @@ export async function bootstrapLocalScenarioRuntime(
     preset: input.preset,
     ...(input.marketPools === undefined ? {} : { marketPools: input.marketPools }),
     ...(input.moneySupply === undefined ? {} : { moneySupply: input.moneySupply }),
+    ...(input.treasury === undefined ? {} : { treasury: input.treasury }),
+    ...(input.bankReserves === undefined ? {} : { bankReserves: input.bankReserves }),
   });
   const profileSeeding = await seedLongTermProfilesFromScenario({
     preset: input.preset,
@@ -55,6 +59,17 @@ export async function bootstrapLocalScenarioRuntime(
     partitionKey: storage.partition.partitionKey,
   });
   if (existingCheckpoint?.snapshot !== undefined) {
+    const persistedProjection = storage.snapshotStore.loadSnapshot(existingCheckpoint.snapshot);
+    if (persistedProjection === undefined) {
+      throw new Error(
+        `existing runtime checkpoint snapshot is missing: ${existingCheckpoint.snapshot.uri}`,
+      );
+    }
+    assertBootstrapAccountsMatchExistingSnapshot({
+      initialProjection,
+      persistedProjection,
+      lastAppliedSequence: existingCheckpoint.lastAppliedSequence,
+    });
     return {
       storage,
       initialProjection,
@@ -89,4 +104,34 @@ export async function bootstrapLocalScenarioRuntime(
     snapshot,
     initializedCheckpoint: true,
   };
+}
+
+function assertBootstrapAccountsMatchExistingSnapshot(input: {
+  readonly initialProjection: WorldProjection;
+  readonly persistedProjection: WorldProjection;
+  readonly lastAppliedSequence: number;
+}): void {
+  const expectedTreasury = input.initialProjection.treasury;
+  const persistedTreasury = input.persistedProjection.treasury;
+  if (
+    expectedTreasury !== undefined &&
+    (persistedTreasury === undefined ||
+      (input.lastAppliedSequence === 0 && expectedTreasury !== persistedTreasury))
+  ) {
+    throw new Error(
+      `existing runtime treasury seed ${String(persistedTreasury)} does not match manifest seed ${String(expectedTreasury)}`,
+    );
+  }
+
+  const expectedBankBalance = input.initialProjection.bank?.balance;
+  const persistedBankBalance = input.persistedProjection.bank?.balance;
+  if (
+    expectedBankBalance !== undefined &&
+    (persistedBankBalance === undefined ||
+      (input.lastAppliedSequence === 0 && expectedBankBalance !== persistedBankBalance))
+  ) {
+    throw new Error(
+      `existing runtime bank reserve seed ${String(persistedBankBalance)} does not match manifest seed ${String(expectedBankBalance)}`,
+    );
+  }
 }

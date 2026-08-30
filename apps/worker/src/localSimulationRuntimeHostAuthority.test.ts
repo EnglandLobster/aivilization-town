@@ -43,6 +43,43 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host simulation-wide authority wiring', () => {
+  test('seeds the authority with the live partition treasury and bank reserves', async () => {
+    const rootDir = createRootDir();
+    const baseManifest = createManifest();
+    const mainPartition = baseManifest.partitions[0]!;
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: {
+        ...baseManifest,
+        partitions: [
+          {
+            ...mainPartition,
+            moneySupply: 251_100,
+            initialTreasury: 50_000,
+            initialBankReserves: 200_000,
+          },
+        ],
+      },
+      scenarioPresets: [createScenarioPresets()[0]!],
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+
+    expect(host.authority?.getSnapshot().projection).toMatchObject({
+      treasury: 50_000,
+      moneySupply: 251_100,
+      bank: { balance: 200_000 },
+    });
+  });
+
   test('exposes authority and materializers when enabled and keeps legacy interactions disabled', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

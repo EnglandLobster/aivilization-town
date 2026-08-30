@@ -2316,8 +2316,16 @@ export function applyWorldEvent(
       delete timeSettlementByAgent[event.payload.agentId];
       const physiologicalDistressByAgent = { ...projection.physiologicalDistressByAgent };
       delete physiologicalDistressByAgent[event.payload.agentId];
+      const circulatingBalanceTransferred = event.payload.circulatingBalanceTransferred ?? 0;
+      assertOwnershipCirculatingBalance({
+        eventType: event.type,
+        agentBalance: agent.balance,
+        circulatingBalanceTransferred,
+        currentMoneySupply: projection.moneySupply,
+      });
       return {
         ...projection,
+        moneySupply: projection.moneySupply - circulatingBalanceTransferred,
         agents,
         transitByAgent,
         activityTimeByAgent,
@@ -2345,6 +2353,13 @@ export function applyWorldEvent(
         );
       }
       const state = event.payload.agentState;
+      const circulatingBalanceTransferred = event.payload.circulatingBalanceTransferred ?? 0;
+      assertOwnershipCirculatingBalance({
+        eventType: event.type,
+        agentBalance: state.balance,
+        circulatingBalanceTransferred,
+        currentMoneySupply: projection.moneySupply,
+      });
       const socialRelations = { ...projection.socialRelations };
       for (const relation of event.payload.socialRelations ?? []) {
         socialRelations[createDirectedSocialRelationKey(relation)] = { ...relation };
@@ -2364,6 +2379,7 @@ export function applyWorldEvent(
       ];
       return {
         ...projection,
+        moneySupply: projection.moneySupply + circulatingBalanceTransferred,
         socialRelations,
         socialCommitments,
         ...(projection.conflictRecords === undefined && event.payload.conflictRecords === undefined
@@ -2439,6 +2455,32 @@ export function applyWorldEvent(
     }
   }
   throw new Error(`unhandled world event ${event.type}`);
+}
+
+function assertOwnershipCirculatingBalance(input: {
+  readonly eventType: 'AgentOwnershipDeparted' | 'AgentOwnershipArrived';
+  readonly agentBalance: number;
+  readonly circulatingBalanceTransferred: number;
+  readonly currentMoneySupply: number;
+}): void {
+  if (
+    !Number.isFinite(input.circulatingBalanceTransferred) ||
+    input.circulatingBalanceTransferred < 0
+  ) {
+    throw new Error(`${input.eventType} circulating balance must be finite and non-negative`);
+  }
+  if (
+    input.circulatingBalanceTransferred !== 0 &&
+    input.circulatingBalanceTransferred !== input.agentBalance
+  ) {
+    throw new Error(`${input.eventType} circulating balance must equal the Agent balance`);
+  }
+  if (
+    input.eventType === 'AgentOwnershipDeparted' &&
+    input.circulatingBalanceTransferred > input.currentMoneySupply
+  ) {
+    throw new Error('AgentOwnershipDeparted circulating balance exceeds partition money supply');
+  }
 }
 
 export function isAgentAvailableForWorldAction(

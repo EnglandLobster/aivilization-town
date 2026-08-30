@@ -2032,6 +2032,72 @@ describe('worker social-matter decision context', () => {
   });
 });
 
+describe('worker service-quality decision context', () => {
+  test('exposes the latest bounded quality for the agent region', () => {
+    const projection: WorldProjection = {
+      ...createWorldProjection({
+        agents: [
+          {
+            agentId,
+            locationId: asLocationId('school'),
+            physiology: { energy: 50, satiety: 50, health: 50 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+        locations: [
+          {
+            locationId: asLocationId('school'),
+            name: 'School',
+            kind: 'education',
+            activityAffinities: ['study'],
+            capacity: 40,
+            regionId: 'downtown',
+          },
+        ],
+      }),
+      regionalServiceQualities: {
+        downtown: {
+          education: {
+            service: 'education',
+            quality: 0.5,
+            fundedAmount: 10,
+            occupancy: 40,
+            capacity: 40,
+            budgetEfficiency: 1,
+            occupancyRatio: 1,
+            capacityEfficiency: 0.5,
+            landValueContribution: 4,
+            wellbeingContribution: -4,
+            policyVersion: 'town-service-quality-v1',
+            settledAt: 3_600_000,
+          },
+          healthcare: {
+            service: 'healthcare',
+            quality: 1,
+            fundedAmount: 10,
+            occupancy: 0,
+            capacity: 20,
+            budgetEfficiency: 1,
+            occupancyRatio: 0,
+            capacityEfficiency: 1,
+            landValueContribution: 8,
+            wellbeingContribution: 0,
+            policyVersion: 'town-service-quality-v1',
+            settledAt: 3_600_000,
+          },
+        },
+      },
+    };
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId }).agent.serviceQuality,
+    ).toEqual({ regionId: 'downtown', quality: 0.75, education: 0.5, healthcare: 1 });
+  });
+});
+
 describe('worker housing decision context', () => {
   const basePolicies: WorldCommandPolicies = {
     satietyRecoveryByCommodity: {},

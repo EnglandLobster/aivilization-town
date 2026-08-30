@@ -1,4 +1,9 @@
-import { type AgentId, asAgentId, type PartitionKey, type SimulationTimestamp } from '@aivilization/sim-core';
+import {
+  type AgentId,
+  asAgentId,
+  type PartitionKey,
+  type SimulationTimestamp,
+} from '@aivilization/sim-core';
 import type { AmmPool } from '@aivilization/economy';
 import type { WorldProjection } from '@aivilization/world';
 import type { AgentPostBulletinPayload } from '@aivilization/world';
@@ -47,6 +52,7 @@ import type { WorkerSteeringCommand } from './steering';
 import {
   createAivilizationTownConditionsPolicy,
   createAivilizationTownWeatherPolicy,
+  createAivilizationTownServiceQualityPolicy,
 } from './aivilizationWorldPolicies';
 
 export type LocalSimulationRuntimeHostInput = LocalSimulationRuntimeRegistryInput & {
@@ -72,6 +78,8 @@ export type SimulationWideAuthorityHostOptions = {
    * free of weather state and events, matching legacy behavior.
    */
   readonly townWeather?: boolean;
+  /** Opt-in authority-settled regional service quality. */
+  readonly townServiceQuality?: boolean;
   /**
    * Opt-in town-condition catalog. When
    * true, the society projection derives per-agent conditions from the
@@ -168,11 +176,12 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
         manifestId: resolvedManifest.id,
         partitions,
       }),
-      ...(activeAuthorityOptions.regionalMarkets === true
-        ? { regionalMarketsEnabled: true }
-        : {}),
+      ...(activeAuthorityOptions.regionalMarkets === true ? { regionalMarketsEnabled: true } : {}),
       ...(activeAuthorityOptions.townWeather === true
         ? { townWeather: createAivilizationTownWeatherPolicy() }
+        : {}),
+      ...(activeAuthorityOptions.townServiceQuality === true
+        ? { townServiceQuality: createAivilizationTownServiceQualityPolicy() }
         : {}),
     });
     const lease = (): SimulationWideAuthorityMaterializerLease => materializeLease!;
@@ -342,7 +351,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                       command,
                     }: {
                       readonly command: WorkerSteeringCommand;
-                    }): { readonly bulletinId: string; readonly status: 'posted' | 'scheduled' } => {
+                    }): {
+                      readonly bulletinId: string;
+                      readonly status: 'posted' | 'scheduled';
+                    } => {
                       const operation = authority!.settleBulletin({
                         operationId: `steering-bulletin:${command.id}`,
                         workerId: materializeLease!.workerId,
@@ -452,9 +464,9 @@ function mergeSeedProjection(
   partitions: readonly LocalSimulationRuntimeHostPartition[],
 ): WorldProjection {
   const base = partitions[0]!.bootstrap.initialProjection;
-  const agents: Record<string, typeof base.agents[string]> = {};
-  const locations: Record<string, typeof base.locations[string]> = {};
-  const socialRelations: Record<string, typeof base.socialRelations[string]> = {};
+  const agents: Record<string, (typeof base.agents)[string]> = {};
+  const locations: Record<string, (typeof base.locations)[string]> = {};
+  const socialRelations: Record<string, (typeof base.socialRelations)[string]> = {};
   const marketPools: Record<string, AmmPool> = {};
   let moneySupply = 0;
   for (const partition of partitions) {
@@ -517,9 +529,7 @@ function assertUniformPoolKeySet(
 ): void {
   const globalKeys = Object.keys(mergedPools).sort();
   for (const partition of partitions) {
-    const partitionKeys = Object.keys(
-      partition.bootstrap.initialProjection.marketPools,
-    ).sort();
+    const partitionKeys = Object.keys(partition.bootstrap.initialProjection.marketPools).sort();
     if (stableStringify(partitionKeys) !== stableStringify(globalKeys)) {
       throw new Error(
         `simulation-wide authority seed partition ${partition.partitionKey} has a divergent pool key set`,

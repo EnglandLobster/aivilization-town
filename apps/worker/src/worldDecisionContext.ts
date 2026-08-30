@@ -57,6 +57,7 @@ import {
   type LifecyclePolicy,
   resolveResidentialUpkeepRate,
   resolveTownDayPhase,
+  summarizeRegionalServiceQuality,
 } from '@aivilization/society';
 import { resolveAgentAgeAnchorMs } from '@aivilization/world';
 import type {
@@ -207,6 +208,7 @@ export function createWorldDecisionContextFromProjection(input: {
         agent,
         ...(input.policies === undefined ? {} : { policies: input.policies }),
       }),
+      ...createServiceQualityDecisionContext({ projection: input.projection, agent }),
       ...createLifecycleDecisionContext({
         projection: input.projection,
         agent,
@@ -988,6 +990,31 @@ function createWellbeingDecisionContext(input: {
     wellbeing: {
       value,
       band: describeWellbeingBand(value, policy.bandThresholds),
+    },
+  };
+}
+
+function createServiceQualityDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+}): Pick<WorldDecisionAgentContext, 'serviceQuality'> | Record<string, never> {
+  const regionId = resolveAgentRegion({
+    projection: input.projection,
+    agentLocationId: input.agent.locationId,
+  });
+  const services = input.projection.regionalServiceQualities?.[regionId];
+  const education = services?.education;
+  const healthcare = services?.healthcare;
+  const summary = summarizeRegionalServiceQuality(
+    [education, healthcare].filter((service) => service !== undefined),
+  );
+  if (summary === undefined) return {};
+  return {
+    serviceQuality: {
+      regionId,
+      quality: summary.quality,
+      ...(education === undefined ? {} : { education: education.quality }),
+      ...(healthcare === undefined ? {} : { healthcare: healthcare.quality }),
     },
   };
 }

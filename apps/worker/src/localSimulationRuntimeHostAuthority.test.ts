@@ -1,4 +1,9 @@
-import { asAgentId, asLocationId, createCommandEnvelope, type AgentId } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  asLocationId,
+  createCommandEnvelope,
+  type AgentId,
+} from '@aivilization/sim-core';
 import { type ScenarioPreset } from '@aivilization/content';
 import { type WorldCommandPolicies } from '@aivilization/world';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -391,17 +396,21 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     await host.materializers.get('world-main')!.materializeInbox({ lease });
     await host.materializers.get('world-east')!.materializeInbox({ lease });
 
-    const mainMemory = await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
-      { agentId: agentOne, limit: 64 },
-    );
+    const mainMemory =
+      await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        limit: 64,
+      });
     const mainRemoteMemory =
       await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
         agentId: agentTwo,
         limit: 64,
       });
-    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
-      { agentId: agentTwo, limit: 64 },
-    );
+    const eastMemory =
+      await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentTwo,
+        limit: 64,
+      });
     const eastRemoteMemory =
       await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
         agentId: agentOne,
@@ -727,6 +736,42 @@ describe('regional markets in the simulation-wide authority', () => {
     expect(projection.weather).toEqual(weather);
   });
 
+  test('town service quality on: authority settles global occupancy and funding facts', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townServiceQuality: true,
+      },
+    });
+    const authority = host.authority!;
+    authority.advanceTime({
+      operationId: 'advance-service-quality',
+      workerId: 'authority-worker',
+      observedAt: 200,
+      durationMs: 30_000,
+      deltaMs: 3_600_000,
+    });
+    const qualities = authority.getSnapshot().projection.regionalServiceQualities;
+    expect(qualities).toBeDefined();
+    expect(Object.values(qualities ?? {}).some((region) => region.education !== undefined)).toBe(
+      true,
+    );
+    expect(Object.values(qualities ?? {}).some((region) => region.healthcare !== undefined)).toBe(
+      true,
+    );
+  });
+
   test('town weather on: the daemon tick loop settles WeatherChanged into the partition stream', async () => {
     const rootDir = createRootDir();
     const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
@@ -860,9 +905,9 @@ describe('regional markets in the simulation-wide authority', () => {
       partitionKey: 'world-main',
     });
     expect(projection.projection.bulletins).toHaveLength(1);
-    expect(
-      host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins,
-    ).toHaveLength(1);
+    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins).toHaveLength(
+      1,
+    );
   });
 
   test('town weather off (default): advancing time produces no weather state or events', async () => {
@@ -1015,9 +1060,11 @@ describe('regional markets in the simulation-wide authority', () => {
     await host.materializers.get('world-east')!.materializeInbox({ lease });
 
     // Every resident gains a hearsay awareness memory on their owner partition.
-    const mainMemory = await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
-      { agentId: agentOne, limit: 64 },
-    );
+    const mainMemory =
+      await host.partitions[0]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentOne,
+        limit: 64,
+      });
     expect(mainMemory).toHaveLength(1);
     expect(mainMemory[0]).toMatchObject({
       kind: 'observation',
@@ -1027,15 +1074,16 @@ describe('regional markets in the simulation-wide authority', () => {
     expect(mainMemory[0]?.summary).toContain('Storm warning');
     expect(mainMemory[0]?.tags).toContain('town-bulletin');
     expect(mainMemory[0]?.tags).toContain('bulletin-priority-high');
-    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
-      { agentId: agentTwo, limit: 64 },
-    );
+    const eastMemory =
+      await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentTwo,
+        limit: 64,
+      });
     expect(eastMemory).toHaveLength(1);
 
     // High priority preempts: a forced-attention intention per resident.
-    const mainIntentions = await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(
-      agentOne,
-    );
+    const mainIntentions =
+      await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(agentOne);
     const bulletinIntentions = mainIntentions.scheduledIntentions.filter((intention) =>
       intention.affinityTags.includes('town-bulletin'),
     );
@@ -1060,9 +1108,8 @@ describe('regional markets in the simulation-wide authority', () => {
       ...lease,
     });
     await host.materializers.get('world-main')!.materializeInbox({ lease });
-    const afterNormal = await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(
-      agentOne,
-    );
+    const afterNormal =
+      await host.partitions[0]!.bootstrap.storage.intentionRepository.getOrCreate(agentOne);
     expect(
       afterNormal.scheduledIntentions.filter((intention) =>
         intention.affinityTags.includes('town-bulletin'),
@@ -1074,7 +1121,9 @@ describe('regional markets in the simulation-wide authority', () => {
         limit: 64,
       });
     expect(mainMemoryAfter).toHaveLength(2);
-    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins).toHaveLength(2);
+    expect(host.societyProjection.getProjection({ simulationId: 'sim-1' }).bulletins).toHaveLength(
+      2,
+    );
   });
 
   test('social matters on: authority settles the lifecycle idempotently and exposes the board', async () => {
@@ -1239,9 +1288,11 @@ describe('regional markets in the simulation-wide authority', () => {
     // Every partition materializes the conflict events and party memories.
     await host.materializers.get('world-main')!.materializeInbox({ lease });
     await host.materializers.get('world-east')!.materializeInbox({ lease });
-    const eastMemory = await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve(
-      { agentId: agentTwo, limit: 64 },
-    );
+    const eastMemory =
+      await host.partitions[1]!.bootstrap.storage.shortTermMemoryRepository.retrieve({
+        agentId: agentTwo,
+        limit: 64,
+      });
     expect(eastMemory.some((record) => record.tags.includes('attack'))).toBe(true);
 
     const projection = host.societyProjection.getProjection({ simulationId: 'sim-1' });
@@ -1288,8 +1339,20 @@ describe('regional markets in the simulation-wide authority', () => {
     // (100/400). moneySupply 1000 each. Across 2 partitions this gives downtown
     // 200/2000 and harbor 200/800.
     const marketPools = [
-      { commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000, source: 'test', regionId: 'downtown' },
-      { commodity: 'Fish', commodityReserve: 100, currencyReserve: 400, source: 'test', regionId: 'harbor' },
+      {
+        commodity: 'Fish',
+        commodityReserve: 100,
+        currencyReserve: 1_000,
+        source: 'test',
+        regionId: 'downtown',
+      },
+      {
+        commodity: 'Fish',
+        commodityReserve: 100,
+        currencyReserve: 400,
+        source: 'test',
+        regionId: 'harbor',
+      },
     ];
     return {
       id: 'town-regional',

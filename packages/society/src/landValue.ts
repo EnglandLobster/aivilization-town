@@ -36,6 +36,8 @@ export type RegionalLandValueInputs = {
    * has no regional market pools.
    */
   readonly marketLiquidity: number;
+  /** Non-negative contribution from the authority-settled service view. */
+  readonly serviceQualityContribution?: number;
 };
 
 export type RegionalLandValueEvaluation = {
@@ -54,12 +56,16 @@ export function evaluateRegionalLandValue(input: {
   assertNonNegativeFinite(input.previousIndex, 'previousIndex');
   assertNonNegativeInteger(input.inputs.agentCount, 'agentCount');
   assertNonNegativeFinite(input.inputs.marketLiquidity, 'marketLiquidity');
+  if (input.inputs.serviceQualityContribution !== undefined) {
+    assertNonNegativeFinite(input.inputs.serviceQualityContribution, 'serviceQualityContribution');
+  }
 
   const { policy } = input;
   const raw = clamp(
     policy.baseline +
       policy.populationWeight * Math.sqrt(input.inputs.agentCount) +
-      policy.liquidityWeight * Math.log1p(input.inputs.marketLiquidity),
+      policy.liquidityWeight * Math.log1p(input.inputs.marketLiquidity) +
+      (input.inputs.serviceQualityContribution ?? 0),
     policy.minIndex,
     policy.maxIndex,
   );

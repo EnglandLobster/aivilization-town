@@ -127,6 +127,7 @@ describe('local runtime town executable composition', () => {
       townDiscourseEnabled: false,
       townCollectiveActionEnabled: false,
       townMigrationEnabled: false,
+      townServiceQualityEnabled: false,
     });
   });
 
@@ -207,6 +208,7 @@ describe('local runtime town executable composition', () => {
       townDiscourseEnabled: false,
       townCollectiveActionEnabled: false,
       townMigrationEnabled: false,
+      townServiceQualityEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -275,9 +277,9 @@ describe('local runtime town executable composition', () => {
     };
 
     // Default: regional markets are disabled, preserving the legacy single pool.
-    expect(
-      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).regionalMarketsEnabled,
-    ).toBe(false);
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).regionalMarketsEnabled).toBe(
+      false,
+    );
 
     // Explicit opt-in via CLI flag.
     expect(
@@ -630,9 +632,7 @@ describe('local runtime town executable composition', () => {
     };
 
     // Default: the lifecycle is disabled, so the population stays static.
-    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townLifecycleEnabled).toBe(
-      false,
-    );
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townLifecycleEnabled).toBe(false);
 
     // Explicit opt-in via CLI flag.
     expect(
@@ -677,9 +677,7 @@ describe('local runtime town executable composition', () => {
       sourceRevision,
     };
 
-    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townDiscourseEnabled).toBe(
-      false,
-    );
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townDiscourseEnabled).toBe(false);
     expect(
       resolveLocalRuntimeTownCliConfig({
         argv: ['--', '--llm-mode', 'deterministic', '--town-discourse', 'on'],
@@ -719,9 +717,9 @@ describe('local runtime town executable composition', () => {
       sourceRevision,
     };
 
-    expect(
-      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCollectiveActionEnabled,
-    ).toBe(false);
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCollectiveActionEnabled).toBe(
+      false,
+    );
     expect(
       resolveLocalRuntimeTownCliConfig({
         argv: ['--', '--llm-mode', 'deterministic', '--town-collective-action', 'on'],
@@ -761,9 +759,7 @@ describe('local runtime town executable composition', () => {
       sourceRevision,
     };
 
-    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townMigrationEnabled).toBe(
-      false,
-    );
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townMigrationEnabled).toBe(false);
     expect(
       resolveLocalRuntimeTownCliConfig({
         argv: ['--', '--llm-mode', 'deterministic', '--town-migration', 'on'],
@@ -794,6 +790,47 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabledManifest).toContain('town-migration-v1');
+  });
+
+  test('town service quality is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townServiceQualityEnabled).toBe(
+      false,
+    );
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-service-quality', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townServiceQualityEnabled,
+    ).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_SERVICE_QUALITY: '1' },
+      }).townServiceQualityEnabled,
+    ).toBe(true);
+
+    const disabled = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabled).not.toContain('town-service-quality-v1');
+    const enabled = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_SERVICE_QUALITY: '1' },
+        }),
+      ),
+    );
+    expect(enabled).toContain('town-service-quality-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

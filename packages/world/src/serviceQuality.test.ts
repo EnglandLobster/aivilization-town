@@ -150,6 +150,70 @@ describe('regional service quality settlement', () => {
       next: { health: 55 },
     });
   });
+
+  test('feeds the same settled quality into wellbeing and land value', () => {
+    const projection = createServiceProjection(100);
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'quality-feedback',
+        simulationId: 'service-quality-sim',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 1_000 },
+        issuedAt: 0,
+      }),
+      projection,
+      policies: {
+        ...policies,
+        landValue: {
+          policyVersion: 'land-value-v1',
+          updateCadenceMs: 1_000,
+          baseline: 0,
+          populationWeight: 0,
+          liquidityWeight: 0,
+          smoothingFactor: 1,
+          minIndex: 0,
+          maxIndex: 100,
+        },
+        wellbeing: {
+          policyVersion: 'town-wellbeing-v1',
+          initialValue: 50,
+          minValue: 0,
+          maxValue: 100,
+          baseline: 50,
+          convergencePerHour: 100,
+          coefficients: {
+            health: 0,
+            energy: 0,
+            satiety: 0,
+            employed: 0,
+            unemployed: 0,
+            residentialTier: [0, 0],
+            lifestyleTier: [0, 0, 0, 0],
+            upkeepArrearsPerUnit: 0,
+            distress: 0,
+            positiveRelation: 0,
+            negativeRelation: 0,
+          },
+        },
+      },
+      nextSequence: 1,
+    });
+    const downtownLand = events.find(
+      (event) => event.type === 'RegionalLandValueUpdated' && event.payload.regionId === 'downtown',
+    );
+    expect(downtownLand?.payload).toMatchObject({
+      rawIndex: 4,
+      serviceQualityContribution: 4,
+    });
+    const wellbeing = events.find(
+      (event) => event.type === 'WellbeingChanged' && event.payload.agentId === 'student-0',
+    );
+    expect(wellbeing?.payload).toMatchObject({
+      target: 46,
+      factorContributions: { serviceQuality: -4 },
+    });
+  });
 });
 
 function createServiceProjection(treasury: number) {

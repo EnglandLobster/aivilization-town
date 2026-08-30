@@ -79,7 +79,18 @@ describe('evaluateWellbeing', () => {
       distress: -8,
       positiveRelation: 3,
       negativeRelation: -2,
+      serviceQuality: 0,
     });
+  });
+
+  it('includes the authority-settled service contribution without changing policy coefficients', () => {
+    const result = evaluateWellbeing({
+      previous: 50,
+      inputs: createInputs({ serviceQualityContribution: -4 }),
+      policy,
+    });
+    expect(result.factorContributions.serviceQuality).toBe(-4);
+    expect(result.target).toBe(48);
   });
 
   it('normalizes physiology axes around 50', () => {
@@ -264,9 +275,9 @@ describe('evaluateWellbeing', () => {
     expect(() =>
       evaluateWellbeing({ previous: Number.NaN, inputs: createInputs(), policy }),
     ).toThrow('previous must be within');
-    expect(() =>
-      evaluateWellbeing({ previous: 120, inputs: createInputs(), policy }),
-    ).toThrow('previous must be within');
+    expect(() => evaluateWellbeing({ previous: 120, inputs: createInputs(), policy })).toThrow(
+      'previous must be within',
+    );
     expect(() =>
       evaluateWellbeing({
         previous: 50,
@@ -324,9 +335,9 @@ describe('assertValidWellbeingPolicy', () => {
   });
 
   it('rejects inverted or escaped bounds', () => {
-    expect(() =>
-      assertValidWellbeingPolicy({ ...policy, minValue: 60, maxValue: 40 }),
-    ).toThrow('minValue must not exceed maxValue');
+    expect(() => assertValidWellbeingPolicy({ ...policy, minValue: 60, maxValue: 40 })).toThrow(
+      'minValue must not exceed maxValue',
+    );
     expect(() => assertValidWellbeingPolicy({ ...policy, initialValue: 120 })).toThrow(
       'initialValue must be within',
     );

@@ -1,4 +1,4 @@
-export const TOWN_SERVICE_QUALITY_POLICY_VERSION = 'town-service-quality-v1';
+export { TOWN_SERVICE_QUALITY_POLICY_VERSION } from '@aivilization/content';
 
 export type TownPublicService = 'education' | 'healthcare';
 
@@ -40,6 +40,41 @@ export type ServiceQualityEvaluation = {
   readonly landValueContribution: number;
   readonly wellbeingContribution: number;
 };
+
+export type RegionalServiceQualitySummary = {
+  readonly quality: number;
+  readonly landValueContribution: number;
+  readonly wellbeingContribution: number;
+};
+
+/** Average service channels so adding a service cannot increase the cap. */
+export function summarizeRegionalServiceQuality(
+  services: readonly Pick<
+    ServiceQualityEvaluation,
+    'quality' | 'landValueContribution' | 'wellbeingContribution'
+  >[],
+): RegionalServiceQualitySummary | undefined {
+  if (services.length === 0) return undefined;
+  for (const [index, service] of services.entries()) {
+    assertUnitInterval(service.quality, `services[${index}].quality`);
+    assertNonNegativeFinite(
+      service.landValueContribution,
+      `services[${index}].landValueContribution`,
+    );
+    if (!Number.isFinite(service.wellbeingContribution)) {
+      throw new Error(`services[${index}].wellbeingContribution must be finite`);
+    }
+  }
+  const divisor = services.length;
+  const wellbeingContribution =
+    services.reduce((total, service) => total + service.wellbeingContribution, 0) / divisor;
+  return {
+    quality: services.reduce((total, service) => total + service.quality, 0) / divisor,
+    landValueContribution:
+      services.reduce((total, service) => total + service.landValueContribution, 0) / divisor,
+    wellbeingContribution: wellbeingContribution === 0 ? 0 : wellbeingContribution,
+  };
+}
 
 /**
  * Pure service-shortage decision. Budget transmission and congestion are

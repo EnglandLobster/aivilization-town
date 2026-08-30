@@ -9,6 +9,7 @@ import {
   aivilizationTownDiscoursePolicyDefaults,
   aivilizationTownLifecyclePolicyDefaults,
   aivilizationTownWeatherPolicyDefaults,
+  aivilizationTownServiceQualityPolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
 } from '@aivilization/content';
 import {
@@ -19,6 +20,7 @@ import {
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
+  assertValidServiceQualityPolicy,
   type CollectiveActionPolicy,
   type LifecyclePolicy,
   type OutMigrationPolicy,
@@ -26,6 +28,7 @@ import {
   type TownCalendarPolicy,
   type TownConditionsPolicy,
   type WellbeingPolicy,
+  type ServiceQualityPolicy,
 } from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
@@ -47,7 +50,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townLifecycle'
   | 'townDiscourse'
   | 'townCollectiveAction'
-  | 'townMigration';
+  | 'townMigration'
+  | 'townServiceQuality';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -87,6 +91,22 @@ export function createAivilizationTownWeatherPolicy(): TownWeatherPolicy {
     transitions: aivilizationTownWeatherPolicyDefaults.transitions,
   };
   assertTownWeatherPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationTownServiceQualityPolicy(): ServiceQualityPolicy {
+  const policy: ServiceQualityPolicy = {
+    policyVersion: aivilizationTownServiceQualityPolicyDefaults.policyVersion,
+    cadenceMs: aivilizationTownServiceQualityPolicyDefaults.cadenceMs,
+    services: {
+      education: { ...aivilizationTownServiceQualityPolicyDefaults.services.education },
+      healthcare: { ...aivilizationTownServiceQualityPolicyDefaults.services.healthcare },
+    },
+    landValueWeight: aivilizationTownServiceQualityPolicyDefaults.landValueWeight,
+    wellbeingPenaltyAtZeroQuality:
+      aivilizationTownServiceQualityPolicyDefaults.wellbeingPenaltyAtZeroQuality,
+  };
+  assertValidServiceQualityPolicy(policy);
   return policy;
 }
 
@@ -265,6 +285,29 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       // Authority-scoped (no withCommandPolicy): injected by the
       // simulation-wide authority, never by the shared policies factory
       // (per-partition weather chains would diverge).
+    },
+    {
+      key: 'townServiceQuality',
+      policyVersion: aivilizationTownServiceQualityPolicyDefaults.policyVersion,
+      cliFlag: '--town-service-quality',
+      envVar: 'AIVILIZATION_TOWN_SERVICE_QUALITY',
+      helpTitle: 'Budget- and occupancy-driven public service quality',
+      helpLines: [
+        'Public service quality is a repository-specific extension: pass',
+        '--town-service-quality or AIVILIZATION_TOWN_SERVICE_QUALITY=1 to settle regional',
+        'education/healthcare quality from actual public funding and facility occupancy.',
+        'The quality affects study, treatment, wellbeing, and land value. Disabled by default.',
+      ],
+      registrySource:
+        'Service quality is repository-defined from the CS2 budget-to-efficiency benchmark; cadence, pressure threshold, quality floor, and feedback weights are versioned.',
+      createManifestParameters: () => ({
+        ...aivilizationTownServiceQualityPolicyDefaults,
+        services: {
+          education: { ...aivilizationTownServiceQualityPolicyDefaults.services.education },
+          healthcare: { ...aivilizationTownServiceQualityPolicyDefaults.services.healthcare },
+        },
+      }),
+      // Authority-scoped: partition-local occupancy is incomplete.
     },
     {
       key: 'townConditions',

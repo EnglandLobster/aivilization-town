@@ -74,6 +74,24 @@ export type ScenarioTownWeatherPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownServiceQualityPolicyConfig = {
+  readonly policyVersion: string;
+  readonly cadenceMs: number;
+  readonly services: Readonly<
+    Record<
+      'education' | 'healthcare',
+      {
+        readonly requiredFundingPerCadence: number;
+        readonly pressureStartsAtOccupancyRatio: number;
+        readonly qualityAtFullOccupancy: number;
+      }
+    >
+  >;
+  readonly landValueWeight: number;
+  readonly wellbeingPenaltyAtZeroQuality: number;
+  readonly source: string;
+};
+
 export type ScenarioTownConditionSeverity = 'mild' | 'moderate' | 'severe';
 
 export type ScenarioTownConditionNeed = 'eat' | 'sleep' | 'shelter' | 'warm-up' | 'see-doctor';
@@ -586,6 +604,8 @@ const productionPolicySource =
   'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
 const townWeatherPolicySource =
   'Authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
+const townServiceQualityPolicySource =
+  'Town service quality; town-service-quality-v1 budget transmission, occupancy pressure, and land-value/wellbeing weights are repository policy decisions benchmarked against the CS2 service-efficiency model';
 const townConditionsPolicySource =
   'Town condition catalog; town-conditions-v1 conditions, thresholds, severities, and implied needs are repository policy decisions because the paper does not model conditions';
 const townBulletinPolicySource =
@@ -747,6 +767,27 @@ export const aivilizationSurvivalTimePolicyDefaults = {
 } as const satisfies ScenarioSurvivalTimePolicyDefaults;
 
 export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v1';
+export const TOWN_SERVICE_QUALITY_POLICY_VERSION = 'town-service-quality-v1';
+
+export const aivilizationTownServiceQualityPolicyDefaults = {
+  policyVersion: TOWN_SERVICE_QUALITY_POLICY_VERSION,
+  cadenceMs: 3_600_000,
+  services: {
+    education: {
+      requiredFundingPerCadence: 10,
+      pressureStartsAtOccupancyRatio: 0.75,
+      qualityAtFullOccupancy: 0.5,
+    },
+    healthcare: {
+      requiredFundingPerCadence: 10,
+      pressureStartsAtOccupancyRatio: 0.75,
+      qualityAtFullOccupancy: 0.5,
+    },
+  },
+  landValueWeight: 8,
+  wellbeingPenaltyAtZeroQuality: 8,
+  source: townServiceQualityPolicySource,
+} as const satisfies ScenarioTownServiceQualityPolicyConfig;
 
 /**
  * Authoritative town weather. The Markov

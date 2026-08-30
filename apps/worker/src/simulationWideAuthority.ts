@@ -20,6 +20,7 @@ import {
   type SimulationId,
 } from '@aivilization/sim-core';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
+import type { ServiceQualityPolicy } from '@aivilization/society';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
@@ -557,6 +558,8 @@ export function createSimulationWideAuthority(input: {
    * free of any weather state or events.
    */
   readonly townWeather?: TownWeatherPolicy;
+  /** Authority-scoped regional service quality policy. */
+  readonly townServiceQuality?: ServiceQualityPolicy;
 }): SimulationWideAuthorityService {
   const directory = authorityDirectory(input.rootDir, input.seed.simulationId);
   const statePath = join(directory, 'state.json');
@@ -622,6 +625,9 @@ export function createSimulationWideAuthority(input: {
       ...commandPolicies,
       ...(input.regionalMarketsEnabled === true ? { regionalMarkets: { enabled: true } } : {}),
       ...(input.townWeather === undefined ? {} : { weather: input.townWeather }),
+      ...(input.townServiceQuality === undefined
+        ? {}
+        : { serviceQuality: input.townServiceQuality }),
     };
   };
 
@@ -1908,6 +1914,7 @@ function createInboxDeliveries(
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||
           event.type === 'TownDayPhaseChanged' ||
+          event.type === 'RegionalServiceQualityUpdated' ||
           // Matter-expiry closures carry the parties' memory records; they
           // must ride along so each owner partition materializes them.
           event.type === 'ShortTermMemoryRecorded',

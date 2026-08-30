@@ -117,6 +117,13 @@ export type WorldDecisionAgentContext = {
     readonly value: number;
     readonly band: WellbeingBand;
   };
+  /** Latest authority-settled service availability in the agent's region. */
+  readonly serviceQuality?: {
+    readonly regionId: string;
+    readonly quality: number;
+    readonly education?: number;
+    readonly healthcare?: number;
+  };
   /**
    * Optional social-graph view (context-view v2): this agent's strongest
    * directed relations, sorted by |relationScore| and capped at
@@ -731,7 +738,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v7';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v8';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

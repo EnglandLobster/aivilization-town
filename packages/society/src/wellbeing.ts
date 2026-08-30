@@ -124,6 +124,8 @@ export type WellbeingInputs = {
   readonly meanPositiveRelation: number;
   /** Mean of the agent's negative relation magnitudes, ∈ [0, 1]; 0 when none. */
   readonly meanNegativeRelation: number;
+  /** Signed contribution from the authority-settled regional service view. */
+  readonly serviceQualityContribution?: number;
   /** Simulation milliseconds this settlement step covers. */
   readonly elapsedMs: number;
 };
@@ -154,6 +156,9 @@ export function evaluateWellbeing(input: {
   assertNonNegativeFinite(inputs.upkeepArrears, 'upkeepArrears');
   assertFiniteWithin(inputs.meanPositiveRelation, 0, 1, 'meanPositiveRelation');
   assertFiniteWithin(inputs.meanNegativeRelation, 0, 1, 'meanNegativeRelation');
+  if (inputs.serviceQualityContribution !== undefined) {
+    assertFinite(inputs.serviceQualityContribution, 'serviceQualityContribution');
+  }
   assertNonNegativeFinite(inputs.elapsedMs, 'elapsedMs');
 
   const { coefficients } = policy;
@@ -173,6 +178,7 @@ export function evaluateWellbeing(input: {
     distress: inputs.distressActive ? coefficients.distress : 0,
     positiveRelation: coefficients.positiveRelation * inputs.meanPositiveRelation,
     negativeRelation: coefficients.negativeRelation * inputs.meanNegativeRelation,
+    serviceQuality: inputs.serviceQualityContribution ?? 0,
   };
   const target = clamp(
     policy.baseline +
@@ -189,8 +195,7 @@ export function evaluateWellbeing(input: {
   const gap = target - input.previous;
   // Snap onto the target once it is reachable in one step so the value reaches
   // a fixed point and quiet agents stop emitting WellbeingChanged events.
-  const next =
-    Math.abs(gap) <= maxStep ? target : input.previous + Math.sign(gap) * maxStep;
+  const next = Math.abs(gap) <= maxStep ? target : input.previous + Math.sign(gap) * maxStep;
   return { next, target, factorContributions };
 }
 

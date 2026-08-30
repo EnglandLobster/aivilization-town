@@ -873,6 +873,7 @@ export type RegionalLandValueUpdatedPayload = {
   readonly rawIndex: number;
   readonly agentCount: number;
   readonly marketLiquidity: number;
+  readonly serviceQualityContribution?: number;
   readonly policyVersion: string;
   readonly settledAt: number;
   readonly reason: 'land-value-cadence';

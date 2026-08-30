@@ -3,6 +3,7 @@ import {
   applyServiceQuality,
   assertValidServiceQualityPolicy,
   evaluateServiceQuality,
+  summarizeRegionalServiceQuality,
   TOWN_SERVICE_QUALITY_POLICY_VERSION,
   type ServiceQualityPolicy,
 } from './serviceQuality';
@@ -104,5 +105,15 @@ describe('service quality', () => {
         policy,
       }),
     ).toThrow('fundedAmount must be non-negative finite');
+  });
+
+  test('averages service channels into one bounded regional signal', () => {
+    expect(
+      summarizeRegionalServiceQuality([
+        { quality: 1, landValueContribution: 8, wellbeingContribution: 0 },
+        { quality: 0, landValueContribution: 0, wellbeingContribution: -8 },
+      ]),
+    ).toEqual({ quality: 0.5, landValueContribution: 4, wellbeingContribution: -4 });
+    expect(summarizeRegionalServiceQuality([])).toBeUndefined();
   });
 });

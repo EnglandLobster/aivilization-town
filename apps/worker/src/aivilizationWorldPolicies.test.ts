@@ -45,7 +45,7 @@ describe('AIvilization default world command policies', () => {
         autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
-        contextView: 'world-decision-context-view-v7',
+        contextView: 'world-decision-context-view-v8',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -81,7 +81,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v7',
+            contextViewVersion: 'world-decision-context-view-v8',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -296,6 +296,37 @@ describe('AIvilization default world command policies', () => {
     const policy = createAivilizationTownWeatherPolicy();
     expect(policy.policyVersion).toBe('town-weather-v1');
     expect(() => assertTownWeatherPolicy(policy)).not.toThrow();
+  });
+
+  test('declares authority-scoped service quality only when its switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townServiceQuality');
+    expect(off.parameters).not.toHaveProperty('townServiceQuality');
+
+    const on = createAivilizationWorldPolicyManifest({ townServiceQuality: true });
+    expect(on.policyVersions).toMatchObject({
+      townServiceQuality: 'town-service-quality-v1',
+    });
+    expect(on.parameters.townServiceQuality).toMatchObject({
+      cadenceMs: 3_600_000,
+      services: {
+        education: { requiredFundingPerCadence: 10 },
+        healthcare: { requiredFundingPerCadence: 10 },
+      },
+      landValueWeight: 8,
+      wellbeingPenaltyAtZeroQuality: 8,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townServiceQuality',
+          provenance: 'experimental',
+          policyVersion: 'town-service-quality-v1',
+        }),
+      ]),
+    );
   });
 
   test('declares the town conditions catalog in the manifest only when the switch is on', () => {

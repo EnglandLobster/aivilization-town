@@ -99,6 +99,7 @@ import { appendCompletedTravelArrivals } from './movement';
 import { appendEnterpriseLifecycleEvents } from './enterpriseLifecycle';
 import { appendCreditAccrualEvents } from './creditLifecycle';
 import { isMatterExpiryWithoutBreach } from '../matters';
+import { resolveRegionalServiceQualitySummary } from '../serviceQuality';
 import { makeEvent, makeMemoryEvent } from './shared';
 
 export function handleAdvanceSimulationTimeCommand(input: {
@@ -1234,9 +1235,21 @@ function appendRegionalLandValueEvents(input: {
       const previousIndex = landValueByRegion.get(regionId) ?? policy.baseline;
       const agentCount = agentCountByRegion.get(regionId) ?? 0;
       const marketLiquidity = liquidityByRegion.get(regionId) ?? 0;
+      const serviceQuality = resolveRegionalServiceQualitySummary({
+        projection,
+        events: input.events,
+        regionId,
+        settledAt,
+      });
       const evaluation = evaluateRegionalLandValue({
         previousIndex,
-        inputs: { agentCount, marketLiquidity },
+        inputs: {
+          agentCount,
+          marketLiquidity,
+          ...(serviceQuality === undefined
+            ? {}
+            : { serviceQualityContribution: serviceQuality.landValueContribution }),
+        },
         policy,
       });
       input.events.push(
@@ -1247,6 +1260,9 @@ function appendRegionalLandValueEvents(input: {
           rawIndex: evaluation.rawIndex,
           agentCount,
           marketLiquidity,
+          ...(serviceQuality === undefined
+            ? {}
+            : { serviceQualityContribution: serviceQuality.landValueContribution }),
           policyVersion: policy.policyVersion,
           settledAt,
           reason: 'land-value-cadence',
@@ -1957,6 +1973,15 @@ function appendWellbeingEvents(input: {
             policy: input.lifestyle,
           });
     const relations = summarizeAgentWellbeingRelations(input.projection, agent.agentId);
+    const serviceQuality = resolveRegionalServiceQualitySummary({
+      projection: input.projection,
+      events: input.events,
+      regionId: resolveAgentRegion({
+        projection: input.projection,
+        agentLocationId: agent.locationId,
+      }),
+      settledAt: interval.currentSimulationTime,
+    });
     // Distress freshness: the physiological safety net settles EARLIER in this
     // same interval and its PhysiologicalDistressChanged events are not yet
     // folded into the projection — read the transition off the emitted batch
@@ -1976,6 +2001,9 @@ function appendWellbeingEvents(input: {
         distressActive,
         meanPositiveRelation: relations.meanPositiveRelation,
         meanNegativeRelation: relations.meanNegativeRelation,
+        ...(serviceQuality === undefined
+          ? {}
+          : { serviceQualityContribution: serviceQuality.wellbeingContribution }),
         elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
       },
       policy: input.policy,

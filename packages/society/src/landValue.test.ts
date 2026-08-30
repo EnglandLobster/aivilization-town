@@ -40,6 +40,16 @@ describe('regional land value', () => {
     expect(result.nextIndex).toBeCloseTo(6.04);
   });
 
+  it('adds an already-weighted regional service contribution', () => {
+    const result = evaluateRegionalLandValue({
+      previousIndex: 0,
+      inputs: { agentCount: 0, marketLiquidity: 0, serviceQualityContribution: 8 },
+      policy,
+    });
+    expect(result.rawIndex).toBe(8);
+    expect(result.nextIndex).toBeCloseTo(3.2);
+  });
+
   it('respects the baseline when inputs are zero', () => {
     const result = evaluateRegionalLandValue({
       previousIndex: 0,

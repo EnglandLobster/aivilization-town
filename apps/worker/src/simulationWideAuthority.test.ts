@@ -1719,6 +1719,121 @@ describe('authority lifecycle and memory-sync scoping', () => {
     }
   });
 
+  test('admits demand-driven residents once, balances ownership, and delivers only to owners', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-migration-'));
+    const basePolicies = createAivilizationWorldCommandPolicies('authority-migration-test');
+    const policies: WorldCommandPolicyResolver = (projection) => ({
+      ...basePolicies(projection),
+      migration: {
+        policyVersion: 'town-migration-test-v3',
+        maxProbabilityPerHour: 1,
+        fallbackWellbeing: 100,
+        settlementCadenceMs: 86_400_000,
+        inMigration: {
+          settlementCadenceMs: 86_400_000,
+          maximumArrivalsPerCadence: 10,
+          minimumAttractiveWellbeing: 0,
+          housingDemandWeight: 1,
+          jobDemandWeight: 0,
+        },
+      },
+    });
+    const authority = createSimulationWideAuthority({
+      rootDir,
+      policies,
+      seed: {
+        manifestId: 'migration-manifest',
+        simulationId,
+        partitionKeys: [partitionA, partitionB],
+        owners: [
+          { agentId: agentA, partitionKey: partitionA },
+          { agentId: agentB, partitionKey: partitionB },
+        ],
+        partitionAccountsByKey: {
+          [partitionA]: { moneySupply: 500, treasury: 0 },
+          [partitionB]: { moneySupply: 500, treasury: 0 },
+        },
+        projection: createWorldProjection({
+          clock: { now: 0, tickDurationMs: 1_000 },
+          locations: [
+            {
+              locationId: asLocationId('residential-block'),
+              name: 'Residential block',
+              kind: 'residence',
+              activityAffinities: ['rest'],
+              capacity: 4,
+            },
+          ],
+          agents: [
+            {
+              agentId: agentA,
+              locationId: asLocationId('residential-block'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 500,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+              wellbeing: 100,
+            },
+            {
+              agentId: agentB,
+              locationId: asLocationId('residential-block'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 500,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+              wellbeing: 100,
+            },
+          ],
+          marketPools: [],
+          moneySupply: 1_000,
+        }),
+      },
+    });
+    const request = {
+      operationId: 'migration-two-days',
+      workerId: 'worker-a',
+      observedAt: 172_800_000,
+      durationMs: 100,
+      deltaMs: 172_800_000,
+    } as const;
+
+    const [operation] = authority.advanceTime(request);
+    if (operation?.kind !== 'time-advanced') throw new Error('expected time advance');
+    const registrations = operation.events.filter((event) => event.type === 'AgentRegistered');
+    expect(registrations).toHaveLength(2);
+    expect(operation.registeredAgents?.map((entry) => entry.ownerPartitionKey)).toEqual([
+      partitionA,
+      partitionB,
+    ]);
+    expect(registrations[0]?.payload.migrationArrival).toMatchObject({
+      migrationPolicyVersion: 'town-migration-test-v3',
+      settledAt: 86_400_000,
+      populationBefore: 2,
+      residentialCapacity: 4,
+      housingVacancies: 2,
+    });
+    const snapshot = authority.getSnapshot();
+    expect(Object.keys(snapshot.projection.agents)).toHaveLength(4);
+    expect(snapshot.projection.moneySupply).toBe(1_200);
+    expect(snapshot.partitionAccountsByKey?.[partitionA]?.moneySupply).toBe(600);
+    expect(snapshot.partitionAccountsByKey?.[partitionB]?.moneySupply).toBe(600);
+
+    const deliveryA = authority
+      .readInbox({ partitionKey: partitionA, consumerId: 'migration-a' })
+      .deliveries.find((delivery) => delivery.operationId === request.operationId);
+    const deliveryB = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'migration-b' })
+      .deliveries.find((delivery) => delivery.operationId === request.operationId);
+    expect(deliveryA?.events.filter((event) => event.type === 'AgentRegistered')).toHaveLength(1);
+    expect(deliveryB?.events.filter((event) => event.type === 'AgentRegistered')).toHaveLength(1);
+    expect(authority.advanceTime(request)).toEqual([operation]);
+    expect(Object.keys(authority.getSnapshot().projection.agents)).toHaveLength(4);
+  });
+
   test('location sync merges memory records idempotently into the bounded authority cache', () => {
     const authority = createAuthority();
     const record = createShortTermMemoryRecord({

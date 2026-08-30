@@ -25,6 +25,7 @@ import { decideLiquidateDeceasedCustomer, type CreditDomainEvent } from '@aivili
 import {
   calculateCompletedRecruitmentCycleNumbers,
   settlePublicBudget,
+  type OutMigrationPolicy,
   type PublicBudgetPolicy,
   type ServiceQualityPolicy,
   type TownPublicService,
@@ -55,6 +56,7 @@ import {
   assertValidAgentCognitiveSnapshot,
   type AgentCognitiveSnapshot,
 } from './agentCognitiveSnapshot';
+import { settleDemandDrivenArrivals } from './simulationWideMigration';
 
 /**
  * A file-backed, simulation-wide authority used when one society is executed
@@ -396,6 +398,11 @@ export type SimulationWideAuthorityOperation =
         readonly departureEvents: readonly WorldEvent[];
         readonly arrivalEvents: readonly WorldEvent[];
         readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
+      }[];
+      /** Demand-driven residents admitted at migration cadence boundaries. */
+      readonly registeredAgents?: readonly {
+        readonly agentId: AgentId;
+        readonly ownerPartitionKey: PartitionKey;
       }[];
     }
   | {
@@ -801,6 +808,9 @@ export function createSimulationWideAuthority(input: {
         : { serviceQuality: input.townServiceQuality }),
     };
   };
+
+  const resolveMigrationPolicy = (projection: WorldProjection): OutMigrationPolicy | undefined =>
+    resolveWorldCommandPolicies({ policies: input.policies, projection }).migration;
 
   // Authority clock advancement owns global cadences and the single bank, but
   // never re-runs owner-partition household/enterprise/resource settlement.
@@ -2160,10 +2170,37 @@ export function createSimulationWideAuthority(input: {
             events = [...events, bankSnapshot];
             projection = applyWorldEvent(projection, bankSnapshot);
           }
+          const migrationPolicy = resolveMigrationPolicy(state.projection);
+          const arrivalSettlement = settleDemandDrivenArrivals({
+            simulationId: state.simulationId,
+            previousSimulationTime: state.projection.clock.now,
+            nextSimulationTime: state.projection.clock.now + request.deltaMs,
+            revision: state.revision,
+            projection,
+            existingEvents: events,
+            ownerPartitionKeyByAgentId: state.ownerPartitionKeyByAgentId,
+            partitionKeys: state.partitionKeys,
+            ...(state.partitionAccountsByKey === undefined
+              ? {}
+              : { partitionAccountsByKey: state.partitionAccountsByKey }),
+            commandPolicies: resolveWorldCommandPolicies({
+              policies: input.policies,
+              projection: state.projection,
+            }),
+            ...(migrationPolicy?.inMigration === undefined
+              ? {}
+              : {
+                  migrationPolicyVersion: migrationPolicy.policyVersion,
+                  fallbackWellbeing: migrationPolicy.fallbackWellbeing,
+                  policy: migrationPolicy.inMigration,
+                }),
+          });
+          events = [...arrivalSettlement.events];
+          projection = arrivalSettlement.projection;
           const movedAgentIds = events
             .filter((event) => event.type === 'AgentLocationChanged')
             .map((event) => event.payload.agentId);
-          const owners = { ...state.ownerPartitionKeyByAgentId };
+          const owners = { ...arrivalSettlement.ownerPartitionKeyByAgentId };
           const pendingTransfers = { ...state.pendingTransfers };
           const pendingMoves = { ...(state.pendingMoves ?? {}) };
           const completedTransfers: {
@@ -2252,8 +2289,16 @@ export function createSimulationWideAuthority(input: {
               ownerPartitionKeyByAgentId: owners,
               pendingTransfers,
               pendingMoves,
+              ...(arrivalSettlement.partitionAccountsByKey === undefined
+                ? {}
+                : { partitionAccountsByKey: arrivalSettlement.partitionAccountsByKey }),
             },
-            operation: primary,
+            operation: {
+              ...primary,
+              ...(arrivalSettlement.registeredAgents.length === 0
+                ? {}
+                : { registeredAgents: arrivalSettlement.registeredAgents }),
+            },
           };
         },
       });
@@ -2815,6 +2860,20 @@ function createInboxDeliveries(
           }
         }
       }
+      for (const registration of operation.registeredAgents ?? []) {
+        const registrationEvent = operation.events.find(
+          (event) =>
+            event.type === 'AgentRegistered' && event.payload.agentId === registration.agentId,
+        );
+        if (registrationEvent === undefined) {
+          throw new Error(
+            `time advance ${operation.operationId} is missing registration event for ${registration.agentId}`,
+          );
+        }
+        if (!fullRecipients.has(registration.ownerPartitionKey)) {
+          addEvents(registration.ownerPartitionKey, [registrationEvent]);
+        }
+      }
       // Town-wide board updates during this advance (bulletin activations,
       // matter expiries and their breach outcomes): partitions that already
       // receive the full advance event set (transfer moves) have them inline;
@@ -2945,6 +3004,9 @@ function createPartitionCreditTimeEvents(
       return ownerPartitionKeyByAgentId[event.payload.borrowerAgentId] === partitionKey
         ? [event]
         : [];
+    }
+    if (event.type === 'AgentRegistered') {
+      return ownerPartitionKeyByAgentId[event.payload.agentId] === partitionKey ? [event] : [];
     }
     // These lifecycle events only mutate the bank aggregate. The following
     // TownBankSnapshotRecorded event carries the authoritative result without

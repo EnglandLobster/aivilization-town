@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertValidInMigrationPolicy,
   assertValidOutMigrationPolicy,
+  evaluateInMigrationDemand,
   evaluateOutMigrationDecision,
   evaluateOutMigrationProbabilityPercent,
+  type InMigrationPolicy,
   type OutMigrationPolicy,
 } from './migration';
 
@@ -12,6 +15,75 @@ const policy: OutMigrationPolicy = {
   fallbackWellbeing: 50,
   settlementCadenceMs: 86_400_000,
 };
+
+const inMigrationPolicy: InMigrationPolicy = {
+  settlementCadenceMs: 86_400_000,
+  maximumArrivalsPerCadence: 4,
+  minimumAttractiveWellbeing: 20,
+  housingDemandWeight: 0.75,
+  jobDemandWeight: 0.25,
+};
+
+describe('evaluateInMigrationDemand', () => {
+  it('combines housing, jobs and wellbeing into a bounded arrival decision', () => {
+    const decision = evaluateInMigrationDemand({
+      population: 50,
+      residentialCapacity: 100,
+      openJobSlots: 25,
+      averageWellbeing: 60,
+      roll: 0.9,
+      policy: inMigrationPolicy,
+    });
+
+    expect(decision).toMatchObject({
+      arrivalCount: 1,
+      housingVacancies: 50,
+      housingPressure: 0.5,
+      laborPressure: 0.5,
+      wellbeingAttractiveness: 0.5,
+      demandScore: 0.25,
+      fractionalArrivalProbability: 0,
+    });
+  });
+
+  it('uses the supplied roll for a fractional arrival and keeps housing as a hard cap', () => {
+    const fractional = {
+      population: 75,
+      residentialCapacity: 100,
+      openJobSlots: 0,
+      averageWellbeing: 60,
+      policy: inMigrationPolicy,
+    } as const;
+    expect(evaluateInMigrationDemand({ ...fractional, roll: 0 }).arrivalCount).toBe(1);
+    expect(evaluateInMigrationDemand({ ...fractional, roll: 0.99 }).arrivalCount).toBe(0);
+
+    const full = evaluateInMigrationDemand({
+      ...fractional,
+      population: 100,
+      openJobSlots: 100,
+      averageWellbeing: 100,
+      roll: 0,
+    });
+    expect(full.arrivalCount).toBe(0);
+    expect(full.housingVacancies).toBe(0);
+  });
+
+  it('rejects invalid policy weights and decision inputs', () => {
+    expect(() =>
+      assertValidInMigrationPolicy({ ...inMigrationPolicy, housingDemandWeight: 0.5 }),
+    ).toThrow('sum to 1');
+    expect(() =>
+      evaluateInMigrationDemand({
+        population: -1,
+        residentialCapacity: 100,
+        openJobSlots: 0,
+        averageWellbeing: 50,
+        roll: 0,
+        policy: inMigrationPolicy,
+      }),
+    ).toThrow('non-negative integer');
+  });
+});
 
 describe('evaluateOutMigrationProbabilityPercent', () => {
   it('follows the CS2 NotHappy shape: zero at the neutral point, steep at zero', () => {

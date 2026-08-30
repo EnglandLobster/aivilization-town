@@ -108,6 +108,17 @@ export type AgentRegisteredPayload = {
     readonly inventory: Inventory;
   };
   readonly moneySupplyDelta: number;
+  /** Present only when the simulation-wide migration cadence admitted this Agent. */
+  readonly migrationArrival?: {
+    readonly migrationPolicyVersion: string;
+    readonly settledAt: number;
+    readonly populationBefore: number;
+    readonly residentialCapacity: number;
+    readonly openJobSlots: number;
+    readonly averageWellbeing: number;
+    readonly housingVacancies: number;
+    readonly demandScore: number;
+  };
   readonly humanAttribution?: HumanCommandAttribution;
 };
 
@@ -1193,7 +1204,7 @@ export type AgentDiedPayload = {
 
 /**
  * A happiness-driven departure settled at the END of a settlement interval
- * (town-migration-v2, CS2 NotHappy): the agent was alive for the interval's
+ * (town-migration-v2+, CS2 NotHappy): the agent was alive for the interval's
  * other settlements, then left town. The reducer removes the agent exactly
  * like a death — the estate accounting is shared (AGENTS.md §7 category 3:
  * the departing agent's circulating currency moves out of the town economy,

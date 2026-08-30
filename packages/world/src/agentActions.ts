@@ -254,7 +254,8 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly collectiveAction?: CollectiveActionPolicy;
   /**
-   * Optional out-migration policy (town-migration-v2). When present, the
+   * Optional migration policy (town-migration-v2+). Owner partitions settle
+   * departures; the simulation-wide authority settles v3 arrivals. When present, the
    * population-turnover block of AdvanceSimulationTime additionally rolls
    * the CS2 NotHappy departure per agent and cadence; departing agents
    * liquidate through the shared estate path. Omitted keeps the population

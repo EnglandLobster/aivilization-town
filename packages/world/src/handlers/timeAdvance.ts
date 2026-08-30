@@ -135,7 +135,8 @@ export function handleAdvanceSimulationTimeCommand(input: {
    */
   readonly lifecycle?: LifecyclePolicy;
   /**
-   * Optional out-migration policy (town-migration-v2). When present, the
+   * Optional migration policy (town-migration-v2+). This owner-scoped handler
+   * settles departures; demand-driven arrivals are authority-scoped. When present, the
    * population-turnover block additionally evaluates the CS2 NotHappy
    * departure rule per agent and cadence: persistently unhappy agents leave
    * town with the full estate liquidation (shared with death). Omitted keeps
@@ -2017,7 +2018,7 @@ function appendLifecycleSettlementEvents(input: {
       }
     }
 
-    // Out-migration (town-migration-v2, CS2 NotHappy): the same per-cadence
+    // Out-migration (town-migration-v2+, CS2 NotHappy): the same per-cadence
     // roll discipline as illness death; the departing agent liquidates
     // through the shared path and leaves with their estate burned out of the
     // town economy.

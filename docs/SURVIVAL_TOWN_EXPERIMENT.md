@@ -43,7 +43,7 @@ pnpm --filter @aivilization/server start -- \
 主体和 cadence 边界，不绑定某次推进命令的 ID 或批量 `deltaMs`。每个机制拥有自己的 cadence，
 不会被另一个更高频机制或更小的推进命令加速。因此把同一时间窗一次快进或逐 cadence 推进会
 得到相同轨迹。新语义分别由 `stochastic-illness-v2`、`starvation-health-decay-v2`、
-`town-lifecycle-v2`、`town-migration-v2`、`town-weather-v2` 标识；旧版天气、生命周期、
+`town-lifecycle-v2`、`town-migration-v3`、`town-weather-v2` 标识；旧版天气、生命周期、
 饥饿、迁徙和未版本化随机疾病配置保留兼容分支，历史事件仍按已记录事实回放。
 
 ## 观测口径

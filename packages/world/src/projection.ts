@@ -36,6 +36,7 @@ import {
 } from './enterprise';
 import { assertValidBankState, normalizeBankState, type WorldBankState } from './credit';
 import type {
+  AgentRegisteredPayload,
   AgentActivityKind,
   AgentActivityTimeCommittedPayload,
   EconomicCompositionRecordedPayload,
@@ -145,6 +146,7 @@ export type WorldAgentState = {
     readonly displayName: string;
     readonly registeredAt: number;
     readonly provenance: 'post-bootstrap-command';
+    readonly migrationArrival?: AgentRegisteredPayload['migrationArrival'];
     readonly humanAttribution?: HumanCommandAttribution;
   };
 };
@@ -958,6 +960,9 @@ export function applyWorldEvent(
                 displayName: event.payload.displayName,
                 registeredAt: event.occurredAt,
                 provenance: 'post-bootstrap-command',
+                ...(event.payload.migrationArrival === undefined
+                  ? {}
+                  : { migrationArrival: { ...event.payload.migrationArrival } }),
                 ...(event.payload.humanAttribution === undefined
                   ? {}
                   : {

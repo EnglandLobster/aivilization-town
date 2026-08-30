@@ -1,6 +1,6 @@
 /**
- * Out-migration rules (town-migration-v2): the happiness-driven departure
- * minimal set. CS2 (HouseholdBehaviorSystem) evaluates a per-tick departure
+ * Migration rules (town-migration-v3). CS2 (HouseholdBehaviorSystem)
+ * evaluates a per-tick departure
  * probability in permille as a polynomial of average happiness:
  *   −53.35·h + 5.408·√(95.96h² + 1013h + 6576) − 298.5
  * which crosses zero around h ≈ 48 — content citizens never leave, desperate
@@ -8,8 +8,10 @@
  * percent (the permille value ÷ 10), clamped to the policy cap, and the
  * decision function is linear in the settlement interval with a caller-seeded
  * roll — the stochastic-illness/illness-death convention, so per-cadence
- * replay stays equivalent. In-migration (demand-driven entry) is a future
- * extension and will bump the policy version.
+ * replay stays equivalent. Demand-driven in-migration is intentionally a
+ * separate pure decision: the society domain evaluates housing, jobs and
+ * wellbeing, while the application layer owns identity, partition placement
+ * and accounting.
  */
 
 export type OutMigrationPolicy = {
@@ -31,8 +33,94 @@ export type OutMigrationPolicy = {
    * advances spanning multiple cadences replay boundary by boundary.
    */
   readonly settlementCadenceMs: number;
+  /** Optional demand-driven arrival policy, absent for legacy v1/v2 configs. */
+  readonly inMigration?: InMigrationPolicy;
   readonly source?: string;
 };
+
+export type InMigrationPolicy = {
+  readonly settlementCadenceMs: number;
+  readonly maximumArrivalsPerCadence: number;
+  readonly minimumAttractiveWellbeing: number;
+  readonly housingDemandWeight: number;
+  readonly jobDemandWeight: number;
+};
+
+export type InMigrationDemandDecision = {
+  readonly arrivalCount: number;
+  readonly housingVacancies: number;
+  readonly housingPressure: number;
+  readonly laborPressure: number;
+  readonly wellbeingAttractiveness: number;
+  readonly demandScore: number;
+  readonly fractionalArrivalProbability: number;
+};
+
+/**
+ * Evaluate how many residents the town attracts at one migration cadence.
+ * Housing is a hard capacity boundary. Jobs and wellbeing affect demand but
+ * can never create an arrival when no residence slot exists.
+ */
+export function evaluateInMigrationDemand(input: {
+  readonly population: number;
+  readonly residentialCapacity: number;
+  readonly openJobSlots: number;
+  readonly averageWellbeing: number;
+  /** Caller-seeded roll used only for the fractional remainder. */
+  readonly roll: number;
+  readonly policy: InMigrationPolicy;
+}): InMigrationDemandDecision {
+  assertValidInMigrationPolicy(input.policy);
+  assertNonNegativeInteger(input.population, 'population');
+  assertNonNegativeInteger(input.residentialCapacity, 'residentialCapacity');
+  assertNonNegativeInteger(input.openJobSlots, 'openJobSlots');
+  if (
+    !Number.isFinite(input.averageWellbeing) ||
+    input.averageWellbeing < 0 ||
+    input.averageWellbeing > 100
+  ) {
+    throw new Error('in-migration averageWellbeing must be within [0, 100]');
+  }
+  if (!Number.isFinite(input.roll) || input.roll < 0 || input.roll >= 1) {
+    throw new Error('in-migration roll must be within [0, 1)');
+  }
+
+  const housingVacancies = Math.max(0, input.residentialCapacity - input.population);
+  const housingPressure =
+    input.residentialCapacity === 0 ? 0 : housingVacancies / input.residentialCapacity;
+  const laborPressure = Math.min(1, input.openJobSlots / Math.max(1, input.population));
+  const wellbeingRange = 100 - input.policy.minimumAttractiveWellbeing;
+  const wellbeingAttractiveness = Math.max(
+    0,
+    Math.min(
+      1,
+      (input.averageWellbeing - input.policy.minimumAttractiveWellbeing) / wellbeingRange,
+    ),
+  );
+  const demandScore =
+    wellbeingAttractiveness *
+    (input.policy.housingDemandWeight * housingPressure +
+      input.policy.jobDemandWeight * laborPressure);
+  const unconstrainedArrivals = input.policy.maximumArrivalsPerCadence * demandScore;
+  const certainArrivals = Math.floor(unconstrainedArrivals);
+  const fractionalArrivalProbability = unconstrainedArrivals - certainArrivals;
+  const stochasticArrival = input.roll < fractionalArrivalProbability ? 1 : 0;
+  const arrivalCount = Math.min(
+    housingVacancies,
+    input.policy.maximumArrivalsPerCadence,
+    certainArrivals + stochasticArrival,
+  );
+
+  return {
+    arrivalCount,
+    housingVacancies,
+    housingPressure,
+    laborPressure,
+    wellbeingAttractiveness,
+    demandScore,
+    fractionalArrivalProbability,
+  };
+}
 
 export function evaluateOutMigrationProbabilityPercent(input: {
   readonly wellbeing: number;
@@ -93,10 +181,46 @@ export function assertValidOutMigrationPolicy(policy: OutMigrationPolicy): void 
   if (!Number.isFinite(policy.settlementCadenceMs) || policy.settlementCadenceMs <= 0) {
     throw new Error('out-migration settlementCadenceMs must be a positive finite number');
   }
+  if (policy.inMigration !== undefined) {
+    assertValidInMigrationPolicy(policy.inMigration);
+  }
+}
+
+export function assertValidInMigrationPolicy(policy: InMigrationPolicy): void {
+  if (!Number.isFinite(policy.settlementCadenceMs) || policy.settlementCadenceMs <= 0) {
+    throw new Error('in-migration settlementCadenceMs must be a positive finite number');
+  }
+  if (!Number.isInteger(policy.maximumArrivalsPerCadence) || policy.maximumArrivalsPerCadence < 1) {
+    throw new Error('in-migration maximumArrivalsPerCadence must be a positive integer');
+  }
+  if (
+    !Number.isFinite(policy.minimumAttractiveWellbeing) ||
+    policy.minimumAttractiveWellbeing < 0 ||
+    policy.minimumAttractiveWellbeing >= 100
+  ) {
+    throw new Error('in-migration minimumAttractiveWellbeing must be within [0, 100)');
+  }
+  assertUnitInterval(policy.housingDemandWeight, 'housingDemandWeight');
+  assertUnitInterval(policy.jobDemandWeight, 'jobDemandWeight');
+  if (Math.abs(policy.housingDemandWeight + policy.jobDemandWeight - 1) > 1e-9) {
+    throw new Error('in-migration demand weights must sum to 1');
+  }
 }
 
 function assertNonNegativeFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be non-negative finite`);
+  }
+}
+
+function assertNonNegativeInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+}
+
+function assertUnitInterval(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`in-migration ${name} must be within [0, 1]`);
   }
 }

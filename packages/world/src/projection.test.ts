@@ -11,6 +11,7 @@ import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
   createWorldProjection,
+  normalizeLegacyWorldProjectionSnapshot,
   type AgentActivityTimeCommittedPayload,
   type WorldEvent,
 } from './index';
@@ -20,6 +21,18 @@ describe('world projection', () => {
     expect(() =>
       createWorldProjection({
         agents: [],
+        bank: {
+          balance: -1,
+          deposits: {},
+          loans: {},
+          creditHistoryByAgent: {},
+        },
+      }),
+    ).toThrow('bank balance must be non-negative finite');
+    const valid = createWorldProjection({ agents: [] });
+    expect(() =>
+      normalizeLegacyWorldProjectionSnapshot({
+        ...valid,
         bank: {
           balance: -1,
           deposits: {},

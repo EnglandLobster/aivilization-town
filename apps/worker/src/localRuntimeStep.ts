@@ -10,7 +10,7 @@ import {
   drainLocalRuntimeSteeringCommandsToWorld,
   type LocalRuntimeSteeringCommandWorldDrainResult,
 } from './localCommandDrain';
-import type { WorkerTownBulletinIssuer } from './steering';
+import type { WorkerTownBulletinIssuer, WorkerTownGovernanceIssuer } from './steering';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
 import { hydrateWorldProjectionFromEventStream } from './projectionHydration';
 import { createCanonicalAmbientObservationMemoryRuntimeInput } from './ambientObservationMemory';
@@ -99,6 +99,7 @@ export type LocalWorldRuntimeStepInput = {
    * IssueTownBulletin steering commands.
    */
   readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
+  readonly townGovernanceIssuer?: WorkerTownGovernanceIssuer;
 };
 
 export type LocalWorldRuntimeStepResult =
@@ -155,6 +156,9 @@ export async function runLocalWorldRuntimeStep(
     ...(input.townBulletinIssuer === undefined
       ? {}
       : { townBulletinIssuer: input.townBulletinIssuer }),
+    ...(input.townGovernanceIssuer === undefined
+      ? {}
+      : { townGovernanceIssuer: input.townGovernanceIssuer }),
     ...(input.commandDrainLimit === undefined ? {} : { limit: input.commandDrainLimit }),
   });
 

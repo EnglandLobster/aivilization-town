@@ -21,7 +21,12 @@ import {
   type CheckpointedWorkerCommandStreamConsumptionResult,
 } from './commandStreamConsumer';
 import type { LocalWorldRuntimeStorage } from './localRuntimeStorage';
-import { handleWorkerSteeringCommand, type WorkerSteeringResult, type WorkerTownBulletinIssuer } from './steering';
+import {
+  handleWorkerSteeringCommand,
+  type WorkerSteeringResult,
+  type WorkerTownBulletinIssuer,
+  type WorkerTownGovernanceIssuer,
+} from './steering';
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 
 export type LocalRuntimeSteeringCommandDrainInput = {
@@ -33,6 +38,7 @@ export type LocalRuntimeSteeringCommandDrainInput = {
   readonly repair?: ReactiveRepairPolicy;
   readonly strategicPlanCompiler?: StrategicPlanCompiler;
   readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
+  readonly townGovernanceIssuer?: WorkerTownGovernanceIssuer;
   readonly limit?: number;
 };
 
@@ -59,6 +65,9 @@ export function drainLocalRuntimeSteeringCommands(
         ...(input.townBulletinIssuer === undefined
           ? {}
           : { townBulletinIssuer: input.townBulletinIssuer }),
+        ...(input.townGovernanceIssuer === undefined
+          ? {}
+          : { townGovernanceIssuer: input.townGovernanceIssuer }),
       });
       await recordSteeringTrace({
         storage: input.storage,
@@ -152,6 +161,9 @@ export function drainLocalRuntimeSteeringCommandsToWorld(
         ...(input.townBulletinIssuer === undefined
           ? {}
           : { townBulletinIssuer: input.townBulletinIssuer }),
+        ...(input.townGovernanceIssuer === undefined
+          ? {}
+          : { townGovernanceIssuer: input.townGovernanceIssuer }),
         persistShortTermMemoryRecords: false,
       });
 
@@ -336,6 +348,15 @@ function createSteeringTrace(input: {
     return {
       ...base,
       bulletinId: input.steering.bulletinId,
+      candidateActionCount: 0,
+    };
+  }
+
+  if (input.steering.kind === 'town-governance-policy-set') {
+    return {
+      ...base,
+      governancePolicyKind: input.steering.policyKind,
+      governanceRevision: input.steering.governanceRevision,
       candidateActionCount: 0,
     };
   }

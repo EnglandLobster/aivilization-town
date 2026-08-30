@@ -128,6 +128,7 @@ describe('local runtime town executable composition', () => {
       townCollectiveActionEnabled: false,
       townMigrationEnabled: false,
       townServiceQualityEnabled: false,
+      townGovernanceEnabled: false,
     });
   });
 
@@ -209,6 +210,7 @@ describe('local runtime town executable composition', () => {
       townCollectiveActionEnabled: false,
       townMigrationEnabled: false,
       townServiceQualityEnabled: false,
+      townGovernanceEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -831,6 +833,47 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabled).toContain('town-service-quality-v1');
+  });
+
+  test('town governance is off by default and enabled by flag or env', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townGovernanceEnabled).toBe(
+      false,
+    );
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        argv: ['--', '--llm-mode', 'deterministic', '--town-governance', 'on'],
+        cwd: '/workspace',
+        sourceRevision,
+        env: {},
+      }).townGovernanceEnabled,
+    ).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_GOVERNANCE: '1' },
+      }).townGovernanceEnabled,
+    ).toBe(true);
+
+    const disabled = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
+      ),
+    );
+    expect(disabled).not.toContain('town-governance-v1');
+    const enabled = JSON.stringify(
+      createCanonicalLocalRuntimeTownResolvedRunManifest(
+        resolveLocalRuntimeTownCliConfig({
+          ...base,
+          env: { AIVILIZATION_TOWN_GOVERNANCE: '1' },
+        }),
+      ),
+    );
+    expect(enabled).toContain('town-governance-v1');
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

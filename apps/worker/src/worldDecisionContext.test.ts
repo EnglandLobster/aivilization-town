@@ -1887,6 +1887,114 @@ describe('worker world decision context', () => {
   });
 });
 
+describe('worker governance decision context', () => {
+  const policies: WorldCommandPolicies = {
+    satietyRecoveryByCommodity: {},
+    maxSatiety: 100,
+    wageCalculator: () => 0,
+    laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+    criticalThresholds: { energy: 0, health: 0 },
+    governance: {
+      policyVersion: 'town-governance-v1',
+      allowedBudgetServices: ['education', 'healthcare'],
+      maximumAllocationPerCadence: 1_000,
+      maximumTreasuryReserve: 10_000,
+      maximumSubsidyBalanceFloor: 1_000,
+      maximumSubsidyPerCadence: 500,
+    },
+    tax: {
+      policyVersion: 'tax-v1',
+      neutralRate: 0.1,
+      incomeTaxBrackets: [{ upToAmount: null, rate: 0.1 }],
+      tradeTaxRate: 0.05,
+      source: 'test',
+    },
+    publicBudget: {
+      policyVersion: 'budget-v1',
+      cadenceMs: 86_400_000,
+      minimumTreasuryReserve: 100,
+      allocations: [{ service: 'education', amountPerCadence: 25 }],
+    },
+    safetyNetSubsidy: { minimumBalance: 50, maxSubsidy: 20 },
+  };
+
+  test('exposes current policies and only signed, unconsumed threshold petitions', () => {
+    const projection = createWorldProjection({
+      agents: [createLocalAgent(agentId)],
+      petitions: [
+        {
+          petitionId: 'petition-tax',
+          topic: 'tax_policy',
+          statement: '降低税率',
+          raisedByAgentId: agentId,
+          raisedAt: 10,
+          expiresAt: 1_000,
+          signatureAgentIds: [agentId],
+          status: 'threshold-reached',
+          thresholdReachedAt: 20,
+        },
+        {
+          petitionId: 'petition-unsigned',
+          topic: 'public-budget',
+          statement: 'Increase education funding',
+          raisedByAgentId: asAgentId('agent-b'),
+          raisedAt: 10,
+          expiresAt: 1_000,
+          signatureAgentIds: [asAgentId('agent-b')],
+          status: 'threshold-reached',
+          thresholdReachedAt: 30,
+        },
+      ],
+      governance: {
+        revision: 2,
+        consumedPetitionIds: [],
+        lastChangedAt: 15,
+        lastChangedBy: { kind: 'operator', subjectId: 'operator-1' },
+        lastChangeReason: 'prior change',
+      },
+    });
+
+    const context = createWorldDecisionContextFromProjection({ projection, agentId, policies });
+    expect(context.governance).toEqual({
+      revision: 2,
+      tax: {
+        neutralRate: 0.1,
+        incomeTaxBrackets: [{ upToAmount: null, rate: 0.1 }],
+        tradeTaxRate: 0.05,
+      },
+      publicBudget: {
+        cadenceMs: 86_400_000,
+        minimumTreasuryReserve: 100,
+        allocations: [{ service: 'education', amountPerCadence: 25 }],
+      },
+      subsidy: { minimumBalance: 50, maxSubsidy: 20 },
+      eligiblePetitions: [
+        {
+          petitionId: 'petition-tax',
+          topic: 'tax-policy',
+          statement: '降低税率',
+          thresholdReachedAt: 20,
+        },
+      ],
+    });
+
+    const consumedProjection: WorldProjection = {
+      ...projection,
+      governance: { ...projection.governance!, consumedPetitionIds: ['petition-tax'] },
+    };
+    expect(
+      createWorldDecisionContextFromProjection({
+        projection: consumedProjection,
+        agentId,
+        policies,
+      }).governance?.eligiblePetitions,
+    ).toEqual([]);
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId }).governance,
+    ).toBeUndefined();
+  });
+});
+
 describe('worker social-matter decision context', () => {
   const policies: WorldCommandPolicies = {
     satietyRecoveryByCommodity: {},

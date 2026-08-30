@@ -281,6 +281,9 @@ export function assertSetTaxPolicyPayload(payload: unknown): SetTaxPolicyPayload
   if (!Array.isArray(incomeTaxBrackets)) {
     throw new Error('SetTaxPolicy incomeTaxBrackets must be an array');
   }
+  if (incomeTaxBrackets.length > 16) {
+    throw new Error('SetTaxPolicy incomeTaxBrackets must contain at most 16 entries');
+  }
   const brackets = incomeTaxBrackets.map((candidate, index): IncomeTaxBracket => {
     if (!isRecord(candidate)) {
       throw new Error(`SetTaxPolicy incomeTaxBrackets[${index}] must be an object`);
@@ -310,6 +313,9 @@ export function assertSetPublicBudgetPayload(payload: unknown): SetPublicBudgetP
   assertNonNegativeFinite(minimumTreasuryReserve, 'SetPublicBudget minimumTreasuryReserve');
   if (!Array.isArray(allocations)) {
     throw new Error('SetPublicBudget allocations must be an array');
+  }
+  if (allocations.length > 16) {
+    throw new Error('SetPublicBudget allocations must contain at most 16 entries');
   }
   return {
     ...metadata,

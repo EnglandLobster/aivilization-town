@@ -297,7 +297,11 @@ async function createValidationSteeringTracesFromSource(
   return traces.flatMap((trace) => {
     // Operator town-bulletin traces carry no acting Agent and are not
     // experiment-validation guidance, so they are skipped here.
-    if (trace.agentId === undefined || trace.resultKind === 'town-bulletin-issued') {
+    if (
+      trace.agentId === undefined ||
+      trace.resultKind === 'town-bulletin-issued' ||
+      trace.resultKind === 'town-governance-policy-set'
+    ) {
       return [];
     }
     return [

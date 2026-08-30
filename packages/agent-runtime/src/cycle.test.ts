@@ -1875,6 +1875,20 @@ describe('agent planning cycle', () => {
             ratios: { Bread: 1 },
           },
         },
+        governance: {
+          revision: 1,
+          tax: {
+            neutralRate: 0.1,
+            incomeTaxBrackets: [{ upToAmount: null, rate: 0.1 }],
+            tradeTaxRate: 0.05,
+          },
+          publicBudget: {
+            cadenceMs: 86_400_000,
+            minimumTreasuryReserve: 100,
+            allocations: [{ service: 'education', amountPerCadence: 25 }],
+          },
+          eligiblePetitions: [],
+        },
       },
       microPlanners: [
         {
@@ -1893,6 +1907,9 @@ describe('agent planning cycle', () => {
       repair: () => localRepairAttempt,
       reactiveCorrector: async (input) => {
         await Promise.resolve();
+        expect(input.allowedCommandTypes).toEqual(
+          expect.arrayContaining(['SetTaxPolicy', 'SetPublicBudget', 'SetSubsidyPolicy']),
+        );
         reactiveInputs.push(input);
         return {
           action: reactiveAction,

@@ -105,6 +105,7 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
         ...(config.townCollectiveActionEnabled ? { townCollectiveAction: true } : {}),
         ...(config.townMigrationEnabled ? { townMigration: true } : {}),
         ...(config.townServiceQualityEnabled ? { townServiceQuality: true } : {}),
+        ...(config.townGovernanceEnabled ? { townGovernance: true } : {}),
         // The paper-ablation cohort runs with the education system disabled;
         // record that override so the manifest provenance matches the runtime.
         ...(educationSystemOverride === undefined

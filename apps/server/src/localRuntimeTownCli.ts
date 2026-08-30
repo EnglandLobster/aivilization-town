@@ -95,6 +95,7 @@ export type LocalRuntimeTownCliConfig = {
   readonly townCollectiveActionEnabled: boolean;
   readonly townMigrationEnabled: boolean;
   readonly townServiceQualityEnabled: boolean;
+  readonly townGovernanceEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -217,6 +218,7 @@ export function resolveLocalRuntimeTownCliConfig(
   const townCollectiveActionEnabled = experimentalFeatureEnabled.townCollectiveAction;
   const townMigrationEnabled = experimentalFeatureEnabled.townMigration;
   const townServiceQualityEnabled = experimentalFeatureEnabled.townServiceQuality;
+  const townGovernanceEnabled = experimentalFeatureEnabled.townGovernance;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -247,6 +249,7 @@ export function resolveLocalRuntimeTownCliConfig(
     townCollectiveActionEnabled,
     townMigrationEnabled,
     townServiceQualityEnabled,
+    townGovernanceEnabled,
   };
 }
 
@@ -300,6 +303,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
         townCollectiveAction: config.townCollectiveActionEnabled,
         townMigration: config.townMigrationEnabled,
         townServiceQuality: config.townServiceQualityEnabled,
+        townGovernance: config.townGovernanceEnabled,
       },
       // The paper-ablation cohort pins the education system off so the Section
       // 5.1 baseline keeps the legacy continuous-score education semantics.
@@ -337,6 +341,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
             ...(config.regionalMarketsEnabled ? { regionalMarkets: true as const } : {}),
             ...(config.townWeatherEnabled ? { townWeather: true as const } : {}),
             ...(config.townServiceQualityEnabled ? { townServiceQuality: true as const } : {}),
+            ...(config.townGovernanceEnabled ? { townGovernance: true as const } : {}),
             ...(config.townConditionsEnabled ? { townConditions: true as const } : {}),
             ...(config.townBulletinEnabled ? { townBulletin: true as const } : {}),
           },
@@ -511,6 +516,7 @@ type ParsedOptions = {
   readonly townCollectiveAction?: string;
   readonly townMigration?: string;
   readonly townServiceQuality?: string;
+  readonly townGovernance?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {

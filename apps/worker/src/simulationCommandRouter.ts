@@ -59,6 +59,9 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
   'AgentConfront',
   'AgentAttack',
   'AgentIntervene',
+  'SetTaxPolicy',
+  'SetPublicBudget',
+  'SetSubsidyPolicy',
 ]);
 
 export type SimulationCommandRouter = {
@@ -370,6 +373,22 @@ async function settleGlobalDraft(input: {
         observedAt: lease.observedAt,
         durationMs: lease.durationMs,
         agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence), settled: true };
+    }
+    if (
+      draft.type === 'SetTaxPolicy' ||
+      draft.type === 'SetPublicBudget' ||
+      draft.type === 'SetSubsidyPolicy'
+    ) {
+      const operation = authority.settleGovernance({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        actorAgentId: draft.actorId,
         commandType: draft.type,
         payload: draft.payload,
       });

@@ -76,6 +76,7 @@ export type PerStageContextView = {
   readonly weather?: WorldDecisionContext['weather'];
   readonly calendar?: WorldDecisionContext['calendar'];
   readonly petitions?: WorldDecisionContext['petitions'];
+  readonly governance?: WorldDecisionContext['governance'];
   readonly matters?: WorldDecisionContext['matters'];
   readonly conditions?: WorldDecisionContext['conditions'];
   readonly fiscal?: WorldDecisionContext['fiscal'];
@@ -300,6 +301,7 @@ function createRankingContextView(
     ...(context.weather === undefined ? {} : { weather: context.weather }),
     ...(context.calendar === undefined ? {} : { calendar: context.calendar }),
     ...(context.petitions === undefined ? {} : { petitions: context.petitions }),
+    ...(context.governance === undefined ? {} : { governance: context.governance }),
     ...(context.matters === undefined ? {} : { matters: context.matters }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.fiscal === undefined ? {} : { fiscal: context.fiscal }),
@@ -643,6 +645,7 @@ function visibleContextSections(view: PerStageContextView): readonly string[] {
     'weather',
     'calendar',
     'petitions',
+    'governance',
     'matters',
     'conditions',
     'fiscal',

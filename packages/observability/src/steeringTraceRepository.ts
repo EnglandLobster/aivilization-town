@@ -41,7 +41,8 @@ export type SteeringStrategicPlanTrace = {
 export type SteeringTraceResultKind =
   | 'long-horizon-objective-set'
   | 'reactive-command-routed'
-  | 'town-bulletin-issued';
+  | 'town-bulletin-issued'
+  | 'town-governance-policy-set';
 
 export type SteeringTrace = {
   readonly traceId: string;
@@ -55,6 +56,8 @@ export type SteeringTrace = {
   readonly agentId?: string;
   readonly resultKind: SteeringTraceResultKind;
   readonly bulletinId?: string;
+  readonly governancePolicyKind?: 'tax' | 'public-budget' | 'subsidy';
+  readonly governanceRevision?: number;
   readonly objectiveId?: string;
   readonly objectiveStatement?: string;
   readonly objectiveAffinityTags?: readonly string[];
@@ -192,6 +195,12 @@ function cloneTrace(trace: SteeringTrace): SteeringTrace {
     ...(trace.agentId === undefined ? {} : { agentId: trace.agentId }),
     resultKind: trace.resultKind,
     ...(trace.bulletinId === undefined ? {} : { bulletinId: trace.bulletinId }),
+    ...(trace.governancePolicyKind === undefined
+      ? {}
+      : { governancePolicyKind: trace.governancePolicyKind }),
+    ...(trace.governanceRevision === undefined
+      ? {}
+      : { governanceRevision: trace.governanceRevision }),
     ...(trace.objectiveId === undefined ? {} : { objectiveId: trace.objectiveId }),
     ...(trace.objectiveStatement === undefined
       ? {}
@@ -307,6 +316,24 @@ function assertValidTrace(trace: SteeringTrace): void {
       throw new Error('bulletinId must not be empty');
     }
     assertNonEmpty(trace.bulletinId, 'bulletinId');
+  } else if (trace.resultKind === 'town-governance-policy-set') {
+    if (trace.governancePolicyKind === undefined) {
+      throw new Error('governancePolicyKind must not be empty');
+    }
+    if (
+      trace.governancePolicyKind !== 'tax' &&
+      trace.governancePolicyKind !== 'public-budget' &&
+      trace.governancePolicyKind !== 'subsidy'
+    ) {
+      throw new Error('governancePolicyKind must be a known governance policy kind');
+    }
+    if (trace.governanceRevision === undefined) {
+      throw new Error('governanceRevision must be present');
+    }
+    assertNonNegativeInteger(trace.governanceRevision, 'governanceRevision');
+    if (trace.governanceRevision < 1) {
+      throw new Error('governanceRevision must be positive');
+    }
   } else {
     if (trace.agentId === undefined) {
       throw new Error('agentId must not be empty');
@@ -365,8 +392,9 @@ function assertValidQuery(query: SteeringTraceQuery): void {
 function assertResultKind(value: string): asserts value is SteeringTraceResultKind {
   if (
     value !== 'long-horizon-objective-set' &&
-    value !== 'reactive-command-routed' &&
-    value !== 'town-bulletin-issued'
+      value !== 'reactive-command-routed' &&
+      value !== 'town-bulletin-issued' &&
+      value !== 'town-governance-policy-set'
   ) {
     throw new Error('resultKind must be a known steering result kind');
   }

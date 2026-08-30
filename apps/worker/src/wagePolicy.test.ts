@@ -24,6 +24,58 @@ const basePolicies: WorldCommandPolicies = {
 };
 
 describe('projection-backed wage policy', () => {
+  test('overlays replayed governance policies onto canonical command policies', () => {
+    const projection = {
+      ...createProjectionWithPriceIndices(),
+      governance: {
+        revision: 3,
+        tax: {
+          policyVersion: 'town-governance-tax-v1',
+          neutralRate: 0.2,
+          incomeTaxBrackets: [{ upToAmount: null, rate: 0.2 }],
+          tradeTaxRate: 0.1,
+          source: 'town-governance-command',
+        },
+        publicBudget: {
+          policyVersion: 'town-governance-public-budget-v1',
+          cadenceMs: 2_000,
+          minimumTreasuryReserve: 75,
+          allocations: [{ service: 'education', amountPerCadence: 40 }],
+        },
+        subsidy: {
+          policyVersion: 'town-governance-subsidy-v1',
+          minimumBalance: 50,
+          maxSubsidy: 25,
+          source: 'town-governance-command',
+        },
+        consumedPetitionIds: ['petition-1'],
+        lastChangedAt: 1_000,
+        lastChangedBy: { kind: 'operator' as const, subjectId: 'operator-1' },
+        lastChangeReason: 'test',
+      },
+    };
+    const resolved = createProjectionBackedWorldCommandPolicies({
+      basePolicies: {
+        ...basePolicies,
+        tax: {
+          policyVersion: 'base-tax',
+          neutralRate: 0.1,
+          incomeTaxBrackets: [],
+          tradeTaxRate: 0,
+          source: 'base',
+        },
+      },
+      projection,
+      knowledgePremium: () => 1,
+    });
+    expect(resolved.tax).toMatchObject({ neutralRate: 0.2, tradeTaxRate: 0.1 });
+    expect(resolved.publicBudget).toMatchObject({
+      cadenceMs: 2_000,
+      minimumTreasuryReserve: 75,
+    });
+    expect(resolved.safetyNetSubsidy).toEqual({ minimumBalance: 50, maxSubsidy: 25 });
+  });
+
   test('calculates static and dynamic wages from the latest market price index', () => {
     const projection = createProjectionWithPriceIndices();
     const calculator = createProjectionBackedWageCalculator({

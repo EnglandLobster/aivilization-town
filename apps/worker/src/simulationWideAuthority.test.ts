@@ -7,6 +7,7 @@ import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
   createAivilizationCollectiveActionPolicy,
+  createAivilizationTownGovernancePolicy,
   createAivilizationTownLifecyclePolicy,
 } from './experimentalFeatures';
 import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
@@ -856,6 +857,67 @@ describe('authority petition settlement', () => {
         .projection.petitions?.find((petition) => petition.petitionId === raised.petitionId)
         ?.signatureAgentIds,
     ).toEqual([agentA, agentB]);
+  });
+});
+
+describe('authority governance settlement', () => {
+  test('enacts one operator policy change and broadcasts the replayable fact without moving money', () => {
+    const baseResolver = createAivilizationWorldCommandPolicies('authority-governance-test');
+    const authority = createAuthority(undefined, false, {}, (projection) => ({
+      ...baseResolver(projection),
+      governance: createAivilizationTownGovernancePolicy(),
+    }));
+    const before = authority.getSnapshot().projection;
+
+    const operation = authority.settleGovernance({
+      operationId: 'governance-tax-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 1_000,
+      commandType: 'SetTaxPolicy',
+      payload: {
+        neutralRate: 0.12,
+        incomeTaxBrackets: [{ upToAmount: null, rate: 0.12 }],
+        tradeTaxRate: 0.06,
+        reason: 'Fund stable public services',
+        expectedGovernanceRevision: 0,
+      },
+      humanAttribution: {
+        principalSubjectId: 'operator-1',
+        principalRoles: ['operator'],
+        accessPolicyVersion: 'access-v1',
+        consentPolicyVersion: 'consent-v1',
+      },
+    });
+    const after = authority.getSnapshot().projection;
+
+    expect(operation).toMatchObject({
+      kind: 'governance',
+      governanceRevision: 1,
+      status: 'completed',
+      events: [{ type: 'GovernancePolicyChanged', payload: { policyKind: 'tax' } }],
+    });
+    expect(after.governance).toMatchObject({
+      revision: 1,
+      tax: { neutralRate: 0.12, tradeTaxRate: 0.06 },
+      lastChangedBy: { kind: 'operator', subjectId: 'operator-1' },
+    });
+    expect(after.moneySupply).toBe(before.moneySupply);
+    expect(after.treasury).toBe(before.treasury);
+    expect(after.agents[agentA]?.balance).toBe(before.agents[agentA]?.balance);
+    expect(after.agents[agentB]?.balance).toBe(before.agents[agentB]?.balance);
+
+    for (const partitionKey of [partitionA, partitionB]) {
+      expect(
+        authority
+          .readInbox({ partitionKey, consumerId: 'governance-materializer' })
+          .deliveries.some(
+            (delivery) =>
+              delivery.operationId === 'governance-tax-1' &&
+              delivery.operationKind === 'governance',
+          ),
+      ).toBe(true);
+    }
   });
 });
 

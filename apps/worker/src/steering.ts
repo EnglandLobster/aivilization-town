@@ -50,6 +50,13 @@ export type WorkerSteeringResult =
       readonly shortTermMemoryRecords: readonly [];
     }
   | {
+      readonly kind: 'town-governance-policy-set';
+      readonly policyKind: 'tax' | 'public-budget' | 'subsidy';
+      readonly governanceRevision: number;
+      readonly commandDrafts: readonly [];
+      readonly shortTermMemoryRecords: readonly [];
+    }
+  | {
       readonly kind: 'long-horizon-objective-set';
       readonly intentionState: AgentIntentionState;
       readonly planRecord?: BranchPlanRecord;
@@ -76,6 +83,13 @@ export type WorkerTownBulletinIssuer = (input: {
   readonly command: WorkerSteeringCommand;
 }) => { readonly bulletinId: string; readonly status: 'posted' | 'scheduled' };
 
+export type WorkerTownGovernanceIssuer = (input: {
+  readonly command: WorkerSteeringCommand;
+}) => {
+  readonly policyKind: 'tax' | 'public-budget' | 'subsidy';
+  readonly governanceRevision: number;
+};
+
 export async function handleWorkerSteeringCommand(input: {
   readonly command: WorkerSteeringCommand;
   readonly intentionRepository: AgentIntentionRepository;
@@ -93,6 +107,7 @@ export async function handleWorkerSteeringCommand(input: {
    * authority). When absent, IssueTownBulletin steering commands are rejected.
    */
   readonly townBulletinIssuer?: WorkerTownBulletinIssuer;
+  readonly townGovernanceIssuer?: WorkerTownGovernanceIssuer;
 }): Promise<WorkerSteeringResult> {
   // Operator-issued town bulletins carry no actorId and settle against the
   // authoritative board, so they are handled before agent-scoped steering.
@@ -113,6 +128,32 @@ export async function handleWorkerSteeringCommand(input: {
       kind: 'town-bulletin-issued',
       bulletinId: issued.bulletinId,
       status: issued.status,
+      commandDrafts: [],
+      shortTermMemoryRecords: [],
+    };
+  }
+
+  if (
+    input.command.type === 'SetTaxPolicy' ||
+    input.command.type === 'SetPublicBudget' ||
+    input.command.type === 'SetSubsidyPolicy'
+  ) {
+    const attribution = input.command.humanAttribution;
+    if (
+      input.command.source !== 'human' ||
+      attribution === undefined ||
+      !attribution.principalRoles.includes('operator')
+    ) {
+      throw new Error(`${input.command.type} requires the operator role`);
+    }
+    if (input.townGovernanceIssuer === undefined) {
+      throw new Error(`${input.command.type} requires the town-governance switch and authority`);
+    }
+    const enacted = input.townGovernanceIssuer({ command: input.command });
+    return {
+      kind: 'town-governance-policy-set',
+      policyKind: enacted.policyKind,
+      governanceRevision: enacted.governanceRevision,
       commandDrafts: [],
       shortTermMemoryRecords: [],
     };

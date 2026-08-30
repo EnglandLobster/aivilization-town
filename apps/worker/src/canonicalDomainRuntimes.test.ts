@@ -156,6 +156,126 @@ describe('canonical domain runtimes', () => {
     expect(registrations.map((registration) => registration.domain)).toEqual(domainOrder);
   });
 
+  test('registers governance only with policy and turns a signed threshold petition into a command', async () => {
+    const agent = createAgent({ agentId: agentA, locationId: asLocationId('town-square') });
+    const governanceSubtask: PrioritizedSubtask = {
+      branchId: 'governance',
+      subtaskId: 'lower-tax',
+      description: 'Honor the tax petition.',
+      score: 10,
+    };
+    const planRecord: BranchPlanRecord = {
+      planId: 'objective-governance',
+      agentId: agentA,
+      plan: createBranchPlan({
+        objective: 'Honor the town petition.',
+        branches: [
+          {
+            id: 'governance',
+            objective: 'Change town tax policy.',
+            subtasks: [
+              {
+                id: 'lower-tax',
+                description: 'Honor the tax petition.',
+                basePriority: 10,
+                intentionAffinityTags: ['governance'],
+              },
+            ],
+          },
+        ],
+      }),
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    const governancePolicies: WorldCommandPolicies = {
+      ...policies,
+      governance: {
+        policyVersion: 'town-governance-v1',
+        allowedBudgetServices: ['education'],
+        maximumAllocationPerCadence: 1_000,
+        maximumTreasuryReserve: 10_000,
+        maximumSubsidyBalanceFloor: 1_000,
+        maximumSubsidyPerCadence: 500,
+      },
+      tax: {
+        policyVersion: 'tax-v1',
+        neutralRate: 0.1,
+        incomeTaxBrackets: [{ upToAmount: null, rate: 0.1 }],
+        tradeTaxRate: 0.05,
+        source: 'test',
+      },
+      publicBudget: {
+        policyVersion: 'budget-v1',
+        cadenceMs: 86_400_000,
+        minimumTreasuryReserve: 100,
+        allocations: [{ service: 'education', amountPerCadence: 25 }],
+      },
+    };
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB }), createAgent({ agentId: agentC })],
+        locations: [townSquare()],
+        marketPools: [],
+      }),
+      planRecord,
+      worldDecisionContext: {
+        agent: {
+          agentId: agentA,
+          locationId: agent.locationId,
+          physiology: { ...agent.physiology },
+          educationScore: agent.educationScore,
+          balance: agent.balance,
+          residentialTier: agent.residentialTier,
+          job: agent.job,
+          inventory: { ...agent.inventory },
+        },
+        market: { spotPrices: [] },
+        governance: {
+          revision: 4,
+          tax: {
+            neutralRate: 0.1,
+            incomeTaxBrackets: [{ upToAmount: null, rate: 0.1 }],
+            tradeTaxRate: 0.05,
+          },
+          publicBudget: {
+            cadenceMs: 86_400_000,
+            minimumTreasuryReserve: 100,
+            allocations: [{ service: 'education', amountPerCadence: 25 }],
+          },
+          eligiblePetitions: [
+            {
+              petitionId: 'petition-tax',
+              topic: 'tax-policy',
+              statement: '请降低税率',
+              thresholdReachedAt: 90,
+            },
+          ],
+        },
+      },
+    });
+
+    const binding = await resolveCanonicalBinding(context, {}, governancePolicies);
+    const governancePlanner = binding.microPlanners.find(
+      (candidate) => candidate.domain === 'governance',
+    );
+    if (governancePlanner === undefined) throw new Error('missing governance planner');
+    expect(governancePlanner.supports(governanceSubtask)).toBe(true);
+    expect(
+      governancePlanner.propose(
+        createMicroPlannerInput({ selectedSubtask: governanceSubtask, plan: planRecord.plan }),
+      )[0],
+    ).toMatchObject({
+      commandType: 'SetTaxPolicy',
+      payload: {
+        neutralRate: 0.09,
+        tradeTaxRate: 0.04,
+        petitionId: 'petition-tax',
+        expectedGovernanceRevision: 4,
+      },
+    });
+  });
+
   test('every canonical action proposal command type is whitelisted for reactive correction', () => {
     // AGENT_CONTEXT_DESIGN.md §5 whitelist reconciliation: the canonical set
     // and the repair whitelist drifted independently (AgentGiveResource was

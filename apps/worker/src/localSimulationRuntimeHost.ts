@@ -80,6 +80,8 @@ export type SimulationWideAuthorityHostOptions = {
   readonly townWeather?: boolean;
   /** Opt-in authority-settled regional service quality. */
   readonly townServiceQuality?: boolean;
+  /** Opt-in authoritative town policy command settlement. */
+  readonly townGovernance?: boolean;
   /**
    * Opt-in town-condition catalog. When
    * true, the society projection derives per-agent conditions from the
@@ -366,6 +368,48 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                           : { humanAttribution: command.humanAttribution }),
                       });
                       return { bulletinId: operation.bulletinId, status: operation.status };
+                    },
+                  }
+                : {}),
+              ...(authorityOptions?.townGovernance === true
+                ? {
+                    townGovernanceIssuer: ({
+                      command,
+                    }: {
+                      readonly command: WorkerSteeringCommand;
+                    }): {
+                      readonly policyKind: 'tax' | 'public-budget' | 'subsidy';
+                      readonly governanceRevision: number;
+                    } => {
+                      if (
+                        command.type !== 'SetTaxPolicy' &&
+                        command.type !== 'SetPublicBudget' &&
+                        command.type !== 'SetSubsidyPolicy'
+                      ) {
+                        throw new Error(`unsupported governance command ${command.type}`);
+                      }
+                      const operation = authority!.settleGovernance({
+                        operationId: `steering-governance:${command.id}`,
+                        workerId: materializeLease!.workerId,
+                        observedAt: command.issuedAt,
+                        durationMs: materializeLease!.durationMs,
+                        commandType: command.type,
+                        payload: command.payload,
+                        ...(command.actorId === undefined ? {} : { actorAgentId: command.actorId }),
+                        ...(command.humanAttribution === undefined
+                          ? {}
+                          : { humanAttribution: command.humanAttribution }),
+                      });
+                      const changed = operation.events.find(
+                        (event) => event.type === 'GovernancePolicyChanged',
+                      );
+                      if (changed?.type !== 'GovernancePolicyChanged') {
+                        throw new Error('governance operation produced no policy event');
+                      }
+                      return {
+                        policyKind: changed.payload.policyKind,
+                        governanceRevision: operation.governanceRevision,
+                      };
                     },
                   }
                 : {}),

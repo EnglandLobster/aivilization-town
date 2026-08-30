@@ -1,4 +1,4 @@
-import type { AgentId, CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
+import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
 import {
   TOWN_GOVERNANCE_ENACTED_POLICY_SOURCE,
   TOWN_GOVERNANCE_PUBLIC_BUDGET_POLICY_VERSION,
@@ -247,7 +247,7 @@ function rejectGovernanceCommand(
       detail,
       ...(input.command.actorId === undefined
         ? {}
-        : { actorAgentId: input.command.actorId as AgentId }),
+        : { actorAgentId: input.command.actorId }),
       ...copyHumanAttribution(input.command as CommandEnvelope<CoreCommandType, unknown>),
       rejectedAt: input.projection.clock.now,
     }),

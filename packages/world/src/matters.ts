@@ -7,10 +7,10 @@ export const SOCIAL_MATTERS_POLICY_VERSION = 'social-matters-v1';
  * Opt-in via the social-matters switch: without the policy every matter
  * command is rejected and no matter state or events exist.
  *
- * PARTIALLY ACTIVE (per docs/AGENT_CONTEXT_DESIGN.md §5): routing,
- * adjudication, and the agent-relevant decision-context view are built, but no
- * canonical proposer issues matter commands yet. Activation order is relations
- * context → matters visibility → proposer; the final proposer step remains.
+ * ACTIVE WHEN OPTED IN (per docs/AGENT_CONTEXT_DESIGN.md §5): routing,
+ * adjudication, the agent-relevant decision-context view, obligation salience,
+ * autonomous objective candidates, and canonical social-matter proposals are
+ * wired end to end. Without this policy the context and proposer stay absent.
  */
 export type SocialMattersPolicy = {
   readonly policyVersion: string;

@@ -182,6 +182,11 @@ export function createWorldDecisionContextFromProjection(input: {
             ? {}
             : { educationOpportunityCost: input.educationOpportunityCost }),
         });
+  const socialMatterContext = createSocialMatterDecisionContext(input);
+  const matterCounterpartAgentIds = collectMatterCounterpartAgentIds(
+    socialMatterContext.matters,
+    input.agentId,
+  );
   return {
     agent: {
       agentId: agent.agentId,
@@ -262,13 +267,14 @@ export function createWorldDecisionContextFromProjection(input: {
           society: createSocietyDecisionContext(input.societyDirectory, {
             agentId: input.agentId,
             relationEntries,
+            matterCounterpartAgentIds,
           }),
         }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
     ...createTownPulseDecisionContext(input),
     ...createCalendarDecisionContext(input),
     ...createPetitionDecisionContext(input),
-    ...createSocialMatterDecisionContext(input),
+    ...socialMatterContext,
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
     ...createExternalTradeDecisionContext({
@@ -883,6 +889,25 @@ function socialMatterRoleTier(role: WorldDecisionSocialMatterContext['role']): n
   }
 }
 
+function collectMatterCounterpartAgentIds(
+  matters: readonly WorldDecisionSocialMatterContext[] | undefined,
+  agentId: AgentId,
+): readonly AgentId[] {
+  const counterpartIds = new Set<AgentId>();
+  for (const matter of matters ?? []) {
+    if (matter.initiatorAgentId !== agentId) counterpartIds.add(matter.initiatorAgentId);
+    if (matter.assigneeAgentId !== undefined && matter.assigneeAgentId !== agentId) {
+      counterpartIds.add(matter.assigneeAgentId);
+    }
+    for (const response of matter.responses) {
+      if (response.responderAgentId !== agentId) {
+        counterpartIds.add(response.responderAgentId);
+      }
+    }
+  }
+  return [...counterpartIds];
+}
+
 function createCalendarDecisionContext(input: {
   readonly projection: WorldProjection;
   readonly policies?: WorldCommandPolicies;
@@ -1058,13 +1083,15 @@ function createSocietyDecisionContext(
   input: {
     readonly agentId: AgentId;
     readonly relationEntries: readonly WorldDecisionRelationContext[];
+    readonly matterCounterpartAgentIds: readonly AgentId[];
   },
 ) {
   // §7 step 2 budget binding: the full cross-partition directory scales with
   // total population; the per-agent view keeps every local-partition neighbor
   // (they share the agent's actual market and places) and admits foreign
-  // agents only when a relation record exists, strongest first, capped at
-  // DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT.
+  // agents when they participate in a visible matter (matter order first) or
+  // have a relation record (strongest next). The combined foreign set remains
+  // capped at DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT.
   const strongestRelationScoreByCounterpart = new Map<string, number>();
   for (const entry of input.relationEntries) {
     const strongest = Math.abs(entry.relationScore);
@@ -1073,14 +1100,17 @@ function createSocietyDecisionContext(
       strongestRelationScoreByCounterpart.set(entry.agentId, strongest);
     }
   }
+  const relationCounterpartAgentIds = [...strongestRelationScoreByCounterpart.entries()]
+    .sort(
+      ([leftId, leftScore], [rightId, rightScore]) =>
+        rightScore - leftScore || leftId.localeCompare(rightId),
+    )
+    .map(([agentId]) => agentId);
   const foreignAllowed = new Set(
-    [...strongestRelationScoreByCounterpart.entries()]
-      .sort(
-        ([leftId, leftScore], [rightId, rightScore]) =>
-          rightScore - leftScore || leftId.localeCompare(rightId),
-      )
-      .slice(0, DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT)
-      .map(([agentId]) => agentId),
+    [...new Set([...input.matterCounterpartAgentIds, ...relationCounterpartAgentIds])].slice(
+      0,
+      DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
+    ),
   );
   const self = directory.agents.find((agent) => agent.agentId === input.agentId);
   const visibleAgents =

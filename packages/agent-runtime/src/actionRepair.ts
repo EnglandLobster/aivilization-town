@@ -26,6 +26,8 @@ export type AgentActionCommandType = Exclude<
 export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentApplyEducationExam',
   'AgentApplyJob',
+  'AgentAssignMatter',
+  'AgentCloseMatter',
   'AgentCloseEnterprise',
   'AgentConsume',
   'AgentDeposit',
@@ -40,7 +42,9 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentObserveLocation',
   'AgentProduce',
   'AgentRaisePetition',
+  'AgentRaiseMatter',
   'AgentRequestLoan',
+  'AgentRespondMatter',
   'AgentSeeDoctor',
   'AgentSignPetition',
   'AgentSleep',

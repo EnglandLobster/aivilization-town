@@ -42,9 +42,10 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v4',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
-        contextView: 'world-decision-context-view-v6',
+        socialMatterActionProposer: 'social-matter-action-proposer-v1',
+        contextView: 'world-decision-context-view-v7',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -80,7 +81,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v6',
+            contextViewVersion: 'world-decision-context-view-v7',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -89,6 +90,9 @@ describe('AIvilization default world command policies', () => {
               relevance: 'unresolved-participant-or-open-help-request',
               deterministicOrder: 'role-tier-then-expiry-created-at-matter-id',
               responseOrder: 'responded-at-then-responder-agent-id',
+              foreignSocietyCounterpartMaxCount: 16,
+              foreignSocietyCounterpartOrder:
+                'visible-matter-participants-then-strongest-relations',
             },
             stageVisibility: {
               ranking: {
@@ -113,7 +117,7 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v4',
+            policyVersion: 'autonomous-objective-selection-v5',
             source: 'repository-design',
             lifeCourse: {
               policyVersion: 'autonomous-life-course-v2',
@@ -135,6 +139,16 @@ describe('AIvilization default world command policies', () => {
             policyVersion: 'external-trade-action-proposer-v1',
             minimumRelativeAdvantageRatio: 0,
             actorEligibility: 'operational-enterprise-owner-only',
+          },
+          socialMatterActionProposer: {
+            policyVersion: 'social-matter-action-proposer-v1',
+            defaultRequestQuantity: 1,
+            autoAcceptRule: 'commodity-capability-or-explicit-accept-intent',
+            assignmentSelection: 'visible-accepted-response-order',
+            deliveryRule: 'deliver-up-to-remaining-required-quantity',
+            deliveryLocationRule: 'known-agent-and-beneficiary-locations',
+            withdrawalRule: 'explicit-withdrawal-intent-only',
+            raiseRule: 'explicit-help-request-intent-with-visible-open-topic-deduplication',
           },
           globalSynthesis: {
             policyVersion: 'global-action-synthesis-v1',

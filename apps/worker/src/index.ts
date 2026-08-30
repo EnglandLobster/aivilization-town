@@ -70,6 +70,7 @@ export * from './projectionHydration';
 export * from './scenarioProfileSeeding';
 export * from './scenarioProjection';
 export * from './socialPlanning';
+export * from './socialMatterPlanning';
 export * from './socialObservationIntentions';
 export * from './steering';
 export * from './strategicPlanRenewal';

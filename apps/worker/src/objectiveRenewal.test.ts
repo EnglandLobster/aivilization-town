@@ -3,6 +3,7 @@ import {
   InMemoryBranchPlanRepository,
   InMemoryBranchPlanProgressRepository,
   type StrategicPlanCompilerInput,
+  type WorldDecisionContext,
 } from '@aivilization/agent-runtime';
 import {
   InMemoryAgentIntentionRepository,
@@ -267,6 +268,60 @@ describe('worker objective renewal', () => {
       selectedCandidateId: 'market-participation-sell',
       score: 12,
     });
+  });
+
+  test('prioritizes an assigned social-matter delivery as an autonomous obligation', () => {
+    const agent = createAgent({
+      agentId: agentA,
+      educationScore: 150,
+      inventory: { Apple: 2 },
+    });
+    const projection = createProjection([agent, createAgent({ agentId: agentB })]);
+    const baseContext = createWorldDecisionContextFromProjection({ projection, agentId: agentA });
+    const worldDecisionContext: WorldDecisionContext = {
+      ...baseContext,
+      matters: [
+        {
+          matterId: 'matter-delivery',
+          kind: 'help-request',
+          status: 'assigned',
+          role: 'assignee',
+          initiatorAgentId: agentB,
+          assigneeAgentId: agentA,
+          topic: 'apple-help',
+          statement: 'Please deliver an apple.',
+          requiredCommodity: { commodityName: 'Apple', quantity: 1 },
+          responses: [{ responderAgentId: agentA, decision: 'accept', respondedAt: 10 }],
+          createdAt: 0,
+          expiresAt: 1_000,
+        },
+      ],
+    };
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext,
+    });
+
+    expect(proposal.objective).toMatchObject({
+      statement: 'Deliver Apple for social matter matter-delivery before it expires.',
+      affinityTags: ['social', 'matter', 'obligation', 'deliver'],
+      planningDomains: ['social'],
+    });
+    expect(proposal.decisionTrace.selectedCandidateId).toBe(
+      'social-matter-delivery:matter-delivery',
+    );
   });
 
   test('creates an autonomous owner objective for a strictly advantageous enterprise external trade', () => {
@@ -1290,6 +1345,7 @@ function createAgent(input: {
   readonly health?: number;
   readonly educationScore?: number;
   readonly balance?: number;
+  readonly inventory?: Readonly<Record<string, number>>;
 }): WorldAgentState {
   return {
     agentId: input.agentId,
@@ -1303,7 +1359,7 @@ function createAgent(input: {
     balance: input.balance ?? 100,
     residentialTier: 1,
     job: null,
-    inventory: {},
+    inventory: input.inventory ?? {},
   };
 }
 

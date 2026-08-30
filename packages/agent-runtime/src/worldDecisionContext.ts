@@ -731,7 +731,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v6';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v7';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
@@ -745,11 +745,11 @@ export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
 export const DECISION_RELATIONS_MAX_COUNT = 8;
 
 /**
- * Cap for foreign-partition society entries that survive the relations-based
- * trim. Local-partition entries stay uncapped (they are the agent's actual
- * neighbors); foreign entries appear only when a relation record exists, at
- * most this many, strongest first (docs/AGENT_CONTEXT_DESIGN.md §7 step 2
- * budget binding — K=16 per the review's §11.3 question 6 stance).
+ * Cap for foreign-partition society entries that survive the relevance trim.
+ * Local-partition entries stay uncapped (they are the agent's actual
+ * neighbors); foreign matter counterparts enter first, then relation-backed
+ * counterparts strongest first. The exported name is retained for public API
+ * compatibility (docs/AGENT_CONTEXT_DESIGN.md §7 step 2, K=16).
  */
 export const DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT = 16;
 

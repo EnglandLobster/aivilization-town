@@ -103,14 +103,15 @@ describe('simulation command router', () => {
     expect(eventStore.readStream(partition.eventStreamName).map((event) => event.type)).toEqual(
       result.events.slice(0, rejectionIndex).map((event) => event.type),
     );
-    expect(
-      authority.readInbox({ partitionKey: partitionA, consumerId: 'mixed-replay' }).deliveries,
-    ).toEqual([
-      expect.objectContaining({
-        operationKind: 'command-rejected',
-        events: expect.arrayContaining([expect.objectContaining({ type: 'ActionRejected' })]),
-      }),
-    ]);
+    const rejectionDeliveries = authority.readInbox({
+      partitionKey: partitionA,
+      consumerId: 'mixed-replay',
+    }).deliveries;
+    expect(rejectionDeliveries).toHaveLength(1);
+    expect(rejectionDeliveries[0]?.operationKind).toBe('command-rejected');
+    expect(rejectionDeliveries[0]?.events.some((event) => event.type === 'ActionRejected')).toBe(
+      true,
+    );
     expect(result.hasUnstreamedAuthorityEvents).toBe(true);
   });
 

@@ -36,6 +36,7 @@ import {
   normalizeLegacyWorldProjectionSnapshot,
   WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT,
   type AgentStartConversationTurnPayload,
+  type AgentGiveResourcePayload,
   type AgentTradePayload,
   type AgentPostBulletinPayload,
   type AgentDepositPayload,
@@ -160,6 +161,12 @@ export type SimulationWideConversationRequest = SimulationWideAuthorityLease & {
   readonly targetAgentId: string;
   readonly topic: string;
   readonly turns: readonly AgentStartConversationTurnPayload[];
+};
+
+export type SimulationWideResourceTransferRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly sourceAgentId: string;
+  readonly transfer: AgentGiveResourcePayload;
 };
 
 export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
@@ -342,6 +349,16 @@ export type SimulationWideAuthorityOperation =
     }
   | {
       readonly kind: 'conversation';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly sourcePartitionKey: PartitionKey;
+      readonly targetPartitionKey: PartitionKey;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
+      /** A material gift atomically settled against both Agents' current inventories. */
+      readonly kind: 'resource-transfer';
       readonly operationId: string;
       readonly fencingToken: number;
       readonly sourcePartitionKey: PartitionKey;
@@ -618,6 +635,9 @@ export type SimulationWideAuthorityService = {
   readonly settleConversation: (
     request: SimulationWideConversationRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'conversation' };
+  readonly settleResourceTransfer: (
+    request: SimulationWideResourceTransferRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'resource-transfer' };
   readonly settleBulletin: (
     request: SimulationWideBulletinRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'bulletin' };
@@ -932,15 +952,18 @@ export function createSimulationWideAuthority(input: {
     });
   };
 
-  const applyGlobalCommand = <TKind extends 'trade' | 'conversation'>(inputCommand: {
+  const applyGlobalCommand = <
+    TKind extends 'trade' | 'conversation' | 'resource-transfer',
+  >(inputCommand: {
     readonly kind: TKind;
     readonly operationId: string;
     readonly requestFingerprint: string;
     readonly lease: SimulationWideAuthorityLease;
     readonly actorId: AgentId;
-    readonly commandType: 'AgentTrade' | 'AgentStartConversation';
+    readonly commandType: 'AgentTrade' | 'AgentStartConversation' | 'AgentGiveResource';
     readonly payload:
       | AgentTradePayload
+      | AgentGiveResourcePayload
       | {
           readonly targetAgentId: AgentId;
           readonly topic: string;
@@ -1121,6 +1144,32 @@ export function createSimulationWideAuthority(input: {
           operationId: request.operationId,
           fencingToken,
           sourcePartitionKey: requireOwner(state, initiatorAgentId),
+          targetPartitionKey: requireOwner(state, targetAgentId),
+          events,
+          status: 'completed',
+        }),
+      });
+    },
+    settleResourceTransfer(request) {
+      const sourceAgentId = asAgentId(request.sourceAgentId);
+      const targetAgentId = asAgentId(request.transfer.targetAgentId);
+      return applyGlobalCommand({
+        kind: 'resource-transfer',
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'resource-transfer',
+          sourceAgentId,
+          transfer: request.transfer,
+        }),
+        lease: request,
+        actorId: sourceAgentId,
+        commandType: 'AgentGiveResource',
+        payload: request.transfer,
+        createOperation: ({ fencingToken, events, state }) => ({
+          kind: 'resource-transfer',
+          operationId: request.operationId,
+          fencingToken,
+          sourcePartitionKey: requireOwner(state, sourceAgentId),
           targetPartitionKey: requireOwner(state, targetAgentId),
           events,
           status: 'completed',
@@ -2756,6 +2805,30 @@ function createInboxDeliveries(
         operationKind: operation.kind,
         events: operation.events,
       }));
+    case 'resource-transfer': {
+      const participantPartitions = new Set([
+        operation.sourcePartitionKey,
+        operation.targetPartitionKey,
+      ]);
+      return partitionKeys.flatMap((partitionKey) => {
+        const events = participantPartitions.has(partitionKey)
+          ? operation.events
+          : operation.events.filter(
+              (event) => event.type === 'MatterProgressed' || event.type === 'MatterClosed',
+            );
+        return events.length === 0
+          ? []
+          : [
+              {
+                operationId: operation.operationId,
+                fencingToken: operation.fencingToken,
+                partitionKey,
+                operationKind: operation.kind,
+                events,
+              },
+            ];
+      });
+    }
     // Bulletins are town-wide: every partition materializes the board update
     // so its residents gain awareness.
     case 'bulletin':

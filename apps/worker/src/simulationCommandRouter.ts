@@ -13,6 +13,7 @@ import {
   applyWorldEvent,
   type AgentMoveToPayload,
   type AgentBuildHousingPayload,
+  type AgentGiveResourcePayload,
   type AgentDepositPayload,
   type AgentRequestLoanPayload,
   type AgentWithdrawPayload,
@@ -51,6 +52,7 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
   'AgentWithdraw',
   'AgentRequestLoan',
   'AgentStartConversation',
+  'AgentGiveResource',
   'AgentMoveTo',
   'AgentBuildHousing',
   // Bulletin posts are town-wide facts, so they settle against the one
@@ -482,6 +484,17 @@ async function settleGlobalDraft(input: {
       });
       return { draft, events: resequence(operation.events, nextSequence) };
     }
+    if (draft.type === 'AgentGiveResource') {
+      const operation = authority.settleResourceTransfer({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        sourceAgentId: draft.actorId,
+        transfer: draft.payload as AgentGiveResourcePayload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence) };
+    }
     if (draft.type === 'AgentBuildHousing') {
       const operation = authority.settleConstruction({
         operationId,
@@ -666,6 +679,8 @@ function resolveSettlementOperationKind(
       return 'credit';
     case 'AgentStartConversation':
       return 'conversation';
+    case 'AgentGiveResource':
+      return 'resource-transfer';
     case 'AgentBuildHousing':
       return 'construction';
     case 'AgentPostBulletin':

@@ -532,6 +532,56 @@ describe('simulation command router', () => {
       { operationKind: 'conversation', partitionKey: partitionB },
     ]);
   });
+
+  test('routes a cross-owner material gift through the authority', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'town-square',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentGiveResource',
+          payload: { targetAgentId: agentB, commodityName: 'Fish', quantity: 1 },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+        inventory: { Fish: 2 },
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-gift:agent-a',
+      commandIdPrefix: 'tick-gift:agent-a',
+    });
+
+    expect(result.events.some((event) => event.type === 'ResourceTransferred')).toBe(true);
+    expect(authority.getSnapshot().projection.agents[agentA]?.inventory).toEqual({ Fish: 1 });
+    expect(authority.getSnapshot().projection.agents[agentB]?.inventory).toEqual({ Fish: 1 });
+    expect(
+      authority
+        .readInbox({ partitionKey: partitionB, consumerId: 'gift-target' })
+        .deliveries.some((delivery) => delivery.operationKind === 'resource-transfer'),
+    ).toBe(true);
+  });
+
   test('routes a move draft through authority settlement instead of the partition stream', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',

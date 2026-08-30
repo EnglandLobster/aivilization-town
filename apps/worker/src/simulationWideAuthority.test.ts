@@ -9,7 +9,7 @@ import {
   type AgentId,
   type PartitionKey,
 } from '@aivilization/sim-core';
-import { createWorldProjection } from '@aivilization/world';
+import { applyWorldEvent, createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
   createAivilizationCollectiveActionPolicy,
@@ -230,6 +230,78 @@ describe('simulation-wide authority', () => {
       expect(arrival.payload.socialRelations).toHaveLength(2);
       expect(arrival.payload.socialCommitments).toHaveLength(1);
     }
+  });
+
+  test('settles a cross-owner resource gift once and materializes each inventory locally', () => {
+    const authority = createAuthority(undefined, false, { agentAInventory: { Fish: 2 } });
+
+    const first = authority.settleResourceTransfer({
+      operationId: 'resource-transfer-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      sourceAgentId: agentA,
+      transfer: {
+        targetAgentId: agentB,
+        commodityName: 'Fish',
+        quantity: 1,
+        note: 'share food',
+      },
+    });
+    const replay = authority.settleResourceTransfer({
+      operationId: 'resource-transfer-1',
+      workerId: 'worker-b',
+      observedAt: 2,
+      durationMs: 100,
+      sourceAgentId: agentA,
+      transfer: {
+        targetAgentId: agentB,
+        commodityName: 'Fish',
+        quantity: 1,
+        note: 'share food',
+      },
+    });
+
+    expect(replay).toEqual(first);
+    expect(authority.getSnapshot().revision).toBe(1);
+    expect(authority.getSnapshot().projection.agents[agentA]?.inventory).toEqual({ Fish: 1 });
+    expect(authority.getSnapshot().projection.agents[agentB]?.inventory).toEqual({ Fish: 1 });
+
+    const sourceDelivery = authority
+      .readInbox({ partitionKey: partitionA, consumerId: 'gift-source' })
+      .deliveries.find((delivery) => delivery.operationId === 'resource-transfer-1');
+    const targetDelivery = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'gift-target' })
+      .deliveries.find((delivery) => delivery.operationId === 'resource-transfer-1');
+    expect(sourceDelivery?.operationKind).toBe('resource-transfer');
+    expect(targetDelivery?.operationKind).toBe('resource-transfer');
+
+    const sourceProjection = sourceDelivery!.events.reduce(
+      applyWorldEvent,
+      createWorldProjection({
+        agents: [
+          {
+            ...authority.getSnapshot().projection.agents[agentA]!,
+            locationId: null,
+            inventory: { Fish: 2 },
+          },
+        ],
+      }),
+    );
+    const targetProjection = targetDelivery!.events.reduce(
+      applyWorldEvent,
+      createWorldProjection({
+        agents: [
+          {
+            ...authority.getSnapshot().projection.agents[agentB]!,
+            locationId: null,
+            inventory: {},
+          },
+        ],
+      }),
+    );
+    expect(sourceProjection.agents[agentA]?.inventory).toEqual({ Fish: 1 });
+    expect(targetProjection.agents[agentB]?.inventory).toEqual({ Fish: 1 });
   });
 
   test('moves ownership only after the canonical spatial command has committed', () => {
@@ -1989,6 +2061,7 @@ function createAuthority(
   seedLocationOverrides: {
     readonly agentALocationId?: string;
     readonly agentBLocationId?: string;
+    readonly agentAInventory?: Readonly<Record<string, number>>;
   } = {},
   policies: WorldCommandPolicyResolver = createAivilizationWorldCommandPolicies('authority-test'),
 ) {
@@ -2044,7 +2117,7 @@ function createAuthority(
             balance: 500,
             residentialTier: 1,
             job: null,
-            inventory: {},
+            inventory: seedLocationOverrides.agentAInventory ?? {},
           },
           {
             agentId: agentB,

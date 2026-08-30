@@ -368,7 +368,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 // then let the local tick advance to the same target. Later
                 // materialization phases only publish the resulting owner
                 // state; they must not advance a second time.
-                router.syncPartitionState(result.projection);
+                router.syncPartitionState(result.projection, {
+                  publishClockBoundary: phase === 'pre-tick' || phase === 'post-tick',
+                });
                 const authorityClockNow = authority!.getSnapshot().projection.clock.now;
                 const targetClockNow =
                   phase === 'pre-tick'

@@ -25,6 +25,37 @@ const agentB = asAgentId('agent-b');
 const lease = { workerId: 'router-worker', observedAt: 1, durationMs: 30_000 };
 
 describe('simulation command router', () => {
+  test('publishes partition clock progress only at an explicit completed tick boundary', () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const projection = {
+      ...createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      clock: { now: 1_000, tickDurationMs: 1_000 },
+    };
+
+    router.syncPartitionState(projection);
+    expect(authority.getSnapshot().partitionClockNowByKey).toEqual({
+      [partitionA]: 0,
+      [partitionB]: 0,
+    });
+
+    router.syncPartitionState(projection, { publishClockBoundary: true });
+    expect(authority.getSnapshot().partitionClockNowByKey).toEqual({
+      [partitionA]: 1_000,
+      [partitionB]: 0,
+    });
+  });
+
   test('settles banking against one authority and fans the bank snapshot to every partition', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',

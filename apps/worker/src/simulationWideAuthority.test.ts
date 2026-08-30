@@ -348,6 +348,9 @@ describe('simulation-wide authority', () => {
     expect(
       decayDelivery?.events.some((event) => event.type === 'ExternalTradeBalancesDecayed'),
     ).toBe(true);
+    expect(decayDelivery?.events.some((event) => event.type === 'RegionalLandValueUpdated')).toBe(
+      true,
+    );
   });
 
   test('moves ownership only after the canonical spatial command has committed', () => {

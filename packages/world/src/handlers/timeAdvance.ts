@@ -1261,6 +1261,20 @@ function appendRegionalLandValueEvents(input: {
   }
   assertValidLandValuePolicy(policy);
   const projection = input.input.projection;
+  const authoritativeUpdates = (projection.pendingRegionalLandValueUpdates ?? []).filter(
+    (update) =>
+      update.settledAt > input.previousSimulationTime &&
+      update.settledAt <= input.nextSimulationTime,
+  );
+  if (authoritativeUpdates.length > 0) {
+    return {
+      timeline: createAuthoritativeRegionalLandValueTimeline({
+        projection,
+        updates: authoritativeUpdates,
+        policyVersion: policy.policyVersion,
+      }),
+    };
+  }
   const landValueByRegion = new Map<string, number>(
     Object.entries(projection.regionalLandValues ?? {}),
   );
@@ -1429,6 +1443,51 @@ function appendRegionalLandValueEvents(input: {
     timeline.push({ settledAt, indexByRegion: Object.fromEntries(landValueByRegion) });
   }
   return { timeline };
+}
+
+function createAuthoritativeRegionalLandValueTimeline(input: {
+  readonly projection: WorldProjection;
+  readonly updates: readonly Extract<WorldEvent, { type: 'RegionalLandValueUpdated' }>['payload'][];
+  readonly policyVersion: string;
+}): RegionalLandValueTimeline {
+  const updates = [...input.updates].sort(
+    (left, right) =>
+      left.settledAt - right.settledAt || left.regionId.localeCompare(right.regionId),
+  );
+  for (const update of updates) {
+    if (update.policyVersion !== input.policyVersion) {
+      throw new Error(
+        `authoritative land value policy ${update.policyVersion} does not match ${input.policyVersion}`,
+      );
+    }
+  }
+
+  // The projection already carries the final authority index. Rewind the
+  // pending facts to reconstruct the exact pre-window slice, then replay them
+  // boundary-by-boundary for owner-scoped upkeep settlement.
+  const initial = new Map(Object.entries(input.projection.regionalLandValues ?? {}));
+  for (const update of [...updates].reverse()) {
+    initial.set(update.regionId, update.previousIndex);
+  }
+  const current = new Map(initial);
+  const timeline: { settledAt: number; indexByRegion: Readonly<Record<string, number>> }[] = [
+    { settledAt: Number.NEGATIVE_INFINITY, indexByRegion: Object.fromEntries(current) },
+  ];
+  for (const settledAt of [...new Set(updates.map((update) => update.settledAt))].sort(
+    (left, right) => left - right,
+  )) {
+    for (const update of updates.filter((candidate) => candidate.settledAt === settledAt)) {
+      const previous = current.get(update.regionId) ?? update.previousIndex;
+      if (Math.abs(previous - update.previousIndex) > 1e-9) {
+        throw new Error(
+          `authoritative land value for ${update.regionId} is ${previous}, cannot replay from ${update.previousIndex}`,
+        );
+      }
+      current.set(update.regionId, update.nextIndex);
+    }
+    timeline.push({ settledAt, indexByRegion: Object.fromEntries(current) });
+  }
+  return timeline;
 }
 
 /**

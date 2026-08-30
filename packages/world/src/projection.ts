@@ -468,6 +468,16 @@ export type WorldProjection = {
    * modulates upkeep pricing and never moves currency by itself.
    */
   readonly regionalLandValues?: Readonly<Record<string, number>>;
+  /**
+   * Authority-delivered land-value boundaries whose simulation timestamps are
+   * ahead of this partition clock. The next local time advance consumes these
+   * exact facts for segmented upkeep pricing, then clears them. Optional for
+   * legacy snapshots and absent in single-writer/local-only runs.
+   */
+  readonly pendingRegionalLandValueUpdates?: readonly Extract<
+    WorldEvent,
+    { type: 'RegionalLandValueUpdated' }
+  >['payload'][];
   /** Latest authoritative service-quality fact per region and service. */
   readonly regionalServiceQualities?: Readonly<
     Record<string, Partial<Record<'education' | 'healthcare', WorldRegionalServiceQualityState>>>
@@ -2002,6 +2012,13 @@ export function applyWorldEvent(
       return {
         ...projection,
         clock: { ...event.payload.next },
+        ...(projection.pendingRegionalLandValueUpdates === undefined
+          ? {}
+          : {
+              pendingRegionalLandValueUpdates: projection.pendingRegionalLandValueUpdates.filter(
+                (update) => update.settledAt > event.payload.next.now,
+              ),
+            }),
         socialRelations: Object.fromEntries(
           Object.entries(projection.socialRelations).map(([key, relation]) => [
             key,

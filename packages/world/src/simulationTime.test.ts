@@ -1145,6 +1145,44 @@ describe('regional land value and upkeep pricing', () => {
     expect(updated.moneySupply).toBeCloseTo(1_000_000 - totalCharged, 6);
   });
 
+  test('consumes authority-delivered land value boundaries without recomputing them locally', () => {
+    const projection = createTwoRegionProjection();
+    const command = advanceCommand('command-lv-authority', 2 * DAY_MS, 0);
+    const authorityEvents = dispatchWorldCommand({
+      command,
+      projection,
+      policies: { ...policies, residentialUpkeep: upkeepPolicyV2, landValue: landValuePolicy },
+      nextSequence: 1,
+    });
+    const authorityLandEvents = authorityEvents.filter(
+      (event) => event.type === 'RegionalLandValueUpdated',
+    );
+    // Authority inbox facts arrive while the owner partition is still at the
+    // pre-tick clock, so the projection retains them as the pending pricing
+    // timeline for its household settlement.
+    const withAuthorityLand = authorityLandEvents.reduce(applyWorldEvent, projection);
+    expect(withAuthorityLand.pendingRegionalLandValueUpdates).toHaveLength(4);
+
+    const localEvents = dispatchWorldCommand({
+      command: advanceCommand('command-lv-owner', 2 * DAY_MS, 0),
+      projection: withAuthorityLand,
+      policies: { ...policies, residentialUpkeep: upkeepPolicyV2, landValue: landValuePolicy },
+      nextSequence: 1,
+    });
+    expect(localEvents.some((event) => event.type === 'RegionalLandValueUpdated')).toBe(false);
+    expect(
+      localEvents
+        .filter((event) => event.type === 'ResidentialUpkeepCharged')
+        .map((event) => event.payload.amount),
+    ).toEqual(
+      authorityEvents
+        .filter((event) => event.type === 'ResidentialUpkeepCharged')
+        .map((event) => event.payload.amount),
+    );
+    const settled = localEvents.reduce(applyWorldEvent, withAuthorityLand);
+    expect(settled.pendingRegionalLandValueUpdates).toEqual([]);
+  });
+
   test('prices upkeep by the region lived in: merged advance equals step-by-step across an in-advance move', () => {
     // Regression: the upkeep block used to price the WHOLE settlement
     // interval at the pre-advance region, so a merged multi-day advance
@@ -2844,9 +2882,9 @@ describe('starvation settlement', () => {
     const starvationEvent = secondEvents.find(
       (event) => event.type === 'PhysiologyChanged' && event.payload.reason === 'starvation',
     );
-    expect(starvationEvent?.type === 'PhysiologyChanged' ? starvationEvent.payload.next : null).toEqual(
-      { energy: 50, satiety: 0, health: 92 },
-    );
+    expect(
+      starvationEvent?.type === 'PhysiologyChanged' ? starvationEvent.payload.next : null,
+    ).toEqual({ energy: 50, satiety: 0, health: 92 });
   });
 
   test('records starvation as the deterministic death cause and liquidates the estate', () => {

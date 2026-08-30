@@ -102,6 +102,70 @@ describe('local simulation lifecycle controller', () => {
     });
   });
 
+  test('resumes a persisted running lifecycle state after process interruption', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const first = await createController({ storage, initialProjection, tickBatchSize: 1 }).start({
+      ...createRequest(1000),
+      operationId: 'interrupted-cycle',
+    });
+    storage.lifecycleStateStore.saveState({
+      ...first.state,
+      status: 'running',
+      nextTickIndex: 1,
+      lastAppliedSequence: 0,
+      updatedAt: 1000,
+    });
+
+    const restartedStorage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const resumed = await createController({
+      storage: restartedStorage,
+      initialProjection,
+    }).start({ ...createRequest(5000), operationId: 'recovery-cycle' });
+
+    expect(resumed).toMatchObject({
+      status: 'completed',
+      state: {
+        status: 'completed',
+        nextTickIndex: 3,
+        lastAppliedSequence: 2,
+        lastOperationId: 'recovery-cycle',
+      },
+      loop: {
+        projection: { clock: { now: 2000 } },
+      },
+    });
+    expect(
+      restartedStorage.eventStore.getStreamVersion(restartedStorage.partition.eventStreamName),
+    ).toBe(2);
+  });
+
+  test('rejects a genuinely concurrent start within one controller instance', async () => {
+    const rootDir = createRootDir();
+    const initialProjection = createInitialProjection();
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir,
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const controller = createController({ storage, initialProjection });
+
+    const active = controller.start({ ...createRequest(1000), operationId: 'active-cycle' });
+    await expect(
+      controller.start({ ...createRequest(1001), operationId: 'concurrent-cycle' }),
+    ).rejects.toThrow('local simulation operation active-cycle is still running');
+    await expect(active).resolves.toMatchObject({ status: 'completed' });
+  });
+
   test('starts, pauses, resumes from lifecycle state, and replays world projection from events', async () => {
     const rootDir = createRootDir();
     const initialProjection = createInitialProjection();

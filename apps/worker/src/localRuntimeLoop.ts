@@ -35,6 +35,11 @@ export type LocalWorldRuntimeLoopInput = Omit<
    */
   readonly recoveryThroughSequence?: number;
   readonly pauseBeforeTick?: LocalWorldRuntimeLoopPausePredicate;
+  readonly onTickCompleted?: (input: {
+    readonly step: LocalWorldRuntimeLoopStep;
+    readonly completedTickCount: number;
+    readonly nextTickIndex: number;
+  }) => void | Promise<void>;
 };
 
 export type LocalWorldRuntimeLoopResult =
@@ -132,6 +137,11 @@ export async function runLocalWorldRuntimeLoop(
         failedStep: step,
       };
     }
+    await input.onTickCompleted?.({
+      step,
+      completedTickCount: steps.length,
+      nextTickIndex: tickIndex + 1,
+    });
   }
 
   return {

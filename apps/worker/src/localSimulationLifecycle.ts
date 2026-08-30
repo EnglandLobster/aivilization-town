@@ -118,6 +118,7 @@ export type LocalSimulationLifecycleControllerInput = Omit<
   | 'pauseBeforeTick'
   | 'firstTickRecoveryToSequence'
   | 'recoveryThroughSequence'
+  | 'onTickCompleted'
 > & {
   readonly loopId: string;
   readonly tickBatchSize: number;
@@ -267,6 +268,14 @@ export function createLocalSimulationLifecycleController(
     }
 
     const firstTickIndex = previousState?.nextTickIndex ?? initialTickIndex;
+    const previouslyCompletedTickCount =
+      previousState?.status === 'running' || previousState?.status === 'paused'
+        ? (previousState.completedTickCount ?? 0)
+        : 0;
+    if (previouslyCompletedTickCount > input.tickBatchSize) {
+      throw new Error('persisted completedTickCount exceeds lifecycle tickBatchSize');
+    }
+    const remainingTickCount = input.tickBatchSize - previouslyCompletedTickCount;
     const lifecycleBatchStartedAt =
       previousState?.status === 'running' ? previousState.updatedAt : request.requestedAt;
     const streamVersionBeforeStart = input.storage.eventStore.getStreamVersion(
@@ -286,27 +295,52 @@ export function createLocalSimulationLifecycleController(
       updatedAt: lifecycleBatchStartedAt,
       lastLoopId: input.loopId,
       ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
+      completedTickCount: previouslyCompletedTickCount,
     });
 
-    const loop = await runLocalWorldRuntimeLoop({
-      ...toLoopBaseInput(input),
-      loopId: input.loopId,
-      firstTickIndex,
-      tickCount: input.tickBatchSize,
-      issuedAtStart: lifecycleBatchStartedAt,
-      ...(firstTickRecoveryToSequence === undefined
-        ? {}
-        : {
-            firstTickRecoveryToSequence,
-            recoveryThroughSequence: streamVersionBeforeStart,
-          }),
-      pauseBeforeTick: (step) => {
-        if (lifecycleStateStore.getState(request)?.status === 'paused') {
-          return true;
-        }
-        return input.pauseBeforeTick?.(step) === true;
-      },
-    });
+    const loop =
+      remainingTickCount === 0
+        ? createRecoveredCompletedLoopResult({
+            controllerInput: input,
+            nextTickIndex: firstTickIndex,
+          })
+        : await runLocalWorldRuntimeLoop({
+            ...toLoopBaseInput(input),
+            loopId: input.loopId,
+            firstTickIndex,
+            tickCount: remainingTickCount,
+            issuedAtStart: lifecycleBatchStartedAt,
+            ...(firstTickRecoveryToSequence === undefined
+              ? {}
+              : {
+                  firstTickRecoveryToSequence,
+                  recoveryThroughSequence: streamVersionBeforeStart,
+                }),
+            pauseBeforeTick: (step) => {
+              if (lifecycleStateStore.getState(request)?.status === 'paused') {
+                return true;
+              }
+              return input.pauseBeforeTick?.(step) === true;
+            },
+            onTickCompleted: ({ completedTickCount, nextTickIndex }) => {
+              const currentState = lifecycleStateStore.getState(request);
+              lifecycleStateStore.saveState({
+                simulationId: request.simulationId,
+                partitionKey: request.partitionKey,
+                status: currentState?.status === 'paused' ? 'paused' : 'running',
+                nextTickIndex,
+                lastAppliedSequence: input.storage.eventStore.getStreamVersion(
+                  input.storage.partition.eventStreamName,
+                ),
+                updatedAt: lifecycleBatchStartedAt,
+                lastLoopId: input.loopId,
+                ...(request.operationId === undefined
+                  ? {}
+                  : { lastOperationId: request.operationId }),
+                completedTickCount: previouslyCompletedTickCount + completedTickCount,
+              });
+            },
+          });
     const loopState = lifecycleStateStore.saveState({
       simulationId: request.simulationId,
       partitionKey: request.partitionKey,
@@ -318,7 +352,7 @@ export function createLocalSimulationLifecycleController(
       updatedAt: request.requestedAt,
       lastLoopId: input.loopId,
       ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
-      completedTickCount: loop.completedTickCount,
+      completedTickCount: previouslyCompletedTickCount + loop.completedTickCount,
     });
     const validation =
       loop.status === 'completed' && input.validationSchedule !== undefined
@@ -399,6 +433,10 @@ export function createLocalSimulationLifecycleController(
       assertNonNegativeFinite(request.requestedAt, 'requestedAt');
 
       const previousState = lifecycleStateStore.getState(request);
+      const completedTickCount =
+        previousState?.status === 'running' || previousState?.status === 'paused'
+          ? previousState.completedTickCount
+          : 0;
       const state = lifecycleStateStore.saveState({
         simulationId: request.simulationId,
         partitionKey: request.partitionKey,
@@ -411,9 +449,7 @@ export function createLocalSimulationLifecycleController(
         ...(previousState?.lastLoopId === undefined
           ? {}
           : { lastLoopId: previousState.lastLoopId }),
-        ...(previousState?.completedTickCount === undefined
-          ? {}
-          : { completedTickCount: previousState.completedTickCount }),
+        ...(completedTickCount === undefined ? {} : { completedTickCount }),
         ...(previousState?.lastOperationId === undefined
           ? {}
           : { lastOperationId: previousState.lastOperationId }),
@@ -528,6 +564,32 @@ function createIdempotentLifecycleStartResult(input: {
       projection: hydrated.projection,
     },
     idempotentReplay: true,
+  };
+}
+
+function createRecoveredCompletedLoopResult(input: {
+  readonly controllerInput: LocalSimulationLifecycleControllerInput;
+  readonly nextTickIndex: number;
+}): LocalWorldRuntimeLoopResult {
+  const hydrated = hydrateWorldProjectionFromEventStream({
+    initialProjection: input.controllerInput.initialProjection,
+    eventStore: input.controllerInput.storage.eventStore,
+    streamName: input.controllerInput.storage.partition.eventStreamName,
+    checkpoint: {
+      checkpointStore: input.controllerInput.storage.checkpointStore,
+      snapshotStore: input.controllerInput.storage.snapshotStore,
+      lookup: {
+        simulationId: input.controllerInput.storage.partition.simulationId,
+        partitionKey: input.controllerInput.storage.partition.partitionKey,
+      },
+    },
+  });
+  return {
+    status: 'completed',
+    steps: [],
+    completedTickCount: 0,
+    nextTickIndex: input.nextTickIndex,
+    projection: hydrated.projection,
   };
 }
 

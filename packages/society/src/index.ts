@@ -7,6 +7,7 @@ export * from './conditions';
 export * from './consumption';
 export * from './discourse';
 export * from './healthcare';
+export * from './governance';
 export * from './landValue';
 export * from './lifecycle';
 export * from './migration';

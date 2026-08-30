@@ -88,6 +88,8 @@ export type WorldCommandDryRunSimulatorConfig = {
   readonly nextSequence?: number;
   readonly commandIdPrefix?: string;
   readonly housingPopulation?: number;
+  /** Read-only authority market sampled for the same planning cycle. */
+  readonly marketOverride?: WorldDecisionMarketOverride;
 };
 
 const DEFAULT_DRY_RUN_COMMAND_ID_PREFIX = 'canonical-runtime-dry-run';
@@ -145,6 +147,7 @@ export function createCanonicalWorkerRuntimeResolver(
         ...(context.worldDecisionContext?.society?.housing === undefined
           ? {}
           : { housingPopulation: context.worldDecisionContext.society.housing.population }),
+        ...(context.marketOverride === undefined ? {} : { marketOverride: context.marketOverride }),
       }),
       repair,
       ...(config.replanningPolicy === undefined
@@ -367,7 +370,10 @@ function isAgentBuildHousingAction(
 export function createWorldCommandDryRunSimulator(
   config: WorldCommandDryRunSimulatorConfig,
 ): CycleActionSimulator {
-  let rolloutProjection = config.projection;
+  let rolloutProjection =
+    config.marketOverride === undefined
+      ? config.projection
+      : { ...config.projection, marketPools: config.marketOverride.marketPools };
   let counterfactualStep = 0;
   let projectionEventCount = 0;
 

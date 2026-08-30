@@ -37,6 +37,8 @@ import {
   WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT,
   type AgentStartConversationTurnPayload,
   type AgentGiveResourcePayload,
+  type AgentExportCommodityPayload,
+  type AgentImportCommodityPayload,
   type AgentTradePayload,
   type AgentPostBulletinPayload,
   type AgentDepositPayload,
@@ -167,6 +169,13 @@ export type SimulationWideResourceTransferRequest = SimulationWideAuthorityLease
   readonly operationId: string;
   readonly sourceAgentId: string;
   readonly transfer: AgentGiveResourcePayload;
+};
+
+export type SimulationWideExternalTradeRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: string;
+  readonly commandType: 'AgentExportCommodity' | 'AgentImportCommodity';
+  readonly payload: AgentExportCommodityPayload | AgentImportCommodityPayload;
 };
 
 export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
@@ -363,6 +372,15 @@ export type SimulationWideAuthorityOperation =
       readonly fencingToken: number;
       readonly sourcePartitionKey: PartitionKey;
       readonly targetPartitionKey: PartitionKey;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
+      /** One town-wide external-sector trade; trader accounts remain owner-scoped. */
+      readonly kind: 'external-trade';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly ownerPartitionKey: PartitionKey;
       readonly events: readonly WorldEvent[];
       readonly status: 'completed';
     }
@@ -638,6 +656,9 @@ export type SimulationWideAuthorityService = {
   readonly settleResourceTransfer: (
     request: SimulationWideResourceTransferRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'resource-transfer' };
+  readonly settleExternalTrade: (
+    request: SimulationWideExternalTradeRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'external-trade' };
   readonly settleBulletin: (
     request: SimulationWideBulletinRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'bulletin' };
@@ -953,17 +974,24 @@ export function createSimulationWideAuthority(input: {
   };
 
   const applyGlobalCommand = <
-    TKind extends 'trade' | 'conversation' | 'resource-transfer',
+    TKind extends 'trade' | 'conversation' | 'resource-transfer' | 'external-trade',
   >(inputCommand: {
     readonly kind: TKind;
     readonly operationId: string;
     readonly requestFingerprint: string;
     readonly lease: SimulationWideAuthorityLease;
     readonly actorId: AgentId;
-    readonly commandType: 'AgentTrade' | 'AgentStartConversation' | 'AgentGiveResource';
+    readonly commandType:
+      | 'AgentTrade'
+      | 'AgentStartConversation'
+      | 'AgentGiveResource'
+      | 'AgentExportCommodity'
+      | 'AgentImportCommodity';
     readonly payload:
       | AgentTradePayload
       | AgentGiveResourcePayload
+      | AgentExportCommodityPayload
+      | AgentImportCommodityPayload
       | {
           readonly targetAgentId: AgentId;
           readonly topic: string;
@@ -1171,6 +1199,31 @@ export function createSimulationWideAuthority(input: {
           fencingToken,
           sourcePartitionKey: requireOwner(state, sourceAgentId),
           targetPartitionKey: requireOwner(state, targetAgentId),
+          events,
+          status: 'completed',
+        }),
+      });
+    },
+    settleExternalTrade(request) {
+      const agentId = asAgentId(request.agentId);
+      return applyGlobalCommand({
+        kind: 'external-trade',
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'external-trade',
+          agentId,
+          commandType: request.commandType,
+          payload: request.payload,
+        }),
+        lease: request,
+        actorId: agentId,
+        commandType: request.commandType,
+        payload: request.payload,
+        createOperation: ({ fencingToken, events, state }) => ({
+          kind: 'external-trade',
+          operationId: request.operationId,
+          fencingToken,
+          ownerPartitionKey: requireOwner(state, agentId),
           events,
           status: 'completed',
         }),
@@ -2829,6 +2882,17 @@ function createInboxDeliveries(
             ];
       });
     }
+    case 'external-trade':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events:
+          partitionKey === operation.ownerPartitionKey
+            ? operation.events
+            : operation.events.filter((event) => event.type === 'ExternalTradeExecuted'),
+      }));
     // Bulletins are town-wide: every partition materializes the board update
     // so its residents gain awareness.
     case 'bulletin':
@@ -3057,6 +3121,8 @@ function createInboxDeliveries(
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||
           event.type === 'RegionalServiceQualityUpdated' ||
+          event.type === 'ExternalMarketRebalanced' ||
+          event.type === 'ExternalTradeBalancesDecayed' ||
           event.type === 'TownBankSnapshotRecorded' ||
           // Matter-expiry closures carry the parties' memory records; they
           // must ride along so each owner partition materializes them.

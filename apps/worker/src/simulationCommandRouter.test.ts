@@ -582,6 +582,55 @@ describe('simulation command router', () => {
     ).toBe(true);
   });
 
+  test('routes town-external trade through the authority and broadcasts the shared balance', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentExportCommodity',
+          payload: { commodityName: 'Fish', quantity: 1 },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+        inventory: { Fish: 2 },
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-export:agent-a',
+      commandIdPrefix: 'tick-export:agent-a',
+    });
+
+    expect(result.events.some((event) => event.type === 'ExternalTradeExecuted')).toBe(true);
+    expect(authority.getSnapshot().projection.externalTrade?.balancesByCommodity).toEqual({
+      Fish: 1,
+    });
+    const remote = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'external-trade-router-remote' })
+      .deliveries.find((delivery) => delivery.operationKind === 'external-trade');
+    expect(remote?.events.map((event) => event.type)).toEqual(['ExternalTradeExecuted']);
+  });
+
   test('routes a move draft through authority settlement instead of the partition stream', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',

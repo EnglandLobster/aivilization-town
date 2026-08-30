@@ -527,6 +527,12 @@ export type WorldDecisionContext = {
 
 export type WorldDecisionContextTrace = {
   readonly agentId: AgentId;
+  /** Version/stage of the actual LLM-visible projection, absent on legacy/full-context traces. */
+  readonly contextViewVersion?: string;
+  readonly contextViewStage?: string;
+  readonly visibleContextSections?: readonly string[];
+  readonly salienceCount?: number;
+  readonly salienceKinds?: readonly string[];
   readonly hasLocationId: boolean;
   /** Present when the identity view carried the citizen's own sanitized display name. */
   readonly hasDisplayName?: boolean;
@@ -632,9 +638,7 @@ export function createWorldDecisionContextTrace(
     ...(context.weather === undefined
       ? {}
       : { hasWeather: true, weatherCurrent: context.weather.current }),
-    ...(context.petitions === undefined
-      ? {}
-      : { petitionCount: context.petitions.length }),
+    ...(context.petitions === undefined ? {} : { petitionCount: context.petitions.length }),
     ...(context.calendar === undefined
       ? {}
       : {
@@ -683,7 +687,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v4';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v5';
 
 /** Hard cap for any free-text field entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

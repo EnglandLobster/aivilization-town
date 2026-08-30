@@ -106,6 +106,7 @@ describe('LLM reactive correction seam', () => {
         },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'reactive-correction',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

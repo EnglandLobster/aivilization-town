@@ -16,7 +16,6 @@ const agentId = asAgentId('agent-a');
 const hourMs = 60 * 60 * 1000;
 
 describe('LLM daily planner seam', () => {
-
   test('persona framing wraps the daily planning system prompt for identity-bearing contexts', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-daily-planner',
@@ -388,6 +387,7 @@ describe('LLM daily planner seam', () => {
         longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'daily-planning',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

@@ -8,6 +8,7 @@ import type {
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import type { ActionResourceEstimate } from './actions';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   applyReactiveCorrectionDecision,
   type ReactiveCorrectionGeneratedAction,
@@ -17,10 +18,6 @@ import {
   type ReactiveCorrector,
   type ReactiveCorrectorInput,
 } from './actionRepair';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
 
 export type LlmReactiveCorrectionProposal = {
   readonly decision: ReactiveCorrectionGeneratedDecision;
@@ -192,6 +189,7 @@ const reactiveCorrectionToolContract = {
 function createReactiveCorrectionMessages(
   input: ReactiveCorrectorInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createReactiveCorrectionContextView(input);
   return [
     {
       role: 'system',
@@ -223,9 +221,7 @@ function createReactiveCorrectionMessages(
           ? {}
           : { shortTermMemoryContext: input.shortTermMemoryContext }),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Return kind propose-action only when one immediate action can plausibly repair the simulator rejection.',
           'Use only commandType values listed in allowedCommandTypes.',
@@ -387,7 +383,7 @@ function mapAcceptedTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
@@ -424,16 +420,29 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: ReactiveCorrectorInput,
 ): Pick<ReactiveCorrectionTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createReactiveCorrectionContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createReactiveCorrectionContextView(input: ReactiveCorrectorInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'reactive-correction',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

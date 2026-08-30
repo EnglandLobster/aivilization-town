@@ -8,7 +8,10 @@
 ## 现状定位
 
 - **市民层已超越 CS**：CS 市民只是路径点；本项目 Agent 有层级规划、双过程记忆、
-  社会关系演化、24 小时作息日程（`packages/agent-runtime/src/dailyPlanning.ts`）。
+  社会关系演化、24 小时作息日程（`packages/agent-runtime/src/dailyPlanning.ts`）；
+  `PerStageContextView` 已按排序、行动、对话、反应、重规划等阶段裁剪 LLM 输入，
+  salience 仅投影生存阈值、活跃意图、高重要度记忆和 eligible rules，视图版本与
+  实际可见段进入 trace/manifest，不再把完整世界 JSON 倍乘注入每个阶段。
 - **城市层远未达到 CS**：全镇为固定 7 个地点的抽象图（`packages/content/src/locations.ts`），
   无建造、无分区、无地价、无财政、无生命周期。CS 的本体——多层耦合系统动力学
   - 治理杠杆 + 可视化反馈——几乎空白。

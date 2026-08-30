@@ -44,6 +44,7 @@ describe('AIvilization default world command policies', () => {
         globalSynthesis: 'global-action-synthesis-v1',
         autonomousObjectiveSelection: 'autonomous-objective-selection-v4',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
+        contextView: 'world-decision-context-view-v5',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -78,6 +79,29 @@ describe('AIvilization default world command policies', () => {
           },
         },
         planning: {
+          contextView: {
+            contextViewVersion: 'world-decision-context-view-v5',
+            stageVisibility: {
+              ranking: {
+                stages: ['subtask-prioritization', 'global-synthesis'],
+                omittedSections: ['society', 'enterprises', 'rules'],
+              },
+              dialogue: {
+                stages: ['social-dialogue'],
+                visibleSections: [
+                  'salience',
+                  'agent.identity-and-relations',
+                  'society.counterpart',
+                ],
+              },
+            },
+            salience: {
+              maxCount: 6,
+              highImportanceMemoryThreshold: 0.8,
+              textMaxLength: 160,
+              priorityOrder: ['survival', 'obligation', 'memory', 'relationship', 'opportunity'],
+            },
+          },
           autonomousObjectiveSelection: {
             policyVersion: 'autonomous-objective-selection-v4',
             source: 'repository-design',

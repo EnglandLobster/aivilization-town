@@ -19,10 +19,12 @@ import {
 import {
   createDeterministicStrategicPlanningPolicyManifest,
   createDeterministicGlobalSynthesisPolicyManifest,
+  createPerStageContextViewManifest,
   createSocialDialoguePolicyManifest,
   DETERMINISTIC_GLOBAL_SYNTHESIS_POLICY_VERSION,
   DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION,
   SOCIAL_DIALOGUE_POLICY_VERSION,
+  WORLD_DECISION_CONTEXT_VIEW_VERSION,
 } from '@aivilization/agent-runtime';
 import {
   createSocialOutcomePolicyManifest,
@@ -575,6 +577,7 @@ export function createAivilizationWorldPolicyManifest(
       globalSynthesis: DETERMINISTIC_GLOBAL_SYNTHESIS_POLICY_VERSION,
       autonomousObjectiveSelection: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
       externalTradeActionProposer: EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
+      contextView: WORLD_DECISION_CONTEXT_VIEW_VERSION,
       strategicPlanning: DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION,
       agentRegistration: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
       strategicPlanRenewal: STRATEGIC_PLAN_RENEWAL_POLICY_VERSION,
@@ -644,6 +647,7 @@ export function createAivilizationWorldPolicyManifest(
       ),
       planning: {
         autonomousObjectiveSelection: createAutonomousObjectiveSelectionPolicyManifest(),
+        contextView: createPerStageContextViewManifest(),
         externalTradeActionProposer: createExternalTradeActionProposerPolicyManifest(),
         globalSynthesis: createDeterministicGlobalSynthesisPolicyManifest(),
         strategicPlanning: createDeterministicStrategicPlanningPolicyManifest(),
@@ -846,6 +850,7 @@ function createCanonicalPolicyRegistry(manifest: {
         'globalSynthesis',
         'autonomousObjectiveSelection',
         'externalTradeActionProposer',
+        'contextView',
         'strategicPlanning',
         'strategicPlanRenewal',
       ],

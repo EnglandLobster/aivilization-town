@@ -128,7 +128,9 @@ describe('LLM reaction evaluator seam', () => {
     expect(requestContent).toContain('"educationScore":31');
     expect(requestContent).toContain('"residentialTier":5');
     expect(requestContent).toContain('"Fish":46');
-    expect(requestContent).toContain('"spotPrice":304.5');
+    expect(requestContent).toContain('"stage":"reaction-evaluation"');
+    expect(requestContent).not.toContain('"spotPrice":304.5');
+    expect(requestContent).not.toContain('"market":{"spotPrices"');
   });
 
   test('falls back to deterministic reaction evaluation when LLM output is invalid', async () => {
@@ -252,13 +254,14 @@ describe('LLM reaction evaluator seam', () => {
         longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'reaction-evaluation',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,
           hasResidentialTier: true,
           inventoryItemCount: 2,
-          marketSpotPriceCount: 1,
-          hasLatestPriceIndex: true,
+          marketSpotPriceCount: 0,
+          hasLatestPriceIndex: false,
         },
         attempts: [
           {

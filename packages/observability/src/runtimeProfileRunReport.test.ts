@@ -763,6 +763,59 @@ describe('runtime profile run report repositories', () => {
     });
   });
 
+  test('treats deliberate per-stage omission as complete without polluting economic or rules rates', () => {
+    const diagnostics = createRuntimeProfileAgentCycleDiagnostics([
+      createTrace({
+        traceId: 'agent-cycle-dialogue-context-view',
+        simulatorStatus: 'accepted',
+        replanning: false,
+        emittedCommandCount: 1,
+        simulatorEvents: [],
+        socialDialogueGeneration: [
+          {
+            status: 'accepted',
+            source: 'llm',
+            selectedSubtask: { branchId: 'social', subtaskId: 'talk' },
+            actionId: 'conversation-1',
+            targetAgentId: 'agent-2',
+            turnCount: 2,
+            rationale: 'Context view is intentionally minimal.',
+            worldDecisionContext: {
+              agentId: 'agent-1',
+              contextViewVersion: 'world-decision-context-view-v5',
+              contextViewStage: 'social-dialogue',
+              visibleContextSections: ['salience', 'agent', 'society'],
+              salienceCount: 0,
+              hasLocationId: true,
+              hasPhysiology: false,
+              hasJob: true,
+              hasBalance: false,
+              hasEducationScore: false,
+              hasResidentialTier: false,
+              hasInventory: false,
+              inventoryItemCount: 0,
+              marketSpotPriceCount: 0,
+              hasLatestPriceIndex: false,
+              hasEconomicState: false,
+              hasMarketPrices: false,
+              completeEconomicContext: false,
+            },
+          },
+        ],
+      }),
+    ]);
+
+    expect(diagnostics.llmStageDiagnostics?.[2]).toMatchObject({
+      stageName: 'socialDialogueGeneration',
+      worldDecisionContextCount: 1,
+      completeWorldDecisionContextCount: 1,
+      economicContextCount: 0,
+      completeEconomicContextCount: 0,
+      rulesContextCount: 0,
+      completeRulesContextCount: 0,
+    });
+  });
+
   test('summarizes cognition LLM stage diagnostics from durable profile traces', () => {
     const diagnostics = createRuntimeProfileCognitionLlmStageDiagnostics({
       objectiveRenewalTraces: [

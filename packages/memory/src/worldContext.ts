@@ -88,6 +88,8 @@ export type MemorySynthesisWorldDecisionRulesContext = {
 };
 
 export type MemorySynthesisWorldDecisionContext = {
+  readonly contextViewVersion?: string;
+  readonly contextViewStage?: string;
   readonly agent: MemorySynthesisWorldDecisionAgentContext;
   readonly market: MemorySynthesisWorldDecisionMarketContext;
   readonly rules?: MemorySynthesisWorldDecisionRulesContext;
@@ -95,6 +97,8 @@ export type MemorySynthesisWorldDecisionContext = {
 
 export type MemorySynthesisWorldDecisionContextTrace = {
   readonly agentId: AgentId;
+  readonly contextViewVersion?: string;
+  readonly contextViewStage?: string;
   readonly hasLocationId: boolean;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
@@ -131,6 +135,12 @@ export function createMemorySynthesisWorldDecisionContextTrace(
 
   return {
     agentId: context.agent.agentId,
+    ...(context.contextViewVersion === undefined
+      ? {}
+      : { contextViewVersion: context.contextViewVersion }),
+    ...(context.contextViewStage === undefined
+      ? {}
+      : { contextViewStage: context.contextViewStage }),
     hasLocationId: context.agent.locationId !== undefined,
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&

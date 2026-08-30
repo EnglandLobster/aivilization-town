@@ -50,6 +50,7 @@ export * from './localSimulationRuntimeScheduler';
 export * from './localSimulationRuntimeSchedulerApi';
 export * from './localSimulationRuntimeRunSession';
 export * from './localSimulationRuntimeSupervisor';
+export * from './memoryWorldDecisionContext';
 export * from './localSimulationRuntimeSupervisorApi';
 export * from './localScenarioBootstrap';
 export * from './marketObservationRecording';

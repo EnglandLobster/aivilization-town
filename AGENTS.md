@@ -379,6 +379,12 @@ domain-package/
 - 涉及 package/public export 时，相关 build 通过；
 - 架构文档与实际代码一致。
 
+涉及 Agent 可感知机制时，还必须明确：
+
+- **感知**：机制通过 context 字段、记忆通道或要闻中的哪一种进入市民认知；若刻意不可见，说明原因。
+- **行动**：市民能否作用于该机制；若不能，相关命令必须有明确的接入计划或休眠决断。
+- **预算与阶段可见性**：新增上下文段必须定义上限、排序、剪枝以及哪些 planning stage 能看到它；不得默认向所有 LLM 调用注入完整上下文。
+
 ## 16. 相关架构文档
 
 - `docs/ECONOMY_DDD_ARCHITECTURE.md`：经济、企业、会计和 world integration 的详细边界。

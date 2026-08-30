@@ -1,8 +1,12 @@
 import {
+  assertValidRenewableResourcePolicy,
+  evaluateRenewableResourceExtraction,
+  evaluateRenewableResourceRegeneration,
   getInventoryQuantity,
   planProduction,
   type ProductionEfficiencyPolicy,
   type ProductionRecipeOverride,
+  type RenewableResourcePolicy,
 } from '@aivilization/economy';
 import { createSeededRandom, type CommandEnvelope } from '@aivilization/sim-core';
 import { decidePayWage, isEnterpriseOperational } from '@aivilization/enterprise';
@@ -36,6 +40,7 @@ import {
 } from '../commands';
 import type { WorldEvent } from '../events';
 import type { WorldAgentState, WorldProjection } from '../projection';
+import { resolveAgentRegion } from '../regionalMarkets';
 import {
   makeAgentActivityTimeCommittedEvent,
   makeEvent,
@@ -730,6 +735,7 @@ export function handleAgentProduceCommand(input: {
   readonly randomSeed?: string;
   readonly recipeOverrides?: readonly ProductionRecipeOverride[];
   readonly productionEfficiency?: ProductionEfficiencyPolicy;
+  readonly renewableResources?: RenewableResourcePolicy;
   readonly educationSystem?: EducationSystemPolicy;
   readonly criticalThresholds?: {
     readonly energy: number;
@@ -806,8 +812,62 @@ export function handleAgentProduceCommand(input: {
     );
   }
 
-  return [
-    makeEvent(input, 0, 'CommodityProduced', {
+  const resourceSettlement =
+    input.renewableResources === undefined
+      ? undefined
+      : settleRenewableResourceProduction({
+          projection: input.projection,
+          agent,
+          commodityName: payload.commodityName,
+          outputQuantity: productionPlan.produced[payload.commodityName] ?? payload.quantity,
+          policy: input.renewableResources,
+        });
+  if (resourceSettlement?.extraction.status === 'rejected') {
+    return rejectCommand(
+      input,
+      'AgentProduce',
+      `insufficient-renewable-resource: ${payload.commodityName} requires ${resourceSettlement.extraction.requiredStock}, available ${resourceSettlement.extraction.availableStock}`,
+    );
+  }
+
+  const events: WorldEvent[] = [];
+  if (
+    resourceSettlement !== undefined &&
+    resourceSettlement.extraction.status === 'accepted'
+  ) {
+    if (resourceSettlement.regeneration !== undefined) {
+      events.push(
+        makeEvent(input, events.length, 'RenewableResourceRegenerated', {
+          regionId: resourceSettlement.regionId,
+          commodityName: resourceSettlement.regeneration.commodityName,
+          previousStock: resourceSettlement.regeneration.previousStock,
+          nextStock: resourceSettlement.regeneration.nextStock,
+          regeneratedStock: resourceSettlement.regeneration.regeneratedStock,
+          carryingCapacity: resourceSettlement.regeneration.carryingCapacity,
+          cadenceCount: resourceSettlement.cadenceCount,
+          settledThrough: resourceSettlement.lastRegenerationAt,
+          policyVersion: resourceSettlement.regeneration.policyVersion,
+        }),
+      );
+    }
+    events.push(
+      makeEvent(input, events.length, 'RenewableResourceExtracted', {
+        regionId: resourceSettlement.regionId,
+        commodityName: resourceSettlement.extraction.commodityName,
+        producerAgentId: agent.agentId,
+        outputQuantity: resourceSettlement.extraction.outputQuantity,
+        extractedStock: resourceSettlement.extraction.extractedStock,
+        previousStock: resourceSettlement.extraction.previousStock,
+        nextStock: resourceSettlement.extraction.nextStock,
+        carryingCapacity: resourceSettlement.extraction.carryingCapacity,
+        lastRegenerationAt: resourceSettlement.lastRegenerationAt,
+        policyVersion: resourceSettlement.extraction.policyVersion,
+        ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
+      }),
+    );
+  }
+  events.push(
+    makeEvent(input, events.length, 'CommodityProduced', {
       agentId: agent.agentId,
       produced: productionPlan.produced,
       consumedInputs: productionPlan.consumedInputs,
@@ -819,13 +879,17 @@ export function handleAgentProduceCommand(input: {
         : { productionEfficiency: productionPlan.productionEfficiency }),
       ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
     }),
-    makeAgentActivityTimeCommittedEvent(input, 1, {
+  );
+  events.push(
+    makeAgentActivityTimeCommittedEvent(input, events.length, {
       agentId: agent.agentId,
       activity: 'production',
       commandType: 'AgentProduce',
       durationSeconds: productionPlan.laborSeconds,
     }),
-    makeMemoryEvent(input, 2, {
+  );
+  events.push(
+    makeMemoryEvent(input, events.length, {
       summary: `Produced ${payload.quantity} ${payload.commodityName}.`,
       status: 'succeeded',
       tags: ['produce', payload.commodityName],
@@ -835,7 +899,82 @@ export function handleAgentProduceCommand(input: {
         statement: `Produces ${payload.commodityName} when resources are available.`,
       },
     }),
-  ];
+  );
+  return events;
+}
+
+function settleRenewableResourceProduction(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly commodityName: string;
+  readonly outputQuantity: number;
+  readonly policy: RenewableResourcePolicy;
+}):
+  | {
+      readonly regionId: string;
+      readonly cadenceCount: number;
+      readonly lastRegenerationAt: number;
+      readonly regeneration?: ReturnType<typeof evaluateRenewableResourceRegeneration>;
+      readonly extraction: ReturnType<typeof evaluateRenewableResourceExtraction>;
+    }
+  | undefined {
+  assertValidRenewableResourcePolicy(input.policy);
+  const resource = input.policy.resources.find(
+    (candidate) => candidate.commodityName === input.commodityName,
+  );
+  if (resource === undefined) {
+    return undefined;
+  }
+  const regionId = resolveAgentRegion({
+    projection: input.projection,
+    agentLocationId: input.agent.locationId,
+  });
+  const current = input.projection.renewableResources?.[regionId]?.[input.commodityName];
+  if (current !== undefined && current.policyVersion !== input.policy.policyVersion) {
+    throw new Error(
+      `renewable resource ${regionId}/${input.commodityName} requires an explicit policy migration from ${current.policyVersion} to ${input.policy.policyVersion}`,
+    );
+  }
+  const previousLastRegenerationAt = current?.lastRegenerationAt ?? 0;
+  const settledThrough =
+    Math.floor(input.projection.clock.now / input.policy.regenerationCadenceMs) *
+    input.policy.regenerationCadenceMs;
+  const cadenceCount = Math.max(
+    0,
+    Math.floor(
+      (settledThrough - previousLastRegenerationAt) / input.policy.regenerationCadenceMs,
+    ),
+  );
+  let stock = current?.stock ?? resource.initialStock;
+  let regeneration: ReturnType<typeof evaluateRenewableResourceRegeneration> | undefined;
+  for (let cadence = 0; cadence < cadenceCount; cadence += 1) {
+    const decision = evaluateRenewableResourceRegeneration({
+      resource,
+      currentStock: stock,
+      policyVersion: input.policy.policyVersion,
+    });
+    regeneration =
+      regeneration === undefined
+        ? decision
+        : {
+            ...decision,
+            previousStock: regeneration.previousStock,
+            regeneratedStock: decision.nextStock - regeneration.previousStock,
+          };
+    stock = decision.nextStock;
+  }
+  return {
+    regionId,
+    cadenceCount,
+    lastRegenerationAt: cadenceCount === 0 ? previousLastRegenerationAt : settledThrough,
+    ...(regeneration === undefined ? {} : { regeneration }),
+    extraction: evaluateRenewableResourceExtraction({
+      commodityName: input.commodityName,
+      outputQuantity: input.outputQuantity,
+      currentStock: stock,
+      policy: input.policy,
+    }),
+  };
 }
 
 function createProductionRewardSeed(input: {

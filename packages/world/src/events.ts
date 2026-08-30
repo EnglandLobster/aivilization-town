@@ -653,6 +653,32 @@ export type CommodityProducedPayload = {
   readonly enterpriseId?: string;
 };
 
+export type RenewableResourceRegeneratedPayload = {
+  readonly regionId: string;
+  readonly commodityName: string;
+  readonly previousStock: number;
+  readonly nextStock: number;
+  readonly regeneratedStock: number;
+  readonly carryingCapacity: number;
+  readonly cadenceCount: number;
+  readonly settledThrough: number;
+  readonly policyVersion: string;
+};
+
+export type RenewableResourceExtractedPayload = {
+  readonly regionId: string;
+  readonly commodityName: string;
+  readonly producerAgentId: AgentId;
+  readonly outputQuantity: number;
+  readonly extractedStock: number;
+  readonly previousStock: number;
+  readonly nextStock: number;
+  readonly carryingCapacity: number;
+  readonly lastRegenerationAt: number;
+  readonly policyVersion: string;
+  readonly enterpriseId?: string;
+};
+
 export type TradeExecutedPayload = {
   readonly agentId: AgentId;
   readonly side: 'buy' | 'sell';
@@ -1397,6 +1423,8 @@ export type AgentOwnershipArrivedPayload = {
 export type WorldEventPayloadByType = {
   readonly AgentRegistered: AgentRegisteredPayload;
   readonly AgentRegistrationRejected: AgentRegistrationRejectedPayload;
+  readonly RenewableResourceRegenerated: RenewableResourceRegeneratedPayload;
+  readonly RenewableResourceExtracted: RenewableResourceExtractedPayload;
   readonly CommodityProduced: CommodityProducedPayload;
   readonly TradeExecuted: TradeExecutedPayload;
   readonly ResourceTransferred: ResourceTransferredPayload;

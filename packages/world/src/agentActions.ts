@@ -1,4 +1,5 @@
 import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
+import type { RenewableResourcePolicy } from '@aivilization/economy';
 import type {
   EducationInvestmentPolicy,
   EducationSystemPolicy,
@@ -205,6 +206,13 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
   /** Optional starvation pressure; omitted preserves legacy non-lethal hunger. */
   readonly starvation?: StarvationHealthDecayPolicy;
   readonly stochasticIllness?: StochasticIllnessPolicy;
+  /**
+   * Optional finite regional stocks for primary production. The economy domain
+   * owns extraction/regeneration arithmetic; world records each factual stock
+   * transition beside the production event. Omitted preserves legacy infinite
+   * primary production.
+   */
+  readonly renewableResources?: RenewableResourcePolicy;
   /**
    * Optional town-weather policy. When
    * present, AdvanceSimulationTime evaluates the Markov transition matrix once
@@ -809,6 +817,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.production?.efficiency === undefined
           ? {}
           : { productionEfficiency: input.policies.production.efficiency }),
+        ...(input.policies.renewableResources === undefined
+          ? {}
+          : { renewableResources: input.policies.renewableResources }),
         ...(input.policies.educationSystem === undefined
           ? {}
           : { educationSystem: input.policies.educationSystem }),

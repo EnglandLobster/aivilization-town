@@ -1499,6 +1499,185 @@ describe('agent produce command handling', () => {
     expect(updated.agents['agent-1']?.physiology.energy).toBe(96);
   });
 
+  test('AgentProduce extracts finite regional stock and rejects production above the remainder', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const renewableResources = {
+      policyVersion: 'renewable-resources-v1',
+      regenerationCadenceMs: 3_600_000,
+      resources: [
+        {
+          commodityName: 'Apple',
+          initialStock: 5,
+          carryingCapacity: 5,
+          regenerationPerCadence: 1,
+          extractionPerOutputUnit: 1,
+        },
+      ],
+    } as const;
+    const firstEvents = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-finite-1',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 4, availableLaborSeconds: 1 },
+        issuedAt: 0,
+      }),
+      projection,
+      renewableResources,
+      nextSequence: 1,
+    });
+
+    expect(firstEvents.map((event) => event.type)).toEqual([
+      'RenewableResourceExtracted',
+      'CommodityProduced',
+      'AgentActivityTimeCommitted',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(firstEvents[0]).toMatchObject({
+      type: 'RenewableResourceExtracted',
+      payload: {
+        regionId: 'town-center',
+        commodityName: 'Apple',
+        previousStock: 5,
+        nextStock: 1,
+        extractedStock: 4,
+        policyVersion: 'renewable-resources-v1',
+      },
+    });
+    const afterFirst = firstEvents.reduce(applyWorldEvent, projection);
+    expect(afterFirst.renewableResources?.['town-center']?.Apple?.stock).toBe(1);
+    expect(afterFirst.agents['agent-1']?.inventory).toEqual({ Apple: 4 });
+
+    const rejected = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-finite-2',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 2, availableLaborSeconds: 1 },
+        issuedAt: 0,
+      }),
+      projection: afterFirst,
+      renewableResources,
+      nextSequence: 5,
+    });
+    expect(rejected[0]).toMatchObject({
+      type: 'ActionRejected',
+      payload: {
+        commandType: 'AgentProduce',
+        reason: 'insufficient-renewable-resource: Apple requires 2, available 1',
+      },
+    });
+    expect(rejected.every((event) => event.type !== 'CommodityProduced')).toBe(true);
+  });
+
+  test('AgentProduce deterministically catches up renewable stock before extraction', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-1'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const renewableResources = {
+      policyVersion: 'renewable-resources-v1',
+      regenerationCadenceMs: 3_600_000,
+      resources: [
+        {
+          commodityName: 'Apple',
+          initialStock: 5,
+          carryingCapacity: 5,
+          regenerationPerCadence: 1,
+          extractionPerOutputUnit: 1,
+        },
+      ],
+    } as const;
+    const depletionEvents = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-deplete',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 4, availableLaborSeconds: 1 },
+        issuedAt: 0,
+      }),
+      projection: initial,
+      renewableResources,
+      nextSequence: 1,
+    });
+    const depleted = depletionEvents.reduce(applyWorldEvent, initial);
+    const timeEvents = handleAdvanceSimulationTimeCommand({
+      command: createCommandEnvelope({
+        id: 'advance-resource-time',
+        simulationId: 'sim-1',
+        actorId: 'system',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 7_200_000 },
+        issuedAt: 7_200_000,
+      }),
+      projection: depleted,
+      nextSequence: 5,
+    });
+    const advanced = timeEvents.reduce(applyWorldEvent, depleted);
+    const harvestEvents = handleAgentProduceCommand({
+      command: createCommandEnvelope({
+        id: 'command-produce-after-regeneration',
+        simulationId: 'sim-1',
+        actorId: 'agent-1',
+        type: 'AgentProduce',
+        payload: { commodityName: 'Apple', quantity: 2, availableLaborSeconds: 1 },
+        issuedAt: 7_200_000,
+      }),
+      projection: advanced,
+      renewableResources,
+      nextSequence: 6,
+    });
+
+    expect(harvestEvents.slice(0, 2)).toMatchObject([
+      {
+        type: 'RenewableResourceRegenerated',
+        payload: {
+          cadenceCount: 2,
+          previousStock: 1,
+          nextStock: 3,
+          regeneratedStock: 2,
+          settledThrough: 7_200_000,
+        },
+      },
+      {
+        type: 'RenewableResourceExtracted',
+        payload: { previousStock: 3, nextStock: 1, extractedStock: 2 },
+      },
+    ]);
+    const replayed = harvestEvents.reduce(applyWorldEvent, advanced);
+    expect(replayed.renewableResources?.['town-center']?.Apple).toMatchObject({
+      stock: 1,
+      lastRegenerationAt: 7_200_000,
+      policyVersion: 'renewable-resources-v1',
+    });
+    expect(replayed.agents['agent-1']?.inventory.Apple).toBe(6);
+  });
+
   test('AgentProduce applies education-driven production efficiency policy', () => {
     const projection = createWorldProjection({
       agents: [

@@ -886,9 +886,9 @@ describe('local runtime town executable composition', () => {
       cwd: '/workspace',
       sourceRevision,
     };
-    expect(
-      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townSurvivalPressureEnabled,
-    ).toBe(false);
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townSurvivalPressureEnabled).toBe(
+      false,
+    );
     expect(
       resolveLocalRuntimeTownCliConfig({
         argv: ['--', '--llm-mode', 'deterministic', '--town-survival-pressure', 'on'],
@@ -927,9 +927,9 @@ describe('local runtime town executable composition', () => {
       cwd: '/workspace',
       sourceRevision,
     };
-    expect(
-      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCarryingCapacityEnabled,
-    ).toBe(false);
+    expect(resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCarryingCapacityEnabled).toBe(
+      false,
+    );
     const enabledByFlag = resolveLocalRuntimeTownCliConfig({
       argv: ['--', '--llm-mode', 'deterministic', '--town-carrying-capacity', 'on'],
       cwd: '/workspace',
@@ -959,13 +959,7 @@ describe('local runtime town executable composition', () => {
     });
 
     const survivalTown = resolveLocalRuntimeTownCliConfig({
-      argv: [
-        '--',
-        '--profile',
-        'survival-town-100',
-        '--llm-mode',
-        'deterministic',
-      ],
+      argv: ['--', '--profile', 'survival-town-100', '--llm-mode', 'deterministic'],
       cwd: '/workspace',
       sourceRevision,
       env: {},
@@ -979,7 +973,15 @@ describe('local runtime town executable composition', () => {
       townSurvivalPressureEnabled: true,
       townCarryingCapacityEnabled: true,
     });
-    expect(() => createCanonicalLocalRuntimeTownServerInput(survivalTown)).not.toThrow();
+    const survivalInput = createCanonicalLocalRuntimeTownServerInput(survivalTown);
+    expect(survivalInput.marketMetrics).toMatchObject({
+      baselineAt: 0,
+      baselineProjection: {
+        treasury: 50_000,
+        bank: { balance: 200_000 },
+      },
+      educationSystemPolicy: { enabled: true },
+    });
 
     const multiPartition = resolveLocalRuntimeTownCliConfig({
       argv: [
@@ -999,6 +1001,42 @@ describe('local runtime town executable composition', () => {
       'town carrying capacity currently requires a single-partition profile',
     );
   });
+
+  test('records survival composition metrics through the canonical executable chain', async () => {
+    const config = createDeterministicConfig(['--profile', 'survival-town-100']);
+    const input = createCanonicalLocalRuntimeTownServerInput(config, 100, {
+      daemonAutoStart: false,
+    });
+    const runtime = await createLocalRuntimeTownApi(input);
+    const backend = runtime.host.registry.getBackend({
+      simulationId: 'aivilization-survival-town-100',
+      partitionKey: 'world-main',
+    });
+
+    const result = await backend.lifecycle.start({
+      simulationId: 'aivilization-survival-town-100',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+    expect(result.status).toBe('completed');
+    const composition = backend.storage.eventStore
+      .readStream(backend.storage.partition.eventStreamName)
+      .filter((event) => event.type === 'EconomicCompositionRecorded');
+    expect(composition).not.toEqual([]);
+    expect(composition.at(-1)).toMatchObject({
+      type: 'EconomicCompositionRecorded',
+      payload: {
+        composition: { treasury: expect.any(Number), bank: expect.any(Number) },
+        educationDistribution: expect.any(Object),
+        survival: {
+          livingAgents: 100,
+          resources: expect.arrayContaining([
+            expect.objectContaining({ commodityName: 'Apple', stockRatio: expect.any(Number) }),
+          ]),
+        },
+      },
+    });
+  }, 30_000);
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {
     const base = {

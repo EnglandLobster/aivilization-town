@@ -83,10 +83,14 @@ startup rather than allowing duplicate regional stocks.
 
 ## Credit aggregate
 
-`@aivilization/credit` owns the single authoritative town bank per partition.
-State transitions go through decision functions and `applyCreditDomainEvent`;
-the world application layer owns borrower identity, agent-side cash checks,
-and the actual cross-account transfers.
+`@aivilization/credit` owns the town-bank aggregate. State transitions go
+through decision functions and `applyCreditDomainEvent`; the world application
+layer owns borrower identity, agent-side cash checks, and the actual
+cross-account transfers. A single-partition runtime applies that aggregate in
+its world stream. A multi-partition runtime has exactly one simulation-wide
+authority instance: deposit, withdrawal, loan and daily accrual decisions run
+there once, owner partitions receive their Agent cash event, and every
+partition receives the same integration bank snapshot.
 
 The aggregate protects these invariants:
 
@@ -111,6 +115,16 @@ Every movement is a transfer between the bank's circulating account and an
 agent account, so banking never changes `moneySupply`. The optional bank
 slice appears on the projection only from a scenario reserve seed or the
 first credit event, keeping legacy snapshots byte-for-byte compatible.
+
+Global time is phase ordered. At the start of a tick, a partition first
+materializes already accepted authority events, then publishes its owner-state
+clock boundary. The authority may advance only when every declared partition
+has published through its current clock; it settles bank/global cadences before
+the local household time phase and materializes those cash movements before
+the local `AdvanceSimulationTime`. This prevents a fast partition from settling
+credit against a mixture of old and new borrower balances. Legacy authority
+snapshots without partition clock watermarks fail closed until every partition
+publishes a fresh boundary.
 
 ## Accounting model
 

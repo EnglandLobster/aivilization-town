@@ -33,6 +33,10 @@ import {
 } from './autonomousLifeCourse';
 import type { EducationOpportunityCostConfig } from './educationOpportunityCost';
 import {
+  DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY,
+  resolveEnterpriseExternalTradeOpportunity,
+} from './externalTradePlanning';
+import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
@@ -40,13 +44,15 @@ import { createWorldDecisionContextFromProjection } from './worldDecisionContext
 import { DEFAULT_BANKING_ACTION_PROPOSER_POLICY } from './canonicalDomainRuntimes';
 import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
 import { publishPlanningSession } from './planningSessionPublication';
+import { resolveAgentMarketPools } from './worldDecisionContext';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v3';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v4';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
 const SOCIAL_IDENTITY_SCORE = 59;
+const EXTERNAL_TRADE_OPPORTUNITY_SCORE = 85;
 
 export function createAutonomousObjectiveSelectionPolicyManifest() {
   return {
@@ -71,6 +77,14 @@ export function createAutonomousObjectiveSelectionPolicyManifest() {
       cooldownRule: 'skip-while-retrieved-stm-contains-a-social-interaction',
       adverseAction: 'observe-and-verify-before-engaging',
       constructiveAction: 'maintain-cooperative-relationship',
+    },
+    externalTradeOpportunity: {
+      score: EXTERNAL_TRADE_OPPORTUNITY_SCORE,
+      quantity: 1,
+      actorEligibility: 'operational-enterprise-owner-only',
+      selection:
+        'largest-relative-advantage-over-current-visible-regional-amm-then-stable-tie-break',
+      proposerPolicyVersion: DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY.policyVersion,
     },
   };
 }
@@ -430,7 +444,12 @@ function scoreObjectiveCandidates(
   const banking = input.worldDecisionContext?.agent.banking;
   const survivalGap =
     DEFAULT_BANKING_ACTION_PROPOSER_POLICY.survivalBalanceFloor - input.agent.balance;
-  if (physiologyDanger && banking !== undefined && survivalGap > 0 && banking.maxLoanAmount >= survivalGap) {
+  if (
+    physiologyDanger &&
+    banking !== undefined &&
+    survivalGap > 0 &&
+    banking.maxLoanAmount >= survivalGap
+  ) {
     candidates.push({
       id: 'survival-bridge-loan',
       statement: 'Bridge the survival shortfall with a town-bank loan and repay it from wages.',
@@ -463,11 +482,17 @@ function scoreObjectiveCandidates(
       priority: 2,
       affinityTags: ['enterprise', 'work', 'income'],
       score: 55,
-      rationale: 'An active town enterprise posts open slots and the agent does not work there yet.',
+      rationale:
+        'An active town enterprise posts open slots and the agent does not work there yet.',
       shortTermMemoryContextIds: [],
       profileEntryKeys: [],
       profileEvidenceRecordIds: [],
     });
+  }
+
+  const externalTradeCandidate = createEnterpriseExternalTradeObjectiveCandidate(input);
+  if (externalTradeCandidate !== undefined) {
+    candidates.push(externalTradeCandidate);
   }
 
   const recentRecoveryNeed = scoreRecentRecoveryNeed(input.shortTermMemoryContext);
@@ -749,6 +774,52 @@ function createMarketParticipationCandidate(
     affinityTags: ['trade', 'market', 'buy', commodity],
     score: MARKET_PARTICIPATION_SCORE,
     rationale: `Balance covers at least ${MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER} times the ${commodity} spot price.`,
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+  };
+}
+
+function createEnterpriseExternalTradeObjectiveCandidate(
+  input: AutonomousObjectiveProposerInput,
+): ObjectiveCandidate | undefined {
+  const externalTrade = input.worldDecisionContext?.externalTrade;
+  if (externalTrade === undefined || externalTrade.length === 0) {
+    return undefined;
+  }
+  const opportunity = resolveEnterpriseExternalTradeOpportunity({
+    agentId: input.agentId,
+    enterprises: input.projection.enterprises,
+    marketPools: resolveAgentMarketPools({
+      projection: input.projection,
+      agent: input.agent,
+    }),
+    externalQuotes: externalTrade.map((quote) => ({
+      commodityName: quote.commodityName,
+      quantity: 1,
+      exportTotal: quote.exportUnitPrice,
+      importTotal: quote.importUnitPrice,
+    })),
+    quantity: 1,
+    proposerPolicy: DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY,
+  });
+  if (opportunity === undefined) {
+    return undefined;
+  }
+  const enterprise = input.projection.enterprises[opportunity.enterpriseId];
+  if (enterprise === undefined) {
+    return undefined;
+  }
+  const directionVerb = opportunity.direction === 'export' ? 'Export' : 'Import';
+  const sideTag = opportunity.direction === 'export' ? 'sell' : 'buy';
+  return {
+    id: `enterprise-external-${opportunity.direction}`,
+    statement: `${directionVerb} one ${opportunity.commodityName} for ${enterprise.name} through the external market while its quote beats the town market.`,
+    priority: 2,
+    affinityTags: ['trade', 'market', sideTag, 'external', 'enterprise', opportunity.commodityName],
+    planningDomains: ['trade'],
+    score: EXTERNAL_TRADE_OPPORTUNITY_SCORE,
+    rationale: `The external ${opportunity.direction} total ${opportunity.externalTotal} is better than the visible town AMM total ${opportunity.townMarketTotal} for enterprise ${enterprise.enterpriseId}.`,
     shortTermMemoryContextIds: [],
     profileEntryKeys: [],
     profileEvidenceRecordIds: [],

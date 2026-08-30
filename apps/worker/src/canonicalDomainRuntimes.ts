@@ -28,8 +28,10 @@ import type {
   AgentApplyEducationExamPayload,
   AgentApplyJobPayload,
   AgentEatPayload,
+  AgentExportCommodityPayload,
   AgentFundEnterprisePayload,
   AgentGiveResourcePayload,
+  AgentImportCommodityPayload,
   AgentJoinEnterprisePayload,
   AgentMoveToPayload,
   AgentObserveLocationPayload,
@@ -57,7 +59,15 @@ import {
   CANONICAL_STUDY_DURATION_SECONDS,
   CANONICAL_WORK_LABOR_SECONDS,
 } from './educationOpportunityCost';
+import {
+  assertValidExternalTradeActionProposerPolicy,
+  createExternalTradePlanningQuotes,
+  DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY,
+  resolveEnterpriseExternalTradeOpportunity,
+  type ExternalTradeActionProposerPolicy,
+} from './externalTradePlanning';
 import { createCanonicalSocialDialogueTurns, resolveCanonicalSocialPlan } from './socialPlanning';
+import { resolveAgentMarketPools } from './worldDecisionContext';
 
 export type CanonicalDomainName =
   | 'study'
@@ -196,7 +206,7 @@ export function createCanonicalDomainRuntimeRegistrations(
       policies?.educationSystem,
     ),
     createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
-    createTradeDomainRuntimeRegistration(config.trade),
+    createTradeDomainRuntimeRegistration(config.trade, policies?.externalTrade),
     createSleepDomainRuntimeRegistration(config.sleep),
     createSocialDomainRuntimeRegistration(config.social, policies?.collectiveAction),
     createProductionDomainRuntimeRegistration(
@@ -450,7 +460,10 @@ export function resolveWorkOccupationName(input: WorkOccupationResolutionInput):
 
 export function createTradeDomainRuntimeRegistration(
   config: TradeDomainRuntimeConfig = {},
+  externalTradePolicy?: WorldCommandPolicies['externalTrade'],
 ): WorkerDomainRuntimeRegistration {
+  const externalTradeProposerPolicy = DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY;
+  assertValidExternalTradeActionProposerPolicy(externalTradeProposerPolicy);
   return {
     domain: 'trade',
     createMicroPlanners: (context) => [
@@ -464,6 +477,31 @@ export function createTradeDomainRuntimeRegistration(
             config.commodityName ??
             resolveContextualTradeCommodityName({ context, selectedSubtask }) ??
             resolveFirstMarketCommodity(context);
+          const quantity = config.quantity ?? DEFAULT_TRADE_QUANTITY;
+          if (
+            externalTradePolicy !== undefined &&
+            hasEnterpriseExternalTradeIntent({ context, selectedSubtask })
+          ) {
+            const externalProposal = resolveEnterpriseExternalTradeProposal({
+              context,
+              selectedSubtask,
+              direction: side === 'sell' ? 'export' : 'import',
+              commodityName,
+              quantity,
+              externalTradePolicy,
+              proposerPolicy: externalTradeProposerPolicy,
+            });
+            if (externalProposal !== undefined) {
+              return externalProposal;
+            }
+            return {
+              id: `${createCanonicalActionId('trade', selectedSubtask)}-external-observe`,
+              description: `Recheck external and town-market ${commodityName} quotes before trading for an enterprise.`,
+              commandType: 'AgentObserveLocation',
+              priority: selectedSubtask.score,
+              payload: { focus: `external ${side} ${commodityName} enterprise quote` },
+            };
+          }
           return {
             id: createCanonicalActionId('trade', selectedSubtask),
             description: `${side} ${commodityName}.`,
@@ -472,12 +510,12 @@ export function createTradeDomainRuntimeRegistration(
             payload: {
               side,
               commodityName,
-              quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
+              quantity,
             },
             ...createTradeResourceEstimate({
               side,
               commodityName,
-              quantity: config.quantity ?? DEFAULT_TRADE_QUANTITY,
+              quantity,
               context,
             }),
           };
@@ -485,6 +523,81 @@ export function createTradeDomainRuntimeRegistration(
       }),
     ],
   };
+}
+
+export function resolveEnterpriseExternalTradeProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly direction: 'export' | 'import';
+  readonly commodityName: string;
+  readonly quantity: number;
+  readonly externalTradePolicy: NonNullable<WorldCommandPolicies['externalTrade']>;
+  readonly proposerPolicy: ExternalTradeActionProposerPolicy;
+}):
+  | AtomicActionProposal<'AgentExportCommodity', AgentExportCommodityPayload>
+  | AtomicActionProposal<'AgentImportCommodity', AgentImportCommodityPayload>
+  | undefined {
+  const marketPools = resolveVisibleMarketPools(input.context);
+  const opportunity = resolveEnterpriseExternalTradeOpportunity({
+    agentId: input.context.agent.agentId,
+    enterprises: input.context.projection.enterprises,
+    marketPools,
+    externalQuotes: createExternalTradePlanningQuotes({
+      marketPools,
+      balancesByCommodity: input.context.projection.externalTrade?.balancesByCommodity ?? {},
+      quantity: input.quantity,
+      externalTradePolicy: input.externalTradePolicy,
+    }),
+    quantity: input.quantity,
+    proposerPolicy: input.proposerPolicy,
+    direction: input.direction,
+    commodityName: input.commodityName,
+  });
+  if (opportunity === undefined) {
+    return undefined;
+  }
+
+  const advantagePercent = (opportunity.relativeAdvantageRatio * 100).toFixed(2);
+  const base = {
+    id: `${createCanonicalActionId('trade', input.selectedSubtask)}-enterprise-${opportunity.direction}`,
+    priority: input.selectedSubtask.score,
+    payload: {
+      commodityName: opportunity.commodityName,
+      quantity: opportunity.quantity,
+      asEnterpriseId: opportunity.enterpriseId,
+    },
+  };
+  if (opportunity.direction === 'export') {
+    return {
+      ...base,
+      description: `Export ${opportunity.quantity} ${opportunity.commodityName} for enterprise ${opportunity.enterpriseId}; the external quote is ${advantagePercent}% better than the visible town AMM.`,
+      commandType: 'AgentExportCommodity',
+      resourceEstimate: {
+        inventoryCosts: { [opportunity.commodityName]: opportunity.quantity },
+      },
+    };
+  }
+  return {
+    ...base,
+    description: `Import ${opportunity.quantity} ${opportunity.commodityName} for enterprise ${opportunity.enterpriseId}; the external quote is ${advantagePercent}% better than the visible town AMM.`,
+    commandType: 'AgentImportCommodity',
+    resourceEstimate: { currencyCost: opportunity.externalTotal },
+  };
+}
+
+function hasEnterpriseExternalTradeIntent(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+}): boolean {
+  return collectContextualTargetTexts(input).some((text) => {
+    const tokens = new Set(tokenizeText(text));
+    return (
+      tokens.has('external') ||
+      tokens.has('export') ||
+      tokens.has('import') ||
+      tokens.has('enterprise')
+    );
+  });
 }
 
 export function createSleepDomainRuntimeRegistration(
@@ -929,7 +1042,9 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
   | AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload>
   | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
-  | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>;
+  | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>
+  | AtomicActionProposal<'AgentExportCommodity', AgentExportCommodityPayload>
+  | AtomicActionProposal<'AgentImportCommodity', AgentImportCommodityPayload>;
 
 /**
  * Runtime mirror of the canonical proposal command types. `satisfies` pins it
@@ -958,6 +1073,8 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentRequestLoan',
   'AgentJoinEnterprise',
   'AgentFundEnterprise',
+  'AgentExportCommodity',
+  'AgentImportCommodity',
 ] as const satisfies readonly CanonicalActionProposal['commandType'][];
 
 // Non-distributive: a distributive conditional over never collapses to never,
@@ -1106,8 +1223,7 @@ export function resolveEnterpriseFundProposal(input: {
   const agent = input.context.agent;
   const owned = Object.values(input.context.projection.enterprises)
     .filter(
-      (enterprise) =>
-        enterprise.ownerAgentId === agent.agentId && enterprise.status === 'active',
+      (enterprise) => enterprise.ownerAgentId === agent.agentId && enterprise.status === 'active',
     )
     .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
   if (owned === undefined) {
@@ -1336,7 +1452,11 @@ function selectedSubtaskMatchesDomain(input: {
 }
 
 function resolveFirstMarketCommodity(context: WorkerDomainRuntimeFactoryInput): string {
-  return Object.keys(context.projection.marketPools).sort()[0] ?? DEFAULT_TRADE_COMMODITY;
+  return (
+    Object.values(resolveVisibleMarketPools(context))
+      .map((pool) => pool.commodity)
+      .sort((left, right) => left.localeCompare(right))[0] ?? DEFAULT_TRADE_COMMODITY
+  );
 }
 
 function resolveContextualTradeSide(input: {
@@ -1345,10 +1465,10 @@ function resolveContextualTradeSide(input: {
 }): 'buy' | 'sell' {
   for (const text of collectContextualTargetTexts(input)) {
     const tokens = new Set(tokenizeText(text));
-    if (tokens.has('sell')) {
+    if (tokens.has('sell') || tokens.has('export')) {
       return 'sell';
     }
-    if (tokens.has('buy') || tokens.has('purchase')) {
+    if (tokens.has('buy') || tokens.has('purchase') || tokens.has('import')) {
       return 'buy';
     }
   }
@@ -1359,15 +1479,40 @@ function resolveContextualTradeCommodityName(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly selectedSubtask?: PrioritizedSubtask;
 }): string | undefined {
+  const visibleCommodities = new Set(
+    Object.values(resolveVisibleMarketPools(input.context)).map((pool) => pool.commodity),
+  );
   for (const text of collectContextualTargetTexts(input)) {
-    const commodity = findMatchingTargetNamesInText(text, COMMODITY_TARGETS).find(
-      (candidate) => input.context.projection.marketPools[candidate] !== undefined,
+    const commodity = findMatchingTargetNamesInText(text, COMMODITY_TARGETS).find((candidate) =>
+      visibleCommodities.has(candidate),
     );
     if (commodity !== undefined) {
       return commodity;
     }
   }
   return undefined;
+}
+
+function resolveVisibleMarketPools(
+  context: WorkerDomainRuntimeFactoryInput,
+): Readonly<Record<string, Parameters<typeof buyFromPool>[0]>> {
+  return resolveAgentMarketPools({
+    projection: context.projection,
+    agent: context.agent,
+    ...(context.marketOverride === undefined
+      ? {}
+      : { override: context.marketOverride.marketPools }),
+  });
+}
+
+function resolveVisibleMarketPool(
+  context: WorkerDomainRuntimeFactoryInput,
+  commodityName: string,
+): Parameters<typeof buyFromPool>[0] | undefined {
+  return Object.entries(resolveVisibleMarketPools(context))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, pool]) => pool)
+    .find((pool) => pool.commodity === commodityName);
 }
 
 function hasValidSatietyRecovery(
@@ -1588,7 +1733,7 @@ function createTradeResourceEstimate(input: {
     return { resourceEstimate: { inventoryCosts: { [input.commodityName]: input.quantity } } };
   }
 
-  const pool = input.context.projection.marketPools[input.commodityName];
+  const pool = resolveVisibleMarketPool(input.context, input.commodityName);
   if (pool === undefined) {
     return {};
   }

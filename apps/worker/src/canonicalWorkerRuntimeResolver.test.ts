@@ -374,6 +374,106 @@ describe('canonical worker runtime resolver', () => {
     });
   });
 
+  test('proposes and authoritatively dry-runs an advantageous owner enterprise export', async () => {
+    const owner = createAgent(agentA);
+    const projection = createWorldProjection({
+      agents: [owner],
+      enterprises: [
+        {
+          enterpriseId: 'bakery',
+          name: 'Bakery',
+          ownerAgentId: agentA,
+          occupationName: 'Baker',
+          balance: 100,
+          inventory: { Apple: 2 },
+          maxEmployees: 3,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+        },
+      ],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 }],
+    });
+    const externalPolicies: WorldCommandPolicies = {
+      ...policies,
+      externalTrade: {
+        policyVersion: 'external-trade-test-v1',
+        balanceDecayRatioPerCadence: 0.01,
+        cadenceMs: 1_000,
+        priceImpactRatio: 0.2,
+        balanceScale: 50,
+        source: 'canonical runtime integration test',
+      },
+    };
+    const objective: LongHorizonObjective = {
+      ...createObjective({ agentId: agentA }),
+      statement: 'Export Apple for Bakery through the enterprise external market.',
+      affinityTags: ['trade', 'sell', 'external', 'enterprise', 'Apple'],
+    };
+    const planRecord = {
+      ...createPlanRecord({ agentId: agentA, domain: 'trade' }),
+      plan: createBranchPlan({
+        objective: objective.statement,
+        branches: [
+          {
+            id: 'trade-lane',
+            objective: objective.statement,
+            subtasks: [
+              {
+                id: 'planned-step',
+                description: objective.statement,
+                basePriority: 5,
+                intentionAffinityTags: ['trade', 'sell'],
+              },
+            ],
+          },
+        ],
+      }),
+    };
+    const selected = {
+      branchId: 'trade-lane',
+      subtaskId: 'planned-step',
+      description: objective.statement,
+      score: 10,
+    };
+    const binding = await createCanonicalWorkerRuntimeResolver({
+      simulationId,
+      policies: externalPolicies,
+    })({
+      agentId: agentA,
+      agent: owner,
+      projection,
+      activeObjective: objective,
+      planRecord,
+    });
+    const tradePlanner = binding?.microPlanners.find((planner) => planner.domain === 'trade');
+    const proposal = tradePlanner?.propose({
+      agentId: agentA,
+      issuedAt: 0,
+      plan: planRecord.plan,
+      selectedSubtask: selected,
+      signals: [],
+    })[0];
+    if (binding === undefined || proposal === undefined) {
+      throw new Error('expected an external trade proposal');
+    }
+
+    expect(proposal).toMatchObject({
+      commandType: 'AgentExportCommodity',
+      payload: { commodityName: 'Apple', quantity: 1, asEnterpriseId: 'bakery' },
+    });
+    const simulation = binding.simulate({ action: proposal, selectedSubtask: selected });
+    expect(simulation).toMatchObject({
+      status: 'accepted',
+      action: proposal,
+      traceEvents: [{ type: 'ExternalTradeExecuted' }, { type: 'ShortTermMemoryRecorded' }],
+    });
+    expect(simulation.traceEvents?.[1]?.summary).toContain('Exported 1 Apple');
+  });
+
   test('world dry-run simulator resolves policy sources against the configured projection', () => {
     const projection = createProjection();
     const resolvedAgentCounts: number[] = [];

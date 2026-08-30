@@ -284,5 +284,29 @@ describe('lifecycle projection facts', () => {
         enterprises: [{ ...enterprise, status: 'active' }],
       }),
     ).toThrow('enterprise enterprise-closed has unknown owner');
+    expect(() =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-owner'),
+            locationId: null,
+            physiology: { energy: 100, satiety: 100, health: 100 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+        enterprises: [
+          {
+            ...enterprise,
+            ownerAgentId: asAgentId('agent-owner'),
+            balance: -1,
+            status: 'active',
+          },
+        ],
+      }),
+    ).toThrow('enterprise balance must be non-negative finite');
   });
 });

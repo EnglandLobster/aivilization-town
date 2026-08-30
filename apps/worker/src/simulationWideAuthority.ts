@@ -3104,12 +3104,10 @@ function createInboxDeliveries(
           addEvents(registration.ownerPartitionKey, [registrationEvent]);
         }
       }
-      // Town-wide board updates during this advance (bulletin activations,
-      // matter expiries and their breach outcomes): partitions that already
-      // receive the full advance event set (transfer moves) have them inline;
-      // everyone else gets just those events. WeatherChanged rides along too:
-      // weather settles only on the authority, so without delivery no partition
-      // stream ever records the transition. Calendar phases remain
+      // Town-wide cadence facts during this advance (board lifecycle, weather,
+      // service quality, land value, external liquidity/trade balance):
+      // partitions that already receive the full advance event set have them
+      // inline; everyone else gets just these facts. Calendar phases remain
       // partition-local pure clock derivations and are stripped from authority
       // advancement, preventing duplicate phase facts in partition streams.
       const townWideEvents = operation.events.filter(
@@ -3121,6 +3119,7 @@ function createInboxDeliveries(
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||
           event.type === 'RegionalServiceQualityUpdated' ||
+          event.type === 'RegionalLandValueUpdated' ||
           event.type === 'ExternalMarketRebalanced' ||
           event.type === 'ExternalTradeBalancesDecayed' ||
           event.type === 'TownBankSnapshotRecorded' ||

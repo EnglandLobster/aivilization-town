@@ -19,6 +19,21 @@ export function applyRegionalLandValueProjectionEvent(
           ...projection.regionalLandValues,
           [event.payload.regionId]: event.payload.nextIndex,
         },
+        ...(event.payload.settledAt <= projection.clock.now
+          ? {}
+          : {
+              pendingRegionalLandValueUpdates: [
+                ...(projection.pendingRegionalLandValueUpdates ?? []).filter(
+                  (update) =>
+                    update.settledAt !== event.payload.settledAt ||
+                    update.regionId !== event.payload.regionId,
+                ),
+                { ...event.payload },
+              ].sort(
+                (left, right) =>
+                  left.settledAt - right.settledAt || left.regionId.localeCompare(right.regionId),
+              ),
+            }),
       };
     default:
       return undefined;

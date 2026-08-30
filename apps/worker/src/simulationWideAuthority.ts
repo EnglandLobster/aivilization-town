@@ -68,6 +68,10 @@ export type SimulationWideAuthoritySeed = {
   readonly projection: WorldProjection;
   readonly owners: readonly SimulationWideAuthorityAgentOwner[];
   readonly partitionKeys: readonly PartitionKey[];
+  /** Initial owner-partition fiscal contributions for barrier aggregation. */
+  readonly partitionAccountsByKey?: Readonly<
+    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>
+  >;
 };
 
 export type SimulationWideAuthorityLease = {
@@ -160,10 +164,11 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    */
   readonly agentStates?: readonly WorldAgentState[];
   /**
-   * In a single-partition authority the partition projection is also the
-   * complete fiscal projection, so these accounts can be synchronized exactly.
-   * Multi-partition aggregation remains authority-owned and deliberately does
-   * not replace global accounts with one partition's partial values.
+   * The partition's current fiscal contribution. Single-partition authorities
+   * synchronize it directly. Multi-partition authorities retain one value per
+   * partition and publish the sum only at an equal-clock barrier. The bank is
+   * excluded from multi-partition summation because it is authority-owned and
+   * replicated to partitions as a snapshot.
    */
   readonly partitionAccounts?: Pick<WorldProjection, 'moneySupply' | 'treasury' | 'bank'>;
   /** Owner-scoped busy/transit state required by global movement and trade authorization. */
@@ -493,6 +498,10 @@ export type SimulationWideAuthoritySnapshot = {
    * hydration compatibility with pre-barrier authority snapshots.
    */
   readonly partitionClockNowByKey?: Readonly<Record<string, number>>;
+  /** Latest fiscal contribution reported by each owner partition. */
+  readonly partitionAccountsByKey?: Readonly<
+    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>
+  >;
   readonly pendingTransfers: Readonly<
     Record<
       string,
@@ -1638,6 +1647,16 @@ export function createSimulationWideAuthority(input: {
               `partition clock for ${partitionKey} cannot move backwards from ${previousPartitionClockNow} to ${partitionClockNow}`,
             );
           }
+          if (
+            request.partitionAccounts !== undefined &&
+            (!Number.isFinite(request.partitionAccounts.moneySupply) ||
+              request.partitionAccounts.moneySupply < 0 ||
+              (request.partitionAccounts.treasury !== undefined &&
+                (!Number.isFinite(request.partitionAccounts.treasury) ||
+                  request.partitionAccounts.treasury < 0)))
+          ) {
+            throw new Error('partition fiscal accounts must be non-negative finite');
+          }
           const agents = { ...state.projection.agents };
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const registeredAgentIds: AgentId[] = [];
@@ -1796,32 +1815,82 @@ export function createSimulationWideAuthority(input: {
                   }
                   return pendingMoves;
                 })();
+          const nextPartitionClockNowByKey = {
+            ...partitionClockNowByKey,
+            [partitionKey]: partitionClockNow,
+          };
+          const nextPartitionAccountsByKey =
+            request.partitionAccounts === undefined
+              ? state.partitionAccountsByKey
+              : {
+                  ...(state.partitionAccountsByKey ?? {}),
+                  [partitionKey]: {
+                    moneySupply: request.partitionAccounts.moneySupply,
+                    ...(request.partitionAccounts.treasury === undefined
+                      ? {}
+                      : { treasury: request.partitionAccounts.treasury }),
+                  },
+                };
+          let synchronizedProjection: WorldProjection = {
+            ...state.projection,
+            agents,
+            memoryRecords,
+            activityTimeByAgent,
+            transitByAgent,
+          };
+          if (state.partitionKeys.length === 1 && request.partitionAccounts !== undefined) {
+            synchronizedProjection = {
+              ...synchronizedProjection,
+              moneySupply: request.partitionAccounts.moneySupply,
+              ...(request.partitionAccounts.treasury === undefined
+                ? {}
+                : { treasury: request.partitionAccounts.treasury }),
+              ...(request.partitionAccounts.bank === undefined
+                ? {}
+                : { bank: clone(request.partitionAccounts.bank) }),
+            };
+          } else if (
+            nextPartitionAccountsByKey !== undefined &&
+            state.partitionKeys.every(
+              (key) =>
+                nextPartitionAccountsByKey[key] !== undefined &&
+                nextPartitionClockNowByKey[key] === partitionClockNow,
+            )
+          ) {
+            const contributions = state.partitionKeys.map(
+              (key) => nextPartitionAccountsByKey[key]!,
+            );
+            const moneySupply = contributions.reduce(
+              (total, accounts) => total + accounts.moneySupply,
+              0,
+            );
+            const hasTreasury = contributions.some(
+              (accounts) => accounts.treasury !== undefined,
+            );
+            if (hasTreasury) {
+              synchronizedProjection = {
+                ...synchronizedProjection,
+                moneySupply,
+                treasury: contributions.reduce(
+                  (total, accounts) => total + (accounts.treasury ?? 0),
+                  0,
+                ),
+              };
+            } else {
+              const { treasury: previousTreasury, ...withoutTreasury } = synchronizedProjection;
+              void previousTreasury;
+              synchronizedProjection = { ...withoutTreasury, moneySupply };
+            }
+          }
           return {
             state: {
               ...state,
-              projection: {
-                ...state.projection,
-                agents,
-                memoryRecords,
-                activityTimeByAgent,
-                transitByAgent,
-                ...(state.partitionKeys.length !== 1 || request.partitionAccounts === undefined
-                  ? {}
-                  : {
-                      moneySupply: request.partitionAccounts.moneySupply,
-                      ...(request.partitionAccounts.treasury === undefined
-                        ? {}
-                        : { treasury: request.partitionAccounts.treasury }),
-                      ...(request.partitionAccounts.bank === undefined
-                        ? {}
-                        : { bank: clone(request.partitionAccounts.bank) }),
-                    }),
-              },
+              projection: synchronizedProjection,
               ownerPartitionKeyByAgentId: owners,
-              partitionClockNowByKey: {
-                ...partitionClockNowByKey,
-                [partitionKey]: partitionClockNow,
-              },
+              partitionClockNowByKey: nextPartitionClockNowByKey,
+              ...(nextPartitionAccountsByKey === undefined
+                ? {}
+                : { partitionAccountsByKey: nextPartitionAccountsByKey }),
               ...(cleanedPendingTransfers === undefined
                 ? {}
                 : { pendingTransfers: cleanedPendingTransfers }),
@@ -2194,6 +2263,28 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
   ) {
     throw new Error('every simulation-wide Agent must have exactly one owner');
   }
+  if (
+    seed.partitionAccountsByKey !== undefined &&
+    partitionKeys.some((partitionKey) => seed.partitionAccountsByKey?.[partitionKey] === undefined)
+  ) {
+    throw new Error('every simulation-wide partition must have an initial fiscal contribution');
+  }
+  if (seed.partitionAccountsByKey !== undefined) {
+    const contributions = partitionKeys.map((partitionKey) =>
+      seed.partitionAccountsByKey![partitionKey]!,
+    );
+    const moneySupply = contributions.reduce(
+      (total, accounts) => total + accounts.moneySupply,
+      0,
+    );
+    const treasury = contributions.reduce(
+      (total, accounts) => total + (accounts.treasury ?? 0),
+      0,
+    );
+    if (moneySupply !== seed.projection.moneySupply || treasury !== (seed.projection.treasury ?? 0)) {
+      throw new Error('partition fiscal contributions must sum to the authority seed accounts');
+    }
+  }
   const withoutId = {
     schemaVersion: SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION,
     manifestId: seed.manifestId,
@@ -2215,6 +2306,9 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
     partitionClockNowByKey: Object.fromEntries(
       partitionKeys.map((partitionKey) => [partitionKey, seed.projection.clock.now]),
     ),
+    ...(seed.partitionAccountsByKey === undefined
+      ? {}
+      : { partitionAccountsByKey: clone(seed.partitionAccountsByKey) }),
     pendingTransfers: {},
     materializerCursors: {},
     operations: {},

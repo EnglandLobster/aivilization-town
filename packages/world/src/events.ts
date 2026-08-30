@@ -661,7 +661,7 @@ export type BankInterestCreditedPayload = {
 export type TownBankSnapshotRecordedPayload = {
   readonly bank: BankState;
   readonly recordedAt: number;
-  readonly reason: 'credit-command' | 'credit-accrual';
+  readonly reason: 'credit-command' | 'credit-accrual' | 'customer-departure';
   readonly policyVersion: string;
 };
 

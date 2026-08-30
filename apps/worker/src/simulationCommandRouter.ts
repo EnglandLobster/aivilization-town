@@ -11,6 +11,9 @@ import {
 import {
   applyWorldEvent,
   type AgentMoveToPayload,
+  type AgentDepositPayload,
+  type AgentRequestLoanPayload,
+  type AgentWithdrawPayload,
   type AgentPostBulletinPayload,
   type AgentStartConversationPayload,
   type AgentTradePayload,
@@ -40,6 +43,9 @@ import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
  */
 const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandType>([
   'AgentTrade',
+  'AgentDeposit',
+  'AgentWithdraw',
+  'AgentRequestLoan',
   'AgentStartConversation',
   'AgentMoveTo',
   // Bulletin posts are town-wide facts, so they settle against the one
@@ -62,6 +68,7 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
 ]);
 
 export type SimulationCommandRouter = {
+  readonly syncPartitionState: (projection: WorldProjection) => void;
   readonly routeCommandDrafts: (input: {
     readonly commandDrafts: readonly CommandDraft[];
     readonly projection: WorldProjection;
@@ -78,6 +85,12 @@ export function createSimulationCommandRouter(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly lease: () => SimulationWideAuthorityLease;
   readonly partitionKey: PartitionKey;
+  /**
+   * Runtime-host optimization: local-only cycles may defer their full-state
+   * sync to the host's guaranteed final materialization boundary. Direct
+   * router users keep immediate synchronization by default.
+   */
+  readonly deferLocalStateSync?: boolean;
   /**
    * Manifest-declared location affinity: which partition will own an Agent
    * standing at a location. Unaffiliated (or multiply-affiliated) locations
@@ -202,19 +215,27 @@ export function createSimulationCommandRouter(input: {
     });
   };
   return {
+    syncPartitionState: syncPartitionLocations,
     routeCommandDrafts: async (routeInput) => {
       const globalDrafts = routeInput.commandDrafts.filter((draft) =>
         GLOBAL_COMMAND_TYPES.has(draft.type),
       );
       if (globalDrafts.length === 0) {
-        syncPartitionLocations(routeInput.projection);
+        // Local-only Agent cycles do not need an authority write. The next
+        // global cycle synchronizes the complete working projection first,
+        // and the runtime's final materialization hook publishes the tick's
+        // remaining local changes in one batch. Avoiding one full-state JSON
+        // journal mutation per local Agent keeps large populations O(N)
+        // instead of turning a tick into O(N²) serialization work.
+        if (input.deferLocalStateSync !== true) {
+          syncPartitionLocations(routeInput.projection);
+        }
         return dispatchCommandDraftsToWorldEventStream(routeInput);
       }
-      // Advancing the global clock can run town cadence reducers against the
-      // authority's partial Agent copy. Refresh owner state afterwards so the
-      // global decision always sees the partition's current durable truth.
-      syncAuthorityClock(routeInput.projection);
+      // Publish local truth before any authority cadence or global decision.
+      // This includes every earlier local-only Agent in the same tick.
       syncPartitionLocations(routeInput.projection);
+      syncAuthorityClock(routeInput.projection);
       return routeMixedDrafts({
         routeInput,
         authority: input.authority,
@@ -373,6 +394,25 @@ async function settleGlobalDraft(input: {
         durationMs: lease.durationMs,
         agentId: draft.actorId,
         trade: draft.payload as AgentTradePayload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence) };
+    }
+    if (
+      draft.type === 'AgentDeposit' ||
+      draft.type === 'AgentWithdraw' ||
+      draft.type === 'AgentRequestLoan'
+    ) {
+      const operation = authority.settleCredit({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload as
+          | AgentDepositPayload
+          | AgentWithdrawPayload
+          | AgentRequestLoanPayload,
       });
       return { draft, events: resequence(operation.events, nextSequence) };
     }

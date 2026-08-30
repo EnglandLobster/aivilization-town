@@ -54,6 +54,10 @@ import {
   createAivilizationTownWeatherPolicy,
   createAivilizationTownServiceQualityPolicy,
 } from './aivilizationWorldPolicies';
+import {
+  resolveWorldCommandPolicies,
+  type WorldCommandPolicySource,
+} from './worldCommandPolicySource';
 
 export type LocalSimulationRuntimeHostInput = LocalSimulationRuntimeRegistryInput & {
   readonly bootstrappedAt: SimulationTimestamp;
@@ -214,6 +218,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
           authority,
           lease,
           partitionKey: partition.partitionKey,
+          deferLocalStateSync: true,
           resolveLocationOwner,
           captureCognitiveSnapshot: ({ agentId, capturedAt }) =>
             captureAgentCognitiveSnapshot({
@@ -227,6 +232,19 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     }
   }
   const authorityEnabled = authority !== undefined;
+  // The simulation-wide authority is the only writer for the town-bank
+  // aggregate. Partition ticks retain the original policy in the Agent context
+  // (so banking can be planned), but must not run a second daily accrual loop.
+  const partitionPolicies: WorldCommandPolicySource = authorityEnabled
+    ? (projection) => {
+        const { credit: authorityOwnedCredit, ...localPolicies } = resolveWorldCommandPolicies({
+          policies: input.policies,
+          projection,
+        });
+        void authorityOwnedCredit;
+        return localPolicies;
+      }
+    : input.policies;
 
   const societyProjection = createLocalSimulationSocietyProjectionService({
     partitions,
@@ -261,7 +279,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     rootDir: input.rootDir,
     registrations: createLocalSimulationBackendRegistrationsFromResolvedManifest({
       resolvedManifest,
-      policies: input.policies,
+      policies: partitionPolicies,
       localizedPlanners: input.localizedPlanners,
       steeringSimulator: input.steeringSimulator,
       ...(input.strategicPlanCompiler === undefined
@@ -317,6 +335,11 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                   observedAt: issuedAt,
                   durationMs: materializeLease!.durationMs,
                 };
+                // Publish the owner partition's complete post-tick state before
+                // advancing the authority clock. Credit accrual must see every
+                // borrower's latest balance, including Agents skipped as busy
+                // during the previous action phase.
+                router.syncPartitionState(projection);
                 // Keep the authority clock level with the partition clocks so
                 // in-transit travel settled globally completes on schedule and
                 // its arrival deliveries are ready to materialize. Partitions

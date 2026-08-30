@@ -245,6 +245,44 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     expect(replay.idempotent).toBe(true);
   });
 
+  test('materializes one authoritative bank ledger to owner and replica partitions', async () => {
+    const rootDir = createRootDir();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets: createScenarioPresets(),
+      policies: createAivilizationWorldCommandPolicies('authority-credit-test'),
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const lease = { workerId: 'authority-worker', observedAt: 200, durationMs: 30_000 };
+    host.authority!.settleCredit({
+      operationId: 'credit-deposit-1',
+      agentId: agentOne,
+      commandType: 'AgentDeposit',
+      payload: { amount: 25 },
+      ...lease,
+    });
+
+    const owner = await host.materializers.get('world-main')!.materializeInbox({ lease });
+    const replica = await host.materializers.get('world-east')!.materializeInbox({ lease });
+    expect(owner.projection).toMatchObject({
+      agents: { [agentOne]: { balance: 75 } },
+      bank: { balance: 25, deposits: { [agentOne]: 25 } },
+    });
+    expect(replica.projection).toMatchObject({
+      agents: { [agentTwo]: { balance: 100 } },
+      bank: { balance: 25, deposits: { [agentOne]: 25 } },
+    });
+  });
+
   test('merges per-partition pools into one global pool both partitions trade against', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

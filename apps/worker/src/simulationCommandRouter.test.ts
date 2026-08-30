@@ -25,6 +25,59 @@ const agentB = asAgentId('agent-b');
 const lease = { workerId: 'router-worker', observedAt: 1, durationMs: 30_000 };
 
 describe('simulation command router', () => {
+  test('settles banking against one authority and fans the bank snapshot to every partition', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [createDepositDraft(agentA, 25)],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-credit:agent-a',
+      commandIdPrefix: 'tick-credit:agent-a',
+    });
+
+    expect(result.events.map((event) => event.type)).toContain('DepositMade');
+    expect(result.events.at(-1)?.type).toBe('TownBankSnapshotRecorded');
+    expect(authority.getSnapshot().projection).toMatchObject({
+      agents: { [agentA]: { balance: 475 } },
+      bank: { balance: 25, deposits: { [agentA]: 25 } },
+    });
+    const ownerDelivery = authority.readInbox({
+      partitionKey: partitionA,
+      consumerId: 'credit-owner',
+    }).deliveries[0];
+    const replicaDelivery = authority.readInbox({
+      partitionKey: partitionB,
+      consumerId: 'credit-replica',
+    }).deliveries[0];
+    expect(ownerDelivery?.events.map((event) => event.type)).toEqual([
+      'DepositMade',
+      'ShortTermMemoryRecorded',
+      'TownBankSnapshotRecorded',
+    ]);
+    expect(replicaDelivery?.events.map((event) => event.type)).toEqual([
+      'TownBankSnapshotRecorded',
+    ]);
+  });
+
   test('synchronizes mutable Agent state before global trade settlement', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',
@@ -732,6 +785,17 @@ function createTradeDraft(actorId: typeof agentA): CommandDraft {
     source: 'agent-runtime',
     type: 'AgentTrade',
     payload: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    issuedAt: 100,
+  };
+}
+
+function createDepositDraft(actorId: typeof agentA, amount: number): CommandDraft {
+  return {
+    simulationId: asSimulationId('sim-1'),
+    actorId,
+    source: 'agent-runtime',
+    type: 'AgentDeposit',
+    payload: { amount },
     issuedAt: 100,
   };
 }

@@ -1,4 +1,5 @@
 import type { AmmPool, Inventory } from '@aivilization/economy';
+import type { BankState } from '@aivilization/credit';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
 import type {
   AgentId,
@@ -639,6 +640,28 @@ export type DepositInterestPaidPayload = {
   }[];
   readonly bankPreviousBalance: number;
   readonly bankNextBalance: number;
+  readonly policyVersion: string;
+};
+
+/** Owner-partition cash reflection derived from one authoritative interest batch. */
+export type BankInterestCreditedPayload = {
+  readonly agentId: AgentId;
+  readonly amount: number;
+  readonly previousBalance: number;
+  readonly nextBalance: number;
+  readonly paidAt: number;
+  readonly policyVersion: string;
+};
+
+/**
+ * Integration snapshot of the single town-bank aggregate. Authority fanout
+ * uses this after credit settlement so every partition reads the same deposit,
+ * loan, history, and reserve state without re-deciding any banking rule.
+ */
+export type TownBankSnapshotRecordedPayload = {
+  readonly bank: BankState;
+  readonly recordedAt: number;
+  readonly reason: 'credit-command' | 'credit-accrual';
   readonly policyVersion: string;
 };
 
@@ -1504,6 +1527,8 @@ export type WorldEventPayloadByType = {
   readonly LoanRepaid: LoanRepaidPayload;
   readonly LoanDefaulted: LoanDefaultedPayload;
   readonly DepositInterestPaid: DepositInterestPaidPayload;
+  readonly BankInterestCredited: BankInterestCreditedPayload;
+  readonly TownBankSnapshotRecorded: TownBankSnapshotRecordedPayload;
   readonly ActionRejected: ActionRejectedPayload;
   readonly ShortTermMemoryRecorded: ShortTermMemoryRecordedPayload;
   readonly SimulationTimeAdvanced: SimulationTimeAdvancedPayload;

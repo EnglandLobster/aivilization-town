@@ -51,6 +51,40 @@ const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
 
 describe('simulation-wide authority', () => {
+  test('settles credit accrual once and delivers owner cash plus a town-wide bank snapshot', () => {
+    const authority = createAuthority();
+    authority.settleCredit({
+      operationId: 'deposit-before-accrual',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      commandType: 'AgentDeposit',
+      payload: { amount: 100 },
+    });
+
+    const advanced = authority.advanceTime({
+      operationId: 'credit-accrual-day-1',
+      workerId: 'worker-a',
+      observedAt: 86_400_000,
+      durationMs: 100,
+      deltaMs: 86_400_000,
+    });
+    expect(advanced.flatMap((operation) => operation.events).map((event) => event.type)).toContain(
+      'DepositInterestPaid',
+    );
+    expect(advanced.flatMap((operation) => operation.events).at(-1)?.type).toBe(
+      'TownBankSnapshotRecorded',
+    );
+    const accrualDelivery = authority
+      .readInbox({ partitionKey: partitionA, consumerId: 'credit-accrual-owner' })
+      .deliveries.find((delivery) => delivery.operationId === 'credit-accrual-day-1');
+    expect(accrualDelivery?.events.some((event) => event.type === 'BankInterestCredited')).toBe(
+      true,
+    );
+    expect(accrualDelivery?.events.at(-1)?.type).toBe('TownBankSnapshotRecorded');
+  });
+
   test('settles one global AMM trade exactly once across Agent owners', () => {
     const authority = createAuthority();
 
@@ -174,6 +208,59 @@ describe('simulation-wide authority', () => {
       { operationId: 'advance-transfer', operationKind: 'time-advanced' },
     ]);
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+  });
+
+  test('does not duplicate or leak owner credit cash during a completed transfer', () => {
+    const authority = createAuthority(undefined, true);
+    authority.settleCredit({
+      operationId: 'deposit-before-transfer-accrual',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      commandType: 'AgentDeposit',
+      payload: { amount: 100 },
+    });
+    authority.transferAgent({
+      operationId: 'transfer-during-credit-accrual',
+      workerId: 'worker-a',
+      observedAt: 2,
+      durationMs: 100,
+      agentId: agentA,
+      destinationPartitionKey: partitionB,
+      destinationLocationId: 'market',
+      reason: 'walk to market',
+    });
+    authority.advanceTime({
+      operationId: 'advance-transfer-with-credit',
+      workerId: 'worker-a',
+      observedAt: 86_400_000,
+      durationMs: 100,
+      deltaMs: 86_400_000,
+    });
+
+    const sourceAdvance = authority
+      .readInbox({ partitionKey: partitionA, consumerId: 'credit-transfer-source' })
+      .deliveries.find((delivery) => delivery.operationId === 'advance-transfer-with-credit');
+    const destinationAdvance = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'credit-transfer-destination' })
+      .deliveries.find((delivery) => delivery.operationId === 'advance-transfer-with-credit');
+    expect(sourceAdvance?.events.filter((event) => event.type === 'BankInterestCredited')).toEqual(
+      [],
+    );
+    expect(
+      destinationAdvance?.events.filter((event) => event.type === 'BankInterestCredited'),
+    ).toHaveLength(1);
+    expect(
+      [sourceAdvance, destinationAdvance].flatMap(
+        (delivery) => delivery?.events.filter((event) => event.type === 'DepositInterestPaid') ?? [],
+      ),
+    ).toEqual([]);
+    expect(
+      [sourceAdvance, destinationAdvance].every((delivery) =>
+        delivery?.events.some((event) => event.type === 'TownBankSnapshotRecorded'),
+      ),
+    ).toBe(true);
   });
 
   test('settles a same-owner move against the global spatial view and delivers it to the owner', () => {

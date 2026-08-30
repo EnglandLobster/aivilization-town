@@ -4,6 +4,7 @@ import {
   applyWorldEvent,
   createWorldProjection,
   type AgentActivityTimeCommittedPayload,
+  type AgentOwnershipArrivedPayload,
   type WorldEvent,
 } from './index';
 
@@ -35,7 +36,25 @@ describe('lifecycle projection facts', () => {
           educationTrack: 'vocational' as const,
           examAttempts: 2,
         },
-      },
+        activityTime: {
+          agentId: asAgentId('agent-transferred'),
+          activity: 'travel',
+          commandType: 'AgentMoveTo',
+          policyVersion: 'exclusive-agent-activity-time-v1',
+          settlementTiming: 'effects-at-commit',
+          startedAt: 172_000_000,
+          durationSeconds: 900,
+          availableAt: 172_900_000,
+          committedAt: 172_000_000,
+        },
+        lastTimeSettledAt: 172_000_000,
+        physiologicalDistress: {
+          policyVersion: 'physiological-safety-net-test',
+          distressStartedAt: 171_000_000,
+          lowAxes: ['satiety'],
+          lastGrantedAt: null,
+        },
+      } satisfies AgentOwnershipArrivedPayload,
       occurredAt: 172_800_000,
       sequence: 5,
     });
@@ -57,6 +76,35 @@ describe('lifecycle projection facts', () => {
       educationTrack: 'vocational',
       examAttempts: 2,
     });
+    expect(settled.activityTimeByAgent['agent-transferred']).toMatchObject({
+      activity: 'travel',
+      availableAt: 172_900_000,
+    });
+    expect(settled.timeSettlementByAgent?.['agent-transferred']).toBe(172_000_000);
+    expect(settled.physiologicalDistressByAgent['agent-transferred']).toMatchObject({
+      distressStartedAt: 171_000_000,
+      lowAxes: ['satiety'],
+    });
+
+    const departed = applyWorldEvent(
+      settled,
+      createEventEnvelope({
+        id: asEventId('event-departure-1'),
+        simulationId: 'sim-1',
+        type: 'AgentOwnershipDeparted',
+        payload: {
+          agentId: asAgentId('agent-transferred'),
+          toPartitionKey: 'partition-c',
+          transferOperationId: 'transfer-3',
+        },
+        occurredAt: 173_000_000,
+        sequence: 7,
+      }),
+    );
+    expect(departed.agents['agent-transferred']).toBeUndefined();
+    expect(departed.activityTimeByAgent['agent-transferred']).toBeUndefined();
+    expect(departed.timeSettlementByAgent?.['agent-transferred']).toBeUndefined();
+    expect(departed.physiologicalDistressByAgent['agent-transferred']).toBeUndefined();
 
     // Legacy arrivals without lifecycle facts stay byte-for-byte compatible.
     const legacy = applyWorldEvent(

@@ -1461,6 +1461,16 @@ export type AgentOwnershipArrivedPayload = {
     readonly educationTrack?: EducationTrack;
     readonly examAttempts?: number;
   };
+  /**
+   * Owner-scoped runtime facts travel with the Agent so a partition handoff
+   * cannot reset action availability, physiology cadence, or safety-net
+   * duration. Optional fields keep older arrival events replayable.
+   */
+  readonly activityTime?: AgentActivityTimeCommittedPayload & {
+    readonly committedAt: number;
+  };
+  readonly lastTimeSettledAt?: number;
+  readonly physiologicalDistress?: PhysiologicalDistressState;
 };
 
 export type WorldEventPayloadByType = {

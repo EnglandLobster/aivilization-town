@@ -2296,10 +2296,19 @@ export function applyWorldEvent(
       delete agents[event.payload.agentId];
       const transitByAgent = { ...(projection.transitByAgent ?? {}) };
       delete transitByAgent[event.payload.agentId];
+      const activityTimeByAgent = { ...projection.activityTimeByAgent };
+      delete activityTimeByAgent[event.payload.agentId];
+      const timeSettlementByAgent = { ...(projection.timeSettlementByAgent ?? {}) };
+      delete timeSettlementByAgent[event.payload.agentId];
+      const physiologicalDistressByAgent = { ...projection.physiologicalDistressByAgent };
+      delete physiologicalDistressByAgent[event.payload.agentId];
       return {
         ...projection,
         agents,
         transitByAgent,
+        activityTimeByAgent,
+        timeSettlementByAgent,
+        physiologicalDistressByAgent,
         // Departure cancels the migrant's pending applications in the source
         // projection: the later recruitment/exam cycles of THIS partition must
         // never resolve an application for an agent that now lives elsewhere
@@ -2344,6 +2353,33 @@ export function applyWorldEvent(
             ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
           },
         },
+        ...(event.payload.activityTime === undefined
+          ? {}
+          : {
+              activityTimeByAgent: {
+                ...projection.activityTimeByAgent,
+                [event.payload.agentId]: { ...event.payload.activityTime },
+              },
+            }),
+        ...(event.payload.lastTimeSettledAt === undefined
+          ? {}
+          : {
+              timeSettlementByAgent: {
+                ...(projection.timeSettlementByAgent ?? {}),
+                [event.payload.agentId]: event.payload.lastTimeSettledAt,
+              },
+            }),
+        ...(event.payload.physiologicalDistress === undefined
+          ? {}
+          : {
+              physiologicalDistressByAgent: {
+                ...projection.physiologicalDistressByAgent,
+                [event.payload.agentId]: {
+                  ...event.payload.physiologicalDistress,
+                  lowAxes: [...event.payload.physiologicalDistress.lowAxes],
+                },
+              },
+            }),
       };
     }
   }

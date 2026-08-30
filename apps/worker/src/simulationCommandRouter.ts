@@ -149,6 +149,10 @@ export function createSimulationCommandRouter(input: {
     const partitionRuntimeState = {
       activityTimeByAgent: projection.activityTimeByAgent,
       transitByAgent: projection.transitByAgent ?? {},
+      ...(projection.timeSettlementByAgent === undefined
+        ? {}
+        : { timeSettlementByAgent: projection.timeSettlementByAgent }),
+      physiologicalDistressByAgent: projection.physiologicalDistressByAgent,
     };
     const enterpriseStates = Object.values(projection.enterprises)
       .filter(

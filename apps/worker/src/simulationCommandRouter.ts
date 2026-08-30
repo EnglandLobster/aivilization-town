@@ -70,7 +70,10 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
 ]);
 
 export type SimulationCommandRouter = {
-  readonly syncPartitionState: (projection: WorldProjection) => void;
+  readonly syncPartitionState: (
+    projection: WorldProjection,
+    options?: { readonly publishClockBoundary?: boolean },
+  ) => void;
   readonly routeCommandDrafts: (input: {
     readonly commandDrafts: readonly CommandDraft[];
     readonly projection: WorldProjection;
@@ -134,7 +137,10 @@ export function createSimulationCommandRouter(input: {
       .filter(([, ownerPartitionKey]) => ownerPartitionKey === input.partitionKey)
       .map(([agentId]) => agentId),
   );
-  const syncPartitionLocations = (projection: WorldProjection): void => {
+  const syncPartitionLocations = (
+    projection: WorldProjection,
+    options: { readonly publishClockBoundary?: boolean } = {},
+  ): void => {
     const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
     const agentStates = Object.values(projection.agents).sort((left, right) =>
       left.agentId.localeCompare(right.agentId),
@@ -163,7 +169,8 @@ export function createSimulationCommandRouter(input: {
       )
       .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId));
     const synchronizedState = JSON.stringify({
-      partitionClockNow: projection.clock.now,
+      publishClockBoundary: options.publishClockBoundary === true,
+      ...(options.publishClockBoundary === true ? { partitionClockNow: projection.clock.now } : {}),
       agentStates,
       partitionAccounts,
       partitionRuntimeState,
@@ -213,7 +220,7 @@ export function createSimulationCommandRouter(input: {
       observedAt: lease.observedAt,
       durationMs: lease.durationMs,
       partitionKey: input.partitionKey,
-      partitionClockNow: projection.clock.now,
+      ...(options.publishClockBoundary === true ? { partitionClockNow: projection.clock.now } : {}),
       agentLocations,
       agentStates,
       enterpriseStates,

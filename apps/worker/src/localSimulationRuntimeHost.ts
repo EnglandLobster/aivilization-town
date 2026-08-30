@@ -18,6 +18,7 @@ import {
 import {
   createLocalSimulationBackendRegistrationsFromResolvedManifest,
   resolveLocalSimulationRuntimeManifest,
+  resolveScenarioTimeDeltaMs,
   type LocalSimulationRuntimeRegistryInput,
   type ResolvedLocalSimulationRuntimeManifest,
 } from './localSimulationRuntimeManifest';
@@ -129,6 +130,12 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     manifest: input.manifest,
     scenarioPresets: input.scenarioPresets,
   });
+  const timeDeltaMsByPartition = new Map(
+    resolvedManifest.partitions.map((partition) => [
+      partition.partitionKey,
+      input.timeDeltaMs ?? resolveScenarioTimeDeltaMs(partition.preset),
+    ]),
+  );
   const partitions = await Promise.all(
     resolvedManifest.partitions.map(async (partition) => {
       const bootstrap = await bootstrapLocalScenarioRuntime({
@@ -322,9 +329,11 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
               preTickMaterialize: async ({
                 projection,
                 issuedAt,
+                phase,
               }: {
                 readonly projection: WorldProjection;
                 readonly issuedAt: number;
+                readonly phase: 'pre-tick' | 'post-authority' | 'post-tick';
               }) => {
                 // Refresh the lease timestamp per invocation: the materializer
                 // stamps checkpoint boundaries with the lease observedAt, so a
@@ -335,27 +344,35 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                   observedAt: issuedAt,
                   durationMs: materializeLease!.durationMs,
                 };
-                // Publish the owner partition's complete post-tick state before
-                // advancing the authority clock. Credit accrual must see every
-                // borrower's latest balance, including Agents skipped as busy
-                // during the previous action phase.
-                router.syncPartitionState(projection);
-                // Keep the authority clock level with the partition clocks so
-                // in-transit travel settled globally completes on schedule and
-                // its arrival deliveries are ready to materialize. Partitions
-                // advance in lockstep; the deterministic target-keyed
-                // operationId makes the second partition's call a no-op replay.
+                // Consume accepted authority facts BEFORE publishing partition
+                // state. Otherwise an unmaterialized deposit/trade could be
+                // overwritten in the authority by this partition's stale
+                // pre-delivery Agent record.
+                let result = await materialize({ lease: leaseNow });
+                // At the pre-tick boundary every partition has published the
+                // previous tick's final state. Advance global cadences BEFORE
+                // the local household phase, materialize bank cash movements,
+                // then let the local tick advance to the same target. Later
+                // materialization phases only publish the resulting owner
+                // state; they must not advance a second time.
+                router.syncPartitionState(result.projection);
                 const authorityClockNow = authority!.getSnapshot().projection.clock.now;
-                if (authorityClockNow < projection.clock.now) {
+                const targetClockNow =
+                  phase === 'pre-tick'
+                    ? result.projection.clock.now +
+                      (timeDeltaMsByPartition.get(lookup.partitionKey) ??
+                        result.projection.clock.tickDurationMs)
+                    : result.projection.clock.now;
+                if (authorityClockNow < targetClockNow) {
                   authority!.advanceTime({
-                    operationId: `advance-time-to:${projection.clock.now}`,
+                    operationId: `advance-time-to:${targetClockNow}`,
                     workerId: leaseNow.workerId,
                     observedAt: leaseNow.observedAt,
                     durationMs: leaseNow.durationMs,
-                    deltaMs: projection.clock.now - authorityClockNow,
+                    deltaMs: targetClockNow - authorityClockNow,
                   });
+                  result = await materialize({ lease: leaseNow });
                 }
-                const result = await materialize({ lease: leaseNow });
                 // The materializer's projection reflects the partition stream
                 // after consuming the inbox. The step passes its own hydrated
                 // projection for context; we return the materialized one so the

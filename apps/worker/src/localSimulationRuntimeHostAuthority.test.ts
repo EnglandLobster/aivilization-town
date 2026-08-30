@@ -283,6 +283,63 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     });
   });
 
+  test('materializes accepted credit before accrual and local time settlement', async () => {
+    const rootDir = createRootDir();
+    const manifest = createManifest();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: { ...manifest, partitions: [manifest.partitions[0]!] },
+      scenarioPresets: createScenarioPresets(),
+      policies: createAivilizationWorldCommandPolicies('authority-credit-order-test'),
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      timeDeltaMs: 86_400_000,
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    host.authority!.settleCredit({
+      operationId: 'credit-before-daily-accrual',
+      workerId: 'authority-worker',
+      observedAt: 150,
+      durationMs: 30_000,
+      agentId: agentOne,
+      commandType: 'AgentDeposit',
+      payload: { amount: 100 },
+    });
+
+    await host.registry.api.startSimulation({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+    const events = (
+      await host.registry.api.getEvents({
+        simulationId: 'sim-1',
+        partitionKey: 'world-main',
+      })
+    ).events;
+    const depositIndex = events.findIndex((event) => event.type === 'DepositMade');
+    const interestIndex = events.findIndex((event) => event.type === 'BankInterestCredited');
+    const localTimeIndex = events.findIndex((event) => event.type === 'SimulationTimeAdvanced');
+    expect(depositIndex).toBeGreaterThanOrEqual(0);
+    expect(interestIndex).toBeGreaterThan(depositIndex);
+    expect(localTimeIndex).toBeGreaterThan(interestIndex);
+
+    const projection = await host.registry.api.getProjection({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    expect(projection.projection.agents[agentOne]?.balance).toBeCloseTo(
+      host.authority!.getSnapshot().projection.agents[agentOne]!.balance,
+      8,
+    );
+  });
+
   test('merges per-partition pools into one global pool both partitions trade against', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();
@@ -835,6 +892,26 @@ describe('regional markets in the simulation-wide authority', () => {
         durationMs: 30_000,
         deltaMs: 3_600_000,
       });
+      const advanced = authority.getSnapshot();
+      for (const [partitionKey, agentId] of [
+        ['world-main', agentOne],
+        ['world-east', agentTwo],
+      ] as const) {
+        authority.syncPartitionAgentLocations({
+          operationId: `weather-boundary-sync-${tick}:${partitionKey}`,
+          workerId: 'authority-worker',
+          observedAt: 200 + tick,
+          durationMs: 30_000,
+          partitionKey,
+          partitionClockNow: advanced.projection.clock.now,
+          agentLocations: [
+            {
+              agentId,
+              locationId: advanced.projection.agents[agentId]?.locationId ?? null,
+            },
+          ],
+        });
+      }
     }
     const weather = authority.getSnapshot().projection.weather;
     expect(weather).toBeDefined();
@@ -883,10 +960,11 @@ describe('regional markets in the simulation-wide authority', () => {
 
   test('town weather on: the daemon tick loop settles WeatherChanged into the partition stream', async () => {
     const rootDir = createRootDir();
+    const manifest = createManifest();
     const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
       rootDir,
       bootstrappedAt: 100,
-      manifest: createManifest(),
+      manifest: { ...manifest, partitions: [manifest.partitions[0]!] },
       scenarioPresets: createScenarioPresets(),
       policies,
       localizedPlanners: [],
@@ -942,10 +1020,11 @@ describe('regional markets in the simulation-wide authority', () => {
 
   test('town bulletin on: the daemon tick loop settles operator bulletins onto the authoritative board', async () => {
     const rootDir = createRootDir();
+    const manifest = createManifest();
     const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
       rootDir,
       bootstrappedAt: 100,
-      manifest: createManifest(),
+      manifest: { ...manifest, partitions: [manifest.partitions[0]!] },
       scenarioPresets: createScenarioPresets(),
       // The same policy factory the CLI uses, with the town-bulletin switch on.
       policies: createAivilizationWorldCommandPolicies('host-bulletin-test', undefined, {

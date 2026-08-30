@@ -145,6 +145,8 @@ export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
 export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
   readonly operationId: string;
   readonly partitionKey: PartitionKey;
+  /** Simulation clock of the owner state carried by this report. */
+  readonly partitionClockNow?: number;
   readonly agentLocations: readonly {
     readonly agentId: string;
     readonly locationId: string | null;
@@ -486,6 +488,11 @@ export type SimulationWideAuthoritySnapshot = {
   readonly projection: WorldProjection;
   readonly ownerPartitionKeyByAgentId: Readonly<Record<string, PartitionKey>>;
   readonly partitionKeys: readonly PartitionKey[];
+  /**
+   * Latest owner-state boundary published by each partition. Optional only for
+   * hydration compatibility with pre-barrier authority snapshots.
+   */
+  readonly partitionClockNowByKey?: Readonly<Record<string, number>>;
   readonly pendingTransfers: Readonly<
     Record<
       string,
@@ -1612,10 +1619,25 @@ export function createSimulationWideAuthority(input: {
           ...(request.partitionRuntimeState === undefined
             ? {}
             : { partitionRuntimeState: request.partitionRuntimeState }),
+          ...(request.partitionClockNow === undefined
+            ? {}
+            : { partitionClockNow: request.partitionClockNow }),
         }),
         lease: request,
         create: (state, fencingToken) => {
           assertKnownPartition(state, partitionKey);
+          const partitionClockNowByKey = resolvePartitionClockNowByKey(state);
+          const previousPartitionClockNow =
+            partitionClockNowByKey[partitionKey] ?? state.projection.clock.now;
+          const partitionClockNow = request.partitionClockNow ?? previousPartitionClockNow;
+          if (!Number.isFinite(partitionClockNow) || partitionClockNow < 0) {
+            throw new Error('partitionClockNow must be a non-negative finite timestamp');
+          }
+          if (partitionClockNow < previousPartitionClockNow) {
+            throw new Error(
+              `partition clock for ${partitionKey} cannot move backwards from ${previousPartitionClockNow} to ${partitionClockNow}`,
+            );
+          }
           const agents = { ...state.projection.agents };
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const registeredAgentIds: AgentId[] = [];
@@ -1796,6 +1818,10 @@ export function createSimulationWideAuthority(input: {
                     }),
               },
               ownerPartitionKeyByAgentId: owners,
+              partitionClockNowByKey: {
+                ...partitionClockNowByKey,
+                [partitionKey]: partitionClockNow,
+              },
               ...(cleanedPendingTransfers === undefined
                 ? {}
                 : { pendingTransfers: cleanedPendingTransfers }),
@@ -1861,6 +1887,7 @@ export function createSimulationWideAuthority(input: {
         }),
         lease: request,
         create: (state, fencingToken) => {
+          assertEveryPartitionPublishedThrough(state, state.projection.clock.now);
           const policies = resolveTimePolicies(state.projection);
           const commandId = `simulation-wide-advance-${request.operationId}`;
           let events = dispatchWorldCommand({
@@ -2185,6 +2212,9 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
     projection: clone(seed.projection),
     ownerPartitionKeyByAgentId: owners,
     partitionKeys,
+    partitionClockNowByKey: Object.fromEntries(
+      partitionKeys.map((partitionKey) => [partitionKey, seed.projection.clock.now]),
+    ),
     pendingTransfers: {},
     materializerCursors: {},
     operations: {},
@@ -2203,6 +2233,32 @@ function assertKnownPartition(
 ): void {
   if (!state.partitionKeys.includes(partitionKey)) {
     throw new Error(`unknown simulation-wide partition ${partitionKey}`);
+  }
+}
+
+function resolvePartitionClockNowByKey(
+  state: SimulationWideAuthoritySnapshot,
+): Readonly<Record<string, number>> {
+  // Legacy snapshots predate the barrier. Treat their clocks as unpublished
+  // rather than guessing they match the authority: every owner must report a
+  // fresh boundary before the next global advance.
+  return state.partitionClockNowByKey ?? {};
+}
+
+function assertEveryPartitionPublishedThrough(
+  state: SimulationWideAuthoritySnapshot,
+  requiredClockNow: number,
+): void {
+  const publishedClockNowByKey = resolvePartitionClockNowByKey(state);
+  const lagging = state.partitionKeys.filter(
+    (partitionKey) => (publishedClockNowByKey[partitionKey] ?? -1) < requiredClockNow,
+  );
+  if (lagging.length > 0) {
+    throw new Error(
+      `simulation-wide authority cannot advance from ${requiredClockNow}; lagging partition state: ${lagging
+        .map((partitionKey) => `${partitionKey}@${publishedClockNowByKey[partitionKey] ?? 'missing'}`)
+        .join(', ')}`,
+    );
   }
 }
 

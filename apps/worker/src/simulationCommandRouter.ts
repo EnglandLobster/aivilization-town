@@ -143,7 +143,12 @@ export function createSimulationCommandRouter(input: {
       activityTimeByAgent: projection.activityTimeByAgent,
       transitByAgent: projection.transitByAgent ?? {},
     };
-    const fingerprint = JSON.stringify({ agentStates, partitionAccounts, partitionRuntimeState });
+    const fingerprint = JSON.stringify({
+      partitionClockNow: projection.clock.now,
+      agentStates,
+      partitionAccounts,
+      partitionRuntimeState,
+    });
     const currentAgentIds = new Set<string>(agentLocations.map((entry) => entry.agentId as string));
     const departedAgentIds = [...lastReportedAgentIds]
       .filter((agentId) => !currentAgentIds.has(agentId))
@@ -178,6 +183,7 @@ export function createSimulationCommandRouter(input: {
       observedAt: lease.observedAt,
       durationMs: lease.durationMs,
       partitionKey: input.partitionKey,
+      partitionClockNow: projection.clock.now,
       agentLocations,
       agentStates,
       partitionAccounts,

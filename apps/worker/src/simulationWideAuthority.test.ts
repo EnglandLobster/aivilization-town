@@ -51,6 +51,55 @@ const agentA = asAgentId('agent-a');
 const agentB = asAgentId('agent-b');
 
 describe('simulation-wide authority', () => {
+  test('refuses to cross a second time boundary until every partition publishes state', () => {
+    const authority = createAuthority();
+    authority.advanceTime({
+      operationId: 'barrier-advance-1',
+      workerId: 'worker-a',
+      observedAt: 1_000,
+      durationMs: 100,
+      deltaMs: 1_000,
+    });
+
+    expect(() =>
+      authority.advanceTime({
+        operationId: 'barrier-advance-too-early',
+        workerId: 'worker-a',
+        observedAt: 2_000,
+        durationMs: 100,
+        deltaMs: 1_000,
+      }),
+    ).toThrow('lagging partition state: partition-a@0, partition-b@0');
+
+    authority.syncPartitionAgentLocations({
+      operationId: 'barrier-sync-a',
+      workerId: 'worker-a',
+      observedAt: 1_001,
+      durationMs: 100,
+      partitionKey: partitionA,
+      partitionClockNow: 1_000,
+      agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+    });
+    authority.syncPartitionAgentLocations({
+      operationId: 'barrier-sync-b',
+      workerId: 'worker-b',
+      observedAt: 1_001,
+      durationMs: 100,
+      partitionKey: partitionB,
+      partitionClockNow: 1_000,
+      agentLocations: [{ agentId: agentB, locationId: 'town-square' }],
+    });
+    expect(() =>
+      authority.advanceTime({
+        operationId: 'barrier-advance-2',
+        workerId: 'worker-a',
+        observedAt: 2_000,
+        durationMs: 100,
+        deltaMs: 1_000,
+      }),
+    ).not.toThrow();
+  });
+
   test('settles credit accrual once and delivers owner cash plus a town-wide bank snapshot', () => {
     const authority = createAuthority();
     authority.settleCredit({

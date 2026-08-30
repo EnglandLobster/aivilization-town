@@ -32,6 +32,7 @@ import type { SimulationWideAuthorityMaterializerLease } from './simulationWideA
 export type LocalWorldRuntimePreTickMaterializeHook = (input: {
   readonly projection: WorldProjection;
   readonly issuedAt: number;
+  readonly phase: 'pre-tick' | 'post-authority' | 'post-tick';
 }) => Promise<{
   readonly projection: WorldProjection;
   /**
@@ -139,6 +140,7 @@ export async function runLocalWorldRuntimeStep(
       : await materializeAuthorityEvents({
           projection: hydrated.projection,
           issuedAt: input.issuedAt,
+          phase: 'pre-tick',
         });
   const marketOverride = 'marketOverride' in materialized ? materialized.marketOverride : undefined;
   const commandDrain = await drainLocalRuntimeSteeringCommandsToWorld({
@@ -220,7 +222,7 @@ export async function runLocalWorldRuntimeStep(
       ? {}
       : {
           materializeAuthorityEvents: ({ projection, issuedAt }) =>
-            materializeAuthorityEvents({ projection, issuedAt }),
+            materializeAuthorityEvents({ projection, issuedAt, phase: 'post-authority' }),
         }),
   });
 
@@ -229,7 +231,11 @@ export async function runLocalWorldRuntimeStep(
   // catches deliveries another partition committed after our last boundary so
   // shutdown never leaves a known inbox prefix stranded.
   if (materializeAuthorityEvents !== undefined) {
-    await materializeAuthorityEvents({ projection: tick.projection, issuedAt: input.issuedAt });
+    await materializeAuthorityEvents({
+      projection: tick.projection,
+      issuedAt: input.issuedAt,
+      phase: 'post-tick',
+    });
   }
 
   return {

@@ -93,6 +93,28 @@ export type StochasticIllnessPolicy = {
   readonly minHealth: number;
 };
 
+/**
+ * Versioned starvation pressure. The health loss is proportional to the
+ * normalized satiety deficit below `satietyThreshold` and linear in elapsed
+ * time. World settles it once per `settlementCadenceMs`, after passive
+ * satiety decay, so merged advances replay identically to stepped advances.
+ */
+export type StarvationHealthDecayPolicy = {
+  readonly policyVersion: string;
+  readonly settlementCadenceMs: number;
+  readonly dayLengthMs: number;
+  readonly satietyThreshold: number;
+  readonly healthDecayPerHourAtZeroSatiety: number;
+  readonly minHealth: number;
+  readonly deathHealthThreshold: number;
+  readonly source?: string;
+};
+
+export type StarvationHealthDecayInput = PhysiologicalState & {
+  readonly elapsedMs: number;
+  readonly policy: StarvationHealthDecayPolicy;
+};
+
 export type StochasticIllnessProbabilityInput = Pick<
   StochasticIllnessPolicy,
   'illnessProbabilityPercentPerHour'
@@ -222,6 +244,55 @@ export function applyStochasticIllnessHealthDecay(
   };
 }
 
+export function applyStarvationHealthDecay(
+  input: StarvationHealthDecayInput,
+): PhysiologicalState {
+  assertValidStarvationHealthDecayPolicy(input.policy);
+  assertNonNegativeFinite(input.energy, 'energy');
+  assertNonNegativeFinite(input.satiety, 'satiety');
+  assertNonNegativeFinite(input.health, 'health');
+  assertNonNegativeFinite(input.elapsedMs, 'elapsedMs');
+
+  if (
+    input.satiety >= input.policy.satietyThreshold ||
+    input.health <= input.policy.minHealth ||
+    input.elapsedMs === 0
+  ) {
+    return { energy: input.energy, satiety: input.satiety, health: input.health };
+  }
+
+  const deficitRatio =
+    (input.policy.satietyThreshold - input.satiety) / input.policy.satietyThreshold;
+  const elapsedHours = input.elapsedMs / 3_600_000;
+  const healthDamage =
+    input.policy.healthDecayPerHourAtZeroSatiety * deficitRatio * elapsedHours;
+  return {
+    energy: input.energy,
+    satiety: input.satiety,
+    health: Math.max(input.policy.minHealth, input.health - healthDamage),
+  };
+}
+
+export function assertValidStarvationHealthDecayPolicy(
+  policy: StarvationHealthDecayPolicy,
+): void {
+  if (policy.policyVersion.trim().length === 0) {
+    throw new Error('starvation policyVersion must not be empty');
+  }
+  assertPositiveInteger(policy.settlementCadenceMs, 'starvation settlementCadenceMs');
+  assertPositiveInteger(policy.dayLengthMs, 'starvation dayLengthMs');
+  assertPositiveFinite(policy.satietyThreshold, 'starvation satietyThreshold');
+  assertNonNegativeFinite(
+    policy.healthDecayPerHourAtZeroSatiety,
+    'starvation healthDecayPerHourAtZeroSatiety',
+  );
+  assertNonNegativeFinite(policy.minHealth, 'starvation minHealth');
+  assertNonNegativeFinite(policy.deathHealthThreshold, 'starvation deathHealthThreshold');
+  if (policy.deathHealthThreshold < policy.minHealth) {
+    throw new Error('starvation deathHealthThreshold must be at least minHealth');
+  }
+}
+
 export function resolveResidentialPhysiologyCap(input: {
   readonly residentialTier: number;
   readonly policy: ResidentialPhysiologyCapPolicy;
@@ -304,5 +375,11 @@ function assertNonNegativeFinite(value: number, name: string): void {
 function assertPositiveFinite(value: number, name: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${name} must be positive`);
+  }
+}
+
+function assertPositiveInteger(value: number, name: string): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
   }
 }

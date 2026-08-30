@@ -5,11 +5,14 @@ import {
   applyLaborPhysiologyCost,
   applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
+  applyStarvationHealthDecay,
   applyStochasticIllnessHealthDecay,
+  assertValidStarvationHealthDecayPolicy,
   calculateStochasticIllnessProbabilityPercent,
   isIncapacitated,
   resolveResidentialPhysiologyCap,
   type ResidentialPhysiologyCapPolicy,
+  type StarvationHealthDecayPolicy,
 } from './index';
 
 const residentialPhysiologyCapPolicy: ResidentialPhysiologyCapPolicy = {
@@ -17,6 +20,16 @@ const residentialPhysiologyCapPolicy: ResidentialPhysiologyCapPolicy = {
     { residentialTier: 1, maxEnergy: 80, maxSatiety: 70, maxHealth: 90 },
     { residentialTier: 2, maxEnergy: 120, maxSatiety: 90, maxHealth: 110 },
   ],
+};
+
+const starvationPolicy: StarvationHealthDecayPolicy = {
+  policyVersion: 'starvation-health-decay-v1',
+  settlementCadenceMs: 3_600_000,
+  dayLengthMs: 86_400_000,
+  satietyThreshold: 20,
+  healthDecayPerHourAtZeroSatiety: 4,
+  minHealth: 0,
+  deathHealthThreshold: 0,
 };
 
 describe('physiology', () => {
@@ -250,6 +263,72 @@ describe('physiology', () => {
       satiety: 70,
       health: 10,
     });
+  });
+
+  test('scales starvation damage by satiety deficit and elapsed time', () => {
+    expect(
+      applyStarvationHealthDecay({
+        energy: 40,
+        satiety: 10,
+        health: 90,
+        elapsedMs: 1_800_000,
+        policy: starvationPolicy,
+      }),
+    ).toEqual({ energy: 40, satiety: 10, health: 89 });
+    expect(
+      applyStarvationHealthDecay({
+        energy: 40,
+        satiety: 0,
+        health: 3,
+        elapsedMs: 3_600_000,
+        policy: starvationPolicy,
+      }),
+    ).toEqual({ energy: 40, satiety: 0, health: 0 });
+  });
+
+  test('does not damage health at or above the starvation threshold', () => {
+    expect(
+      applyStarvationHealthDecay({
+        energy: 40,
+        satiety: 20,
+        health: 90,
+        elapsedMs: 86_400_000,
+        policy: starvationPolicy,
+      }),
+    ).toEqual({ energy: 40, satiety: 20, health: 90 });
+  });
+
+  test('is additive while satiety remains fixed and validates policy boundaries', () => {
+    const previous = { energy: 40, satiety: 5, health: 90 };
+    const merged = applyStarvationHealthDecay({
+      ...previous,
+      elapsedMs: 7_200_000,
+      policy: starvationPolicy,
+    });
+    const first = applyStarvationHealthDecay({
+      ...previous,
+      elapsedMs: 3_600_000,
+      policy: starvationPolicy,
+    });
+    const stepped = applyStarvationHealthDecay({
+      ...first,
+      elapsedMs: 3_600_000,
+      policy: starvationPolicy,
+    });
+    expect(stepped).toEqual(merged);
+    expect(() =>
+      assertValidStarvationHealthDecayPolicy({
+        ...starvationPolicy,
+        deathHealthThreshold: -1,
+      }),
+    ).toThrow('starvation deathHealthThreshold must be non-negative');
+    expect(() =>
+      assertValidStarvationHealthDecayPolicy({
+        ...starvationPolicy,
+        minHealth: 2,
+        deathHealthThreshold: 1,
+      }),
+    ).toThrow('starvation deathHealthThreshold must be at least minHealth');
   });
 
   test('rejects invalid health recovery policies', () => {

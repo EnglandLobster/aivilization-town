@@ -162,6 +162,14 @@ export type SimulationWideBulletinRequest = SimulationWideAuthorityLease & {
   readonly humanAttribution?: HumanCommandAttribution;
 };
 
+export type SimulationWideGovernanceRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly commandType: 'SetTaxPolicy' | 'SetPublicBudget' | 'SetSubsidyPolicy';
+  readonly payload: unknown;
+  readonly actorAgentId?: AgentId;
+  readonly humanAttribution?: HumanCommandAttribution;
+};
+
 /**
  * A conflict command (confront/attack/intervene) settled against the
  * authoritative world state. Conflict facts are town-wide, so every partition
@@ -353,6 +361,15 @@ export type SimulationWideAuthorityOperation =
       readonly status: 'completed';
     }
   | {
+      /** One accepted town policy change, broadcast to every partition. */
+      readonly kind: 'governance';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly governanceRevision: number;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
       /**
        * A conflict command (confront/attack/intervene) settled against the one
        * authoritative world state, with world-adjudicated grievance, damage,
@@ -449,6 +466,9 @@ export type SimulationWideAuthorityService = {
       readonly payload: unknown;
     },
   ) => SimulationWideAuthorityOperation & { readonly kind: 'petition' };
+  readonly settleGovernance: (
+    request: SimulationWideGovernanceRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'governance' };
   readonly settleMatter: (
     request: SimulationWideMatterRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'matter' };
@@ -934,6 +954,68 @@ export function createSimulationWideAuthority(input: {
             operationId: request.operationId,
             fencingToken,
             petitionId,
+            events,
+            status: 'completed',
+          };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settleGovernance(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'governance',
+          commandType: request.commandType,
+          payload: request.payload,
+          actorAgentId: request.actorAgentId,
+          principalSubjectId: request.humanAttribution?.principalSubjectId,
+          principalRoles: request.humanAttribution?.principalRoles,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const policies = resolvePolicies(state.projection);
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-governance-${request.operationId}`,
+              simulationId: state.simulationId,
+              ...(request.actorAgentId === undefined
+                ? {}
+                : { actorId: request.actorAgentId }),
+              source: request.humanAttribution === undefined ? 'agent-runtime' : 'human',
+              ...(request.humanAttribution === undefined
+                ? {}
+                : { humanAttribution: request.humanAttribution }),
+              type: request.commandType,
+              payload: request.payload,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies,
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'GovernanceChangeRejected');
+          if (rejection?.type === 'GovernanceChangeRejected') {
+            throw new Error(`simulation-wide governance rejected: ${rejection.payload.detail}`);
+          }
+          const changed = events.find((event) => event.type === 'GovernancePolicyChanged');
+          if (changed?.type !== 'GovernancePolicyChanged') {
+            throw new Error('simulation-wide governance settlement produced no policy event');
+          }
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'governance' }
+          > = {
+            kind: 'governance',
+            operationId: request.operationId,
+            fencingToken,
+            governanceRevision: changed.payload.governanceRevision,
             events,
             status: 'completed',
           };
@@ -1761,6 +1843,14 @@ function createInboxDeliveries(
       }));
     // Social matters are town-wide too: every partition tracks the board.
     case 'petition':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: operation.events,
+      }));
+    case 'governance':
       return partitionKeys.map((partitionKey) => ({
         operationId: operation.operationId,
         fencingToken: operation.fencingToken,

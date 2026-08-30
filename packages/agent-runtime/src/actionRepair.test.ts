@@ -372,11 +372,14 @@ function createEatAction(): AtomicActionProposal {
 }
 
 describe('AGENT_ACTION_COMMAND_TYPES', () => {
-  test('exposes canonical education and external-trade actions to synthesis and repair', () => {
+  test('exposes canonical education, trade, and governance actions to synthesis and repair', () => {
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentApplyEducationExam');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentApplyJob');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentExportCommodity');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentImportCommodity');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetTaxPolicy');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetPublicBudget');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetSubsidyPolicy');
     expect(new Set(AGENT_ACTION_COMMAND_TYPES).size).toBe(AGENT_ACTION_COMMAND_TYPES.length);
   });
 });

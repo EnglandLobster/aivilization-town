@@ -276,6 +276,7 @@ export function createWorldDecisionContextFromProjection(input: {
     ...createTownPulseDecisionContext(input),
     ...createCalendarDecisionContext(input),
     ...createPetitionDecisionContext(input),
+    ...createGovernanceDecisionContext(input),
     ...socialMatterContext,
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
@@ -775,6 +776,89 @@ function createPetitionDecisionContext(input: {
       expiresAt: petition.expiresAt,
     })),
   };
+}
+
+function createGovernanceDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'governance'> | Record<string, never> {
+  const policies = input.policies;
+  if (
+    policies?.governance === undefined ||
+    policies.tax === undefined ||
+    policies.publicBudget === undefined
+  ) {
+    return {};
+  }
+  const consumed = new Set(input.projection.governance?.consumedPetitionIds ?? []);
+  const eligiblePetitions = (input.projection.petitions ?? [])
+    .filter(
+      (petition) =>
+        petition.status === 'threshold-reached' &&
+        petition.thresholdReachedAt !== undefined &&
+        petition.signatureAgentIds.includes(input.agentId) &&
+        !consumed.has(petition.petitionId) &&
+        isGovernancePetitionTopic(petition.topic),
+    )
+    .sort(
+      (left, right) =>
+        (right.thresholdReachedAt ?? 0) - (left.thresholdReachedAt ?? 0) ||
+        left.petitionId.localeCompare(right.petitionId),
+    )
+    .slice(0, 8)
+    .flatMap((petition) => {
+      const topic = normalizeGovernancePetitionTopic(petition.topic);
+      return topic === undefined
+        ? []
+        : [
+            {
+              petitionId: petition.petitionId,
+              topic,
+              statement: petition.statement,
+              thresholdReachedAt: petition.thresholdReachedAt ?? 0,
+            },
+          ];
+    });
+  return {
+    governance: {
+      revision: input.projection.governance?.revision ?? 0,
+      tax: {
+        neutralRate: policies.tax.neutralRate,
+        incomeTaxBrackets: policies.tax.incomeTaxBrackets.map((bracket) => ({ ...bracket })),
+        tradeTaxRate: policies.tax.tradeTaxRate,
+        ...(policies.tax.dividendTaxRate === undefined
+          ? {}
+          : { dividendTaxRate: policies.tax.dividendTaxRate }),
+      },
+      publicBudget: {
+        cadenceMs: policies.publicBudget.cadenceMs,
+        minimumTreasuryReserve: policies.publicBudget.minimumTreasuryReserve,
+        allocations: policies.publicBudget.allocations.map((allocation) => ({ ...allocation })),
+      },
+      ...(policies.safetyNetSubsidy === undefined
+        ? {}
+        : { subsidy: { ...policies.safetyNetSubsidy } }),
+      eligiblePetitions,
+    },
+  };
+}
+
+function isGovernancePetitionTopic(
+  topic: string,
+): topic is 'tax-policy' | 'public-budget' | 'subsidy-policy' {
+  return normalizeGovernancePetitionTopic(topic) !== undefined;
+}
+
+function normalizeGovernancePetitionTopic(
+  topic: string,
+): 'tax-policy' | 'public-budget' | 'subsidy-policy' | undefined {
+  const normalized = topic.trim().toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
+  return normalized === 'tax-policy' ||
+    normalized === 'public-budget' ||
+    normalized === 'subsidy-policy'
+    ? normalized
+    : undefined;
 }
 
 /**

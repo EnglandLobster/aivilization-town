@@ -862,7 +862,15 @@ async function runAgentPlanningCycleFromProposedActionsWithReactiveCorrection(
           issuedAt: input.issuedAt,
           plan: input.plan,
           signals: input.signals,
-          allowedCommandTypes: AGENT_ACTION_COMMAND_TYPES,
+          allowedCommandTypes:
+            input.worldDecisionContext?.governance === undefined
+              ? AGENT_ACTION_COMMAND_TYPES.filter(
+                  (commandType) =>
+                    commandType !== 'SetTaxPolicy' &&
+                    commandType !== 'SetPublicBudget' &&
+                    commandType !== 'SetSubsidyPolicy',
+                )
+              : AGENT_ACTION_COMMAND_TYPES,
           ...(input.observedStateSummary === undefined
             ? {}
             : { observedStateSummary: input.observedStateSummary }),

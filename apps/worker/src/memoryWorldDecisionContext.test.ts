@@ -47,7 +47,7 @@ describe('memory synthesis context view', () => {
 
     const view = createMemorySynthesisContextView(full);
     expect(view).toEqual({
-      contextViewVersion: 'world-decision-context-view-v8',
+      contextViewVersion: 'world-decision-context-view-v9',
       contextViewStage: 'memory-synthesis',
       agent: {
         agentId,

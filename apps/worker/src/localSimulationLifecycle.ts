@@ -841,6 +841,9 @@ function toLoopBaseInput(
     ...(input.townBulletinIssuer === undefined
       ? {}
       : { townBulletinIssuer: input.townBulletinIssuer }),
+    ...(input.townGovernanceIssuer === undefined
+      ? {}
+      : { townGovernanceIssuer: input.townGovernanceIssuer }),
   };
 }
 

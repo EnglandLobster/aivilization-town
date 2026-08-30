@@ -10,6 +10,7 @@ import {
   aivilizationTownLifecyclePolicyDefaults,
   aivilizationTownWeatherPolicyDefaults,
   aivilizationTownServiceQualityPolicyDefaults,
+  aivilizationTownGovernancePolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
 } from '@aivilization/content';
 import {
@@ -21,6 +22,7 @@ import {
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
   assertValidServiceQualityPolicy,
+  assertValidTownGovernancePolicy,
   type CollectiveActionPolicy,
   type LifecyclePolicy,
   type OutMigrationPolicy,
@@ -29,6 +31,7 @@ import {
   type TownConditionsPolicy,
   type WellbeingPolicy,
   type ServiceQualityPolicy,
+  type TownGovernancePolicy,
 } from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
@@ -51,7 +54,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townDiscourse'
   | 'townCollectiveAction'
   | 'townMigration'
-  | 'townServiceQuality';
+  | 'townServiceQuality'
+  | 'townGovernance';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -107,6 +111,23 @@ export function createAivilizationTownServiceQualityPolicy(): ServiceQualityPoli
       aivilizationTownServiceQualityPolicyDefaults.wellbeingPenaltyAtZeroQuality,
   };
   assertValidServiceQualityPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationTownGovernancePolicy(): TownGovernancePolicy {
+  const policy: TownGovernancePolicy = {
+    policyVersion: aivilizationTownGovernancePolicyDefaults.policyVersion,
+    allowedBudgetServices: [...aivilizationTownGovernancePolicyDefaults.allowedBudgetServices],
+    maximumAllocationPerCadence:
+      aivilizationTownGovernancePolicyDefaults.maximumAllocationPerCadence,
+    maximumTreasuryReserve: aivilizationTownGovernancePolicyDefaults.maximumTreasuryReserve,
+    maximumSubsidyBalanceFloor:
+      aivilizationTownGovernancePolicyDefaults.maximumSubsidyBalanceFloor,
+    maximumSubsidyPerCadence:
+      aivilizationTownGovernancePolicyDefaults.maximumSubsidyPerCadence,
+    source: aivilizationTownGovernancePolicyDefaults.source,
+  };
+  assertValidTownGovernancePolicy(policy);
   return policy;
 }
 
@@ -308,6 +329,29 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
         },
       }),
       // Authority-scoped: partition-local occupancy is incomplete.
+    },
+    {
+      key: 'townGovernance',
+      policyVersion: aivilizationTownGovernancePolicyDefaults.policyVersion,
+      cliFlag: '--town-governance',
+      envVar: 'AIVILIZATION_TOWN_GOVERNANCE',
+      helpTitle: 'Town tax, public-budget, and subsidy governance commands',
+      helpLines: [
+        'Town governance is a repository-specific extension: pass --town-governance or',
+        'AIVILIZATION_TOWN_GOVERNANCE=1 to let operators enact town policies directly and',
+        'residents enact one policy through a matching threshold-reaching petition.',
+        'Every change is revisioned, replayable, and bounded. Disabled by default.',
+      ],
+      registrySource:
+        'Town governance authorization, petition consumption, revisioning, and policy bounds are repository-defined (CS2 fiscal-control benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationTownGovernancePolicyDefaults,
+        allowedBudgetServices: [...aivilizationTownGovernancePolicyDefaults.allowedBudgetServices],
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        governance: createAivilizationTownGovernancePolicy(),
+      }),
     },
     {
       key: 'townConditions',

@@ -59,8 +59,35 @@ export function createProjectionBackedWageCalculator(
 export function createProjectionBackedWorldCommandPolicies(
   input: ProjectionBackedWorldCommandPoliciesInput,
 ): WorldCommandPolicies {
+  const governance = input.projection.governance;
   return {
     ...input.basePolicies,
+    ...(governance?.tax === undefined
+      ? {}
+      : {
+          tax: {
+            ...governance.tax,
+            incomeTaxBrackets: governance.tax.incomeTaxBrackets.map((bracket) => ({ ...bracket })),
+          },
+        }),
+    ...(governance?.publicBudget === undefined
+      ? {}
+      : {
+          publicBudget: {
+            ...governance.publicBudget,
+            allocations: governance.publicBudget.allocations.map((allocation) => ({
+              ...allocation,
+            })),
+          },
+        }),
+    ...(governance?.subsidy === undefined
+      ? {}
+      : {
+          safetyNetSubsidy: {
+            minimumBalance: governance.subsidy.minimumBalance,
+            maxSubsidy: governance.subsidy.maxSubsidy,
+          },
+        }),
     wageCalculator: createProjectionBackedWageCalculator({
       projection: input.projection,
       knowledgePremium: input.knowledgePremium,

@@ -92,6 +92,16 @@ export type ScenarioTownServiceQualityPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioTownGovernancePolicyConfig = {
+  readonly policyVersion: string;
+  readonly allowedBudgetServices: readonly string[];
+  readonly maximumAllocationPerCadence: number;
+  readonly maximumTreasuryReserve: number;
+  readonly maximumSubsidyBalanceFloor: number;
+  readonly maximumSubsidyPerCadence: number;
+  readonly source: string;
+};
+
 export type ScenarioTownConditionSeverity = 'mild' | 'moderate' | 'severe';
 
 export type ScenarioTownConditionNeed = 'eat' | 'sleep' | 'shelter' | 'warm-up' | 'see-doctor';
@@ -606,6 +616,8 @@ const townWeatherPolicySource =
   'Authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
 const townServiceQualityPolicySource =
   'Town service quality; town-service-quality-v1 budget transmission, occupancy pressure, and land-value/wellbeing weights are repository policy decisions benchmarked against the CS2 service-efficiency model';
+const townGovernancePolicySource =
+  'Town governance command surface; town-governance-v1 authorization, revision, petition-consumption, and governable policy bounds are repository policy decisions benchmarked against CS2 fiscal controls';
 const townConditionsPolicySource =
   'Town condition catalog; town-conditions-v1 conditions, thresholds, severities, and implied needs are repository policy decisions because the paper does not model conditions';
 const townBulletinPolicySource =
@@ -768,6 +780,17 @@ export const aivilizationSurvivalTimePolicyDefaults = {
 
 export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v1';
 export const TOWN_SERVICE_QUALITY_POLICY_VERSION = 'town-service-quality-v1';
+export const TOWN_GOVERNANCE_POLICY_VERSION = 'town-governance-v1';
+
+export const aivilizationTownGovernancePolicyDefaults = {
+  policyVersion: TOWN_GOVERNANCE_POLICY_VERSION,
+  allowedBudgetServices: ['education', 'healthcare', 'infrastructure'],
+  maximumAllocationPerCadence: 1_000_000,
+  maximumTreasuryReserve: 1_000_000_000,
+  maximumSubsidyBalanceFloor: 1_000_000,
+  maximumSubsidyPerCadence: 1_000_000,
+  source: townGovernancePolicySource,
+} as const satisfies ScenarioTownGovernancePolicyConfig;
 
 export const aivilizationTownServiceQualityPolicyDefaults = {
   policyVersion: TOWN_SERVICE_QUALITY_POLICY_VERSION,

@@ -54,6 +54,9 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentUpgradeResidentialTier',
   'AgentWithdraw',
   'AgentWork',
+  'SetTaxPolicy',
+  'SetPublicBudget',
+  'SetSubsidyPolicy',
 ] as const satisfies readonly AgentActionCommandType[];
 
 export type ReactiveCorrectionGeneratedAction = {

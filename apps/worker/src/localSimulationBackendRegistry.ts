@@ -43,6 +43,7 @@ export type LocalSimulationBackendRegistryInput = {
         readonly preTickMaterialize?: LocalSimulationBackendRegistration['preTickMaterialize'];
         readonly materializerLease?: LocalSimulationBackendRegistration['materializerLease'];
         readonly townBulletinIssuer?: LocalSimulationBackendRegistration['townBulletinIssuer'];
+        readonly townGovernanceIssuer?: LocalSimulationBackendRegistration['townGovernanceIssuer'];
       }
     | undefined;
 };

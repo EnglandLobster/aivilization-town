@@ -46,6 +46,9 @@ import type {
   AgentStudyPayload,
   AgentTradePayload,
   AgentWorkPayload,
+  SetTaxPolicyPayload,
+  SetPublicBudgetPayload,
+  SetSubsidyPolicyPayload,
   WorldCommandPolicies,
 } from '@aivilization/world';
 import { activeLoansByBorrower, resolveCreditLimit } from '@aivilization/world';
@@ -88,7 +91,8 @@ export type CanonicalDomainName =
   | 'health'
   | 'eat'
   | 'banking'
-  | 'enterprise';
+  | 'enterprise'
+  | 'governance';
 
 export type StudyDomainRuntimeConfig = {
   readonly durationSeconds?: number;
@@ -201,6 +205,7 @@ const DEFAULT_DOMAIN_LOCATION_IDS: Readonly<Record<CanonicalDomainName, Location
   // workshop like other productive work.
   banking: asLocationId('market'),
   enterprise: asLocationId('workshop'),
+  governance: asLocationId('town-square'),
 };
 
 export function createCanonicalDomainRuntimeRegistrations(
@@ -234,7 +239,133 @@ export function createCanonicalDomainRuntimeRegistrations(
     createEatDomainRuntimeRegistration(config.eat, policies?.satietyRecoveryByCommodity),
     createBankingDomainRuntimeRegistration(config.banking, policies?.credit),
     createEnterpriseDomainRuntimeRegistration(config.enterprise, policies?.enterprise),
+    ...(policies?.governance === undefined
+      ? []
+      : [createGovernanceDomainRuntimeRegistration(policies)]),
   ];
+}
+
+export function createGovernanceDomainRuntimeRegistration(
+  policies: WorldCommandPolicies,
+): WorkerDomainRuntimeRegistration {
+  return {
+    domain: 'governance',
+    createMicroPlanners: (context) => [
+      {
+        domain: 'governance',
+        supports: (selectedSubtask) =>
+          (context.worldDecisionContext?.governance?.eligiblePetitions.length ?? 0) > 0 &&
+          selectedSubtaskMatchesDomain({
+            domain: 'governance',
+            planRecord: context.planRecord,
+            selectedSubtask,
+          }),
+        propose: ({ selectedSubtask }) => {
+          const proposal = createGovernanceActionProposal({ context, selectedSubtask, policies });
+          return proposal === undefined ? [] : [proposal];
+        },
+      },
+    ],
+  };
+}
+
+function createGovernanceActionProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly policies: WorldCommandPolicies;
+}): CanonicalActionProposal | undefined {
+  const governance = input.context.worldDecisionContext?.governance;
+  const petition = governance?.eligiblePetitions[0];
+  if (governance === undefined || petition === undefined) return undefined;
+  const common = {
+    id: `${createCanonicalActionId('governance', input.selectedSubtask)}:${petition.petitionId}`,
+    priority: input.selectedSubtask.score,
+  };
+  if (petition.topic === 'tax-policy') {
+    const direction = governanceChangeDirection(petition.statement);
+    const adjustRate = (rate: number) => roundPolicyNumber(clamp(rate + direction * 0.01, 0, 1));
+    return {
+      ...common,
+      description: `Enact the threshold petition ${petition.petitionId} as a tax policy change.`,
+      commandType: 'SetTaxPolicy',
+      payload: {
+        neutralRate: adjustRate(governance.tax.neutralRate),
+        incomeTaxBrackets: governance.tax.incomeTaxBrackets.map((bracket) => ({
+          ...bracket,
+          rate: adjustRate(bracket.rate),
+        })),
+        tradeTaxRate: adjustRate(governance.tax.tradeTaxRate),
+        ...(governance.tax.dividendTaxRate === undefined
+          ? {}
+          : { dividendTaxRate: adjustRate(governance.tax.dividendTaxRate) }),
+        reason: petition.statement,
+        petitionId: petition.petitionId,
+        expectedGovernanceRevision: governance.revision,
+      },
+    };
+  }
+  if (petition.topic === 'public-budget') {
+    const direction = governanceChangeDirection(petition.statement);
+    const mentionedService = governance.publicBudget.allocations.find((allocation) =>
+      petition.statement.toLowerCase().includes(allocation.service.toLowerCase()),
+    )?.service;
+    const targetService = mentionedService ?? governance.publicBudget.allocations[0]?.service;
+    if (targetService === undefined) return undefined;
+    const maximum = input.policies.governance?.maximumAllocationPerCadence ?? Number.MAX_VALUE;
+    return {
+      ...common,
+      description: `Enact the threshold petition ${petition.petitionId} as a public budget change.`,
+      commandType: 'SetPublicBudget',
+      payload: {
+        cadenceMs: governance.publicBudget.cadenceMs,
+        minimumTreasuryReserve: governance.publicBudget.minimumTreasuryReserve,
+        allocations: governance.publicBudget.allocations.map((allocation) =>
+          allocation.service === targetService
+            ? {
+                ...allocation,
+                amountPerCadence: roundPolicyNumber(
+                  clamp(allocation.amountPerCadence + direction * 10, 0, maximum),
+                ),
+              }
+            : { ...allocation },
+        ),
+        reason: petition.statement,
+        petitionId: petition.petitionId,
+        expectedGovernanceRevision: governance.revision,
+      },
+    };
+  }
+  const direction = governanceChangeDirection(petition.statement);
+  const current = governance.subsidy ?? { minimumBalance: 0, maxSubsidy: 0 };
+  const maximumFloor = input.policies.governance?.maximumSubsidyBalanceFloor ?? Number.MAX_VALUE;
+  const maximumAmount = input.policies.governance?.maximumSubsidyPerCadence ?? Number.MAX_VALUE;
+  return {
+    ...common,
+    description: `Enact the threshold petition ${petition.petitionId} as a subsidy policy change.`,
+    commandType: 'SetSubsidyPolicy',
+    payload: {
+      minimumBalance: roundPolicyNumber(clamp(current.minimumBalance + direction * 10, 0, maximumFloor)),
+      maxSubsidy: roundPolicyNumber(clamp(current.maxSubsidy + direction * 10, 0, maximumAmount)),
+      reason: petition.statement,
+      petitionId: petition.petitionId,
+      expectedGovernanceRevision: governance.revision,
+    },
+  };
+}
+
+function governanceChangeDirection(statement: string): -1 | 1 {
+  return /\b(?:lower|reduce|decrease|cut|less)\b/iu.test(statement) ||
+    /(?:下降|降低|削减|减少)/u.test(statement)
+    ? -1
+    : 1;
+}
+
+function roundPolicyNumber(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
 export function createStudyDomainRuntimeRegistration(
@@ -1081,7 +1212,10 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
   | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>
   | AtomicActionProposal<'AgentExportCommodity', AgentExportCommodityPayload>
-  | AtomicActionProposal<'AgentImportCommodity', AgentImportCommodityPayload>;
+  | AtomicActionProposal<'AgentImportCommodity', AgentImportCommodityPayload>
+  | AtomicActionProposal<'SetTaxPolicy', SetTaxPolicyPayload>
+  | AtomicActionProposal<'SetPublicBudget', SetPublicBudgetPayload>
+  | AtomicActionProposal<'SetSubsidyPolicy', SetSubsidyPolicyPayload>;
 
 /**
  * Runtime mirror of the canonical proposal command types. `satisfies` pins it
@@ -1116,6 +1250,9 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentFundEnterprise',
   'AgentExportCommodity',
   'AgentImportCommodity',
+  'SetTaxPolicy',
+  'SetPublicBudget',
+  'SetSubsidyPolicy',
 ] as const satisfies readonly CanonicalActionProposal['commandType'][];
 
 // Non-distributive: a distributive conditional over never collapses to never,

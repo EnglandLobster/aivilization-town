@@ -19,6 +19,7 @@ import {
   assertValidTownCalendarPolicy,
   assertValidTownDiscoursePolicy,
   assertValidWellbeingPolicy,
+  assertValidTownGovernancePolicy,
 } from '@aivilization/society';
 import { describe, expect, test } from 'vitest';
 import {
@@ -30,6 +31,7 @@ import {
   createAivilizationTownConditionsPolicy,
   createAivilizationTownWeatherPolicy,
   createAivilizationTownWellbeingPolicy,
+  createAivilizationTownGovernancePolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -45,7 +47,7 @@ describe('AIvilization default world command policies', () => {
         autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
-        contextView: 'world-decision-context-view-v8',
+        contextView: 'world-decision-context-view-v9',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -81,7 +83,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v8',
+      contextViewVersion: 'world-decision-context-view-v9',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -327,6 +329,52 @@ describe('AIvilization default world command policies', () => {
         }),
       ]),
     );
+  });
+
+  test('declares bounded town governance only when its switch is on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townGovernance');
+    expect(off.parameters).not.toHaveProperty('townGovernance');
+
+    const on = createAivilizationWorldPolicyManifest({ townGovernance: true });
+    expect(on.policyVersions).toMatchObject({ townGovernance: 'town-governance-v1' });
+    expect(on.parameters.townGovernance).toMatchObject({
+      allowedBudgetServices: ['education', 'healthcare', 'infrastructure'],
+      maximumAllocationPerCadence: 1_000_000,
+      maximumSubsidyPerCadence: 1_000_000,
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+    expect(on.policyRegistry.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameterPath: 'townGovernance',
+          provenance: 'experimental',
+          policyVersion: 'town-governance-v1',
+        }),
+      ]),
+    );
+    const policy = createAivilizationTownGovernancePolicy();
+    expect(() => assertValidTownGovernancePolicy(policy)).not.toThrow();
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('governance-policy-agent'),
+          locationId: null,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    expect(createAivilizationWorldCommandPolicies('seed')(projection).governance).toBeUndefined();
+    expect(
+      createAivilizationWorldCommandPolicies('seed', undefined, { townGovernance: true })(projection)
+        .governance?.policyVersion,
+    ).toBe('town-governance-v1');
   });
 
   test('declares the town conditions catalog in the manifest only when the switch is on', () => {

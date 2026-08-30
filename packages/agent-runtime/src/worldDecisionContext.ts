@@ -533,6 +533,38 @@ export type WorldDecisionEnterpriseContext = {
   readonly wageArrears?: number;
 };
 
+export type WorldDecisionGovernanceContext = {
+  readonly revision: number;
+  readonly tax: {
+    readonly neutralRate: number;
+    readonly incomeTaxBrackets: readonly {
+      readonly upToAmount: number | null;
+      readonly rate: number;
+    }[];
+    readonly tradeTaxRate: number;
+    readonly dividendTaxRate?: number;
+  };
+  readonly publicBudget: {
+    readonly cadenceMs: number;
+    readonly minimumTreasuryReserve: number;
+    readonly allocations: readonly {
+      readonly service: string;
+      readonly amountPerCadence: number;
+    }[];
+  };
+  readonly subsidy?: {
+    readonly minimumBalance: number;
+    readonly maxSubsidy: number;
+  };
+  /** Threshold petitions this citizen signed and may spend on exactly one change. */
+  readonly eligiblePetitions: readonly {
+    readonly petitionId: string;
+    readonly topic: 'tax-policy' | 'public-budget' | 'subsidy-policy';
+    readonly statement: string;
+    readonly thresholdReachedAt: number;
+  }[];
+};
+
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
@@ -556,6 +588,7 @@ export type WorldDecisionContext = {
    * carry a collective-action policy. Read-path only.
    */
   readonly petitions?: readonly WorldDecisionPetitionContext[];
+  readonly governance?: WorldDecisionGovernanceContext;
   /**
    * Relevant unresolved social matters (social-matters switch), ordered by
    * role then expiry and capped at {@link DECISION_SOCIAL_MATTER_MAX_COUNT}.
@@ -738,7 +771,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v8';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v9';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

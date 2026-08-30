@@ -1,6 +1,7 @@
 import {
   createBranchPlan,
   InMemoryBranchPlanRepository,
+  type AtomicActionProposal,
   type StrategicPlanCompilationTrace,
 } from '@aivilization/agent-runtime';
 import {
@@ -14,6 +15,61 @@ import { describe, expect, test } from 'vitest';
 import { handleWorkerSteeringCommand } from './index';
 
 describe('worker steering ingress', () => {
+  test('settles operator governance through the authority issuer and rejects non-operators', async () => {
+    const command = createCommandEnvelope({
+      id: 'cmd-governance-1',
+      simulationId: 'sim-1',
+      source: 'human',
+      humanAttribution: {
+        principalSubjectId: 'operator-1',
+        principalRoles: ['operator'],
+        accessPolicyVersion: 'town-access-v1',
+        consentPolicyVersion: 'town-consent-v1',
+      },
+      type: 'SetSubsidyPolicy',
+      payload: { minimumBalance: 50, maxSubsidy: 25, reason: 'Protect residents' },
+      issuedAt: 100,
+    });
+    const common = {
+      intentionRepository: new InMemoryAgentIntentionRepository(),
+      shortTermMemoryRepository: new InMemoryShortTermMemoryRepository(),
+      localizedPlanners: [],
+      simulate: ({ action }: { readonly action: AtomicActionProposal }) => ({
+        status: 'accepted' as const,
+        action,
+      }),
+    };
+    await expect(
+      handleWorkerSteeringCommand({
+        ...common,
+        command,
+        townGovernanceIssuer: () => ({
+          policyKind: 'subsidy',
+          governanceRevision: 1,
+        }),
+      }),
+    ).resolves.toMatchObject({
+      kind: 'town-governance-policy-set',
+      policyKind: 'subsidy',
+      governanceRevision: 1,
+    });
+
+    await expect(
+      handleWorkerSteeringCommand({
+        ...common,
+        command: createCommandEnvelope({
+          ...command,
+          id: 'cmd-governance-participant',
+          humanAttribution: {
+            ...command.humanAttribution!,
+            principalRoles: ['participant'],
+          },
+        }),
+        townGovernanceIssuer: () => ({ policyKind: 'subsidy', governanceRevision: 1 }),
+      }),
+    ).rejects.toThrow(/operator role/);
+  });
+
   test('settles operator town bulletins through the injected issuer and rejects non-operators', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const shortTermMemoryRepository = new InMemoryShortTermMemoryRepository();

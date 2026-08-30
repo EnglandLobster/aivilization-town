@@ -38,9 +38,10 @@ import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
  * settled against the global AMM / social graph because their meaning spans
  * partitions; movement is settled against the one simulation-wide spatial view
  * so capacity and route checks count every Agent in the town. Cross-owner
- * ownership flips additionally require the owner-transfer runtime handoff
- * (Agent storage migration and replay materialization); until that lands the
- * router settles moves as same-owner spatial changes.
+ * ownership flips additionally use the owner-transfer runtime handoff (world
+ * state, owner-scoped cadence facts, cognition, and replay materialization).
+ * Enterprise-affiliated Agents fail closed at that boundary until an atomic
+ * cross-partition enterprise/payroll handoff exists.
  */
 const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandType>([
   'AgentTrade',

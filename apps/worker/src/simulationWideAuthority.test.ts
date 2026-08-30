@@ -1219,6 +1219,20 @@ describe('authority departure sync', () => {
     const authority = createAuthority();
     // Baseline: the authority knows agentA (partition A) and agentB.
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
+    authority.settleCredit({
+      operationId: 'deposit-before-reported-departure',
+      ...lease(),
+      agentId: agentA,
+      commandType: 'AgentDeposit',
+      payload: { amount: 100 },
+    });
+    authority.settleCredit({
+      operationId: 'loan-before-reported-departure',
+      ...lease(),
+      agentId: agentA,
+      commandType: 'AgentRequestLoan',
+      payload: { amount: 50 },
+    });
     authority.syncPartitionAgentLocations({
       operationId: 'location-sync-departure-runtime-baseline',
       ...lease(),
@@ -1284,6 +1298,23 @@ describe('authority departure sync', () => {
     expect(snapshot.projection.transitByAgent?.[agentA]).toBeUndefined();
     expect(snapshot.projection.timeSettlementByAgent?.[agentA]).toBeUndefined();
     expect(snapshot.projection.physiologicalDistressByAgent[agentA]).toBeUndefined();
+    expect(snapshot.projection.bank?.deposits[agentA]).toBeUndefined();
+    expect(
+      Object.values(snapshot.projection.bank?.loans ?? {}).filter(
+        (loan) => loan.borrowerAgentId === agentA && loan.status === 'active',
+      ),
+    ).toEqual([]);
+    expect(first.events.map((event) => event.type)).toEqual([
+      'LoanWrittenOff',
+      'DepositForfeited',
+      'TownBankSnapshotRecorded',
+    ]);
+    const replicaDeparture = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'departure-bank-replica' })
+      .deliveries.find((delivery) => delivery.operationId === 'location-sync-departure-1');
+    expect(replicaDeparture?.events.map((event) => event.type)).toEqual([
+      'TownBankSnapshotRecorded',
+    ]);
     // The other partition's resident is untouched.
     expect(snapshot.ownerPartitionKeyByAgentId[agentB]).toBe(partitionB);
 
@@ -1297,6 +1328,15 @@ describe('authority departure sync', () => {
       departedAgentIds: [agentA],
     });
     expect(replay).toEqual(first);
+    expect(() =>
+      authority.syncPartitionAgentLocations({
+        operationId: 'location-sync-departure-1',
+        ...lease(),
+        partitionKey: partitionA,
+        agentLocations: [],
+        departedAgentIds: [agentB],
+      }),
+    ).toThrow('was reused with different input');
 
     // A departure report from the WRONG partition is rejected.
     expect(() =>

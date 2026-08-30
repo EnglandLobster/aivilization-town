@@ -21,6 +21,7 @@ import {
   type SimulationId,
 } from '@aivilization/sim-core';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
+import { decideLiquidateDeceasedCustomer, type CreditDomainEvent } from '@aivilization/credit';
 import {
   calculateCompletedRecruitmentCycleNumbers,
   settlePublicBudget,
@@ -406,7 +407,8 @@ export type SimulationWideAuthorityOperation =
        */
       readonly removedAgentIds?: readonly AgentId[];
       readonly status: 'completed';
-      readonly events: readonly [];
+      /** Credit liquidation facts plus the authoritative bank snapshot. */
+      readonly events: readonly WorldEvent[];
     }
   | {
       /**
@@ -491,10 +493,7 @@ export type SimulationWideAuthorityInboxDelivery = {
   readonly operationId: string;
   readonly fencingToken: number;
   readonly partitionKey: PartitionKey;
-  readonly operationKind: Exclude<
-    SimulationWideAuthorityOperation['kind'],
-    'inbox-materialized' | 'location-sync'
-  >;
+  readonly operationKind: Exclude<SimulationWideAuthorityOperation['kind'], 'inbox-materialized'>;
   readonly events: readonly WorldEvent[];
   /** Present only on arrival deliveries addressed to a transfer destination. */
   readonly cognitiveSnapshot?: AgentCognitiveSnapshot;
@@ -1649,6 +1648,7 @@ export function createSimulationWideAuthority(input: {
       const enterpriseStates = [...(request.enterpriseStates ?? [])].sort((left, right) =>
         left.enterpriseId.localeCompare(right.enterpriseId),
       );
+      const departedAgentIds = [...(request.departedAgentIds ?? [])].sort();
       return mutate({
         operationId: request.operationId,
         // newAgents stay out of the fingerprint: after a crash the replayed
@@ -1666,6 +1666,7 @@ export function createSimulationWideAuthority(input: {
             agentLocations,
             agentStates,
             enterpriseStates,
+            ...(departedAgentIds.length === 0 ? {} : { departedAgentIds }),
             ...(request.partitionAccounts === undefined
               ? {}
               : { partitionAccounts: request.partitionAccounts }),
@@ -1707,7 +1708,7 @@ export function createSimulationWideAuthority(input: {
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const registeredAgentIds: AgentId[] = [];
           const removedAgentIds: AgentId[] = [];
-          for (const rawDepartedId of [...(request.departedAgentIds ?? [])].sort()) {
+          for (const rawDepartedId of departedAgentIds) {
             const departedId = asAgentId(rawDepartedId);
             const owner = owners[departedId];
             const known = agents[departedId] !== undefined;
@@ -1728,6 +1729,54 @@ export function createSimulationWideAuthority(input: {
             removedAgentIds.push(departedId);
           }
           const removedAgentIdSet = new Set<AgentId>(removedAgentIds);
+          let creditProjection = state.projection;
+          const departureCreditEvents: WorldEvent[] = [];
+          if (state.projection.bank !== undefined) {
+            for (const departedAgentId of removedAgentIds) {
+              const decision = decideLiquidateDeceasedCustomer({
+                bank: creditProjection.bank,
+                agentId: departedAgentId,
+                settledAt: partitionClockNow,
+              });
+              if (decision.status === 'rejected') {
+                throw new Error(
+                  `authority departure credit liquidation rejected for ${departedAgentId}: ${decision.reason}`,
+                );
+              }
+              for (const domainEvent of decision.events) {
+                const worldEvent = createDepartureCreditWorldEvent({
+                  state,
+                  operationId: request.operationId,
+                  domainEvent,
+                  occurredAt: request.observedAt,
+                  sequence: state.revision + departureCreditEvents.length + 1,
+                });
+                departureCreditEvents.push(worldEvent);
+                creditProjection = applyWorldEvent(creditProjection, worldEvent);
+              }
+            }
+          }
+          const departureBankSnapshot =
+            departureCreditEvents.length === 0 || creditProjection.bank === undefined
+              ? undefined
+              : (createEventEnvelope({
+                  id: `simulation-wide-location-sync-${request.operationId}:event:bank-snapshot`,
+                  simulationId: state.simulationId,
+                  commandId: `simulation-wide-location-sync-${request.operationId}`,
+                  type: 'TownBankSnapshotRecorded',
+                  payload: {
+                    bank: creditProjection.bank,
+                    recordedAt: partitionClockNow,
+                    reason: 'customer-departure' as const,
+                    policyVersion: 'town-bank-customer-departure-v1',
+                  },
+                  occurredAt: request.observedAt,
+                  sequence: state.revision + departureCreditEvents.length + 1,
+                }) as WorldEvent);
+          const departureBankEvents =
+            departureBankSnapshot === undefined
+              ? departureCreditEvents
+              : [...departureCreditEvents, departureBankSnapshot];
           for (const record of newAgents) {
             const agentId = asAgentId(record.agentId);
             if (owners[agentId] !== undefined) {
@@ -1904,7 +1953,7 @@ export function createSimulationWideAuthority(input: {
               : { mergedMemoryRecordIds: mergedMemoryRecords.map((record) => record.id) }),
             ...(removedAgentIds.length === 0 ? {} : { removedAgentIds }),
             status: 'completed',
-            events: [],
+            events: departureBankEvents,
           };
           const cleanedPendingTransfers =
             removedAgentIds.length === 0
@@ -1951,6 +2000,7 @@ export function createSimulationWideAuthority(input: {
             transitByAgent,
             timeSettlementByAgent,
             physiologicalDistressByAgent,
+            ...(creditProjection.bank === undefined ? {} : { bank: creditProjection.bank }),
           };
           if (state.partitionKeys.length === 1 && request.partitionAccounts !== undefined) {
             synchronizedProjection = {
@@ -2828,8 +2878,66 @@ function createInboxDeliveries(
     case 'inbox-materialized':
       return [];
     case 'location-sync':
-      return [];
+      if (operation.events.length === 0) {
+        return [];
+      }
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        // The owner already replayed the detailed liquidation in its local
+        // departure command. Every partition replaces its replica with the
+        // one authority result, avoiding duplicate write-off/forfeiture.
+        events: operation.events.filter((event) => event.type === 'TownBankSnapshotRecorded'),
+      }));
   }
+}
+
+function createDepartureCreditWorldEvent(input: {
+  readonly state: SimulationWideAuthoritySnapshot;
+  readonly operationId: string;
+  readonly domainEvent: CreditDomainEvent;
+  readonly occurredAt: number;
+  readonly sequence: number;
+}): WorldEvent {
+  const common = {
+    simulationId: input.state.simulationId,
+    commandId: `simulation-wide-location-sync-${input.operationId}`,
+    occurredAt: input.occurredAt,
+    sequence: input.sequence,
+  } as const;
+  if (input.domainEvent.type === 'LoanWrittenOff') {
+    return createEventEnvelope({
+      ...common,
+      id: `simulation-wide-location-sync-${input.operationId}:event:loan-writeoff:${input.domainEvent.loanId}`,
+      type: 'LoanWrittenOff',
+      payload: {
+        loanId: input.domainEvent.loanId,
+        borrowerAgentId: input.domainEvent.borrowerAgentId,
+        writtenOffAt: input.domainEvent.writtenOffAt,
+        outstandingPrincipal: input.domainEvent.outstandingPrincipal,
+        outstandingInterest: input.domainEvent.outstandingInterest,
+        reason: 'borrower-deceased',
+      },
+    }) as WorldEvent;
+  }
+  if (input.domainEvent.type === 'DepositForfeited') {
+    return createEventEnvelope({
+      ...common,
+      id: `simulation-wide-location-sync-${input.operationId}:event:deposit-forfeiture:${input.domainEvent.agentId}`,
+      type: 'DepositForfeited',
+      payload: {
+        agentId: input.domainEvent.agentId,
+        forfeitedAmount: input.domainEvent.forfeitedAmount,
+        forfeitedAt: input.domainEvent.forfeitedAt,
+        reason: 'depositor-deceased',
+      },
+    }) as WorldEvent;
+  }
+  throw new Error(
+    `departure credit liquidation produced unexpected event ${input.domainEvent.type}`,
+  );
 }
 
 function createPartitionCreditTimeEvents(

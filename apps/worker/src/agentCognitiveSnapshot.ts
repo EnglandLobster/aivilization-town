@@ -1,9 +1,5 @@
-import type {
-  BranchPlanProgress,
-  BranchPlanRecord,
-} from '@aivilization/agent-runtime';
+import type { BranchPlanProgress, BranchPlanRecord } from '@aivilization/agent-runtime';
 import {
-  createEmptyLongTermAgentProfile,
   type AgentIntentionState,
   type LongTermAgentProfile,
   type ShortTermMemoryRecord,
@@ -39,6 +35,48 @@ export type AgentCognitiveSnapshot = {
   readonly planProgress?: BranchPlanProgress;
 };
 
+export function assertValidAgentCognitiveSnapshot(
+  snapshot: AgentCognitiveSnapshot,
+  expected?: { readonly agentId: AgentId; readonly sourcePartitionKey: string },
+): void {
+  if (snapshot.schemaVersion !== AGENT_COGNITIVE_SNAPSHOT_SCHEMA_VERSION) {
+    throw new Error('unsupported agent cognitive snapshot schema');
+  }
+  if (
+    snapshot.agentId.trim().length === 0 ||
+    snapshot.sourcePartitionKey.trim().length === 0 ||
+    !Number.isFinite(snapshot.capturedAt) ||
+    snapshot.capturedAt < 0
+  ) {
+    throw new Error('agent cognitive snapshot identity is invalid');
+  }
+  if (
+    expected !== undefined &&
+    (snapshot.agentId !== expected.agentId ||
+      snapshot.sourcePartitionKey !== expected.sourcePartitionKey)
+  ) {
+    throw new Error(
+      `agent cognitive snapshot belongs to ${snapshot.agentId}@${snapshot.sourcePartitionKey}, expected ${expected.agentId}@${expected.sourcePartitionKey}`,
+    );
+  }
+  if (
+    snapshot.longTermProfile.agentId !== snapshot.agentId ||
+    snapshot.intention.agentId !== snapshot.agentId ||
+    snapshot.shortTermMemory.some((record) => record.agentId !== snapshot.agentId) ||
+    (snapshot.plan !== undefined && snapshot.plan.agentId !== snapshot.agentId) ||
+    (snapshot.planProgress !== undefined && snapshot.planProgress.agentId !== snapshot.agentId)
+  ) {
+    throw new Error("agent cognitive snapshot contains another Agent's state");
+  }
+  const activePlanId = snapshot.intention.activeObjective?.id;
+  if (
+    (snapshot.plan !== undefined && snapshot.plan.planId !== activePlanId) ||
+    (snapshot.planProgress !== undefined && snapshot.planProgress.planId !== activePlanId)
+  ) {
+    throw new Error('agent cognitive snapshot plan does not match its active objective');
+  }
+}
+
 export async function captureAgentCognitiveSnapshot(input: {
   readonly storage: LocalWorldRuntimeStorage;
   readonly agentId: AgentId;
@@ -68,7 +106,7 @@ export async function captureAgentCognitiveSnapshot(input: {
           planId,
           agentId: input.agentId,
         });
-  return {
+  const snapshot: AgentCognitiveSnapshot = {
     schemaVersion: AGENT_COGNITIVE_SNAPSHOT_SCHEMA_VERSION,
     agentId: input.agentId,
     sourcePartitionKey: input.sourcePartitionKey,
@@ -83,59 +121,73 @@ export async function captureAgentCognitiveSnapshot(input: {
     ...(plan === undefined ? {} : { plan }),
     ...(planProgress === undefined ? {} : { planProgress }),
   };
+  assertValidAgentCognitiveSnapshot(snapshot, {
+    agentId: input.agentId,
+    sourcePartitionKey: input.sourcePartitionKey,
+  });
+  return snapshot;
 }
 
 /**
  * Hydrate a destination partition's repositories from a transfer snapshot. The
- * rules are idempotent and first-write-wins so a recovered materializer can
- * re-apply the same arrival delivery safely:
+ * rules are idempotent so a recovered materializer can re-apply the same
+ * arrival delivery safely:
  * - short-term memory: records already present by id are skipped;
- * - long-term profile: only an untouched (empty) profile is overwritten, so an
- *   agent that already lived in the destination keeps its local evidence;
- * - intention / plan / progress: existing durable state is never clobbered.
+ * - profile, intention, plan and progress: the source snapshot replaces a
+ *   stale destination copy, while equal retries are suppressed by comparison.
+ *
+ * The source snapshot is authoritative for this ownership transfer. A former
+ * destination may retain an older copy from the Agent's previous residence;
+ * allowing that copy to win would fork cognition from the world owner ledger.
  */
 export async function hydrateAgentCognitiveSnapshot(input: {
   readonly storage: LocalWorldRuntimeStorage;
   readonly snapshot: AgentCognitiveSnapshot;
 }): Promise<void> {
   const { storage, snapshot } = input;
+  assertValidAgentCognitiveSnapshot(snapshot);
 
   const recent = await storage.shortTermMemoryRepository.retrieve({
     agentId: snapshot.agentId,
     limit: AGENT_COGNITIVE_SNAPSHOT_SHORT_TERM_LIMIT,
   });
-  const knownIds = new Set(recent.map((record) => record.id));
-  const missingRecords = snapshot.shortTermMemory.filter((record) => !knownIds.has(record.id));
+  const knownById = new Map(recent.map((record) => [record.id, record]));
+  for (const record of snapshot.shortTermMemory) {
+    const existing = knownById.get(record.id);
+    if (existing !== undefined && stableStringify(existing) !== stableStringify(record)) {
+      throw new Error(`short-term memory id ${record.id} has conflicting transfer content`);
+    }
+  }
+  const missingRecords = snapshot.shortTermMemory.filter((record) => !knownById.has(record.id));
   if (missingRecords.length > 0) {
     await storage.shortTermMemoryRepository.appendMany(missingRecords);
   }
 
   const currentProfile = await storage.longTermProfileRepository.getOrCreate(snapshot.agentId);
-  const emptyProfile = createEmptyLongTermAgentProfile(snapshot.agentId);
-  if (stableStringify(currentProfile) === stableStringify(emptyProfile)) {
+  if (stableStringify(currentProfile) !== stableStringify(snapshot.longTermProfile)) {
     await storage.longTermProfileRepository.save(snapshot.longTermProfile);
   }
 
   const currentIntention = await storage.intentionRepository.getOrCreate(snapshot.agentId);
-  if (currentIntention.activeObjective === undefined) {
+  if (stableStringify(currentIntention) !== stableStringify(snapshot.intention)) {
     await storage.intentionRepository.save(snapshot.intention);
-    if (snapshot.plan !== undefined) {
-      const existingPlan = await storage.planRepository.get({
-        planId: snapshot.plan.planId,
-        agentId: snapshot.agentId,
-      });
-      if (existingPlan === undefined) {
-        await storage.planRepository.save(snapshot.plan);
-      }
+  }
+  if (snapshot.plan !== undefined) {
+    const existingPlan = await storage.planRepository.get({
+      planId: snapshot.plan.planId,
+      agentId: snapshot.agentId,
+    });
+    if (stableStringify(existingPlan) !== stableStringify(snapshot.plan)) {
+      await storage.planRepository.save(snapshot.plan);
     }
-    if (snapshot.planProgress !== undefined) {
-      const existingProgress = await storage.planProgressRepository.get({
-        planId: snapshot.planProgress.planId,
-        agentId: snapshot.agentId,
-      });
-      if (existingProgress === undefined) {
-        await storage.planProgressRepository.save(snapshot.planProgress);
-      }
+  }
+  if (snapshot.planProgress !== undefined) {
+    const existingProgress = await storage.planProgressRepository.get({
+      planId: snapshot.planProgress.planId,
+      agentId: snapshot.agentId,
+    });
+    if (stableStringify(existingProgress) !== stableStringify(snapshot.planProgress)) {
+      await storage.planProgressRepository.save(snapshot.planProgress);
     }
   }
 }

@@ -104,38 +104,51 @@ export function createSimulationWideAuthorityMaterializer(input: {
         materializedOperationIds.push(delivery.operationId);
         continue;
       }
-      const resequenced = resequenceEvents(delivery.events, streamVersion, input.partitionKey);
-      const appendResult = input.storage.eventStore.appendToStream({
-        streamName: input.storage.partition.eventStreamName,
-        expectedVersion: streamVersion,
-        idempotencyKey: createInboxAppendIdempotencyKey(
-          delivery.operationId,
-          delivery.fencingToken,
-          input.partitionKey,
-        ),
-        events: resequenced,
-      });
+      const idempotencyKey = createInboxAppendIdempotencyKey(
+        delivery.operationId,
+        delivery.fencingToken,
+        input.partitionKey,
+      );
+      const durableAppend = input.storage.eventStore.getIdempotentAppend(idempotencyKey);
+      const appendResult =
+        durableAppend === undefined
+          ? input.storage.eventStore.appendToStream({
+              streamName: input.storage.partition.eventStreamName,
+              expectedVersion: streamVersion,
+              idempotencyKey,
+              events: resequenceEvents(delivery.events, streamVersion, input.partitionKey),
+            })
+          : replayDurableInboxAppend({
+              deliveryEvents: delivery.events,
+              partitionKey: input.partitionKey,
+              streamName: input.storage.partition.eventStreamName,
+              currentStreamVersion: streamVersion,
+              idempotencyKey,
+              durableAppend,
+            });
       if (!appendResult.idempotentReplay) {
         projection = appendResult.appendedEvents.reduce(applyWorldEvent, projection);
-        await ensurePartitionMemoryMaterialized(appendResult.appendedEvents, projection);
-        await ensureBulletinAwarenessMaterialized(
-          appendResult.appendedEvents,
-          projection,
-          lease.observedAt,
-        );
-        // Arrival deliveries for cross-owner transfers carry the Agent's durable
-        // cognitive state. Hydrate it alongside the arrival event so the very
-        // next tick can plan with the migrated objectives, plans, and memory.
-        // Hydration is first-write-wins and idempotent, so a recovered replay of
-        // the same delivery never clobbers state the agent has since produced.
-        if (delivery.cognitiveSnapshot !== undefined) {
-          await hydrateAgentCognitiveSnapshot({
-            storage: input.storage,
-            snapshot: delivery.cognitiveSnapshot,
-          });
-        }
       }
-      streamVersion = appendResult.streamVersion;
+      // These adapters can fail after the event append. Re-run them for a
+      // durable idempotent append too; each repository operation validates or
+      // suppresses duplicates, closing the event→memory crash window.
+      await ensurePartitionMemoryMaterialized(appendResult.appendedEvents, projection);
+      await ensureBulletinAwarenessMaterialized(
+        appendResult.appendedEvents,
+        projection,
+        lease.observedAt,
+      );
+      // Cognitive hydration deliberately runs even when the event append is an
+      // idempotent replay. A crash can occur after the arrival event commits
+      // but before repositories are hydrated; the still-unacknowledged inbox
+      // delivery is the recovery record for that exact window.
+      if (delivery.cognitiveSnapshot !== undefined) {
+        await hydrateAgentCognitiveSnapshot({
+          storage: input.storage,
+          snapshot: delivery.cognitiveSnapshot,
+        });
+      }
+      streamVersion = Math.max(streamVersion, appendResult.streamVersion);
       materializedOperationIds.push(delivery.operationId);
     }
 
@@ -224,9 +237,7 @@ export function createSimulationWideAuthorityMaterializer(input: {
     projectionAfter: WorldProjection,
   ): Promise<void> {
     const records = events
-      .flatMap((event) =>
-        event.type === 'ShortTermMemoryRecorded' ? [event.payload.record] : [],
-      )
+      .flatMap((event) => (event.type === 'ShortTermMemoryRecorded' ? [event.payload.record] : []))
       .filter((record) => projectionAfter.agents[record.agentId] !== undefined);
     for (const record of records) {
       await appendShortTermMemoryRecordIfNew(record);
@@ -285,6 +296,46 @@ export function createSimulationWideAuthorityMaterializer(input: {
     }
     await input.storage.shortTermMemoryRepository.append(record);
   }
+}
+
+function replayDurableInboxAppend(input: {
+  readonly deliveryEvents: readonly WorldEvent[];
+  readonly partitionKey: PartitionKey;
+  readonly streamName: string;
+  readonly currentStreamVersion: number;
+  readonly idempotencyKey: string;
+  readonly durableAppend: {
+    readonly streamName: string;
+    readonly expectedVersion?: number;
+    readonly appendedEvents: readonly WorldEvent[];
+    readonly streamVersion: number;
+  };
+}): {
+  readonly appendedEvents: readonly WorldEvent[];
+  readonly streamVersion: number;
+  readonly idempotentReplay: true;
+} {
+  const expectedVersion = input.durableAppend.expectedVersion;
+  if (
+    input.durableAppend.streamName !== input.streamName ||
+    expectedVersion === undefined ||
+    input.durableAppend.streamVersion > input.currentStreamVersion
+  ) {
+    throw new Error(`authority inbox durable append is inconsistent: ${input.idempotencyKey}`);
+  }
+  const expectedEvents = resequenceEvents(
+    input.deliveryEvents,
+    expectedVersion,
+    input.partitionKey,
+  );
+  if (stableStringify(expectedEvents) !== stableStringify(input.durableAppend.appendedEvents)) {
+    throw new Error(`authority inbox durable append content diverged: ${input.idempotencyKey}`);
+  }
+  return {
+    appendedEvents: input.durableAppend.appendedEvents,
+    streamVersion: input.durableAppend.streamVersion,
+    idempotentReplay: true,
+  };
 }
 
 function resequenceEvents(

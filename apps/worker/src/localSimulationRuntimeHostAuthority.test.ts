@@ -652,7 +652,7 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
           locationId: migrationSquare,
           name: 'Migration Square',
           kind: 'social' as const,
-          activityAffinities: ['social'],
+          activityAffinities: ['socialize'] as const,
           capacity: null,
           source: 'test',
         },

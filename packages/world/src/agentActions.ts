@@ -29,6 +29,7 @@ import type { SocialMattersPolicy } from './matters';
 import type { WorldEvent } from './events';
 import type { WorldProjection } from './projection';
 import type { TownWeatherPolicy } from './weather';
+import { resolveAgentServiceQuality } from './serviceQuality';
 import {
   handleAgentConfrontCommand,
   handleAgentAttackCommand,
@@ -549,7 +550,16 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.discourse === undefined ? {} : { discourse: input.policies.discourse }),
         nextSequence: input.nextSequence,
       });
-    case 'AgentStudy':
+    case 'AgentStudy': {
+      const actor = input.projection.agents[input.command.actorId ?? ''];
+      const settledQuality =
+        actor === undefined
+          ? undefined
+          : resolveAgentServiceQuality({
+              projection: input.projection,
+              agent: actor,
+              service: 'education',
+            });
       return handleAgentStudyCommand({
         command: input.command as CommandEnvelope<'AgentStudy', unknown>,
         projection: input.projection,
@@ -559,8 +569,10 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.educationSystem === undefined
           ? {}
           : { educationSystem: input.policies.educationSystem }),
+        ...(settledQuality === undefined ? {} : { serviceQuality: settledQuality.quality }),
         nextSequence: input.nextSequence,
       });
+    }
     case 'AgentSleep':
       if (input.policies.sleep === undefined) {
         return rejectCommand(input, 'AgentSleep', 'missing sleep policy');
@@ -575,10 +587,19 @@ export function dispatchWorldCommand(input: {
           : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
         nextSequence: input.nextSequence,
       });
-    case 'AgentSeeDoctor':
+    case 'AgentSeeDoctor': {
       if (input.policies.seeDoctor === undefined) {
         return rejectCommand(input, 'AgentSeeDoctor', 'missing see doctor policy');
       }
+      const actor = input.projection.agents[input.command.actorId ?? ''];
+      const settledQuality =
+        actor === undefined
+          ? undefined
+          : resolveAgentServiceQuality({
+              projection: input.projection,
+              agent: actor,
+              service: 'healthcare',
+            });
       return handleAgentSeeDoctorCommand({
         command: input.command as CommandEnvelope<'AgentSeeDoctor', unknown>,
         projection: input.projection,
@@ -590,8 +611,10 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.residentialPhysiologyCaps === undefined
           ? {}
           : { residentialPhysiologyCaps: input.policies.residentialPhysiologyCaps }),
+        ...(settledQuality === undefined ? {} : { serviceQuality: settledQuality.quality }),
         nextSequence: input.nextSequence,
       });
+    }
     case 'AgentWork':
       return handleAgentWorkCommand({
         command: input.command as CommandEnvelope<'AgentWork', unknown>,

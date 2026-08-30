@@ -11,6 +11,7 @@ import {
   applyEnergyRecovery,
   applyHealthRecovery,
   applyLaborPhysiologyCost,
+  applyServiceQuality,
   applyStudyEfficiency,
   deriveEducationLevel,
   evaluateEducationInvestment,
@@ -129,6 +130,8 @@ export function handleAgentStudyCommand(input: {
    * `educationInvestment` and every level pays for itself.
    */
   readonly educationSystem?: EducationSystemPolicy;
+  /** Latest settled regional education quality; absent preserves legacy 1. */
+  readonly serviceQuality?: number;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -166,9 +169,13 @@ export function handleAgentStudyCommand(input: {
     return rejectCommand(input, 'AgentStudy', investment.detail);
   }
 
+  const educationRatePerSecond =
+    input.serviceQuality === undefined
+      ? payloadResult.payload.educationRatePerSecond
+      : applyServiceQuality(payloadResult.payload.educationRatePerSecond, input.serviceQuality);
   const nextEducationScore = accumulateEducation({
     currentEducationScore: agent.educationScore,
-    educationRatePerSecond: payloadResult.payload.educationRatePerSecond,
+    educationRatePerSecond,
     studyDurationSeconds: payloadResult.payload.durationSeconds,
   });
 
@@ -250,11 +257,15 @@ function settleEducationSystemStudy(input: {
     return rejectCommand(input.input, 'AgentStudy', cost.detail);
   }
 
-  const effectiveEducationRatePerSecond = applyStudyEfficiency({
+  const employmentAdjustedEducationRatePerSecond = applyStudyEfficiency({
     educationRatePerSecond: payload.educationRatePerSecond,
     employed: agent.job !== null,
     policy,
   });
+  const effectiveEducationRatePerSecond =
+    input.input.serviceQuality === undefined
+      ? employmentAdjustedEducationRatePerSecond
+      : applyServiceQuality(employmentAdjustedEducationRatePerSecond, input.input.serviceQuality);
   const nextEducationScore = accumulateEducation({
     currentEducationScore: agent.educationScore,
     educationRatePerSecond: effectiveEducationRatePerSecond,
@@ -425,6 +436,8 @@ export function handleAgentSeeDoctorCommand(input: {
   readonly maxHealth: number;
   readonly treatmentCost?: MedicalTreatmentCostPolicy;
   readonly residentialPhysiologyCaps?: ResidentialPhysiologyCapPolicy;
+  /** Latest settled regional healthcare quality; absent preserves legacy 1. */
+  readonly serviceQuality?: number;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -457,7 +470,10 @@ export function handleAgentSeeDoctorCommand(input: {
     applyHealthRecovery({
       ...agent.physiology,
       durationSeconds: payloadResult.payload.durationSeconds,
-      healthRecoveryPerSecond: input.healthRecoveryPerSecond,
+      healthRecoveryPerSecond:
+        input.serviceQuality === undefined
+          ? input.healthRecoveryPerSecond
+          : applyServiceQuality(input.healthRecoveryPerSecond, input.serviceQuality),
       maxHealth: maxHealth.value,
     }),
   );

@@ -67,6 +67,14 @@ import {
   type ExternalTradeActionProposerPolicy,
 } from './externalTradePlanning';
 import { createCanonicalSocialDialogueTurns, resolveCanonicalSocialPlan } from './socialPlanning';
+import {
+  assertValidSocialMatterActionProposerPolicy,
+  DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY,
+  resolveSocialMatterActionProposal,
+  resolveSocialMatterTargetAgentId,
+  type SocialMatterActionProposal,
+  type SocialMatterActionProposerPolicy,
+} from './socialMatterPlanning';
 import { resolveAgentMarketPools } from './worldDecisionContext';
 
 export type CanonicalDomainName =
@@ -208,7 +216,11 @@ export function createCanonicalDomainRuntimeRegistrations(
     createWorkDomainRuntimeRegistration(config.work, policies?.laborCost),
     createTradeDomainRuntimeRegistration(config.trade, policies?.externalTrade),
     createSleepDomainRuntimeRegistration(config.sleep),
-    createSocialDomainRuntimeRegistration(config.social, policies?.collectiveAction),
+    createSocialDomainRuntimeRegistration(
+      config.social,
+      policies?.collectiveAction,
+      policies?.socialMatters,
+    ),
     createProductionDomainRuntimeRegistration(
       config.production,
       policies?.production,
@@ -737,7 +749,10 @@ function resolveSocialPetitionProposal(input: {
 export function createSocialDomainRuntimeRegistration(
   config: SocialDomainRuntimeConfig = {},
   collectiveActionPolicy?: CollectiveActionPolicy,
+  socialMattersPolicy?: WorldCommandPolicies['socialMatters'],
+  matterProposerPolicy: SocialMatterActionProposerPolicy = DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY,
 ): WorkerDomainRuntimeRegistration {
+  assertValidSocialMatterActionProposerPolicy(matterProposerPolicy);
   return {
     domain: 'social',
     createMicroPlanners: (context) => [
@@ -745,12 +760,33 @@ export function createSocialDomainRuntimeRegistration(
         domain: 'social',
         context,
         planRecord: context.planRecord,
-        resolveTargetLocationId: () =>
-          config.targetAgentId === undefined
-            ? DEFAULT_DOMAIN_LOCATION_IDS.social
-            : (context.projection.agents[config.targetAgentId]?.locationId ??
-              DEFAULT_DOMAIN_LOCATION_IDS.social),
+        resolveTargetLocationId: (selectedSubtask) => {
+          const matterTarget =
+            socialMattersPolicy === undefined
+              ? undefined
+              : resolveSocialMatterTargetAgentId({ context, selectedSubtask });
+          const targetAgentId = matterTarget ?? config.targetAgentId;
+          if (targetAgentId === undefined) return DEFAULT_DOMAIN_LOCATION_IDS.social;
+          const targetLocationId =
+            context.projection.agents[targetAgentId]?.locationId ??
+            context.worldDecisionContext?.society?.agents.find(
+              (agent) => agent.agentId === targetAgentId,
+            )?.locationId ??
+            DEFAULT_DOMAIN_LOCATION_IDS.social;
+          return targetLocationId === null ? null : asLocationId(targetLocationId);
+        },
         propose: (selectedSubtask) => {
+          if (socialMattersPolicy !== undefined) {
+            const matterProposal = resolveSocialMatterActionProposal({
+              context,
+              selectedSubtask,
+              actionId: createCanonicalActionId('social', selectedSubtask),
+              proposerPolicy: matterProposerPolicy,
+            });
+            if (matterProposal !== undefined) {
+              return matterProposal;
+            }
+          }
           // Collective action outranks dyadic plans when it applies: signing
           // an open petition the agent has not signed, or raising one when
           // their settled wellbeing is distressed enough to organize.
@@ -1040,6 +1076,7 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
+  | SocialMatterActionProposal
   | AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload>
   | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
   | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>
@@ -1070,6 +1107,10 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentUpgradeResidentialTier',
   'AgentRaisePetition',
   'AgentSignPetition',
+  'AgentRaiseMatter',
+  'AgentRespondMatter',
+  'AgentAssignMatter',
+  'AgentCloseMatter',
   'AgentRequestLoan',
   'AgentJoinEnterprise',
   'AgentFundEnterprise',

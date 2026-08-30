@@ -9,6 +9,7 @@ import {
   DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
   DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
   DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH,
+  DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
   WORLD_DECISION_CONTEXT_VIEW_VERSION,
   type WorldDecisionAgentContext,
   type WorldDecisionContext,
@@ -99,6 +100,8 @@ export function createPerStageContextViewManifest() {
       relevance: 'unresolved-participant-or-open-help-request',
       deterministicOrder: 'role-tier-then-expiry-created-at-matter-id',
       responseOrder: 'responded-at-then-responder-agent-id',
+      foreignSocietyCounterpartMaxCount: DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
+      foreignSocietyCounterpartOrder: 'visible-matter-participants-then-strongest-relations',
     },
     stageVisibility: {
       ranking: {

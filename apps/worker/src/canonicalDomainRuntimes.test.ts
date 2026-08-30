@@ -171,6 +171,57 @@ describe('canonical domain runtimes', () => {
     );
   });
 
+  test('routes an assigned social-matter delivery through the canonical social domain', async () => {
+    const capableAgent = createAgent({
+      agentId: agentA,
+      inventory: { Apple: 2, Book: 3 },
+      locationId: asLocationId('town-square'),
+    });
+    const projection = createProjection({
+      agents: [
+        capableAgent,
+        createAgent({ agentId: agentB, locationId: asLocationId('town-square') }),
+        createAgent({ agentId: agentC, locationId: asLocationId('town-square') }),
+      ],
+      locations: [townSquare()],
+      marketPools: [],
+    });
+    const assignedMatter = createMatterDecisionContextForTest(capableAgent, [
+      {
+        matterId: 'matter-delivery',
+        kind: 'help-request',
+        status: 'assigned',
+        role: 'assignee',
+        initiatorAgentId: agentB,
+        assigneeAgentId: agentA,
+        topic: 'apple-help',
+        statement: 'Please deliver apples.',
+        requiredCommodity: { commodityName: 'Apple', quantity: 3 },
+        responses: [{ responderAgentId: agentA, decision: 'accept', respondedAt: 10 }],
+        deliveredQuantity: 1,
+        createdAt: 0,
+        expiresAt: 1_000,
+      },
+    ]);
+    const assignedContext = createRuntimeContext({
+      agent: capableAgent,
+      projection,
+      worldDecisionContext: assignedMatter,
+    });
+    const binding = await resolveCanonicalBinding(
+      assignedContext,
+      {},
+      {
+        ...policies,
+        socialMatters: { policyVersion: 'social-matters-v1', defaultExpiryMs: 1_000 },
+      },
+    );
+    expect(firstProposal(binding.microPlanners, 'social')).toMatchObject({
+      commandType: 'AgentGiveResource',
+      payload: { targetAgentId: agentB, commodityName: 'Apple', quantity: 2 },
+    });
+  });
+
   test('proposes a survival bridge loan only under the rigid banking gates', async () => {
     const needyAgent = createAgent({
       agentId: agentA,
@@ -1840,6 +1891,26 @@ function createSocietyDecisionContextForTest(input: {
         educationScore: entry.educationScore ?? 0,
       })),
     },
+  };
+}
+
+function createMatterDecisionContextForTest(
+  agent: WorldAgentState,
+  matters: NonNullable<WorldDecisionContext['matters']>,
+): WorldDecisionContext {
+  return {
+    agent: {
+      agentId: agent.agentId,
+      locationId: agent.locationId,
+      physiology: { ...agent.physiology },
+      educationScore: agent.educationScore,
+      balance: agent.balance,
+      residentialTier: agent.residentialTier,
+      job: agent.job,
+      inventory: { ...agent.inventory },
+    },
+    market: { spotPrices: [] },
+    matters,
   };
 }
 

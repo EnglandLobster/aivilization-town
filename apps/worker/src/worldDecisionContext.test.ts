@@ -2006,6 +2006,30 @@ describe('worker social-matter decision context', () => {
       'matter-2',
     ]);
   });
+
+  test('retains a remote matter counterpart in the bounded society view without a relation', () => {
+    const remoteInitiator = asAgentId('agent-b');
+    const projection = createProjectionWithMatters([
+      createMatterState({
+        matterId: 'remote-assignment',
+        initiatorAgentId: remoteInitiator,
+        status: 'assigned',
+        assigneeAgentId: agentId,
+        responses: [{ responderAgentId: agentId, decision: 'accept', respondedAt: 20 }],
+        expiresAt: 500,
+      }),
+    ]);
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies,
+      societyDirectory: createSocietyDirectoryFixture({ foreignAgentIds: [remoteInitiator] }),
+    });
+
+    expect(context.agent.relations).toBeUndefined();
+    expect(context.society?.agents.map((agent) => agent.agentId)).toContain(remoteInitiator);
+  });
 });
 
 describe('worker housing decision context', () => {

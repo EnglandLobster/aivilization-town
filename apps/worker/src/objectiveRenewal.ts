@@ -45,14 +45,18 @@ import { DEFAULT_BANKING_ACTION_PROPOSER_POLICY } from './canonicalDomainRuntime
 import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
 import { publishPlanningSession } from './planningSessionPublication';
 import { resolveAgentMarketPools } from './worldDecisionContext';
+import { DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY } from './socialMatterPlanning';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v4';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v5';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
 const SOCIAL_IDENTITY_SCORE = 59;
 const EXTERNAL_TRADE_OPPORTUNITY_SCORE = 85;
+const SOCIAL_MATTER_ASSIGNEE_SCORE = 96;
+const SOCIAL_MATTER_ASSIGNMENT_SCORE = 88;
+const SOCIAL_MATTER_RESPONSE_SCORE = 54;
 
 export function createAutonomousObjectiveSelectionPolicyManifest() {
   return {
@@ -85,6 +89,13 @@ export function createAutonomousObjectiveSelectionPolicyManifest() {
       selection:
         'largest-relative-advantage-over-current-visible-regional-amm-then-stable-tie-break',
       proposerPolicyVersion: DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY.policyVersion,
+    },
+    socialMatterObligation: {
+      proposerPolicyVersion: DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY.policyVersion,
+      assigneeScore: SOCIAL_MATTER_ASSIGNEE_SCORE,
+      assignmentScore: SOCIAL_MATTER_ASSIGNMENT_SCORE,
+      responseScore: SOCIAL_MATTER_RESPONSE_SCORE,
+      precedence: 'assigned-delivery-then-pending-assignment-then-capable-response',
     },
   };
 }
@@ -464,6 +475,11 @@ function scoreObjectiveCandidates(
     });
   }
 
+  const socialMatterCandidate = createSocialMatterObjectiveCandidate(input);
+  if (socialMatterCandidate !== undefined) {
+    candidates.push(socialMatterCandidate);
+  }
+
   // Enterprise candidate: an active enterprise is hiring and the position is
   // open to this agent — the cheapest ladder step on the work side.
   const hiringEnterprise = input.worldDecisionContext?.enterprises
@@ -617,6 +633,85 @@ function scoreObjectiveCandidates(
   });
 
   return candidates.sort(compareObjectiveCandidates);
+}
+
+function createSocialMatterObjectiveCandidate(
+  input: AutonomousObjectiveProposerInput,
+): ObjectiveCandidate | undefined {
+  const matters = input.worldDecisionContext?.matters ?? [];
+  const assigned = matters.find(
+    (matter) =>
+      matter.role === 'assignee' &&
+      (matter.status === 'assigned' || matter.status === 'executing') &&
+      matter.requiredCommodity !== undefined &&
+      (input.agent.inventory[matter.requiredCommodity.commodityName] ?? 0) > 0,
+  );
+  if (assigned?.requiredCommodity !== undefined) {
+    const remaining = Math.max(
+      0,
+      assigned.requiredCommodity.quantity - (assigned.deliveredQuantity ?? 0),
+    );
+    if (remaining > 0) {
+      return {
+        id: `social-matter-delivery:${assigned.matterId}`,
+        statement: `Deliver ${assigned.requiredCommodity.commodityName} for social matter ${assigned.matterId} before it expires.`,
+        priority: 3,
+        affinityTags: ['social', 'matter', 'obligation', 'deliver'],
+        planningDomains: ['social'],
+        score: SOCIAL_MATTER_ASSIGNEE_SCORE,
+        rationale: 'An assigned commodity-backed matter is an active world-recorded obligation.',
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+      };
+    }
+  }
+
+  const assignable = matters.find(
+    (matter) =>
+      matter.role === 'initiator' &&
+      (matter.status === 'open' || matter.status === 'collecting') &&
+      matter.responses.some((response) => response.decision === 'accept'),
+  );
+  if (assignable !== undefined) {
+    return {
+      id: `social-matter-assignment:${assignable.matterId}`,
+      statement: `Assign an accepted responder to social matter ${assignable.matterId}.`,
+      priority: 3,
+      affinityTags: ['social', 'matter', 'obligation', 'assign'],
+      planningDomains: ['social'],
+      score: SOCIAL_MATTER_ASSIGNMENT_SCORE,
+      rationale: 'The help request has an accepted responder and awaits initiator assignment.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    };
+  }
+
+  const capable = matters.find(
+    (matter) =>
+      (matter.role === 'available' || matter.role === 'responder') &&
+      matter.myResponse !== 'accept' &&
+      (matter.status === 'open' || matter.status === 'collecting') &&
+      matter.requiredCommodity !== undefined &&
+      (input.agent.inventory[matter.requiredCommodity.commodityName] ?? 0) >=
+        matter.requiredCommodity.quantity,
+  );
+  if (capable !== undefined) {
+    return {
+      id: `social-matter-response:${capable.matterId}`,
+      statement: `Accept social matter ${capable.matterId} because the requested goods are available.`,
+      priority: 2,
+      affinityTags: ['social', 'matter', 'help', 'accept'],
+      planningDomains: ['social'],
+      score: SOCIAL_MATTER_RESPONSE_SCORE,
+      rationale: 'An open commodity-backed help request matches current inventory capability.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    };
+  }
+  return undefined;
 }
 
 function createSocialIdentityCandidate(

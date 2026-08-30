@@ -2345,8 +2345,30 @@ export function applyWorldEvent(
         );
       }
       const state = event.payload.agentState;
+      const socialRelations = { ...projection.socialRelations };
+      for (const relation of event.payload.socialRelations ?? []) {
+        socialRelations[createDirectedSocialRelationKey(relation)] = { ...relation };
+      }
+      const socialCommitments = { ...projection.socialCommitments };
+      for (const commitment of event.payload.socialCommitments ?? []) {
+        socialCommitments[commitment.commitmentId] = { ...commitment };
+      }
+      const incomingConflictIds = new Set(
+        (projection.conflictRecords ?? []).map((record) => record.conflictId),
+      );
+      const conflictRecords = [
+        ...(projection.conflictRecords ?? []),
+        ...(event.payload.conflictRecords ?? [])
+          .filter((record) => !incomingConflictIds.has(record.conflictId))
+          .map((record) => ({ ...record })),
+      ];
       return {
         ...projection,
+        socialRelations,
+        socialCommitments,
+        ...(projection.conflictRecords === undefined && event.payload.conflictRecords === undefined
+          ? {}
+          : { conflictRecords }),
         agents: {
           ...projection.agents,
           [event.payload.agentId]: {
@@ -2358,6 +2380,10 @@ export function applyWorldEvent(
             residentialTier: state.residentialTier,
             job: state.job,
             inventory: { ...state.inventory },
+            ...(state.durableGoods === undefined
+              ? {}
+              : { durableGoods: state.durableGoods.map((lot) => ({ ...lot })) }),
+            ...(state.upkeepArrears === undefined ? {} : { upkeepArrears: state.upkeepArrears }),
             ...(state.wellbeing === undefined ? {} : { wellbeing: state.wellbeing }),
             ...(state.lifeStage === undefined ? {} : { lifeStage: state.lifeStage }),
             ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
@@ -2365,6 +2391,21 @@ export function applyWorldEvent(
             ...(state.educationLevel === undefined ? {} : { educationLevel: state.educationLevel }),
             ...(state.educationTrack === undefined ? {} : { educationTrack: state.educationTrack }),
             ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
+            ...(state.registration === undefined
+              ? {}
+              : {
+                  registration: {
+                    ...state.registration,
+                    ...(state.registration.humanAttribution === undefined
+                      ? {}
+                      : {
+                          humanAttribution: {
+                            ...state.registration.humanAttribution,
+                            principalRoles: [...state.registration.humanAttribution.principalRoles],
+                          },
+                        }),
+                  },
+                }),
           },
         },
         ...(event.payload.activityTime === undefined

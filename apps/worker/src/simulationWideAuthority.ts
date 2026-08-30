@@ -3034,6 +3034,13 @@ function createOwnershipTransferEvents(input: {
         residentialTier: state.residentialTier,
         job: state.job,
         inventory: { ...state.inventory },
+        // Durable goods and arrears are economic state, not disposable read
+        // context. Omitting either would destroy assets or forgive debt when
+        // the source projection removes the migrant.
+        ...(state.durableGoods === undefined
+          ? {}
+          : { durableGoods: state.durableGoods.map((lot) => ({ ...lot })) }),
+        ...(state.upkeepArrears === undefined ? {} : { upkeepArrears: state.upkeepArrears }),
         // Optional durable wellbeing travels with the transfer so the receiving
         // partition does not silently reset it to the policy initialValue.
         ...(state.wellbeing === undefined ? {} : { wellbeing: state.wellbeing }),
@@ -3044,15 +3051,32 @@ function createOwnershipTransferEvents(input: {
         ...(state.retiredAtMs === undefined ? {} : { retiredAtMs: state.retiredAtMs }),
         // The registration anchor travels so the migrant keeps their true age
         // (the full registration record stays behind in the source stream).
-        ...(state.registration === undefined
+        ...(state.registeredAtMs === undefined && state.registration === undefined
           ? {}
-          : { registeredAtMs: state.registration.registeredAt }),
+          : { registeredAtMs: state.registeredAtMs ?? state.registration!.registeredAt }),
         // Education aggregate travels too: losing it on migration would reset
         // the vocational track, production/job multipliers, and exam-attempt
         // caps to the score-derived defaults.
         ...(state.educationLevel === undefined ? {} : { educationLevel: state.educationLevel }),
         ...(state.educationTrack === undefined ? {} : { educationTrack: state.educationTrack }),
         ...(state.examAttempts === undefined ? {} : { examAttempts: state.examAttempts }),
+        // Runtime registration is also authorization state: creator quotas,
+        // participant access, and the public display name all depend on it.
+        ...(state.registration === undefined
+          ? {}
+          : {
+              registration: {
+                ...state.registration,
+                ...(state.registration.humanAttribution === undefined
+                  ? {}
+                  : {
+                      humanAttribution: {
+                        ...state.registration.humanAttribution,
+                        principalRoles: [...state.registration.humanAttribution.principalRoles],
+                      },
+                    }),
+              },
+            }),
       },
       ...(input.projection.activityTimeByAgent[input.agentId] === undefined
         ? {}
@@ -3067,6 +3091,38 @@ function createOwnershipTransferEvents(input: {
               ...input.projection.physiologicalDistressByAgent[input.agentId],
               lowAxes: [...input.projection.physiologicalDistressByAgent[input.agentId]!.lowAxes],
             },
+          }),
+      socialRelations: Object.values(input.projection.socialRelations)
+        .filter(
+          (relation) =>
+            relation.sourceAgentId === input.agentId || relation.targetAgentId === input.agentId,
+        )
+        .sort((left, right) =>
+          `${left.sourceAgentId}:${left.targetAgentId}`.localeCompare(
+            `${right.sourceAgentId}:${right.targetAgentId}`,
+          ),
+        )
+        .map((relation) => ({ ...relation })),
+      socialCommitments: Object.values(input.projection.socialCommitments)
+        .filter(
+          (commitment) =>
+            commitment.promisorAgentId === input.agentId ||
+            commitment.beneficiaryAgentId === input.agentId,
+        )
+        .sort((left, right) => left.commitmentId.localeCompare(right.commitmentId))
+        .map((commitment) => ({ ...commitment })),
+      ...(input.projection.conflictRecords === undefined
+        ? {}
+        : {
+            conflictRecords: input.projection.conflictRecords
+              .filter(
+                (record) =>
+                  record.actorAgentId === input.agentId ||
+                  record.targetAgentId === input.agentId ||
+                  record.counterpartyAgentId === input.agentId,
+              )
+              .sort((left, right) => left.conflictId.localeCompare(right.conflictId))
+              .map((record) => ({ ...record })),
           }),
     },
     occurredAt: input.occurredAt,

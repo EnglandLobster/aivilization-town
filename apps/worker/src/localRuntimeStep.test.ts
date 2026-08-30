@@ -45,6 +45,51 @@ function createRootDir(): string {
 }
 
 describe('local world runtime step', () => {
+  test('marks every materialization phase while replaying an interrupted tick', async () => {
+    const storage = createLocalWorldRuntimeStorage({
+      rootDir: createRootDir(),
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const recoveryPhases: Array<{
+      readonly phase: 'pre-tick' | 'post-authority' | 'post-tick';
+      readonly recoveringInterruptedTick: boolean;
+    }> = [];
+    const baseInput: Omit<
+      Parameters<typeof runLocalWorldRuntimeStep>[0],
+      'preTickMaterialize' | 'recoveryToSequence'
+    > = {
+      storage,
+      tickId: 'tick-recovery-materialization',
+      simulationId: 'sim-1',
+      issuedAt: 200,
+      initialProjection: createInitialProjection(),
+      policies,
+      commandConsumerId: 'worker-main',
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted' as const, action }),
+      agents: [],
+    };
+
+    await runLocalWorldRuntimeStep(baseInput);
+    await runLocalWorldRuntimeStep({
+      ...baseInput,
+      recoveryToSequence: 0,
+      preTickMaterialize: ({ projection, phase, recoveringInterruptedTick }) => {
+        recoveryPhases.push({
+          phase,
+          recoveringInterruptedTick: recoveringInterruptedTick === true,
+        });
+        return Promise.resolve({ projection });
+      },
+    });
+
+    expect(recoveryPhases).toEqual([
+      { phase: 'pre-tick', recoveringInterruptedTick: true },
+      { phase: 'post-tick', recoveringInterruptedTick: true },
+    ]);
+  });
+
   test('drains command inbox into world events before running the next simulation tick', async () => {
     const storage = createLocalWorldRuntimeStorage({
       rootDir: createRootDir(),

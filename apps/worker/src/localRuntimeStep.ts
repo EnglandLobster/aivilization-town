@@ -33,6 +33,7 @@ export type LocalWorldRuntimePreTickMaterializeHook = (input: {
   readonly projection: WorldProjection;
   readonly issuedAt: number;
   readonly phase: 'pre-tick' | 'post-authority' | 'post-tick';
+  readonly recoveringInterruptedTick?: boolean;
 }) => Promise<{
   readonly projection: WorldProjection;
   /**
@@ -141,6 +142,7 @@ export async function runLocalWorldRuntimeStep(
           projection: hydrated.projection,
           issuedAt: input.issuedAt,
           phase: 'pre-tick',
+          ...(input.recoveryToSequence === undefined ? {} : { recoveringInterruptedTick: true }),
         });
   const marketOverride = 'marketOverride' in materialized ? materialized.marketOverride : undefined;
   const commandDrain = await drainLocalRuntimeSteeringCommandsToWorld({
@@ -222,7 +224,14 @@ export async function runLocalWorldRuntimeStep(
       ? {}
       : {
           materializeAuthorityEvents: ({ projection, issuedAt }) =>
-            materializeAuthorityEvents({ projection, issuedAt, phase: 'post-authority' }),
+            materializeAuthorityEvents({
+              projection,
+              issuedAt,
+              phase: 'post-authority',
+              ...(input.recoveryToSequence === undefined
+                ? {}
+                : { recoveringInterruptedTick: true }),
+            }),
         }),
   });
 
@@ -235,6 +244,7 @@ export async function runLocalWorldRuntimeStep(
       projection: tick.projection,
       issuedAt: input.issuedAt,
       phase: 'post-tick',
+      ...(input.recoveryToSequence === undefined ? {} : { recoveringInterruptedTick: true }),
     });
   }
 

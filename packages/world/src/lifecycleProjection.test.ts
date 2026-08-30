@@ -9,6 +9,84 @@ import {
 } from './index';
 
 describe('lifecycle projection facts', () => {
+  test('moves circulating balance between ownership shards without changing the aggregate supply', () => {
+    const agentId = asAgentId('agent-currency-transfer');
+    const base = createWorldProjection({ agents: [], moneySupply: 1_000 });
+    const arrived = applyWorldEvent(
+      base,
+      createEventEnvelope({
+        id: asEventId('event-currency-arrival'),
+        simulationId: 'sim-1',
+        type: 'AgentOwnershipArrived',
+        payload: {
+          agentId,
+          fromPartitionKey: 'partition-a',
+          transferOperationId: 'transfer-currency',
+          circulatingBalanceTransferred: 120,
+          agentState: {
+            locationId: null,
+            physiology: { energy: 40, satiety: 40, health: 80 },
+            educationScore: 30,
+            balance: 120,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        },
+        occurredAt: 100,
+        sequence: 1,
+      }),
+    );
+    expect(arrived.moneySupply).toBe(1_120);
+
+    const departed = applyWorldEvent(
+      arrived,
+      createEventEnvelope({
+        id: asEventId('event-currency-departure'),
+        simulationId: 'sim-1',
+        type: 'AgentOwnershipDeparted',
+        payload: {
+          agentId,
+          toPartitionKey: 'partition-b',
+          transferOperationId: 'transfer-currency',
+          circulatingBalanceTransferred: 120,
+        },
+        occurredAt: 101,
+        sequence: 2,
+      }),
+    );
+    expect(departed.moneySupply).toBe(1_000);
+    expect(departed.agents[agentId]).toBeUndefined();
+
+    expect(() =>
+      applyWorldEvent(
+        base,
+        createEventEnvelope({
+          id: asEventId('event-invalid-currency-arrival'),
+          simulationId: 'sim-1',
+          type: 'AgentOwnershipArrived',
+          payload: {
+            agentId,
+            fromPartitionKey: 'partition-a',
+            transferOperationId: 'transfer-invalid-currency',
+            circulatingBalanceTransferred: 121,
+            agentState: {
+              locationId: null,
+              physiology: { energy: 40, satiety: 40, health: 80 },
+              educationScore: 30,
+              balance: 120,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            },
+          },
+          occurredAt: 102,
+          sequence: 3,
+        }),
+      ),
+    ).toThrow('circulating balance must equal the Agent balance');
+  });
+
   test('ownership arrival rebuilds the agent with durable lifecycle facts', () => {
     const projection = createWorldProjection({ agents: [] });
     const arrival: WorldEvent = createEventEnvelope({

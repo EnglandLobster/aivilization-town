@@ -3051,6 +3051,7 @@ function createOwnershipTransferEvents(input: {
       agentId: input.agentId,
       toPartitionKey: input.toPartitionKey,
       transferOperationId: input.operationId,
+      circulatingBalanceTransferred: state.balance,
     },
     occurredAt: input.occurredAt,
     sequence: 1,
@@ -3063,6 +3064,7 @@ function createOwnershipTransferEvents(input: {
       agentId: input.agentId,
       fromPartitionKey: input.fromPartitionKey,
       transferOperationId: input.operationId,
+      circulatingBalanceTransferred: state.balance,
       agentState: {
         locationId: state.locationId,
         physiology: { ...state.physiology },

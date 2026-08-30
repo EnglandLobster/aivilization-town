@@ -510,6 +510,7 @@ describe('simulation-wide authority', () => {
     const authority = createAuthority();
     const snapshot = createTestCognitiveSnapshot(agentA);
     const migrant = authority.getSnapshot().projection.agents[agentA]!;
+    const moneySupplyBefore = authority.getSnapshot().projection.moneySupply;
     authority.syncPartitionAgentLocations({
       operationId: 'sync-runtime-before-cross-owner-move',
       workerId: 'worker-a',
@@ -578,6 +579,7 @@ describe('simulation-wide authority', () => {
     // Immediate arrival flips ownership at settlement.
     expect(move.status).toBe('completed');
     expect(authoritySnapshot.ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+    expect(authoritySnapshot.projection.moneySupply).toBe(moneySupplyBefore);
 
     // The source consumes settlement events plus its departure; the agent is
     // gone from its view.
@@ -589,6 +591,9 @@ describe('simulation-wide authority', () => {
     expect(
       sourceDeliveries[0]!.events.some((event) => event.type === 'AgentOwnershipDeparted'),
     ).toBe(true);
+    expect(
+      sourceDeliveries[0]!.events.find((event) => event.type === 'AgentOwnershipDeparted'),
+    ).toMatchObject({ payload: { circulatingBalanceTransferred: migrant.balance } });
 
     // The destination receives the arrival carrying the authoritative world
     // state plus the cognitive snapshot for hydration.
@@ -606,6 +611,7 @@ describe('simulation-wide authority', () => {
     expect(arrivalEvent).toBeDefined();
     if (arrivalEvent?.type === 'AgentOwnershipArrived') {
       expect(arrivalEvent.payload.fromPartitionKey).toBe(partitionA);
+      expect(arrivalEvent.payload.circulatingBalanceTransferred).toBe(migrant.balance);
       expect(arrivalEvent.payload.agentState.locationId).toBe(asLocationId('market'));
       expect(arrivalEvent.payload.agentState).toMatchObject({
         durableGoods: [{ lotId: 'migrant-durable-lot', commodityName: 'Furniture' }],

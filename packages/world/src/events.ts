@@ -1416,6 +1416,11 @@ export type AgentOwnershipDepartedPayload = {
   readonly agentId: AgentId;
   readonly toPartitionKey: string;
   readonly transferOperationId: string;
+  /**
+   * Circulating Agent-account balance whose shard ownership moves with the
+   * Agent. Optional for replay compatibility with ownership-transfer-v1.
+   */
+  readonly circulatingBalanceTransferred?: number;
 };
 
 /**
@@ -1429,6 +1434,8 @@ export type AgentOwnershipArrivedPayload = {
   readonly agentId: AgentId;
   readonly fromPartitionKey: string;
   readonly transferOperationId: string;
+  /** Matching shard allocation moved out by AgentOwnershipDeparted. */
+  readonly circulatingBalanceTransferred?: number;
   readonly agentState: {
     readonly locationId: LocationId | null;
     readonly physiology: PhysiologicalState;

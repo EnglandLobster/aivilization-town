@@ -749,6 +749,9 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     const destination = host.partitions.find(
       (partition) => partition.partitionKey === 'world-east',
     )!;
+    const sourceMoneySupplyBefore = source.bootstrap.initialProjection.moneySupply;
+    const destinationMoneySupplyBefore = destination.bootstrap.initialProjection.moneySupply;
+    const transferredBalance = source.bootstrap.initialProjection.agents[agentOne]!.balance;
     await source.bootstrap.storage.intentionRepository.setObjective(agentOne, {
       id: 'migrant-objective',
       agentId: agentOne,
@@ -799,6 +802,18 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
 
     expect(recovered.materializedOperationIds).toEqual(['move-before-materializer-crash']);
     expect(recovered.streamVersion).toBe(1);
+    const sourceMaterialized = await host.materializers.get('world-main')!.materializeInbox({
+      lease: { workerId: 'authority-worker', observedAt: 201, durationMs: 30_000 },
+    });
+    expect(sourceMaterialized.projection.moneySupply).toBe(
+      sourceMoneySupplyBefore - transferredBalance,
+    );
+    expect(recovered.projection.moneySupply).toBe(
+      destinationMoneySupplyBefore + transferredBalance,
+    );
+    expect(sourceMaterialized.projection.moneySupply + recovered.projection.moneySupply).toBe(
+      sourceMoneySupplyBefore + destinationMoneySupplyBefore,
+    );
     expect(await destinationStorage.intentionRepository.getOrCreate(agentOne)).toMatchObject({
       activeObjective: { id: 'migrant-objective' },
     });

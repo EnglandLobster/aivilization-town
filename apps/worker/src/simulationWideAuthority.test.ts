@@ -776,6 +776,19 @@ describe('simulation-wide authority', () => {
         cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
       }),
     ).toThrow(/must not carry a cognitive snapshot/);
+
+    expect(() =>
+      authority.settleMove({
+        operationId: 'move-cross-owner-wrong-snapshot-agent',
+        workerId: 'worker-a',
+        observedAt: 1,
+        durationMs: 100,
+        agentId: agentA,
+        targetLocationId: 'market',
+        destinationPartitionKey: partitionB,
+        cognitiveSnapshot: createTestCognitiveSnapshot(agentB),
+      }),
+    ).toThrow(/belongs to agent-b@partition-a, expected agent-a@partition-a/);
   });
 
   test('rejects a move that would exceed the globally observed location capacity', () => {

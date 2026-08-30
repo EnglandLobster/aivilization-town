@@ -51,7 +51,10 @@ import {
   resolveWorldCommandPolicies,
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
-import type { AgentCognitiveSnapshot } from './agentCognitiveSnapshot';
+import {
+  assertValidAgentCognitiveSnapshot,
+  type AgentCognitiveSnapshot,
+} from './agentCognitiveSnapshot';
 
 /**
  * A file-backed, simulation-wide authority used when one society is executed
@@ -1442,6 +1445,12 @@ export function createSimulationWideAuthority(input: {
           }
           if (crossOwner && request.cognitiveSnapshot === undefined) {
             throw new Error(`cross-owner move for ${agentId} requires a cognitive snapshot`);
+          }
+          if (crossOwner && request.cognitiveSnapshot !== undefined) {
+            assertValidAgentCognitiveSnapshot(request.cognitiveSnapshot, {
+              agentId,
+              sourcePartitionKey: ownerPartitionKey,
+            });
           }
           if (!crossOwner && request.cognitiveSnapshot !== undefined) {
             throw new Error(`same-owner move for ${agentId} must not carry a cognitive snapshot`);

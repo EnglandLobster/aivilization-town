@@ -97,8 +97,12 @@ describe('agent cognitive snapshot', () => {
     const destination = createFakeStorage();
     await hydrateAgentCognitiveSnapshot({ storage: destination, snapshot });
 
-    expect(await destination.shortTermMemoryRepository.retrieve({ agentId, limit: 64 })).toHaveLength(2);
-    expect((await destination.longTermProfileRepository.getOrCreate(agentId)).values).toHaveLength(1);
+    expect(
+      await destination.shortTermMemoryRepository.retrieve({ agentId, limit: 64 }),
+    ).toHaveLength(2);
+    expect((await destination.longTermProfileRepository.getOrCreate(agentId)).values).toHaveLength(
+      1,
+    );
     expect((await destination.intentionRepository.getOrCreate(agentId)).activeObjective?.id).toBe(
       planId,
     );
@@ -107,10 +111,12 @@ describe('agent cognitive snapshot', () => {
 
     // Replaying the same arrival delivery must not duplicate or clobber.
     await hydrateAgentCognitiveSnapshot({ storage: destination, snapshot });
-    expect(await destination.shortTermMemoryRepository.retrieve({ agentId, limit: 64 })).toHaveLength(2);
+    expect(
+      await destination.shortTermMemoryRepository.retrieve({ agentId, limit: 64 }),
+    ).toHaveLength(2);
   });
 
-  test('never clobbers a destination where the agent already lived', async () => {
+  test('replaces a stale copy when the agent returns to a former destination', async () => {
     const source = createFakeStorage();
     await source.intentionRepository.setObjective(agentId, {
       id: planId,
@@ -161,11 +167,9 @@ describe('agent cognitive snapshot', () => {
     await hydrateAgentCognitiveSnapshot({ storage: destination, snapshot });
 
     expect((await destination.intentionRepository.getOrCreate(agentId)).activeObjective?.id).toBe(
-      'objective-local',
+      planId,
     );
-    expect((await destination.longTermProfileRepository.getOrCreate(agentId)).values[0]?.key).toBe(
-      'local-value',
-    );
+    expect((await destination.longTermProfileRepository.getOrCreate(agentId)).values).toEqual([]);
   });
 });
 

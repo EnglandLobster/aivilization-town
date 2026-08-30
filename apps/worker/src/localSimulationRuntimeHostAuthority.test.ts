@@ -18,6 +18,7 @@ import {
   createAivilizationWorldCommandPolicies,
   type LocalSimulationRuntimeManifest,
 } from './index';
+import { captureAgentCognitiveSnapshot } from './agentCognitiveSnapshot';
 
 const agentOne = asAgentId('agent-1');
 const agentTwo = asAgentId('agent-2');
@@ -638,6 +639,103 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
         limit: 64,
       }),
     ).toHaveLength(1);
+  });
+
+  test('recovers cognitive hydration after the arrival event committed before inbox acknowledgement', async () => {
+    const rootDir = createRootDir();
+    const migrationSquare = asLocationId('migration-square');
+    const scenarioPresets = createScenarioPresets().map((preset) => ({
+      ...preset,
+      locations: [
+        ...preset.locations,
+        {
+          locationId: migrationSquare,
+          name: 'Migration Square',
+          kind: 'social' as const,
+          activityAffinities: ['social'],
+          capacity: null,
+          source: 'test',
+        },
+      ],
+    }));
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: createManifest(),
+      scenarioPresets,
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+    const source = host.partitions.find((partition) => partition.partitionKey === 'world-main')!;
+    const destination = host.partitions.find(
+      (partition) => partition.partitionKey === 'world-east',
+    )!;
+    await source.bootstrap.storage.intentionRepository.setObjective(agentOne, {
+      id: 'migrant-objective',
+      agentId: agentOne,
+      statement: 'Carry my plans across town.',
+      priority: 1,
+      source: 'agent',
+      affinityTags: ['migration'],
+      createdAt: 150,
+      updatedAt: 150,
+    });
+    const cognitiveSnapshot = await captureAgentCognitiveSnapshot({
+      storage: source.bootstrap.storage,
+      agentId: agentOne,
+      sourcePartitionKey: 'world-main',
+      capturedAt: 200,
+    });
+    const move = host.authority!.settleMove({
+      operationId: 'move-before-materializer-crash',
+      workerId: 'authority-worker',
+      observedAt: 200,
+      durationMs: 30_000,
+      agentId: agentOne,
+      targetLocationId: migrationSquare,
+      destinationPartitionKey: 'world-east',
+      cognitiveSnapshot,
+    });
+    const delivery = host
+      .authority!.readInbox({ partitionKey: 'world-east', consumerId: 'authority-worker' })
+      .deliveries.find((candidate) => candidate.operationId === move.operationId)!;
+    const destinationStorage = destination.bootstrap.storage;
+    const resequenced = delivery.events.map((event, index) => ({
+      ...event,
+      partitionKey: destination.partitionKey,
+      sequence: index + 1,
+    }));
+    destinationStorage.eventStore.appendToStream({
+      streamName: destinationStorage.partition.eventStreamName,
+      expectedVersion: 0,
+      idempotencyKey: `authority-inbox:${move.operationId}:${move.fencingToken}:world-east`,
+      events: resequenced,
+    });
+    // Simulate a crash here: the world event is durable, but cognition,
+    // checkpoint and authority cursor have not been written.
+
+    const recovered = await host.materializers.get('world-east')!.materializeInbox({
+      lease: { workerId: 'authority-worker', observedAt: 201, durationMs: 30_000 },
+    });
+
+    expect(recovered.materializedOperationIds).toEqual(['move-before-materializer-crash']);
+    expect(recovered.streamVersion).toBe(1);
+    expect(await destinationStorage.intentionRepository.getOrCreate(agentOne)).toMatchObject({
+      activeObjective: { id: 'migrant-objective' },
+    });
+    expect(
+      host.authority!.readInbox({
+        partitionKey: 'world-east',
+        consumerId: 'authority-worker',
+      }).deliveries,
+    ).toEqual([]);
   });
 
   test('rolls forward already-materialized deliveries as idempotent no-ops on recover', async () => {

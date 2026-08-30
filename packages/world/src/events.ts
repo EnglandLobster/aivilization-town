@@ -1103,10 +1103,11 @@ export type PensionPaidPayload = {
  */
 export type AgentDiedPayload = {
   readonly agentId: AgentId;
-  readonly cause: 'old-age' | 'illness';
+  readonly cause: 'old-age' | 'illness' | 'starvation';
   readonly diedAt: number;
   readonly ageDays: number;
-  readonly lifespanDays: number;
+  /** Present for lifecycle deaths; starvation can be enabled independently. */
+  readonly lifespanDays?: number;
   readonly retired: boolean;
   readonly policyVersion: string;
   readonly estate: {

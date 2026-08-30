@@ -241,26 +241,34 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     }
   }
   const authorityEnabled = authority !== undefined;
-  // The simulation-wide authority is the only writer for the town-bank
-  // aggregate. Partition ticks retain the original policy in the Agent context
-  // (so banking can be planned), but must not run a second daily accrual loop.
+  // The simulation-wide authority is the only writer for town-wide bank and
+  // external-sector cadences. Partition ticks retain the original policies in
+  // Agent cognition, but must not run duplicate accrual, market-rebalance, or
+  // net-export-balance decay loops.
   const partitionPolicies: WorldCommandPolicySource = authorityEnabled
     ? (projection) => {
         const resolvedPolicies = resolveWorldCommandPolicies({
           policies: input.policies,
           projection,
         });
-        const { credit: authorityOwnedCredit, ...withoutAuthorityCredit } = resolvedPolicies;
+        const {
+          credit: authorityOwnedCredit,
+          externalMarket: authorityOwnedExternalMarket,
+          externalTrade: authorityOwnedExternalTrade,
+          ...withoutAuthorityCadences
+        } = resolvedPolicies;
         void authorityOwnedCredit;
+        void authorityOwnedExternalMarket;
+        void authorityOwnedExternalTrade;
         if (authorityOptions?.townServiceQuality !== true) {
-          return withoutAuthorityCredit;
+          return withoutAuthorityCadences;
         }
         // Service occupancy is simulation-wide. The authority settles the
         // quality event from an exact aggregation of each partition's local
         // public-budget decisions; partitions still own the corresponding cash
         // transfers, but must not emit a second, partial-occupancy quality fact.
         const { serviceQuality: authorityOwnedServiceQuality, ...localPolicies } =
-          withoutAuthorityCredit;
+          withoutAuthorityCadences;
         void authorityOwnedServiceQuality;
         return localPolicies;
       }

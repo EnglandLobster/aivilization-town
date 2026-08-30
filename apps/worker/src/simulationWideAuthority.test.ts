@@ -304,6 +304,52 @@ describe('simulation-wide authority', () => {
     expect(targetProjection.agents[agentB]?.inventory).toEqual({ Fish: 1 });
   });
 
+  test('settles external trade against one town balance and broadcasts no remote cash flow', () => {
+    const authority = createAuthority(undefined, false, { agentAInventory: { Fish: 2 } });
+
+    const operation = authority.settleExternalTrade({
+      operationId: 'external-export-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      commandType: 'AgentExportCommodity',
+      payload: { commodityName: 'Fish', quantity: 1 },
+    });
+    const exportEvent = operation.events.find((event) => event.type === 'ExternalTradeExecuted');
+    expect(exportEvent?.type).toBe('ExternalTradeExecuted');
+    expect(authority.getSnapshot().projection.externalTrade?.balancesByCommodity).toEqual({
+      Fish: 1,
+    });
+    expect(authority.getSnapshot().projection.agents[agentA]?.inventory).toEqual({ Fish: 1 });
+    expect(authority.getSnapshot().projection.agents[agentA]?.balance).toBeGreaterThan(500);
+
+    const remote = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'external-trade-remote' })
+      .deliveries.find((delivery) => delivery.operationId === 'external-export-1');
+    expect(remote?.events.map((event) => event.type)).toEqual(['ExternalTradeExecuted']);
+    const remoteProjection = remote!.events.reduce(
+      applyWorldEvent,
+      createWorldProjection({ agents: [], moneySupply: 0 }),
+    );
+    expect(remoteProjection.externalTrade?.balancesByCommodity).toEqual({ Fish: 1 });
+    expect(remoteProjection.moneySupply).toBe(0);
+
+    authority.advanceTime({
+      operationId: 'advance-external-trade-balance',
+      workerId: 'worker-a',
+      observedAt: 86_400_000,
+      durationMs: 100,
+      deltaMs: 86_400_000,
+    });
+    const decayDelivery = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'external-trade-decay-remote' })
+      .deliveries.find((delivery) => delivery.operationId === 'advance-external-trade-balance');
+    expect(
+      decayDelivery?.events.some((event) => event.type === 'ExternalTradeBalancesDecayed'),
+    ).toBe(true);
+  });
+
   test('moves ownership only after the canonical spatial command has committed', () => {
     const authority = createAuthority();
 

@@ -374,6 +374,29 @@ describe('canonical worker runtime resolver', () => {
     });
   });
 
+  test('world dry-run simulator uses the authority market sampled for planning', () => {
+    const projection = createProjection();
+    const action: AtomicActionProposal = {
+      id: 'buy-authority-market',
+      description: 'buy from the current town market',
+      commandType: 'AgentTrade',
+      payload: { side: 'buy', commodityName: 'Ghost', quantity: 1 },
+    };
+    const simulate = createWorldCommandDryRunSimulator({
+      simulationId,
+      agentId: agentA,
+      projection,
+      policies,
+      marketOverride: {
+        marketPools: {
+          Ghost: { commodity: 'Ghost', commodityReserve: 100, currencyReserve: 100 },
+        },
+      },
+    });
+
+    expect(simulate({ action, selectedSubtask: selectedSubtask() }).status).toBe('accepted');
+  });
+
   test('dry-runs global housing demand with the society population instead of local headcount', () => {
     const residence = asLocationId('residential-block');
     const projection = createWorldProjection({

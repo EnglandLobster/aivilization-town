@@ -14,6 +14,8 @@ import {
   type AgentMoveToPayload,
   type AgentBuildHousingPayload,
   type AgentGiveResourcePayload,
+  type AgentExportCommodityPayload,
+  type AgentImportCommodityPayload,
   type AgentDepositPayload,
   type AgentRequestLoanPayload,
   type AgentWithdrawPayload,
@@ -53,6 +55,8 @@ const GLOBAL_COMMAND_TYPES: ReadonlySet<CoreCommandType> = new Set<CoreCommandTy
   'AgentRequestLoan',
   'AgentStartConversation',
   'AgentGiveResource',
+  'AgentExportCommodity',
+  'AgentImportCommodity',
   'AgentMoveTo',
   'AgentBuildHousing',
   // Bulletin posts are town-wide facts, so they settle against the one
@@ -495,6 +499,18 @@ async function settleGlobalDraft(input: {
       });
       return { draft, events: resequence(operation.events, nextSequence) };
     }
+    if (draft.type === 'AgentExportCommodity' || draft.type === 'AgentImportCommodity') {
+      const operation = authority.settleExternalTrade({
+        operationId,
+        workerId: lease.workerId,
+        observedAt: lease.observedAt,
+        durationMs: lease.durationMs,
+        agentId: draft.actorId,
+        commandType: draft.type,
+        payload: draft.payload as AgentExportCommodityPayload | AgentImportCommodityPayload,
+      });
+      return { draft, events: resequence(operation.events, nextSequence) };
+    }
     if (draft.type === 'AgentBuildHousing') {
       const operation = authority.settleConstruction({
         operationId,
@@ -681,6 +697,9 @@ function resolveSettlementOperationKind(
       return 'conversation';
     case 'AgentGiveResource':
       return 'resource-transfer';
+    case 'AgentExportCommodity':
+    case 'AgentImportCommodity':
+      return 'external-trade';
     case 'AgentBuildHousing':
       return 'construction';
     case 'AgentPostBulletin':

@@ -1164,26 +1164,35 @@ export function applyWorldEvent(
       const trader = event.payload.trader;
       const traderSector: EconomicAccountSector = 'agentId' in trader ? 'agent' : 'enterprise';
       const traderId = 'agentId' in trader ? trader.agentId : trader.enterpriseId;
+      // Partition projections only contain aggregates owned by that partition.
+      // The net-export balance is a town-wide fact broadcast everywhere, while
+      // cash, money supply, and inventory change only where the trader exists.
+      const traderIsPresent =
+        'agentId' in trader
+          ? projection.agents[trader.agentId] !== undefined
+          : projection.enterprises[trader.enterpriseId] !== undefined;
       // Export = injection from the external sector (supply rises); import =
       // burn into the external sector (supply falls).
-      const settledProjection = applyMoneyTransferToSupply(projection, {
-        transactionId: event.id,
-        reason: `external-trade-${event.payload.direction}`,
-        ...(event.payload.direction === 'export'
-          ? {
-              fromSector: 'external',
-              fromId: 'external-market',
-              toSector: traderSector,
-              toId: traderId,
-            }
-          : {
-              fromSector: traderSector,
-              fromId: traderId,
-              toSector: 'external',
-              toId: 'external-market',
-            }),
-        amount: event.payload.totalCurrency,
-      });
+      const settledProjection = traderIsPresent
+        ? applyMoneyTransferToSupply(projection, {
+            transactionId: event.id,
+            reason: `external-trade-${event.payload.direction}`,
+            ...(event.payload.direction === 'export'
+              ? {
+                  fromSector: 'external',
+                  fromId: 'external-market',
+                  toSector: traderSector,
+                  toId: traderId,
+                }
+              : {
+                  fromSector: traderSector,
+                  fromId: traderId,
+                  toSector: 'external',
+                  toId: 'external-market',
+                }),
+            amount: event.payload.totalCurrency,
+          })
+        : projection;
       const balanceBefore =
         projection.externalTrade?.balancesByCommodity[event.payload.commodityName] ?? 0;
       const balanceAfter =
@@ -1205,6 +1214,9 @@ export function applyWorldEvent(
           lastDecayAt: projection.externalTrade?.lastDecayAt ?? 0,
         },
       };
+      if (!traderIsPresent) {
+        return tradedProjection;
+      }
       if ('enterpriseId' in trader) {
         return updateEnterprise(tradedProjection, trader.enterpriseId, (enterprise) =>
           applyEnterpriseDomainEvent(

@@ -32,6 +32,7 @@ import {
 import {
   applyWorldEvent,
   dispatchWorldCommand,
+  normalizeLegacyWorldProjectionSnapshot,
   WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT,
   type AgentStartConversationTurnPayload,
   type AgentTradePayload,
@@ -721,29 +722,17 @@ export function createSimulationWideAuthority(input: {
       `simulation-wide authority seed does not match existing authority for ${input.seed.simulationId}`,
     );
   }
+  assertAuthoritySnapshotJournalCoherence(persistedSnapshot, readVerifiedJournal(journalPath));
 
-  // The audit journal is a hash chain. Before the first append this instance
-  // makes, the existing chain is verified fail-closed: a tampered or truncated
-  // history refuses further settlement instead of silently extending a broken
-  // chain.
-  let journalChainHash: string | undefined;
-  const ensureJournalChainValid = (): string => {
-    if (journalChainHash === undefined) {
-      const verification = verifyJournalChainRecords(readJournal(journalPath));
-      if (!verification.valid) {
-        throw new Error(
-          `simulation-wide authority journal chain is broken at record ${verification.firstBrokenRecordIndex}`,
-        );
-      }
-      journalChainHash = verification.latestChainHash;
-    }
-    return journalChainHash;
-  };
+  // Reload and verify the chain for EVERY append while the caller holds the
+  // writer lease. Authority service instances can outlive one another, so a
+  // process-local cached tail would become stale after another writer commits.
   const appendChainedJournal = (record: AuthorityJournalRecordBody): void => {
-    const previousChainHash = ensureJournalChainValid();
+    const records = readVerifiedJournal(journalPath);
+    const previousChainHash =
+      records.at(-1)?.chainHash ?? SIMULATION_WIDE_AUTHORITY_JOURNAL_GENESIS_CHAIN_HASH;
     const chainHash = computeJournalChainHash(previousChainHash, record);
     appendFileSync(journalPath, `${JSON.stringify({ ...record, chainHash })}\n`);
-    journalChainHash = chainHash;
   };
 
   // Resolve the world command policies for a given projection, threading the
@@ -835,6 +824,7 @@ export function createSimulationWideAuthority(input: {
   }): TOperation => {
     return withWriterLease({ directory: lockDirectory, lease: inputMutation.lease }, () => {
       const state = readSnapshot(statePath);
+      assertAuthoritySnapshotJournalCoherence(state, readVerifiedJournal(journalPath));
       const existing = state.operations[inputMutation.operationId];
       if (existing !== undefined) {
         if (existing.requestFingerprint !== inputMutation.requestFingerprint) {
@@ -845,7 +835,6 @@ export function createSimulationWideAuthority(input: {
         return clone(existing.operation) as TOperation;
       }
       const fencingToken = state.latestFencingToken + 1;
-      ensureJournalChainValid();
       // Build the pure domain decision before publishing an intent. A rejected
       // command or validation error must not leave an orphan intent that looks
       // like a crash halfway through a successful mutation.
@@ -2316,12 +2305,14 @@ export function createSimulationWideAuthority(input: {
     },
     recover(lease) {
       return withWriterLease({ directory: lockDirectory, lease }, () => {
+        const state = readSnapshot(statePath);
+        const journal = readVerifiedJournal(journalPath);
+        assertAuthoritySnapshotJournalCoherence(state, journal);
         const completed = new Set(
-          readJournal(journalPath)
+          journal
             .filter((record) => record.recordType === 'completed')
             .map((record) => record.operationId),
         );
-        const state = readSnapshot(statePath);
         const repaired: string[] = [];
         for (const [operationId, value] of Object.entries(state.operations)) {
           if (completed.has(operationId)) continue;
@@ -3133,10 +3124,109 @@ function readSnapshot(path: string): SimulationWideAuthoritySnapshot {
   if (parsed.schemaVersion !== SIMULATION_WIDE_AUTHORITY_SCHEMA_VERSION) {
     throw new Error('unsupported simulation-wide authority state schema');
   }
-  if (parsed.authorityId.trim().length === 0 || parsed.manifestId.trim().length === 0) {
+  if (
+    typeof parsed.authorityId !== 'string' ||
+    parsed.authorityId.trim().length === 0 ||
+    typeof parsed.manifestId !== 'string' ||
+    parsed.manifestId.trim().length === 0
+  ) {
     throw new Error('simulation-wide authority identity is invalid');
   }
-  return parsed;
+  if (
+    !Number.isInteger(parsed.revision) ||
+    parsed.revision < 0 ||
+    !Number.isInteger(parsed.latestFencingToken) ||
+    parsed.latestFencingToken < 0
+  ) {
+    throw new Error('simulation-wide authority revision is invalid');
+  }
+  return {
+    ...parsed,
+    projection: normalizeLegacyWorldProjectionSnapshot(parsed.projection),
+  };
+}
+
+function readVerifiedJournal(path: string): readonly AuthorityJournalRecord[] {
+  const records = readJournal(path);
+  const verification = verifyJournalChainRecords(records);
+  if (!verification.valid) {
+    throw new Error(
+      `simulation-wide authority journal chain is broken at record ${verification.firstBrokenRecordIndex}`,
+    );
+  }
+  return records;
+}
+
+/**
+ * The state file is the recoverable write model; the journal proves how every
+ * committed operation entered it. A missing completion is the one supported
+ * crash window (state rename succeeded, completion append did not). Missing
+ * intents or completions for absent state operations indicate truncation or a
+ * stale state restore and must never be repaired by guessing.
+ */
+function assertAuthoritySnapshotJournalCoherence(
+  state: SimulationWideAuthoritySnapshot,
+  journal: readonly AuthorityJournalRecord[],
+): void {
+  const operations = Object.entries(state.operations);
+  if (state.revision !== operations.length || state.latestFencingToken !== state.revision) {
+    throw new Error(
+      'simulation-wide authority state revision does not match its durable operation table',
+    );
+  }
+  const intentsByOperationId = new Map<string, AuthorityJournalRecord[]>();
+  const completedOperationIds = new Set<string>();
+  for (const record of journal) {
+    if (record.recordType === 'intent') {
+      const intents = intentsByOperationId.get(record.operationId) ?? [];
+      intents.push(record);
+      intentsByOperationId.set(record.operationId, intents);
+      continue;
+    }
+    if (completedOperationIds.has(record.operationId)) {
+      throw new Error(
+        `simulation-wide authority journal has duplicate completion for ${record.operationId}`,
+      );
+    }
+    if (state.operations[record.operationId] === undefined) {
+      throw new Error(
+        `simulation-wide authority journal completion ${record.operationId} is absent from state`,
+      );
+    }
+    if (record.revision > state.revision) {
+      throw new Error(
+        `simulation-wide authority journal completion ${record.operationId} is newer than state`,
+      );
+    }
+    completedOperationIds.add(record.operationId);
+  }
+  const fencingTokens = new Set<number>();
+  for (const [operationId, entry] of operations) {
+    if (entry.operation.operationId !== operationId) {
+      throw new Error(`simulation-wide authority operation key ${operationId} is inconsistent`);
+    }
+    const fencingToken = entry.operation.fencingToken;
+    if (
+      !Number.isInteger(fencingToken) ||
+      fencingToken < 1 ||
+      fencingToken > state.latestFencingToken ||
+      fencingTokens.has(fencingToken)
+    ) {
+      throw new Error(`simulation-wide authority operation ${operationId} has invalid fencing`);
+    }
+    fencingTokens.add(fencingToken);
+    const matchingIntent = (intentsByOperationId.get(operationId) ?? []).some(
+      (intent) =>
+        intent.recordType === 'intent' &&
+        intent.fencingToken === fencingToken &&
+        intent.requestFingerprint === entry.requestFingerprint,
+    );
+    if (!matchingIntent) {
+      throw new Error(
+        `simulation-wide authority state operation ${operationId} has no matching audit intent`,
+      );
+    }
+  }
 }
 
 function withWriterLease<TResult>(

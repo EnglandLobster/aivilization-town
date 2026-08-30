@@ -24,11 +24,13 @@ export type AgentActionCommandType = Exclude<
 >;
 
 export const AGENT_ACTION_COMMAND_TYPES = [
+  'AgentAttack',
   'AgentApplyEducationExam',
   'AgentApplyJob',
   'AgentAssignMatter',
   'AgentCloseMatter',
   'AgentCloseEnterprise',
+  'AgentConfront',
   'AgentConsume',
   'AgentDeposit',
   'AgentEat',
@@ -37,6 +39,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentFundEnterprise',
   'AgentGiveResource',
   'AgentImportCommodity',
+  'AgentIntervene',
   'AgentJoinEnterprise',
   'AgentMoveTo',
   'AgentObserveLocation',

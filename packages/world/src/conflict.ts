@@ -15,13 +15,10 @@ export const TOWN_CONFLICT_POLICY_VERSION = 'town-conflict-v2';
  * that). Opt-in via the town-conflict switch: without the policy every
  * conflict command is rejected and no conflict state exists.
  *
- * DORMANT (per docs/AGENT_CONTEXT_DESIGN.md §5): routing and adjudication
- * are built and the policy can be enabled, but no canonical proposer issues
- * conflict commands and conflict records are invisible to agents. Activation
- * requires all three: enable the policy, expose conflict/grievance visibility,
- * add a proposer — and the grievance signal itself depends on the relations
- * context section landing first. Reuse grievanceRelationThreshold; do not
- * invent a second threshold.
+ * The canonical Agent path is opt-in with the same switch: conflict records
+ * enter the bounded decision view before its proposer can nominate an action,
+ * while this world policy remains the only authority that can issue a
+ * grievance or settle damage and fallout.
  */
 export type TownConflictPolicy = {
   readonly policyVersion: string;

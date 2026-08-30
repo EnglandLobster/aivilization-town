@@ -46,9 +46,13 @@ import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
 import { publishPlanningSession } from './planningSessionPublication';
 import { resolveAgentMarketPools } from './worldDecisionContext';
 import { DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY } from './socialMatterPlanning';
+import {
+  DEFAULT_CONFLICT_ACTION_PROPOSER_POLICY,
+  resolveAutonomousConflictIntent,
+} from './conflictPlanning';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v5';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v6';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
@@ -57,6 +61,9 @@ const EXTERNAL_TRADE_OPPORTUNITY_SCORE = 85;
 const SOCIAL_MATTER_ASSIGNEE_SCORE = 96;
 const SOCIAL_MATTER_ASSIGNMENT_SCORE = 88;
 const SOCIAL_MATTER_RESPONSE_SCORE = 54;
+const SOCIAL_CONFLICT_INTERVENTION_SCORE = 91;
+const SOCIAL_CONFLICT_ATTACK_SCORE = 74;
+const SOCIAL_CONFLICT_CONFRONT_SCORE = 70;
 
 export function createAutonomousObjectiveSelectionPolicyManifest() {
   return {
@@ -96,6 +103,13 @@ export function createAutonomousObjectiveSelectionPolicyManifest() {
       assignmentScore: SOCIAL_MATTER_ASSIGNMENT_SCORE,
       responseScore: SOCIAL_MATTER_RESPONSE_SCORE,
       precedence: 'assigned-delivery-then-pending-assignment-then-capable-response',
+    },
+    socialConflict: {
+      proposerPolicyVersion: DEFAULT_CONFLICT_ACTION_PROPOSER_POLICY.policyVersion,
+      interventionScore: SOCIAL_CONFLICT_INTERVENTION_SCORE,
+      attackScore: SOCIAL_CONFLICT_ATTACK_SCORE,
+      confrontationScore: SOCIAL_CONFLICT_CONFRONT_SCORE,
+      escalation: 'strained-relation-then-confrontation-then-distress-gated-attack',
     },
   };
 }
@@ -604,6 +618,10 @@ function scoreObjectiveCandidates(
   }
 
   const socialIdentityCandidate = createSocialIdentityCandidate(input);
+  const socialConflictCandidate = createSocialConflictObjectiveCandidate(input);
+  if (socialConflictCandidate !== undefined) {
+    candidates.push(socialConflictCandidate);
+  }
   if (socialIdentityCandidate !== undefined) {
     candidates.push(socialIdentityCandidate);
   }
@@ -633,6 +651,54 @@ function scoreObjectiveCandidates(
   });
 
   return candidates.sort(compareObjectiveCandidates);
+}
+
+function createSocialConflictObjectiveCandidate(
+  input: AutonomousObjectiveProposerInput,
+): ObjectiveCandidate | undefined {
+  if (input.worldDecisionContext === undefined) {
+    return undefined;
+  }
+  const intent = resolveAutonomousConflictIntent({
+    agentId: input.agentId,
+    context: input.worldDecisionContext,
+    now: input.issuedAt,
+  });
+  if (intent === undefined) {
+    return undefined;
+  }
+  if (intent.kind === 'intervene') {
+    return {
+      id: `social-conflict-intervene:${intent.conflictId}`,
+      statement: `Intervene between ${intent.attackerAgentId} and ${intent.targetAgentId} to stop the recent attack.`,
+      priority: 3,
+      affinityTags: ['social', 'conflict-intervene', 'deescalate', 'protect'],
+      planningDomains: ['social'],
+      score: SOCIAL_CONFLICT_INTERVENTION_SCORE,
+      rationale:
+        'A recent co-located attack creates an immediate opportunity for third-party intervention.',
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    };
+  }
+  const attack = intent.kind === 'attack';
+  return {
+    id: `social-conflict-${intent.kind}:${intent.targetAgentId}`,
+    statement: attack
+      ? `Attack ${intent.targetAgentId} after an unresolved confrontation and severe distress.`
+      : `Confront ${intent.targetAgentId} about the damaged relationship.`,
+    priority: 3,
+    affinityTags: ['social', `conflict-${intent.kind}`, attack ? 'retaliate' : 'set-boundary'],
+    planningDomains: ['social'],
+    score: attack ? SOCIAL_CONFLICT_ATTACK_SCORE : SOCIAL_CONFLICT_CONFRONT_SCORE,
+    rationale: attack
+      ? 'Severe distress and a prior confrontation make retaliation salient, subject to world grievance adjudication.'
+      : `The strongest outgoing relation is strained at ${intent.relationScore}; confrontation is salient but remains world-constrained.`,
+    shortTermMemoryContextIds: [],
+    profileEntryKeys: [],
+    profileEvidenceRecordIds: [],
+  };
 }
 
 function createSocialMatterObjectiveCandidate(

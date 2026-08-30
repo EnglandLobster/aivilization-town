@@ -24,6 +24,7 @@ import type {
 } from '@aivilization/agent-runtime';
 import {
   DECISION_ENTERPRISE_MAX_COUNT,
+  DECISION_CONFLICT_MAX_COUNT,
   DECISION_RELATIONS_MAX_COUNT,
   DECISION_SOCIAL_MATTER_MAX_COUNT,
   DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
@@ -285,6 +286,7 @@ export function createWorldDecisionContextFromProjection(input: {
     ...createPetitionDecisionContext(input),
     ...createGovernanceDecisionContext(input),
     ...socialMatterContext,
+    ...createConflictDecisionContext(input),
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
     ...createExternalTradeDecisionContext({
@@ -299,6 +301,58 @@ export function createWorldDecisionContextFromProjection(input: {
     }),
     ...(rules === undefined ? {} : { rules }),
   };
+}
+
+function createConflictDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'conflicts'> | Record<string, never> {
+  if (input.policies?.conflict === undefined) {
+    return {};
+  }
+  const agent = input.projection.agents[input.agentId];
+  if (agent === undefined) {
+    return { conflicts: [] };
+  }
+  const conflicts = (input.projection.conflictRecords ?? [])
+    .filter(
+      (record) =>
+        record.actorAgentId === input.agentId ||
+        record.targetAgentId === input.agentId ||
+        record.counterpartyAgentId === input.agentId ||
+        (agent.locationId !== null && record.locationId === agent.locationId),
+    )
+    .sort(
+      (left, right) =>
+        right.recordedAt - left.recordedAt || right.conflictId.localeCompare(left.conflictId),
+    )
+    .slice(0, DECISION_CONFLICT_MAX_COUNT)
+    .map((record) => ({
+      conflictId: record.conflictId,
+      kind: record.kind,
+      role:
+        record.actorAgentId === input.agentId
+          ? ('actor' as const)
+          : record.targetAgentId === input.agentId
+            ? ('target' as const)
+            : record.counterpartyAgentId === input.agentId
+              ? ('counterparty' as const)
+              : ('witness' as const),
+      actorAgentId: record.actorAgentId,
+      targetAgentId: record.targetAgentId,
+      ...(record.counterpartyAgentId === undefined
+        ? {}
+        : { counterpartyAgentId: record.counterpartyAgentId }),
+      locationId: record.locationId,
+      ...(record.damage === undefined ? {} : { damage: record.damage }),
+      summary: sanitizeDecisionMatterText(
+        record.summary,
+        DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
+      ),
+      recordedAt: record.recordedAt,
+    }));
+  return { conflicts };
 }
 
 function createTownPulseDecisionContext(input: {

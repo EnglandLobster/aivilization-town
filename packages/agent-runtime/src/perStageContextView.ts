@@ -5,6 +5,7 @@ import {
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import {
+  DECISION_CONFLICT_MAX_COUNT,
   DECISION_SOCIAL_MATTER_MAX_COUNT,
   DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
   DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
@@ -46,6 +47,7 @@ export type PerStageContextSalienceEntry = {
     | 'critical-threshold'
     | 'scheduled-intention'
     | 'social-matter'
+    | 'recent-conflict'
     | 'high-importance-memory'
     | 'eligible-rule';
   readonly sourceId: string;
@@ -78,6 +80,7 @@ export type PerStageContextView = {
   readonly petitions?: WorldDecisionContext['petitions'];
   readonly governance?: WorldDecisionContext['governance'];
   readonly matters?: WorldDecisionContext['matters'];
+  readonly conflicts?: WorldDecisionContext['conflicts'];
   readonly conditions?: WorldDecisionContext['conditions'];
   readonly fiscal?: WorldDecisionContext['fiscal'];
   readonly externalTrade?: WorldDecisionContext['externalTrade'];
@@ -104,6 +107,11 @@ export function createPerStageContextViewManifest() {
       foreignSocietyCounterpartMaxCount: DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
       foreignSocietyCounterpartOrder: 'visible-matter-participants-then-strongest-relations',
     },
+    conflictView: {
+      maxCount: DECISION_CONFLICT_MAX_COUNT,
+      relevance: 'involved-agent-or-current-location-witness',
+      deterministicOrder: 'recorded-at-descending-then-conflict-id-descending',
+    },
     stageVisibility: {
       ranking: {
         stages: ['subtask-prioritization', 'global-synthesis'],
@@ -116,11 +124,12 @@ export function createPerStageContextViewManifest() {
           'agent.identity-and-relations',
           'society.counterpart',
           'matters.with-counterpart',
+          'conflicts.with-counterpart',
         ],
       },
       reaction: {
         stages: ['reaction-evaluation'],
-        visibleSections: ['salience', 'agent', 'townPulse', 'conditions'],
+        visibleSections: ['salience', 'agent', 'townPulse', 'conflicts', 'conditions'],
       },
       actionable: {
         stages: [
@@ -144,6 +153,7 @@ export function createPerStageContextViewManifest() {
         'critical-thresholds',
         'active-scheduled-intentions',
         'agent-relevant-social-matters',
+        'agent-relevant-conflict-records',
         'short-term-memory-importance',
         'eligible-rules',
       ],
@@ -210,6 +220,7 @@ export function createPerStageContextViewTrace(
       : { hasDisplayName: true, displayNameLength: agent.displayName.length }),
     ...(agent.relations === undefined ? {} : { relationCount: agent.relations.length }),
     ...(view.townPulse === undefined ? {} : { townPulseCount: view.townPulse.length }),
+    ...(view.conflicts === undefined ? {} : { conflictCount: view.conflicts.length }),
     hasPhysiology:
       physiology !== undefined &&
       Number.isFinite(physiology.energy) &&
@@ -303,6 +314,7 @@ function createRankingContextView(
     ...(context.petitions === undefined ? {} : { petitions: context.petitions }),
     ...(context.governance === undefined ? {} : { governance: context.governance }),
     ...(context.matters === undefined ? {} : { matters: context.matters }),
+    ...(context.conflicts === undefined ? {} : { conflicts: context.conflicts }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.fiscal === undefined ? {} : { fiscal: context.fiscal }),
     ...(context.externalTrade === undefined ? {} : { externalTrade: context.externalTrade }),
@@ -323,6 +335,10 @@ function createDialogueContextView(
     targetAgentId === undefined
       ? undefined
       : context.matters?.filter((matter) => isMatterWithAgent(matter, targetAgentId));
+  const conflicts =
+    targetAgentId === undefined
+      ? undefined
+      : context.conflicts?.filter((conflict) => isConflictWithAgent(conflict, targetAgentId));
   return {
     contextViewVersion: WORLD_DECISION_CONTEXT_VIEW_VERSION,
     stage: input.stage,
@@ -350,6 +366,7 @@ function createDialogueContextView(
           },
         }),
     ...(matters === undefined || matters.length === 0 ? {} : { matters }),
+    ...(conflicts === undefined || conflicts.length === 0 ? {} : { conflicts }),
   };
 }
 
@@ -366,6 +383,7 @@ function createReactionContextView(
     ...(context.townPulse === undefined ? {} : { townPulse: context.townPulse }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.matters === undefined ? {} : { matters: context.matters }),
+    ...(context.conflicts === undefined ? {} : { conflicts: context.conflicts }),
   };
 }
 
@@ -394,6 +412,7 @@ function createActionableContextView(
     ...(context.calendar === undefined ? {} : { calendar: context.calendar }),
     ...(context.petitions === undefined ? {} : { petitions: context.petitions }),
     ...(context.matters === undefined ? {} : { matters: context.matters }),
+    ...(context.conflicts === undefined ? {} : { conflicts: context.conflicts }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.fiscal === undefined ? {} : { fiscal: context.fiscal }),
     ...(context.externalTrade === undefined ? {} : { externalTrade: context.externalTrade }),
@@ -409,6 +428,7 @@ function createPerStageContextSalience(
   appendSurvivalSalience(candidates, input.context);
   appendIntentionSalience(candidates, input.intentionState, input.at);
   appendMatterSalience(candidates, input.context, input.at);
+  appendConflictSalience(candidates, input.context);
   appendMemorySalience(candidates, input.shortTermMemoryContext);
   appendOpportunitySalience(candidates, input.context.rules);
   return candidates
@@ -501,6 +521,22 @@ function appendMemorySalience(
       summary: sanitizeSalienceText(record.summary),
       rank: record.kind === 'social-interaction' ? 3 : 2,
       sourcePriority: -record.importanceScore,
+      deadlinePriority: 0,
+    });
+  }
+}
+
+function appendConflictSalience(target: SalienceCandidate[], context: WorldDecisionContext): void {
+  for (const conflict of context.conflicts ?? []) {
+    target.push({
+      kind: 'relationship',
+      source: 'recent-conflict',
+      sourceId: conflict.conflictId,
+      summary: sanitizeSalienceText(
+        `${conflict.kind} involving ${conflict.actorAgentId} and ${conflict.targetAgentId}: ${conflict.summary}`,
+      ),
+      rank: 3,
+      sourcePriority: -conflict.recordedAt,
       deadlinePriority: 0,
     });
   }
@@ -647,6 +683,7 @@ function visibleContextSections(view: PerStageContextView): readonly string[] {
     'petitions',
     'governance',
     'matters',
+    'conflicts',
     'conditions',
     'fiscal',
     'externalTrade',
@@ -676,5 +713,16 @@ function isMatterWithAgent(matter: WorldDecisionSocialMatterContext, agentId: Ag
     matter.initiatorAgentId === agentId ||
     matter.assigneeAgentId === agentId ||
     matter.responses.some((response) => response.responderAgentId === agentId)
+  );
+}
+
+function isConflictWithAgent(
+  conflict: NonNullable<WorldDecisionContext['conflicts']>[number],
+  agentId: AgentId,
+): boolean {
+  return (
+    conflict.actorAgentId === agentId ||
+    conflict.targetAgentId === agentId ||
+    conflict.counterpartyAgentId === agentId
   );
 }

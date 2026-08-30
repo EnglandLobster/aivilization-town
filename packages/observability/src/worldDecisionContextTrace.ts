@@ -7,6 +7,7 @@ export type WorldDecisionContextTrace = {
   readonly salienceKinds?: readonly string[];
   readonly matterCount?: number;
   readonly obligationMatterCount?: number;
+  readonly conflictCount?: number;
   readonly hasLocationId: boolean;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;

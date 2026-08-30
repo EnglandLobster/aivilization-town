@@ -18,6 +18,7 @@ export * from './canonicalLocalRepair';
 export * from './canonicalMemoryConsolidation';
 export * from './canonicalWorkerRuntimeResolver';
 export * from './commandStreamConsumer';
+export * from './conflictPlanning';
 export * from './domainRuntimeRegistry';
 export * from './dailyRoutineSchedule';
 export * from './economicRuntime';

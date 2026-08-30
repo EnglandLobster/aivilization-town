@@ -343,10 +343,12 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 projection,
                 issuedAt,
                 phase,
+                recoveringInterruptedTick,
               }: {
                 readonly projection: WorldProjection;
                 readonly issuedAt: number;
                 readonly phase: 'pre-tick' | 'post-authority' | 'post-tick';
+                readonly recoveringInterruptedTick?: boolean;
               }) => {
                 // Refresh the lease timestamp per invocation: the materializer
                 // stamps checkpoint boundaries with the lease observedAt, so a
@@ -361,7 +363,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 // state. Otherwise an unmaterialized deposit/trade could be
                 // overwritten in the authority by this partition's stale
                 // pre-delivery Agent record.
-                let result = await materialize({ lease: leaseNow });
+                let result =
+                  recoveringInterruptedTick === true
+                    ? { projection }
+                    : await materialize({ lease: leaseNow });
                 // At the pre-tick boundary every partition has published the
                 // previous tick's final state. Advance global cadences BEFORE
                 // the local household phase, materialize bank cash movements,
@@ -387,7 +392,9 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                     durationMs: leaseNow.durationMs,
                     targetClockNow,
                   });
-                  result = await materialize({ lease: leaseNow });
+                  if (recoveringInterruptedTick !== true) {
+                    result = await materialize({ lease: leaseNow });
+                  }
                 }
                 // The materializer's projection reflects the partition stream
                 // after consuming the inbox. The step passes its own hydrated
@@ -398,7 +405,6 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 // partition's trades, so planning and the price index read the
                 // authoritative pools instead. It is read-only and never
                 // persisted into the partition checkpoint.
-                void projection;
                 const authorityProjection = authority!.getSnapshot().projection;
                 return {
                   projection: result.projection,

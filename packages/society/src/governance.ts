@@ -2,6 +2,13 @@ import { assertValidPublicBudgetPolicy, type PublicBudgetPolicy } from './public
 import { assertValidTaxPolicy, type TaxPolicy } from './tax';
 import type { SafetyNetSubsidyPolicy } from './welfare';
 
+export const TOWN_GOVERNANCE_POLICY_VERSION = 'town-governance-v1';
+export const TOWN_GOVERNANCE_TAX_POLICY_VERSION = 'town-governance-tax-v1';
+export const TOWN_GOVERNANCE_PUBLIC_BUDGET_POLICY_VERSION =
+  'town-governance-public-budget-v1';
+export const TOWN_GOVERNANCE_SUBSIDY_POLICY_VERSION = 'town-governance-subsidy-v1';
+export const TOWN_GOVERNANCE_ENACTED_POLICY_SOURCE = 'town-governance-command';
+
 export type TownGovernancePolicy = {
   readonly policyVersion: string;
   readonly allowedBudgetServices: readonly string[];

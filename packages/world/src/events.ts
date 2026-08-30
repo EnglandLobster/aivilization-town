@@ -23,6 +23,11 @@ import type {
   RecruitmentApplicationResolutionStatus,
   RecruitmentResolutionReason,
   SocialRelationState,
+  GovernanceChangeAuthority,
+  GovernanceChangeRejectionReason,
+  GovernedSubsidyPolicy,
+  PublicBudgetPolicy,
+  TaxPolicy,
 } from '@aivilization/society';
 import type { TownWeatherKind } from './weather';
 import type { TownBulletin } from './bulletin';
@@ -1201,6 +1206,39 @@ export type PetitionThresholdReachedPayload = {
   readonly policyVersion: string;
 };
 
+/**
+ * A town governance aggregate accepted one policy change. The complete final
+ * policy is recorded so replay never consults current defaults or re-runs the
+ * governance decision. `governanceRevision` is the aggregate revision, not
+ * the event-stream sequence.
+ */
+export type GovernancePolicyChangedPayload = {
+  readonly policyKind: 'tax' | 'public-budget' | 'subsidy';
+  readonly governancePolicyVersion: string;
+  readonly governanceRevision: number;
+  readonly reason: string;
+  readonly authority: GovernanceChangeAuthority;
+  readonly taxPolicy?: TaxPolicy;
+  readonly publicBudgetPolicy?: PublicBudgetPolicy;
+  readonly subsidyPolicy?: GovernedSubsidyPolicy;
+  readonly changedAt: number;
+};
+
+/** Stable, durable rejection for town-level commands, including actorless operators. */
+export type GovernanceChangeRejectedPayload = {
+  readonly commandType: 'SetTaxPolicy' | 'SetPublicBudget' | 'SetSubsidyPolicy';
+  readonly governancePolicyVersion: string;
+  readonly reason:
+    | GovernanceChangeRejectionReason
+    | 'missing-governance-policy'
+    | 'invalid-command-payload'
+    | 'governance-authorization-rejected';
+  readonly detail: string;
+  readonly actorAgentId?: AgentId;
+  readonly humanAttribution?: HumanCommandAttribution;
+  readonly rejectedAt: number;
+};
+
 /** An open petition expired without reaching its threshold. */
 export type PetitionExpiredPayload = {
   readonly petitionId: string;
@@ -1438,6 +1476,8 @@ export type WorldEventPayloadByType = {
   readonly PetitionSigned: PetitionSignedPayload;
   readonly PetitionThresholdReached: PetitionThresholdReachedPayload;
   readonly PetitionExpired: PetitionExpiredPayload;
+  readonly GovernancePolicyChanged: GovernancePolicyChangedPayload;
+  readonly GovernanceChangeRejected: GovernanceChangeRejectedPayload;
   readonly BulletinScheduled: BulletinScheduledPayload;
   readonly BulletinPosted: BulletinPostedPayload;
   readonly MatterRaised: MatterRaisedPayload;

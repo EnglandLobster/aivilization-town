@@ -19,6 +19,7 @@ import type {
   LifecyclePolicy,
   OutMigrationPolicy,
   TownDiscoursePolicy,
+  TownGovernancePolicy,
   WellbeingPolicy,
 } from '@aivilization/society';
 import type { TownBulletinPolicy } from './bulletin';
@@ -87,6 +88,11 @@ import {
 } from './handlers/externalTrade';
 import { handleRegisterAgentCommand } from './handlers/registration';
 import { handleAdvanceSimulationTimeCommand } from './handlers/timeAdvance';
+import {
+  handleSetPublicBudgetCommand,
+  handleSetSubsidyPolicyCommand,
+  handleSetTaxPolicyCommand,
+} from './handlers/governance';
 import { rejectBusyAgentCommand, rejectCommand } from './handlers/shared';
 
 // The command handlers live in ./handlers by domain. They are re-exported here
@@ -144,8 +150,14 @@ export {
 } from './handlers/externalTrade';
 export { handleRegisterAgentCommand } from './handlers/registration';
 export { handleAdvanceSimulationTimeCommand } from './handlers/timeAdvance';
+export {
+  handleSetPublicBudgetCommand,
+  handleSetSubsidyPolicyCommand,
+  handleSetTaxPolicyCommand,
+} from './handlers/governance';
 
 export type WorldCommandPolicies = WorldEconomicPolicies & {
+  readonly governance?: TownGovernancePolicy;
   readonly randomSeed?: string;
   readonly agentRegistration?: {
     readonly maxAgentsPerCreator?: number;
@@ -447,6 +459,33 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'IssueTownBulletin', unknown>,
         projection: input.projection,
         ...(input.policies.bulletin === undefined ? {} : { bulletin: input.policies.bulletin }),
+        nextSequence: input.nextSequence,
+      });
+    case 'SetTaxPolicy':
+      return handleSetTaxPolicyCommand({
+        command: input.command as CommandEnvelope<'SetTaxPolicy', unknown>,
+        projection: input.projection,
+        ...(input.policies.governance === undefined
+          ? {}
+          : { governance: input.policies.governance }),
+        nextSequence: input.nextSequence,
+      });
+    case 'SetPublicBudget':
+      return handleSetPublicBudgetCommand({
+        command: input.command as CommandEnvelope<'SetPublicBudget', unknown>,
+        projection: input.projection,
+        ...(input.policies.governance === undefined
+          ? {}
+          : { governance: input.policies.governance }),
+        nextSequence: input.nextSequence,
+      });
+    case 'SetSubsidyPolicy':
+      return handleSetSubsidyPolicyCommand({
+        command: input.command as CommandEnvelope<'SetSubsidyPolicy', unknown>,
+        projection: input.projection,
+        ...(input.policies.governance === undefined
+          ? {}
+          : { governance: input.policies.governance }),
         nextSequence: input.nextSequence,
       });
     case 'AgentRaiseMatter':

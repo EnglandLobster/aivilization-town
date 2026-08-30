@@ -24,6 +24,8 @@ import {
   type PhysiologicalDistressState,
   type RecruitmentApplicationResolutionStatus,
   type SocialRelationState,
+  type GovernanceChangeAuthority,
+  type TownGovernanceState,
 } from '@aivilization/society';
 import type { WorldEvent } from './events';
 import {
@@ -44,6 +46,7 @@ import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise'
 import { applyCreditProjectionEvent } from './projectionReducers/credit';
 import { applyRegionalLandValueProjectionEvent } from './projectionReducers/regionalLandValue';
 import { applyRegionalServiceQualityProjectionEvent } from './projectionReducers/serviceQuality';
+import { applyGovernanceProjectionEvent } from './projectionReducers/governance';
 
 export type WorldRegionalServiceQualityState = {
   readonly service: 'education' | 'healthcare';
@@ -58,6 +61,12 @@ export type WorldRegionalServiceQualityState = {
   readonly wellbeingContribution: number;
   readonly policyVersion: string;
   readonly settledAt: number;
+};
+
+export type WorldGovernanceState = TownGovernanceState & {
+  readonly lastChangedAt: number;
+  readonly lastChangedBy: GovernanceChangeAuthority;
+  readonly lastChangeReason: string;
 };
 
 export type WorldAgentState = {
@@ -439,6 +448,8 @@ export type WorldProjection = {
     readonly serviceBalances: Readonly<Record<string, number>>;
     readonly lastSettledAt: number;
   };
+  /** Durable policy overrides enacted by the town governance aggregate. */
+  readonly governance?: WorldGovernanceState;
   /**
    * Optional simulation-wide weather slice, present only when the town-weather
    * policy has produced at least one WeatherChanged event (or the projection
@@ -589,6 +600,7 @@ export function createWorldProjection(input: {
   readonly bankruptEnterpriseTotal?: number;
   readonly bulletins?: readonly WorldBulletinState[];
   readonly petitions?: readonly WorldPetitionState[];
+  readonly governance?: WorldGovernanceState;
   readonly socialMatters?: readonly WorldSocialMatterState[];
   /**
    * Optional initial town-pulse ring (snapshot hydration); omitted starts
@@ -721,6 +733,38 @@ export function createWorldProjection(input: {
             signatureAgentIds: [...petition.signatureAgentIds],
           })),
         }),
+    ...(input.governance === undefined
+      ? {}
+      : {
+          governance: {
+            ...input.governance,
+            ...(input.governance.tax === undefined
+              ? {}
+              : {
+                  tax: {
+                    ...input.governance.tax,
+                    incomeTaxBrackets: input.governance.tax.incomeTaxBrackets.map((bracket) => ({
+                      ...bracket,
+                    })),
+                  },
+                }),
+            ...(input.governance.publicBudget === undefined
+              ? {}
+              : {
+                  publicBudget: {
+                    ...input.governance.publicBudget,
+                    allocations: input.governance.publicBudget.allocations.map((allocation) => ({
+                      ...allocation,
+                    })),
+                  },
+                }),
+            ...(input.governance.subsidy === undefined
+              ? {}
+              : { subsidy: { ...input.governance.subsidy } }),
+            consumedPetitionIds: [...input.governance.consumedPetitionIds],
+            lastChangedBy: { ...input.governance.lastChangedBy },
+          },
+        }),
     ...(input.socialMatters === undefined
       ? {}
       : {
@@ -833,6 +877,10 @@ export function applyWorldEvent(
   const serviceQualityProjection = applyRegionalServiceQualityProjectionEvent(projection, event);
   if (serviceQualityProjection !== undefined) {
     return serviceQualityProjection;
+  }
+  const governanceProjection = applyGovernanceProjectionEvent(projection, event);
+  if (governanceProjection !== undefined) {
+    return governanceProjection;
   }
   switch (event.type) {
     case 'AgentRegistered': {
@@ -1781,6 +1829,8 @@ export function applyWorldEvent(
         ...projection,
         rejectedActions: [...projection.rejectedActions, event.payload],
       };
+    case 'GovernanceChangeRejected':
+      return projection;
     case 'WeatherChanged':
       return {
         ...projection,

@@ -12,6 +12,8 @@ import type { SimulationTimestamp } from './time';
 export type CoreEventType =
   | 'AgentRegistered'
   | 'AgentRegistrationRejected'
+  | 'RenewableResourceRegenerated'
+  | 'RenewableResourceExtracted'
   | 'CommodityProduced'
   | 'TradeExecuted'
   | 'ResourceTransferred'

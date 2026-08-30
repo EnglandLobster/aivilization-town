@@ -363,12 +363,28 @@ export type WorldCalendarState = {
   readonly since: number;
 };
 
+export type WorldRenewableResourceState = {
+  readonly commodityName: string;
+  readonly stock: number;
+  readonly carryingCapacity: number;
+  readonly lastRegenerationAt: number;
+  readonly policyVersion: string;
+  readonly updatedAt: number;
+};
+
 export type WorldProjection = {
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
   readonly enterprises: Readonly<Record<string, WorldEnterpriseState>>;
   readonly locations: Readonly<Record<string, WorldLocationState>>;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
+  /**
+   * Optional renewable-resource stocks, keyed by region then commodity.
+   * Absent on legacy snapshots and runs without the survival-resource policy.
+   */
+  readonly renewableResources?: Readonly<
+    Record<string, Readonly<Record<string, WorldRenewableResourceState>>>
+  >;
   readonly moneySupply: number;
   readonly marketPriceIndices: readonly WorldMarketPriceIndexState[];
   /**
@@ -931,6 +947,26 @@ export function applyWorldEvent(
           },
         ],
       };
+    case 'RenewableResourceRegenerated':
+      return updateRenewableResource(projection, {
+        regionId: event.payload.regionId,
+        commodityName: event.payload.commodityName,
+        stock: event.payload.nextStock,
+        carryingCapacity: event.payload.carryingCapacity,
+        lastRegenerationAt: event.payload.settledThrough,
+        policyVersion: event.payload.policyVersion,
+        updatedAt: event.payload.settledThrough,
+      });
+    case 'RenewableResourceExtracted':
+      return updateRenewableResource(projection, {
+        regionId: event.payload.regionId,
+        commodityName: event.payload.commodityName,
+        stock: event.payload.nextStock,
+        carryingCapacity: event.payload.carryingCapacity,
+        lastRegenerationAt: event.payload.lastRegenerationAt,
+        policyVersion: event.payload.policyVersion,
+        updatedAt: event.occurredAt,
+      });
     case 'CommodityProduced':
       return updateAgent(
         event.payload.enterpriseId === undefined
@@ -2631,6 +2667,39 @@ function cloneEconomicComposition(
     ...(composition.educationDistribution === undefined
       ? {}
       : { educationDistribution: { ...composition.educationDistribution } }),
+  };
+}
+
+function updateRenewableResource(
+  projection: WorldProjection,
+  input: { readonly regionId: string } & WorldRenewableResourceState,
+): WorldProjection {
+  if (
+    !Number.isFinite(input.stock) ||
+    input.stock < 0 ||
+    !Number.isFinite(input.carryingCapacity) ||
+    input.carryingCapacity <= 0 ||
+    input.stock > input.carryingCapacity
+  ) {
+    throw new Error(`invalid renewable resource stock for ${input.regionId}/${input.commodityName}`);
+  }
+  const region = projection.renewableResources?.[input.regionId] ?? {};
+  return {
+    ...projection,
+    renewableResources: {
+      ...projection.renewableResources,
+      [input.regionId]: {
+        ...region,
+        [input.commodityName]: {
+          commodityName: input.commodityName,
+          stock: input.stock,
+          carryingCapacity: input.carryingCapacity,
+          lastRegenerationAt: input.lastRegenerationAt,
+          policyVersion: input.policyVersion,
+          updatedAt: input.updatedAt,
+        },
+      },
+    },
   };
 }
 

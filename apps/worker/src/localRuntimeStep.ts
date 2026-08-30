@@ -132,15 +132,15 @@ export async function runLocalWorldRuntimeStep(
       },
     },
   });
+  const materializeAuthorityEvents = input.preTickMaterialize;
   const materialized =
-    input.preTickMaterialize === undefined
+    materializeAuthorityEvents === undefined
       ? { projection: hydrated.projection }
-      : await input.preTickMaterialize({
+      : await materializeAuthorityEvents({
           projection: hydrated.projection,
           issuedAt: input.issuedAt,
         });
-  const marketOverride =
-    'marketOverride' in materialized ? materialized.marketOverride : undefined;
+  const marketOverride = 'marketOverride' in materialized ? materialized.marketOverride : undefined;
   const commandDrain = await drainLocalRuntimeSteeringCommandsToWorld({
     storage: input.storage,
     consumerId: input.commandConsumerId,
@@ -209,27 +209,27 @@ export async function runLocalWorldRuntimeStep(
       : {
           marketMetrics: {
             ...input.marketMetrics,
-            ...(marketOverride === undefined
-              ? {}
-              : { currentMarketOverride: marketOverride }),
+            ...(marketOverride === undefined ? {} : { currentMarketOverride: marketOverride }),
           },
         }),
     ...createTickMarketObservationsInput(input),
     ...createTickAmbientObservationMemoryInput(input),
     ...createTickFullReplanMaterializationInput(input),
     ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
+    ...(materializeAuthorityEvents === undefined
+      ? {}
+      : {
+          materializeAuthorityEvents: ({ projection, issuedAt }) =>
+            materializeAuthorityEvents({ projection, issuedAt }),
+        }),
   });
 
-  // Post-tick authority drain. Router-settled events from this tick are only
-  // journaled on the authority (the tick checkpoint is skipped for them, see
-  // hasUnstreamedAuthorityEvents); draining the inbox right away appends the
-  // deliveries to the partition stream and lets the materializer write a fresh
-  // stream-consistent checkpoint boundary. That keeps the checkpoint lag SLO
-  // flat and leaves no pending deliveries behind at shutdown, so a restart
-  // restores the exact pre-shutdown projection. When nothing settled globally
-  // the drain is an idempotent no-op.
-  if (input.preTickMaterialize !== undefined) {
-    await input.preTickMaterialize({ projection: tick.projection, issuedAt: input.issuedAt });
+  // Final authority drain. This tick's own global events were flushed between
+  // Agent cycles by `materializeAuthorityEvents`; this second idempotent drain
+  // catches deliveries another partition committed after our last boundary so
+  // shutdown never leaves a known inbox prefix stranded.
+  if (materializeAuthorityEvents !== undefined) {
+    await materializeAuthorityEvents({ projection: tick.projection, issuedAt: input.issuedAt });
   }
 
   return {

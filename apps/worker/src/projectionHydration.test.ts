@@ -99,6 +99,29 @@ function createEducationEvent(
   });
 }
 
+function createTravelStartedEvent(sequence: number): WorldEvent {
+  return createEventEnvelope({
+    id: `event-${sequence}`,
+    simulationId: 'sim-1',
+    commandId: 'command-travel',
+    type: 'AgentTravelStarted',
+    payload: {
+      agentId: asAgentId('agent-1'),
+      fromLocationId: 'home',
+      toLocationId: 'school',
+      routeLocationIds: ['home', 'school'],
+      spatialPolicyVersion: 'test-spatial-v1',
+      baseTravelDurationSeconds: 10,
+      congestionMultiplier: 1,
+      travelDurationSeconds: 10,
+      departedAt: 1_000,
+      arrivesAt: 11_000,
+    },
+    occurredAt: 100,
+    sequence,
+  });
+}
+
 describe('worker projection hydration', () => {
   test('hydrates a world projection from ordered events in an event stream', () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
@@ -199,6 +222,73 @@ describe('worker projection hydration', () => {
     expect(result.projection.agents['agent-1']?.educationScore).toBe(90);
     expect(result.lastAppliedSequence).toBe(3);
     expect(result.streamVersion).toBe(3);
+  });
+
+  test('rebuilds from the authoritative stream when a legacy checkpoint contains an off-stream fact', () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const travel = createTravelStartedEvent(2);
+    eventStore.appendToStream({
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      events: [createTimeEvent(1), travel],
+    });
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    const snapshotProjection = createProjection({ now: 1_000 });
+    const corruptedProjection: WorldProjection = {
+      ...snapshotProjection,
+      agents: {
+        ...snapshotProjection.agents,
+        'agent-1': { ...snapshotProjection.agents['agent-1']!, locationId: 'home' },
+      },
+      transitByAgent: {
+        'agent-1': { ...travel.payload },
+      },
+    };
+    const snapshot = snapshotStore.saveSnapshot({
+      simulationId: partition.simulationId,
+      partitionKey: partition.partitionKey,
+      sequence: 1,
+      createdAt: 100,
+      projection: corruptedProjection,
+    });
+    checkpointStore.saveCheckpoint(
+      createProjectionCheckpoint({
+        simulationId: partition.simulationId,
+        partitionKey: partition.partitionKey,
+        lastAppliedSequence: 1,
+        snapshot,
+      }),
+    );
+    const initialProjection = createProjection();
+    const initialAgent = initialProjection.agents['agent-1'];
+    if (initialAgent === undefined) {
+      throw new Error('expected test Agent');
+    }
+
+    const result = hydrateWorldProjectionFromEventStream({
+      initialProjection: {
+        ...initialProjection,
+        agents: { ...initialProjection.agents, 'agent-1': { ...initialAgent, locationId: 'home' } },
+      },
+      eventStore,
+      streamName: partition.eventStreamName,
+      checkpoint: {
+        checkpointStore,
+        snapshotStore,
+        lookup: {
+          simulationId: partition.simulationId,
+          partitionKey: partition.partitionKey,
+        },
+      },
+    });
+
+    expect(result.replayFromSequence).toBe(0);
+    expect(result.checkpoint).toBeUndefined();
+    expect(result.events.map((event) => event.sequence)).toEqual([1, 2]);
+    expect(result.projection.transitByAgent['agent-1']).toEqual(travel.payload);
   });
 
   test('bounds legacy snapshot memory history before replay', () => {

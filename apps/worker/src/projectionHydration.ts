@@ -72,7 +72,45 @@ export function hydrateWorldProjectionFromEventStream(
   const events = input.eventStore
     .readStream(input.streamName, { afterSequence: replayFromSequence })
     .filter((event) => event.sequence <= toSequence);
-  const projection = replayEvents(initialProjection, events, applyWorldEvent);
+  let projection: WorldProjection;
+  try {
+    projection = replayEvents(initialProjection, events, applyWorldEvent);
+  } catch (checkpointReplayError) {
+    if (checkpointHydration === undefined) {
+      throw checkpointReplayError;
+    }
+    // Snapshots are a disposable acceleration layer; the event stream remains
+    // authoritative. Older runtimes could checkpoint an in-memory authority
+    // fact before its inbox append reached the stream. Such a snapshot has a
+    // valid sequence and checksum but replaying the later durable delivery on
+    // top of it violates a domain invariant. Retry from the caller's trusted
+    // base projection and only recover when the complete event prefix itself
+    // is valid. A corrupt event stream therefore still fails closed.
+    const fallbackEvents = input.eventStore
+      .readStream(input.streamName, { afterSequence: fromSequence })
+      .filter((event) => event.sequence <= toSequence);
+    try {
+      projection = replayEvents(
+        enforceWorldProjectionMemoryRetention(
+          normalizeLegacyWorldProjectionSnapshot(input.initialProjection),
+        ),
+        fallbackEvents,
+        applyWorldEvent,
+      );
+    } catch (eventStreamReplayError) {
+      throw new AggregateError(
+        [checkpointReplayError, eventStreamReplayError],
+        'checkpoint replay failed and the authoritative event stream could not rebuild the projection',
+      );
+    }
+    return {
+      projection,
+      events: fallbackEvents,
+      lastAppliedSequence: toSequence,
+      streamVersion,
+      replayFromSequence: fromSequence,
+    };
+  }
 
   return {
     projection,

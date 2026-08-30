@@ -377,6 +377,9 @@ describe('AGENT_ACTION_COMMAND_TYPES', () => {
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentApplyJob');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentExportCommodity');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentImportCommodity');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentLeaveEnterprise');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentLayoffEnterpriseEmployee');
+    expect(AGENT_ACTION_COMMAND_TYPES).toContain('AgentPostBulletin');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetTaxPolicy');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetPublicBudget');
     expect(AGENT_ACTION_COMMAND_TYPES).toContain('SetSubsidyPolicy');

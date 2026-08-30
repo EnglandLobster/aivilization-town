@@ -1,4 +1,5 @@
 import { asAgentId, asLocationId, type AgentId, type LocationId } from '@aivilization/sim-core';
+import type { IncomeTaxBracket, PublicBudgetAllocation } from '@aivilization/society';
 
 export type RegisterAgentPayload = {
   readonly agentId: AgentId;
@@ -242,6 +243,103 @@ export type IssueTownBulletinPayload = {
   readonly priority?: 'normal' | 'high';
   readonly effectiveAt?: number;
 };
+
+export type GovernanceCommandMetadataPayload = {
+  readonly reason: string;
+  readonly petitionId?: string;
+  readonly expectedGovernanceRevision?: number;
+};
+
+export type SetTaxPolicyPayload = GovernanceCommandMetadataPayload & {
+  readonly neutralRate: number;
+  readonly incomeTaxBrackets: readonly IncomeTaxBracket[];
+  readonly tradeTaxRate: number;
+  readonly dividendTaxRate?: number;
+};
+
+export type SetPublicBudgetPayload = GovernanceCommandMetadataPayload & {
+  readonly cadenceMs: number;
+  readonly minimumTreasuryReserve: number;
+  readonly allocations: readonly PublicBudgetAllocation[];
+};
+
+export type SetSubsidyPolicyPayload = GovernanceCommandMetadataPayload & {
+  readonly minimumBalance: number;
+  readonly maxSubsidy: number;
+};
+
+export function assertSetTaxPolicyPayload(payload: unknown): SetTaxPolicyPayload {
+  const record = assertGovernancePayloadRecord(payload, 'SetTaxPolicy');
+  const metadata = parseGovernanceMetadata(record, 'SetTaxPolicy');
+  const neutralRate = record['neutralRate'];
+  const tradeTaxRate = record['tradeTaxRate'];
+  const dividendTaxRate = record['dividendTaxRate'];
+  const incomeTaxBrackets = record['incomeTaxBrackets'];
+  assertFinite(neutralRate, 'SetTaxPolicy neutralRate');
+  assertFinite(tradeTaxRate, 'SetTaxPolicy tradeTaxRate');
+  if (dividendTaxRate !== undefined) assertFinite(dividendTaxRate, 'SetTaxPolicy dividendTaxRate');
+  if (!Array.isArray(incomeTaxBrackets)) {
+    throw new Error('SetTaxPolicy incomeTaxBrackets must be an array');
+  }
+  const brackets = incomeTaxBrackets.map((candidate, index): IncomeTaxBracket => {
+    if (!isRecord(candidate)) {
+      throw new Error(`SetTaxPolicy incomeTaxBrackets[${index}] must be an object`);
+    }
+    const upToAmount = candidate['upToAmount'];
+    const rate = candidate['rate'];
+    if (upToAmount !== null) assertPositiveFinite(upToAmount, `SetTaxPolicy incomeTaxBrackets[${index}].upToAmount`);
+    assertFinite(rate, `SetTaxPolicy incomeTaxBrackets[${index}].rate`);
+    return { upToAmount, rate };
+  });
+  return {
+    ...metadata,
+    neutralRate,
+    incomeTaxBrackets: brackets,
+    tradeTaxRate,
+    ...(dividendTaxRate === undefined ? {} : { dividendTaxRate }),
+  };
+}
+
+export function assertSetPublicBudgetPayload(payload: unknown): SetPublicBudgetPayload {
+  const record = assertGovernancePayloadRecord(payload, 'SetPublicBudget');
+  const metadata = parseGovernanceMetadata(record, 'SetPublicBudget');
+  const cadenceMs = record['cadenceMs'];
+  const minimumTreasuryReserve = record['minimumTreasuryReserve'];
+  const allocations = record['allocations'];
+  assertPositiveInteger(cadenceMs, 'SetPublicBudget cadenceMs');
+  assertNonNegativeFinite(minimumTreasuryReserve, 'SetPublicBudget minimumTreasuryReserve');
+  if (!Array.isArray(allocations)) {
+    throw new Error('SetPublicBudget allocations must be an array');
+  }
+  return {
+    ...metadata,
+    cadenceMs,
+    minimumTreasuryReserve,
+    allocations: allocations.map((candidate, index): PublicBudgetAllocation => {
+      if (!isRecord(candidate)) {
+        throw new Error(`SetPublicBudget allocations[${index}] must be an object`);
+      }
+      const service = candidate['service'];
+      const amountPerCadence = candidate['amountPerCadence'];
+      assertBoundedNonEmptyString(service, `SetPublicBudget allocations[${index}].service`, 100);
+      assertNonNegativeFinite(
+        amountPerCadence,
+        `SetPublicBudget allocations[${index}].amountPerCadence`,
+      );
+      return { service: service.trim(), amountPerCadence };
+    }),
+  };
+}
+
+export function assertSetSubsidyPolicyPayload(payload: unknown): SetSubsidyPolicyPayload {
+  const record = assertGovernancePayloadRecord(payload, 'SetSubsidyPolicy');
+  const metadata = parseGovernanceMetadata(record, 'SetSubsidyPolicy');
+  const minimumBalance = record['minimumBalance'];
+  const maxSubsidy = record['maxSubsidy'];
+  assertNonNegativeFinite(minimumBalance, 'SetSubsidyPolicy minimumBalance');
+  assertNonNegativeFinite(maxSubsidy, 'SetSubsidyPolicy maxSubsidy');
+  return { ...metadata, minimumBalance, maxSubsidy };
+}
 
 function assertBulletinPayload(payload: unknown, commandType: string): AgentPostBulletinPayload {
   if (!isRecord(payload)) {
@@ -888,6 +986,40 @@ export function assertAdvanceSimulationTimePayload(payload: unknown): AdvanceSim
 
   return {
     deltaMs,
+  };
+}
+
+function assertGovernancePayloadRecord(
+  payload: unknown,
+  commandType: 'SetTaxPolicy' | 'SetPublicBudget' | 'SetSubsidyPolicy',
+): Readonly<Record<string, unknown>> {
+  if (!isRecord(payload)) {
+    throw new Error(`${commandType} payload must be an object`);
+  }
+  return payload;
+}
+
+function parseGovernanceMetadata(
+  payload: Readonly<Record<string, unknown>>,
+  commandType: 'SetTaxPolicy' | 'SetPublicBudget' | 'SetSubsidyPolicy',
+): GovernanceCommandMetadataPayload {
+  const reason = payload['reason'];
+  const petitionId = payload['petitionId'];
+  const expectedGovernanceRevision = payload['expectedGovernanceRevision'];
+  assertBoundedNonEmptyString(reason, `${commandType} reason`, 500);
+  if (petitionId !== undefined) {
+    assertBoundedNonEmptyString(petitionId, `${commandType} petitionId`, 256);
+  }
+  if (expectedGovernanceRevision !== undefined) {
+    assertNonNegativeInteger(
+      expectedGovernanceRevision,
+      `${commandType} expectedGovernanceRevision`,
+    );
+  }
+  return {
+    reason: reason.trim(),
+    ...(petitionId === undefined ? {} : { petitionId: petitionId.trim() }),
+    ...(expectedGovernanceRevision === undefined ? {} : { expectedGovernanceRevision }),
   };
 }
 

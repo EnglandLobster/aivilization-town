@@ -97,6 +97,8 @@ export type CoreEventType =
   | 'PetitionSigned'
   | 'PetitionThresholdReached'
   | 'PetitionExpired'
+  | 'GovernancePolicyChanged'
+  | 'GovernanceChangeRejected'
   | 'MatterRaised'
   | 'MatterResponded'
   | 'MatterAssigned'

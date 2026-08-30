@@ -203,6 +203,87 @@ describe('worker objective renewal', () => {
     expect(runnerUpProposal.decisionTrace.selectedCandidateId).not.toBe('enterprise-founder');
   });
 
+  test('chooses direct enterprise employment after the public application quota is exhausted', () => {
+    const worker = createAgent({ agentId: agentA, educationScore: 500, balance: 100 });
+    const owner = createAgent({ agentId: agentB, educationScore: 500, balance: 100 });
+    const projection = createWorldProjection({
+      agents: [worker, owner],
+      enterprises: [
+        {
+          enterpriseId: 'cleaning-co',
+          name: 'Cleaning Co',
+          ownerAgentId: agentB,
+          occupationName: 'Cleaner',
+          balance: 500,
+          inventory: {},
+          maxEmployees: 3,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+          jobPosting: { wageOffer: 250, openSlots: 1 },
+        },
+      ],
+      jobApplications: [
+        {
+          applicationId: 'used-public-application',
+          cycleNumber: 0,
+          agentId: agentA,
+          occupationName: 'Cleaner',
+          residentialTier: 1,
+          educationScore: 500,
+          submittedAt: 0,
+          status: 'pending',
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      ...createRulesPolicies(),
+      enterprise: {
+        policyVersion: 'test-enterprise-v1',
+        minimumInitialCapital: 100,
+        maximumInitialCapital: 1_000,
+        maximumEmployees: 4,
+      },
+    };
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: agentA,
+      policies,
+    });
+    expect(
+      context.rules?.occupations.find((rule) => rule.occupationName === 'Cleaner'),
+    ).toMatchObject({
+      eligible: false,
+      rejectionReasons: ['application-quota-exhausted'],
+    });
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: worker,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: context,
+    });
+
+    expect(proposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'join-hiring-enterprise',
+      score: 85,
+    });
+    expect(proposal.objective.affinityTags).toEqual(['enterprise', 'work', 'income']);
+    expect(proposal.objective.planningDomains).toEqual(['enterprise']);
+  });
+
   test('balances education against direct costs, foregone income, and the minimum reserve', () => {
     const policies = createEducationOpportunityCostPolicies();
     const investProjection = createProjection([

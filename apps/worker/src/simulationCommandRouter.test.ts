@@ -115,6 +115,43 @@ describe('simulation command router', () => {
     expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
   });
 
+  test('synchronizes owner-partition enterprises before global AMM settlement', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [createEnterpriseSaleDraft(agentA)],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+        enterprise: true,
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-enterprise-sale:agent-a',
+      commandIdPrefix: 'tick-enterprise-sale:agent-a',
+    });
+
+    expect(result.events.some((event) => event.type === 'ActionRejected')).toBe(false);
+    expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(true);
+    const settledEnterprise = authority.getSnapshot().projection.enterprises['fish-shop'];
+    expect(settledEnterprise?.inventory).toEqual({});
+    expect(settledEnterprise?.cumulativeSales).toBeGreaterThan(0);
+  });
+
   test('decides and reports mixed local/global drafts in durable replay order', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',
@@ -737,6 +774,7 @@ function createPartitionProjection(input: {
   readonly agentId: typeof agentA;
   readonly locationId: ReturnType<typeof asLocationId>;
   readonly balance?: number;
+  readonly enterprise?: boolean;
 }) {
   return createWorldProjection({
     clock: { now: 0, tickDurationMs: 1_000 },
@@ -768,6 +806,27 @@ function createPartitionProjection(input: {
         inventory: {},
       },
     ],
+    ...(input.enterprise === true
+      ? {
+          enterprises: [
+            {
+              enterpriseId: 'fish-shop',
+              name: 'Fish Shop',
+              ownerAgentId: input.agentId,
+              occupationName: 'Cleaner',
+              balance: 100,
+              inventory: { Fish: 1 },
+              maxEmployees: 2,
+              employeeAgentIds: [],
+              status: 'active' as const,
+              foundedAt: 0,
+              cumulativeSales: 0,
+              cumulativePurchases: 0,
+              cumulativeWages: 0,
+            },
+          ],
+        }
+      : {}),
     marketPools: [{ commodity: 'Fish', commodityReserve: 100, currencyReserve: 1_000 }],
     moneySupply: 1_000,
   });
@@ -791,6 +850,22 @@ function createTradeDraft(actorId: typeof agentA): CommandDraft {
     source: 'agent-runtime',
     type: 'AgentTrade',
     payload: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    issuedAt: 100,
+  };
+}
+
+function createEnterpriseSaleDraft(actorId: typeof agentA): CommandDraft {
+  return {
+    simulationId: asSimulationId('sim-1'),
+    actorId,
+    source: 'agent-runtime',
+    type: 'AgentTrade',
+    payload: {
+      side: 'sell',
+      commodityName: 'Fish',
+      quantity: 1,
+      enterpriseId: 'fish-shop',
+    },
     issuedAt: 100,
   };
 }

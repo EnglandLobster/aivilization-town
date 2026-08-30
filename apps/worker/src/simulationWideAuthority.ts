@@ -42,6 +42,7 @@ import {
   type WorldAgentState,
   type WorldCommandPolicies,
   type WorldEvent,
+  type WorldEnterpriseState,
   type WorldProjection,
 } from '@aivilization/world';
 import {
@@ -169,6 +170,12 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    * the canonical router always supplies it.
    */
   readonly agentStates?: readonly WorldAgentState[];
+  /**
+   * Enterprise aggregates owned by Agents in this partition. Global AMM
+   * settlement needs the same cash/inventory truth as the owner projection;
+   * the authority never decides lifecycle changes from this mirror.
+   */
+  readonly enterpriseStates?: readonly WorldEnterpriseState[];
   /**
    * The partition's current fiscal contribution. Single-partition authorities
    * synchronize it directly. Multi-partition authorities retain one value per
@@ -370,6 +377,7 @@ export type SimulationWideAuthorityOperation =
       readonly fencingToken: number;
       readonly partitionKey: PartitionKey;
       readonly updatedAgentIds: readonly AgentId[];
+      readonly updatedEnterpriseIds?: readonly string[];
       /**
        * Runtime-registered Agents admitted to the ledger by this sync (their
        * first report carries their full record). Absent when the sync only
@@ -1620,6 +1628,9 @@ export function createSimulationWideAuthority(input: {
       const agentStates = [...(request.agentStates ?? [])].sort((left, right) =>
         left.agentId.localeCompare(right.agentId),
       );
+      const enterpriseStates = [...(request.enterpriseStates ?? [])].sort((left, right) =>
+        left.enterpriseId.localeCompare(right.enterpriseId),
+      );
       return mutate({
         operationId: request.operationId,
         // newAgents stay out of the fingerprint: after a crash the replayed
@@ -1636,6 +1647,7 @@ export function createSimulationWideAuthority(input: {
             partitionKey,
             agentLocations,
             agentStates,
+            enterpriseStates,
             ...(request.partitionAccounts === undefined
               ? {}
               : { partitionAccounts: request.partitionAccounts }),
@@ -1673,6 +1685,7 @@ export function createSimulationWideAuthority(input: {
             throw new Error('partition fiscal accounts must be non-negative finite');
           }
           const agents = { ...state.projection.agents };
+          const enterprises = { ...state.projection.enterprises };
           const owners = { ...state.ownerPartitionKeyByAgentId };
           const registeredAgentIds: AgentId[] = [];
           const removedAgentIds: AgentId[] = [];
@@ -1736,6 +1749,24 @@ export function createSimulationWideAuthority(input: {
             if (stableStringify(agents[agentId]) !== stableStringify(record)) {
               agents[agentId] = clone(record);
               updatedAgentIds.push(agentId);
+            }
+          }
+          const updatedEnterpriseIds: string[] = [];
+          for (const record of enterpriseStates) {
+            const ownerPartitionKey = owners[record.ownerAgentId];
+            if (ownerPartitionKey === undefined) {
+              throw new Error(
+                `enterprise ${record.enterpriseId} has unknown owner ${record.ownerAgentId}`,
+              );
+            }
+            if (ownerPartitionKey !== partitionKey) {
+              throw new Error(
+                `enterprise ${record.enterpriseId} state sync must come from owner partition ${ownerPartitionKey}, not ${partitionKey}`,
+              );
+            }
+            if (stableStringify(enterprises[record.enterpriseId]) !== stableStringify(record)) {
+              enterprises[record.enterpriseId] = clone(record);
+              updatedEnterpriseIds.push(record.enterpriseId);
             }
           }
           for (const entry of agentLocations) {
@@ -1802,6 +1833,7 @@ export function createSimulationWideAuthority(input: {
             fencingToken,
             partitionKey,
             updatedAgentIds,
+            ...(updatedEnterpriseIds.length === 0 ? {} : { updatedEnterpriseIds }),
             ...(registeredAgentIds.length === 0 ? {} : { registeredAgentIds }),
             ...(mergedMemoryRecords.length === 0
               ? {}
@@ -1849,6 +1881,7 @@ export function createSimulationWideAuthority(input: {
           let synchronizedProjection: WorldProjection = {
             ...state.projection,
             agents,
+            enterprises,
             memoryRecords,
             activityTimeByAgent,
             transitByAgent,

@@ -48,9 +48,9 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v7',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v9',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
-        enterpriseActionProposer: 'enterprise-action-proposer-v1',
+        enterpriseActionProposer: 'enterprise-action-proposer-v3',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
@@ -127,7 +127,7 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v7',
+            policyVersion: 'autonomous-objective-selection-v9',
             source: 'repository-design',
             lifeCourse: {
               policyVersion: 'autonomous-life-course-v2',
@@ -149,6 +149,15 @@ describe('AIvilization default world command policies', () => {
             policyVersion: 'external-trade-action-proposer-v1',
             minimumRelativeAdvantageRatio: 0,
             actorEligibility: 'operational-enterprise-owner-only',
+          },
+          enterpriseActionProposer: {
+            policyVersion: 'enterprise-action-proposer-v3',
+            ownerBalanceFloor: 100,
+            targetResidentsPerFirm: 8,
+            minimumResidentsForFounding: 2,
+            payrollReserveCycles: 1,
+            foundingMaximumEmployees: 3,
+            hiringOpenSlots: 1,
           },
           socialMatterActionProposer: {
             policyVersion: 'social-matter-action-proposer-v1',

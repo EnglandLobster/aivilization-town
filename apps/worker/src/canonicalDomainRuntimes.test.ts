@@ -110,19 +110,22 @@ function createEnterpriseState(input: {
   readonly jobPostingOpenSlots?: number;
   readonly balance?: number;
   readonly inventory?: Readonly<Record<string, number>>;
+  readonly employeeAgentIds?: readonly AgentId[];
+  readonly cumulativeSales?: number;
+  readonly occupationName?: string;
 }): WorldEnterpriseState {
   return {
     enterpriseId: input.enterpriseId,
     name: `Enterprise ${input.enterpriseId}`,
     ownerAgentId: input.ownerAgentId,
-    occupationName: 'Baker',
+    occupationName: input.occupationName ?? 'Baker',
     balance: input.balance ?? 100,
     inventory: input.inventory ?? {},
     maxEmployees: 3,
-    employeeAgentIds: [],
+    employeeAgentIds: input.employeeAgentIds ?? [],
     status: 'active',
     foundedAt: 0,
-    cumulativeSales: 0,
+    cumulativeSales: input.cumulativeSales ?? 0,
     cumulativePurchases: 0,
     cumulativeWages: 0,
     ...(input.jobPostingOpenSlots === undefined
@@ -480,6 +483,93 @@ describe('canonical domain runtimes', () => {
     expect(firstProposal(fundBinding.microPlanners, 'enterprise')).toMatchObject({
       commandType: 'AgentFundEnterprise',
       payload: { enterpriseId: 'e-1', amount: 60 },
+    });
+  });
+
+  test('connects autonomous founding, enterprise operations, and employer payroll proposals', async () => {
+    const founder = createAgent({ agentId: agentA, balance: 500, inventory: {} });
+    const foundingObjective: LongHorizonObjective = {
+      ...createObjective(agentA),
+      statement: 'Found an enterprise to produce goods and create employment.',
+      affinityTags: ['enterprise', 'enterprise-founder', 'found'],
+    };
+    const foundingBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: founder,
+        projection: createProjection({ agents: [founder], marketPools: [] }),
+        activeObjective: foundingObjective,
+      }),
+      {},
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    expect(firstProposal(foundingBinding.microPlanners, 'enterprise')).toMatchObject({
+      commandType: 'AgentFoundEnterprise',
+      payload: {
+        occupationName: 'Cleaner',
+        initialCapital: 400,
+        maxEmployees: 3,
+      },
+    });
+
+    const enterprise = createEnterpriseState({
+      enterpriseId: 'e-1',
+      ownerAgentId: agentA,
+      occupationName: 'Cleaner',
+      inventory: { Wood: 1, Book: 2 },
+    });
+    const operationObjective: LongHorizonObjective = {
+      ...createObjective(agentA),
+      statement: 'Produce and sell Book for enterprise E One.',
+      affinityTags: ['enterprise', 'production', 'trade', 'sell', 'Book'],
+    };
+    const operationBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: founder,
+        projection: createProjection({
+          agents: [founder],
+          marketPools: [{ commodity: 'Book', commodityReserve: 100, currencyReserve: 1_000 }],
+          enterprises: [enterprise],
+        }),
+        activeObjective: operationObjective,
+      }),
+      { production: { commodityName: 'Book' }, trade: { side: 'sell', commodityName: 'Book' } },
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    const productionProposal = firstProposal(operationBinding.microPlanners, 'production');
+    expect(productionProposal).toMatchObject({
+      commandType: 'AgentProduce',
+      payload: { commodityName: 'Book', enterpriseId: 'e-1' },
+    });
+    expect(typeof productionProposal?.resourceEstimate?.actionSeconds).toBe('number');
+    expect(productionProposal?.resourceEstimate).not.toHaveProperty('inventoryCosts');
+    expect(firstProposal(operationBinding.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentTrade',
+      payload: { side: 'sell', commodityName: 'Book', enterpriseId: 'e-1' },
+    });
+
+    const employee = createAgent({ agentId: agentB, job: 'Cleaner' });
+    const payrollBinding = await resolveCanonicalBinding(
+      createRuntimeContext({
+        agent: employee,
+        projection: createProjection({
+          agents: [founder, employee],
+          marketPools: [],
+          enterprises: [
+            createEnterpriseState({
+              enterpriseId: 'e-1',
+              ownerAgentId: agentA,
+              occupationName: 'Cleaner',
+              employeeAgentIds: [agentB],
+            }),
+          ],
+        }),
+      }),
+      {},
+      { ...policies, enterprise: enterprisePolicy },
+    );
+    expect(firstProposal(payrollBinding.microPlanners, 'work')).toMatchObject({
+      commandType: 'AgentWork',
+      payload: { occupationName: 'Cleaner', enterpriseId: 'e-1' },
     });
   });
 

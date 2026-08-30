@@ -1187,8 +1187,7 @@ function createSurvivalPressureDecisionContext(input: {
           ? null
           : Math.max(
               0,
-              (input.agent.physiology.health - policy.deathHealthThreshold) /
-                healthDecayPerHour,
+              (input.agent.physiology.health - policy.deathHealthThreshold) / healthDecayPerHour,
             ),
     },
   };
@@ -1446,6 +1445,16 @@ function createWorldDecisionRulesContext(input: {
     criticalThresholds: { ...input.policies.criticalThresholds },
     occupations: createOccupationRules(input),
     production: createProductionRules(input),
+    ...(input.policies.enterprise === undefined
+      ? {}
+      : {
+          enterprise: {
+            policyVersion: input.policies.enterprise.policyVersion,
+            minimumInitialCapital: input.policies.enterprise.minimumInitialCapital,
+            maximumInitialCapital: input.policies.enterprise.maximumInitialCapital,
+            maximumEmployees: input.policies.enterprise.maximumEmployees,
+          },
+        }),
     ...withConsumptionRules(input),
     ...withResidentialUpgradeRule(input),
     ...withEducationOpportunityCostRule(input),

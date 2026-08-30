@@ -144,11 +144,15 @@ export function createSimulationCommandRouter(input: {
       activityTimeByAgent: projection.activityTimeByAgent,
       transitByAgent: projection.transitByAgent ?? {},
     };
+    const enterpriseStates = Object.values(projection.enterprises)
+      .filter((enterprise) => projection.agents[enterprise.ownerAgentId] !== undefined)
+      .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId));
     const synchronizedState = JSON.stringify({
       partitionClockNow: projection.clock.now,
       agentStates,
       partitionAccounts,
       partitionRuntimeState,
+      enterpriseStates,
     });
     const currentAgentIds = new Set<string>(agentLocations.map((entry) => entry.agentId as string));
     const departedAgentIds = [...lastReportedAgentIds]
@@ -196,6 +200,7 @@ export function createSimulationCommandRouter(input: {
       partitionClockNow: projection.clock.now,
       agentLocations,
       agentStates,
+      enterpriseStates,
       partitionAccounts,
       partitionRuntimeState,
       ...(newAgents.length === 0 ? {} : { newAgents }),

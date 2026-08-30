@@ -31,6 +31,7 @@ import {
   CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES,
   createCanonicalDomainRuntimeRegistrations,
   createDomainRuntimeResolver,
+  createWorldDecisionContextFromProjection,
   resolveProductionTargetCommodityName,
   resolveResidentialTargetTier,
 } from './index';
@@ -425,25 +426,69 @@ describe('canonical domain runtimes', () => {
 
   test('proposes enterprise join for open postings and funding for owners', async () => {
     const worker = createAgent({ agentId: agentA, balance: 500 });
+    const enterpriseProjection = {
+      ...createProjection({
+        agents: [worker, createAgent({ agentId: agentB })],
+        marketPools: [],
+        enterprises: [
+          createEnterpriseState({
+            enterpriseId: 'e-1',
+            ownerAgentId: agentB,
+            jobPostingOpenSlots: 2,
+          }),
+        ],
+      }),
+      jobApplications: [
+        {
+          applicationId: 'used-public-application',
+          cycleNumber: 0,
+          agentId: agentA,
+          occupationName: 'Cleaner',
+          residentialTier: 1,
+          educationScore: 0,
+          submittedAt: 0,
+          status: 'pending' as const,
+        },
+      ],
+    };
+    const enterpriseDecisionContext = createWorldDecisionContextFromProjection({
+      projection: enterpriseProjection,
+      agentId: agentA,
+      policies,
+    });
+    expect(
+      enterpriseDecisionContext.rules?.occupations.find(
+        (rule) => rule.occupationName === 'Cleaner',
+      ),
+    ).toMatchObject({
+      eligible: false,
+      rejectionReasons: ['application-quota-exhausted'],
+    });
     const joinBinding = await resolveCanonicalBinding(
       createRuntimeContext({
         agent: worker,
-        projection: createProjection({
-          agents: [worker, createAgent({ agentId: agentB })],
-          marketPools: [],
-          enterprises: [
-            createEnterpriseState({
-              enterpriseId: 'e-1',
-              ownerAgentId: agentB,
-              jobPostingOpenSlots: 2,
-            }),
-          ],
-        }),
+        projection: enterpriseProjection,
+        worldDecisionContext: enterpriseDecisionContext,
       }),
       {},
       { ...policies, enterprise: enterprisePolicy },
     );
     expect(firstProposal(joinBinding.microPlanners, 'enterprise')).toMatchObject({
+      commandType: 'AgentJoinEnterprise',
+      payload: { enterpriseId: 'e-1' },
+    });
+
+    const directEmploymentSubtask: PrioritizedSubtask = {
+      branchId: 'enterprise',
+      subtaskId: 'pursue-enterprise-objective',
+      description: 'Pursue enterprise objective: Take the open position at Enterprise e-1.',
+      score: 85,
+    };
+    expect(
+      requirePlanner(joinBinding.microPlanners, 'enterprise').propose(
+        createMicroPlannerInput({ selectedSubtask: directEmploymentSubtask }),
+      )[0],
+    ).toMatchObject({
       commandType: 'AgentJoinEnterprise',
       payload: { enterpriseId: 'e-1' },
     });
@@ -496,7 +541,10 @@ describe('canonical domain runtimes', () => {
     const foundingBinding = await resolveCanonicalBinding(
       createRuntimeContext({
         agent: founder,
-        projection: createProjection({ agents: [founder], marketPools: [] }),
+        projection: createProjection({
+          agents: [founder, createAgent({ agentId: agentB, balance: 100 })],
+          marketPools: [],
+        }),
         activeObjective: foundingObjective,
       }),
       {},

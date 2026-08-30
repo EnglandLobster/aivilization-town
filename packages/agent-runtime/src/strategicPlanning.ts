@@ -205,13 +205,13 @@ export function compileStrategicObjectiveToBranchPlan(
       : { planningDomains: input.objective.planningDomains }),
     context,
   }).map((rule) =>
-      createDomainBranch({
-        rule,
-        objectiveText,
-        objectivePriority: input.objective.priority,
-        tags,
-      }),
-    );
+    createDomainBranch({
+      rule,
+      objectiveText,
+      objectivePriority: input.objective.priority,
+      tags,
+    }),
+  );
 
   if (branches.length === 0) {
     branches.push(
@@ -257,6 +257,7 @@ type StrategicDomainName =
   | 'health'
   | 'eat'
   | 'work'
+  | 'enterprise'
   | 'production'
   | 'trade'
   | 'sleep'
@@ -478,6 +479,16 @@ const STRATEGIC_DOMAIN_RULES: readonly StrategicDomainRule[] = [
       'work as',
       'find work',
     ],
+  },
+  {
+    domain: 'enterprise',
+    branchId: 'enterprise',
+    subtaskId: 'pursue-enterprise-objective',
+    branchObjective: 'Act through the enterprise lifecycle for the long-horizon objective.',
+    subtaskDescription: (objectiveText) => `Pursue enterprise objective: ${objectiveText}`,
+    priorityOffset: 10,
+    affinityAliases: ['enterprise', 'business', 'firm'],
+    keywords: ['business', 'enterprise', 'firm', 'founder', 'hiring'],
   },
   {
     domain: 'production',

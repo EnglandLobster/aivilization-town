@@ -23,6 +23,7 @@ export * from './domainRuntimeRegistry';
 export * from './dailyRoutineSchedule';
 export * from './economicRuntime';
 export * from './educationOpportunityCost';
+export * from './enterprisePlanning';
 export * from './experimentValidationRunner';
 export * from './externalTradePlanning';
 export * from './localRuntimeStorage';

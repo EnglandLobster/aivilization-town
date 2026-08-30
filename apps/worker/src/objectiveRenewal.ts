@@ -54,9 +54,10 @@ import {
   DEFAULT_CONFLICT_ACTION_PROPOSER_POLICY,
   resolveAutonomousConflictIntent,
 } from './conflictPlanning';
+import { isEnterpriseOccupationQualified } from './enterprisePlanning';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v7';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v9';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
@@ -68,10 +69,11 @@ const SOCIAL_MATTER_RESPONSE_SCORE = 54;
 const SOCIAL_CONFLICT_INTERVENTION_SCORE = 91;
 const SOCIAL_CONFLICT_ATTACK_SCORE = 74;
 const SOCIAL_CONFLICT_CONFRONT_SCORE = 70;
-const ENTERPRISE_FOUNDING_SCORE = 65;
+const ENTERPRISE_FOUNDING_SCORE = 89;
 const ENTERPRISE_HIRING_SCORE = 87;
 const ENTERPRISE_SALE_SCORE = 86;
 const ENTERPRISE_PRODUCTION_SCORE = 84;
+const ENTERPRISE_JOIN_SCORE = 85;
 
 export function createAutonomousObjectiveSelectionPolicyManifest() {
   return {
@@ -111,6 +113,7 @@ export function createAutonomousObjectiveSelectionPolicyManifest() {
       hiringScore: ENTERPRISE_HIRING_SCORE,
       saleScore: ENTERPRISE_SALE_SCORE,
       productionScore: ENTERPRISE_PRODUCTION_SCORE,
+      joinScore: ENTERPRISE_JOIN_SCORE,
       founderElection: 'highest-balance-eligible-agent-then-agent-id',
       lifecycle: 'found-produce-sell-hire-employer-payroll',
     },
@@ -517,10 +520,11 @@ function scoreObjectiveCandidates(
     ?.filter(
       (enterprise) =>
         enterprise.status === 'active' &&
-        (input.worldDecisionContext?.rules?.occupations.find(
-          (rule) => rule.occupationName === enterprise.occupationName,
-        )?.eligible ??
-          true) &&
+        isEnterpriseOccupationQualified(
+          input.worldDecisionContext?.rules?.occupations.find(
+            (rule) => rule.occupationName === enterprise.occupationName,
+          ),
+        ) &&
         (enterprise.jobPosting?.openSlots ?? 0) > 0 &&
         !enterprise.employeeAgentIds.includes(input.agent.agentId) &&
         enterprise.ownerAgentId !== input.agent.agentId,
@@ -532,9 +536,10 @@ function scoreObjectiveCandidates(
       statement: `Take the open position at ${hiringEnterprise.name}, which is hiring.`,
       priority: 2,
       affinityTags: ['enterprise', 'work', 'income'],
-      score: 55,
+      planningDomains: ['enterprise'],
+      score: ENTERPRISE_JOIN_SCORE,
       rationale:
-        'An active town enterprise posts open slots and the agent does not work there yet.',
+        'An active town enterprise offers immediate qualified employment without waiting for the public recruitment cycle.',
       shortTermMemoryContextIds: [],
       profileEntryKeys: [],
       profileEvidenceRecordIds: [],
@@ -698,6 +703,8 @@ function createEndogenousEnterpriseObjectiveCandidates(
     enterpriseRule.minimumInitialCapital +
     DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.ownerBalanceFloor;
   if (
+    Object.keys(input.projection.agents).length >=
+      DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.minimumResidentsForFounding &&
     operationalEnterprises.length < targetEnterpriseCount &&
     resolveEnterpriseFounderAgentId({
       projection: input.projection,

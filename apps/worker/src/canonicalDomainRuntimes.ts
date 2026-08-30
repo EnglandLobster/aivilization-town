@@ -87,6 +87,7 @@ import {
   type ConflictActionProposal,
   type ConflictActionProposerPolicy,
 } from './conflictPlanning';
+import { isEnterpriseOccupationQualified } from './enterprisePlanning';
 
 export type CanonicalDomainName =
   | 'study'
@@ -1369,11 +1370,12 @@ export type EnterpriseDomainRuntimeConfig = {
 };
 
 const DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR = 100;
-export const ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION = 'enterprise-action-proposer-v1';
+export const ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION = 'enterprise-action-proposer-v3';
 export type EnterpriseActionProposerPolicy = {
   readonly policyVersion: string;
   readonly ownerBalanceFloor: number;
   readonly targetResidentsPerFirm: number;
+  readonly minimumResidentsForFounding: number;
   readonly payrollReserveCycles: number;
   readonly foundingMaximumEmployees: number;
   readonly hiringOpenSlots: number;
@@ -1383,7 +1385,8 @@ export const DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY: EnterpriseActionProposer
   policyVersion: ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
   ownerBalanceFloor: DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR,
   targetResidentsPerFirm: 8,
-  payrollReserveCycles: 2,
+  minimumResidentsForFounding: 2,
+  payrollReserveCycles: 1,
   foundingMaximumEmployees: 3,
   hiringOpenSlots: 1,
 };
@@ -1405,6 +1408,14 @@ export function assertValidEnterpriseActionProposerPolicy(
   }
   if (!Number.isInteger(policy.foundingMaximumEmployees) || policy.foundingMaximumEmployees <= 0) {
     throw new Error('enterprise action proposer foundingMaximumEmployees must be positive integer');
+  }
+  if (
+    !Number.isInteger(policy.minimumResidentsForFounding) ||
+    policy.minimumResidentsForFounding <= 0
+  ) {
+    throw new Error(
+      'enterprise action proposer minimumResidentsForFounding must be positive integer',
+    );
   }
   if (!Number.isInteger(policy.hiringOpenSlots) || policy.hiringOpenSlots <= 0) {
     throw new Error('enterprise action proposer hiringOpenSlots must be positive integer');
@@ -1483,7 +1494,7 @@ export function resolveEnterpriseJoinProposal(input: {
       const occupationRule = input.context.worldDecisionContext?.rules?.occupations.find(
         (rule) => rule.occupationName === enterprise.occupationName,
       );
-      return occupationRule === undefined || occupationRule.eligible;
+      return isEnterpriseOccupationQualified(occupationRule);
     })
     .filter(
       (enterprise) =>
@@ -1523,6 +1534,12 @@ export function resolveEnterpriseFoundingProposal(input: {
   const operationalEnterprises = Object.values(input.context.projection.enterprises).filter(
     (enterprise) => enterprise.status === 'active' || enterprise.status === 'insolvent',
   );
+  if (
+    Object.keys(input.context.projection.agents).length <
+    input.proposerPolicy.minimumResidentsForFounding
+  ) {
+    return undefined;
+  }
   const targetEnterpriseCount = Math.max(
     1,
     Math.ceil(
@@ -1746,7 +1763,12 @@ export function createEnterpriseDomainRuntimeRegistration(
             if (postingProposal !== undefined) {
               return postingProposal;
             }
-            if (hiringIntent) {
+            const ownsOperationalEnterprise = Object.values(context.projection.enterprises).some(
+              (enterprise) =>
+                enterprise.ownerAgentId === context.agent.agentId &&
+                (enterprise.status === 'active' || enterprise.status === 'insolvent'),
+            );
+            if (hiringIntent && ownsOperationalEnterprise) {
               return {
                 id: `${createCanonicalActionId('enterprise', selectedSubtask)}-hiring-observe`,
                 description: 'Recheck sales, capacity, and payroll reserves before hiring.',
@@ -1758,6 +1780,15 @@ export function createEnterpriseDomainRuntimeRegistration(
             const joinProposal = resolveEnterpriseJoinProposal({ context, selectedSubtask });
             if (joinProposal !== undefined) {
               return joinProposal;
+            }
+            if (hiringIntent) {
+              return {
+                id: `${createCanonicalActionId('enterprise', selectedSubtask)}-hiring-observe`,
+                description: 'Recheck open enterprise positions and occupation qualifications.',
+                commandType: 'AgentObserveLocation',
+                priority: selectedSubtask.score,
+                payload: { focus: 'enterprise employment eligibility' },
+              };
             }
             const fundProposal = resolveEnterpriseFundProposal({
               context,

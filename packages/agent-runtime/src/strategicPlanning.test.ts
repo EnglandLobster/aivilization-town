@@ -145,6 +145,12 @@ describe('strategic objective planning', () => {
         affinityTags: ['production', 'produce', 'market', 'Apple'],
         branchIds: ['production'],
       },
+      {
+        id: 'objective-enterprise-employment',
+        statement: 'Take an open position at a town enterprise.',
+        affinityTags: ['enterprise', 'work', 'income'],
+        branchIds: ['enterprise'],
+      },
     ] as const;
 
     for (const candidate of cases) {

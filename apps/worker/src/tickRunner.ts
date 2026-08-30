@@ -239,6 +239,11 @@ type WorkerTickBaseInput = {
   }) => Promise<{
     readonly projection: WorldProjection;
     readonly marketOverride?: WorldDecisionMarketOverride;
+    /**
+     * False when the hook intentionally did not persist the authority facts
+     * represented by `projection` (for example during interrupted-tick replay).
+     */
+    readonly authorityEventsMaterialized?: boolean;
   }>;
 };
 
@@ -427,6 +432,9 @@ export async function runWorkerSimulationTick(
           projection = materialized.projection;
           expectedVersion = input.eventStore.getStreamVersion(input.streamName);
           marketOverride = materialized.marketOverride ?? marketOverride;
+          if (materialized.authorityEventsMaterialized === false) {
+            hasUnstreamedAuthorityEvents = true;
+          }
         }
       }
     }

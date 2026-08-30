@@ -37,15 +37,28 @@ import { resolveMarketPoolKey } from './regionalMarkets';
 import type { WorldWeatherState } from './weather';
 import { cloneTownBulletin, type WorldBulletinState } from './bulletin';
 import type { WorldPetitionState } from './petition';
-import {
-  appendWorldTownPulseRecord,
-  type WorldTownPulseRecord,
-} from './townPulse';
+import { appendWorldTownPulseRecord, type WorldTownPulseRecord } from './townPulse';
 import { cloneSocialMatter, type WorldSocialMatterState } from './matters';
 import type { WorldConflictRecord } from './conflict';
 import { applyEnterpriseProjectionEvent } from './projectionReducers/enterprise';
 import { applyCreditProjectionEvent } from './projectionReducers/credit';
 import { applyRegionalLandValueProjectionEvent } from './projectionReducers/regionalLandValue';
+import { applyRegionalServiceQualityProjectionEvent } from './projectionReducers/serviceQuality';
+
+export type WorldRegionalServiceQualityState = {
+  readonly service: 'education' | 'healthcare';
+  readonly quality: number;
+  readonly fundedAmount: number;
+  readonly occupancy: number;
+  readonly capacity: number;
+  readonly budgetEfficiency: number;
+  readonly occupancyRatio: number;
+  readonly capacityEfficiency: number;
+  readonly landValueContribution: number;
+  readonly wellbeingContribution: number;
+  readonly policyVersion: string;
+  readonly settledAt: number;
+};
 
 export type WorldAgentState = {
   readonly agentId: AgentId;
@@ -409,6 +422,10 @@ export type WorldProjection = {
    * modulates upkeep pricing and never moves currency by itself.
    */
   readonly regionalLandValues?: Readonly<Record<string, number>>;
+  /** Latest authoritative service-quality fact per region and service. */
+  readonly regionalServiceQualities?: Readonly<
+    Record<string, Partial<Record<'education' | 'healthcare', WorldRegionalServiceQualityState>>>
+  >;
   /**
    * Optional town-bank slice (deposits, loan book, credit history and the bank
    * cash account). Present only once credit events exist or the scenario seeded
@@ -795,11 +812,12 @@ export function applyWorldEvent(
     event,
     resolveAgentDisplayName: (agentId) =>
       sourceProjection.agents[agentId]?.registration?.displayName,
-    resolveEnterpriseName: (enterpriseId) =>
-      sourceProjection.enterprises[enterpriseId]?.name,
+    resolveEnterpriseName: (enterpriseId) => sourceProjection.enterprises[enterpriseId]?.name,
   });
   const projection =
-    townPulse === sourceProjection.townPulse ? sourceProjection : { ...sourceProjection, townPulse };
+    townPulse === sourceProjection.townPulse
+      ? sourceProjection
+      : { ...sourceProjection, townPulse };
   const enterpriseProjection = applyEnterpriseProjectionEvent(projection, event);
   if (enterpriseProjection !== undefined) {
     return enterpriseProjection;
@@ -811,6 +829,10 @@ export function applyWorldEvent(
   const landValueProjection = applyRegionalLandValueProjectionEvent(projection, event);
   if (landValueProjection !== undefined) {
     return landValueProjection;
+  }
+  const serviceQualityProjection = applyRegionalServiceQualityProjectionEvent(projection, event);
+  if (serviceQualityProjection !== undefined) {
+    return serviceQualityProjection;
   }
   switch (event.type) {
     case 'AgentRegistered': {

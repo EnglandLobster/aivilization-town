@@ -44,7 +44,7 @@ describe('AIvilization default world command policies', () => {
         globalSynthesis: 'global-action-synthesis-v1',
         autonomousObjectiveSelection: 'autonomous-objective-selection-v4',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
-        contextView: 'world-decision-context-view-v5',
+        contextView: 'world-decision-context-view-v6',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -80,7 +80,16 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v5',
+            contextViewVersion: 'world-decision-context-view-v6',
+            matterView: {
+              maxCount: 8,
+              responseMaxCount: 8,
+              topicMaxLength: 120,
+              statementMaxLength: 320,
+              relevance: 'unresolved-participant-or-open-help-request',
+              deterministicOrder: 'role-tier-then-expiry-created-at-matter-id',
+              responseOrder: 'responded-at-then-responder-agent-id',
+            },
             stageVisibility: {
               ranking: {
                 stages: ['subtask-prioritization', 'global-synthesis'],
@@ -92,6 +101,7 @@ describe('AIvilization default world command policies', () => {
                   'salience',
                   'agent.identity-and-relations',
                   'society.counterpart',
+                  'matters.with-counterpart',
                 ],
               },
             },

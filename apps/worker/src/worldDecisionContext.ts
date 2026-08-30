@@ -20,14 +20,20 @@ import type {
   WorldDecisionRelationContext,
   WorldDecisionResidentialUpgradeRule,
   WorldDecisionRulesContext,
+  WorldDecisionSocialMatterContext,
 } from '@aivilization/agent-runtime';
 import {
   DECISION_ENTERPRISE_MAX_COUNT,
   DECISION_RELATIONS_MAX_COUNT,
+  DECISION_SOCIAL_MATTER_MAX_COUNT,
+  DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
+  DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
+  DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH,
   DECISION_SOCIETY_FOREIGN_RELATED_MAX_COUNT,
   DECISION_TOWN_PULSE_MAX_COUNT,
   DECISION_TOWN_PULSE_WINDOW_DAYS,
   sanitizeDecisionDisplayName,
+  sanitizeDecisionMatterText,
 } from '@aivilization/agent-runtime';
 import type { AgentId } from '@aivilization/sim-core';
 import {
@@ -58,6 +64,7 @@ import type {
   WorldCommandPolicies,
   WorldMarketPriceIndexState,
   WorldProjection,
+  WorldSocialMatterState,
 } from '@aivilization/world';
 import {
   activeLoansByBorrower,
@@ -261,6 +268,7 @@ export function createWorldDecisionContextFromProjection(input: {
     ...createTownPulseDecisionContext(input),
     ...createCalendarDecisionContext(input),
     ...createPetitionDecisionContext(input),
+    ...createSocialMatterDecisionContext(input),
     ...createConditionDecisionContext(input),
     ...createFiscalDecisionContext(input),
     ...createExternalTradeDecisionContext({
@@ -288,8 +296,7 @@ function createTownPulseDecisionContext(input: {
   // window drops stale news, the sort is newest-first with event sequence as
   // the deterministic tiebreak, and the cap bounds the section.
   const dayLengthMs = input.policies?.calendar?.dayLengthMs ?? 86_400_000;
-  const windowStartMs =
-    input.projection.clock.now - DECISION_TOWN_PULSE_WINDOW_DAYS * dayLengthMs;
+  const windowStartMs = input.projection.clock.now - DECISION_TOWN_PULSE_WINDOW_DAYS * dayLengthMs;
   const entries = input.projection.townPulse
     .filter((record) => record.occurredAt >= windowStartMs)
     .sort((left, right) => right.occurredAt - left.occurredAt || right.sequence - left.sequence)
@@ -453,9 +460,7 @@ function createEducationReturnContext(input: {
   readonly educationRatePerSecond: number;
 }): WorldDecisionEducationReturnContext {
   const nextLevel =
-    input.level === EDUCATION_SYSTEM_MAX_LEVEL
-      ? null
-      : ((input.level + 1) as EducationLevel);
+    input.level === EDUCATION_SYSTEM_MAX_LEVEL ? null : ((input.level + 1) as EducationLevel);
   const requiredScore =
     input.level === EDUCATION_SYSTEM_MAX_LEVEL
       ? (input.policy.levelScoreThresholds.at(-1) ?? 0)
@@ -519,8 +524,7 @@ function createExamAdmissionContext(input: {
           ...(previousCycle.cutoffScoresByLevel[String(input.targetLevel)] === undefined
             ? {}
             : {
-                lastCycleCutoffScore:
-                  previousCycle.cutoffScoresByLevel[String(input.targetLevel)],
+                lastCycleCutoffScore: previousCycle.cutoffScoresByLevel[String(input.targetLevel)],
               }),
         }),
   };
@@ -744,7 +748,10 @@ function createPetitionDecisionContext(input: {
   }
   const open = (input.projection.petitions ?? [])
     .filter((petition) => petition.status === 'open')
-    .sort((left, right) => right.raisedAt - left.raisedAt || left.petitionId.localeCompare(right.petitionId))
+    .sort(
+      (left, right) =>
+        right.raisedAt - left.raisedAt || left.petitionId.localeCompare(right.petitionId),
+    )
     .slice(0, 8);
   if (open.length === 0) {
     return {};
@@ -760,6 +767,120 @@ function createPetitionDecisionContext(input: {
       expiresAt: petition.expiresAt,
     })),
   };
+}
+
+/**
+ * Expose only unresolved social matters relevant to the current agent. The
+ * lifecycle remains world-owned; this adapter performs deterministic
+ * relevance ordering, prompt hygiene, and budget binding only.
+ */
+function createSocialMatterDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agentId: AgentId;
+  readonly policies?: WorldCommandPolicies;
+}): Pick<WorldDecisionContext, 'matters'> | Record<string, never> {
+  if (input.policies?.socialMatters === undefined || input.projection.socialMatters === undefined) {
+    return {};
+  }
+  const matters = Object.values(input.projection.socialMatters)
+    .filter(isUnresolvedSocialMatter)
+    .map((matter) => {
+      const myResponse = matter.responses.find(
+        (response) => response.responderAgentId === input.agentId,
+      );
+      const role = resolveSocialMatterRole({
+        agentId: input.agentId,
+        initiatorAgentId: matter.initiatorAgentId,
+        ...(matter.assigneeAgentId === undefined
+          ? {}
+          : { assigneeAgentId: matter.assigneeAgentId }),
+        responded: myResponse !== undefined,
+      });
+      if (
+        role === 'available' &&
+        (matter.kind !== 'help-request' ||
+          (matter.status !== 'open' && matter.status !== 'collecting'))
+      ) {
+        return undefined;
+      }
+      const responses = matter.responses
+        .map((response) => ({ ...response }))
+        .sort(
+          (left, right) =>
+            left.respondedAt - right.respondedAt ||
+            left.responderAgentId.localeCompare(right.responderAgentId),
+        )
+        .slice(0, DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT);
+      const context: WorldDecisionSocialMatterContext = {
+        matterId: matter.matterId,
+        kind: matter.kind,
+        status: matter.status,
+        role,
+        initiatorAgentId: matter.initiatorAgentId,
+        topic: sanitizeDecisionMatterText(matter.topic, DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH),
+        statement: sanitizeDecisionMatterText(
+          matter.statement,
+          DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
+        ),
+        ...(matter.requiredCommodity === undefined
+          ? {}
+          : { requiredCommodity: { ...matter.requiredCommodity } }),
+        ...(matter.assigneeAgentId === undefined
+          ? {}
+          : { assigneeAgentId: matter.assigneeAgentId }),
+        responses,
+        ...(myResponse === undefined ? {} : { myResponse: myResponse.decision }),
+        ...(matter.deliveredQuantity === undefined
+          ? {}
+          : { deliveredQuantity: matter.deliveredQuantity }),
+        createdAt: matter.createdAt,
+        expiresAt: matter.expiresAt,
+        ...(matter.assignedAt === undefined ? {} : { assignedAt: matter.assignedAt }),
+      };
+      return context;
+    })
+    .filter((matter): matter is WorldDecisionSocialMatterContext => matter !== undefined)
+    .sort(
+      (left, right) =>
+        socialMatterRoleTier(left.role) - socialMatterRoleTier(right.role) ||
+        left.expiresAt - right.expiresAt ||
+        left.createdAt - right.createdAt ||
+        left.matterId.localeCompare(right.matterId),
+    )
+    .slice(0, DECISION_SOCIAL_MATTER_MAX_COUNT);
+  return matters.length === 0 ? {} : { matters };
+}
+
+function isUnresolvedSocialMatter(
+  matter: WorldSocialMatterState,
+): matter is WorldSocialMatterState & {
+  readonly status: Exclude<WorldSocialMatterState['status'], 'closed'>;
+} {
+  return matter.status !== 'closed';
+}
+
+function resolveSocialMatterRole(input: {
+  readonly agentId: AgentId;
+  readonly initiatorAgentId: AgentId;
+  readonly assigneeAgentId?: AgentId;
+  readonly responded: boolean;
+}): WorldDecisionSocialMatterContext['role'] {
+  if (input.assigneeAgentId === input.agentId) return 'assignee';
+  if (input.initiatorAgentId === input.agentId) return 'initiator';
+  return input.responded ? 'responder' : 'available';
+}
+
+function socialMatterRoleTier(role: WorldDecisionSocialMatterContext['role']): number {
+  switch (role) {
+    case 'assignee':
+      return 0;
+    case 'initiator':
+      return 1;
+    case 'responder':
+      return 2;
+    case 'available':
+      return 3;
+  }
 }
 
 function createCalendarDecisionContext(input: {
@@ -967,8 +1088,7 @@ function createSocietyDecisionContext(
       ? directory.agents
       : directory.agents.filter(
           (agent) =>
-            agent.ownerPartitionKey === self.ownerPartitionKey ||
-            foreignAllowed.has(agent.agentId),
+            agent.ownerPartitionKey === self.ownerPartitionKey || foreignAllowed.has(agent.agentId),
         );
   return {
     directoryId: directory.directoryId,
@@ -1019,9 +1139,7 @@ function collectAgentRelationEntries(input: {
         return false;
       }
       const counterpart =
-        relation.sourceAgentId === input.agentId
-          ? relation.targetAgentId
-          : relation.sourceAgentId;
+        relation.sourceAgentId === input.agentId ? relation.targetAgentId : relation.sourceAgentId;
       return (
         input.projection.agents[counterpart] !== undefined ||
         input.directoryAgentIds?.has(counterpart) === true

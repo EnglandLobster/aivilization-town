@@ -5,6 +5,10 @@ import {
 } from '@aivilization/memory';
 import type { AgentId, SimulationTimestamp } from '@aivilization/sim-core';
 import {
+  DECISION_SOCIAL_MATTER_MAX_COUNT,
+  DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
+  DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
+  DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH,
   WORLD_DECISION_CONTEXT_VIEW_VERSION,
   type WorldDecisionAgentContext,
   type WorldDecisionContext,
@@ -12,6 +16,7 @@ import {
   type WorldDecisionEnterpriseContext,
   type WorldDecisionMarketContext,
   type WorldDecisionRulesContext,
+  type WorldDecisionSocialMatterContext,
   type WorldDecisionSocietyAgentContext,
   type WorldDecisionSocietyContext,
 } from './worldDecisionContext';
@@ -39,6 +44,7 @@ export type PerStageContextSalienceEntry = {
   readonly source:
     | 'critical-threshold'
     | 'scheduled-intention'
+    | 'social-matter'
     | 'high-importance-memory'
     | 'eligible-rule';
   readonly sourceId: string;
@@ -69,6 +75,7 @@ export type PerStageContextView = {
   readonly weather?: WorldDecisionContext['weather'];
   readonly calendar?: WorldDecisionContext['calendar'];
   readonly petitions?: WorldDecisionContext['petitions'];
+  readonly matters?: WorldDecisionContext['matters'];
   readonly conditions?: WorldDecisionContext['conditions'];
   readonly fiscal?: WorldDecisionContext['fiscal'];
   readonly externalTrade?: WorldDecisionContext['externalTrade'];
@@ -79,10 +86,20 @@ export type PerStageContextView = {
 export const PER_STAGE_CONTEXT_SALIENCE_MAX_COUNT = 6;
 export const PER_STAGE_CONTEXT_HIGH_IMPORTANCE_MEMORY_THRESHOLD = 0.8;
 export const PER_STAGE_CONTEXT_SALIENCE_TEXT_MAX_LENGTH = 160;
+export const PER_STAGE_CONTEXT_MATTER_DUE_WINDOW_DAYS = 1;
 
 export function createPerStageContextViewManifest() {
   return {
     contextViewVersion: WORLD_DECISION_CONTEXT_VIEW_VERSION,
+    matterView: {
+      maxCount: DECISION_SOCIAL_MATTER_MAX_COUNT,
+      responseMaxCount: DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT,
+      topicMaxLength: DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH,
+      statementMaxLength: DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH,
+      relevance: 'unresolved-participant-or-open-help-request',
+      deterministicOrder: 'role-tier-then-expiry-created-at-matter-id',
+      responseOrder: 'responded-at-then-responder-agent-id',
+    },
     stageVisibility: {
       ranking: {
         stages: ['subtask-prioritization', 'global-synthesis'],
@@ -90,7 +107,12 @@ export function createPerStageContextViewManifest() {
       },
       dialogue: {
         stages: ['social-dialogue'],
-        visibleSections: ['salience', 'agent.identity-and-relations', 'society.counterpart'],
+        visibleSections: [
+          'salience',
+          'agent.identity-and-relations',
+          'society.counterpart',
+          'matters.with-counterpart',
+        ],
       },
       reaction: {
         stages: ['reaction-evaluation'],
@@ -111,11 +133,13 @@ export function createPerStageContextViewManifest() {
       maxCount: PER_STAGE_CONTEXT_SALIENCE_MAX_COUNT,
       highImportanceMemoryThreshold: PER_STAGE_CONTEXT_HIGH_IMPORTANCE_MEMORY_THRESHOLD,
       textMaxLength: PER_STAGE_CONTEXT_SALIENCE_TEXT_MAX_LENGTH,
+      matterDueWindowDays: PER_STAGE_CONTEXT_MATTER_DUE_WINDOW_DAYS,
       priorityOrder: ['survival', 'obligation', 'memory', 'relationship', 'opportunity'],
-      deterministicTieBreak: 'existing-source-priority-then-source-id',
+      deterministicTieBreak: 'source-priority-then-deadline-then-source-id',
       authoritativeSources: [
         'critical-thresholds',
         'active-scheduled-intentions',
+        'agent-relevant-social-matters',
         'short-term-memory-importance',
         'eligible-rules',
       ],
@@ -213,6 +237,12 @@ export function createPerStageContextViewTrace(
       ? {}
       : { hasWeather: true, weatherCurrent: view.weather.current }),
     ...(view.petitions === undefined ? {} : { petitionCount: view.petitions.length }),
+    ...(view.matters === undefined
+      ? {}
+      : {
+          matterCount: view.matters.length,
+          obligationMatterCount: view.matters.filter(isObligationMatter).length,
+        }),
     ...(view.calendar === undefined
       ? {}
       : {
@@ -267,6 +297,7 @@ function createRankingContextView(
     ...(context.weather === undefined ? {} : { weather: context.weather }),
     ...(context.calendar === undefined ? {} : { calendar: context.calendar }),
     ...(context.petitions === undefined ? {} : { petitions: context.petitions }),
+    ...(context.matters === undefined ? {} : { matters: context.matters }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.fiscal === undefined ? {} : { fiscal: context.fiscal }),
     ...(context.externalTrade === undefined ? {} : { externalTrade: context.externalTrade }),
@@ -283,6 +314,10 @@ function createDialogueContextView(
     targetAgentId === undefined
       ? undefined
       : context.society?.agents.find((entry) => entry.agentId === targetAgentId);
+  const matters =
+    targetAgentId === undefined
+      ? undefined
+      : context.matters?.filter((matter) => isMatterWithAgent(matter, targetAgentId));
   return {
     contextViewVersion: WORLD_DECISION_CONTEXT_VIEW_VERSION,
     stage: input.stage,
@@ -309,6 +344,7 @@ function createDialogueContextView(
             agents: [target],
           },
         }),
+    ...(matters === undefined || matters.length === 0 ? {} : { matters }),
   };
 }
 
@@ -324,6 +360,7 @@ function createReactionContextView(
     agent: context.agent,
     ...(context.townPulse === undefined ? {} : { townPulse: context.townPulse }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
+    ...(context.matters === undefined ? {} : { matters: context.matters }),
   };
 }
 
@@ -351,6 +388,7 @@ function createActionableContextView(
     ...(context.weather === undefined ? {} : { weather: context.weather }),
     ...(context.calendar === undefined ? {} : { calendar: context.calendar }),
     ...(context.petitions === undefined ? {} : { petitions: context.petitions }),
+    ...(context.matters === undefined ? {} : { matters: context.matters }),
     ...(context.conditions === undefined ? {} : { conditions: context.conditions }),
     ...(context.fiscal === undefined ? {} : { fiscal: context.fiscal }),
     ...(context.externalTrade === undefined ? {} : { externalTrade: context.externalTrade }),
@@ -365,6 +403,7 @@ function createPerStageContextSalience(
   const candidates: SalienceCandidate[] = [];
   appendSurvivalSalience(candidates, input.context);
   appendIntentionSalience(candidates, input.intentionState, input.at);
+  appendMatterSalience(candidates, input.context, input.at);
   appendMemorySalience(candidates, input.shortTermMemoryContext);
   appendOpportunitySalience(candidates, input.context.rules);
   return candidates
@@ -381,6 +420,7 @@ function createPerStageContextSalience(
 type SalienceCandidate = PerStageContextSalienceEntry & {
   readonly rank: number;
   readonly sourcePriority: number;
+  readonly deadlinePriority: number;
 };
 
 function appendSurvivalSalience(target: SalienceCandidate[], context: WorldDecisionContext): void {
@@ -415,6 +455,7 @@ function appendSurvivalSalience(target: SalienceCandidate[], context: WorldDecis
       summary: `${axis.label} is ${axis.value}, below the critical threshold ${axis.threshold}.`,
       rank: 0,
       sourcePriority: -relativeDeficit,
+      deadlinePriority: 0,
     });
   }
 }
@@ -435,6 +476,7 @@ function appendIntentionSalience(
       summary: sanitizeSalienceText(intention.description),
       rank: 1,
       sourcePriority: -intention.priority,
+      deadlinePriority: intention.endsAt,
     });
   }
 }
@@ -454,7 +496,70 @@ function appendMemorySalience(
       summary: sanitizeSalienceText(record.summary),
       rank: record.kind === 'social-interaction' ? 3 : 2,
       sourcePriority: -record.importanceScore,
+      deadlinePriority: 0,
     });
+  }
+}
+
+function appendMatterSalience(
+  target: SalienceCandidate[],
+  context: WorldDecisionContext,
+  at: SimulationTimestamp,
+): void {
+  const dayLengthMs = context.calendar?.dayLengthMs ?? 86_400_000;
+  const dueWindowMs = PER_STAGE_CONTEXT_MATTER_DUE_WINDOW_DAYS * dayLengthMs;
+  for (const matter of context.matters ?? []) {
+    if (
+      matter.role === 'assignee' &&
+      (matter.status === 'assigned' || matter.status === 'executing')
+    ) {
+      target.push({
+        kind: 'obligation',
+        source: 'social-matter',
+        sourceId: `assigned:${matter.matterId}`,
+        summary: sanitizeSalienceText(
+          `Assigned matter "${matter.topic}" is due at simulation time ${matter.expiresAt}.`,
+        ),
+        rank: 1,
+        sourcePriority: -10_000,
+        deadlinePriority: matter.expiresAt,
+      });
+      continue;
+    }
+    if (
+      matter.role === 'initiator' &&
+      (matter.status === 'open' || matter.status === 'collecting') &&
+      matter.responses.some((response) => response.decision === 'accept')
+    ) {
+      target.push({
+        kind: 'obligation',
+        source: 'social-matter',
+        sourceId: `assignment:${matter.matterId}`,
+        summary: sanitizeSalienceText(
+          `Matter "${matter.topic}" has accepted responders and needs an assignment.`,
+        ),
+        rank: 1,
+        sourcePriority: -9_000,
+        deadlinePriority: matter.expiresAt,
+      });
+      continue;
+    }
+    const ownsDueMatter =
+      matter.role === 'initiator' ||
+      (matter.role === 'responder' && matter.myResponse === 'accept');
+    if (ownsDueMatter && matter.expiresAt >= at && matter.expiresAt - at <= dueWindowMs) {
+      target.push({
+        kind: 'obligation',
+        source: 'social-matter',
+        sourceId: `due:${matter.matterId}`,
+        summary: sanitizeSalienceText(
+          `Social matter "${matter.topic}" expires at simulation time ${matter.expiresAt}.`,
+        ),
+        rank: 1,
+        sourcePriority: -8_000,
+        deadlinePriority: matter.expiresAt,
+      });
+    }
   }
 }
 
@@ -474,6 +579,7 @@ function appendOpportunitySalience(
         summary: `Eligible occupation: ${sanitizeSalienceText(occupation.occupationName)}.`,
         rank: 4,
         sourcePriority: 0,
+        deadlinePriority: 0,
       });
     }
   }
@@ -486,6 +592,7 @@ function appendOpportunitySalience(
         summary: `Producible commodity: ${sanitizeSalienceText(production.commodity)}.`,
         rank: 4,
         sourcePriority: 1,
+        deadlinePriority: 0,
       });
     }
   }
@@ -497,6 +604,7 @@ function appendOpportunitySalience(
       summary: `Eligible residential upgrade to tier ${rules.residentialUpgrade.targetResidentialTier}.`,
       rank: 4,
       sourcePriority: 2,
+      deadlinePriority: 0,
     });
   }
 }
@@ -517,6 +625,9 @@ function compareSalienceCandidates(left: SalienceCandidate, right: SalienceCandi
   if (left.sourcePriority !== right.sourcePriority) {
     return left.sourcePriority - right.sourcePriority;
   }
+  if (left.deadlinePriority !== right.deadlinePriority) {
+    return left.deadlinePriority - right.deadlinePriority;
+  }
   return left.sourceId.localeCompare(right.sourceId);
 }
 
@@ -529,6 +640,7 @@ function visibleContextSections(view: PerStageContextView): readonly string[] {
     'weather',
     'calendar',
     'petitions',
+    'matters',
     'conditions',
     'fiscal',
     'externalTrade',
@@ -541,4 +653,22 @@ function visibleContextSections(view: PerStageContextView): readonly string[] {
     }
   }
   return sections;
+}
+
+function isObligationMatter(matter: WorldDecisionSocialMatterContext): boolean {
+  return (
+    (matter.role === 'assignee' &&
+      (matter.status === 'assigned' || matter.status === 'executing')) ||
+    (matter.role === 'initiator' &&
+      (matter.status === 'open' || matter.status === 'collecting') &&
+      matter.responses.some((response) => response.decision === 'accept'))
+  );
+}
+
+function isMatterWithAgent(matter: WorldDecisionSocialMatterContext, agentId: AgentId): boolean {
+  return (
+    matter.initiatorAgentId === agentId ||
+    matter.assigneeAgentId === agentId ||
+    matter.responses.some((response) => response.responderAgentId === agentId)
+  );
 }

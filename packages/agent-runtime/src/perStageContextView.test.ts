@@ -155,7 +155,78 @@ describe('per-stage context view', () => {
     ]);
     expect(first.salience[0]?.summary).toBe('Memory 6 with whitespace');
   });
+
+  test('surfaces assigned, assignable, and due social matters as deterministic obligations', () => {
+    const context: WorldDecisionContext = {
+      ...createCompleteContext({ healthy: true, noOpportunities: true }),
+      matters: [
+        {
+          ...createMatter('matter-assigned', 'assignee', 'assigned', 500),
+          initiatorAgentId: asAgentId('agent-3'),
+        },
+        {
+          ...createMatter('matter-needs-assignment', 'initiator', 'collecting', 600),
+          responses: [{ responderAgentId: targetAgentId, decision: 'accept', respondedAt: 10 }],
+        },
+        {
+          ...createMatter('matter-due', 'responder', 'open', 700),
+          initiatorAgentId: asAgentId('agent-3'),
+          myResponse: 'accept',
+          responses: [{ responderAgentId: agentId, decision: 'accept', respondedAt: 20 }],
+        },
+      ],
+    };
+
+    const ranking = createPerStageContextView({
+      stage: 'subtask-prioritization',
+      context,
+      at: 100,
+    });
+    expect(ranking.matters).toHaveLength(3);
+    expect(ranking.salience).toMatchObject([
+      { kind: 'obligation', source: 'social-matter', sourceId: 'assigned:matter-assigned' },
+      {
+        kind: 'obligation',
+        source: 'social-matter',
+        sourceId: 'assignment:matter-needs-assignment',
+      },
+      { kind: 'obligation', source: 'social-matter', sourceId: 'due:matter-due' },
+    ]);
+
+    const dialogue = createPerStageContextView({
+      stage: 'social-dialogue',
+      context,
+      at: 100,
+      targetAgentId,
+    });
+    expect(dialogue.matters?.map((matter) => matter.matterId)).toEqual(['matter-needs-assignment']);
+
+    const trace = createPerStageContextViewTrace(ranking);
+    expect(trace).toMatchObject({ matterCount: 3, obligationMatterCount: 2 });
+    expect(trace.visibleContextSections).toContain('matters');
+  });
 });
+
+function createMatter(
+  matterId: string,
+  role: 'assignee' | 'initiator' | 'responder' | 'available',
+  status: 'open' | 'collecting' | 'assigned' | 'executing',
+  expiresAt: number,
+): NonNullable<WorldDecisionContext['matters']>[number] {
+  return {
+    matterId,
+    kind: 'help-request',
+    status,
+    role,
+    initiatorAgentId: role === 'initiator' ? agentId : targetAgentId,
+    topic: `Topic ${matterId}`,
+    statement: `Statement ${matterId}`,
+    ...(role === 'assignee' ? { assigneeAgentId: agentId } : {}),
+    responses: [],
+    createdAt: 0,
+    expiresAt,
+  };
+}
 
 function createCompleteContext(
   options: { readonly healthy?: boolean; readonly noOpportunities?: boolean } = {},

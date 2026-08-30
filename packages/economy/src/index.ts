@@ -7,6 +7,7 @@ export * from './liquidity';
 export * from './priceIndex';
 export * from './production';
 export * from './productionChain';
+export * from './renewableResources';
 export * from './valuation';
 
 export type EconomyModuleStatus = {

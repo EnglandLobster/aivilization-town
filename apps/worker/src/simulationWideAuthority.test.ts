@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, test } from 'vitest';
@@ -895,6 +895,26 @@ describe('simulation-wide authority', () => {
     expect(after.revision).toBe(revisionAfterFirst + 1);
     expect(after.projection.marketPools['Fish']?.commodityReserve).toBe(98);
     expect(verifySimulationWideAuthorityJournal({ rootDir, simulationId }).valid).toBe(true);
+  });
+
+  test('fails closed when the authority state is missing but its journal survives', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-missing-state-'));
+    const authority = createAuthority(rootDir);
+    authority.settleTrade({
+      operationId: 'trade-before-state-loss',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      trade: { side: 'buy', commodityName: 'Fish', quantity: 1 },
+    });
+    rmSync(
+      join(rootDir, 'simulation-wide-authority', encodeURIComponent('unified-town'), 'state.json'),
+    );
+
+    expect(() => createAuthority(rootDir)).toThrow(
+      /state is missing while its audit journal exists.*restore the state from backup/,
+    );
   });
 
   test('keeps the global projection fresh through partition location syncs', () => {

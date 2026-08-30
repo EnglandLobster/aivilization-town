@@ -102,6 +102,54 @@ describe('regional service quality settlement', () => {
     expect(education.map((event) => event.payload.previousQuality)).toEqual([null, 0.5]);
     expect(education.map((event) => event.payload.settledAt)).toEqual([1_000, 2_000]);
   });
+
+  test('applies the settled regional quality to study and treatment effects', () => {
+    const projection = createServiceProjection(100);
+    const settled = advance(projection, 1_000, 'quality-effects').reduce(
+      applyWorldEvent,
+      projection,
+    );
+    const studied = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'quality-study',
+        simulationId: 'service-quality-sim',
+        actorId: 'student-0',
+        source: 'agent-runtime',
+        type: 'AgentStudy',
+        payload: { durationSeconds: 10, educationRatePerSecond: 1 },
+        issuedAt: 1_000,
+      }),
+      projection: settled,
+      policies,
+      nextSequence: 20,
+    });
+    expect(studied.find((event) => event.type === 'EducationChanged')?.payload).toMatchObject({
+      previousEducationScore: 0,
+      nextEducationScore: 5,
+    });
+
+    const treated = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'quality-treatment',
+        simulationId: 'service-quality-sim',
+        actorId: 'patient-0',
+        source: 'agent-runtime',
+        type: 'AgentSeeDoctor',
+        payload: { durationSeconds: 10 },
+        issuedAt: 1_000,
+      }),
+      projection: settled,
+      policies: {
+        ...policies,
+        seeDoctor: { healthRecoveryPerSecond: 1, maxHealth: 100 },
+      },
+      nextSequence: 30,
+    });
+    expect(treated.find((event) => event.type === 'PhysiologyChanged')?.payload).toMatchObject({
+      previous: { health: 50 },
+      next: { health: 55 },
+    });
+  });
 });
 
 function createServiceProjection(treasury: number) {

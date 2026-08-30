@@ -9,6 +9,7 @@ export * from './economicPolicies';
 export * from './matters';
 export * from './projection';
 export * from './regionalMarkets';
+export * from './serviceQuality';
 export * from './spatial';
 export * from './townPulse';
 export * from './weather';

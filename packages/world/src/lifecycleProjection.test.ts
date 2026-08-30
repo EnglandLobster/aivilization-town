@@ -28,6 +28,17 @@ describe('lifecycle projection facts', () => {
           residentialTier: 2,
           job: null,
           inventory: {},
+          durableGoods: [
+            {
+              lotId: 'durable-lot-1',
+              commodityName: 'Furniture',
+              quantity: 1,
+              utilityPoints: 12,
+              acquiredAt: 100,
+              expiresAt: 1_000_000,
+            },
+          ],
+          upkeepArrears: 45,
           wellbeing: 66,
           lifeStage: 'elderly' as const,
           retiredAtMs: 86_400_000,
@@ -35,6 +46,21 @@ describe('lifecycle projection facts', () => {
           educationLevel: 4 as const,
           educationTrack: 'vocational' as const,
           examAttempts: 2,
+          registration: {
+            registrationId: 'registration-1',
+            policyVersion: 'runtime-agent-registration-v3',
+            creatorId: 'participant-1',
+            source: 'human',
+            displayName: 'Migrating Resident',
+            registeredAt: 5 * 86_400_000,
+            provenance: 'post-bootstrap-command' as const,
+            humanAttribution: {
+              principalSubjectId: 'participant-1',
+              principalRoles: ['participant'],
+              accessPolicyVersion: 'participant-access-v1',
+              consentPolicyVersion: 'participant-consent-v1',
+            },
+          },
         },
         activityTime: {
           agentId: asAgentId('agent-transferred'),
@@ -54,6 +80,39 @@ describe('lifecycle projection facts', () => {
           lowAxes: ['satiety'],
           lastGrantedAt: null,
         },
+        socialRelations: [
+          {
+            sourceAgentId: asAgentId('agent-transferred'),
+            targetAgentId: asAgentId('agent-friend'),
+            relationLabel: 'friend',
+            relationScore: 70,
+            attitudeScore: 60,
+            interactionCount: 4,
+            lastInteractionSummary: 'They agreed to work together.',
+          },
+        ],
+        socialCommitments: [
+          {
+            commitmentId: 'commitment-1',
+            promisorAgentId: asAgentId('agent-transferred'),
+            beneficiaryAgentId: asAgentId('agent-friend'),
+            topic: 'shared work',
+            statement: 'I will help tomorrow',
+            status: 'open',
+            createdAt: 160_000_000,
+          },
+        ],
+        conflictRecords: [
+          {
+            conflictId: 'conflict-1',
+            kind: 'confrontation',
+            actorAgentId: asAgentId('agent-transferred'),
+            targetAgentId: asAgentId('agent-rival'),
+            locationId: 'main-square',
+            summary: 'A prior confrontation',
+            recordedAt: 150_000_000,
+          },
+        ],
       } satisfies AgentOwnershipArrivedPayload,
       occurredAt: 172_800_000,
       sequence: 5,
@@ -75,6 +134,13 @@ describe('lifecycle projection facts', () => {
       educationLevel: 4,
       educationTrack: 'vocational',
       examAttempts: 2,
+      durableGoods: [{ lotId: 'durable-lot-1', commodityName: 'Furniture' }],
+      upkeepArrears: 45,
+      registration: {
+        creatorId: 'participant-1',
+        displayName: 'Migrating Resident',
+        humanAttribution: { principalRoles: ['participant'] },
+      },
     });
     expect(settled.activityTimeByAgent['agent-transferred']).toMatchObject({
       activity: 'travel',
@@ -85,6 +151,13 @@ describe('lifecycle projection facts', () => {
       distressStartedAt: 171_000_000,
       lowAxes: ['satiety'],
     });
+    expect(Object.values(settled.socialRelations)).toMatchObject([
+      { sourceAgentId: 'agent-transferred', targetAgentId: 'agent-friend', relationScore: 70 },
+    ]);
+    expect(settled.socialCommitments['commitment-1']).toMatchObject({ status: 'open' });
+    expect(settled.conflictRecords).toMatchObject([
+      { conflictId: 'conflict-1', targetAgentId: 'agent-rival' },
+    ]);
 
     const departed = applyWorldEvent(
       settled,

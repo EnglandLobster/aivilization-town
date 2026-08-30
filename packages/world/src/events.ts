@@ -34,7 +34,7 @@ import type { TownWeatherKind } from './weather';
 import type { TownBulletin } from './bulletin';
 import type { WorldSocialMatterState } from './matters';
 import type { WorldPetitionState } from './petition';
-import type { ConflictGrievance } from './conflict';
+import type { ConflictGrievance, WorldConflictRecord } from './conflict';
 
 export const RUNTIME_AGENT_REGISTRATION_POLICY_VERSION = 'runtime-agent-registration-v3';
 export const RUNTIME_AGENT_REGISTRATION_MAX_POPULATION = 100_000;
@@ -1437,6 +1437,17 @@ export type AgentOwnershipArrivedPayload = {
     readonly residentialTier: number;
     readonly job: string | null;
     readonly inventory: Inventory;
+    /** Owned durable-good lots; absent on arrivals recorded before this field existed. */
+    readonly durableGoods?: readonly {
+      readonly lotId: string;
+      readonly commodityName: string;
+      readonly quantity: number;
+      readonly utilityPoints: number;
+      readonly acquiredAt: number;
+      readonly expiresAt: number;
+    }[];
+    /** Unpaid residential upkeep carried across execution partitions. */
+    readonly upkeepArrears?: number;
     /**
      * Durable wellbeing scalar at transfer time. Optional so pre-wellbeing
      * arrival events stay replayable; absent means the policy initialValue.
@@ -1460,6 +1471,21 @@ export type AgentOwnershipArrivedPayload = {
     readonly educationLevel?: EducationLevel;
     readonly educationTrack?: EducationTrack;
     readonly examAttempts?: number;
+    /**
+     * Full runtime-registration provenance. This remains optional for legacy
+     * arrival events, but new transfers preserve creator authorization,
+     * display name, quota accounting, and participant-access ownership.
+     */
+    readonly registration?: {
+      readonly registrationId: string;
+      readonly policyVersion: string;
+      readonly creatorId: string;
+      readonly source: string;
+      readonly displayName: string;
+      readonly registeredAt: number;
+      readonly provenance: 'post-bootstrap-command';
+      readonly humanAttribution?: HumanCommandAttribution;
+    };
   };
   /**
    * Owner-scoped runtime facts travel with the Agent so a partition handoff
@@ -1471,6 +1497,25 @@ export type AgentOwnershipArrivedPayload = {
   };
   readonly lastTimeSettledAt?: number;
   readonly physiologicalDistress?: PhysiologicalDistressState;
+  /**
+   * Authoritative social read state involving the migrant. Conversations and
+   * conflicts are normally delivered only to then-current owner partitions;
+   * carrying these slices prevents a new owner from forgetting long-lived
+   * relationships, promises, or grievances. Optional for legacy arrivals.
+   */
+  readonly socialRelations?: readonly SocialRelationState[];
+  readonly socialCommitments?: readonly {
+    readonly commitmentId: string;
+    readonly promisorAgentId: AgentId;
+    readonly beneficiaryAgentId: AgentId;
+    readonly topic: string;
+    readonly statement: string;
+    readonly status: 'open' | 'fulfilled' | 'breached';
+    readonly createdAt: number;
+    readonly resolvedAt?: number;
+    readonly resolutionConversationId?: ConversationId;
+  }[];
+  readonly conflictRecords?: readonly WorldConflictRecord[];
 };
 
 export type WorldEventPayloadByType = {

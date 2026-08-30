@@ -172,7 +172,7 @@ describe('simulation-wide authority', () => {
     expect(snapshot.projection.marketPools['Fish']?.currencyReserve).toBeGreaterThan(1_000);
   });
 
-  test('commits cross-owner conversations against one global social graph', () => {
+  test('commits one global social graph and carries it with a later ownership move', () => {
     const authority = createAuthority();
 
     const result = authority.settleConversation({
@@ -186,8 +186,8 @@ describe('simulation-wide authority', () => {
       turns: [
         {
           speakerAgentId: agentA,
-          utterance: 'Could we coordinate fish supply?',
-          intent: 'cooperate',
+          utterance: 'I promise to coordinate fish supply.',
+          intent: 'make-commitment',
         },
         {
           speakerAgentId: agentB,
@@ -202,6 +202,34 @@ describe('simulation-wide authority', () => {
     expect(result.targetPartitionKey).toBe(partitionB);
     expect(snapshot.projection.conversationRecords).toHaveLength(1);
     expect(Object.keys(snapshot.projection.socialRelations)).toHaveLength(2);
+    expect(Object.keys(snapshot.projection.socialCommitments)).toHaveLength(1);
+
+    authority.advanceTime({
+      operationId: 'advance-after-conversation',
+      workerId: 'worker-a',
+      observedAt: 300_000,
+      durationMs: 100,
+      deltaMs: 300_000,
+    });
+    authority.settleMove({
+      operationId: 'move-after-conversation',
+      workerId: 'worker-a',
+      observedAt: 300_001,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+      destinationPartitionKey: partitionB,
+      cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
+    });
+    const arrival = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'social-handoff-materializer' })
+      .deliveries.find((delivery) => delivery.operationId === 'move-after-conversation')
+      ?.events.find((event) => event.type === 'AgentOwnershipArrived');
+    expect(arrival?.type).toBe('AgentOwnershipArrived');
+    if (arrival?.type === 'AgentOwnershipArrived') {
+      expect(arrival.payload.socialRelations).toHaveLength(2);
+      expect(arrival.payload.socialCommitments).toHaveLength(1);
+    }
   });
 
   test('moves ownership only after the canonical spatial command has committed', () => {
@@ -481,6 +509,7 @@ describe('simulation-wide authority', () => {
   test('settles an immediate cross-owner move with paired ownership events and snapshot delivery', () => {
     const authority = createAuthority();
     const snapshot = createTestCognitiveSnapshot(agentA);
+    const migrant = authority.getSnapshot().projection.agents[agentA]!;
     authority.syncPartitionAgentLocations({
       operationId: 'sync-runtime-before-cross-owner-move',
       workerId: 'worker-a',
@@ -488,6 +517,37 @@ describe('simulation-wide authority', () => {
       durationMs: 100,
       partitionKey: partitionA,
       agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      agentStates: [
+        {
+          ...migrant,
+          durableGoods: [
+            {
+              lotId: 'migrant-durable-lot',
+              commodityName: 'Furniture',
+              quantity: 1,
+              utilityPoints: 10,
+              acquiredAt: 0,
+              expiresAt: 1_000_000,
+            },
+          ],
+          upkeepArrears: 25,
+          registration: {
+            registrationId: 'migrant-registration',
+            policyVersion: 'runtime-agent-registration-v3',
+            creatorId: 'participant-1',
+            source: 'human',
+            displayName: 'Migrant One',
+            registeredAt: 0,
+            provenance: 'post-bootstrap-command',
+            humanAttribution: {
+              principalSubjectId: 'participant-1',
+              principalRoles: ['participant'],
+              accessPolicyVersion: 'participant-access-v1',
+              consentPolicyVersion: 'participant-consent-v1',
+            },
+          },
+        },
+      ],
       partitionRuntimeState: {
         activityTimeByAgent: {},
         transitByAgent: {},
@@ -547,6 +607,15 @@ describe('simulation-wide authority', () => {
     if (arrivalEvent?.type === 'AgentOwnershipArrived') {
       expect(arrivalEvent.payload.fromPartitionKey).toBe(partitionA);
       expect(arrivalEvent.payload.agentState.locationId).toBe(asLocationId('market'));
+      expect(arrivalEvent.payload.agentState).toMatchObject({
+        durableGoods: [{ lotId: 'migrant-durable-lot', commodityName: 'Furniture' }],
+        upkeepArrears: 25,
+        registration: {
+          creatorId: 'participant-1',
+          displayName: 'Migrant One',
+          humanAttribution: { principalRoles: ['participant'] },
+        },
+      });
       expect(arrivalEvent.payload.lastTimeSettledAt).toBe(0);
       expect(arrivalEvent.payload.physiologicalDistress).toMatchObject({
         distressStartedAt: 0,

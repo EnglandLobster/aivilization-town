@@ -1044,6 +1044,21 @@ describe('local runtime town executable composition', () => {
     );
   });
 
+  test.each([
+    ['--town-weather', 'town weather requires the simulation-wide authority'],
+    ['--town-service-quality', 'town service quality requires the simulation-wide authority'],
+    ['--town-migration', 'two-way town migration requires the simulation-wide authority'],
+    ['--regional-markets', 'regional markets require the simulation-wide authority'],
+  ] as const)('fails closed when %s is requested without authority', (flag, reason) => {
+    const authorityOff = resolveLocalRuntimeTownCliConfig({
+      argv: ['--', '--llm-mode', 'deterministic', '--simulation-wide-authority', 'off', flag, 'on'],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(authorityOff)).toThrow(reason);
+  });
+
   test('records survival composition metrics through the canonical executable chain', async () => {
     const config = createDeterministicConfig(['--profile', 'survival-town-100']);
     const input = createCanonicalLocalRuntimeTownServerInput(config, 100, {

@@ -4,7 +4,12 @@ import {
   markSubtaskCompleted,
 } from '@aivilization/agent-runtime';
 import type { LongHorizonObjective } from '@aivilization/memory';
-import { asAgentId, createEventEnvelope } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  createEventEnvelope,
+  type PartitionKey,
+  type SimulationId,
+} from '@aivilization/sim-core';
 import {
   applyWorldEvent,
   createWorldProjection,
@@ -19,6 +24,7 @@ import {
   createAivilizationWorldCommandPoliciesSnapshot,
   createCanonicalLocalRuntimeAgentProvider,
   createLocalWorldRuntimeStorage,
+  type LocalSimulationSocietyDirectory,
 } from './index';
 
 const roots: string[] = [];
@@ -121,6 +127,10 @@ describe('canonical local runtime agent provider', () => {
       simulationId: storage.partition.simulationId,
       issuedAt: 400,
       projection: availableProjection,
+      societyDirectory: createSocietyDirectory(
+        storage.partition.simulationId,
+        storage.partition.partitionKey,
+      ),
     });
 
     const intentionState = await storage.intentionRepository.getOrCreate(agentId);
@@ -130,6 +140,10 @@ describe('canonical local runtime agent provider', () => {
     expect(intentionState.activeObjective?.statement).toMatch(/^Apply for .+ to advance/);
     expect(intentionState.activeObjective?.affinityTags).toContain('job');
     expect(agents).toHaveLength(1);
+    expect(agents[0]?.worldDecisionContext?.society).toMatchObject({
+      directoryId: 'canonical-provider-directory',
+      agents: [{ agentId, ownerPartitionKey: storage.partition.partitionKey }],
+    });
     const renewalTraces = await storage.objectiveRenewalTraceRepository.query({
       simulationId: 'sim-career-progression',
       partitionKey: 'world-main',
@@ -288,5 +302,33 @@ function createCareerReadyAgent(): WorldAgentState {
     residentialTier: 2,
     job: null,
     inventory: { Beef: 1 },
+  };
+}
+
+function createSocietyDirectory(
+  simulationId: SimulationId,
+  partitionKey: PartitionKey,
+): LocalSimulationSocietyDirectory {
+  return {
+    schemaVersion: 'local-simulation-society-directory-v1',
+    directoryId: 'canonical-provider-directory',
+    manifestId: 'canonical-provider-manifest',
+    simulationId,
+    partitionBoundaries: [
+      { partitionKey, lastAppliedSequence: 0, snapshotSequence: 0, simulationTime: 3_000 },
+    ],
+    agents: [
+      {
+        agentId,
+        ownerPartitionKey: partitionKey,
+        ownerLastAppliedSequence: 0,
+        publicState: {
+          locationId: null,
+          job: null,
+          residentialTier: 2,
+          educationScore: 400,
+        },
+      },
+    ],
   };
 }

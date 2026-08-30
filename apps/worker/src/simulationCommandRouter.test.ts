@@ -115,6 +115,82 @@ describe('simulation command router', () => {
     expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
   });
 
+  test('reports residents removed by local population turnover to the authority', () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    // The router starts from the authority's durable ownership ledger, so a
+    // departure that settled before its first process-local sync is not lost.
+    router.syncPartitionState(
+      createWorldProjection({
+        clock: { now: 1_000, tickDurationMs: 1_000 },
+        agents: [],
+      }),
+    );
+
+    const snapshot = authority.getSnapshot();
+    expect(snapshot.projection.agents[agentA]).toBeUndefined();
+    expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBeUndefined();
+    expect(snapshot.ownerPartitionKeyByAgentId[agentB]).toBe(partitionB);
+    expect(Object.values(snapshot.operations).map((entry) => entry.operation)).toContainEqual(
+      expect.objectContaining({ kind: 'location-sync', removedAgentIds: [agentA] }),
+    );
+  });
+
+  test('synchronizes owner-departure enterprise closure before removing its owner', () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const activeProjection = createPartitionProjection({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+      enterprise: true,
+    });
+    router.syncPartitionState(activeProjection);
+    const activeEnterprise = activeProjection.enterprises['fish-shop'];
+    if (activeEnterprise === undefined) {
+      throw new Error('expected fish-shop enterprise');
+    }
+
+    router.syncPartitionState(
+      createWorldProjection({
+        clock: { now: 1_000, tickDurationMs: 1_000 },
+        agents: [],
+        enterprises: [
+          {
+            ...activeEnterprise,
+            balance: 0,
+            inventory: {},
+            employeeAgentIds: [],
+            status: 'closed',
+            closedAt: 1_000,
+          },
+        ],
+        moneySupply: 900,
+      }),
+    );
+
+    expect(authority.getSnapshot().projection.agents[agentA]).toBeUndefined();
+    expect(authority.getSnapshot().projection.enterprises['fish-shop']).toMatchObject({
+      ownerAgentId: agentA,
+      status: 'closed',
+      balance: 0,
+      inventory: {},
+    });
+  });
+
   test('synchronizes owner-partition enterprises before global AMM settlement', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',
@@ -698,6 +774,19 @@ describe('simulation command router', () => {
     expect(
       sourceDeliveries[0]!.events.some((event) => event.type === 'AgentOwnershipDeparted'),
     ).toBe(true);
+
+    // Once the source materializes that departure, its next state sync must
+    // not misreport a permanent departure: authority ownership already moved
+    // to partition B.
+    expect(() =>
+      router.syncPartitionState(
+        createWorldProjection({
+          clock: { now: 1_000, tickDurationMs: 1_000 },
+          agents: [],
+        }),
+      ),
+    ).not.toThrow();
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
   });
 });
 

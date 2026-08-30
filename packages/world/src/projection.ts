@@ -698,7 +698,11 @@ export function createWorldProjection(input: {
     if (enterprises[enterprise.enterpriseId] !== undefined) {
       throw new Error(`duplicate enterprise id ${enterprise.enterpriseId}`);
     }
-    if (agents[enterprise.ownerAgentId] === undefined) {
+    // Terminal enterprise records remain in the projection for deterministic
+    // replay and audit after an owner permanently leaves the town. Operational
+    // enterprises still require a live owner because owner-scoped commands and
+    // lifecycle settlement cannot be authorized otherwise.
+    if (agents[enterprise.ownerAgentId] === undefined && enterprise.status !== 'closed') {
       throw new Error(`enterprise ${enterprise.enterpriseId} has unknown owner`);
     }
     enterprises[enterprise.enterpriseId] = normalizeEnterpriseState(enterprise);
@@ -2781,7 +2785,9 @@ function updateRenewableResource(
     input.carryingCapacity <= 0 ||
     input.stock > input.carryingCapacity
   ) {
-    throw new Error(`invalid renewable resource stock for ${input.regionId}/${input.commodityName}`);
+    throw new Error(
+      `invalid renewable resource stock for ${input.regionId}/${input.commodityName}`,
+    );
   }
   const region = projection.renewableResources?.[input.regionId] ?? {};
   return {
@@ -2914,11 +2920,17 @@ function applyAgentDeparture(
   delete transitByAgent[agentId];
   const timeSettlementByAgent = { ...(projection.timeSettlementByAgent ?? {}) };
   delete timeSettlementByAgent[agentId];
+  const activityTimeByAgent = { ...projection.activityTimeByAgent };
+  delete activityTimeByAgent[agentId];
+  const physiologicalDistressByAgent = { ...projection.physiologicalDistressByAgent };
+  delete physiologicalDistressByAgent[agentId];
   const departed: WorldProjection = {
     ...projection,
     agents,
     transitByAgent,
     timeSettlementByAgent,
+    activityTimeByAgent,
+    physiologicalDistressByAgent,
     jobApplications: withoutPendingApplicationsOf(projection.jobApplications, agentId),
     educationExamApplications: withoutPendingApplicationsOf(
       projection.educationExamApplications,

@@ -122,13 +122,19 @@ export function createSimulationCommandRouter(input: {
   // sent with each sync stays as small as the partition's own new memories,
   // and the authority skips known ids so replayed syncs stay idempotent.
   const syncedMemoryRecordIds = new Set<string>();
-  // Agents this router has ever reported to the authority: a previously
-  // reported resident missing from the current projection permanently left
-  // the simulation (death or out-migration settled partition-locally), and
-  // the authority must drop them from its ledger before any global
-  // settlement references a ghost resident.
-  let lastReportedAgentIds = new Set<string>();
+  // Start from the authority's seed/rehydrated ownership ledger, not an empty
+  // process-local cache: population turnover can settle before this router's
+  // first sync after startup. A missing resident is a true departure only
+  // while the authority still assigns it to this partition; cross-owner moves
+  // have already changed that owner and must merely disappear from this
+  // router's local cache.
+  let lastReportedAgentIds = new Set<string>(
+    Object.entries(input.authority.getSnapshot().ownerPartitionKeyByAgentId)
+      .filter(([, ownerPartitionKey]) => ownerPartitionKey === input.partitionKey)
+      .map(([agentId]) => agentId),
+  );
   const syncPartitionLocations = (projection: WorldProjection): void => {
+    const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
     const agentStates = Object.values(projection.agents).sort((left, right) =>
       left.agentId.localeCompare(right.agentId),
     );
@@ -145,7 +151,11 @@ export function createSimulationCommandRouter(input: {
       transitByAgent: projection.transitByAgent ?? {},
     };
     const enterpriseStates = Object.values(projection.enterprises)
-      .filter((enterprise) => projection.agents[enterprise.ownerAgentId] !== undefined)
+      .filter(
+        (enterprise) =>
+          projection.agents[enterprise.ownerAgentId] !== undefined ||
+          knownOwners[enterprise.ownerAgentId] === input.partitionKey,
+      )
       .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId));
     const synchronizedState = JSON.stringify({
       partitionClockNow: projection.clock.now,
@@ -156,7 +166,9 @@ export function createSimulationCommandRouter(input: {
     });
     const currentAgentIds = new Set<string>(agentLocations.map((entry) => entry.agentId as string));
     const departedAgentIds = [...lastReportedAgentIds]
-      .filter((agentId) => !currentAgentIds.has(agentId))
+      .filter(
+        (agentId) => !currentAgentIds.has(agentId) && knownOwners[agentId] === input.partitionKey,
+      )
       .sort();
     const newMemoryRecords = projection.memoryRecords
       .filter((record) => !syncedMemoryRecordIds.has(record.id))
@@ -186,7 +198,6 @@ export function createSimulationCommandRouter(input: {
         }),
       )
       .digest('hex');
-    const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
     const newAgents = Object.values(projection.agents)
       .filter((agent) => knownOwners[agent.agentId] === undefined)
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
@@ -205,6 +216,7 @@ export function createSimulationCommandRouter(input: {
       partitionRuntimeState,
       ...(newAgents.length === 0 ? {} : { newAgents }),
       ...(newMemoryRecords.length === 0 ? {} : { newMemoryRecords }),
+      ...(departedAgentIds.length === 0 ? {} : { departedAgentIds }),
     });
     for (const record of newMemoryRecords) {
       syncedMemoryRecordIds.add(record.id);

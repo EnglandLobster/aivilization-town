@@ -1709,6 +1709,7 @@ export function createSimulationWideAuthority(input: {
             delete owners[departedId];
             removedAgentIds.push(departedId);
           }
+          const removedAgentIdSet = new Set<AgentId>(removedAgentIds);
           for (const record of newAgents) {
             const agentId = asAgentId(record.agentId);
             if (owners[agentId] !== undefined) {
@@ -1752,8 +1753,22 @@ export function createSimulationWideAuthority(input: {
             }
           }
           const updatedEnterpriseIds: string[] = [];
+          for (const enterprise of Object.values(enterprises)) {
+            if (!removedAgentIdSet.has(enterprise.ownerAgentId)) {
+              continue;
+            }
+            const reported = enterpriseStates.find(
+              (candidate) => candidate.enterpriseId === enterprise.enterpriseId,
+            );
+            if ((reported ?? enterprise).status !== 'closed') {
+              throw new Error(
+                `departure sync for ${enterprise.ownerAgentId} requires closed enterprise ${enterprise.enterpriseId}`,
+              );
+            }
+          }
           for (const record of enterpriseStates) {
-            const ownerPartitionKey = owners[record.ownerAgentId];
+            const ownerPartitionKey =
+              owners[record.ownerAgentId] ?? state.ownerPartitionKeyByAgentId[record.ownerAgentId];
             if (ownerPartitionKey === undefined) {
               throw new Error(
                 `enterprise ${record.enterpriseId} has unknown owner ${record.ownerAgentId}`,
@@ -1762,6 +1777,11 @@ export function createSimulationWideAuthority(input: {
             if (ownerPartitionKey !== partitionKey) {
               throw new Error(
                 `enterprise ${record.enterpriseId} state sync must come from owner partition ${ownerPartitionKey}, not ${partitionKey}`,
+              );
+            }
+            if (removedAgentIdSet.has(record.ownerAgentId) && record.status !== 'closed') {
+              throw new Error(
+                `departure sync for ${record.ownerAgentId} requires closed enterprise ${record.enterpriseId}`,
               );
             }
             if (stableStringify(enterprises[record.enterpriseId]) !== stableStringify(record)) {
@@ -1810,20 +1830,34 @@ export function createSimulationWideAuthority(input: {
                   ...state.projection.memoryRecords,
                   ...mergedMemoryRecords.map((record) => ({ ...record })),
                 ].slice(-WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT);
-          const activityTimeByAgent = mergeOwnerScopedRecord({
-            current: state.projection.activityTimeByAgent,
-            reported: request.partitionRuntimeState?.activityTimeByAgent,
-            owners,
-            partitionKey,
-            valueName: 'activity-time',
-          });
-          const transitByAgent = mergeOwnerScopedRecord({
-            current: state.projection.transitByAgent ?? {},
-            reported: request.partitionRuntimeState?.transitByAgent,
-            owners,
-            partitionKey,
-            valueName: 'transit',
-          });
+          const activityTimeByAgent = withoutRecordKeys(
+            mergeOwnerScopedRecord({
+              current: state.projection.activityTimeByAgent,
+              reported: request.partitionRuntimeState?.activityTimeByAgent,
+              owners,
+              partitionKey,
+              valueName: 'activity-time',
+            }),
+            removedAgentIds,
+          );
+          const transitByAgent = withoutRecordKeys(
+            mergeOwnerScopedRecord({
+              current: state.projection.transitByAgent ?? {},
+              reported: request.partitionRuntimeState?.transitByAgent,
+              owners,
+              partitionKey,
+              valueName: 'transit',
+            }),
+            removedAgentIds,
+          );
+          const timeSettlementByAgent =
+            state.projection.timeSettlementByAgent === undefined
+              ? undefined
+              : withoutRecordKeys(state.projection.timeSettlementByAgent, removedAgentIds);
+          const physiologicalDistressByAgent = withoutRecordKeys(
+            state.projection.physiologicalDistressByAgent,
+            removedAgentIds,
+          );
           const operation: Extract<
             SimulationWideAuthorityOperation,
             { readonly kind: 'location-sync' }
@@ -1885,6 +1919,8 @@ export function createSimulationWideAuthority(input: {
             memoryRecords,
             activityTimeByAgent,
             transitByAgent,
+            ...(timeSettlementByAgent === undefined ? {} : { timeSettlementByAgent }),
+            physiologicalDistressByAgent,
           };
           if (state.partitionKeys.length === 1 && request.partitionAccounts !== undefined) {
             synchronizedProjection = {
@@ -2295,6 +2331,20 @@ function mergeOwnerScopedRecord<TValue>(input: {
     merged[agentId] = clone(value);
   }
   return merged;
+}
+
+function withoutRecordKeys<TValue>(
+  record: Readonly<Record<string, TValue>>,
+  removedAgentIds: readonly AgentId[],
+): Readonly<Record<string, TValue>> {
+  if (removedAgentIds.length === 0) {
+    return record;
+  }
+  const next = { ...record };
+  for (const agentId of removedAgentIds) {
+    delete next[agentId];
+  }
+  return next;
 }
 
 function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWideAuthoritySnapshot {

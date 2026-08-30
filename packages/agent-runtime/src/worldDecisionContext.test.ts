@@ -5,6 +5,7 @@ import {
   createWorldDecisionContextTrace,
   describeCitizenFraming,
   sanitizeDecisionDisplayName,
+  sanitizeDecisionMatterText,
   type WorldDecisionAgentContext,
   type WorldDecisionContext,
 } from './worldDecisionContext';
@@ -103,6 +104,44 @@ describe('world decision context trace', () => {
       displayNameLength: 5,
     });
   });
+
+  test('counts visible matters and world-facing obligations', () => {
+    const context: WorldDecisionContext = {
+      agent: {
+        agentId: asAgentId('agent-1'),
+        locationId: null,
+        physiology: { energy: 72, satiety: 41, health: 93 },
+        educationScore: 31,
+        balance: 100,
+        residentialTier: 1,
+        job: null,
+        inventory: {},
+      },
+      market: { spotPrices: [] },
+      matters: [
+        {
+          matterId: 'matter-1',
+          kind: 'help-request',
+          status: 'assigned',
+          role: 'assignee',
+          initiatorAgentId: asAgentId('agent-2'),
+          assigneeAgentId: asAgentId('agent-1'),
+          topic: 'Food delivery',
+          statement: 'Bring food.',
+          responses: [
+            { responderAgentId: asAgentId('agent-1'), decision: 'accept', respondedAt: 10 },
+          ],
+          createdAt: 0,
+          expiresAt: 100,
+        },
+      ],
+    };
+
+    expect(createWorldDecisionContextTrace(context)).toMatchObject({
+      matterCount: 1,
+      obligationMatterCount: 1,
+    });
+  });
 });
 
 describe('decision display name sanitizer', () => {
@@ -129,6 +168,13 @@ describe('decision display name sanitizer', () => {
   });
 });
 
+describe('decision matter text sanitizer', () => {
+  test('strips unsafe characters, collapses whitespace, and respects the supplied cap', () => {
+    expect(sanitizeDecisionMatterText('  Need\u0000   food\u202e now  ', 13)).toBe('Need food now');
+    expect(sanitizeDecisionMatterText('😀'.repeat(5), 3)).toBe('😀'.repeat(3));
+  });
+});
+
 describe('citizen framing', () => {
   const baseAgent: WorldDecisionAgentContext = {
     agentId: asAgentId('agent-1'),
@@ -144,13 +190,19 @@ describe('citizen framing', () => {
 
   test('composes stage and occupation from authoritative fields', () => {
     expect(
-      describeCitizenFraming({ ...baseAgent, lifecycle: { stage: 'adult', ageDays: 9000, retired: false } }),
+      describeCitizenFraming({
+        ...baseAgent,
+        lifecycle: { stage: 'adult', ageDays: 9000, retired: false },
+      }),
     ).toBe('You are acting as Li Na — adult cook of this town.');
   });
 
   test('prefers retired over the raw stage and falls back to resident without a job', () => {
     expect(
-      describeCitizenFraming({ ...baseAgent, lifecycle: { stage: 'elderly', ageDays: 30000, retired: true } }),
+      describeCitizenFraming({
+        ...baseAgent,
+        lifecycle: { stage: 'elderly', ageDays: 30000, retired: true },
+      }),
     ).toBe('You are acting as Li Na — retired cook of this town.');
     expect(describeCitizenFraming({ ...baseAgent, job: null })).toBe(
       'You are acting as Li Na — resident of this town.',
@@ -166,7 +218,12 @@ describe('citizen framing', () => {
   test('persona system prompt wraps the module prompt only when framing exists', () => {
     const modulePrompt = 'You are the test module. Return JSON.';
     expect(composePersonaSystemPrompt({ framing: null, modulePrompt })).toBe(modulePrompt);
-    expect(composePersonaSystemPrompt({ framing: 'You are acting as Li Na — cook of this town.', modulePrompt })).toBe(
+    expect(
+      composePersonaSystemPrompt({
+        framing: 'You are acting as Li Na — cook of this town.',
+        modulePrompt,
+      }),
+    ).toBe(
       'You are acting as Li Na — cook of this town. You are the test module. Return JSON. The citizen framing must not contradict the JSON state; all authoritative facts live in the JSON payload.',
     );
   });

@@ -415,6 +415,37 @@ export type WorldDecisionPetitionContext = {
 };
 
 /**
+ * Agent-relevant, read-only view of one durable social matter. The world
+ * projection owns the lifecycle; this shape only exposes facts needed for
+ * planning and never grants authority to settle or close a matter.
+ */
+export type WorldDecisionSocialMatterContext = {
+  readonly matterId: string;
+  readonly kind: 'help-request' | 'commitment';
+  readonly status: 'latent' | 'open' | 'collecting' | 'assigned' | 'executing';
+  readonly role: 'assignee' | 'initiator' | 'responder' | 'available';
+  readonly initiatorAgentId: AgentId;
+  readonly topic: string;
+  readonly statement: string;
+  readonly requiredCommodity?: {
+    readonly commodityName: string;
+    readonly quantity: number;
+  };
+  readonly assigneeAgentId?: AgentId;
+  /** Bounded public responses; initiators use accepted rows for assignment. */
+  readonly responses: readonly {
+    readonly responderAgentId: AgentId;
+    readonly decision: 'accept' | 'reject' | 'defer';
+    readonly respondedAt: number;
+  }[];
+  readonly myResponse?: 'accept' | 'reject' | 'defer';
+  readonly deliveredQuantity?: number;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly assignedAt?: number;
+};
+
+/**
  * Optional town day/night calendar visible to agent planning (town-calendar
  * switch). Present only when the town-calendar policy is enabled; exposes the
  * current phase, when it ends, and what follows so schedules can be
@@ -518,6 +549,11 @@ export type WorldDecisionContext = {
    * carry a collective-action policy. Read-path only.
    */
   readonly petitions?: readonly WorldDecisionPetitionContext[];
+  /**
+   * Relevant unresolved social matters (social-matters switch), ordered by
+   * role then expiry and capped at {@link DECISION_SOCIAL_MATTER_MAX_COUNT}.
+   */
+  readonly matters?: readonly WorldDecisionSocialMatterContext[];
   readonly conditions?: readonly WorldDecisionConditionContext[];
   readonly fiscal?: WorldDecisionFiscalContext;
   readonly externalTrade?: readonly WorldDecisionExternalTradeCommodityContext[];
@@ -561,6 +597,8 @@ export type WorldDecisionContextTrace = {
   readonly weatherCurrent?: string;
   readonly hasCalendar?: boolean;
   readonly petitionCount?: number;
+  readonly matterCount?: number;
+  readonly obligationMatterCount?: number;
   readonly calendarDayIndex?: number;
   readonly calendarPhase?: string;
   readonly calendarNextPhase?: string;
@@ -639,6 +677,12 @@ export function createWorldDecisionContextTrace(
       ? {}
       : { hasWeather: true, weatherCurrent: context.weather.current }),
     ...(context.petitions === undefined ? {} : { petitionCount: context.petitions.length }),
+    ...(context.matters === undefined
+      ? {}
+      : {
+          matterCount: context.matters.length,
+          obligationMatterCount: context.matters.filter(isObligationMatter).length,
+        }),
     ...(context.calendar === undefined
       ? {}
       : {
@@ -687,9 +731,9 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v5';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v6';
 
-/** Hard cap for any free-text field entering prompts (injection hygiene). */
+/** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
 
 /**
@@ -725,6 +769,40 @@ export const DECISION_TOWN_PULSE_MAX_COUNT = 6;
  * window are stale news and dropped.
  */
 export const DECISION_TOWN_PULSE_WINDOW_DAYS = 3;
+
+/** Maximum number of unresolved social matters visible to one agent. */
+export const DECISION_SOCIAL_MATTER_MAX_COUNT = 8;
+
+/** Maximum accepted candidates exposed on one matter. */
+export const DECISION_SOCIAL_MATTER_RESPONDER_MAX_COUNT = 8;
+
+/** Prompt-budget caps for durable matter free text. */
+export const DECISION_SOCIAL_MATTER_TOPIC_MAX_LENGTH = 120;
+export const DECISION_SOCIAL_MATTER_STATEMENT_MAX_LENGTH = 320;
+
+/**
+ * Sanitize bounded social-matter text before it enters an LLM context. Unlike
+ * display names, an empty value is retained as an empty string because topic
+ * and statement are required fields in the durable event schema.
+ */
+export function sanitizeDecisionMatterText(value: string, maxLength: number): string {
+  const cleaned = value
+    // eslint-disable-next-line no-control-regex -- matching control characters is this sanitizer's purpose
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\ufeff]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return Array.from(cleaned).slice(0, maxLength).join('');
+}
+
+function isObligationMatter(matter: WorldDecisionSocialMatterContext): boolean {
+  return (
+    (matter.role === 'assignee' &&
+      (matter.status === 'assigned' || matter.status === 'executing')) ||
+    (matter.role === 'initiator' &&
+      (matter.status === 'open' || matter.status === 'collecting') &&
+      matter.responses.some((response) => response.decision === 'accept'))
+  );
+}
 
 /**
  * Sanitize a display name before it enters any prompt payload: strip C0/C1

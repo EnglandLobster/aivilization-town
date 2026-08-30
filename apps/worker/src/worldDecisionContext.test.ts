@@ -13,6 +13,8 @@ import {
   createBankState,
   createWorldProjection,
   type WorldCommandPolicies,
+  type WorldProjection,
+  type WorldSocialMatterState,
 } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
@@ -97,12 +99,12 @@ describe('worker world decision context', () => {
     });
 
     expect(
-      createWorldDecisionContextFromProjection({ projection: withLongName, agentId })
-        .agent.displayName,
+      createWorldDecisionContextFromProjection({ projection: withLongName, agentId }).agent
+        .displayName,
     ).toBe('V'.repeat(64));
     expect(
-      createWorldDecisionContextFromProjection({ projection: withoutRegistration, agentId })
-        .agent.displayName,
+      createWorldDecisionContextFromProjection({ projection: withoutRegistration, agentId }).agent
+        .displayName,
     ).toBeUndefined();
   });
 
@@ -192,9 +194,9 @@ describe('worker world decision context', () => {
       ],
       agents: [{ agentId: 'agent-a', ownerPartitionKey: 'world-main' }],
     });
-    expect(
-      context.society?.agents.some((societyAgent) => societyAgent.agentId === 'agent-b'),
-    ).toBe(false);
+    expect(context.society?.agents.some((societyAgent) => societyAgent.agentId === 'agent-b')).toBe(
+      false,
+    );
     expect(JSON.stringify(context.society)).not.toContain('Apple');
     expect(JSON.stringify(context.society)).not.toContain('balance');
   });
@@ -329,9 +331,7 @@ describe('worker world decision context', () => {
     const projection = createWorldProjection({
       agents: [
         createLocalAgent(agentId),
-        ...Array.from({ length: 10 }, (_, index) =>
-          createLocalAgent(asAgentId(`agent-r${index}`)),
-        ),
+        ...Array.from({ length: 10 }, (_, index) => createLocalAgent(asAgentId(`agent-r${index}`))),
       ],
       socialRelations,
     });
@@ -359,8 +359,7 @@ describe('worker world decision context', () => {
       name: `Enterprise ${index}`,
       // e-00 is owned by the agent (tier 0); e-03/e-04 post openings (tier 1);
       // the rest are plain context (tier 2).
-      ownerAgentId:
-        index === 0 ? agentId : asAgentId(`owner-${String(index).padStart(2, '0')}`),
+      ownerAgentId: index === 0 ? agentId : asAgentId(`owner-${String(index).padStart(2, '0')}`),
       occupationName: 'Baker',
       balance: 100,
       inventory: {},
@@ -501,9 +500,7 @@ describe('worker world decision context', () => {
       socialRelations,
     });
     const societyDirectory = createSocietyDirectoryFixture({
-      foreignAgentIds: socialRelations.map(
-        (relation) => relation.targetAgentId,
-      ),
+      foreignAgentIds: socialRelations.map((relation) => relation.targetAgentId),
     });
 
     const context = createWorldDecisionContextFromProjection({
@@ -1890,6 +1887,127 @@ describe('worker world decision context', () => {
   });
 });
 
+describe('worker social-matter decision context', () => {
+  const policies: WorldCommandPolicies = {
+    satietyRecoveryByCommodity: {},
+    maxSatiety: 100,
+    wageCalculator: () => 0,
+    laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+    criticalThresholds: { energy: 0, health: 0 },
+    socialMatters: { policyVersion: 'social-matters-v1', defaultExpiryMs: 14_400_000 },
+  };
+
+  test('gates the view by policy and exposes only relevant unresolved matters', () => {
+    const projection = createProjectionWithMatters([
+      createMatterState({
+        matterId: 'assigned-to-me',
+        initiatorAgentId: asAgentId('agent-b'),
+        status: 'assigned',
+        assigneeAgentId: agentId,
+        responses: [{ responderAgentId: agentId, decision: 'accept', respondedAt: 20 }],
+        expiresAt: 200,
+      }),
+      createMatterState({
+        matterId: 'my-request',
+        initiatorAgentId: agentId,
+        status: 'collecting',
+        topic: `  Need\u0000   ${'food '.repeat(30)} `,
+        statement: 'S'.repeat(400),
+        responses: [
+          { responderAgentId: asAgentId('agent-c'), decision: 'accept', respondedAt: 30 },
+          ...Array.from({ length: 9 }, (_, index) => ({
+            responderAgentId: asAgentId(`agent-r${index}`),
+            decision: 'reject' as const,
+            respondedAt: 40 + index,
+          })),
+        ],
+        expiresAt: 300,
+      }),
+      createMatterState({
+        matterId: 'responded-by-me',
+        initiatorAgentId: asAgentId('agent-b'),
+        status: 'open',
+        responses: [{ responderAgentId: agentId, decision: 'defer', respondedAt: 40 }],
+        expiresAt: 400,
+      }),
+      createMatterState({
+        matterId: 'available-help',
+        initiatorAgentId: asAgentId('agent-b'),
+        status: 'open',
+        expiresAt: 500,
+      }),
+      createMatterState({
+        matterId: 'unrelated-commitment',
+        initiatorAgentId: asAgentId('agent-b'),
+        kind: 'commitment',
+        status: 'latent',
+        assigneeAgentId: asAgentId('agent-c'),
+        expiresAt: 600,
+      }),
+      createMatterState({
+        matterId: 'closed-matter',
+        initiatorAgentId: agentId,
+        status: 'closed',
+        closure: 'fulfilled',
+        expiresAt: 700,
+      }),
+    ]);
+
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId }).matters,
+    ).toBeUndefined();
+    const matters = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      policies,
+    }).matters;
+
+    expect(matters?.map(({ matterId, role }) => ({ matterId, role }))).toEqual([
+      { matterId: 'assigned-to-me', role: 'assignee' },
+      { matterId: 'my-request', role: 'initiator' },
+      { matterId: 'responded-by-me', role: 'responder' },
+      { matterId: 'available-help', role: 'available' },
+    ]);
+    expect(matters?.[1]?.responses[0]).toMatchObject({
+      responderAgentId: 'agent-c',
+      decision: 'accept',
+    });
+    expect(matters?.[1]?.responses).toHaveLength(8);
+    expect(matters?.[1]?.topic).not.toContain('\u0000');
+    expect(Array.from(matters?.[1]?.topic ?? '')).toHaveLength(120);
+    expect(Array.from(matters?.[1]?.statement ?? '')).toHaveLength(320);
+    expect(matters?.[2]?.myResponse).toBe('defer');
+  });
+
+  test('sorts available matters by expiry and applies the hard cap', () => {
+    const projection = createProjectionWithMatters(
+      Array.from({ length: 10 }, (_, index) =>
+        createMatterState({
+          matterId: `matter-${index}`,
+          initiatorAgentId: asAgentId('agent-b'),
+          status: 'open',
+          expiresAt: 1_000 - index,
+        }),
+      ),
+    );
+
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId, policies }).matters?.map(
+        (matter) => matter.matterId,
+      ),
+    ).toEqual([
+      'matter-9',
+      'matter-8',
+      'matter-7',
+      'matter-6',
+      'matter-5',
+      'matter-4',
+      'matter-3',
+      'matter-2',
+    ]);
+  });
+});
+
 describe('worker housing decision context', () => {
   const basePolicies: WorldCommandPolicies = {
     satietyRecoveryByCommodity: {},
@@ -2018,6 +2136,43 @@ function createLocalAgent(localAgentId: AgentId) {
     residentialTier: 1,
     job: null,
     inventory: {},
+  };
+}
+
+function createProjectionWithMatters(matters: readonly WorldSocialMatterState[]): WorldProjection {
+  return {
+    ...createWorldProjection({ agents: [createLocalAgent(agentId)] }),
+    socialMatters: Object.fromEntries(matterEntries(matters)),
+  };
+}
+
+function matterEntries(
+  matters: readonly WorldSocialMatterState[],
+): readonly (readonly [string, WorldSocialMatterState])[] {
+  return matters.map((matter) => [matter.matterId, matter] as const);
+}
+
+function createMatterState(
+  input: Pick<WorldSocialMatterState, 'matterId' | 'initiatorAgentId' | 'status' | 'expiresAt'> &
+    Partial<
+      Pick<
+        WorldSocialMatterState,
+        'kind' | 'closure' | 'topic' | 'statement' | 'assigneeAgentId' | 'responses'
+      >
+    >,
+): WorldSocialMatterState {
+  return {
+    matterId: input.matterId,
+    kind: input.kind ?? 'help-request',
+    status: input.status,
+    ...(input.closure === undefined ? {} : { closure: input.closure }),
+    initiatorAgentId: input.initiatorAgentId,
+    topic: input.topic ?? `Topic ${input.matterId}`,
+    statement: input.statement ?? `Statement ${input.matterId}`,
+    ...(input.assigneeAgentId === undefined ? {} : { assigneeAgentId: input.assigneeAgentId }),
+    responses: input.responses ?? [],
+    createdAt: 10,
+    expiresAt: input.expiresAt,
   };
 }
 

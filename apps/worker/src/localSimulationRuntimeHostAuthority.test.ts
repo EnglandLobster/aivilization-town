@@ -924,12 +924,22 @@ describe('regional markets in the simulation-wide authority', () => {
 
   test('town service quality on: authority settles global occupancy and funding facts', async () => {
     const rootDir = createRootDir();
+    const manifest = createManifest();
     const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
       rootDir,
       bootstrappedAt: 100,
-      manifest: createManifest(),
+      manifest: {
+        ...manifest,
+        partitions: manifest.partitions.map((partition) => ({
+          ...partition,
+          initialTreasury: 1_000,
+          moneySupply: 2_000,
+        })),
+      },
       scenarioPresets: createScenarioPresets(),
-      policies,
+      policies: createAivilizationWorldCommandPolicies('service-quality-funding-test', undefined, {
+        townServiceQuality: true,
+      }),
       localizedPlanners: [],
       steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
       agents: [],
@@ -956,6 +966,67 @@ describe('regional markets in the simulation-wide authority', () => {
     expect(Object.values(qualities ?? {}).some((region) => region.healthcare !== undefined)).toBe(
       true,
     );
+    const fundedServices = Object.values(qualities ?? {}).flatMap((region) =>
+      [region.education, region.healthcare].filter((service) => service !== undefined),
+    );
+    // Each of the two partition treasuries funds 10 units per service. The
+    // authority combines those real partition decisions instead of evaluating
+    // service quality against an empty authority-local budget event list.
+    expect(fundedServices.map((service) => service.fundedAmount)).toEqual([20, 20]);
+  });
+
+  test('town service quality is materialized once while local budget cash still settles', async () => {
+    const rootDir = createRootDir();
+    const manifest = createManifest();
+    const mainPartition = manifest.partitions[0]!;
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: {
+        ...manifest,
+        partitions: [
+          {
+            ...mainPartition,
+            initialTreasury: 1_000,
+            moneySupply: 2_000,
+          },
+        ],
+      },
+      scenarioPresets: [createScenarioPresets()[0]!],
+      policies: createAivilizationWorldCommandPolicies('service-quality-once-test', undefined, {
+        townServiceQuality: true,
+      }),
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      timeDeltaMs: 3_600_000,
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+        townServiceQuality: true,
+      },
+    });
+
+    await host.registry.api.startSimulation({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+    const stream = await host.registry.api.getEvents({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+    });
+    const qualityEvents = stream.events.filter(
+      (event) => event.type === 'RegionalServiceQualityUpdated',
+    );
+    expect(qualityEvents).toHaveLength(2);
+    expect(
+      qualityEvents.map((event) =>
+        event.type === 'RegionalServiceQualityUpdated' ? event.payload.fundedAmount : -1,
+      ),
+    ).toEqual([10, 10]);
+    expect(stream.events.filter((event) => event.type === 'PublicBudgetSpent')).toHaveLength(3);
   });
 
   test('town weather on: the daemon tick loop settles WeatherChanged into the partition stream', async () => {

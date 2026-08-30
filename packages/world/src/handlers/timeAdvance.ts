@@ -146,6 +146,16 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly landValue?: LandValuePolicy;
   /** Authority-scoped because service occupancy must be measured town-wide. */
   readonly serviceQuality?: ServiceQualityPolicy;
+  /**
+   * Application-supplied, already-settled public-service funding for each
+   * service-quality boundary. A simulation-wide authority uses this to combine
+   * the owner partitions' real budget decisions without replaying their cash
+   * movements in the global projection. Omitted keeps the local event-derived
+   * funding path.
+   */
+  readonly serviceQualityFundingBySettledAt?: Readonly<
+    Record<number, Partial<Record<TownPublicService, number>>>
+  >;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   readonly recruitmentCycle?: RecruitmentCyclePolicy;
@@ -1154,7 +1164,9 @@ function appendRegionalServiceQualityEvents(input: {
       locationByAgent.set(arrival.agentId, arrival.toLocationId);
       arrivalCursor += 1;
     }
-    const fundingByService = collectPublicServiceFunding(input.events, settledAt);
+    const fundingByService =
+      input.input.serviceQualityFundingBySettledAt?.[settledAt] ??
+      collectPublicServiceFunding(input.events, settledAt);
     for (const regionId of regionIds) {
       for (const service of [
         'education',
@@ -2629,8 +2641,7 @@ function isPolicySettlementDue(input: {
 }): boolean {
   if (
     input.policyVersion === undefined ||
-    (input.legacyPolicyVersion !== undefined &&
-      input.policyVersion === input.legacyPolicyVersion)
+    (input.legacyPolicyVersion !== undefined && input.policyVersion === input.legacyPolicyVersion)
   ) {
     return true;
   }

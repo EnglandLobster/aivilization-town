@@ -244,11 +244,22 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
   // (so banking can be planned), but must not run a second daily accrual loop.
   const partitionPolicies: WorldCommandPolicySource = authorityEnabled
     ? (projection) => {
-        const { credit: authorityOwnedCredit, ...localPolicies } = resolveWorldCommandPolicies({
+        const resolvedPolicies = resolveWorldCommandPolicies({
           policies: input.policies,
           projection,
         });
+        const { credit: authorityOwnedCredit, ...withoutAuthorityCredit } = resolvedPolicies;
         void authorityOwnedCredit;
+        if (authorityOptions?.townServiceQuality !== true) {
+          return withoutAuthorityCredit;
+        }
+        // Service occupancy is simulation-wide. The authority settles the
+        // quality event from an exact aggregation of each partition's local
+        // public-budget decisions; partitions still own the corresponding cash
+        // transfers, but must not emit a second, partial-occupancy quality fact.
+        const { serviceQuality: authorityOwnedServiceQuality, ...localPolicies } =
+          withoutAuthorityCredit;
+        void authorityOwnedServiceQuality;
         return localPolicies;
       }
     : input.policies;

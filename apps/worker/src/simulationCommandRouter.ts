@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { CommandDraft } from '@aivilization/agent-runtime';
 import {
   createCommandEnvelope,
@@ -143,7 +144,7 @@ export function createSimulationCommandRouter(input: {
       activityTimeByAgent: projection.activityTimeByAgent,
       transitByAgent: projection.transitByAgent ?? {},
     };
-    const fingerprint = JSON.stringify({
+    const synchronizedState = JSON.stringify({
       partitionClockNow: projection.clock.now,
       agentStates,
       partitionAccounts,
@@ -157,7 +158,7 @@ export function createSimulationCommandRouter(input: {
       .filter((record) => !syncedMemoryRecordIds.has(record.id))
       .sort((left, right) => left.id.localeCompare(right.id));
     if (
-      fingerprint === lastSyncedPartitionStateFingerprint &&
+      synchronizedState === lastSyncedPartitionStateFingerprint &&
       newMemoryRecords.length === 0 &&
       departedAgentIds.length === 0
     ) {
@@ -168,17 +169,26 @@ export function createSimulationCommandRouter(input: {
     // change (locations unchanged) would reuse the previous id and the
     // authority would replay the journaled no-memory operation instead of
     // merging the new records. Idempotent for identical re-issued deltas.
-    const memoryMarker =
-      newMemoryRecords.length === 0
-        ? 'mem-none'
-        : `mem-${newMemoryRecords.length}-${newMemoryRecords[newMemoryRecords.length - 1]?.id}`;
+    // A raw full-state JSON key made every authority state/journal row repeat
+    // the complete Agent population in its object key. Hash the deterministic
+    // content instead: the request fingerprint still verifies collisions and
+    // the fixed-size operation id keeps long-running town state tractable.
+    const contentDigest = createHash('sha256')
+      .update(
+        JSON.stringify({
+          synchronizedState,
+          memoryRecordIds: newMemoryRecords.map((record) => record.id),
+          departedAgentIds,
+        }),
+      )
+      .digest('hex');
     const knownOwners = input.authority.getSnapshot().ownerPartitionKeyByAgentId;
     const newAgents = Object.values(projection.agents)
       .filter((agent) => knownOwners[agent.agentId] === undefined)
       .sort((left, right) => left.agentId.localeCompare(right.agentId));
     const lease = input.lease();
     input.authority.syncPartitionAgentLocations({
-      operationId: `location-sync:${input.partitionKey}:${fingerprint}:${memoryMarker}`,
+      operationId: `location-sync:${input.partitionKey}:sha256:${contentDigest}`,
       workerId: lease.workerId,
       observedAt: lease.observedAt,
       durationMs: lease.durationMs,
@@ -194,7 +204,7 @@ export function createSimulationCommandRouter(input: {
     for (const record of newMemoryRecords) {
       syncedMemoryRecordIds.add(record.id);
     }
-    lastSyncedPartitionStateFingerprint = fingerprint;
+    lastSyncedPartitionStateFingerprint = synchronizedState;
   };
   // The tick advances the partition clock before drafting agent commands, while
   // the pre-tick materializer only catches the authority up to the pre-tick

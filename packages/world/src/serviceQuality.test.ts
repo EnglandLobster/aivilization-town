@@ -103,6 +103,46 @@ describe('regional service quality settlement', () => {
     expect(education.map((event) => event.payload.settledAt)).toEqual([1_000, 2_000]);
   });
 
+  test('uses application-supplied aggregate funding without emitting a second budget transfer', () => {
+    const projection = createServiceProjection(100);
+    const { publicBudget: localPublicBudget, ...authorityPolicies } = policies;
+    void localPublicBudget;
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'quality-authority-funding',
+        simulationId: 'service-quality-sim',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 1_000 },
+        issuedAt: 0,
+      }),
+      projection,
+      policies: authorityPolicies,
+      serviceQualityFundingBySettledAt: {
+        1_000: { education: 25, healthcare: 15 },
+      },
+      nextSequence: 1,
+    });
+
+    expect(events.some((event) => event.type === 'PublicBudgetSpent')).toBe(false);
+    expect(
+      events.find(
+        (event) =>
+          event.type === 'RegionalServiceQualityUpdated' &&
+          event.payload.regionId === 'downtown' &&
+          event.payload.service === 'education',
+      )?.payload,
+    ).toMatchObject({ fundedAmount: 25, budgetEfficiency: 1 });
+    expect(
+      events.find(
+        (event) =>
+          event.type === 'RegionalServiceQualityUpdated' &&
+          event.payload.regionId === 'downtown' &&
+          event.payload.service === 'healthcare',
+      )?.payload,
+    ).toMatchObject({ fundedAmount: 15, budgetEfficiency: 1 });
+  });
+
   test('applies the settled regional quality to study and treatment effects', () => {
     const projection = createServiceProjection(100);
     const settled = advance(projection, 1_000, 'quality-effects').reduce(

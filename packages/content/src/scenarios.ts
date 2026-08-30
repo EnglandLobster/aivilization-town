@@ -53,18 +53,17 @@ type ScenarioStochasticIllnessPolicyParameters = {
   readonly source: string;
 };
 
-export type ScenarioStochasticIllnessPolicyConfig =
-  ScenarioStochasticIllnessPolicyParameters &
-    (
-      | {
-          readonly policyVersion: string;
-          readonly settlementCadenceMs: number;
-        }
-      | {
-          readonly policyVersion?: never;
-          readonly settlementCadenceMs?: never;
-        }
-    );
+export type ScenarioStochasticIllnessPolicyConfig = ScenarioStochasticIllnessPolicyParameters &
+  (
+    | {
+        readonly policyVersion: string;
+        readonly settlementCadenceMs: number;
+      }
+    | {
+        readonly policyVersion?: never;
+        readonly settlementCadenceMs?: never;
+      }
+  );
 
 export type ScenarioStarvationHealthDecayPolicyConfig = {
   readonly policyVersion: string;
@@ -237,6 +236,17 @@ export type ScenarioOutMigrationPolicyConfig = {
     readonly housingDemandWeight: number;
     readonly jobDemandWeight: number;
   };
+  readonly source: string;
+};
+
+export type ScenarioHousingConstructionPolicyConfig = {
+  readonly policyVersion: string;
+  readonly minimumOccupancyRatio: number;
+  readonly capacityPerProject: number;
+  readonly maximumLocationCapacity: number;
+  readonly inventoryCosts: Readonly<Record<string, number>>;
+  readonly builderSelection: 'lowest-agent-id-with-materials-per-partition';
+  readonly locationSelection: 'lowest-capacity-then-id';
   readonly source: string;
 };
 
@@ -681,6 +691,8 @@ const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
 const migrationPolicySource =
   'Population flow; town-migration-v3 combines the CS2 NotHappy departure shape with repository-defined housing/job/wellbeing arrival demand and cadence, because the paper does not model population turnover';
+const housingConstructionPolicySource =
+  'Housing supply response; town-construction-v1 turns scarce finite residential capacity and owned construction material into durable capacity through an Agent command, benchmarked against the CS2 zone/building supply loop';
 const collectiveActionPolicySource =
   'Collective action; collective-action-v1 petition threshold and expiry are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model collective action';
 const townDiscoursePolicySource =
@@ -1113,6 +1125,25 @@ export const aivilizationOutMigrationPolicyDefaults = {
   },
   source: migrationPolicySource,
 } as const satisfies ScenarioOutMigrationPolicyConfig;
+
+export const TOWN_CONSTRUCTION_POLICY_VERSION = 'town-construction-v1';
+
+/**
+ * Minimal endogenous housing-supply response. At 80% occupancy, one resident
+ * can consume two Wood to add five durable slots to a finite residence. The
+ * location ceiling bounds runaway construction while later zoning/property
+ * work remains an explicit extension rather than hidden in this policy.
+ */
+export const aivilizationHousingConstructionPolicyDefaults = {
+  policyVersion: TOWN_CONSTRUCTION_POLICY_VERSION,
+  minimumOccupancyRatio: 0.8,
+  capacityPerProject: 5,
+  maximumLocationCapacity: 200,
+  inventoryCosts: { Wood: 2 },
+  builderSelection: 'lowest-agent-id-with-materials-per-partition',
+  locationSelection: 'lowest-capacity-then-id',
+  source: housingConstructionPolicySource,
+} as const satisfies ScenarioHousingConstructionPolicyConfig;
 
 export const COLLECTIVE_ACTION_POLICY_VERSION = 'collective-action-v1';
 

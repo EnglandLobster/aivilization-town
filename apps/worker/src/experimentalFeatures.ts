@@ -14,6 +14,7 @@ import {
   aivilizationTownGovernancePolicyDefaults,
   aivilizationSurvivalTimePolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
+  aivilizationHousingConstructionPolicyDefaults,
 } from '@aivilization/content';
 import {
   assertValidRenewableResourcePolicy,
@@ -40,6 +41,8 @@ import {
   type ServiceQualityPolicy,
   type TownGovernancePolicy,
   type StarvationHealthDecayPolicy,
+  assertValidHousingConstructionPolicy,
+  type HousingConstructionPolicy,
 } from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
@@ -65,7 +68,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townServiceQuality'
   | 'townGovernance'
   | 'townSurvivalPressure'
-  | 'townCarryingCapacity';
+  | 'townCarryingCapacity'
+  | 'townConstruction';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -131,10 +135,8 @@ export function createAivilizationTownGovernancePolicy(): TownGovernancePolicy {
     maximumAllocationPerCadence:
       aivilizationTownGovernancePolicyDefaults.maximumAllocationPerCadence,
     maximumTreasuryReserve: aivilizationTownGovernancePolicyDefaults.maximumTreasuryReserve,
-    maximumSubsidyBalanceFloor:
-      aivilizationTownGovernancePolicyDefaults.maximumSubsidyBalanceFloor,
-    maximumSubsidyPerCadence:
-      aivilizationTownGovernancePolicyDefaults.maximumSubsidyPerCadence,
+    maximumSubsidyBalanceFloor: aivilizationTownGovernancePolicyDefaults.maximumSubsidyBalanceFloor,
+    maximumSubsidyPerCadence: aivilizationTownGovernancePolicyDefaults.maximumSubsidyPerCadence,
     source: aivilizationTownGovernancePolicyDefaults.source,
   };
   assertValidTownGovernancePolicy(policy);
@@ -152,8 +154,7 @@ export function createAivilizationStarvationHealthDecayPolicy(): StarvationHealt
 export function createAivilizationRenewableResourcePolicy(): RenewableResourcePolicy {
   const policy: RenewableResourcePolicy = {
     policyVersion: aivilizationRenewableResourcePolicyDefaults.policyVersion,
-    regenerationCadenceMs:
-      aivilizationRenewableResourcePolicyDefaults.regenerationCadenceMs,
+    regenerationCadenceMs: aivilizationRenewableResourcePolicyDefaults.regenerationCadenceMs,
     resources: aivilizationRenewableResourcePolicyDefaults.resources.map((resource) => ({
       ...resource,
     })),
@@ -243,6 +244,20 @@ export function createAivilizationTownWellbeingPolicy(): WellbeingPolicy {
     },
   };
   assertValidWellbeingPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationHousingConstructionPolicy(): HousingConstructionPolicy {
+  const policy: HousingConstructionPolicy = {
+    policyVersion: aivilizationHousingConstructionPolicyDefaults.policyVersion,
+    minimumOccupancyRatio: aivilizationHousingConstructionPolicyDefaults.minimumOccupancyRatio,
+    capacityPerProject: aivilizationHousingConstructionPolicyDefaults.capacityPerProject,
+    maximumLocationCapacity: aivilizationHousingConstructionPolicyDefaults.maximumLocationCapacity,
+    inventoryCosts: { ...aivilizationHousingConstructionPolicyDefaults.inventoryCosts },
+    builderSelection: aivilizationHousingConstructionPolicyDefaults.builderSelection,
+    locationSelection: aivilizationHousingConstructionPolicyDefaults.locationSelection,
+  };
+  assertValidHousingConstructionPolicy(policy);
   return policy;
 }
 
@@ -658,6 +673,30 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         collectiveAction: createAivilizationCollectiveActionPolicy(),
+      }),
+    },
+    {
+      key: 'townConstruction',
+      policyVersion: aivilizationHousingConstructionPolicyDefaults.policyVersion,
+      cliFlag: '--town-construction',
+      envVar: 'AIVILIZATION_TOWN_CONSTRUCTION',
+      helpTitle: 'Material-backed residential construction',
+      helpLines: [
+        'Housing construction is a repository-specific extension: pass',
+        '--town-construction on or AIVILIZATION_TOWN_CONSTRUCTION=1 to let one',
+        'eligible resident consume real construction inventory and expand finite',
+        'residential capacity when town-wide occupancy reaches the policy threshold.',
+        'Construction settles on the simulation-wide authority and is disabled by default.',
+      ],
+      registrySource:
+        'Housing construction is not a paper mechanism; material cost, demand threshold, project size, and capacity ceiling are repository-defined (CS2 zone/building supply-loop benchmark).',
+      createManifestParameters: () => ({
+        ...aivilizationHousingConstructionPolicyDefaults,
+        inventoryCosts: { ...aivilizationHousingConstructionPolicyDefaults.inventoryCosts },
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        housingConstruction: createAivilizationHousingConstructionPolicy(),
       }),
     },
     {

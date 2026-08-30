@@ -109,6 +109,59 @@ describe('simulation command router', () => {
     ]);
   });
 
+  test('routes housing construction through authority and keeps remote inventory owner-scoped', async () => {
+    const authority = createRouterAuthority(
+      { agentALocationId: 'residential-block', agentBLocationId: 'residential-block' },
+      { construction: true },
+    );
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+    const policies = createAivilizationWorldCommandPolicies('router-construction', undefined, {
+      townConstruction: true,
+    });
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [
+        {
+          simulationId: asSimulationId('sim-1'),
+          actorId: agentA,
+          source: 'agent-runtime',
+          type: 'AgentBuildHousing',
+          payload: { locationId: asLocationId('residential-block') },
+          issuedAt: 100,
+        },
+      ],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('residential-block'),
+        inventory: { Wood: 3 },
+      }),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-construction:agent-a',
+      commandIdPrefix: 'tick-construction:agent-a',
+    });
+
+    expect(result.events.map((event) => event.type)).toEqual([
+      'InventoryChanged',
+      'HousingCapacityExpanded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(authority.getSnapshot().projection.locations['residential-block']?.capacity).toBe(7);
+    const remote = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'construction-router-remote' })
+      .deliveries.find((delivery) => delivery.operationKind === 'construction');
+    expect(remote?.events.map((event) => event.type)).toEqual(['HousingCapacityExpanded']);
+  });
+
   test('synchronizes mutable Agent state before global trade settlement', async () => {
     const authority = createRouterAuthority({
       agentALocationId: 'town-square',
@@ -917,13 +970,20 @@ describe('simulation command router', () => {
   });
 });
 
-function createRouterAuthority(seedLocations: {
-  readonly agentALocationId: string;
-  readonly agentBLocationId: string;
-}) {
+function createRouterAuthority(
+  seedLocations: {
+    readonly agentALocationId: string;
+    readonly agentBLocationId: string;
+  },
+  options: { readonly construction?: boolean } = {},
+) {
   return createSimulationWideAuthority({
     rootDir: mkdtempSync(join(tmpdir(), 'aivilization-router-authority-')),
-    policies: createAivilizationWorldCommandPolicies('router-test'),
+    policies: createAivilizationWorldCommandPolicies(
+      'router-test',
+      undefined,
+      options.construction === true ? { townConstruction: true } : undefined,
+    ),
     seed: {
       manifestId: 'manifest-1',
       simulationId,
@@ -956,6 +1016,17 @@ function createRouterAuthority(seedLocations: {
             activityAffinities: ['study'],
             capacity: 20,
           },
+          ...(options.construction === true
+            ? [
+                {
+                  locationId: asLocationId('residential-block'),
+                  name: 'Residential block',
+                  kind: 'residence' as const,
+                  activityAffinities: ['residential'],
+                  capacity: 2,
+                },
+              ]
+            : []),
         ],
         agents: [
           {
@@ -966,7 +1037,7 @@ function createRouterAuthority(seedLocations: {
             balance: 500,
             residentialTier: 1,
             job: null,
-            inventory: {},
+            inventory: options.construction === true ? { Wood: 3 } : {},
           },
           {
             agentId: agentB,
@@ -991,6 +1062,7 @@ function createPartitionProjection(input: {
   readonly locationId: ReturnType<typeof asLocationId>;
   readonly balance?: number;
   readonly enterprise?: boolean;
+  readonly inventory?: Readonly<Record<string, number>>;
 }) {
   return createWorldProjection({
     clock: { now: 0, tickDurationMs: 1_000 },
@@ -1009,6 +1081,13 @@ function createPartitionProjection(input: {
         activityAffinities: ['study'],
         capacity: 20,
       },
+      {
+        locationId: asLocationId('residential-block'),
+        name: 'Residential block',
+        kind: 'residence',
+        activityAffinities: ['residential'],
+        capacity: 2,
+      },
     ],
     agents: [
       {
@@ -1019,7 +1098,7 @@ function createPartitionProjection(input: {
         balance: input.balance ?? 500,
         residentialTier: 1,
         job: null,
-        inventory: {},
+        inventory: input.inventory ?? {},
       },
     ],
     ...(input.enterprise === true

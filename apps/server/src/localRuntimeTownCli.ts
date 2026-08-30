@@ -101,6 +101,7 @@ export type LocalRuntimeTownCliConfig = {
   readonly townGovernanceEnabled: boolean;
   readonly townSurvivalPressureEnabled: boolean;
   readonly townCarryingCapacityEnabled: boolean;
+  readonly townConstructionEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -229,6 +230,7 @@ export function resolveLocalRuntimeTownCliConfig(
     experimentalFeatureEnabled.townSurvivalPressure || survivalTownProfile;
   const townCarryingCapacityEnabled =
     experimentalFeatureEnabled.townCarryingCapacity || survivalTownProfile;
+  const townConstructionEnabled = experimentalFeatureEnabled.townConstruction;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -262,6 +264,7 @@ export function resolveLocalRuntimeTownCliConfig(
     townGovernanceEnabled,
     townSurvivalPressureEnabled,
     townCarryingCapacityEnabled,
+    townConstructionEnabled,
   };
 }
 
@@ -277,6 +280,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
   const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
   if (config.townCarryingCapacityEnabled && profile.manifest.partitions.length !== 1) {
     throw new Error('town carrying capacity currently requires a single-partition profile');
+  }
+  if (config.townConstructionEnabled && !config.simulationWideAuthorityEnabled) {
+    throw new Error('town construction requires the simulation-wide authority');
   }
   const resolvedRunManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(config);
   const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
@@ -316,6 +322,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
       townGovernance: config.townGovernanceEnabled,
       townSurvivalPressure: config.townSurvivalPressureEnabled,
       townCarryingCapacity: config.townCarryingCapacityEnabled,
+      townConstruction: config.townConstructionEnabled,
     },
     // The paper-ablation cohort pins the education system off so the Section
     // 5.1 baseline keeps the legacy continuous-score education semantics.
@@ -576,6 +583,7 @@ type ParsedOptions = {
   readonly townGovernance?: string;
   readonly townSurvivalPressure?: string;
   readonly townCarryingCapacity?: string;
+  readonly townConstruction?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {

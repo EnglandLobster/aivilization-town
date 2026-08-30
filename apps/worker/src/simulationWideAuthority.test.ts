@@ -1874,6 +1874,113 @@ describe('authority lifecycle and memory-sync scoping', () => {
         .projection.memoryRecords.filter((existing) => existing.id === 'memory-sync-1'),
     ).toHaveLength(1);
   });
+
+  test('settles construction once and broadcasts only global capacity facts to non-owners', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-construction-'));
+    const basePolicies = createAivilizationWorldCommandPolicies('construction-test', undefined, {
+      townConstruction: true,
+    });
+    const authority = createSimulationWideAuthority({
+      rootDir,
+      policies: (projection) => ({
+        ...basePolicies(projection),
+        migration: {
+          policyVersion: 'construction-migration-test-v3',
+          maxProbabilityPerHour: 1,
+          fallbackWellbeing: 50,
+          settlementCadenceMs: 86_400_000,
+          inMigration: {
+            settlementCadenceMs: 86_400_000,
+            maximumArrivalsPerCadence: 5,
+            minimumAttractiveWellbeing: 0,
+            housingDemandWeight: 1,
+            jobDemandWeight: 0,
+          },
+        },
+      }),
+      seed: {
+        manifestId: 'construction-manifest',
+        simulationId,
+        partitionKeys: [partitionA, partitionB],
+        owners: [
+          { agentId: agentA, partitionKey: partitionA },
+          { agentId: agentB, partitionKey: partitionB },
+        ],
+        projection: createWorldProjection({
+          locations: [
+            {
+              locationId: asLocationId('residential-block'),
+              name: 'Residential block',
+              kind: 'residence',
+              activityAffinities: ['residential'],
+              capacity: 2,
+            },
+          ],
+          agents: [
+            {
+              agentId: agentA,
+              locationId: asLocationId('residential-block'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 100,
+              residentialTier: 1,
+              job: null,
+              inventory: { Wood: 3 },
+            },
+            {
+              agentId: agentB,
+              locationId: asLocationId('residential-block'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 100,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            },
+          ],
+          moneySupply: 200,
+        }),
+      },
+    });
+    const request = {
+      operationId: 'construction-1',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      builderAgentId: agentA,
+      housing: { locationId: asLocationId('residential-block') },
+    } as const;
+
+    const operation = authority.settleConstruction(request);
+    expect(operation.events.map((event) => event.type)).toEqual([
+      'InventoryChanged',
+      'HousingCapacityExpanded',
+      'ShortTermMemoryRecorded',
+    ]);
+    expect(authority.getSnapshot().projection.locations['residential-block']?.capacity).toBe(7);
+    expect(authority.getSnapshot().projection.agents[agentA]?.inventory).toEqual({ Wood: 1 });
+    const ownerDelivery = authority
+      .readInbox({ partitionKey: partitionA, consumerId: 'construction-owner' })
+      .deliveries.find((delivery) => delivery.operationId === request.operationId);
+    const remoteDelivery = authority
+      .readInbox({ partitionKey: partitionB, consumerId: 'construction-remote' })
+      .deliveries.find((delivery) => delivery.operationId === request.operationId);
+    expect(ownerDelivery?.events).toHaveLength(3);
+    expect(remoteDelivery?.events.map((event) => event.type)).toEqual(['HousingCapacityExpanded']);
+    expect(authority.settleConstruction(request)).toEqual(operation);
+    expect(authority.getSnapshot().projection.locations['residential-block']?.capacity).toBe(7);
+
+    const [advance] = authority.advanceTime({
+      operationId: 'construction-followed-by-migration',
+      workerId: 'worker-a',
+      observedAt: 86_400_000,
+      durationMs: 100,
+      deltaMs: 86_400_000,
+    });
+    if (advance?.kind !== 'time-advanced') throw new Error('expected time advance');
+    expect(advance.events.some((event) => event.type === 'AgentRegistered')).toBe(true);
+    expect(authority.getSnapshot().projection.locations['residential-block']?.capacity).toBe(7);
+  });
 });
 
 function createAuthority(

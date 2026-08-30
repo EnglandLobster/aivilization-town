@@ -15,6 +15,7 @@ import type {
   SleepDeprivationHealthDecayPolicy,
   StarvationHealthDecayPolicy,
   StochasticIllnessPolicy,
+  HousingConstructionPolicy,
   TownPublicService,
   TownCalendarPolicy,
   TownConditionsPolicy,
@@ -96,6 +97,7 @@ import {
   handleSetSubsidyPolicyCommand,
   handleSetTaxPolicyCommand,
 } from './handlers/governance';
+import { handleAgentBuildHousingCommand } from './handlers/housing';
 import { rejectBusyAgentCommand, rejectCommand } from './handlers/shared';
 
 // The command handlers live in ./handlers by domain. They are re-exported here
@@ -158,6 +160,7 @@ export {
   handleSetSubsidyPolicyCommand,
   handleSetTaxPolicyCommand,
 } from './handlers/governance';
+export { handleAgentBuildHousingCommand } from './handlers/housing';
 
 export type WorldCommandPolicies = WorldEconomicPolicies & {
   readonly governance?: TownGovernancePolicy;
@@ -355,6 +358,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
     readonly recruitmentCycle?: RecruitmentCyclePolicy;
   };
   readonly residentialTierUpgrade?: ResidentialTierUpgradePolicy;
+  readonly housingConstruction?: HousingConstructionPolicy;
 };
 
 export function dispatchWorldCommand(input: {
@@ -366,6 +370,8 @@ export function dispatchWorldCommand(input: {
     Record<number, Partial<Record<TownPublicService, number>>>
   >;
   readonly nextSequence: number;
+  /** Simulation-wide population supplied only when dry-running a global housing action. */
+  readonly housingPopulation?: number;
 }): WorldEvent[] {
   if (input.command.type.startsWith('Agent')) {
     const busyRejection = rejectBusyAgentCommand(input);
@@ -905,6 +911,19 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentUpgradeResidentialTier', unknown>,
         projection: input.projection,
         policy: input.policies.residentialTierUpgrade,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentBuildHousing':
+      if (input.policies.housingConstruction === undefined) {
+        return rejectCommand(input, 'AgentBuildHousing', 'missing housing construction policy');
+      }
+      return handleAgentBuildHousingCommand({
+        command: input.command as CommandEnvelope<'AgentBuildHousing', unknown>,
+        projection: input.projection,
+        policy: input.policies.housingConstruction,
+        ...(input.housingPopulation === undefined
+          ? {}
+          : { housingPopulation: input.housingPopulation }),
         nextSequence: input.nextSequence,
       });
     default:

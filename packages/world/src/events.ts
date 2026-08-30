@@ -921,6 +921,19 @@ export type ResidentialTierUpgradedPayload = {
   readonly consumedInventory: Inventory;
 };
 
+export type HousingCapacityExpandedPayload = {
+  readonly builderAgentId: AgentId;
+  readonly locationId: LocationId;
+  readonly previousCapacity: number;
+  readonly nextCapacity: number;
+  readonly addedCapacity: number;
+  readonly populationAtDecision: number;
+  readonly townResidentialCapacityAtDecision: number;
+  readonly occupancyRatioAtDecision: number;
+  readonly consumedInventory: Inventory;
+  readonly policyVersion: string;
+};
+
 export type ResidentialUpkeepChargedPayload = {
   readonly agentId: AgentId;
   readonly residentialTier: number;
@@ -1556,6 +1569,7 @@ export type WorldEventPayloadByType = {
   readonly JobAssigned: JobAssignedPayload;
   readonly RecruitmentCycleCompleted: RecruitmentCycleCompletedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
+  readonly HousingCapacityExpanded: HousingCapacityExpandedPayload;
   readonly ResidentialTierDowngraded: ResidentialTierDowngradedPayload;
   readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;
   readonly ResidentialUpkeepArrearsUpdated: ResidentialUpkeepArrearsUpdatedPayload;

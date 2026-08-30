@@ -1130,6 +1130,74 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test('lets one material-ready resident answer simulation-wide housing pressure', async () => {
+    const builder = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('residential-block'),
+      inventory: { Wood: 2 },
+    });
+    const neighbor = createAgent({
+      agentId: agentB,
+      locationId: asLocationId('residential-block'),
+      inventory: {},
+    });
+    const projection = createProjection({
+      agents: [builder, neighbor],
+      locations: [{ ...residentialBlock(), capacity: 2 }],
+      marketPools: [],
+    });
+    const societyContext = createSocietyDecisionContextForTest({
+      agent: builder,
+      societyAgents: [
+        {
+          agentId: agentA,
+          ownerPartitionKey: 'partition-a',
+          locationId: asLocationId('residential-block'),
+        },
+        {
+          agentId: agentB,
+          ownerPartitionKey: 'partition-a',
+          locationId: asLocationId('residential-block'),
+        },
+      ],
+    });
+    const worldDecisionContext: WorldDecisionContext = {
+      ...societyContext,
+      society: {
+        ...societyContext.society!,
+        housing: {
+          population: 2,
+          totalResidentialCapacity: 2,
+          vacancies: 0,
+          occupancyRatio: 1,
+          residences: [{ locationId: 'residential-block', capacity: 2 }],
+        },
+      },
+    };
+    const binding = await resolveCanonicalBinding(
+      createRuntimeContext({ agent: builder, projection, worldDecisionContext }),
+      {},
+      {
+        ...policies,
+        housingConstruction: {
+          policyVersion: 'town-construction-v1',
+          minimumOccupancyRatio: 0.8,
+          capacityPerProject: 5,
+          maximumLocationCapacity: 200,
+          inventoryCosts: { Wood: 2 },
+          builderSelection: 'lowest-agent-id-with-materials-per-partition',
+          locationSelection: 'lowest-capacity-then-id',
+        },
+      },
+    );
+
+    expect(firstProposal(binding.microPlanners, 'residential')).toMatchObject({
+      commandType: 'AgentBuildHousing',
+      payload: { locationId: 'residential-block' },
+      resourceEstimate: { inventoryCosts: { Wood: 2 } },
+    });
+  });
+
   test('proposes movement to the domain location before study when the agent is elsewhere', async () => {
     const agent = createAgent({
       agentId: agentA,

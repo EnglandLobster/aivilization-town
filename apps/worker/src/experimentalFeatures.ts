@@ -11,6 +11,7 @@ import {
   aivilizationTownWeatherPolicyDefaults,
   aivilizationTownServiceQualityPolicyDefaults,
   aivilizationTownGovernancePolicyDefaults,
+  aivilizationSurvivalTimePolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
 } from '@aivilization/content';
 import {
@@ -23,6 +24,7 @@ import {
   assertValidWellbeingPolicy,
   assertValidServiceQualityPolicy,
   assertValidTownGovernancePolicy,
+  assertValidStarvationHealthDecayPolicy,
   type CollectiveActionPolicy,
   type LifecyclePolicy,
   type OutMigrationPolicy,
@@ -32,6 +34,7 @@ import {
   type WellbeingPolicy,
   type ServiceQualityPolicy,
   type TownGovernancePolicy,
+  type StarvationHealthDecayPolicy,
 } from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
@@ -55,7 +58,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townCollectiveAction'
   | 'townMigration'
   | 'townServiceQuality'
-  | 'townGovernance';
+  | 'townGovernance'
+  | 'townSurvivalPressure';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -128,6 +132,14 @@ export function createAivilizationTownGovernancePolicy(): TownGovernancePolicy {
     source: aivilizationTownGovernancePolicyDefaults.source,
   };
   assertValidTownGovernancePolicy(policy);
+  return policy;
+}
+
+export function createAivilizationStarvationHealthDecayPolicy(): StarvationHealthDecayPolicy {
+  const policy: StarvationHealthDecayPolicy = {
+    ...aivilizationSurvivalTimePolicyDefaults.starvation,
+  };
+  assertValidStarvationHealthDecayPolicy(policy);
   return policy;
 }
 
@@ -281,6 +293,28 @@ export function createAivilizationTownLifecyclePolicy(): LifecyclePolicy {
 
 export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExperimentalFeatureSpec[] =
   [
+    {
+      key: 'townSurvivalPressure',
+      policyVersion: aivilizationSurvivalTimePolicyDefaults.starvation.policyVersion,
+      cliFlag: '--town-survival-pressure',
+      envVar: 'AIVILIZATION_TOWN_SURVIVAL_PRESSURE',
+      helpTitle: 'Satiety-driven starvation health pressure and death',
+      helpLines: [
+        'Survival pressure is a repository-specific extension: pass',
+        '--town-survival-pressure or AIVILIZATION_TOWN_SURVIVAL_PRESSURE=1 to make sustained',
+        'satiety deficits reduce health on a deterministic cadence and eventually cause an',
+        'auditable starvation death with normal estate liquidation. Disabled by default.',
+      ],
+      registrySource:
+        'Starvation health pressure is repository-defined to close the food-access → physiology → mortality survival loop; cadence, threshold, and damage rate are versioned.',
+      createManifestParameters: () => ({
+        ...aivilizationSurvivalTimePolicyDefaults.starvation,
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        starvation: createAivilizationStarvationHealthDecayPolicy(),
+      }),
+    },
     {
       key: 'townWeather',
       policyVersion: aivilizationTownWeatherPolicyDefaults.policyVersion,

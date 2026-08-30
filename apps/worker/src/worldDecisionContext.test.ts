@@ -1887,6 +1887,49 @@ describe('worker world decision context', () => {
   });
 });
 
+describe('worker survival-pressure decision context', () => {
+  test('exposes the authoritative starvation consequence forecast only with the policy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          ...createLocalAgent(agentId),
+          physiology: { energy: 40, satiety: 10, health: 8 },
+        },
+      ],
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 0,
+      laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+      criticalThresholds: { energy: 0, health: 0 },
+      starvation: {
+        policyVersion: 'starvation-health-decay-v1',
+        settlementCadenceMs: 3_600_000,
+        dayLengthMs: 86_400_000,
+        satietyThreshold: 20,
+        healthDecayPerHourAtZeroSatiety: 4,
+        minHealth: 0,
+        deathHealthThreshold: 0,
+      },
+    };
+
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId, policies }).agent
+        .survivalPressure,
+    ).toEqual({
+      policyVersion: 'starvation-health-decay-v1',
+      atRisk: true,
+      satietyThreshold: 20,
+      deficitRatio: 0.5,
+      healthDecayPerHour: 2,
+      estimatedHoursUntilDeath: 4,
+    });
+    expect(createWorldDecisionContextFromProjection({ projection, agentId }).agent.survivalPressure)
+      .toBeUndefined();
+  });
+});
+
 describe('worker governance decision context', () => {
   const policies: WorldCommandPolicies = {
     satietyRecoveryByCommodity: {},

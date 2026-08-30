@@ -125,6 +125,19 @@ export type WorldDecisionAgentContext = {
     readonly healthcare?: number;
   };
   /**
+   * Read-only consequence forecast under starvation-health-decay-v1. It is
+   * derived from the same versioned policy used by world settlement so the
+   * planner can distinguish ordinary hunger from immediate mortality risk.
+   */
+  readonly survivalPressure?: {
+    readonly policyVersion: string;
+    readonly atRisk: boolean;
+    readonly satietyThreshold: number;
+    readonly deficitRatio: number;
+    readonly healthDecayPerHour: number;
+    readonly estimatedHoursUntilDeath: number | null;
+  };
+  /**
    * Optional social-graph view (context-view v2): this agent's strongest
    * directed relations, sorted by |relationScore| and capped at
    * {@link DECISION_RELATIONS_MAX_COUNT}. Both directions are listed as
@@ -771,7 +784,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v9';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v10';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

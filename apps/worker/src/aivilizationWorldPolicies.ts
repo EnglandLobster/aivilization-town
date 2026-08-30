@@ -109,6 +109,7 @@ export type AivilizationExperimentalPolicySwitches = {
   /** Authority-scoped: global service occupancy cannot settle per partition. */
   readonly townServiceQuality?: boolean;
   readonly townGovernance?: boolean;
+  readonly townSurvivalPressure?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -483,6 +484,7 @@ export {
   createAivilizationTownWeatherPolicy,
   createAivilizationTownServiceQualityPolicy,
   createAivilizationTownGovernancePolicy,
+  createAivilizationStarvationHealthDecayPolicy,
   createAivilizationTownWellbeingPolicy,
 } from './experimentalFeatures';
 
@@ -557,6 +559,7 @@ export function createAivilizationWorldPolicyManifest(
     readonly townMigration?: boolean;
     readonly townServiceQuality?: boolean;
     readonly townGovernance?: boolean;
+    readonly townSurvivalPressure?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins

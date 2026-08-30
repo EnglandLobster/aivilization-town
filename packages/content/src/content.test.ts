@@ -111,6 +111,13 @@ describe('AIvilization source content', () => {
       healthDamage: 5,
       minHealth: 10,
     });
+    expect(aivilizationSurvivalTimePolicyDefaults.starvation).toMatchObject({
+      policyVersion: 'starvation-health-decay-v1',
+      settlementCadenceMs: 3_600_000,
+      satietyThreshold: 20,
+      healthDecayPerHourAtZeroSatiety: 4,
+      deathHealthThreshold: 0,
+    });
     expect(aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet).toEqual({
       policyVersion: 'physiological-safety-net-v1',
       criticalThresholds: { satiety: 20, energy: 20, health: 20 },

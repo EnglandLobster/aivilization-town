@@ -2552,6 +2552,36 @@ describe('worker tick runner', () => {
     ).resolves.toHaveLength(1);
   });
 
+  test('recovers persisted tick append stages without recomputing them from a changed retry request', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const baselineProjection = createMarketProjection();
+    const input = {
+      tickId: 'tick-interrupted-recovery',
+      simulationId,
+      issuedAt: 100,
+      projection: baselineProjection,
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [createTradeTickAgent()],
+      marketMetrics: { baselineProjection, baselineAt: 0 },
+      ...repositories,
+    } satisfies Parameters<typeof runWorkerSimulationTick>[0];
+    const first = await runWorkerSimulationTick(input);
+
+    const recovered = await runWorkerSimulationTick({
+      ...input,
+      issuedAt: 9_999,
+      replayExistingAgentAppends: true,
+    });
+
+    expect(recovered.events).toEqual(first.events);
+    expect(recovered.streamVersion).toBe(first.streamVersion);
+    expect(eventStore.getStreamVersion(partition.eventStreamName)).toBe(first.streamVersion);
+  });
+
   test('hydrates the starting projection from the event stream when no explicit projection is provided', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

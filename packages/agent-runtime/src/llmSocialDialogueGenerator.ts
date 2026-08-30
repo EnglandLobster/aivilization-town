@@ -8,6 +8,7 @@ import type {
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { asAgentId } from '@aivilization/sim-core';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   SOCIAL_DIALOGUE_MAX_TURNS,
   SOCIAL_DIALOGUE_MAX_UTTERANCE_LENGTH,
@@ -23,12 +24,7 @@ import {
   type SocialDialogueProposal,
   type SocialDialogueTurnProposal,
 } from './socialDialogueGeneration';
-import {
-  composePersonaSystemPrompt,
-  createWorldDecisionContextTrace,
-  describeCitizenFraming,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { composePersonaSystemPrompt, describeCitizenFraming } from './worldDecisionContext';
 
 export type LlmSocialDialogueGenerationProposal = {
   readonly dialogue: SocialDialogueProposal;
@@ -195,6 +191,7 @@ const socialDialogueToolContract = {
 function createSocialDialogueMessages(
   input: SocialDialogueGeneratorInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createSocialDialogueContextView(input);
   return [
     {
       role: 'system',
@@ -228,9 +225,7 @@ function createSocialDialogueMessages(
           ? {}
           : { shortTermMemoryContext: input.shortTermMemoryContext }),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Use only speakerAgentId values listed in allowedSpeakerAgentIds.',
           'The first turn must be spoken by agentId.',
@@ -286,7 +281,9 @@ function readDialogue(value: unknown): SocialDialogueProposal {
 function readDialogueTurn(value: unknown, index: number): SocialDialogueTurnProposal {
   const record = readRecord(value, `dialogue.turns[${index}]`);
   return {
-    speakerAgentId: asAgentId(readString(record.speakerAgentId, `dialogue.turns[${index}].speakerAgentId`)),
+    speakerAgentId: asAgentId(
+      readString(record.speakerAgentId, `dialogue.turns[${index}].speakerAgentId`),
+    ),
     utterance: readString(record.utterance, `dialogue.turns[${index}].utterance`),
     ...(record.intent === undefined
       ? {}
@@ -353,7 +350,7 @@ function mapAcceptedTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
@@ -397,16 +394,30 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: SocialDialogueGeneratorInput,
 ): Pick<SocialDialogueGenerationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createSocialDialogueContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createSocialDialogueContextView(input: SocialDialogueGeneratorInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'social-dialogue',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        targetAgentId: input.deterministicPayload.targetAgentId,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

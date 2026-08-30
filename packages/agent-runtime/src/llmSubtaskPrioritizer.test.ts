@@ -153,9 +153,13 @@ describe('LLM contextual subtask prioritizer seam', () => {
     expect(requestContent).toContain('"residentialTier":5');
     expect(requestContent).toContain('"Fish":46');
     expect(requestContent).toContain('"spotPrice":304.5');
-    expect(requestContent).toContain('"rules"');
+    expect(requestContent).toContain('"stage":"subtask-prioritization"');
+    expect(requestContent).toContain('"salience"');
     expect(requestContent).toContain('"Stock Clerk"');
-    expect(requestContent).toContain('"effectiveEducationThreshold":20');
+    expect(requestContent).not.toContain('"rules"');
+    expect(requestContent).not.toContain('"effectiveEducationThreshold":20');
+    expect(requestContent).not.toContain('"enterprises"');
+    expect(requestContent).not.toContain('"society"');
     expect(requestContent).toContain('"subtaskId":"eat"');
     expect(requestContent).toContain('"subtaskId":"work"');
   });

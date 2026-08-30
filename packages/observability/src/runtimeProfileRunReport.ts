@@ -365,7 +365,10 @@ export function createRuntimeProfileAgentCycleDiagnostics(
 function createEducationOpportunityCostDiagnostics(
   traces: readonly AgentCycleTrace[],
 ): RuntimeProfileEducationOpportunityCostDiagnostics {
-  const allocations = new Map<RuntimeProfileActivityAllocationKind, RuntimeProfileActivityAllocation>(
+  const allocations = new Map<
+    RuntimeProfileActivityAllocationKind,
+    RuntimeProfileActivityAllocation
+  >(
     EDUCATION_ACTIVITY_ALLOCATION_ORDER.map((activity) => [
       activity,
       { activity, acceptedActionCount: 0, actionSeconds: 0 },
@@ -717,9 +720,9 @@ function cloneAgentCycleDiagnostics(
           educationOpportunityCost: {
             ...diagnostics.educationOpportunityCost,
             plannedActivityAllocation:
-              diagnostics.educationOpportunityCost.plannedActivityAllocation.map(
-                (allocation) => ({ ...allocation }),
-              ),
+              diagnostics.educationOpportunityCost.plannedActivityAllocation.map((allocation) => ({
+                ...allocation,
+              })),
           },
         }),
   };
@@ -813,9 +816,7 @@ function validateEducationOpportunityCostDiagnostics(
   for (const [index, expectedActivity] of EDUCATION_ACTIVITY_ALLOCATION_ORDER.entries()) {
     const allocation = diagnostics.plannedActivityAllocation[index];
     if (allocation?.activity !== expectedActivity) {
-      throw new Error(
-        `educationOpportunityCost activity ${index} must equal ${expectedActivity}`,
-      );
+      throw new Error(`educationOpportunityCost activity ${index} must equal ${expectedActivity}`);
     }
     assertNonNegativeInteger(
       allocation.acceptedActionCount,
@@ -909,6 +910,10 @@ type MutableCognitionLlmStageDiagnostics = {
 };
 
 type RuntimeProfileWorldDecisionContextTraceLike = {
+  readonly contextViewVersion?: unknown;
+  readonly contextViewStage?: unknown;
+  readonly visibleContextSections?: unknown;
+  readonly salienceCount?: unknown;
   readonly hasLocationId?: unknown;
   readonly hasPhysiology?: unknown;
   readonly hasJob?: unknown;
@@ -1079,6 +1084,30 @@ function isCompleteWorldDecisionContextTrace(value: unknown): boolean {
   }
 
   const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  if (isVersionedPerStageContextTrace(trace)) {
+    const hasCoreViewMetadata =
+      trace.visibleContextSections.includes('salience') &&
+      trace.visibleContextSections.includes('agent') &&
+      isFiniteNonNegativeNumber(trace.salienceCount) &&
+      trace.hasLocationId === true &&
+      trace.hasJob === true;
+    if (!hasCoreViewMetadata) {
+      return false;
+    }
+    if (trace.contextViewStage === 'social-dialogue') {
+      return true;
+    }
+    const hasCompleteAgentState =
+      trace.hasPhysiology === true &&
+      trace.hasBalance === true &&
+      trace.hasEducationScore === true &&
+      trace.hasResidentialTier === true &&
+      trace.hasInventory === true;
+    if (!hasCompleteAgentState) {
+      return false;
+    }
+    return !trace.visibleContextSections.includes('market') || hasCompleteMarketTrace(trace);
+  }
   return (
     trace.hasLocationId === true &&
     trace.hasPhysiology === true &&
@@ -1099,6 +1128,9 @@ function hasEconomicContextTrace(value: unknown): boolean {
   }
 
   const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  if (isVersionedPerStageContextTrace(trace)) {
+    return trace.visibleContextSections.includes('market');
+  }
   return (
     trace.hasEconomicState === true ||
     trace.hasMarketPrices === true ||
@@ -1116,6 +1148,9 @@ function isCompleteEconomicContextTrace(value: unknown): boolean {
   }
 
   const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  if (isVersionedPerStageContextTrace(trace)) {
+    return trace.visibleContextSections.includes('market') && hasCompleteMarketTrace(trace);
+  }
   if (trace.completeEconomicContext === true) {
     return true;
   }
@@ -1134,6 +1169,9 @@ function hasRulesContextTrace(value: unknown): boolean {
   }
 
   const trace = value as RuntimeProfileWorldDecisionContextTraceLike;
+  if (isVersionedPerStageContextTrace(trace)) {
+    return trace.visibleContextSections.includes('rules');
+  }
   return (
     isFiniteNonNegativeNumber(trace.occupationRuleCount) ||
     isFiniteNonNegativeNumber(trace.productionRuleCount)
@@ -1149,6 +1187,30 @@ function isCompleteRulesContextTrace(value: unknown): boolean {
   return (
     isFinitePositiveNumber(trace.occupationRuleCount) &&
     isFinitePositiveNumber(trace.productionRuleCount)
+  );
+}
+
+function isVersionedPerStageContextTrace(
+  trace: RuntimeProfileWorldDecisionContextTraceLike,
+): trace is RuntimeProfileWorldDecisionContextTraceLike & {
+  readonly contextViewVersion: string;
+  readonly contextViewStage: string;
+  readonly visibleContextSections: readonly unknown[];
+} {
+  return (
+    typeof trace.contextViewVersion === 'string' &&
+    trace.contextViewVersion.length > 0 &&
+    typeof trace.contextViewStage === 'string' &&
+    trace.contextViewStage.length > 0 &&
+    Array.isArray(trace.visibleContextSections)
+  );
+}
+
+function hasCompleteMarketTrace(trace: RuntimeProfileWorldDecisionContextTraceLike): boolean {
+  return (
+    trace.hasLatestPriceIndex === true &&
+    trace.hasMarketPrices === true &&
+    isFinitePositiveNumber(trace.marketSpotPriceCount)
   );
 }
 

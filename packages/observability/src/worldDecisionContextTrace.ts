@@ -1,5 +1,10 @@
 export type WorldDecisionContextTrace = {
   readonly agentId: string;
+  readonly contextViewVersion?: string;
+  readonly contextViewStage?: string;
+  readonly visibleContextSections?: readonly string[];
+  readonly salienceCount?: number;
+  readonly salienceKinds?: readonly string[];
   readonly hasLocationId: boolean;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
@@ -21,5 +26,11 @@ export type WorldDecisionContextTrace = {
 export function cloneWorldDecisionContextTrace(
   trace: WorldDecisionContextTrace,
 ): WorldDecisionContextTrace {
-  return { ...trace };
+  return {
+    ...trace,
+    ...(trace.visibleContextSections === undefined
+      ? {}
+      : { visibleContextSections: [...trace.visibleContextSections] }),
+    ...(trace.salienceKinds === undefined ? {} : { salienceKinds: [...trace.salienceKinds] }),
+  };
 }

@@ -10,6 +10,7 @@ import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivili
 import { asMemoryRecordId } from '@aivilization/memory';
 import { asAgentId } from '@aivilization/sim-core';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   compileDeterministicDailyPlan,
   createDailyPlan,
@@ -21,12 +22,7 @@ import {
   type DailyPlanItem,
   type DailyPlanItemSource,
 } from './dailyPlanning';
-import {
-  composePersonaSystemPrompt,
-  createWorldDecisionContextTrace,
-  describeCitizenFraming,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { composePersonaSystemPrompt, describeCitizenFraming } from './worldDecisionContext';
 
 export type LlmDailyPlanProposal = DailyPlan;
 
@@ -199,6 +195,7 @@ const dailyPlanToolContract = {
 function createDailyPlannerMessages(
   input: DailyPlanCompilerInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createDailyPlanningContextView(input);
   return [
     {
       role: 'system',
@@ -221,9 +218,7 @@ function createDailyPlannerMessages(
         ...(input.observedStateSummary === undefined
           ? {}
           : { observedStateSummary: input.observedStateSummary }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         longTermProfile: input.longTermProfile ?? null,
         memoryContext: (input.memoryContext ?? []).map((record) => ({
           id: record.id,
@@ -363,16 +358,28 @@ function mapLlmDailyPlanTrace(
     ...(compilerInput.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: compilerInput.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(compilerInput.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(compilerInput),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: DailyPlanCompilerInput,
 ): Pick<DailyPlanCompilationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createDailyPlanningContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createDailyPlanningContextView(input: DailyPlanCompilerInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'daily-planning',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.memoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.memoryContext }),
+      });
 }
 
 function getGatewayResult(result: LlmDailyPlanResult): LlmStructuredResult<DailyPlan> {

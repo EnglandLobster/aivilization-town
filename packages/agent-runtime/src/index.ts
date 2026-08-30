@@ -19,6 +19,7 @@ export * from './llmSocialSignalExtractor';
 export * from './llmSubtaskPrioritizer';
 export * from './llmStrategicPlanner';
 export * from './memoryInfluence';
+export * from './perStageContextView';
 export * from './planner';
 export * from './planProgress';
 export * from './planProgressRepository';

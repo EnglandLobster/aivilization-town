@@ -16,10 +16,7 @@ import {
   type GlobalSynthesizerInput,
 } from './globalSynthesis';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 
 export type LlmGlobalSynthesisProposal = {
   readonly rankedActions: readonly GlobalSynthesisChoice[];
@@ -163,6 +160,7 @@ const globalSynthesisToolContract = {
 function createGlobalSynthesisMessages(
   input: GlobalSynthesizerInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createGlobalSynthesisContextView(input);
   return [
     {
       role: 'system',
@@ -189,9 +187,7 @@ function createGlobalSynthesisMessages(
           ? {}
           : { shortTermMemoryContext: input.shortTermMemoryContext }),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Rank every candidate action id exactly once.',
           'Use only actionId values present in candidateActions.',
@@ -296,7 +292,7 @@ function mapAcceptedTrace(
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input),
   };
 }
 
@@ -337,16 +333,29 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: GlobalSynthesizerInput,
 ): Pick<GlobalSynthesisTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createGlobalSynthesisContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createGlobalSynthesisContextView(input: GlobalSynthesizerInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'global-synthesis',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

@@ -92,6 +92,7 @@ describe('LLM action sequence generation seam', () => {
         },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'action-sequence-generation',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

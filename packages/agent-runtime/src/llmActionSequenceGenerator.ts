@@ -18,12 +18,8 @@ import {
   type ActionSequenceGenerator,
   type ActionSequenceGeneratorInput,
 } from './actionSequenceGeneration';
-import {
-  composePersonaSystemPrompt,
-  createWorldDecisionContextTrace,
-  describeCitizenFraming,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
+import { composePersonaSystemPrompt, describeCitizenFraming } from './worldDecisionContext';
 
 export type LlmActionSequenceProposal = {
   readonly actions: readonly ActionSequenceGeneratedAction[];
@@ -181,6 +177,7 @@ const actionSequenceToolContract = {
 function createActionSequenceMessages(
   input: ActionSequenceGeneratorInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createActionSequenceContextView(input);
   return [
     {
       role: 'system',
@@ -214,9 +211,7 @@ function createActionSequenceMessages(
           ? {}
           : { shortTermMemoryContext: input.shortTermMemoryContext }),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Generate at least one action.',
           'Use only commandType values listed in allowedCommandTypes.',
@@ -352,7 +347,7 @@ function mapAcceptedTrace(
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input),
   };
 }
 
@@ -390,16 +385,29 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: ActionSequenceGeneratorInput,
 ): Pick<ActionSequenceGenerationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createActionSequenceContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createActionSequenceContextView(input: ActionSequenceGeneratorInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'action-sequence-generation',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function readRecord(value: unknown, label: string): Record<string, unknown> {

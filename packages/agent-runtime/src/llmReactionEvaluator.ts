@@ -8,6 +8,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   evaluateDeterministicSocialObservationReaction,
   normalizeReactionDecision,
@@ -18,7 +19,6 @@ import {
   type ReactionEvaluator,
   type ReactionEvaluatorInput,
 } from './reactionEvaluation';
-import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
 
 export type LlmReactionDecisionProposal = ReactionDecision;
 
@@ -141,10 +141,7 @@ export function createTraceableLlmReactionEvaluator(input: {
       decision: result.decision,
       reactionTrace: mapLlmReactionTrace({
         result,
-        memoryContext: evaluatorInput.memoryContext,
-        longTermProfile: evaluatorInput.longTermProfile,
-        observedStateSummary: evaluatorInput.observedStateSummary,
-        worldDecisionContext: evaluatorInput.worldDecisionContext,
+        evaluatorInput,
       }),
     } satisfies ReactionEvaluationResult;
   };
@@ -173,6 +170,7 @@ const reactionDecisionToolContract = {
 function createReactionEvaluatorMessages(
   input: ReactionEvaluatorInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createReactionContextView(input);
   return [
     {
       role: 'system',
@@ -188,9 +186,7 @@ function createReactionEvaluatorMessages(
         ...(input.observedStateSummary === undefined
           ? {}
           : { observedStateSummary: input.observedStateSummary }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         longTermProfile: input.longTermProfile ?? null,
         memoryContext: (input.memoryContext ?? []).map(serializeMemory),
         constraints: [
@@ -281,12 +277,10 @@ async function evaluateFallbackReaction(
 
 function mapLlmReactionTrace(input: {
   readonly result: LlmReactionResult;
-  readonly memoryContext: ReactionEvaluatorInput['memoryContext'];
-  readonly longTermProfile: ReactionEvaluatorInput['longTermProfile'];
-  readonly observedStateSummary: string | undefined;
-  readonly worldDecisionContext: WorldDecisionContext | undefined;
+  readonly evaluatorInput: ReactionEvaluatorInput;
 }): ReactionEvaluationTrace {
   const result = input.result;
+  const evaluatorInput = input.evaluatorInput;
   const gateway = getGatewayResult(result);
   const lastAttempt = gateway.attempts.at(-1);
   return {
@@ -307,22 +301,34 @@ function mapLlmReactionTrace(input: {
     })),
     usage: { ...gateway.usage },
     ...createLlmCognitiveContextTrace({
-      shortTermMemoryContext: input.memoryContext,
-      longTermProfile: input.longTermProfile,
+      shortTermMemoryContext: evaluatorInput.memoryContext,
+      longTermProfile: evaluatorInput.longTermProfile,
     }),
-    ...(input.observedStateSummary === undefined
+    ...(evaluatorInput.observedStateSummary === undefined
       ? {}
-      : { observedStateSummary: input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
+      : { observedStateSummary: evaluatorInput.observedStateSummary }),
+    ...mapWorldDecisionContextTrace(evaluatorInput),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: ReactionEvaluatorInput,
 ): Pick<ReactionEvaluationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createReactionContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createReactionContextView(input: ReactionEvaluatorInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'reaction-evaluation',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.memoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.memoryContext }),
+      });
 }
 
 function getGatewayResult(result: LlmReactionResult): LlmStructuredResult<ReactionDecision> {

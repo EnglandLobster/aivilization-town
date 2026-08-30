@@ -8,6 +8,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   createBranchPlan,
   type BranchPlan,
@@ -21,7 +22,6 @@ import {
   type StrategicPlanCompiler,
   type StrategicPlanCompilerInput,
 } from './strategicPlanning';
-import { createWorldDecisionContextTrace, type WorldDecisionContext } from './worldDecisionContext';
 
 export type LlmStrategicBranchPlanProposal = {
   readonly objective: string;
@@ -197,6 +197,7 @@ const branchPlanToolContract = {
 function createStrategicPlannerMessages(
   input: StrategicPlanCompilerInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createStrategicPlanningContextView(input);
   return [
     {
       role: 'system',
@@ -230,9 +231,7 @@ function createStrategicPlannerMessages(
         ...(input.observedStateSummary === undefined
           ? {}
           : { observedStateSummary: input.observedStateSummary }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Output branch-plan proposal data only.',
           'Subtask ids must be unique across the full plan.',
@@ -383,16 +382,28 @@ function mapLlmStrategicPlanTrace(
     ...(compilerInput.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: compilerInput.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(compilerInput.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(compilerInput),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: StrategicPlanCompilerInput,
 ): Pick<StrategicPlanCompilationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createStrategicPlanningContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createStrategicPlanningContextView(input: StrategicPlanCompilerInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'strategic-planning',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function getGatewayResult(result: LlmStrategicPlanResult): LlmStructuredResult<BranchPlan> {

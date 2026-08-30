@@ -8,10 +8,7 @@ import type {
 } from '@aivilization/llm';
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   applySubtaskPrioritizationChoices,
   type SubtaskPrioritizationChoice,
@@ -163,6 +160,7 @@ const subtaskPrioritizationToolContract = {
 function createSubtaskPrioritizerMessages(
   input: SubtaskPrioritizerInput,
 ): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createSubtaskPrioritizationContextView(input);
   return [
     {
       role: 'system',
@@ -186,9 +184,7 @@ function createSubtaskPrioritizerMessages(
           ? {}
           : { shortTermMemoryContext: input.shortTermMemoryContext }),
         ...(input.longTermProfile === undefined ? {} : { longTermProfile: input.longTermProfile }),
-        ...(input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Rank every candidate exactly once.',
           'Use only branchId/subtaskId pairs present in candidates.',
@@ -278,7 +274,7 @@ function mapAcceptedTrace(
     ...(input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input),
   };
 }
 
@@ -310,16 +306,29 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: SubtaskPrioritizerInput,
 ): Pick<SubtaskPrioritizationTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createSubtaskPrioritizationContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createSubtaskPrioritizationContextView(input: SubtaskPrioritizerInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'subtask-prioritization',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        ...(input.shortTermMemoryContext === undefined
+          ? {}
+          : { shortTermMemoryContext: input.shortTermMemoryContext }),
+      });
 }
 
 function readRecord(value: unknown, label: string): Readonly<Record<string, unknown>> {

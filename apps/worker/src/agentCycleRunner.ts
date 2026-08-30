@@ -610,7 +610,19 @@ function mapLlmCognitiveContextTrace(trace: LlmCognitiveContextTrace): LlmCognit
       : { observedStateSummary: trace.observedStateSummary }),
     ...(trace.worldDecisionContext === undefined
       ? {}
-      : { worldDecisionContext: { ...trace.worldDecisionContext } }),
+      : {
+          worldDecisionContext: {
+            ...trace.worldDecisionContext,
+            ...(trace.worldDecisionContext.visibleContextSections === undefined
+              ? {}
+              : {
+                  visibleContextSections: [...trace.worldDecisionContext.visibleContextSections],
+                }),
+            ...(trace.worldDecisionContext.salienceKinds === undefined
+              ? {}
+              : { salienceKinds: [...trace.worldDecisionContext.salienceKinds] }),
+          },
+        }),
   };
 }
 

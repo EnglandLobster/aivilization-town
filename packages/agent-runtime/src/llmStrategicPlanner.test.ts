@@ -475,6 +475,7 @@ describe('LLM strategic planner seam', () => {
         longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'strategic-planning',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

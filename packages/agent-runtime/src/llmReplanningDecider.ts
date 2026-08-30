@@ -8,6 +8,7 @@ import type {
 import { runStructuredLlmRequest, type LlmStructuredOutputSchema } from '@aivilization/llm';
 import type { MemoryRecordId } from '@aivilization/memory';
 import { createLlmCognitiveContextTrace } from './llmContextTrace';
+import { createPerStageContextView, createPerStageContextViewTrace } from './perStageContextView';
 import {
   createDeterministicReplanningDecisionResult,
   type ReplanningDecider,
@@ -16,10 +17,6 @@ import {
   type ReplanningDecisionResult,
   type ReplanningDecisionTrace,
 } from './replanning';
-import {
-  createWorldDecisionContextTrace,
-  type WorldDecisionContext,
-} from './worldDecisionContext';
 
 export type LlmReplanningDecisionProposal = {
   readonly decision: ReplanningDecision;
@@ -184,6 +181,7 @@ function createReplanningDecisionMessages(input: {
   readonly input: LlmReplanningDeciderInput;
   readonly deterministicFallbackDecision: ReplanningDecision;
 }): readonly { readonly role: 'system' | 'user'; readonly content: string }[] {
+  const worldDecisionContext = createReplanningContextView(input.input);
   return [
     {
       role: 'system',
@@ -211,9 +209,7 @@ function createReplanningDecisionMessages(input: {
         ...(input.input.longTermProfile === undefined
           ? {}
           : { longTermProfile: input.input.longTermProfile }),
-        ...(input.input.worldDecisionContext === undefined
-          ? {}
-          : { worldDecisionContext: input.input.worldDecisionContext }),
+        ...(worldDecisionContext === undefined ? {} : { worldDecisionContext }),
         constraints: [
           'Return kind none only when no current simulator rejection and no major context shift requires replanning.',
           'Return memory-guided-correction only for current simulator rejection and cite only evidenceRecordIds from shortTermMemoryContext.',
@@ -304,8 +300,12 @@ function validateReplanningDecision(input: {
   const failedActionIds = new Set(
     input.input.simulationResults
       .filter(
-        (result): result is Extract<(typeof input.input.simulationResults)[number], { status: 'needs-replan' }> =>
-          result.status === 'needs-replan',
+        (
+          result,
+        ): result is Extract<
+          (typeof input.input.simulationResults)[number],
+          { status: 'needs-replan' }
+        > => result.status === 'needs-replan',
       )
       .map((result) => result.action.id),
   );
@@ -401,7 +401,7 @@ function mapAcceptedTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
@@ -435,16 +435,27 @@ function mapFallbackTrace(input: {
     ...(input.input.observedStateSummary === undefined
       ? {}
       : { observedStateSummary: input.input.observedStateSummary }),
-    ...mapWorldDecisionContextTrace(input.input.worldDecisionContext),
+    ...mapWorldDecisionContextTrace(input.input),
   };
 }
 
 function mapWorldDecisionContextTrace(
-  context: WorldDecisionContext | undefined,
+  input: ReplanningDeciderInput,
 ): Pick<ReplanningDecisionTrace, 'worldDecisionContext'> {
-  return context === undefined
-    ? {}
-    : { worldDecisionContext: createWorldDecisionContextTrace(context) };
+  const view = createReplanningContextView(input);
+  return view === undefined ? {} : { worldDecisionContext: createPerStageContextViewTrace(view) };
+}
+
+function createReplanningContextView(input: ReplanningDeciderInput) {
+  return input.worldDecisionContext === undefined
+    ? undefined
+    : createPerStageContextView({
+        stage: 'replanning',
+        context: input.worldDecisionContext,
+        at: input.issuedAt,
+        ...(input.intentionState === undefined ? {} : { intentionState: input.intentionState }),
+        shortTermMemoryContext: input.shortTermMemoryContext,
+      });
 }
 
 function assertAllKnownIds(input: {

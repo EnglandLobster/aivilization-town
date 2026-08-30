@@ -147,6 +147,7 @@ describe('LLM global synthesis seam', () => {
         },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'global-synthesis',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

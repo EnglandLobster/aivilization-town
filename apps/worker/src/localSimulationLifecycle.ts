@@ -20,6 +20,7 @@ import {
 } from './memoryConsolidation';
 import { resolveWorldCommandPolicies } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
+import { createMemorySynthesisContextView } from './memoryWorldDecisionContext';
 
 export type LocalSimulationLifecycleRequest = {
   readonly simulationId: string;
@@ -696,11 +697,13 @@ function createMemoryConsolidationWorldDecisionContext(input: {
   if (input.projection.agents[input.agentId] === undefined) {
     return undefined;
   }
-  return createWorldDecisionContextFromProjection({
-    projection: input.projection,
-    agentId: input.agentId,
-    policies: input.policies,
-  });
+  return createMemorySynthesisContextView(
+    createWorldDecisionContextFromProjection({
+      projection: input.projection,
+      agentId: input.agentId,
+      policies: input.policies,
+    }),
+  );
 }
 
 function createDefaultMemoryConsolidationAgentIds(

@@ -27,7 +27,8 @@ describe('LLM replanning decision seam', () => {
             decision: {
               kind: 'memory-guided-correction',
               trigger: 'simulator-rejection',
-              reason: 'Recent hungry work failures suggest a cheap recovery action before replanning.',
+              reason:
+                'Recent hungry work failures suggest a cheap recovery action before replanning.',
               failedActionIds: ['work-hungry'],
               evidenceRecordIds: ['memory-work-failed-hungry'],
             },
@@ -95,6 +96,7 @@ describe('LLM replanning decision seam', () => {
         longTermProfileContext: { entryCount: 1 },
         worldDecisionContext: {
           agentId,
+          contextViewStage: 'replanning',
           hasPhysiology: true,
           hasBalance: true,
           hasEducationScore: true,

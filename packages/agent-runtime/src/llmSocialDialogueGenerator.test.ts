@@ -15,7 +15,6 @@ const agentId = asAgentId('agent-1');
 const targetAgentId = asAgentId('agent-2');
 
 describe('LLM social dialogue generation seam', () => {
-
   test('persona framing wraps the dialogue system prompt for identity-bearing contexts', async () => {
     const scripted = createScriptedLlmProvider({
       providerId: 'scripted-social-dialogue',
@@ -194,13 +193,14 @@ describe('LLM social dialogue generation seam', () => {
         },
         worldDecisionContext: {
           agentId,
-          hasPhysiology: true,
-          hasBalance: true,
-          hasEducationScore: true,
-          hasResidentialTier: true,
-          inventoryItemCount: 2,
-          marketSpotPriceCount: 1,
-          hasLatestPriceIndex: true,
+          contextViewStage: 'social-dialogue',
+          hasPhysiology: false,
+          hasBalance: false,
+          hasEducationScore: false,
+          hasResidentialTier: false,
+          inventoryItemCount: 0,
+          marketSpotPriceCount: 0,
+          hasLatestPriceIndex: false,
         },
       },
     });
@@ -217,9 +217,10 @@ describe('LLM social dialogue generation seam', () => {
     expect(requestContent).toContain('"shortTermMemoryContext"');
     expect(requestContent).toContain('"longTermProfile"');
     expect(requestContent).toContain('"worldDecisionContext"');
-    expect(requestContent).toContain('"balance":191696904');
-    expect(requestContent).toContain('"Fish":46');
-    expect(requestContent).toContain('"spotPrice":304.5');
+    expect(requestContent).toContain('"stage":"social-dialogue"');
+    expect(requestContent).not.toContain('"balance":191696904');
+    expect(requestContent).not.toContain('"Fish":46');
+    expect(requestContent).not.toContain('"spotPrice":304.5');
   });
 
   test('falls back when an LLM conversation uses a speaker outside the participants', async () => {

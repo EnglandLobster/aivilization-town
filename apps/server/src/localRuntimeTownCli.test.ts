@@ -130,6 +130,7 @@ describe('local runtime town executable composition', () => {
       townServiceQualityEnabled: false,
       townGovernanceEnabled: false,
       townSurvivalPressureEnabled: false,
+      townCarryingCapacityEnabled: false,
     });
   });
 
@@ -213,6 +214,7 @@ describe('local runtime town executable composition', () => {
       townServiceQualityEnabled: false,
       townGovernanceEnabled: false,
       townSurvivalPressureEnabled: false,
+      townCarryingCapacityEnabled: false,
     });
     expect(createLocalRuntimeTownCliHelp()).not.toContain('runtime-secret');
     const serializedManifest = JSON.stringify(
@@ -917,6 +919,62 @@ describe('local runtime town executable composition', () => {
       ),
     );
     expect(enabled).toContain('starvation-health-decay-v1');
+  });
+
+  test('town carrying capacity is opt-in, manifest-bound, and limited to one partition', () => {
+    const base = {
+      argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],
+      cwd: '/workspace',
+      sourceRevision,
+    };
+    expect(
+      resolveLocalRuntimeTownCliConfig({ ...base, env: {} }).townCarryingCapacityEnabled,
+    ).toBe(false);
+    const enabledByFlag = resolveLocalRuntimeTownCliConfig({
+      argv: ['--', '--llm-mode', 'deterministic', '--town-carrying-capacity', 'on'],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(enabledByFlag.townCarryingCapacityEnabled).toBe(true);
+    expect(
+      resolveLocalRuntimeTownCliConfig({
+        ...base,
+        env: { AIVILIZATION_TOWN_CARRYING_CAPACITY: '1' },
+      }).townCarryingCapacityEnabled,
+    ).toBe(true);
+
+    const manifest = createCanonicalLocalRuntimeTownResolvedRunManifest(enabledByFlag);
+    expect(manifest.payload.policies['policyVersions']).toMatchObject({
+      townCarryingCapacity: 'renewable-resources-v1',
+    });
+    expect(manifest.payload.policies['policyVersions']).not.toHaveProperty(
+      'physiologicalSafetyNet',
+    );
+    expect(manifest.payload.policies['parameters']).toMatchObject({
+      townCarryingCapacity: {
+        welfareInventoryRule: 'no-unfunded-inventory-grants',
+        partitionScope: 'single-partition-v1',
+      },
+    });
+
+    const multiPartition = resolveLocalRuntimeTownCliConfig({
+      argv: [
+        '--',
+        '--profile',
+        'default-100',
+        '--llm-mode',
+        'deterministic',
+        '--town-carrying-capacity',
+        'on',
+      ],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(multiPartition)).toThrow(
+      'town carrying capacity currently requires a single-partition profile',
+    );
   });
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

@@ -59,7 +59,10 @@ import {
   resolveTownDayPhase,
   summarizeRegionalServiceQuality,
 } from '@aivilization/society';
-import { resolveAgentAgeAnchorMs } from '@aivilization/world';
+import {
+  evaluateWorldRenewableResourceProduction,
+  resolveAgentAgeAnchorMs,
+} from '@aivilization/world';
 import type {
   WorldAgentState,
   WorldCommandPolicies,
@@ -1675,6 +1678,16 @@ function createProductionRules(input: {
         definition.recipe.timeCostSeconds,
         productionEfficiency,
       );
+      const renewableResource =
+        input.policies.renewableResources === undefined
+          ? undefined
+          : evaluateWorldRenewableResourceProduction({
+              projection: input.projection,
+              agentLocationId: input.agent.locationId,
+              commodityName: commodity.name,
+              outputQuantity: 1,
+              policy: input.policies.renewableResources,
+            });
       const rejectionReasons = createProductionRejectionReasons({
         agent: input.agent,
         rule: {
@@ -1684,6 +1697,7 @@ function createProductionRules(input: {
           satietyCost,
         },
         productionEfficiencyRejected: productionEfficiencyDecision?.status === 'rejected',
+        renewableResourceRejected: renewableResource?.extraction.status === 'rejected',
       });
       const outputSpotPrice = resolveCommoditySpotPrice(input.marketPools, commodity.name);
       const inputSpotCost = Object.entries(definition.recipe.inputs).reduce(
@@ -1714,6 +1728,25 @@ function createProductionRules(input: {
           ...(Number.isFinite(inputSpotCost) ? { inputSpotCost } : {}),
           ...(grossMargin === undefined ? {} : { grossMargin }),
           ...(grossMarginPerSecond === undefined ? {} : { grossMarginPerSecond }),
+          ...(renewableResource === undefined
+            ? {}
+            : {
+                renewableResource: {
+                  regionId: renewableResource.regionId,
+                  availableStock: renewableResource.availableStock,
+                  requiredStock:
+                    renewableResource.extraction.status === 'accepted'
+                      ? renewableResource.extraction.extractedStock
+                      : renewableResource.extraction.status === 'rejected'
+                        ? renewableResource.extraction.requiredStock
+                        : 0,
+                  carryingCapacity: renewableResource.carryingCapacity,
+                  regenerationPerCadence: renewableResource.regenerationPerCadence,
+                  regenerationCadenceMs: renewableResource.regenerationCadenceMs,
+                  nextRegenerationAt: renewableResource.nextRegenerationAt,
+                  policyVersion: renewableResource.policyVersion,
+                },
+              }),
           producible: rejectionReasons.length === 0,
           rejectionReasons,
         },
@@ -1739,6 +1772,7 @@ function createProductionRejectionReasons(input: {
     readonly satietyCost: number;
   };
   readonly productionEfficiencyRejected: boolean;
+  readonly renewableResourceRejected: boolean;
 }): readonly string[] {
   const reasons: string[] = [];
   if (
@@ -1749,6 +1783,9 @@ function createProductionRejectionReasons(input: {
   }
   if (input.productionEfficiencyRejected) {
     reasons.push('policy-invalid');
+  }
+  if (input.renewableResourceRejected) {
+    reasons.push('insufficient-renewable-resource');
   }
   if (hasMissingInputs({ inventory: input.agent.inventory, inputs: input.rule.inputs })) {
     reasons.push('insufficient-input');

@@ -1,7 +1,4 @@
 import {
-  assertValidRenewableResourcePolicy,
-  evaluateRenewableResourceExtraction,
-  evaluateRenewableResourceRegeneration,
   getInventoryQuantity,
   planProduction,
   type ProductionEfficiencyPolicy,
@@ -40,7 +37,7 @@ import {
 } from '../commands';
 import type { WorldEvent } from '../events';
 import type { WorldAgentState, WorldProjection } from '../projection';
-import { resolveAgentRegion } from '../regionalMarkets';
+import { evaluateWorldRenewableResourceProduction } from '../renewableResources';
 import {
   makeAgentActivityTimeCommittedEvent,
   makeEvent,
@@ -815,9 +812,9 @@ export function handleAgentProduceCommand(input: {
   const resourceSettlement =
     input.renewableResources === undefined
       ? undefined
-      : settleRenewableResourceProduction({
+      : evaluateWorldRenewableResourceProduction({
           projection: input.projection,
-          agent,
+          agentLocationId: agent.locationId,
           commodityName: payload.commodityName,
           outputQuantity: productionPlan.produced[payload.commodityName] ?? payload.quantity,
           policy: input.renewableResources,
@@ -901,80 +898,6 @@ export function handleAgentProduceCommand(input: {
     }),
   );
   return events;
-}
-
-function settleRenewableResourceProduction(input: {
-  readonly projection: WorldProjection;
-  readonly agent: WorldAgentState;
-  readonly commodityName: string;
-  readonly outputQuantity: number;
-  readonly policy: RenewableResourcePolicy;
-}):
-  | {
-      readonly regionId: string;
-      readonly cadenceCount: number;
-      readonly lastRegenerationAt: number;
-      readonly regeneration?: ReturnType<typeof evaluateRenewableResourceRegeneration>;
-      readonly extraction: ReturnType<typeof evaluateRenewableResourceExtraction>;
-    }
-  | undefined {
-  assertValidRenewableResourcePolicy(input.policy);
-  const resource = input.policy.resources.find(
-    (candidate) => candidate.commodityName === input.commodityName,
-  );
-  if (resource === undefined) {
-    return undefined;
-  }
-  const regionId = resolveAgentRegion({
-    projection: input.projection,
-    agentLocationId: input.agent.locationId,
-  });
-  const current = input.projection.renewableResources?.[regionId]?.[input.commodityName];
-  if (current !== undefined && current.policyVersion !== input.policy.policyVersion) {
-    throw new Error(
-      `renewable resource ${regionId}/${input.commodityName} requires an explicit policy migration from ${current.policyVersion} to ${input.policy.policyVersion}`,
-    );
-  }
-  const previousLastRegenerationAt = current?.lastRegenerationAt ?? 0;
-  const settledThrough =
-    Math.floor(input.projection.clock.now / input.policy.regenerationCadenceMs) *
-    input.policy.regenerationCadenceMs;
-  const cadenceCount = Math.max(
-    0,
-    Math.floor(
-      (settledThrough - previousLastRegenerationAt) / input.policy.regenerationCadenceMs,
-    ),
-  );
-  let stock = current?.stock ?? resource.initialStock;
-  let regeneration: ReturnType<typeof evaluateRenewableResourceRegeneration> | undefined;
-  for (let cadence = 0; cadence < cadenceCount; cadence += 1) {
-    const decision = evaluateRenewableResourceRegeneration({
-      resource,
-      currentStock: stock,
-      policyVersion: input.policy.policyVersion,
-    });
-    regeneration =
-      regeneration === undefined
-        ? decision
-        : {
-            ...decision,
-            previousStock: regeneration.previousStock,
-            regeneratedStock: decision.nextStock - regeneration.previousStock,
-          };
-    stock = decision.nextStock;
-  }
-  return {
-    regionId,
-    cadenceCount,
-    lastRegenerationAt: cadenceCount === 0 ? previousLastRegenerationAt : settledThrough,
-    ...(regeneration === undefined ? {} : { regeneration }),
-    extraction: evaluateRenewableResourceExtraction({
-      commodityName: input.commodityName,
-      outputQuantity: input.outputQuantity,
-      currentStock: stock,
-      policy: input.policy,
-    }),
-  };
 }
 
 function createProductionRewardSeed(input: {

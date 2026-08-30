@@ -97,6 +97,7 @@ export type LocalRuntimeTownCliConfig = {
   readonly townServiceQualityEnabled: boolean;
   readonly townGovernanceEnabled: boolean;
   readonly townSurvivalPressureEnabled: boolean;
+  readonly townCarryingCapacityEnabled: boolean;
 };
 
 export type LocalRuntimeTownCliConfigInput = {
@@ -221,6 +222,7 @@ export function resolveLocalRuntimeTownCliConfig(
   const townServiceQualityEnabled = experimentalFeatureEnabled.townServiceQuality;
   const townGovernanceEnabled = experimentalFeatureEnabled.townGovernance;
   const townSurvivalPressureEnabled = experimentalFeatureEnabled.townSurvivalPressure;
+  const townCarryingCapacityEnabled = experimentalFeatureEnabled.townCarryingCapacity;
 
   return {
     compositionVersion: LOCAL_RUNTIME_TOWN_COMPOSITION_VERSION,
@@ -253,6 +255,7 @@ export function resolveLocalRuntimeTownCliConfig(
     townServiceQualityEnabled,
     townGovernanceEnabled,
     townSurvivalPressureEnabled,
+    townCarryingCapacityEnabled,
   };
 }
 
@@ -266,6 +269,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
 ): LocalRuntimeTownServerInput {
   assertFiniteTimestamp(bootstrappedAt, 'bootstrappedAt');
   const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
+  if (config.townCarryingCapacityEnabled && profile.manifest.partitions.length !== 1) {
+    throw new Error('town carrying capacity currently requires a single-partition profile');
+  }
   const resolvedRunManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(config);
   const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
     config.profileId,
@@ -308,6 +314,7 @@ export function createCanonicalLocalRuntimeTownServerInput(
         townServiceQuality: config.townServiceQualityEnabled,
         townGovernance: config.townGovernanceEnabled,
         townSurvivalPressure: config.townSurvivalPressureEnabled,
+        townCarryingCapacity: config.townCarryingCapacityEnabled,
       },
       // The paper-ablation cohort pins the education system off so the Section
       // 5.1 baseline keeps the legacy continuous-score education semantics.
@@ -522,6 +529,7 @@ type ParsedOptions = {
   readonly townServiceQuality?: string;
   readonly townGovernance?: string;
   readonly townSurvivalPressure?: string;
+  readonly townCarryingCapacity?: string;
 };
 
 function parseOptions(argv: readonly string[]): ParsedOptions {

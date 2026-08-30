@@ -312,6 +312,16 @@ export type WorldDecisionProductionRule = {
   readonly inputSpotCost?: number;
   readonly grossMargin?: number;
   readonly grossMarginPerSecond?: number;
+  readonly renewableResource?: {
+    readonly regionId: string;
+    readonly availableStock: number;
+    readonly requiredStock: number;
+    readonly carryingCapacity: number;
+    readonly regenerationPerCadence: number;
+    readonly regenerationCadenceMs: number;
+    readonly nextRegenerationAt: number;
+    readonly policyVersion: string;
+  };
   readonly producible: boolean;
   readonly rejectionReasons: readonly string[];
 };
@@ -784,7 +794,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v10';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v11';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

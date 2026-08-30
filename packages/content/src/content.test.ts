@@ -6,6 +6,7 @@ import {
   aivilizationHealthcarePolicyDefaults,
   aivilizationJobApplicationPolicyDefaults,
   aivilizationProductionPolicyDefaults,
+  aivilizationRenewableResourcePolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
@@ -137,6 +138,22 @@ describe('AIvilization source content', () => {
       currencyCostPerHour: 320,
       source:
         'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning',
+    });
+  });
+
+  test('defines finite carrying-capacity stocks for every zero-input primary recipe', () => {
+    const zeroInputOutputs = productionRecipes
+      .filter((recipe) => Object.keys(recipe.inputs).length === 0)
+      .map((recipe) => recipe.output)
+      .sort();
+    expect(
+      aivilizationRenewableResourcePolicyDefaults.resources
+        .map((resource) => resource.commodityName)
+        .sort(),
+    ).toEqual(zeroInputOutputs);
+    expect(aivilizationRenewableResourcePolicyDefaults).toMatchObject({
+      policyVersion: 'renewable-resources-v1',
+      regenerationCadenceMs: 3_600_000,
     });
   });
 

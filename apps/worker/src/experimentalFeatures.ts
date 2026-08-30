@@ -5,6 +5,7 @@ import {
   aivilizationTownConditionsPolicyDefaults,
   aivilizationCollectiveActionPolicyDefaults,
   aivilizationOutMigrationPolicyDefaults,
+  aivilizationRenewableResourcePolicyDefaults,
   aivilizationTownConflictPolicyDefaults,
   aivilizationTownDiscoursePolicyDefaults,
   aivilizationTownLifecyclePolicyDefaults,
@@ -14,6 +15,10 @@ import {
   aivilizationSurvivalTimePolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
 } from '@aivilization/content';
+import {
+  assertValidRenewableResourcePolicy,
+  type RenewableResourcePolicy,
+} from '@aivilization/economy';
 import {
   assertTownConditionsPolicy,
   assertValidCollectiveActionPolicy,
@@ -59,7 +64,8 @@ export type AivilizationExperimentalFeatureKey =
   | 'townMigration'
   | 'townServiceQuality'
   | 'townGovernance'
-  | 'townSurvivalPressure';
+  | 'townSurvivalPressure'
+  | 'townCarryingCapacity';
 
 /**
  * One registration row per opt-in experimental feature. CLI flag/env parsing,
@@ -140,6 +146,20 @@ export function createAivilizationStarvationHealthDecayPolicy(): StarvationHealt
     ...aivilizationSurvivalTimePolicyDefaults.starvation,
   };
   assertValidStarvationHealthDecayPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationRenewableResourcePolicy(): RenewableResourcePolicy {
+  const policy: RenewableResourcePolicy = {
+    policyVersion: aivilizationRenewableResourcePolicyDefaults.policyVersion,
+    regenerationCadenceMs:
+      aivilizationRenewableResourcePolicyDefaults.regenerationCadenceMs,
+    resources: aivilizationRenewableResourcePolicyDefaults.resources.map((resource) => ({
+      ...resource,
+    })),
+    source: aivilizationRenewableResourcePolicyDefaults.source,
+  };
+  assertValidRenewableResourcePolicy(policy);
   return policy;
 }
 
@@ -313,6 +333,34 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       withCommandPolicy: (policies) => ({
         ...policies,
         starvation: createAivilizationStarvationHealthDecayPolicy(),
+      }),
+    },
+    {
+      key: 'townCarryingCapacity',
+      policyVersion: aivilizationRenewableResourcePolicyDefaults.policyVersion,
+      cliFlag: '--town-carrying-capacity',
+      envVar: 'AIVILIZATION_TOWN_CARRYING_CAPACITY',
+      helpTitle: 'Finite renewable stocks for zero-input primary production',
+      helpLines: [
+        'Town carrying capacity is a repository-specific survival experiment: pass',
+        '--town-carrying-capacity or AIVILIZATION_TOWN_CARRYING_CAPACITY=1 to constrain',
+        'primary production by finite regional stocks with deterministic regeneration.',
+        'The feature disables inventory-creating physiological grants until welfare can',
+        'procure real goods. It currently requires a single-partition profile.',
+      ],
+      registrySource:
+        'Renewable stocks close the natural resource → production → food access loop; direct inventory grants are removed so every food unit has a replayable source.',
+      createManifestParameters: () => ({
+        ...aivilizationRenewableResourcePolicyDefaults,
+        resources: aivilizationRenewableResourcePolicyDefaults.resources.map((resource) => ({
+          ...resource,
+        })),
+        welfareInventoryRule: 'no-unfunded-inventory-grants',
+        partitionScope: 'single-partition-v1',
+      }),
+      withCommandPolicy: (policies) => ({
+        ...policies,
+        renewableResources: createAivilizationRenewableResourcePolicy(),
       }),
     },
     {

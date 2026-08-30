@@ -745,6 +745,102 @@ describe('worker world decision context', () => {
     );
   });
 
+  test('uses authoritative renewable stock in production planning', () => {
+    const initial = createWorldProjection({
+      agents: [
+        {
+          agentId,
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      clock: { now: 0, tickDurationMs: 1000 },
+    });
+    const depleted = applyWorldEvent(
+      initial,
+      createEventEnvelope({
+        id: 'resource-depleted',
+        simulationId: 'sim-1',
+        type: 'RenewableResourceExtracted',
+        payload: {
+          regionId: 'town-center',
+          commodityName: 'Apple',
+          producerAgentId: agentId,
+          outputQuantity: 2,
+          extractedStock: 2,
+          previousStock: 2,
+          nextStock: 0,
+          carryingCapacity: 5,
+          lastRegenerationAt: 0,
+          policyVersion: 'renewable-resources-v1',
+        },
+        occurredAt: 0,
+        sequence: 1,
+      }),
+    );
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: { Apple: 25 },
+      maxSatiety: 100,
+      wageCalculator: () => 250,
+      laborCost: { energyCostPerHour: 10, satietyCostPerHour: 10 },
+      criticalThresholds: { energy: 20, health: 20 },
+      renewableResources: {
+        policyVersion: 'renewable-resources-v1',
+        regenerationCadenceMs: 3_600_000,
+        resources: [
+          {
+            commodityName: 'Apple',
+            initialStock: 2,
+            carryingCapacity: 5,
+            regenerationPerCadence: 1,
+            extractionPerOutputUnit: 1,
+          },
+        ],
+      },
+    };
+
+    const depletedRule = createWorldDecisionContextFromProjection({
+      projection: depleted,
+      agentId,
+      policies,
+    }).rules?.production.find((rule) => rule.commodity === 'Apple');
+    expect(depletedRule).toMatchObject({
+      producible: false,
+      rejectionReasons: ['insufficient-renewable-resource'],
+      renewableResource: {
+        regionId: 'town-center',
+        availableStock: 0,
+        requiredStock: 1,
+        carryingCapacity: 5,
+        nextRegenerationAt: 3_600_000,
+        policyVersion: 'renewable-resources-v1',
+      },
+    });
+
+    const afterOneCadence: WorldProjection = {
+      ...depleted,
+      clock: { ...depleted.clock, now: 3_600_000 },
+    };
+    const regeneratedRule = createWorldDecisionContextFromProjection({
+      projection: afterOneCadence,
+      agentId,
+      policies,
+    }).rules?.production.find((rule) => rule.commodity === 'Apple');
+    expect(regeneratedRule).toMatchObject({
+      producible: true,
+      rejectionReasons: [],
+      renewableResource: {
+        availableStock: 1,
+        requiredStock: 1,
+        nextRegenerationAt: 7_200_000,
+      },
+    });
+  });
+
   test('exposes the fiscal regime only when command policies carry a tax policy', () => {
     const projection = createWorldProjection({
       agents: [

@@ -225,7 +225,9 @@ export function createLocalRuntimeTownDaemonScenarioProfile(
       cycleCount: 1,
       cycleIntervalMs: config.tickIntervalMs,
       scheduleIntervalMs: config.scheduleIntervalMs,
-      maxPendingJobs: config.maxJobsPerPoll,
+      // Cycles mutate ordered partition streams. A newly scheduled cycle must
+      // never overtake an older unexpired lease after a worker crash.
+      maxPendingJobs: 1,
       allowWhenDeadLettered: false,
     },
     runtimeRecovery: {

@@ -291,7 +291,10 @@ export function createLocalSimulationLifecycleController(
       partitionKey: request.partitionKey,
       status: 'running',
       nextTickIndex: firstTickIndex,
-      lastAppliedSequence: streamVersionBeforeStart,
+      lastAppliedSequence:
+        previousState?.status === 'running'
+          ? previousState.lastAppliedSequence
+          : streamVersionBeforeStart,
       updatedAt: lifecycleBatchStartedAt,
       lastLoopId: input.loopId,
       ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),

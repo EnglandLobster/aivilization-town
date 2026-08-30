@@ -144,6 +144,24 @@ describe('simulation command router', () => {
     expect(authority.getSnapshot().projection.marketPools['Fish']?.commodityReserve).toBe(100);
     expect(result.events.some((event) => event.type === 'ActionRejected')).toBe(true);
     expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
+
+    const replay = await router.routeCommandDrafts({
+      commandDrafts: [createTradeDraft(agentA)],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+        balance: 500,
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-stale-balance:agent-a',
+      commandIdPrefix: 'tick-stale-balance:agent-a',
+    });
+
+    expect(replay.events).toEqual(result.events);
+    expect(replay.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
+    expect(authority.getSnapshot().projection.marketPools['Fish']?.commodityReserve).toBe(100);
   });
 
   test('reports residents removed by local population turnover to the authority', () => {

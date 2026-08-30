@@ -28,6 +28,7 @@ import {
 import type { WorldCommandPolicySource } from './worldCommandPolicySource';
 import type {
   SimulationWideAuthorityLease,
+  SimulationWideAuthorityOperation,
   SimulationWideAuthorityService,
 } from './simulationWideAuthority';
 import { SimulationWideCommandRejectedError } from './simulationWideAuthority';
@@ -430,6 +431,10 @@ async function settleGlobalDraft(input: {
 }): Promise<RoutedSettlement> {
   const { draft, authority, lease, commandIdPrefix, nextSequence } = input;
   const operationId = `${commandIdPrefix}:${draft.type}:${draft.actorId}:${draft.issuedAt}`;
+  const existingOperation = resolveExistingSettlementOperation({ authority, operationId, draft });
+  if (existingOperation !== undefined) {
+    return { draft, events: resequence(existingOperation.events, nextSequence) };
+  }
   try {
     if (draft.type === 'AgentTrade') {
       const operation = authority.settleTrade({
@@ -601,6 +606,75 @@ async function settleGlobalDraft(input: {
       events: error.events,
     });
     return { draft, events: resequence(operation.events, nextSequence) };
+  }
+}
+
+function resolveExistingSettlementOperation(input: {
+  readonly authority: SimulationWideAuthorityService;
+  readonly operationId: string;
+  readonly draft: CommandDraft;
+}): SimulationWideAuthorityOperation | undefined {
+  const operations = input.authority.getSnapshot().operations;
+  const operation =
+    operations[input.operationId]?.operation ??
+    operations[`${input.operationId}:rejection`]?.operation;
+  if (operation === undefined) {
+    return undefined;
+  }
+  if (operation.kind === 'command-rejected') {
+    if (operation.commandType !== input.draft.type) {
+      throw new Error(
+        `authority rejection receipt ${operation.operationId} does not match ${input.draft.type}`,
+      );
+    }
+    return operation;
+  }
+  const expectedKind = resolveSettlementOperationKind(input.draft.type);
+  if (operation.kind !== expectedKind) {
+    throw new Error(
+      `authority receipt ${operation.operationId} has kind ${operation.kind}, expected ${expectedKind}`,
+    );
+  }
+  return operation;
+}
+
+function resolveSettlementOperationKind(
+  commandType: CommandDraft['type'],
+): Exclude<
+  SimulationWideAuthorityOperation['kind'],
+  'command-rejected' | 'time-advanced' | 'inbox-materialized' | 'location-sync' | 'transfer'
+> {
+  switch (commandType) {
+    case 'AgentTrade':
+      return 'trade';
+    case 'AgentDeposit':
+    case 'AgentWithdraw':
+    case 'AgentRequestLoan':
+      return 'credit';
+    case 'AgentStartConversation':
+      return 'conversation';
+    case 'AgentPostBulletin':
+      return 'bulletin';
+    case 'AgentRaisePetition':
+    case 'AgentSignPetition':
+      return 'petition';
+    case 'SetTaxPolicy':
+    case 'SetPublicBudget':
+    case 'SetSubsidyPolicy':
+      return 'governance';
+    case 'AgentRaiseMatter':
+    case 'AgentRespondMatter':
+    case 'AgentAssignMatter':
+    case 'AgentCloseMatter':
+      return 'matter';
+    case 'AgentConfront':
+    case 'AgentAttack':
+    case 'AgentIntervene':
+      return 'conflict';
+    case 'AgentMoveTo':
+      return 'move';
+    default:
+      throw new Error(`command ${commandType} has no simulation-wide settlement kind`);
   }
 }
 

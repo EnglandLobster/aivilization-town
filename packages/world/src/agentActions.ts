@@ -15,6 +15,7 @@ import type {
   SleepDeprivationHealthDecayPolicy,
   StarvationHealthDecayPolicy,
   StochasticIllnessPolicy,
+  TownPublicService,
   TownCalendarPolicy,
   TownConditionsPolicy,
   CollectiveActionPolicy,
@@ -359,6 +360,10 @@ export function dispatchWorldCommand(input: {
   readonly command: CommandEnvelope<CoreCommandType, unknown>;
   readonly projection: WorldProjection;
   readonly policies: WorldCommandPolicies;
+  /** Cross-partition funding facts used only by authority time advancement. */
+  readonly serviceQualityFundingBySettledAt?: Readonly<
+    Record<number, Partial<Record<TownPublicService, number>>>
+  >;
   readonly nextSequence: number;
 }): WorldEvent[] {
   if (input.command.type.startsWith('Agent')) {
@@ -407,6 +412,11 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.serviceQuality === undefined
           ? {}
           : { serviceQuality: input.policies.serviceQuality }),
+        ...(input.serviceQualityFundingBySettledAt === undefined
+          ? {}
+          : {
+              serviceQualityFundingBySettledAt: input.serviceQualityFundingBySettledAt,
+            }),
         ...(input.policies.safetyNetSubsidy === undefined
           ? {}
           : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),

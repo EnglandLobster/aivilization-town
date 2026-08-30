@@ -245,6 +245,12 @@ describe('simulation command router', () => {
     expect(authority.getSnapshot().projection.agents[agentA]?.locationId).toBe(
       asLocationId('town-square'),
     );
+    const syncEntries = Object.entries(authority.getSnapshot().operations).filter(
+      ([, entry]) => entry.operation.kind === 'location-sync',
+    );
+    expect(syncEntries).toHaveLength(1);
+    expect(syncEntries[0]?.[0]).toMatch(/^location-sync:partition-a:sha256:[0-9a-f]{64}$/u);
+    expect(syncEntries[0]?.[1].requestFingerprint).toMatch(/^[0-9a-f]{64}$/u);
     // Unchanged location views are not journaled again on the next route.
     const operationCount = Object.keys(authority.getSnapshot().operations).length;
     await router.routeCommandDrafts({

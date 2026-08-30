@@ -21,7 +21,13 @@ import {
   type SimulationId,
 } from '@aivilization/sim-core';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
-import type { ServiceQualityPolicy } from '@aivilization/society';
+import {
+  calculateCompletedRecruitmentCycleNumbers,
+  settlePublicBudget,
+  type PublicBudgetPolicy,
+  type ServiceQualityPolicy,
+  type TownPublicService,
+} from '@aivilization/society';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
@@ -757,7 +763,7 @@ export function createSimulationWideAuthority(input: {
   // Partition state is synchronized after its local time phase; charging those
   // effects here again would make credit collection observe double rent,
   // welfare, illness, or production effects.
-  const resolveTimePolicies = (projection: WorldProjection): WorldCommandPolicies => {
+  const resolveTimePolicies = (resolvedPolicies: WorldCommandPolicies): WorldCommandPolicies => {
     const {
       educationSystem: strippedEducationSystem,
       sleepDeprivation: strippedSleepDeprivation,
@@ -771,10 +777,11 @@ export function createSimulationWideAuthority(input: {
       physiologicalSafetyNet: strippedPhysiologicalSafetyNet,
       wellbeing: strippedWellbeing,
       publicBudget: strippedPublicBudget,
+      calendar: strippedCalendar,
       enterprise: strippedEnterprise,
       timeSettlementAmortization: strippedTimeSettlementAmortization,
       ...authorityTimePolicies
-    } = resolvePolicies(projection);
+    } = resolvedPolicies;
     void strippedEducationSystem;
     void strippedSleepDeprivation;
     void strippedStarvation;
@@ -787,6 +794,7 @@ export function createSimulationWideAuthority(input: {
     void strippedPhysiologicalSafetyNet;
     void strippedWellbeing;
     void strippedPublicBudget;
+    void strippedCalendar;
     void strippedEnterprise;
     void strippedTimeSettlementAmortization;
     return authorityTimePolicies;
@@ -1617,21 +1625,28 @@ export function createSimulationWideAuthority(input: {
         // newAgents stay out of the fingerprint: after a crash the replayed
         // sync finds the agents already registered and omits their records,
         // and must still match the journaled request.
-        requestFingerprint: stableStringify({
-          kind: 'location-sync',
-          partitionKey,
-          agentLocations,
-          agentStates,
-          ...(request.partitionAccounts === undefined
-            ? {}
-            : { partitionAccounts: request.partitionAccounts }),
-          ...(request.partitionRuntimeState === undefined
-            ? {}
-            : { partitionRuntimeState: request.partitionRuntimeState }),
-          ...(request.partitionClockNow === undefined
-            ? {}
-            : { partitionClockNow: request.partitionClockNow }),
-        }),
+        // This receipt lives in authority state for every synchronization.
+        // Store a fixed-size content digest instead of duplicating the full
+        // population snapshot in the operations index. The operation id is
+        // independently derived by the router and SHA-256 collision checking
+        // retains the same deterministic idempotency contract.
+        requestFingerprint: sha256Hex(
+          stableStringify({
+            kind: 'location-sync',
+            partitionKey,
+            agentLocations,
+            agentStates,
+            ...(request.partitionAccounts === undefined
+              ? {}
+              : { partitionAccounts: request.partitionAccounts }),
+            ...(request.partitionRuntimeState === undefined
+              ? {}
+              : { partitionRuntimeState: request.partitionRuntimeState }),
+            ...(request.partitionClockNow === undefined
+              ? {}
+              : { partitionClockNow: request.partitionClockNow }),
+          }),
+        ),
         lease: request,
         create: (state, fencingToken) => {
           assertKnownPartition(state, partitionKey);
@@ -1864,9 +1879,7 @@ export function createSimulationWideAuthority(input: {
               (total, accounts) => total + accounts.moneySupply,
               0,
             );
-            const hasTreasury = contributions.some(
-              (accounts) => accounts.treasury !== undefined,
-            );
+            const hasTreasury = contributions.some((accounts) => accounts.treasury !== undefined);
             if (hasTreasury) {
               synchronizedProjection = {
                 ...synchronizedProjection,
@@ -1957,7 +1970,18 @@ export function createSimulationWideAuthority(input: {
         lease: request,
         create: (state, fencingToken) => {
           assertEveryPartitionPublishedThrough(state, state.projection.clock.now);
-          const policies = resolveTimePolicies(state.projection);
+          const resolvedPolicies = resolvePolicies(state.projection);
+          const policies = resolveTimePolicies(resolvedPolicies);
+          const serviceQualityFundingBySettledAt =
+            policies.serviceQuality === undefined || resolvedPolicies.publicBudget === undefined
+              ? undefined
+              : createSimulationWideServiceQualityFunding({
+                  previousSimulationTime: state.projection.clock.now,
+                  nextSimulationTime: state.projection.clock.now + request.deltaMs,
+                  partitionKeys: state.partitionKeys,
+                  partitionAccountsByKey: state.partitionAccountsByKey,
+                  publicBudget: resolvedPolicies.publicBudget,
+                });
           const commandId = `simulation-wide-advance-${request.operationId}`;
           let events = dispatchWorldCommand({
             command: createCommandEnvelope({
@@ -1970,6 +1994,9 @@ export function createSimulationWideAuthority(input: {
             }),
             projection: state.projection,
             policies,
+            ...(serviceQualityFundingBySettledAt === undefined
+              ? {}
+              : { serviceQualityFundingBySettledAt }),
             nextSequence: state.revision + 1,
           });
           let projection = events.reduce(applyWorldEvent, state.projection);
@@ -2270,18 +2297,15 @@ function createInitialSnapshot(seed: SimulationWideAuthoritySeed): SimulationWid
     throw new Error('every simulation-wide partition must have an initial fiscal contribution');
   }
   if (seed.partitionAccountsByKey !== undefined) {
-    const contributions = partitionKeys.map((partitionKey) =>
-      seed.partitionAccountsByKey![partitionKey]!,
+    const contributions = partitionKeys.map(
+      (partitionKey) => seed.partitionAccountsByKey![partitionKey]!,
     );
-    const moneySupply = contributions.reduce(
-      (total, accounts) => total + accounts.moneySupply,
-      0,
-    );
-    const treasury = contributions.reduce(
-      (total, accounts) => total + (accounts.treasury ?? 0),
-      0,
-    );
-    if (moneySupply !== seed.projection.moneySupply || treasury !== (seed.projection.treasury ?? 0)) {
+    const moneySupply = contributions.reduce((total, accounts) => total + accounts.moneySupply, 0);
+    const treasury = contributions.reduce((total, accounts) => total + (accounts.treasury ?? 0), 0);
+    if (
+      moneySupply !== seed.projection.moneySupply ||
+      treasury !== (seed.projection.treasury ?? 0)
+    ) {
       throw new Error('partition fiscal contributions must sum to the authority seed accounts');
     }
   }
@@ -2339,6 +2363,59 @@ function resolvePartitionClockNowByKey(
   return state.partitionClockNowByKey ?? {};
 }
 
+/**
+ * Replays each owner partition's real public-budget aggregate in memory and
+ * combines only the education/healthcare funding facts needed by the
+ * simulation-wide service-quality decision. Cash remains partition-owned and
+ * is persisted by the local PublicBudgetSpent events, so this calculation must
+ * never mutate the authority treasury or emit a second transfer.
+ */
+function createSimulationWideServiceQualityFunding(input: {
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+  readonly partitionKeys: readonly PartitionKey[];
+  readonly partitionAccountsByKey:
+    | Readonly<Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>>
+    | undefined;
+  readonly publicBudget: PublicBudgetPolicy;
+}): Readonly<Record<number, Partial<Record<TownPublicService, number>>>> {
+  const missingPartition = input.partitionKeys.find(
+    (partitionKey) => input.partitionAccountsByKey?.[partitionKey] === undefined,
+  );
+  if (missingPartition !== undefined) {
+    throw new Error(
+      `simulation-wide service quality requires fiscal state from partition ${missingPartition}`,
+    );
+  }
+  const treasuryByPartition = Object.fromEntries(
+    input.partitionKeys.map((partitionKey) => [
+      partitionKey,
+      input.partitionAccountsByKey![partitionKey]!.treasury ?? 0,
+    ]),
+  );
+  const fundingBySettledAt: Record<number, Partial<Record<TownPublicService, number>>> = {};
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: input.publicBudget.cadenceMs,
+  });
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * input.publicBudget.cadenceMs;
+    const funding: Partial<Record<TownPublicService, number>> = {};
+    for (const partitionKey of input.partitionKeys) {
+      let treasury = treasuryByPartition[partitionKey]!;
+      for (const decision of settlePublicBudget({ treasury, policy: input.publicBudget })) {
+        treasury = decision.nextTreasury;
+        if (decision.service !== 'education' && decision.service !== 'healthcare') continue;
+        funding[decision.service] = (funding[decision.service] ?? 0) + decision.amount;
+      }
+      treasuryByPartition[partitionKey] = treasury;
+    }
+    fundingBySettledAt[settledAt] = funding;
+  }
+  return fundingBySettledAt;
+}
+
 function assertEveryPartitionPublishedThrough(
   state: SimulationWideAuthoritySnapshot,
   requiredClockNow: number,
@@ -2350,7 +2427,9 @@ function assertEveryPartitionPublishedThrough(
   if (lagging.length > 0) {
     throw new Error(
       `simulation-wide authority cannot advance from ${requiredClockNow}; lagging partition state: ${lagging
-        .map((partitionKey) => `${partitionKey}@${publishedClockNowByKey[partitionKey] ?? 'missing'}`)
+        .map(
+          (partitionKey) => `${partitionKey}@${publishedClockNowByKey[partitionKey] ?? 'missing'}`,
+        )
         .join(', ')}`,
     );
   }
@@ -2585,9 +2664,7 @@ function createInboxDeliveries(
           for (const payment of event.payload.payments) {
             const owner = ownerPartitionKeyByAgentId[payment.agentId];
             if (owner === undefined || fullRecipients.has(owner)) continue;
-            addEvents(owner, [
-              createBankInterestCreditedEvent(event, payment),
-            ]);
+            addEvents(owner, [createBankInterestCreditedEvent(event, payment)]);
           }
         }
       }
@@ -2596,9 +2673,9 @@ function createInboxDeliveries(
       // receive the full advance event set (transfer moves) have them inline;
       // everyone else gets just those events. WeatherChanged rides along too:
       // weather settles only on the authority, so without delivery no partition
-      // stream ever records the transition. TownDayPhaseChanged rides along for
-      // the same reason: phases are a pure clock function, so the town-wide
-      // copy is always identical to what a local advance would have derived.
+      // stream ever records the transition. Calendar phases remain
+      // partition-local pure clock derivations and are stripped from authority
+      // advancement, preventing duplicate phase facts in partition streams.
       const townWideEvents = operation.events.filter(
         (event) =>
           event.type === 'BulletinPosted' ||
@@ -2607,7 +2684,6 @@ function createInboxDeliveries(
           event.type === 'MatterClosed' ||
           event.type === 'SocialInteractionCompleted' ||
           event.type === 'WeatherChanged' ||
-          event.type === 'TownDayPhaseChanged' ||
           event.type === 'RegionalServiceQualityUpdated' ||
           event.type === 'TownBankSnapshotRecorded' ||
           // Matter-expiry closures carry the parties' memory records; they
@@ -2651,9 +2727,7 @@ function createPartitionCreditTimeEvents(
   return events.flatMap((event) => {
     if (event.type === 'DepositInterestPaid') {
       return event.payload.payments
-        .filter(
-          (payment) => ownerPartitionKeyByAgentId[payment.agentId] === partitionKey,
-        )
+        .filter((payment) => ownerPartitionKeyByAgentId[payment.agentId] === partitionKey)
         .map((payment) => createBankInterestCreditedEvent(event, payment));
     }
     if (event.type === 'LoanRepaid' || event.type === 'LoanDefaulted') {

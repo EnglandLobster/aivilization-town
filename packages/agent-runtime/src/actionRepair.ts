@@ -20,7 +20,11 @@ import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDec
 
 export type AgentActionCommandType = Exclude<
   CoreCommandType,
-  'SetLongHorizonObjective' | 'IssueReactiveCommand' | 'AdvanceSimulationTime'
+  | 'SetLongHorizonObjective'
+  | 'IssueReactiveCommand'
+  | 'RegisterAgent'
+  | 'IssueTownBulletin'
+  | 'AdvanceSimulationTime'
 >;
 
 export const AGENT_ACTION_COMMAND_TYPES = [
@@ -41,8 +45,11 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentImportCommodity',
   'AgentIntervene',
   'AgentJoinEnterprise',
+  'AgentLayoffEnterpriseEmployee',
+  'AgentLeaveEnterprise',
   'AgentMoveTo',
   'AgentObserveLocation',
+  'AgentPostBulletin',
   'AgentProduce',
   'AgentRaisePetition',
   'AgentRaiseMatter',
@@ -62,6 +69,13 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'SetPublicBudget',
   'SetSubsidyPolicy',
 ] as const satisfies readonly AgentActionCommandType[];
+
+type RequireNever<T> = [T] extends [never] ? true : never;
+
+/** Compile-time guard: every Agent-authorized command remains LLM-repair reachable. */
+export const AGENT_ACTION_COMMAND_TYPE_LIST_IS_EXHAUSTIVE: RequireNever<
+  Exclude<AgentActionCommandType, (typeof AGENT_ACTION_COMMAND_TYPES)[number]>
+> = true;
 
 export type ReactiveCorrectionGeneratedAction = {
   readonly id: string;

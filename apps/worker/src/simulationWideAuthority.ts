@@ -1756,8 +1756,36 @@ export function createSimulationWideAuthority(input: {
               }
             }
           }
+          let departureProjection = creditProjection;
+          const departureMatterEvents: WorldEvent[] = [];
+          for (const matter of Object.values(state.projection.socialMatters ?? {})
+            .filter((candidate) => candidate.status !== 'closed')
+            .filter(
+              (candidate) =>
+                removedAgentIdSet.has(candidate.initiatorAgentId) ||
+                (candidate.assigneeAgentId !== undefined &&
+                  removedAgentIdSet.has(candidate.assigneeAgentId)),
+            )
+            .sort((left, right) => left.matterId.localeCompare(right.matterId))) {
+            const event = createEventEnvelope({
+              id: `simulation-wide-location-sync-${request.operationId}:event:matter-closed:${matter.matterId}`,
+              simulationId: state.simulationId,
+              commandId: `simulation-wide-location-sync-${request.operationId}`,
+              type: 'MatterClosed',
+              payload: {
+                matterId: matter.matterId,
+                closure: 'expired' as const,
+                closedAt: partitionClockNow,
+              },
+              occurredAt: request.observedAt,
+              sequence:
+                state.revision + departureCreditEvents.length + departureMatterEvents.length + 1,
+            }) as WorldEvent;
+            departureMatterEvents.push(event);
+            departureProjection = applyWorldEvent(departureProjection, event);
+          }
           const departureBankSnapshot =
-            departureCreditEvents.length === 0 || creditProjection.bank === undefined
+            departureCreditEvents.length === 0 || departureProjection.bank === undefined
               ? undefined
               : (createEventEnvelope({
                   id: `simulation-wide-location-sync-${request.operationId}:event:bank-snapshot`,
@@ -1765,18 +1793,22 @@ export function createSimulationWideAuthority(input: {
                   commandId: `simulation-wide-location-sync-${request.operationId}`,
                   type: 'TownBankSnapshotRecorded',
                   payload: {
-                    bank: creditProjection.bank,
+                    bank: departureProjection.bank,
                     recordedAt: partitionClockNow,
                     reason: 'customer-departure' as const,
                     policyVersion: 'town-bank-customer-departure-v1',
                   },
                   occurredAt: request.observedAt,
-                  sequence: state.revision + departureCreditEvents.length + 1,
+                  sequence:
+                    state.revision +
+                    departureCreditEvents.length +
+                    departureMatterEvents.length +
+                    1,
                 }) as WorldEvent);
-          const departureBankEvents =
+          const departureIntegrationEvents =
             departureBankSnapshot === undefined
-              ? departureCreditEvents
-              : [...departureCreditEvents, departureBankSnapshot];
+              ? [...departureCreditEvents, ...departureMatterEvents]
+              : [...departureCreditEvents, ...departureMatterEvents, departureBankSnapshot];
           for (const record of newAgents) {
             const agentId = asAgentId(record.agentId);
             if (owners[agentId] !== undefined) {
@@ -1953,7 +1985,7 @@ export function createSimulationWideAuthority(input: {
               : { mergedMemoryRecordIds: mergedMemoryRecords.map((record) => record.id) }),
             ...(removedAgentIds.length === 0 ? {} : { removedAgentIds }),
             status: 'completed',
-            events: departureBankEvents,
+            events: departureIntegrationEvents,
           };
           const cleanedPendingTransfers =
             removedAgentIds.length === 0
@@ -2000,7 +2032,10 @@ export function createSimulationWideAuthority(input: {
             transitByAgent,
             timeSettlementByAgent,
             physiologicalDistressByAgent,
-            ...(creditProjection.bank === undefined ? {} : { bank: creditProjection.bank }),
+            ...(departureProjection.bank === undefined ? {} : { bank: departureProjection.bank }),
+            ...(departureProjection.socialMatters === undefined
+              ? {}
+              : { socialMatters: departureProjection.socialMatters }),
           };
           if (state.partitionKeys.length === 1 && request.partitionAccounts !== undefined) {
             synchronizedProjection = {
@@ -2881,16 +2916,22 @@ function createInboxDeliveries(
       if (operation.events.length === 0) {
         return [];
       }
-      return partitionKeys.map((partitionKey) => ({
-        operationId: operation.operationId,
-        fencingToken: operation.fencingToken,
-        partitionKey,
-        operationKind: operation.kind,
-        // The owner already replayed the detailed liquidation in its local
-        // departure command. Every partition replaces its replica with the
-        // one authority result, avoiding duplicate write-off/forfeiture.
-        events: operation.events.filter((event) => event.type === 'TownBankSnapshotRecorded'),
-      }));
+      return partitionKeys
+        .map((partitionKey) => ({
+          operationId: operation.operationId,
+          fencingToken: operation.fencingToken,
+          partitionKey,
+          operationKind: operation.kind,
+          // The owner already replayed detailed departure facts locally.
+          // Every partition replaces its bank replica; only remote partitions
+          // receive matter closures, preventing a duplicate close at source.
+          events: operation.events.filter(
+            (event) =>
+              event.type === 'TownBankSnapshotRecorded' ||
+              (partitionKey !== operation.partitionKey && event.type === 'MatterClosed'),
+          ),
+        }))
+        .filter((delivery) => delivery.events.length > 0);
   }
 }
 

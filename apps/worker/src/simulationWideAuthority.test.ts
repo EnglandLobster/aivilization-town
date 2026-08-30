@@ -13,6 +13,7 @@ import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
   createAivilizationCollectiveActionPolicy,
+  createAivilizationSocialMattersPolicy,
   createAivilizationTownGovernancePolicy,
   createAivilizationTownLifecyclePolicy,
 } from './experimentalFeatures';
@@ -1216,7 +1217,11 @@ describe('authority departure sync', () => {
   }
 
   test('a reported departure removes the ghost resident from the authority ledger', () => {
-    const authority = createAuthority();
+    const basePolicies = createAivilizationWorldCommandPolicies('authority-departure-test');
+    const authority = createAuthority(undefined, false, {}, (projection) => ({
+      ...basePolicies(projection),
+      socialMatters: createAivilizationSocialMattersPolicy(),
+    }));
     // Baseline: the authority knows agentA (partition A) and agentB.
     expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionA);
     authority.settleCredit({
@@ -1233,6 +1238,16 @@ describe('authority departure sync', () => {
       commandType: 'AgentRequestLoan',
       payload: { amount: 50 },
     });
+    const raisedMatter = authority.settleMatter({
+      operationId: 'matter-before-reported-departure',
+      ...lease(),
+      agentId: agentA,
+      commandType: 'AgentRaiseMatter',
+      payload: { topic: 'departure-help', statement: 'Please finish this after I leave.' },
+    });
+    const matterId = raisedMatter.events.find((event) => event.type === 'MatterRaised')?.payload
+      .matter.matterId;
+    if (matterId === undefined) throw new Error('expected raised matter');
     authority.syncPartitionAgentLocations({
       operationId: 'location-sync-departure-runtime-baseline',
       ...lease(),
@@ -1304,15 +1319,18 @@ describe('authority departure sync', () => {
         (loan) => loan.borrowerAgentId === agentA && loan.status === 'active',
       ),
     ).toEqual([]);
+    expect(snapshot.projection.socialMatters?.[matterId]?.status).toBe('closed');
     expect(first.events.map((event) => event.type)).toEqual([
       'LoanWrittenOff',
       'DepositForfeited',
+      'MatterClosed',
       'TownBankSnapshotRecorded',
     ]);
     const replicaDeparture = authority
       .readInbox({ partitionKey: partitionB, consumerId: 'departure-bank-replica' })
       .deliveries.find((delivery) => delivery.operationId === 'location-sync-departure-1');
     expect(replicaDeparture?.events.map((event) => event.type)).toEqual([
+      'MatterClosed',
       'TownBankSnapshotRecorded',
     ]);
     // The other partition's resident is untouched.

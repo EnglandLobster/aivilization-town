@@ -524,6 +524,18 @@ function createAuthoritySeed(input: {
     projection: mergeSeedProjection(input.partitions),
     owners,
     partitionKeys: input.partitions.map((partition) => partition.partitionKey),
+    partitionAccountsByKey: Object.fromEntries(
+      input.partitions.map((partition) => {
+        const projection = partition.bootstrap.initialProjection;
+        return [
+          partition.partitionKey,
+          {
+            moneySupply: projection.moneySupply,
+            ...(projection.treasury === undefined ? {} : { treasury: projection.treasury }),
+          },
+        ];
+      }),
+    ),
   };
 }
 

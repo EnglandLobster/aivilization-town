@@ -2,7 +2,13 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, test } from 'vitest';
-import { asAgentId, asLocationId, asSimulationId, type PartitionKey } from '@aivilization/sim-core';
+import {
+  asAgentId,
+  asLocationId,
+  asSimulationId,
+  type AgentId,
+  type PartitionKey,
+} from '@aivilization/sim-core';
 import { createWorldProjection } from '@aivilization/world';
 import { createAivilizationWorldCommandPolicies } from './aivilizationWorldPolicies';
 import {
@@ -783,6 +789,48 @@ describe('simulation-wide authority', () => {
     expect(
       authority.readInbox({ partitionKey: partitionA, consumerId: 'materializer-a' }).deliveries,
     ).toMatchObject([{ operationId: 'conversation-after-sync', operationKind: 'conversation' }]);
+  });
+
+  test('publishes multi-partition fiscal totals only at an equal-clock barrier', () => {
+    const authority = createAuthority();
+    const sync = (
+      partitionKey: PartitionKey,
+      agentId: AgentId,
+      clock: number,
+      moneySupply: number,
+      treasury: number,
+    ) =>
+      authority.syncPartitionAgentLocations({
+        operationId: `fiscal-sync:${partitionKey}:${clock}`,
+        workerId: `worker-${partitionKey}`,
+        observedAt: clock,
+        durationMs: 100,
+        partitionKey,
+        partitionClockNow: clock,
+        agentLocations: [{ agentId, locationId: 'market' }],
+        partitionAccounts: { moneySupply, treasury },
+      });
+
+    sync(partitionA, agentA, 1_000, 100, 10);
+    // Partition B has not published this boundary, so the authority must keep
+    // the previous complete fiscal view rather than expose a partial sum.
+    expect(authority.getSnapshot().projection.moneySupply).toBe(1_000);
+    sync(partitionB, agentB, 1_000, 200, 20);
+    expect(authority.getSnapshot().projection).toMatchObject({
+      moneySupply: 300,
+      treasury: 30,
+    });
+
+    sync(partitionA, agentA, 2_000, 90, 5);
+    expect(authority.getSnapshot().projection).toMatchObject({
+      moneySupply: 300,
+      treasury: 30,
+    });
+    sync(partitionB, agentB, 2_000, 180, 15);
+    expect(authority.getSnapshot().projection).toMatchObject({
+      moneySupply: 270,
+      treasury: 20,
+    });
   });
 
   test('rejects a location sync for Agents owned by another partition and replays idempotently', () => {

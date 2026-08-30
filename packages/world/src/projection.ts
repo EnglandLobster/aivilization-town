@@ -117,14 +117,14 @@ export type WorldAgentState = {
    */
   readonly wellbeing?: number;
   /**
-   * Durable lifecycle stage (town-lifecycle-v1), updated by AgentAged.
+   * Durable versioned-lifecycle stage, updated by AgentAged.
    * Optional so legacy snapshots and registrations stay byte-for-byte
    * compatible; absent means 'adult' (every registered agent is an adult at
    * registration).
    */
   readonly lifeStage?: 'child' | 'teen' | 'adult' | 'elderly';
   /**
-   * Simulation time the agent was forcibly retired (town-lifecycle-v1), set
+   * Simulation time the agent was forcibly retired by town lifecycle, set
    * by AgentRetired. Agents carrying this field accrue the hourly pension;
    * absent means not retired.
    */

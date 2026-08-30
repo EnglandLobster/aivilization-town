@@ -1102,7 +1102,7 @@ export type TownDayPhaseChangedPayload = {
 
 /**
  * A lifecycle stage transition settled by the AdvanceSimulationTime handler
- * under the town-lifecycle policy (town-lifecycle-v1). The stage is a pure
+ * under the versioned town-lifecycle policy. The stage is a pure
  * function of the agent's registration timestamp, the simulation clock, and
  * the policy thresholds; `ageDays` records the age at the transition so
  * replay needs no recomputation. 'child'/'teen' stages are reserved for a
@@ -1188,7 +1188,7 @@ export type AgentDiedPayload = {
 
 /**
  * A happiness-driven departure settled at the END of a settlement interval
- * (town-migration-v1, CS2 NotHappy): the agent was alive for the interval's
+ * (town-migration-v2, CS2 NotHappy): the agent was alive for the interval's
  * other settlements, then left town. The reducer removes the agent exactly
  * like a death — the estate accounting is shared (AGENTS.md §7 category 3:
  * the departing agent's circulating currency moves out of the town economy,

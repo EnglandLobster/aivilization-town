@@ -44,9 +44,7 @@ export type WorldWeatherState = {
 const WEATHER_ROW_SUM_TOLERANCE = 1e-9;
 
 export function isTownWeatherKind(value: unknown): value is TownWeatherKind {
-  return (
-    typeof value === 'string' && (TOWN_WEATHER_KINDS as readonly string[]).includes(value)
-  );
+  return typeof value === 'string' && (TOWN_WEATHER_KINDS as readonly string[]).includes(value);
 }
 
 export function assertTownWeatherPolicy(policy: TownWeatherPolicy): void {
@@ -74,9 +72,7 @@ export function assertTownWeatherPolicy(policy: TownWeatherPolicy): void {
       rowSum += probability;
     }
     if (Math.abs(rowSum - 1) > WEATHER_ROW_SUM_TOLERANCE) {
-      throw new Error(
-        `town weather transition row ${from} must sum to 1, received ${rowSum}`,
-      );
+      throw new Error(`town weather transition row ${from} must sum to 1, received ${rowSum}`);
     }
   }
 }
@@ -97,6 +93,32 @@ export function isTownWeatherTransitionDue(input: {
     Math.floor(input.previousSimulationTime / input.transitionCadenceMs) !==
     Math.floor(input.nextSimulationTime / input.transitionCadenceMs)
   );
+}
+
+/** Enumerates every fixed weather cadence boundary in `(from, to]`. */
+export function listTownWeatherTransitionBoundaries(input: {
+  readonly transitionCadenceMs: number;
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): readonly number[] {
+  if (!Number.isFinite(input.transitionCadenceMs) || input.transitionCadenceMs <= 0) {
+    throw new Error('town weather transitionCadenceMs must be a positive finite number');
+  }
+  if (input.nextSimulationTime < input.previousSimulationTime) {
+    throw new Error('town weather transition window cannot move backwards');
+  }
+  const boundaries: number[] = [];
+  const firstBoundary =
+    (Math.floor(input.previousSimulationTime / input.transitionCadenceMs) + 1) *
+    input.transitionCadenceMs;
+  for (
+    let boundary = firstBoundary;
+    boundary <= input.nextSimulationTime;
+    boundary += input.transitionCadenceMs
+  ) {
+    boundaries.push(boundary);
+  }
+  return boundaries;
 }
 
 /**

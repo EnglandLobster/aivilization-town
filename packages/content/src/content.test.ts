@@ -108,12 +108,14 @@ describe('AIvilization source content', () => {
       minHealth: 10,
     });
     expect(aivilizationSurvivalTimePolicyDefaults.stochasticIllness).toMatchObject({
+      policyVersion: 'stochastic-illness-v2',
+      settlementCadenceMs: 3_600_000,
       illnessProbabilityPercentPerHour: 1,
       healthDamage: 5,
       minHealth: 10,
     });
     expect(aivilizationSurvivalTimePolicyDefaults.starvation).toMatchObject({
-      policyVersion: 'starvation-health-decay-v1',
+      policyVersion: 'starvation-health-decay-v2',
       settlementCadenceMs: 3_600_000,
       satietyThreshold: 20,
       healthDecayPerHourAtZeroSatiety: 4,
@@ -158,7 +160,7 @@ describe('AIvilization source content', () => {
   });
 
   test('captures the versioned town weather policy with a row-stochastic matrix', () => {
-    expect(aivilizationTownWeatherPolicyDefaults.policyVersion).toBe('town-weather-v1');
+    expect(aivilizationTownWeatherPolicyDefaults.policyVersion).toBe('town-weather-v2');
     expect(aivilizationTownWeatherPolicyDefaults.initialWeather).toBe('sunny');
     expect(aivilizationTownWeatherPolicyDefaults.transitionCadenceMs).toBeGreaterThanOrEqual(
       45 * 60_000,
@@ -176,7 +178,7 @@ describe('AIvilization source content', () => {
     // Rain can naturally persist or clear.
     expect(aivilizationTownWeatherPolicyDefaults.transitions.rainy.rainy).toBeGreaterThan(0);
     expect(aivilizationTownWeatherPolicyDefaults.transitions.rainy.cloudy).toBeGreaterThan(0);
-    expect(aivilizationTownWeatherPolicyDefaults.source).toContain('town-weather-v1');
+    expect(aivilizationTownWeatherPolicyDefaults.source).toContain('town-weather-v2');
   });
 
   test('captures the versioned town condition catalog with thresholds, severities, and needs', () => {

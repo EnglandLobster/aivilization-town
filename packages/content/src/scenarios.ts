@@ -46,12 +46,25 @@ export type ScenarioSleepDeprivationPolicyConfig = {
   readonly source: string;
 };
 
-export type ScenarioStochasticIllnessPolicyConfig = {
+type ScenarioStochasticIllnessPolicyParameters = {
   readonly illnessProbabilityPercentPerHour: number;
   readonly healthDamage: number;
   readonly minHealth: number;
   readonly source: string;
 };
+
+export type ScenarioStochasticIllnessPolicyConfig =
+  ScenarioStochasticIllnessPolicyParameters &
+    (
+      | {
+          readonly policyVersion: string;
+          readonly settlementCadenceMs: number;
+        }
+      | {
+          readonly policyVersion?: never;
+          readonly settlementCadenceMs?: never;
+        }
+    );
 
 export type ScenarioStarvationHealthDecayPolicyConfig = {
   readonly policyVersion: string;
@@ -622,7 +635,7 @@ const residentialPhysiologyCapSource =
 const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
 const starvationHealthDecayPolicySource =
-  'Survival pressure; starvation-health-decay-v1 converts sustained satiety deficit into deterministic health loss and death so survival outcomes depend on food access rather than action validity alone';
+  'Survival pressure; starvation-health-decay-v2 converts sustained satiety deficit into deterministic health loss and death on its own cadence so survival outcomes depend on food access rather than action validity alone';
 const renewableResourcePolicySource =
   'Town carrying capacity; renewable-resources-v1 replaces zero-input primary production with finite regional stocks and deterministic regeneration; rates are repository experiment parameters';
 const physiologicalSafetyNetPolicySource =
@@ -642,7 +655,7 @@ const recruitmentCyclePolicySource =
 const productionPolicySource =
   'AIvilization v0 Section 3.1.1 productive efficiency G(S,E,J,R,H) and Section 3.2.1 education score default runtime tuning';
 const townWeatherPolicySource =
-  'Authoritative town weather; town-weather-v1 states, transition matrix, and cadence are repository policy decisions because the paper does not model weather';
+  'Authoritative town weather; town-weather-v2 states, transition matrix, boundary-by-boundary cadence, and seed semantics are repository policy decisions because the paper does not model weather';
 const townServiceQualityPolicySource =
   'Town service quality; town-service-quality-v1 budget transmission, occupancy pressure, and land-value/wellbeing weights are repository policy decisions benchmarked against the CS2 service-efficiency model';
 const townGovernancePolicySource =
@@ -660,13 +673,13 @@ const townWellbeingPolicySource =
 const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
 const outMigrationPolicySource =
-  'Out-migration; town-migration-v1 caps and cadence for the CS2 NotHappy departure shape are repository policy decisions, because the paper does not model population turnover';
+  'Out-migration; town-migration-v2 caps and independent cadence for the CS2 NotHappy departure shape are repository policy decisions, because the paper does not model population turnover';
 const collectiveActionPolicySource =
   'Collective action; collective-action-v1 petition threshold and expiry are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model collective action';
 const townDiscoursePolicySource =
   'Town discourse propagation; town-discourse-v1 propagation probability, importance distortion range, and hearsay chain depth are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model information propagation';
 const townLifecyclePolicySource =
-  'Town lifecycle; town-lifecycle-v1 stage thresholds, lifespan window, illness-death risk shape, and pension rate are repository policy decisions benchmarked against the CS2 citizen lifecycle (pre-rolled lifespan, illness death risk concentrated at low health, forced retirement), because the paper does not model population turnover';
+  'Town lifecycle; town-lifecycle-v2 stage thresholds, lifespan window, cadence-stable illness-death risk, and pension rate are repository policy decisions benchmarked against the CS2 citizen lifecycle (pre-rolled lifespan, illness death risk concentrated at low health, forced retirement), because the paper does not model population turnover';
 const taxPolicySource =
   'Town public finance; tax-regime-v2 brackets, the CS2-convention 10% neutral rate, the trade tax rate, and the dividend tax rate are repository policy decisions because the paper does not model taxation';
 const lifestylePolicySource =
@@ -764,7 +777,7 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     source: survivalTimePolicySource,
   },
   starvation: {
-    policyVersion: 'starvation-health-decay-v1',
+    policyVersion: 'starvation-health-decay-v2',
     settlementCadenceMs: 3_600_000,
     dayLengthMs: 86_400_000,
     satietyThreshold: 20,
@@ -774,6 +787,8 @@ export const aivilizationSurvivalTimePolicyDefaults = {
     source: starvationHealthDecayPolicySource,
   },
   stochasticIllness: {
+    policyVersion: 'stochastic-illness-v2',
+    settlementCadenceMs: 3_600_000,
     illnessProbabilityPercentPerHour: 1,
     healthDamage: 5,
     minHealth: 10,
@@ -817,7 +832,7 @@ export const aivilizationSurvivalTimePolicyDefaults = {
   },
 } as const satisfies ScenarioSurvivalTimePolicyDefaults;
 
-export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v1';
+export const TOWN_WEATHER_POLICY_VERSION = 'town-weather-v2';
 export const TOWN_SERVICE_QUALITY_POLICY_VERSION = 'town-service-quality-v1';
 export const TOWN_GOVERNANCE_POLICY_VERSION = 'town-governance-v1';
 
@@ -1036,7 +1051,7 @@ export const aivilizationTownCalendarPolicyDefaults = {
   source: townCalendarPolicySource,
 } as const satisfies ScenarioTownCalendarPolicyConfig;
 
-export const TOWN_LIFECYCLE_POLICY_VERSION = 'town-lifecycle-v1';
+export const TOWN_LIFECYCLE_POLICY_VERSION = 'town-lifecycle-v2';
 
 /**
  * Population lifecycle minimal set, benchmarked against the Cities: Skylines
@@ -1065,7 +1080,7 @@ export const aivilizationTownLifecyclePolicyDefaults = {
   source: townLifecyclePolicySource,
 } as const satisfies ScenarioTownLifecyclePolicyConfig;
 
-export const TOWN_MIGRATION_POLICY_VERSION = 'town-migration-v1';
+export const TOWN_MIGRATION_POLICY_VERSION = 'town-migration-v2';
 
 /**
  * Happiness-driven out-migration (town-migration switch): the CS2 NotHappy

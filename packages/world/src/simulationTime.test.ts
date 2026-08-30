@@ -258,6 +258,8 @@ describe('world simulation time', () => {
           ...policies,
           randomSeed,
           stochasticIllness: {
+            policyVersion: 'stochastic-illness-test-v2',
+            settlementCadenceMs: 3_600_000,
             illnessProbabilityPercentPerHour: 50,
             healthDamage: 12,
             minHealth: 10,
@@ -278,6 +280,76 @@ describe('world simulation time', () => {
     );
   });
 
+  test('settles stochastic illness on stable cadence boundaries across merged and stepped advances', () => {
+    const HOUR_MS = 3_600_000;
+    const BOUNDARIES = 12;
+    const build = () =>
+      createWorldProjection({
+        agents: [
+          {
+            agentId: asAgentId('agent-cadence-illness'),
+            locationId: null,
+            physiology: { energy: 80, satiety: 80, health: 100 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          },
+        ],
+        clock: { now: 0, tickDurationMs: HOUR_MS },
+      });
+    const illness = {
+      policyVersion: 'stochastic-illness-test-v2',
+      settlementCadenceMs: 2 * HOUR_MS,
+      illnessProbabilityPercentPerHour: 50,
+      healthDamage: 1,
+      minHealth: 0,
+    } as const;
+
+    for (let seedIndex = 0; seedIndex < 16; seedIndex += 1) {
+      const randomSeed = `cadence-seed-${seedIndex}`;
+      let stepped = build();
+      for (let step = 1; step <= BOUNDARIES * 2; step += 1) {
+        const events = dispatchWorldCommand({
+          command: createCommandEnvelope({
+            id: `command-stochastic-step-${seedIndex}-${step}`,
+            simulationId: 'sim-stochastic-cadence',
+            source: 'system',
+            type: 'AdvanceSimulationTime',
+            payload: { deltaMs: HOUR_MS },
+            issuedAt: (step - 1) * HOUR_MS,
+          }),
+          projection: stepped,
+          policies: { ...policies, randomSeed, stochasticIllness: illness },
+          nextSequence: step * 10,
+        });
+        if (step % 2 === 1) {
+          expect(events.some((event) => event.type === 'PhysiologyChanged')).toBe(false);
+        }
+        stepped = events.reduce(applyWorldEvent, stepped);
+      }
+
+      const mergedEvents = dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: `command-stochastic-merged-${seedIndex}`,
+          simulationId: 'sim-stochastic-cadence',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: BOUNDARIES * 2 * HOUR_MS },
+          issuedAt: 0,
+        }),
+        projection: build(),
+        policies: { ...policies, randomSeed, stochasticIllness: illness },
+        nextSequence: 10,
+      });
+      const merged = mergedEvents.reduce(applyWorldEvent, build());
+      expect(merged.agents['agent-cadence-illness']?.physiology).toEqual(
+        stepped.agents['agent-cadence-illness']?.physiology,
+      );
+    }
+  });
+
   test('composes sleep deprivation before stochastic illness in one time tick', () => {
     const projection = createWorldProjection({
       agents: [
@@ -292,7 +364,7 @@ describe('world simulation time', () => {
           inventory: {},
         },
       ],
-      clock: { now: 1000, tickDurationMs: 3_600_000 },
+      clock: { now: 0, tickDurationMs: 3_600_000 },
     });
 
     const events = dispatchWorldCommand({
@@ -302,7 +374,7 @@ describe('world simulation time', () => {
         source: 'system',
         type: 'AdvanceSimulationTime',
         payload: { deltaMs: 3_600_000 },
-        issuedAt: 1000,
+        issuedAt: 0,
       }),
       projection,
       policies: {
@@ -313,6 +385,8 @@ describe('world simulation time', () => {
           minHealth: 10,
         },
         stochasticIllness: {
+          policyVersion: 'stochastic-illness-test-v2',
+          settlementCadenceMs: 3_600_000,
           illnessProbabilityPercentPerHour: 100,
           healthDamage: 12,
           minHealth: 10,
@@ -853,6 +927,8 @@ describe('time settlement amortization', () => {
     const replayPolicies: WorldCommandPolicies = {
       ...policies,
       stochasticIllness: {
+        policyVersion: 'stochastic-illness-test-v2',
+        settlementCadenceMs: 3_600_000,
         illnessProbabilityPercentPerHour: 100,
         healthDamage: 10,
         minHealth: 0,
@@ -1893,7 +1969,7 @@ describe('town out-migration settlement', () => {
   // departure becomes test-certain (the cap never binds at 100).
   const DAY_WINDOW_MS = 24 * HOUR_MS;
   const migrationPolicy = {
-    policyVersion: 'town-migration-v1',
+    policyVersion: 'town-migration-v2',
     maxProbabilityPerHour: 100,
     fallbackWellbeing: 50,
     settlementCadenceMs: DAY_WINDOW_MS,
@@ -1982,7 +2058,7 @@ describe('town out-migration settlement', () => {
         cause: 'dissatisfaction',
         emigratedAt: DAY_WINDOW_MS,
         wellbeing: 0,
-        policyVersion: 'town-migration-v1',
+        policyVersion: 'town-migration-v2',
         estate: {
           burnedCurrency: 120,
           inventoryByCommodity: { Bread: 3 },
@@ -2034,6 +2110,36 @@ describe('town out-migration settlement', () => {
       policies,
     );
     expect(flagOff.map((event) => event.type)).toEqual(['SimulationTimeAdvanced']);
+  });
+
+  test('does not let command size accelerate a versioned migration cadence', () => {
+    const initial = createWorldProjection({
+      agents: [migrant()],
+      clock: { now: 0, tickDurationMs: HOUR_MS },
+    });
+    const advanceHalfDay = (projection: WorldProjection, id: string) =>
+      dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id,
+          simulationId: 'sim-migration-independent-cadence',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: DAY_WINDOW_MS / 2 },
+          issuedAt: projection.clock.now,
+        }),
+        projection,
+        policies: migrationPolicies,
+        nextSequence: 1,
+      });
+
+    const firstEvents = advanceHalfDay(initial, 'migration-half-day-1');
+    expect(firstEvents.some((event) => event.type === 'AgentEmigrated')).toBe(false);
+    const halfway = firstEvents.reduce(applyWorldEvent, initial);
+    const secondEvents = advanceHalfDay(halfway, 'migration-half-day-2');
+    const emigration = secondEvents.find((event) => event.type === 'AgentEmigrated');
+    expect(emigration?.type === 'AgentEmigrated' ? emigration.payload.emigratedAt : null).toBe(
+      DAY_WINDOW_MS,
+    );
   });
 
   test('a departing enterprise owner closes the firm with its assets burned', () => {
@@ -2681,11 +2787,51 @@ describe('starvation settlement', () => {
         .filter((event) => event.type === 'PhysiologyChanged')
         .map((event) => event.payload),
     ).toEqual([
-      expect.objectContaining({ reason: 'starvation', next: { energy: 50, satiety: 0, health: 96 } }),
-      expect.objectContaining({ reason: 'starvation', next: { energy: 50, satiety: 0, health: 92 } }),
+      expect.objectContaining({
+        reason: 'starvation',
+        next: { energy: 50, satiety: 0, health: 96 },
+      }),
+      expect.objectContaining({
+        reason: 'starvation',
+        next: { energy: 50, satiety: 0, health: 92 },
+      }),
     ]);
     expect(merged.agents['agent-hungry']?.physiology).toEqual(
       stepped.agents['agent-hungry']?.physiology,
+    );
+  });
+
+  test('does not let smaller advance commands accelerate a v2 starvation cadence', () => {
+    const versionedStarvation: StarvationHealthDecayPolicy = {
+      ...starvation,
+      policyVersion: 'starvation-health-decay-v2',
+      settlementCadenceMs: 2 * HOUR_MS,
+    };
+    const advanceHour = (projection: WorldProjection, commandId: string) =>
+      dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: commandId,
+          simulationId: 'sim-starvation-independent-cadence',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: HOUR_MS },
+          issuedAt: projection.clock.now,
+        }),
+        projection,
+        policies: { ...policies, starvation: versionedStarvation },
+        nextSequence: 1,
+      });
+    const initial = hungryProjection();
+
+    const firstEvents = advanceHour(initial, 'starvation-independent-1');
+    expect(firstEvents.some((event) => event.type === 'PhysiologyChanged')).toBe(false);
+    const halfway = firstEvents.reduce(applyWorldEvent, initial);
+    const secondEvents = advanceHour(halfway, 'starvation-independent-2');
+    const starvationEvent = secondEvents.find(
+      (event) => event.type === 'PhysiologyChanged' && event.payload.reason === 'starvation',
+    );
+    expect(starvationEvent?.type === 'PhysiologyChanged' ? starvationEvent.payload.next : null).toEqual(
+      { energy: 50, satiety: 0, health: 92 },
     );
   });
 
@@ -2729,7 +2875,7 @@ describe('starvation settlement', () => {
 describe('town lifecycle settlement', () => {
   const DAY_MS = 3_600_000; // one tick = one simulation day
   const lifecyclePolicy: LifecyclePolicy = {
-    policyVersion: 'town-lifecycle-v1',
+    policyVersion: 'town-lifecycle-v2',
     dayLengthMs: DAY_MS,
     stageThresholdsDays: { teen: 15, adult: 21, elderly: 22 },
     minLifespanDays: 90,
@@ -2782,6 +2928,41 @@ describe('town lifecycle settlement', () => {
     });
   }
 
+  test('does not let smaller advance commands accelerate a v2 lifecycle cadence', () => {
+    const certainIllnessPolicy: LifecyclePolicy = {
+      ...lifecyclePolicy,
+      illnessDeathProbabilityPerSettlementScale: 100,
+    };
+    const initial = createWorldProjection({
+      agents: [lifecycleAgent({ physiology: { energy: 50, satiety: 50, health: 0 } })],
+      clock: { now: 0, tickDurationMs: DAY_MS / 2 },
+    });
+    const advanceHalfCadence = (projection: WorldProjection, commandId: string) =>
+      dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: commandId,
+          simulationId: 'sim-lifecycle-independent-cadence',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: DAY_MS / 2 },
+          issuedAt: projection.clock.now,
+        }),
+        projection,
+        policies: { ...policies, lifecycle: certainIllnessPolicy },
+        nextSequence: 1,
+      });
+
+    const firstEvents = advanceHalfCadence(initial, 'lifecycle-independent-1');
+    expect(firstEvents.some((event) => event.type === 'AgentDied')).toBe(false);
+    const halfway = firstEvents.reduce(applyWorldEvent, initial);
+    const secondEvents = advanceHalfCadence(halfway, 'lifecycle-independent-2');
+    const death = secondEvents.find((event) => event.type === 'AgentDied');
+    expect(death?.type === 'AgentDied' ? death.payload : null).toMatchObject({
+      cause: 'illness',
+      diedAt: DAY_MS,
+    });
+  });
+
   test('ages into elderly, forces retirement, and pays the treasury pension', () => {
     // Registered agents count age from the adult threshold; with no
     // registration fact the agent counts from simulation time 0, so one tick
@@ -2807,7 +2988,7 @@ describe('town lifecycle settlement', () => {
         nextStage: 'elderly',
         ageDays: 22,
         changedAt: DAY_MS,
-        policyVersion: 'town-lifecycle-v1',
+        policyVersion: 'town-lifecycle-v2',
         reason: 'aging',
       },
     });
@@ -2987,7 +3168,7 @@ describe('town lifecycle settlement', () => {
       ageDays: 24,
       lifespanDays: 24,
       retired: true,
-      policyVersion: 'town-lifecycle-v1',
+      policyVersion: 'town-lifecycle-v2',
     });
     // Balance 50 + one treasury pension per post-retirement interval (ticks 2
     // and 3) = 52 burned; inventory perishes with the holder. Pensions are
@@ -3220,6 +3401,63 @@ describe('town lifecycle settlement', () => {
     };
     expect(burn(merged)).toBe(burn(stepEvents));
     expect(burn(merged)).toBe(52);
+  });
+
+  test('draws the same illness-death roll at each lifecycle boundary across dispatch shapes', () => {
+    const BOUNDARIES = 12;
+    const illnessPolicy: LifecyclePolicy = {
+      ...lifecyclePolicy,
+      minLifespanDays: 90,
+      maxLifespanDays: 90,
+      illnessDeathProbabilityPerSettlementScale: 20,
+    };
+    const build = () =>
+      createWorldProjection({
+        agents: [lifecycleAgent({ physiology: { energy: 50, satiety: 50, health: 0 } })],
+        clock: { now: 0, tickDurationMs: DAY_MS },
+      });
+
+    const deathTime = (events: readonly WorldEvent[]) => {
+      const death = events.find((event) => event.type === 'AgentDied');
+      return death?.type === 'AgentDied' ? death.payload.diedAt : null;
+    };
+    for (let seedIndex = 0; seedIndex < 16; seedIndex += 1) {
+      const randomSeed = `lifecycle-cadence-seed-${seedIndex}`;
+      let stepped = build();
+      const steppedEvents: WorldEvent[] = [];
+      for (let boundary = 1; boundary <= BOUNDARIES; boundary += 1) {
+        const events = dispatchWorldCommand({
+          command: createCommandEnvelope({
+            id: `command-lifecycle-illness-step-${seedIndex}-${boundary}`,
+            simulationId: 'sim-lifecycle-cadence',
+            source: 'system',
+            type: 'AdvanceSimulationTime',
+            payload: { deltaMs: DAY_MS },
+            issuedAt: (boundary - 1) * DAY_MS,
+          }),
+          projection: stepped,
+          policies: { ...policies, randomSeed, lifecycle: illnessPolicy },
+          nextSequence: boundary * 10,
+        });
+        steppedEvents.push(...events);
+        stepped = events.reduce(applyWorldEvent, stepped);
+      }
+
+      const merged = dispatchWorldCommand({
+        command: createCommandEnvelope({
+          id: `command-lifecycle-illness-merged-${seedIndex}`,
+          simulationId: 'sim-lifecycle-cadence',
+          source: 'system',
+          type: 'AdvanceSimulationTime',
+          payload: { deltaMs: BOUNDARIES * DAY_MS },
+          issuedAt: 0,
+        }),
+        projection: build(),
+        policies: { ...policies, randomSeed, lifecycle: illnessPolicy },
+        nextSequence: 10,
+      });
+      expect(deathTime(merged)).toBe(deathTime(steppedEvents));
+    }
   });
 
   test('is deterministic: redispatching the same command yields identical events', () => {

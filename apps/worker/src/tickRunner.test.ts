@@ -1936,6 +1936,8 @@ describe('worker tick runner', () => {
       policies: {
         ...policies,
         stochasticIllness: {
+          policyVersion: 'stochastic-illness-test-v2',
+          settlementCadenceMs: 3_600_000,
           illnessProbabilityPercentPerHour: 100,
           healthDamage: 12,
           minHealth: 10,

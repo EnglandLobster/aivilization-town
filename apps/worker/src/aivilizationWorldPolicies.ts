@@ -80,6 +80,10 @@ import {
   AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
   createAutonomousObjectiveSelectionPolicyManifest,
 } from './objectiveRenewal';
+import {
+  CONFLICT_ACTION_PROPOSER_POLICY_VERSION,
+  createConflictActionProposerPolicyManifest,
+} from './conflictPlanning';
 
 export const AIVILIZATION_WORLD_POLICY_MANIFEST_SCHEMA_VERSION =
   'aivilization-world-policy-manifest-v2';
@@ -603,6 +607,7 @@ export function createAivilizationWorldPolicyManifest(
       autonomousObjectiveSelection: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
       externalTradeActionProposer: EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
       socialMatterActionProposer: SOCIAL_MATTER_ACTION_PROPOSER_POLICY_VERSION,
+      conflictActionProposer: CONFLICT_ACTION_PROPOSER_POLICY_VERSION,
       contextView: WORLD_DECISION_CONTEXT_VIEW_VERSION,
       strategicPlanning: DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION,
       agentRegistration: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
@@ -682,6 +687,7 @@ export function createAivilizationWorldPolicyManifest(
         contextView: createPerStageContextViewManifest(),
         externalTradeActionProposer: createExternalTradeActionProposerPolicyManifest(),
         socialMatterActionProposer: createSocialMatterActionProposerPolicyManifest(),
+        conflictActionProposer: createConflictActionProposerPolicyManifest(),
         globalSynthesis: createDeterministicGlobalSynthesisPolicyManifest(),
         strategicPlanning: createDeterministicStrategicPlanningPolicyManifest(),
         strategicPlanRenewal: createStrategicPlanRenewalPolicyManifest(),
@@ -896,6 +902,7 @@ function createCanonicalPolicyRegistry(manifest: {
         'autonomousObjectiveSelection',
         'externalTradeActionProposer',
         'socialMatterActionProposer',
+        'conflictActionProposer',
         'contextView',
         'strategicPlanning',
         'strategicPlanRenewal',

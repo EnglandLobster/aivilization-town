@@ -19,6 +19,7 @@ import {
 import { describe, expect, test } from 'vitest';
 import {
   createAivilizationTownCalendarPolicy,
+  createAivilizationTownConflictPolicy,
   createAivilizationTownLifecyclePolicy,
   createAivilizationTownWellbeingPolicy,
 } from './experimentalFeatures';
@@ -483,6 +484,77 @@ describe('worker world decision context', () => {
     const context = createWorldDecisionContextFromProjection({ projection, agentId });
 
     expect(context.townPulse).toBeUndefined();
+  });
+
+  test('exposes only relevant sanitized conflicts while the conflict policy is enabled', () => {
+    const square = asLocationId('square');
+    const elsewhere = asLocationId('elsewhere');
+    const otherAgentId = asAgentId('agent-b');
+    const projection: WorldProjection = {
+      ...createWorldProjection({
+        locations: [
+          {
+            locationId: square,
+            name: 'Square',
+            kind: 'social',
+            activityAffinities: [],
+            capacity: null,
+          },
+        ],
+        agents: [
+          { ...createLocalAgent(agentId), locationId: square },
+          { ...createLocalAgent(otherAgentId), locationId: square },
+        ],
+      }),
+      clock: { now: 100, tickDurationMs: 1_000 },
+      conflictRecords: [
+        {
+          conflictId: 'conflict-relevant',
+          kind: 'confrontation',
+          actorAgentId: otherAgentId,
+          targetAgentId: agentId,
+          locationId: square,
+          summary: '  answer\u0000   me  ',
+          recordedAt: 80,
+        },
+        {
+          conflictId: 'conflict-unrelated',
+          kind: 'attack',
+          actorAgentId: asAgentId('agent-c'),
+          targetAgentId: asAgentId('agent-d'),
+          locationId: elsewhere,
+          damage: 4,
+          summary: 'unseen',
+          recordedAt: 90,
+        },
+      ],
+    };
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 0,
+      laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+      criticalThresholds: { energy: 0, health: 0 },
+      conflict: createAivilizationTownConflictPolicy(),
+    };
+
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId, policies }).conflicts,
+    ).toEqual([
+      {
+        conflictId: 'conflict-relevant',
+        kind: 'confrontation',
+        role: 'target',
+        actorAgentId: otherAgentId,
+        targetAgentId: agentId,
+        locationId: square,
+        summary: 'answer me',
+        recordedAt: 80,
+      },
+    ]);
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId }).conflicts,
+    ).toBeUndefined();
   });
 
   test('caps foreign-partition society entries at sixteen strongest relations', () => {
@@ -2021,8 +2093,9 @@ describe('worker survival-pressure decision context', () => {
       healthDecayPerHour: 2,
       estimatedHoursUntilDeath: 4,
     });
-    expect(createWorldDecisionContextFromProjection({ projection, agentId }).agent.survivalPressure)
-      .toBeUndefined();
+    expect(
+      createWorldDecisionContextFromProjection({ projection, agentId }).agent.survivalPressure,
+    ).toBeUndefined();
   });
 });
 

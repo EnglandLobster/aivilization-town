@@ -476,6 +476,24 @@ export type WorldDecisionSocialMatterContext = {
 };
 
 /**
+ * Agent-relevant, read-only conflict fact. The world projection owns the
+ * adjudicated record; this view only gives cognition the facts needed to
+ * notice escalation, retaliation, or an opportunity to intervene.
+ */
+export type WorldDecisionConflictContext = {
+  readonly conflictId: string;
+  readonly kind: 'confrontation' | 'attack' | 'intervention';
+  readonly role: 'actor' | 'target' | 'counterparty' | 'witness';
+  readonly actorAgentId: AgentId;
+  readonly targetAgentId: AgentId;
+  readonly counterpartyAgentId?: AgentId;
+  readonly locationId: string;
+  readonly damage?: number;
+  readonly summary: string;
+  readonly recordedAt: number;
+};
+
+/**
  * Optional town day/night calendar visible to agent planning (town-calendar
  * switch). Present only when the town-calendar policy is enabled; exposes the
  * current phase, when it ends, and what follows so schedules can be
@@ -617,6 +635,12 @@ export type WorldDecisionContext = {
    * role then expiry and capped at {@link DECISION_SOCIAL_MATTER_MAX_COUNT}.
    */
   readonly matters?: readonly WorldDecisionSocialMatterContext[];
+  /**
+   * Recent conflicts involving this citizen or witnessed at their current
+   * location. Present (possibly empty) only while the conflict policy is
+   * enabled, so cognition and action affordances cannot drift apart.
+   */
+  readonly conflicts?: readonly WorldDecisionConflictContext[];
   readonly conditions?: readonly WorldDecisionConditionContext[];
   readonly fiscal?: WorldDecisionFiscalContext;
   readonly externalTrade?: readonly WorldDecisionExternalTradeCommodityContext[];
@@ -662,6 +686,7 @@ export type WorldDecisionContextTrace = {
   readonly petitionCount?: number;
   readonly matterCount?: number;
   readonly obligationMatterCount?: number;
+  readonly conflictCount?: number;
   readonly calendarDayIndex?: number;
   readonly calendarPhase?: string;
   readonly calendarNextPhase?: string;
@@ -708,6 +733,7 @@ export function createWorldDecisionContextTrace(
       ? {}
       : { relationCount: context.agent.relations.length }),
     ...(context.townPulse === undefined ? {} : { townPulseCount: context.townPulse.length }),
+    ...(context.conflicts === undefined ? {} : { conflictCount: context.conflicts.length }),
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
       Number.isFinite(context.agent.physiology.satiety) &&
@@ -794,7 +820,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v11';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v12';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;
@@ -825,6 +851,9 @@ export const DECISION_ENTERPRISE_MAX_COUNT = 8;
 
 /** Cap for the town-pulse section — the "recent town news" a citizen hears. */
 export const DECISION_TOWN_PULSE_MAX_COUNT = 6;
+
+/** Cap for recent agent-relevant conflict facts entering cognition. */
+export const DECISION_CONFLICT_MAX_COUNT = 8;
 
 /**
  * Town-pulse time window in simulation days (day length follows the calendar

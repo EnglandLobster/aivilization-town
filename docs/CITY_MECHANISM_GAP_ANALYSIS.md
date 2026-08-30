@@ -86,8 +86,9 @@
 - 现状：（2026-08-14 更新：已有突破）镇级公告频道 `AgentPostBulletin`/`IssueTownBulletin`
   （`packages/world/src/bulletin.ts`，高优先级抢占反应）、社会事项 help-request/commitment
   多人响应-裁决生命周期（`packages/world/src/matters.ts`）、冲突目击者态度传染
-  （`town-conflict-v1`，flag 默认关）。
-- 仍缺：信息/谣言沿社会网络的传播模型、规范与法律形成、集体行动（罢工/抗议/选举）、
+  与自主 confront/attack/intervene 闭环（`town-conflict-v2`，flag 默认关）。信息/谣言沿
+  社会网络的 hearsay 传播和请愿阈值集体行动也已落地。
+- 仍缺：规范与法律形成、集体行动深化（罢工/抗议/选举）、
   持久群组/公共讨论版。本项目架构（LLM 市民 + 社会记忆 + 权威结算）天然适合，
   是"更 AI-native"的实证支撑。
 
@@ -243,7 +244,7 @@ E 的税率/预算/补贴已经是参与者和合资格 Agent 可调的权威命
 > 2026-08-14 起以 `CS2_SOCIAL_AND_GAMEPLAY_GAP_ANALYSIS.md` §4 的 P1–P8 为准
 > （P1 幸福感 / P2 昼夜日历 / P3 生命周期 / P4 公共话语 / P5 服务短缺 / P6 治理命令面 /
 > P7 需求与人口流动 / P8 空间建造物流）。
-> **2026-08-30 进度（按 ROI 重排）：P1–P3、P4a/P4c、P4b-1（请愿）、S5 迁出、
+> **2026-08-31 进度（按 ROI 重排）：P1–P3、P4a/P4c、P4b-1（请愿）、P4d（自主冲突）、S5 迁出、
 > P5 服务短缺与 P6 治理命令面均已落地；随后优先补齐了生存承载力纵向切片
 > （有限资源→生产→食物→生理→迁出/死亡→实验指标）。下一项是运行长周期校准，
 > 再进入需求驱动迁入与空间建造物流。**

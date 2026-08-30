@@ -823,6 +823,100 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('turns visible strained relations into world-constrained conflict objectives', () => {
+    const agent = {
+      ...createAgent({ agentId: agentA, educationScore: 150, balance: 200 }),
+      wellbeing: 10,
+    };
+    const projection = createProjection([agent]);
+    const context: WorldDecisionContext = {
+      agent: {
+        agentId: agentA,
+        locationId: 'square',
+        physiology: { ...agent.physiology },
+        educationScore: agent.educationScore,
+        balance: agent.balance,
+        residentialTier: agent.residentialTier,
+        job: agent.job,
+        inventory: {},
+        wellbeing: { value: 10, band: 'distressed' },
+        relations: [
+          {
+            agentId: agentB,
+            direction: 'outgoing',
+            relationLabel: 'hostile',
+            relationScore: -0.5,
+            attitudeScore: -0.5,
+            interactionCount: 2,
+          },
+        ],
+      },
+      market: { spotPrices: [] },
+      society: {
+        directoryId: 'directory-1',
+        simulationId: 'simulation-1',
+        partitionBoundaries: [],
+        agents: [agentA, agentB].map((agentId) => ({
+          agentId,
+          ownerPartitionKey: 'world-main',
+          ownerLastAppliedSequence: 1,
+          locationId: 'square',
+          job: null,
+          residentialTier: 1,
+          educationScore: 0,
+        })),
+      },
+      conflicts: [],
+    };
+    const baseInput = {
+      agentId: agentA,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+    } as const;
+
+    const confrontation = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      worldDecisionContext: context,
+    });
+    expect(confrontation.objective).toMatchObject({
+      statement: 'Confront agent-b about the damaged relationship.',
+      affinityTags: ['social', 'conflict-confront', 'set-boundary'],
+    });
+    expect(confrontation.decisionTrace.selectedCandidateId).toBe(
+      'social-conflict-confront:agent-b',
+    );
+
+    const attack = createDefaultAutonomousObjectiveProposal({
+      ...baseInput,
+      worldDecisionContext: {
+        ...context,
+        conflicts: [
+          {
+            conflictId: 'conflict-1',
+            kind: 'confrontation',
+            role: 'actor',
+            actorAgentId: agentA,
+            targetAgentId: agentB,
+            locationId: 'square',
+            summary: 'Unresolved confrontation',
+            recordedAt: 90,
+          },
+        ],
+      },
+    });
+    expect(attack.objective.affinityTags).toContain('conflict-attack');
+    expect(attack.decisionTrace.selectedCandidateId).toBe('social-conflict-attack:agent-b');
+  });
+
   test('uses active scheduled routine intentions when no stronger pressure exists', () => {
     const projection = createProjection([
       createAgent({

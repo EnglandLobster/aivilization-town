@@ -79,6 +79,12 @@ import {
   type SocialMatterActionProposerPolicy,
 } from './socialMatterPlanning';
 import { resolveAgentMarketPools } from './worldDecisionContext';
+import {
+  DEFAULT_CONFLICT_ACTION_PROPOSER_POLICY,
+  resolveConflictActionProposal,
+  type ConflictActionProposal,
+  type ConflictActionProposerPolicy,
+} from './conflictPlanning';
 
 export type CanonicalDomainName =
   | 'study'
@@ -225,6 +231,7 @@ export function createCanonicalDomainRuntimeRegistrations(
       config.social,
       policies?.collectiveAction,
       policies?.socialMatters,
+      policies?.conflict,
     ),
     createProductionDomainRuntimeRegistration(
       config.production,
@@ -881,7 +888,9 @@ export function createSocialDomainRuntimeRegistration(
   config: SocialDomainRuntimeConfig = {},
   collectiveActionPolicy?: CollectiveActionPolicy,
   socialMattersPolicy?: WorldCommandPolicies['socialMatters'],
+  conflictPolicy?: WorldCommandPolicies['conflict'],
   matterProposerPolicy: SocialMatterActionProposerPolicy = DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY,
+  conflictProposerPolicy: ConflictActionProposerPolicy = DEFAULT_CONFLICT_ACTION_PROPOSER_POLICY,
 ): WorkerDomainRuntimeRegistration {
   assertValidSocialMatterActionProposerPolicy(matterProposerPolicy);
   return {
@@ -916,6 +925,18 @@ export function createSocialDomainRuntimeRegistration(
             });
             if (matterProposal !== undefined) {
               return matterProposal;
+            }
+          }
+          if (conflictPolicy !== undefined) {
+            const conflictProposal = resolveConflictActionProposal({
+              context,
+              selectedSubtask,
+              conflictPolicy,
+              proposerPolicy: conflictProposerPolicy,
+              actionId: createCanonicalActionId('social', selectedSubtask),
+            });
+            if (conflictProposal !== undefined) {
+              return conflictProposal;
             }
           }
           // Collective action outranks dyadic plans when it applies: signing
@@ -1208,6 +1229,7 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
   | SocialMatterActionProposal
+  | ConflictActionProposal
   | AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload>
   | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
   | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>
@@ -1245,6 +1267,9 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentRespondMatter',
   'AgentAssignMatter',
   'AgentCloseMatter',
+  'AgentConfront',
+  'AgentAttack',
+  'AgentIntervene',
   'AgentRequestLoan',
   'AgentJoinEnterprise',
   'AgentFundEnterprise',

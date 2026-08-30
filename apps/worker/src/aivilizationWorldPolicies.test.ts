@@ -48,10 +48,11 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v6',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
-        contextView: 'world-decision-context-view-v11',
+        conflictActionProposer: 'conflict-action-proposer-v1',
+        contextView: 'world-decision-context-view-v12',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -87,7 +88,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-      contextViewVersion: 'world-decision-context-view-v11',
+            contextViewVersion: 'world-decision-context-view-v12',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -112,6 +113,7 @@ describe('AIvilization default world command policies', () => {
                   'agent.identity-and-relations',
                   'society.counterpart',
                   'matters.with-counterpart',
+                  'conflicts.with-counterpart',
                 ],
               },
             },
@@ -123,7 +125,7 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v5',
+            policyVersion: 'autonomous-objective-selection-v6',
             source: 'repository-design',
             lifeCourse: {
               policyVersion: 'autonomous-life-course-v2',
@@ -155,6 +157,19 @@ describe('AIvilization default world command policies', () => {
             deliveryLocationRule: 'known-agent-and-beneficiary-locations',
             withdrawalRule: 'explicit-withdrawal-intent-only',
             raiseRule: 'explicit-help-request-intent-with-visible-open-topic-deduplication',
+          },
+          conflictActionProposer: {
+            policyVersion: 'conflict-action-proposer-v1',
+            confrontationRelationThreshold: -0.1,
+            confrontationWellbeingCeiling: 35,
+            attackWellbeingCeiling: 15,
+            escalationCooldownMs: 86_400_000,
+            interventionLookbackMs: 21_600_000,
+            targetSelection: 'strongest-negative-outgoing-relation-then-agent-id',
+            escalationRule:
+              'cooldown-bounded-strained-relation-then-one-confrontation-then-at-most-one-world-grievance-gated-attack',
+            interventionRule:
+              'one-intervention-per-recent-co-located-attack-with-three-distinct-agents',
           },
           globalSynthesis: {
             policyVersion: 'global-action-synthesis-v1',
@@ -376,8 +391,9 @@ describe('AIvilization default world command policies', () => {
     });
     expect(createAivilizationWorldCommandPolicies('seed')(projection).governance).toBeUndefined();
     expect(
-      createAivilizationWorldCommandPolicies('seed', undefined, { townGovernance: true })(projection)
-        .governance?.policyVersion,
+      createAivilizationWorldCommandPolicies('seed', undefined, { townGovernance: true })(
+        projection,
+      ).governance?.policyVersion,
     ).toBe('town-governance-v1');
   });
 

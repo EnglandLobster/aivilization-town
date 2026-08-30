@@ -125,6 +125,40 @@ describe('per-stage context view', () => {
     });
   });
 
+  test('keeps relevant conflict facts visible and renders them as relationship salience', () => {
+    const context: WorldDecisionContext = {
+      ...createCompleteContext({ healthy: true, noOpportunities: true }),
+      conflicts: [
+        {
+          conflictId: 'conflict-1',
+          kind: 'attack',
+          role: 'target',
+          actorAgentId: targetAgentId,
+          targetAgentId: agentId,
+          locationId: 'square',
+          damage: 5,
+          summary: 'Recent attack',
+          recordedAt: 90,
+        },
+      ],
+    };
+    const view = createPerStageContextView({
+      stage: 'social-dialogue',
+      context,
+      at: 100,
+      targetAgentId,
+    });
+
+    expect(view.conflicts).toEqual(context.conflicts);
+    expect(view.salience).toContainEqual({
+      kind: 'relationship',
+      source: 'recent-conflict',
+      sourceId: 'conflict-1',
+      summary: 'attack involving agent-2 and agent-1: Recent attack',
+    });
+    expect(createPerStageContextViewTrace(view).conflictCount).toBe(1);
+  });
+
   test('uses existing importance values deterministically and applies the hard cap', () => {
     const records = Array.from({ length: 8 }, (_, index) =>
       createMemory(

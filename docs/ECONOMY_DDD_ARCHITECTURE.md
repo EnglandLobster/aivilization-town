@@ -126,6 +126,18 @@ credit against a mixture of old and new borrower balances. Legacy authority
 snapshots without partition clock watermarks fail closed until every partition
 publishes a fresh boundary.
 
+## Cross-partition circulating-account ownership
+
+An Agent ownership handoff moves the Agent account between execution shards;
+it is not a mint, burn, payment, or change to town-wide money supply. New paired
+`AgentOwnershipDeparted` / `AgentOwnershipArrived` integration events therefore
+record the same `circulatingBalanceTransferred` fact. The source projection
+subtracts that amount from its money-supply contribution and the destination
+adds it, while the simulation-wide authority applies both events and observes a
+net delta of zero. The amount must equal the transferred Agent balance and may
+not exceed the source shard's money supply. Legacy transfer events without the
+optional field retain their historical replay behavior.
+
 ## Accounting model
 
 `@aivilization/economy/accounting` represents every currency movement as a

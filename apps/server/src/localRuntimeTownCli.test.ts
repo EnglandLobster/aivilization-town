@@ -1023,19 +1023,19 @@ describe('local runtime town executable composition', () => {
       .readStream(backend.storage.partition.eventStreamName)
       .filter((event) => event.type === 'EconomicCompositionRecorded');
     expect(composition).not.toEqual([]);
-    expect(composition.at(-1)).toMatchObject({
-      type: 'EconomicCompositionRecorded',
-      payload: {
-        composition: { treasury: expect.any(Number), bank: expect.any(Number) },
-        educationDistribution: expect.any(Object),
-        survival: {
-          livingAgents: 100,
-          resources: expect.arrayContaining([
-            expect.objectContaining({ commodityName: 'Apple', stockRatio: expect.any(Number) }),
-          ]),
-        },
-      },
-    });
+    const latest = composition.at(-1);
+    if (latest?.type !== 'EconomicCompositionRecorded') {
+      throw new Error('expected a latest economic composition event');
+    }
+    expect(Number.isFinite(latest.payload.composition.treasury)).toBe(true);
+    expect(Number.isFinite(latest.payload.composition.bank)).toBe(true);
+    expect(latest.payload.educationDistribution).toBeDefined();
+    expect(latest.payload.survival?.livingAgents).toBe(100);
+    const appleResource = latest.payload.survival?.resources.find(
+      (resource) => resource.commodityName === 'Apple',
+    );
+    expect(appleResource).toBeDefined();
+    expect(Number.isFinite(appleResource?.stockRatio)).toBe(true);
   }, 30_000);
 
   test('LLM social signal extraction is on by default and disabled by env opt-out', () => {

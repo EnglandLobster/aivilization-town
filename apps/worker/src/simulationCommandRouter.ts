@@ -10,7 +10,6 @@ import {
 } from '@aivilization/sim-core';
 import {
   applyWorldEvent,
-  dispatchWorldCommand,
   type AgentMoveToPayload,
   type AgentPostBulletinPayload,
   type AgentStartConversationPayload,

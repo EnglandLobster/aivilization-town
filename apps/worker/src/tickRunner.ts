@@ -227,6 +227,19 @@ type WorkerTickBaseInput = {
   readonly traceSink?: WorkerAgentCycleTraceSink;
   readonly commandRouter?: SimulationCommandRouter;
   readonly marketOverride?: WorldDecisionMarketOverride;
+  /**
+   * Flush authority-settled events into the partition stream before the next
+   * Agent or any post-agent observation runs. Without this boundary a later
+   * local command or metric could be persisted ahead of a global fact it
+   * already consumed from the in-memory projection.
+   */
+  readonly materializeAuthorityEvents?: (input: {
+    readonly projection: WorldProjection;
+    readonly issuedAt: number;
+  }) => Promise<{
+    readonly projection: WorldProjection;
+    readonly marketOverride?: WorldDecisionMarketOverride;
+  }>;
 };
 
 type WorkerTickProjectionInput =
@@ -258,6 +271,8 @@ export async function runWorkerSimulationTick(
   const startingProjection = resolveStartingProjection(input);
   let projection = startingProjection.projection;
   let expectedVersion = input.expectedVersion ?? startingProjection.streamVersion;
+  let marketOverride = input.marketOverride;
+  let hasUnstreamedAuthorityEvents = false;
   const timeAdvanceResult = dispatchWorldCommandToEventStream({
     command: createCommandEnvelope({
       id: `${input.tickId}-advance-time`,
@@ -290,11 +305,7 @@ export async function runWorkerSimulationTick(
         skippedBusyAgentIds.push(agent.agentId);
         continue;
       }
-      const appendIdempotencyKey = createAppendIdempotencyKey(
-        input.tickId,
-        index,
-        agent.agentId,
-      );
+      const appendIdempotencyKey = createAppendIdempotencyKey(input.tickId, index, agent.agentId);
       const recoveredAppend =
         input.replayExistingAgentAppends === true
           ? input.eventStore.getIdempotentAppend(appendIdempotencyKey)
@@ -379,7 +390,7 @@ export async function runWorkerSimulationTick(
           : { materializeFullReplan: input.materializeFullReplan }),
         expectedVersion,
         ...(input.commandRouter === undefined ? {} : { commandRouter: input.commandRouter }),
-        ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
+        ...(marketOverride === undefined ? {} : { marketOverride }),
         ...(input.traceSink === undefined || batchedTraceSink !== undefined
           ? {}
           : { traceSink: input.traceSink }),
@@ -388,6 +399,19 @@ export async function runWorkerSimulationTick(
       agentResults.push(cycleResult);
       projection = cycleResult.projection;
       expectedVersion = cycleResult.dispatchResult?.appendResult.streamVersion ?? expectedVersion;
+      if (cycleResult.dispatchResult?.hasUnstreamedAuthorityEvents === true) {
+        if (input.materializeAuthorityEvents === undefined) {
+          hasUnstreamedAuthorityEvents = true;
+        } else {
+          const materialized = await input.materializeAuthorityEvents({
+            projection,
+            issuedAt: input.issuedAt,
+          });
+          projection = materialized.projection;
+          expectedVersion = input.eventStore.getStreamVersion(input.streamName);
+          marketOverride = materialized.marketOverride ?? marketOverride;
+        }
+      }
     }
   } catch (error) {
     agentLoopFailed = true;
@@ -411,10 +435,7 @@ export async function runWorkerSimulationTick(
     throw agentLoopFailure;
   }
 
-  const agentEvents = [
-    ...recoveredAgentEvents,
-    ...agentResults.flatMap((result) => result.events),
-  ];
+  const agentEvents = [...recoveredAgentEvents, ...agentResults.flatMap((result) => result.events)];
   let marketMetricEvents: readonly WorldEvent[] = [];
   if (input.marketMetrics !== undefined) {
     const marketMetricsResult = recordMarketMetricsToEventStream({
@@ -423,9 +444,9 @@ export async function runWorkerSimulationTick(
       ...(input.marketMetrics.baselineMarketOverride === undefined
         ? {}
         : { baselineMarketOverride: input.marketMetrics.baselineMarketOverride }),
-      ...(input.marketMetrics.currentMarketOverride === undefined
+      ...(marketOverride === undefined && input.marketMetrics.currentMarketOverride === undefined
         ? {}
-        : { currentMarketOverride: input.marketMetrics.currentMarketOverride }),
+        : { currentMarketOverride: marketOverride ?? input.marketMetrics.currentMarketOverride }),
       ...(input.marketMetrics.educationSystemPolicy === undefined
         ? {}
         : { educationSystemPolicy: input.marketMetrics.educationSystemPolicy }),
@@ -467,9 +488,6 @@ export async function runWorkerSimulationTick(
   // replay the delivered events onto a snapshot already containing them — so
   // the tick skips its checkpoint; the materializer writes the next boundary
   // once the deliveries land in the stream.
-  const hasUnstreamedAuthorityEvents = agentResults.some(
-    (result) => result.dispatchResult?.hasUnstreamedAuthorityEvents === true,
-  );
   const checkpointResult = hasUnstreamedAuthorityEvents
     ? undefined
     : saveProjectionCheckpointIfConfigured(input, projection, expectedVersion);

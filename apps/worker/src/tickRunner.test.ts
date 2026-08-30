@@ -46,7 +46,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { createAivilizationWorldCommandPolicies, dispatchCommandDraftsToWorldEventStream, runWorkerSimulationTick } from './index';
+import {
+  createAivilizationWorldCommandPolicies,
+  dispatchCommandDraftsToWorldEventStream,
+  runWorkerSimulationTick,
+} from './index';
 import { CANONICAL_AMBIENT_OBSERVATION_VISIBLE_EVENT_TYPES } from './ambientObservationMemory';
 
 const simulationId = asSimulationId('sim-1');
@@ -1056,9 +1060,7 @@ describe('worker tick runner', () => {
     const repositories = createRepositories();
     const socialSignalExtractor: SocialSignalExtractor = (input) =>
       Promise.resolve({
-        turnSignals: [
-          { turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.75 }] },
-        ],
+        turnSignals: [{ turnIndex: 0, signals: [{ signal: 'cooperation', severity: 0.75 }] }],
         trace: {
           status: 'accepted',
           source: 'llm',
@@ -2444,6 +2446,57 @@ describe('worker tick runner', () => {
         partitionKey: partition.partitionKey,
       }),
     ).toBeUndefined();
+  });
+
+  test('materializes each authority result before the next Agent and saves a stream-consistent checkpoint', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const checkpointStore = new InMemoryProjectionCheckpointStore();
+    const snapshotStore = new FileProjectionSnapshotStore<WorldProjection>({
+      rootDir: createRootDir(),
+    });
+    const commandRouter: NonNullable<
+      Parameters<typeof runWorkerSimulationTick>[0]['commandRouter']
+    > = {
+      routeCommandDrafts: (routeInput) =>
+        Promise.resolve({
+          ...dispatchCommandDraftsToWorldEventStream(routeInput),
+          hasUnstreamedAuthorityEvents: true as const,
+        }),
+    };
+    const materializedAgentBalances: number[] = [];
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-authority-materialization-boundary',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      checkpointing: {
+        partitionKey: partition.partitionKey,
+        checkpointStore,
+        snapshotStore,
+      },
+      commandRouter,
+      materializeAuthorityEvents: ({ projection }) => {
+        materializedAgentBalances.push(
+          Object.values(projection.agents).reduce((total, agent) => total + agent.balance, 0),
+        );
+        return Promise.resolve({ projection });
+      },
+      agents: createTickAgents(),
+      ...repositories,
+    });
+
+    expect(materializedAgentBalances).toHaveLength(2);
+    if (result.snapshot === undefined) {
+      throw new Error('expected authority-materialized tick to save a snapshot');
+    }
+    expect(result.checkpoint?.lastAppliedSequence).toBe(result.streamVersion);
+    expect(snapshotStore.loadSnapshot(result.snapshot)).toEqual(result.projection);
   });
 
   test('replays a whole tick idempotently from the same starting expected version', async () => {

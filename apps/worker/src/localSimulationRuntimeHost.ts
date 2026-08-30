@@ -134,6 +134,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
         preset: partition.preset,
         ...(partition.marketPools === undefined ? {} : { marketPools: partition.marketPools }),
         ...(partition.moneySupply === undefined ? {} : { moneySupply: partition.moneySupply }),
+        ...(partition.initialTreasury === undefined ? {} : { treasury: partition.initialTreasury }),
+        ...(partition.initialBankReserves === undefined
+          ? {}
+          : { bankReserves: partition.initialBankReserves }),
         bootstrappedAt: input.bootstrappedAt,
       });
 

@@ -37,6 +37,46 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host', () => {
+  test('preserves manifest treasury and bank reserves in the live bootstrap checkpoint', async () => {
+    const rootDir = createRootDir();
+    const baseManifest = createManifest();
+    const mainPartition = baseManifest.partitions[0]!;
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 123,
+      manifest: {
+        ...baseManifest,
+        partitions: [
+          {
+            ...mainPartition,
+            moneySupply: 250_100,
+            initialTreasury: 50_000,
+            initialBankReserves: 200_000,
+          },
+        ],
+      },
+      scenarioPresets: [createScenarioPresets()[0]!],
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+
+    const partition = host.partitions[0]!;
+    expect(partition.bootstrap.initialProjection).toMatchObject({
+      treasury: 50_000,
+      moneySupply: 250_100,
+      bank: { balance: 200_000 },
+    });
+    expect(
+      partition.bootstrap.storage.snapshotStore.loadSnapshot(partition.bootstrap.snapshot),
+    ).toMatchObject({
+      treasury: 50_000,
+      moneySupply: 250_100,
+      bank: { balance: 200_000 },
+    });
+  });
+
   test('bootstraps every manifest partition before exposing a routed registry', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

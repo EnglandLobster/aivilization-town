@@ -32,6 +32,9 @@ describe('local scenario runtime bootstrap', () => {
         commodityReserve: 100,
         currencyReserve: 1000,
       }),
+      moneySupply: 250_000,
+      treasury: 50_000,
+      bankReserves: 200_000,
       bootstrappedAt: 123,
     });
 
@@ -42,6 +45,9 @@ describe('local scenario runtime bootstrap', () => {
       commodityReserve: 100,
       currencyReserve: 1000,
     });
+    expect(result.initialProjection.treasury).toBe(50_000);
+    expect(result.initialProjection.bank?.balance).toBe(200_000);
+    expect(result.initialProjection.moneySupply).toBe(250_000);
     expect(result.profileSeeding.seededAgentIds).toHaveLength(80);
     expect(result.profileSeeding.skippedAgentIds).toEqual([]);
     expect(result.initializedCheckpoint).toBe(true);
@@ -110,6 +116,33 @@ describe('local scenario runtime bootstrap', () => {
         },
       ],
     });
+  });
+
+  test('fails closed when an existing checkpoint was created without manifest seed accounts', async () => {
+    const rootDir = createRootDir();
+    await bootstrapLocalScenarioRuntime({
+      rootDir,
+      simulationId: 'sim-incompatible-seed',
+      partitionKey: 'world-main',
+      preset: aivilizationAblationScenarioPreset,
+      moneySupply: 250_000,
+      bootstrappedAt: 100,
+    });
+
+    await expect(
+      bootstrapLocalScenarioRuntime({
+        rootDir,
+        simulationId: 'sim-incompatible-seed',
+        partitionKey: 'world-main',
+        preset: aivilizationAblationScenarioPreset,
+        moneySupply: 250_000,
+        treasury: 50_000,
+        bankReserves: 200_000,
+        bootstrappedAt: 999,
+      }),
+    ).rejects.toThrow(
+      'existing runtime treasury seed undefined does not match manifest seed 50000',
+    );
   });
 });
 

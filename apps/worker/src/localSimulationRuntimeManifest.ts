@@ -258,6 +258,15 @@ function resolvePartitionManifest(
   const tickIntervalMs = partition.tickIntervalMs ?? manifest.defaults.tickIntervalMs;
   assertPositiveInteger(tickBatchSize, 'tickBatchSize');
   assertNonNegativeFinite(tickIntervalMs, 'tickIntervalMs');
+  if (partition.moneySupply !== undefined) {
+    assertNonNegativeFinite(partition.moneySupply, 'moneySupply');
+  }
+  if (partition.initialTreasury !== undefined) {
+    assertNonNegativeFinite(partition.initialTreasury, 'initialTreasury');
+  }
+  if (partition.initialBankReserves !== undefined) {
+    assertNonNegativeFinite(partition.initialBankReserves, 'initialBankReserves');
+  }
   resolveScenarioTimeDeltaMs(preset);
 
   return {

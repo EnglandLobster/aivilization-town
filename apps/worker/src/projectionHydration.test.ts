@@ -3,6 +3,7 @@ import {
   InMemoryEventStore,
   InMemoryProjectionCheckpointStore,
   asAgentId,
+  asLocationId,
   createProjectionCheckpoint,
   createCommandEnvelope,
   createEventEnvelope,
@@ -99,7 +100,9 @@ function createEducationEvent(
   });
 }
 
-function createTravelStartedEvent(sequence: number): WorldEvent {
+function createTravelStartedEvent(
+  sequence: number,
+): Extract<WorldEvent, { readonly type: 'AgentTravelStarted' }> {
   return createEventEnvelope({
     id: `event-${sequence}`,
     simulationId: 'sim-1',
@@ -107,15 +110,16 @@ function createTravelStartedEvent(sequence: number): WorldEvent {
     type: 'AgentTravelStarted',
     payload: {
       agentId: asAgentId('agent-1'),
-      fromLocationId: 'home',
-      toLocationId: 'school',
-      routeLocationIds: ['home', 'school'],
+      fromLocationId: asLocationId('home'),
+      toLocationId: asLocationId('school'),
+      routeLocationIds: [asLocationId('home'), asLocationId('school')],
       spatialPolicyVersion: 'test-spatial-v1',
       baseTravelDurationSeconds: 10,
       congestionMultiplier: 1,
       travelDurationSeconds: 10,
       departedAt: 1_000,
       arrivesAt: 11_000,
+      reason: 'test travel',
     },
     occurredAt: 100,
     sequence,
@@ -241,7 +245,10 @@ describe('worker projection hydration', () => {
       ...snapshotProjection,
       agents: {
         ...snapshotProjection.agents,
-        'agent-1': { ...snapshotProjection.agents['agent-1']!, locationId: 'home' },
+        'agent-1': {
+          ...snapshotProjection.agents['agent-1']!,
+          locationId: asLocationId('home'),
+        },
       },
       transitByAgent: {
         'agent-1': { ...travel.payload },
@@ -271,7 +278,10 @@ describe('worker projection hydration', () => {
     const result = hydrateWorldProjectionFromEventStream({
       initialProjection: {
         ...initialProjection,
-        agents: { ...initialProjection.agents, 'agent-1': { ...initialAgent, locationId: 'home' } },
+        agents: {
+          ...initialProjection.agents,
+          'agent-1': { ...initialAgent, locationId: asLocationId('home') },
+        },
       },
       eventStore,
       streamName: partition.eventStreamName,
@@ -288,7 +298,7 @@ describe('worker projection hydration', () => {
     expect(result.replayFromSequence).toBe(0);
     expect(result.checkpoint).toBeUndefined();
     expect(result.events.map((event) => event.sequence)).toEqual([1, 2]);
-    expect(result.projection.transitByAgent['agent-1']).toEqual(travel.payload);
+    expect(result.projection.transitByAgent?.['agent-1']).toEqual(travel.payload);
   });
 
   test('bounds legacy snapshot memory history before replay', () => {

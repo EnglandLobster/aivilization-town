@@ -490,6 +490,19 @@ export type ScenarioProductionPolicyDefaults = {
   readonly productionEfficiency: ScenarioProductionEfficiencyPolicyConfig;
 };
 
+export type ScenarioRenewableResourcePolicyConfig = {
+  readonly policyVersion: string;
+  readonly regenerationCadenceMs: number;
+  readonly resources: readonly {
+    readonly commodityName: string;
+    readonly initialStock: number;
+    readonly carryingCapacity: number;
+    readonly regenerationPerCadence: number;
+    readonly extractionPerOutputUnit: number;
+  }[];
+  readonly source: string;
+};
+
 export type ScenarioInventorySeed = Readonly<Record<string, number>>;
 
 export type ScenarioAgentProfileSeed = {
@@ -610,6 +623,8 @@ const survivalTimePolicySource =
   'AIvilization v0 Section 3.1.1 survival constraints and Section 3.2 labor-consumption feedback default runtime tuning';
 const starvationHealthDecayPolicySource =
   'Survival pressure; starvation-health-decay-v1 converts sustained satiety deficit into deterministic health loss and death so survival outcomes depend on food access rather than action validity alone';
+const renewableResourcePolicySource =
+  'Town carrying capacity; renewable-resources-v1 replaces zero-input primary production with finite regional stocks and deterministic regeneration; rates are repository experiment parameters';
 const physiologicalSafetyNetPolicySource =
   'AIvilization v0 Section 3.1.1 requires essential subsidies after persistent low physiology; physiological-safety-net-v1 thresholds, persistence, cooldown, and inventory targets are repository policy decisions because the paper does not specify them';
 const healthcarePolicySource =
@@ -1200,6 +1215,77 @@ export const aivilizationProductionPolicyDefaults = {
     source: productionPolicySource,
   },
 } as const satisfies ScenarioProductionPolicyDefaults;
+
+/**
+ * One-region carrying-capacity baseline for the survival-town experiment.
+ * Food regeneration can sustain a moderately organized 100-agent town but is
+ * low enough for hoarding, production imbalance, price pressure and import
+ * dependence to become visible. Industrial stocks regenerate more slowly so
+ * rapid expansion competes with future production capacity.
+ */
+export const aivilizationRenewableResourcePolicyDefaults = {
+  policyVersion: 'renewable-resources-v1',
+  regenerationCadenceMs: 3_600_000,
+  resources: [
+    {
+      commodityName: 'Apple',
+      initialStock: 288,
+      carryingCapacity: 288,
+      regenerationPerCadence: 12,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Wheat',
+      initialStock: 192,
+      carryingCapacity: 192,
+      regenerationPerCadence: 8,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Rice',
+      initialStock: 192,
+      carryingCapacity: 192,
+      regenerationPerCadence: 8,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Fish',
+      initialStock: 48,
+      carryingCapacity: 48,
+      regenerationPerCadence: 2,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Wood',
+      initialStock: 360,
+      carryingCapacity: 360,
+      regenerationPerCadence: 15,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Copper Ore',
+      initialStock: 192,
+      carryingCapacity: 192,
+      regenerationPerCadence: 8,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Iron Ore',
+      initialStock: 144,
+      carryingCapacity: 144,
+      regenerationPerCadence: 6,
+      extractionPerOutputUnit: 1,
+    },
+    {
+      commodityName: 'Silicon Ore',
+      initialStock: 96,
+      carryingCapacity: 96,
+      regenerationPerCadence: 4,
+      extractionPerOutputUnit: 1,
+    },
+  ],
+  source: renewableResourcePolicySource,
+} as const satisfies ScenarioRenewableResourcePolicyConfig;
 
 export const TAX_POLICY_VERSION = 'tax-regime-v2';
 

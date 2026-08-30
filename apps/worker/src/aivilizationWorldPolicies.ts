@@ -110,6 +110,7 @@ export type AivilizationExperimentalPolicySwitches = {
   readonly townServiceQuality?: boolean;
   readonly townGovernance?: boolean;
   readonly townSurvivalPressure?: boolean;
+  readonly townCarryingCapacity?: boolean;
 };
 
 const canonicalLaborCost = {
@@ -453,19 +454,25 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
             buckets: options.timeSettlementAmortizationBuckets,
           },
         }),
-    physiologicalSafetyNet: {
-      policyVersion: aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
-      criticalThresholds: {
-        ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.criticalThresholds,
-      },
-      persistenceDurationMs:
-        aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.persistenceDurationMs,
-      grantCooldownMs:
-        aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.grantCooldownMs,
-      essentialInventoryTargets: {
-        ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.essentialInventoryTargets,
-      },
-    },
+    ...(experimental?.townCarryingCapacity === true
+      ? {}
+      : {
+          physiologicalSafetyNet: {
+            policyVersion:
+              aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
+            criticalThresholds: {
+              ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.criticalThresholds,
+            },
+            persistenceDurationMs:
+              aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.persistenceDurationMs,
+            grantCooldownMs:
+              aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.grantCooldownMs,
+            essentialInventoryTargets: {
+              ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet
+                .essentialInventoryTargets,
+            },
+          },
+        }),
   };
 }
 
@@ -485,6 +492,7 @@ export {
   createAivilizationTownServiceQualityPolicy,
   createAivilizationTownGovernancePolicy,
   createAivilizationStarvationHealthDecayPolicy,
+  createAivilizationRenewableResourcePolicy,
   createAivilizationTownWellbeingPolicy,
 } from './experimentalFeatures';
 
@@ -560,6 +568,7 @@ export function createAivilizationWorldPolicyManifest(
     readonly townServiceQuality?: boolean;
     readonly townGovernance?: boolean;
     readonly townSurvivalPressure?: boolean;
+    readonly townCarryingCapacity?: boolean;
     /**
      * Optional education-system policy override recorded verbatim in the
      * manifest parameters (e.g. the paper-ablation profile pins
@@ -612,8 +621,12 @@ export function createAivilizationWorldPolicyManifest(
       enterprise: canonicalEnterprisePolicy.policyVersion,
       applicationQuota: aivilizationJobApplicationPolicyDefaults.applicationQuota.policyVersion,
       recruitmentCycle: aivilizationJobApplicationPolicyDefaults.recruitmentCycle.policyVersion,
-      physiologicalSafetyNet:
-        aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
+      ...(input.townCarryingCapacity === true
+        ? {}
+        : {
+            physiologicalSafetyNet:
+              aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
+          }),
       residentialUpkeep: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
       landValue: aivilizationSurvivalTimePolicyDefaults.landValue.policyVersion,
       memoryConsolidation: CANONICAL_MEMORY_CONSOLIDATION_POLICY_ID,
@@ -748,16 +761,21 @@ export function createAivilizationWorldPolicyManifest(
             aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.landValueCoefficientPerHour,
         },
         landValue: { ...aivilizationSurvivalTimePolicyDefaults.landValue },
-        physiologicalSafetyNet: {
-          ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet,
-          criticalThresholds: {
-            ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.criticalThresholds,
-          },
-          essentialInventoryTargets: {
-            ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet
-              .essentialInventoryTargets,
-          },
-        },
+        ...(input.townCarryingCapacity === true
+          ? { physiologicalSafetyNet: { enabled: false, reason: 'no-unfunded-inventory-grants' } }
+          : {
+              physiologicalSafetyNet: {
+                ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet,
+                criticalThresholds: {
+                  ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet
+                    .criticalThresholds,
+                },
+                essentialInventoryTargets: {
+                  ...aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet
+                    .essentialInventoryTargets,
+                },
+              },
+            }),
       },
       residentialUpgrade: {
         ...canonicalResidentialUpgradePolicy,

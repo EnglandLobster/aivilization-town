@@ -1,4 +1,5 @@
 import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
+import { assertValidRenewableResourcePolicy } from '@aivilization/economy';
 import {
   aivilizationCreditPolicyDefaults,
   aivilizationExternalTradePolicyDefaults,
@@ -34,6 +35,7 @@ import {
   createAivilizationTownWellbeingPolicy,
   createAivilizationTownGovernancePolicy,
   createAivilizationStarvationHealthDecayPolicy,
+  createAivilizationRenewableResourcePolicy,
   createAivilizationWorldCommandPolicies,
   createAivilizationWorldPolicyManifest,
 } from './index';
@@ -49,7 +51,7 @@ describe('AIvilization default world command policies', () => {
         autonomousObjectiveSelection: 'autonomous-objective-selection-v5',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
-        contextView: 'world-decision-context-view-v10',
+        contextView: 'world-decision-context-view-v11',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -85,7 +87,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-      contextViewVersion: 'world-decision-context-view-v10',
+      contextViewVersion: 'world-decision-context-view-v11',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -430,6 +432,60 @@ describe('AIvilization default world command policies', () => {
       policyVersion: 'starvation-health-decay-v1',
       satietyThreshold: 20,
     });
+  });
+
+  test('declares finite carrying capacity and removes unfunded inventory grants only when on', () => {
+    const off = createAivilizationWorldPolicyManifest();
+    expect(off.policyVersions).not.toHaveProperty('townCarryingCapacity');
+    expect(off.parameters).not.toHaveProperty('townCarryingCapacity');
+    expect(off.policyVersions).toHaveProperty(
+      'physiologicalSafetyNet',
+      'physiological-safety-net-v1',
+    );
+
+    const on = createAivilizationWorldPolicyManifest({ townCarryingCapacity: true });
+    expect(on.policyVersions).toMatchObject({
+      townCarryingCapacity: 'renewable-resources-v1',
+    });
+    expect(on.policyVersions).not.toHaveProperty('physiologicalSafetyNet');
+    expect(on.parameters.survival.physiologicalSafetyNet).toEqual({
+      enabled: false,
+      reason: 'no-unfunded-inventory-grants',
+    });
+    expect(on.parameters.townCarryingCapacity).toMatchObject({
+      policyVersion: 'renewable-resources-v1',
+      regenerationCadenceMs: 3_600_000,
+      welfareInventoryRule: 'no-unfunded-inventory-grants',
+      partitionScope: 'single-partition-v1',
+    });
+    expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
+    expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
+
+    const policy = createAivilizationRenewableResourcePolicy();
+    expect(() => assertValidRenewableResourcePolicy(policy)).not.toThrow();
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('carrying-capacity-agent'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+    });
+    const canonical = createAivilizationWorldCommandPolicies('seed')(projection);
+    expect(canonical.renewableResources).toBeUndefined();
+    expect(canonical.physiologicalSafetyNet).toBeDefined();
+    const carryingCapacity = createAivilizationWorldCommandPolicies('seed', undefined, {
+      townCarryingCapacity: true,
+    })(projection);
+    expect(carryingCapacity.renewableResources).toMatchObject({
+      policyVersion: 'renewable-resources-v1',
+    });
+    expect(carryingCapacity.physiologicalSafetyNet).toBeUndefined();
   });
 
   test('declares the town conditions catalog in the manifest only when the switch is on', () => {

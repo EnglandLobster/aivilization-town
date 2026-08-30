@@ -1069,6 +1069,11 @@ export type SimulationTimeAdvancedPayload = {
   readonly previous: SimulationClock;
   readonly next: SimulationClock;
   readonly deltaMs: number;
+  /**
+   * Optional for legacy events. New events pin the reducer branch so a future
+   * social-decay policy cannot silently reinterpret historical time advances.
+   */
+  readonly socialRelationDecayPolicyVersion?: string;
 };
 
 /**

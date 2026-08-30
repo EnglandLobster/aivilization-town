@@ -1,4 +1,4 @@
-import { createCommandEnvelope } from '@aivilization/sim-core';
+import { asAgentId, createCommandEnvelope } from '@aivilization/sim-core';
 import { describe, expect, test } from 'vitest';
 import {
   applyWorldEvent,
@@ -55,5 +55,60 @@ describe('public budget settlement', () => {
       serviceBalances: { education: 30, healthcare: 20 },
       lastSettledAt: 1_000,
     });
+  });
+
+  test('does not spend the pre-budget treasury again on a same-command subsidy', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('agent-poor'),
+          locationId: null,
+          physiology: { energy: 50, satiety: 50, health: 50 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      treasury: 100,
+      moneySupply: 100,
+    });
+    const policies: WorldCommandPolicies = {
+      satietyRecoveryByCommodity: {},
+      maxSatiety: 100,
+      wageCalculator: () => 0,
+      laborCost: { energyCostPerHour: 0, satietyCostPerHour: 0 },
+      criticalThresholds: { energy: 0, health: 0 },
+      publicBudget: {
+        policyVersion: 'budget-v1',
+        cadenceMs: 1_000,
+        minimumTreasuryReserve: 0,
+        allocations: [{ service: 'education', amountPerCadence: 100 }],
+      },
+      safetyNetSubsidy: { minimumBalance: 100, maxSubsidy: 100 },
+    };
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'advance-budget-before-subsidy',
+        simulationId: 'sim-budget',
+        source: 'system',
+        type: 'AdvanceSimulationTime',
+        payload: { deltaMs: 1_000 },
+        issuedAt: 0,
+      }),
+      projection,
+      policies,
+      nextSequence: 1,
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'SimulationTimeAdvanced',
+      'PublicBudgetSpent',
+    ]);
+    const updated = events.reduce(applyWorldEvent, projection);
+    expect(updated.treasury).toBe(0);
+    expect(updated.agents['agent-poor']?.balance).toBe(0);
+    expect(updated.moneySupply).toBe(100);
   });
 });

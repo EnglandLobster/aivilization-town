@@ -6,6 +6,7 @@ import type {
   TownCalendarPolicy,
   WellbeingPolicy,
 } from '@aivilization/society';
+import { decaySocialRelation } from '@aivilization/society';
 import {
   applyWorldEvent,
   assertAdvanceSimulationTimePayload,
@@ -1847,12 +1848,22 @@ describe('town wellbeing settlement', () => {
         (event) => event.type === 'WellbeingChanged' && event.payload.agentId === 'agent-a',
       ),
     );
-    // target = 50 - 6 (unemployed) - 4 (tier 1) + 6 * 0.5 - 8 * 0.25 = 41.
-    expect(agentA).toMatchObject({ previous: 50, next: 48, target: 41 });
-    expect(agentA.factorContributions).toMatchObject({
-      positiveRelation: 3,
-      negativeRelation: -2,
-    });
+    // SimulationTimeAdvanced decays relations before the same-tick wellbeing
+    // decision, so derive the expectation through the society rule rather
+    // than accidentally reading the stale pre-advance scores.
+    const decayedPositive = decaySocialRelation(
+      relation('agent-a', 'agent-b', 0.5, 'friend'),
+      3_600_000,
+    ).relationScore;
+    const decayedNegative = decaySocialRelation(
+      relation('agent-a', 'agent-c', -0.25, 'strained'),
+      3_600_000,
+    ).relationScore;
+    expect(agentA).toMatchObject({ previous: 50, next: 48 });
+    expect(agentA.target).toBeCloseTo(50 - 6 - 4 + 6 * decayedPositive - 8 * -decayedNegative);
+    if (agentA.factorContributions === undefined) throw new Error('expected wellbeing factors');
+    expect(agentA.factorContributions.positiveRelation).toBeCloseTo(6 * decayedPositive);
+    expect(agentA.factorContributions.negativeRelation).toBeCloseTo(8 * decayedNegative);
     // agent-b's own outgoing relation (b -> a, 0.9) drives its positive factor:
     // target = 50 - 6 - 4 + 6 * 0.9 = 45.4. Incoming relations of agent-a
     // never leak into agent-a's factors.
@@ -1861,11 +1872,14 @@ describe('town wellbeing settlement', () => {
         (event) => event.type === 'WellbeingChanged' && event.payload.agentId === 'agent-b',
       ),
     );
-    expect(agentB).toMatchObject({ target: 45.4 });
-    expect(agentB.factorContributions).toMatchObject({
-      positiveRelation: 5.4,
-      negativeRelation: 0,
-    });
+    const decayedBestFriend = decaySocialRelation(
+      relation('agent-b', 'agent-a', 0.9, 'best-friend'),
+      3_600_000,
+    ).relationScore;
+    expect(agentB.target).toBeCloseTo(50 - 6 - 4 + 6 * decayedBestFriend);
+    if (agentB.factorContributions === undefined) throw new Error('expected wellbeing factors');
+    expect(agentB.factorContributions.positiveRelation).toBeCloseTo(6 * decayedBestFriend);
+    expect(agentB.factorContributions.negativeRelation).toBe(0);
     // agent-c has no outgoing relations: both relation factors price at 0 and
     // target = 50 - 6 - 4 = 40.
     const agentC = wellbeingChangedPayload(

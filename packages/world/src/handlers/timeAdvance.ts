@@ -52,6 +52,7 @@ import {
   resolveAgentLifespanMs,
   resolveResidentialUpkeepRate,
   resolveTownDayPhase,
+  SOCIAL_RELATION_DECAY_POLICY_VERSION,
   settlePublicBudget,
   resolveRecruitmentCycle,
   type EducationSystemPolicy,
@@ -193,6 +194,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
       previous: { ...previous },
       next: { ...next },
       deltaMs: payload.deltaMs,
+      socialRelationDecayPolicyVersion: SOCIAL_RELATION_DECAY_POLICY_VERSION,
     }),
   ];
   appendCompletedTravelArrivals({ input, events, nextSimulationTime: next.now });
@@ -243,9 +245,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
     previousSimulationTime: previous.now,
     nextSimulationTime: next.now,
   });
+  // Enterprise tax audit fields and decisions must see town-wide events that
+  // precede them in this command (most importantly PublicBudgetSpent). Keeping
+  // the command's original projection here lets a later tax payload resurrect
+  // a stale treasury value even though replay applies the budget event first.
+  const projectionBeforeEnterprise = events.reduce(applyWorldEvent, input.projection);
   appendEnterpriseLifecycleEvents({
     command: input.command,
-    projection: input.projection,
+    projection: projectionBeforeEnterprise,
     nextSequence: input.nextSequence,
     events,
     previousSimulationTime: previous.now,
@@ -273,7 +280,22 @@ export function handleAdvanceSimulationTimeCommand(input: {
     return events;
   }
 
-  const allAgents = Object.values(input.projection.agents).sort((left, right) =>
+  // Fold every town-wide event emitted above before household settlement.
+  // This is the in-command read model: dividends, enterprise closures, public
+  // spending, arrivals, and other earlier facts must affect later charges,
+  // credit collection, pensions, and subsidies exactly as replay order does.
+  const preSettlementProjection = events.reduce(applyWorldEvent, input.projection);
+  // Travel arrivals are also emitted above, but residential settlement
+  // deliberately segments the interval at each arrivesAt. Keep the interval's
+  // starting location/transit view while carrying every other evolved field
+  // (notably balances, jobs, enterprise state, and treasury) into settlement.
+  const intervalStartAgents = Object.fromEntries(
+    Object.values(input.projection.agents).map((agent) => {
+      const evolved = preSettlementProjection.agents[agent.agentId] ?? agent;
+      return [agent.agentId, { ...evolved, locationId: agent.locationId }];
+    }),
+  );
+  const allAgents = Object.values(intervalStartAgents).sort((left, right) =>
     left.agentId.localeCompare(right.agentId),
   );
   const physiologyByAgent = new Map<AgentId, WorldAgentState['physiology']>();
@@ -385,11 +407,26 @@ export function handleAdvanceSimulationTimeCommand(input: {
     ].sort((left, right) => left.atMs - right.atMs);
     regionArrivalsByAgent.set(transit.agentId, arrivals);
   }
-  let settlementProjection = input.projection;
+  const projectionWithIntervalStartAgents: WorldProjection = {
+    ...preSettlementProjection,
+    agents: intervalStartAgents,
+  };
+  let settlementProjection: WorldProjection;
+  if (input.projection.transitByAgent === undefined) {
+    const { transitByAgent: completedTransitByAgent, ...withoutTransit } =
+      projectionWithIntervalStartAgents;
+    void completedTransitByAgent;
+    settlementProjection = withoutTransit;
+  } else {
+    settlementProjection = {
+      ...projectionWithIntervalStartAgents,
+      transitByAgent: input.projection.transitByAgent,
+    };
+  }
   // Running town-bank state across settlement times; the credit domain decides
   // each accrual boundary and this adapter applies the emitted events locally
   // so subsequent boundaries settle against the evolved book.
-  let creditBank = input.projection.bank;
+  let creditBank = preSettlementProjection.bank;
 
   for (const currentSettlementTime of settlementTimes) {
     const eventStart = events.length;
@@ -884,6 +921,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   if (input.recruitmentCycle !== undefined) {
     appendRecruitmentCycleEvents({
       input,
+      projection: settlementProjection,
       events,
       previousSimulationTime: previous.now,
       nextSimulationTime: next.now,
@@ -897,6 +935,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
   if (input.educationSystem?.enabled === true) {
     appendEducationExamCycleEvents({
       input,
+      projection: settlementProjection,
       events,
       previousSimulationTime: previous.now,
       nextSimulationTime: next.now,
@@ -2239,6 +2278,7 @@ function summarizeAgentWellbeingRelations(
 
 function appendRecruitmentCycleEvents(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly projection: WorldProjection;
   readonly events: WorldEvent[];
   readonly previousSimulationTime: number;
   readonly nextSimulationTime: number;
@@ -2253,9 +2293,7 @@ function appendRecruitmentCycleEvents(input: {
   });
   const excludeAgentIds = input.excludeAgentIds ?? new Set<AgentId>();
   const jobByAgent = new Map(
-    Object.values(input.input.projection.agents).map(
-      (agent) => [agent.agentId, agent.job] as const,
-    ),
+    Object.values(input.projection.agents).map((agent) => [agent.agentId, agent.job] as const),
   );
 
   for (const cycleNumber of cycleNumbers) {
@@ -2367,6 +2405,7 @@ function appendRecruitmentCycleEvents(input: {
  */
 function appendEducationExamCycleEvents(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly projection: WorldProjection;
   readonly events: WorldEvent[];
   readonly previousSimulationTime: number;
   readonly nextSimulationTime: number;
@@ -2421,7 +2460,7 @@ function appendEducationExamCycleEvents(input: {
 
       const sourceEventOffsets = [resolutionOffset];
       if (resolution.status === 'admitted') {
-        const agent = input.input.projection.agents[resolution.agentId as AgentId];
+        const agent = input.projection.agents[resolution.agentId as AgentId];
         const promotionOffset = input.events.length;
         input.events.push(
           makeEvent(input.input, promotionOffset, 'EducationLevelChanged', {

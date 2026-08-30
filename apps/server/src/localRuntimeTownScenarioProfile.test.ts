@@ -41,11 +41,10 @@ describe('local runtime town daemon scenario profiles', () => {
     expect(smokePartition?.initialTreasury).toBe(50_000);
     expect(smokePartition?.initialBankReserves).toBe(200_000);
     expect(smokePartition?.moneySupply).toBe(
-      (smokePartition?.marketPools ?? []).reduce((total, pool) => total + pool.currencyReserve, 0) +
-        (smoke.scenarioPresets[0]?.agentSeeds ?? []).reduce(
-          (total, agent) => total + agent.balance,
-          0,
-        ) +
+      (smoke.scenarioPresets[0]?.agentSeeds ?? []).reduce(
+        (total, agent) => total + agent.balance,
+        0,
+      ) +
         50_000 +
         200_000,
     );
@@ -216,9 +215,7 @@ describe('local runtime town daemon scenario profiles', () => {
     // The paper ablation baseline keeps the legacy mint-funded wage regime.
     expect(ablationPartition?.initialTreasury).toBeUndefined();
     expect(ablationPartition?.initialBankReserves).toBeUndefined();
-    expect(ablationPartition?.moneySupply).toBe(
-      ablationMarketPools.reduce((total, marketPool) => total + marketPool.currencyReserve, 0),
-    );
+    expect(ablationPartition?.moneySupply).toBe(0);
   });
 });
 

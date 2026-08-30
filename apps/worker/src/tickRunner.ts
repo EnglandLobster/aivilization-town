@@ -86,6 +86,12 @@ import {
 } from './worldDecisionContext';
 
 const DEFAULT_AMBIENT_REACTION_MEMORY_CONTEXT_LIMIT = 8;
+/**
+ * Bound synchronous Agent work between event-loop turns. This is runtime
+ * scheduling only: it neither reads wall time nor changes within-partition
+ * domain order, while queue heartbeats and health checks remain responsive.
+ */
+const AGENT_LOOP_COOPERATIVE_YIELD_INTERVAL = 4;
 
 type WorkerTickAgentPlanInput =
   | {
@@ -325,6 +331,9 @@ export async function runWorkerSimulationTick(
 
   try {
     for (const [index, agent] of tickAgents.entries()) {
+      if (index > 0 && index % AGENT_LOOP_COOPERATIVE_YIELD_INTERVAL === 0) {
+        await yieldWorkerHostControl();
+      }
       if (!isAgentAvailableForWorldAction(projection, agent.agentId)) {
         skippedBusyAgentIds.push(agent.agentId);
         continue;
@@ -550,6 +559,10 @@ export async function runWorkerSimulationTick(
       ? {}
       : { checkpoint: checkpointResult.checkpoint, snapshot: checkpointResult.snapshot }),
   };
+}
+
+function yieldWorkerHostControl(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 async function recordAmbientObservationMemoryIfConfigured(input: {

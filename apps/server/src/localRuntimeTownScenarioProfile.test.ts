@@ -67,7 +67,7 @@ describe('local runtime town daemon scenario profiles', () => {
       },
       runtimeScheduler: {
         cycleCount: 1,
-        maxPendingJobs: 2,
+        maxPendingJobs: 1,
       },
     });
     expect(standard.manifest.partitions.map((partition) => partition.partitionKey)).toEqual([
@@ -92,9 +92,7 @@ describe('local runtime town daemon scenario profiles', () => {
     });
     expect(survivalTown.manifest.partitions).toHaveLength(1);
     expect(totalAgents(survivalTown.scenarioPresets)).toBe(100);
-    expect(survivalTown.manifest.partitions[0]?.marketPools).toHaveLength(
-      commodities.length - 1,
-    );
+    expect(survivalTown.manifest.partitions[0]?.marketPools).toHaveLength(commodities.length - 1);
 
     const stress = createLocalRuntimeTownDaemonScenarioProfile('headless-stress-1000');
     expect(stress).toMatchObject({
@@ -114,7 +112,7 @@ describe('local runtime town daemon scenario profiles', () => {
       },
       runtimeScheduler: {
         cycleCount: 1,
-        maxPendingJobs: 10,
+        maxPendingJobs: 1,
       },
       runtimeRecovery: {
         maxDrainJobsPerRun: 10,

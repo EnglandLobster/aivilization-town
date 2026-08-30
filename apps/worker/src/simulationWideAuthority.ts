@@ -671,6 +671,13 @@ export function createSimulationWideAuthority(input: {
   readonly seed: SimulationWideAuthoritySeed;
   readonly policies: WorldCommandPolicySource;
   /**
+   * Refuse to create a new authority ledger when partition history already
+   * exists. The authority's completed-operation journal is intentionally not a
+   * second event store, so neither it nor partial partition projections can
+   * reconstruct a lost global aggregate without inventing history.
+   */
+  readonly requireExistingState?: boolean;
+  /**
    * When true, the authority settles trades against per-region AMM pools and the
    * AgentTrade handler enforces regional co-location. The flag is injected into
    * the world command policies used for every global dispatch so trade/conversation
@@ -694,7 +701,18 @@ export function createSimulationWideAuthority(input: {
   const lockDirectory = join(directory, '.writer-lease');
   const expectedInitialSnapshot = createInitialSnapshot(input.seed);
   mkdirSync(directory, { recursive: true });
-  if (!existsSync(statePath)) {
+  const stateExists = existsSync(statePath);
+  if (!stateExists && existsSync(journalPath)) {
+    throw new Error(
+      `simulation-wide authority state is missing while its audit journal exists for ${input.seed.simulationId}; restore the state from backup`,
+    );
+  }
+  if (!stateExists && input.requireExistingState === true) {
+    throw new Error(
+      `simulation-wide authority state is missing for non-pristine simulation ${input.seed.simulationId}; restore the authority state instead of reseeding`,
+    );
+  }
+  if (!stateExists) {
     writeAtomically(statePath, `${JSON.stringify(expectedInitialSnapshot, null, 2)}\n`);
   }
   const persistedSnapshot = readSnapshot(statePath);

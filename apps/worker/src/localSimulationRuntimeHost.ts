@@ -193,6 +193,7 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
         manifestId: resolvedManifest.id,
         partitions,
       }),
+      ...(hasDurablePartitionHistory(partitions) ? { requireExistingState: true } : {}),
       ...(activeAuthorityOptions.regionalMarkets === true ? { regionalMarketsEnabled: true } : {}),
       ...(activeAuthorityOptions.townWeather === true
         ? { townWeather: createAivilizationTownWeatherPolicy() }
@@ -510,6 +511,18 @@ function createLocationAffinityResolver(
     }
   }
   return (locationId) => ownerByLocation.get(locationId);
+}
+
+function hasDurablePartitionHistory(
+  partitions: readonly LocalSimulationRuntimeHostPartition[],
+): boolean {
+  return partitions.some(
+    (partition) =>
+      partition.bootstrap.checkpoint.lastAppliedSequence > 0 ||
+      partition.bootstrap.storage.eventStore.getStreamVersion(
+        partition.bootstrap.storage.partition.eventStreamName,
+      ) > 0,
+  );
 }
 
 function createAuthoritySeed(input: {

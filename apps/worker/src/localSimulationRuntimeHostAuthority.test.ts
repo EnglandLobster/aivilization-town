@@ -155,6 +155,45 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     ).rejects.toThrow('simulation-wide authority');
   });
 
+  test('refuses to seed a missing authority from already-advanced partition history', async () => {
+    const rootDir = createRootDir();
+    const manifest = createManifest();
+    const scenarioPresets = createScenarioPresets();
+    const localOnly = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest,
+      scenarioPresets,
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+    });
+    await localOnly.registry.api.startSimulation({
+      simulationId: 'sim-1',
+      partitionKey: 'world-main',
+      requestedAt: 200,
+    });
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir,
+        bootstrappedAt: 300,
+        manifest,
+        scenarioPresets,
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        simulationWideAuthority: {
+          enabled: true,
+          workerId: 'authority-worker',
+          leaseDurationMs: 30_000,
+        },
+      }),
+    ).rejects.toThrow(/state is missing for non-pristine simulation.*instead of reseeding/);
+  });
+
   test('fails bootstrap closed when two partitions claim the same location affinity', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

@@ -245,135 +245,154 @@ export function createLocalSimulationLifecycleController(
   assertPositiveInteger(initialTickIndex, 'initialTickIndex');
   assertPositiveInteger(input.tickBatchSize, 'tickBatchSize');
 
-  return {
-    start: async (request) => {
-      assertRequestMatchesStorage(request, input.storage);
-      assertNonNegativeFinite(request.requestedAt, 'requestedAt');
+  const startLifecycle: LocalSimulationLifecycleController['start'] = async (request) => {
+    assertRequestMatchesStorage(request, input.storage);
+    assertNonNegativeFinite(request.requestedAt, 'requestedAt');
 
-      const previousState = lifecycleStateStore.getState(request);
-      if (previousState?.status === 'reset-requested') {
-        throw new Error('local simulation reset has not been materialized');
+    const previousState = lifecycleStateStore.getState(request);
+    if (previousState?.status === 'reset-requested') {
+      throw new Error('local simulation reset has not been materialized');
+    }
+    if (request.operationId !== undefined) {
+      assertNonEmpty(request.operationId, 'operationId');
+      if (
+        previousState?.status === 'completed' &&
+        previousState.lastOperationId === request.operationId
+      ) {
+        return createIdempotentLifecycleStartResult({
+          controllerInput: input,
+          state: previousState,
+        });
       }
-      if (request.operationId !== undefined) {
-        assertNonEmpty(request.operationId, 'operationId');
-        if (
-          previousState?.status === 'completed' &&
-          previousState.lastOperationId === request.operationId
-        ) {
-          return createIdempotentLifecycleStartResult({
-            controllerInput: input,
-            state: previousState,
-          });
-        }
-        if (
-          previousState?.status === 'running' &&
-          previousState.lastOperationId !== undefined &&
-          previousState.lastOperationId !== request.operationId
-        ) {
-          throw new Error(
-            `local simulation operation ${previousState.lastOperationId} is still running`,
-          );
-        }
-      }
+    }
 
-      const firstTickIndex = previousState?.nextTickIndex ?? initialTickIndex;
-      const streamVersionBeforeStart = input.storage.eventStore.getStreamVersion(
+    const firstTickIndex = previousState?.nextTickIndex ?? initialTickIndex;
+    const lifecycleBatchStartedAt =
+      previousState?.status === 'running' ? previousState.updatedAt : request.requestedAt;
+    const streamVersionBeforeStart = input.storage.eventStore.getStreamVersion(
+      input.storage.partition.eventStreamName,
+    );
+    const firstTickRecoveryToSequence =
+      previousState?.status === 'running' &&
+      previousState.lastAppliedSequence < streamVersionBeforeStart
+        ? previousState.lastAppliedSequence
+        : undefined;
+    lifecycleStateStore.saveState({
+      simulationId: request.simulationId,
+      partitionKey: request.partitionKey,
+      status: 'running',
+      nextTickIndex: firstTickIndex,
+      lastAppliedSequence: streamVersionBeforeStart,
+      updatedAt: lifecycleBatchStartedAt,
+      lastLoopId: input.loopId,
+      ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
+    });
+
+    const loop = await runLocalWorldRuntimeLoop({
+      ...toLoopBaseInput(input),
+      loopId: input.loopId,
+      firstTickIndex,
+      tickCount: input.tickBatchSize,
+      issuedAtStart: lifecycleBatchStartedAt,
+      ...(firstTickRecoveryToSequence === undefined
+        ? {}
+        : {
+            firstTickRecoveryToSequence,
+            recoveryThroughSequence: streamVersionBeforeStart,
+          }),
+      pauseBeforeTick: (step) => {
+        if (lifecycleStateStore.getState(request)?.status === 'paused') {
+          return true;
+        }
+        return input.pauseBeforeTick?.(step) === true;
+      },
+    });
+    const loopState = lifecycleStateStore.saveState({
+      simulationId: request.simulationId,
+      partitionKey: request.partitionKey,
+      status: loop.status,
+      nextTickIndex: loop.nextTickIndex,
+      lastAppliedSequence: input.storage.eventStore.getStreamVersion(
         input.storage.partition.eventStreamName,
-      );
-      const firstTickRecoveryToSequence =
-        previousState?.status === 'running' &&
-        previousState.lastAppliedSequence < streamVersionBeforeStart
-          ? previousState.lastAppliedSequence
-          : undefined;
-      lifecycleStateStore.saveState({
-        simulationId: request.simulationId,
-        partitionKey: request.partitionKey,
-        status: 'running',
-        nextTickIndex: firstTickIndex,
-        lastAppliedSequence: streamVersionBeforeStart,
-        updatedAt: request.requestedAt,
-        lastLoopId: input.loopId,
-        ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
-      });
+      ),
+      updatedAt: request.requestedAt,
+      lastLoopId: input.loopId,
+      ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
+      completedTickCount: loop.completedTickCount,
+    });
+    const validation =
+      loop.status === 'completed' && input.validationSchedule !== undefined
+        ? await runLifecycleValidation({
+            controllerInput: input,
+            request,
+            schedule: input.validationSchedule,
+            streamVersionBeforeStart,
+            lastAppliedSequence: loopState.lastAppliedSequence,
+          })
+        : {};
+    const validationStateFields = createValidationStateFields(validation);
+    let state =
+      Object.keys(validationStateFields).length === 0
+        ? loopState
+        : lifecycleStateStore.saveState({
+            ...loopState,
+            ...validationStateFields,
+          });
+    const memoryConsolidation =
+      loop.status === 'completed' && input.memoryConsolidationSchedule !== undefined
+        ? await runLifecycleMemoryConsolidation({
+            controllerInput: input,
+            projection: loop.projection,
+            request,
+            schedule: input.memoryConsolidationSchedule,
+          })
+        : {};
+    const memoryConsolidationStateFields = createMemoryConsolidationStateFields(
+      memoryConsolidation,
+      request.requestedAt,
+    );
+    state =
+      Object.keys(memoryConsolidationStateFields).length === 0
+        ? state
+        : lifecycleStateStore.saveState({
+            ...state,
+            ...memoryConsolidationStateFields,
+          });
 
-      const loop = await runLocalWorldRuntimeLoop({
-        ...toLoopBaseInput(input),
-        loopId: input.loopId,
-        firstTickIndex,
-        tickCount: input.tickBatchSize,
-        issuedAtStart: request.requestedAt,
-        ...(firstTickRecoveryToSequence === undefined
-          ? {}
-          : {
-              firstTickRecoveryToSequence,
-              recoveryThroughSequence: streamVersionBeforeStart,
-            }),
-        pauseBeforeTick: (step) => {
-          if (lifecycleStateStore.getState(request)?.status === 'paused') {
-            return true;
-          }
-          return input.pauseBeforeTick?.(step) === true;
-        },
-      });
-      const loopState = lifecycleStateStore.saveState({
-        simulationId: request.simulationId,
-        partitionKey: request.partitionKey,
-        status: loop.status,
-        nextTickIndex: loop.nextTickIndex,
-        lastAppliedSequence: input.storage.eventStore.getStreamVersion(
-          input.storage.partition.eventStreamName,
-        ),
-        updatedAt: request.requestedAt,
-        lastLoopId: input.loopId,
-        ...(request.operationId === undefined ? {} : { lastOperationId: request.operationId }),
-        completedTickCount: loop.completedTickCount,
-      });
-      const validation =
-        loop.status === 'completed' && input.validationSchedule !== undefined
-          ? await runLifecycleValidation({
-              controllerInput: input,
-              request,
-              schedule: input.validationSchedule,
-              streamVersionBeforeStart,
-              lastAppliedSequence: loopState.lastAppliedSequence,
-            })
-          : {};
-      const validationStateFields = createValidationStateFields(validation);
-      let state =
-        Object.keys(validationStateFields).length === 0
-          ? loopState
-          : lifecycleStateStore.saveState({
-              ...loopState,
-              ...validationStateFields,
-            });
-      const memoryConsolidation =
-        loop.status === 'completed' && input.memoryConsolidationSchedule !== undefined
-          ? await runLifecycleMemoryConsolidation({
-              controllerInput: input,
-              projection: loop.projection,
-              request,
-              schedule: input.memoryConsolidationSchedule,
-            })
-          : {};
-      const memoryConsolidationStateFields = createMemoryConsolidationStateFields(
-        memoryConsolidation,
-        request.requestedAt,
-      );
-      state =
-        Object.keys(memoryConsolidationStateFields).length === 0
-          ? state
-          : lifecycleStateStore.saveState({
-              ...state,
-              ...memoryConsolidationStateFields,
-            });
+    return {
+      status: loop.status,
+      state,
+      loop,
+      ...validation,
+      ...memoryConsolidation,
+    };
+  };
+  let activeStart:
+    | {
+        readonly operationId: string;
+        readonly marker: object;
+      }
+    | undefined;
 
-      return {
-        status: loop.status,
-        state,
-        loop,
-        ...validation,
-        ...memoryConsolidation,
+  return {
+    start: (request) => {
+      if (activeStart !== undefined) {
+        return Promise.reject(
+          new Error(`local simulation operation ${activeStart.operationId} is still running`),
+        );
+      }
+      const marker = {};
+      activeStart = {
+        operationId: request.operationId ?? '<anonymous>',
+        marker,
       };
+      return Promise.resolve()
+        .then(() => startLifecycle(request))
+        .finally(() => {
+          if (activeStart?.marker === marker) {
+            activeStart = undefined;
+          }
+        });
     },
     pause: (request) => {
       assertRequestMatchesStorage(request, input.storage);

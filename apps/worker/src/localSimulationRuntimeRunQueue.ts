@@ -524,7 +524,14 @@ export function createLocalSimulationRuntimeRunQueueWorker(input: {
         await heartbeatChain;
       }
 
-      const executionError = heartbeatError ?? runError;
+      const executionError =
+        heartbeatError ??
+        runError ??
+        (runResult !== undefined && runResult.outcome !== 'succeeded'
+          ? new Error(
+              `runtime supervisor ${runResult.traceId} reported ${runResult.outcome}: ${runResult.stopReason}`,
+            )
+          : undefined);
       if (executionError !== undefined) {
         const failedAt = Math.max(request.claimedAt, clock.now());
         assertNonNegativeFinite(failedAt, 'failedAt');

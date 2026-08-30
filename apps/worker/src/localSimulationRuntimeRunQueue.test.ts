@@ -598,6 +598,41 @@ describe('local simulation runtime run queue', () => {
       },
     });
   });
+
+  test('queue worker records a non-successful supervisor outcome as an execution failure', async () => {
+    const repository = new InMemoryLocalSimulationRuntimeRunQueueRepository();
+    await repository.enqueue(createJobInput('job-worker-outcome-fail', 'op-outcome-fail', 100));
+    const supervisor = createSupervisor({
+      runCycles: () =>
+        Promise.resolve({
+          ...createRunCyclesResult('op-outcome-fail'),
+          outcome: 'failed',
+          completedCycleCount: 1,
+          stopReason: 'partition-failure',
+        }),
+    });
+    const worker = createLocalSimulationRuntimeRunQueueWorker({
+      workerId: 'worker-1',
+      queueRepository: repository,
+      supervisor,
+      leaseDurationMs: 100,
+      clock: { now: () => 260 },
+    });
+
+    await expect(worker.runNext({ claimedAt: 200 })).resolves.toMatchObject({
+      status: 'failed',
+      job: {
+        status: 'dead-lettered',
+        failedAttemptCount: 1,
+        error: {
+          message: 'runtime supervisor op-outcome-fail reported failed: partition-failure',
+        },
+      },
+    });
+    const stored = await repository.get('job-worker-outcome-fail');
+    expect(stored).toMatchObject({ status: 'dead-lettered' });
+    expect(stored).not.toHaveProperty('resultTraceId');
+  });
 });
 
 function createRootDir(): string {

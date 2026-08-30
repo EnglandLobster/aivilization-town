@@ -23,6 +23,7 @@ import {
   applyPassivePhysiologicalDecay,
   applySleepDeprivationHealthDecay,
   applyStochasticIllnessHealthDecay,
+  assertValidServiceQualityPolicy,
   assertValidLandValuePolicy,
   assertValidTownCalendarPolicy,
   calculateStochasticIllnessProbabilityPercent,
@@ -36,6 +37,7 @@ import {
   evaluateOutMigrationDecision,
   evaluatePhysiologicalSafetyNet,
   evaluateRegionalLandValue,
+  evaluateServiceQuality,
   evaluateResidentialArrears,
   evaluateResidentialUpkeep,
   evaluateRetirement,
@@ -60,6 +62,8 @@ import {
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
   type ResidentialUpkeepPolicy,
+  type ServiceQualityPolicy,
+  type TownPublicService,
   type SafetyNetSubsidyPolicy,
   type SleepDeprivationHealthDecayPolicy,
   type StochasticIllnessPolicy,
@@ -133,6 +137,8 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly migration?: OutMigrationPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
   readonly landValue?: LandValuePolicy;
+  /** Authority-scoped because service occupancy must be measured town-wide. */
+  readonly serviceQuality?: ServiceQualityPolicy;
   readonly safetyNetSubsidy?: SafetyNetSubsidyPolicy;
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   readonly recruitmentCycle?: RecruitmentCyclePolicy;
@@ -210,6 +216,12 @@ export function handleAdvanceSimulationTimeCommand(input: {
     nextSimulationTime: next.now,
   });
   appendPublicBudgetEvents({
+    input,
+    events,
+    previousSimulationTime: previous.now,
+    nextSimulationTime: next.now,
+  });
+  appendRegionalServiceQualityEvents({
     input,
     events,
     previousSimulationTime: previous.now,
@@ -947,6 +959,120 @@ function appendPublicBudgetEvents(input: {
       treasury = decision.nextTreasury;
     }
   }
+}
+
+/**
+ * Settles town-wide regional service quality after public-budget allocation.
+ * Each crossed boundary is evaluated independently; in-window travel arrivals
+ * are applied before the first boundary at or after their `arrivesAt`, keeping
+ * merged advances equivalent to cadence-by-cadence advancement.
+ */
+function appendRegionalServiceQualityEvents(input: {
+  readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly events: WorldEvent[];
+  readonly previousSimulationTime: number;
+  readonly nextSimulationTime: number;
+}): void {
+  const policy = input.input.serviceQuality;
+  if (policy === undefined) return;
+  assertValidServiceQualityPolicy(policy);
+  const cycles = calculateCompletedRecruitmentCycleNumbers({
+    previousSimulationTime: input.previousSimulationTime,
+    nextSimulationTime: input.nextSimulationTime,
+    cycleDurationMs: policy.cadenceMs,
+  });
+  if (cycles.length === 0) return;
+
+  const projection = input.input.projection;
+  const locationsById = projection.locations;
+  const regionIds = [
+    ...new Set(Object.values(locationsById).map((location) => resolveRegionId(location.regionId))),
+  ].sort((left, right) => left.localeCompare(right));
+  const locationByAgent = new Map(
+    Object.values(projection.agents).map((agent) => [agent.agentId, agent.locationId] as const),
+  );
+  const arrivals = Object.values(projection.transitByAgent ?? {}).sort(
+    (left, right) => left.arrivesAt - right.arrivesAt || left.agentId.localeCompare(right.agentId),
+  );
+  let arrivalCursor = 0;
+  const qualityByKey = new Map<string, number>();
+  for (const [regionId, services] of Object.entries(projection.regionalServiceQualities ?? {})) {
+    for (const service of ['education', 'healthcare'] as const) {
+      const state = services[service];
+      if (state !== undefined) qualityByKey.set(`${regionId}:${service}`, state.quality);
+    }
+  }
+
+  for (const cycle of cycles) {
+    const settledAt = (cycle + 1) * policy.cadenceMs;
+    while (arrivalCursor < arrivals.length && arrivals[arrivalCursor]!.arrivesAt <= settledAt) {
+      const arrival = arrivals[arrivalCursor]!;
+      locationByAgent.set(arrival.agentId, arrival.toLocationId);
+      arrivalCursor += 1;
+    }
+    const fundingByService = collectPublicServiceFunding(input.events, settledAt);
+    for (const regionId of regionIds) {
+      for (const service of [
+        'education',
+        'healthcare',
+      ] as const satisfies readonly TownPublicService[]) {
+        const serviceLocationIds = new Set(
+          Object.values(locationsById)
+            .filter(
+              (location) =>
+                resolveRegionId(location.regionId) === regionId && location.kind === service,
+            )
+            .map((location) => location.locationId),
+        );
+        const capacity = Object.values(locationsById)
+          .filter((location) => serviceLocationIds.has(location.locationId))
+          .reduce((total, location) => total + (location.capacity ?? 0), 0);
+        const occupancy = [...locationByAgent.values()].filter(
+          (locationId) => locationId !== null && serviceLocationIds.has(locationId),
+        ).length;
+        const evaluation = evaluateServiceQuality({
+          inputs: {
+            service,
+            fundedAmount: fundingByService[service] ?? 0,
+            occupancy,
+            capacity,
+          },
+          policy,
+        });
+        const qualityKey = `${regionId}:${service}`;
+        const previousQuality = qualityByKey.get(qualityKey) ?? null;
+        input.events.push(
+          makeEvent(input.input, input.events.length, 'RegionalServiceQualityUpdated', {
+            regionId,
+            previousQuality,
+            ...evaluation,
+            policyVersion: policy.policyVersion,
+            settledAt,
+            reason: 'service-quality-cadence',
+          }),
+        );
+        qualityByKey.set(qualityKey, evaluation.quality);
+      }
+    }
+  }
+}
+
+function collectPublicServiceFunding(
+  events: readonly WorldEvent[],
+  settledAt: number,
+): Partial<Record<TownPublicService, number>> {
+  const result: Partial<Record<TownPublicService, number>> = {};
+  for (const event of events) {
+    if (
+      event.type !== 'PublicBudgetSpent' ||
+      event.payload.settledAt !== settledAt ||
+      (event.payload.service !== 'education' && event.payload.service !== 'healthcare')
+    ) {
+      continue;
+    }
+    result[event.payload.service] = (result[event.payload.service] ?? 0) + event.payload.amount;
+  }
+  return result;
 }
 
 /**

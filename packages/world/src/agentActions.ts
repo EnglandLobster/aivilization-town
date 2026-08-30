@@ -9,6 +9,7 @@ import type {
   ResidentialPhysiologyCapPolicy,
   ResidentialTierUpgradePolicy,
   ResidentialUpkeepPolicy,
+  ServiceQualityPolicy,
   SafetyNetSubsidyPolicy,
   SleepDeprivationHealthDecayPolicy,
   StochasticIllnessPolicy,
@@ -271,6 +272,8 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    * byte-for-byte.
    */
   readonly landValue?: LandValuePolicy;
+  /** Authority-scoped because service occupancy must be town-wide. */
+  readonly serviceQuality?: ServiceQualityPolicy;
   /**
    * Optional town-bank credit policy. When present, AgentDeposit,
    * AgentWithdraw and AgentRequestLoan settle against the bank aggregate and
@@ -374,6 +377,9 @@ export function dispatchWorldCommand(input: {
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),
         ...(input.policies.landValue === undefined ? {} : { landValue: input.policies.landValue }),
+        ...(input.policies.serviceQuality === undefined
+          ? {}
+          : { serviceQuality: input.policies.serviceQuality }),
         ...(input.policies.safetyNetSubsidy === undefined
           ? {}
           : { safetyNetSubsidy: input.policies.safetyNetSubsidy }),

@@ -878,6 +878,25 @@ export type RegionalLandValueUpdatedPayload = {
   readonly reason: 'land-value-cadence';
 };
 
+/** Final regional public-service quality and its replay/audit inputs. */
+export type RegionalServiceQualityUpdatedPayload = {
+  readonly regionId: string;
+  readonly service: 'education' | 'healthcare';
+  readonly previousQuality: number | null;
+  readonly quality: number;
+  readonly fundedAmount: number;
+  readonly occupancy: number;
+  readonly capacity: number;
+  readonly budgetEfficiency: number;
+  readonly occupancyRatio: number;
+  readonly capacityEfficiency: number;
+  readonly landValueContribution: number;
+  readonly wellbeingContribution: number;
+  readonly policyVersion: string;
+  readonly settledAt: number;
+  readonly reason: 'service-quality-cadence';
+};
+
 export type ResidentialTierDowngradedPayload = {
   readonly agentId: AgentId;
   readonly previousResidentialTier: number;
@@ -1357,6 +1376,7 @@ export type WorldEventPayloadByType = {
   readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;
   readonly ResidentialUpkeepArrearsUpdated: ResidentialUpkeepArrearsUpdatedPayload;
   readonly RegionalLandValueUpdated: RegionalLandValueUpdatedPayload;
+  readonly RegionalServiceQualityUpdated: RegionalServiceQualityUpdatedPayload;
   readonly AgentTimeEffectsSettled: AgentTimeEffectsSettledPayload;
   readonly MedicalTreatmentCharged: MedicalTreatmentChargedPayload;
   readonly SocialInteractionCompleted: SocialInteractionCompletedPayload;

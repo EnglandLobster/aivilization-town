@@ -93,7 +93,7 @@ export type WorldDecisionAgentContext = {
    */
   readonly lifestyle?: LifestyleTier;
   /**
-   * Optional durable lifecycle view (town-lifecycle-v1): the agent's settled
+   * Optional durable versioned-lifecycle view: the agent's settled
    * life stage, current age, and retirement status. Present only when the
    * resolved command policies carry a lifecycle policy; the stage and
    * retirement flag come straight from the projection, the age is derived
@@ -125,7 +125,7 @@ export type WorldDecisionAgentContext = {
     readonly healthcare?: number;
   };
   /**
-   * Read-only consequence forecast under starvation-health-decay-v1. It is
+   * Read-only consequence forecast under starvation-health-decay-v2. It is
    * derived from the same versioned policy used by world settlement so the
    * planner can distinguish ordinary hunger from immediate mortality risk.
    */

@@ -7,6 +7,7 @@ import {
   dispatchWorldCommand,
   isTownWeatherKind,
   isTownWeatherTransitionDue,
+  listTownWeatherTransitionBoundaries,
   sampleTownWeatherTransition,
   TOWN_WEATHER_KINDS,
   type TownWeatherKind,
@@ -38,7 +39,7 @@ function createPolicy(input: {
   readonly rows: Readonly<Record<TownWeatherKind, Record<TownWeatherKind, number>>>;
 }): TownWeatherPolicy {
   return {
-    policyVersion: 'town-weather-v1',
+    policyVersion: 'town-weather-v2',
     initialWeather: input.initialWeather ?? 'sunny',
     transitionCadenceMs: input.transitionCadenceMs ?? 1_000,
     transitions: input.rows,
@@ -81,6 +82,18 @@ const persistentPolicy = createPolicy({
     stormy: row({ stormy: 1 }),
     snowy: row({ snowy: 1 }),
     foggy: row({ foggy: 1 }),
+  },
+});
+
+const cyclingPolicy = createPolicy({
+  rows: {
+    sunny: row({ cloudy: 1 }),
+    cloudy: row({ windy: 1 }),
+    windy: row({ rainy: 1 }),
+    rainy: row({ sunny: 1 }),
+    stormy: row({ snowy: 1 }),
+    snowy: row({ foggy: 1 }),
+    foggy: row({ stormy: 1 }),
   },
 });
 
@@ -157,8 +170,20 @@ describe('town weather policy validation', () => {
     expect(isTownWeatherKind(42)).toBe(false);
   });
 
+  test('enumerates every crossed cadence boundary with half-open start semantics', () => {
+    expect(
+      listTownWeatherTransitionBoundaries({
+        transitionCadenceMs: 1_000,
+        previousSimulationTime: 400,
+        nextSimulationTime: 3_000,
+      }),
+    ).toEqual([1_000, 2_000, 3_000]);
+  });
+
   test('rejects a matrix whose row does not sum to 1', () => {
-    const invalid = createPolicy({ rows: { ...volatilePolicy.transitions, sunny: row({ sunny: 0.9 }) } });
+    const invalid = createPolicy({
+      rows: { ...volatilePolicy.transitions, sunny: row({ sunny: 0.9 }) },
+    });
     expect(() => assertTownWeatherPolicy(invalid)).toThrow(/row sunny must sum to 1/);
   });
 
@@ -182,9 +207,9 @@ describe('town weather policy validation', () => {
   });
 
   test('rejects an invalid cadence and initial weather', () => {
-    expect(() =>
-      assertTownWeatherPolicy({ ...volatilePolicy, transitionCadenceMs: 0 }),
-    ).toThrow(/transitionCadenceMs/);
+    expect(() => assertTownWeatherPolicy({ ...volatilePolicy, transitionCadenceMs: 0 })).toThrow(
+      /transitionCadenceMs/,
+    );
     expect(() =>
       assertTownWeatherPolicy({
         ...volatilePolicy,
@@ -239,9 +264,9 @@ describe('town weather sampling and cadence', () => {
   test('uses the seeded RNG for the sample draw', () => {
     const rng = createSeededRandom('seed-1');
     const replay = createSeededRandom('seed-1');
-    expect(
-      sampleTownWeatherTransition({ policy: volatilePolicy, current: 'sunny', rng }),
-    ).toBe(sampleTownWeatherTransition({ policy: volatilePolicy, current: 'sunny', rng: replay }));
+    expect(sampleTownWeatherTransition({ policy: volatilePolicy, current: 'sunny', rng })).toBe(
+      sampleTownWeatherTransition({ policy: volatilePolicy, current: 'sunny', rng: replay }),
+    );
   });
 });
 
@@ -273,15 +298,12 @@ describe('town weather settlement in AdvanceSimulationTime', () => {
       policies,
       nextSequence: 1,
     });
-    expect(events.map((event) => event.type)).toEqual([
-      'SimulationTimeAdvanced',
-      'WeatherChanged',
-    ]);
+    expect(events.map((event) => event.type)).toEqual(['SimulationTimeAdvanced', 'WeatherChanged']);
     expect(events[1]).toMatchObject({
       id: 'command-weather-0:event:1',
       type: 'WeatherChanged',
       payload: {
-        policyVersion: 'town-weather-v1',
+        policyVersion: 'town-weather-v2',
         from: 'sunny',
         to: 'cloudy',
         transitionedAt: 1_000,
@@ -314,7 +336,61 @@ describe('town weather settlement in AdvanceSimulationTime', () => {
       ['SimulationTimeAdvanced'],
       ['SimulationTimeAdvanced', 'WeatherChanged'],
     ]);
-    expect(projection.weather).toEqual({ current: 'cloudy', since: 1_200 });
+    expect(projection.weather).toEqual({ current: 'cloudy', since: 1_000 });
+  });
+
+  test('settles every crossed weather cadence in a merged advance', () => {
+    const events = advance({
+      projection: createProjection(),
+      tickIndex: 0,
+      deltaMs: 3_000,
+      policies: { ...basePolicies, weather: cyclingPolicy },
+      nextSequence: 1,
+    });
+    expect(
+      events.filter((event) => event.type === 'WeatherChanged').map((event) => event.payload),
+    ).toEqual([
+      { policyVersion: 'town-weather-v2', from: 'sunny', to: 'cloudy', transitionedAt: 1_000 },
+      { policyVersion: 'town-weather-v2', from: 'cloudy', to: 'windy', transitionedAt: 2_000 },
+      { policyVersion: 'town-weather-v2', from: 'windy', to: 'rainy', transitionedAt: 3_000 },
+    ]);
+  });
+
+  test('preserves the v1 one-draw-per-command compatibility branch', () => {
+    const events = advance({
+      projection: createProjection(),
+      tickIndex: 0,
+      deltaMs: 3_000,
+      policies: {
+        ...basePolicies,
+        weather: { ...cyclingPolicy, policyVersion: 'town-weather-v1' },
+      },
+      nextSequence: 1,
+    });
+    expect(
+      events.filter((event) => event.type === 'WeatherChanged').map((event) => event.payload),
+    ).toEqual([
+      { policyVersion: 'town-weather-v1', from: 'sunny', to: 'cloudy', transitionedAt: 3_000 },
+    ]);
+  });
+
+  test('produces the same boundary weather trajectory for merged and stepped advances', () => {
+    const payloads = (events: readonly WorldEvent[]) =>
+      events
+        .filter((event) => event.type === 'WeatherChanged')
+        .map((event) => ({ ...event.payload }));
+    for (let seedIndex = 0; seedIndex < 12; seedIndex += 1) {
+      const randomSeed = `weather-cadence-seed-${seedIndex}`;
+      const stepped = runWeatherSequence({ randomSeed, ticks: 12, policy: volatilePolicy });
+      const mergedEvents = advance({
+        projection: createProjection(),
+        tickIndex: 0,
+        deltaMs: 12_000,
+        policies: { ...basePolicies, randomSeed, weather: volatilePolicy },
+        nextSequence: 1,
+      });
+      expect(payloads(mergedEvents)).toEqual(payloads(stepped.events));
+    }
   });
 
   test('emits nothing while the sampled weather persists', () => {

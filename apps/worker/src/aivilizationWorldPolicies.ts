@@ -427,6 +427,9 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
       minHealth: aivilizationSurvivalTimePolicyDefaults.sleepDeprivation.minHealth,
     },
     stochasticIllness: {
+      policyVersion: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.policyVersion,
+      settlementCadenceMs:
+        aivilizationSurvivalTimePolicyDefaults.stochasticIllness.settlementCadenceMs,
       illnessProbabilityPercentPerHour:
         aivilizationSurvivalTimePolicyDefaults.stochasticIllness.illnessProbabilityPercentPerHour,
       healthDamage: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.healthDamage,
@@ -638,6 +641,7 @@ export function createAivilizationWorldPolicyManifest(
           }),
       residentialUpkeep: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
       landValue: aivilizationSurvivalTimePolicyDefaults.landValue.policyVersion,
+      stochasticIllness: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.policyVersion,
       memoryConsolidation: CANONICAL_MEMORY_CONSOLIDATION_POLICY_ID,
       worldProjectionMemoryRetention: WORLD_PROJECTION_MEMORY_RETENTION_POLICY_VERSION,
       ...experimentalPolicyVersions,
@@ -1038,8 +1042,8 @@ function createCanonicalPolicyRegistry(manifest: {
     ),
     registryEntry(
       'survival',
-      'canonical-survival-time-v1',
-      ['physiologicalSafetyNet', 'residentialUpkeep', 'landValue'],
+      'canonical-survival-time-v2',
+      ['physiologicalSafetyNet', 'residentialUpkeep', 'landValue', 'stochasticIllness'],
       'repository-defined',
       'Paper requires physiology and safety-net behavior; illness, upkeep, land value and timing parameters are repository-defined.',
     ),

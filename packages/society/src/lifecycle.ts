@@ -1,7 +1,7 @@
 import { createSeededRandom, type AgentId } from '@aivilization/sim-core';
 
 /**
- * Population lifecycle (town-lifecycle-v1): age stages, pre-rolled lifespan,
+ * Population lifecycle (town-lifecycle-v2; v1 events remain replayable): age stages, pre-rolled lifespan,
  * old-age and illness death, and forced retirement with a pension — the
  * minimal Cities: Skylines II citizen lifecycle set (birth, households,
  * childhood simulation, funerals, and mourning are deliberately out of scope;

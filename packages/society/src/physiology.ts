@@ -87,11 +87,46 @@ export type SleepDeprivationHealthDecayInput = PhysiologicalState &
     readonly durationSeconds: number;
   };
 
-export type StochasticIllnessPolicy = {
+type StochasticIllnessPolicyParameters = {
   readonly illnessProbabilityPercentPerHour: number;
   readonly healthDamage: number;
   readonly minHealth: number;
 };
+
+/**
+ * v2 policies declare a fixed simulation-time roll grid. The second branch is
+ * the public compatibility shape for pre-versioned manifests; it deliberately
+ * retains their command-scoped settlement semantics.
+ */
+export type StochasticIllnessPolicy = StochasticIllnessPolicyParameters &
+  (
+    | {
+        readonly policyVersion: string;
+        readonly settlementCadenceMs: number;
+      }
+    | {
+        readonly policyVersion?: never;
+        readonly settlementCadenceMs?: never;
+      }
+  );
+
+export function assertValidStochasticIllnessPolicy(policy: StochasticIllnessPolicy): void {
+  if (policy.policyVersion !== undefined && policy.policyVersion.trim().length === 0) {
+    throw new Error('stochastic illness policyVersion must not be empty when provided');
+  }
+  if (policy.settlementCadenceMs !== undefined) {
+    assertPositiveInteger(policy.settlementCadenceMs, 'stochastic illness settlementCadenceMs');
+  }
+  assertNonNegativeFinite(
+    policy.illnessProbabilityPercentPerHour,
+    'illnessProbabilityPercentPerHour',
+  );
+  if (policy.illnessProbabilityPercentPerHour > 100) {
+    throw new Error('illnessProbabilityPercentPerHour must not exceed 100');
+  }
+  assertNonNegativeFinite(policy.healthDamage, 'healthDamage');
+  assertNonNegativeFinite(policy.minHealth, 'minHealth');
+}
 
 /**
  * Versioned starvation pressure. The health loss is proportional to the
@@ -244,9 +279,7 @@ export function applyStochasticIllnessHealthDecay(
   };
 }
 
-export function applyStarvationHealthDecay(
-  input: StarvationHealthDecayInput,
-): PhysiologicalState {
+export function applyStarvationHealthDecay(input: StarvationHealthDecayInput): PhysiologicalState {
   assertValidStarvationHealthDecayPolicy(input.policy);
   assertNonNegativeFinite(input.energy, 'energy');
   assertNonNegativeFinite(input.satiety, 'satiety');
@@ -264,8 +297,7 @@ export function applyStarvationHealthDecay(
   const deficitRatio =
     (input.policy.satietyThreshold - input.satiety) / input.policy.satietyThreshold;
   const elapsedHours = input.elapsedMs / 3_600_000;
-  const healthDamage =
-    input.policy.healthDecayPerHourAtZeroSatiety * deficitRatio * elapsedHours;
+  const healthDamage = input.policy.healthDecayPerHourAtZeroSatiety * deficitRatio * elapsedHours;
   return {
     energy: input.energy,
     satiety: input.satiety,
@@ -273,9 +305,7 @@ export function applyStarvationHealthDecay(
   };
 }
 
-export function assertValidStarvationHealthDecayPolicy(
-  policy: StarvationHealthDecayPolicy,
-): void {
+export function assertValidStarvationHealthDecayPolicy(policy: StarvationHealthDecayPolicy): void {
   if (policy.policyVersion.trim().length === 0) {
     throw new Error('starvation policyVersion must not be empty');
   }

@@ -335,13 +335,13 @@ describe('local runtime town executable composition', () => {
       }).townWeatherEnabled,
     ).toBe(true);
 
-    // The resolved run manifest only declares town-weather-v1 when enabled.
+    // The resolved run manifest only declares town-weather-v2 when enabled.
     const disabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-weather-v1');
+    expect(disabledManifest).not.toContain('town-weather-v2');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -350,7 +350,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-weather-v1');
+    expect(enabledManifest).toContain('town-weather-v2');
   });
 
   test('town conditions are off by default and enabled by flag or env', () => {
@@ -659,13 +659,13 @@ describe('local runtime town executable composition', () => {
       }).townLifecycleEnabled,
     ).toBe(true);
 
-    // The resolved run manifest only declares town-lifecycle-v1 when enabled.
+    // The resolved run manifest only declares town-lifecycle-v2 when enabled.
     const disabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-lifecycle-v1');
+    expect(disabledManifest).not.toContain('town-lifecycle-v2');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -674,7 +674,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-lifecycle-v1');
+    expect(enabledManifest).toContain('town-lifecycle-v2');
   });
 
   test('town discourse is off by default and enabled by flag or env', () => {
@@ -787,7 +787,7 @@ describe('local runtime town executable composition', () => {
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-migration-v1');
+    expect(disabledManifest).not.toContain('town-migration-v2');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -796,7 +796,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-migration-v1');
+    expect(enabledManifest).toContain('town-migration-v2');
   });
 
   test('town service quality is off by default and enabled by flag or env', () => {
@@ -910,7 +910,7 @@ describe('local runtime town executable composition', () => {
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabled).not.toContain('starvation-health-decay-v1');
+    expect(disabled).not.toContain('starvation-health-decay-v2');
     const enabled = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -919,7 +919,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabled).toContain('starvation-health-decay-v1');
+    expect(enabled).toContain('starvation-health-decay-v2');
   });
 
   test('town carrying capacity is opt-in, manifest-bound, and limited to one partition', () => {

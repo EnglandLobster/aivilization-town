@@ -24,6 +24,7 @@ import {
   applySleepDeprivationHealthDecay,
   applyStarvationHealthDecay,
   applyStochasticIllnessHealthDecay,
+  assertValidStochasticIllnessPolicy,
   assertValidServiceQualityPolicy,
   assertValidLandValuePolicy,
   assertValidTownCalendarPolicy,
@@ -92,6 +93,7 @@ import {
 import {
   assertTownWeatherPolicy,
   isTownWeatherTransitionDue,
+  listTownWeatherTransitionBoundaries,
   sampleTownWeatherTransition,
   type TownWeatherPolicy,
 } from '../weather';
@@ -121,7 +123,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
    */
   readonly calendar?: TownCalendarPolicy;
   /**
-   * Optional town-lifecycle policy (town-lifecycle-v1). When present, the
+   * Optional versioned town-lifecycle policy. When present, the
    * lifecycle block settles at the END of each settlement interval (the agent
    * was alive for that interval's charges): stage transitions (AgentAged),
    * forced retirement with the treasury pension (AgentRetired + PensionPaid),
@@ -132,7 +134,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
    */
   readonly lifecycle?: LifecyclePolicy;
   /**
-   * Optional out-migration policy (town-migration-v1). When present, the
+   * Optional out-migration policy (town-migration-v2). When present, the
    * population-turnover block additionally evaluates the CS2 NotHappy
    * departure rule per agent and cadence: persistently unhappy agents leave
    * town with the full estate liquidation (shared with death). Omitted keeps
@@ -180,6 +182,9 @@ export function handleAdvanceSimulationTimeCommand(input: {
   readonly timeSettlementAmortization?: { readonly buckets: number };
   readonly nextSequence: number;
 }): WorldEvent[] {
+  if (input.stochasticIllness !== undefined) {
+    assertValidStochasticIllnessPolicy(input.stochasticIllness);
+  }
   const payload = assertAdvanceSimulationTimePayload(input.command.payload);
   const previous = input.projection.clock;
   const next = advanceClock(previous, payload.deltaMs);
@@ -197,7 +202,6 @@ export function handleAdvanceSimulationTimeCommand(input: {
   appendWeatherTransitionEvent({
     input,
     events,
-    payload,
     nextSimulationTime: next.now,
   });
   appendTownDayPhaseChangedEvents({
@@ -305,41 +309,50 @@ export function handleAdvanceSimulationTimeCommand(input: {
     amortization === undefined ||
     settlementTickIndex % amortization.buckets ===
       hashAgentSettlementBucket(agent.agentId) % amortization.buckets;
-  // Population-turnover effects (probabilistic illness death and out-migration
-  // rolls, stateful retirement + pension) must replay per cadence: with a
-  // lifecycle or migration policy every advance is split at the finest
-  // present settlement grid even without amortization, so a merged
-  // multi-cadence advance settles identically to step-by-step ones. Without
-  // either policy the single-interval legacy behavior is preserved
-  // byte-for-byte.
-  const turnoverSettlementCadenceMs =
-    (input.lifecycle === undefined &&
-      input.migration === undefined &&
-      input.starvation === undefined) ||
+  // Versioned turnover effects own independent simulation-time grids. Use the
+  // UNION of their boundaries: choosing the minimum cadence and executing
+  // every policy on that grid makes an hourly starvation policy accidentally
+  // multiply daily lifecycle and migration rolls. Exact v1 policies retain
+  // the historical shared-minimum grid, while v2+ policies are gated to their
+  // own boundaries below.
+  const turnoverSettlementCadencesMs = [
+    ...(input.lifecycle === undefined ? [] : [input.lifecycle.settlementCadenceMs]),
+    ...(input.migration === undefined ? [] : [input.migration.settlementCadenceMs]),
+    ...(input.starvation === undefined ? [] : [input.starvation.settlementCadenceMs]),
+    ...(input.stochasticIllness?.settlementCadenceMs === undefined
+      ? []
+      : [input.stochasticIllness.settlementCadenceMs]),
+  ];
+  const usesLegacySharedTurnoverGrid =
+    input.lifecycle?.policyVersion === 'town-lifecycle-v1' ||
+    input.migration?.policyVersion === 'town-migration-v1' ||
+    input.starvation?.policyVersion === 'starvation-health-decay-v1';
+  const settlementCadencesMs =
     next.now === previous.now
-      ? undefined
-      : Math.min(
-          payload.deltaMs,
-          ...(input.lifecycle === undefined ? [] : [input.lifecycle.settlementCadenceMs]),
-          ...(input.migration === undefined ? [] : [input.migration.settlementCadenceMs]),
-          ...(input.starvation === undefined ? [] : [input.starvation.settlementCadenceMs]),
-        );
+      ? []
+      : usesLegacySharedTurnoverGrid
+        ? [Math.min(payload.deltaMs, ...turnoverSettlementCadencesMs)]
+        : [
+            ...turnoverSettlementCadencesMs,
+            ...(amortization === undefined ? [] : [payload.deltaMs]),
+          ];
   const settlementIntervalsByAgent = new Map(
     allAgents.map((agent) => [
       agent.agentId,
       shouldSettleAgent(agent)
         ? amortization === undefined
-          ? turnoverSettlementCadenceMs === undefined
+          ? settlementCadencesMs.length === 0
             ? [{ previousSimulationTime: previous.now, currentSimulationTime: next.now }]
-            : createSettlementIntervals({
+            : createSettlementIntervalsForCadences({
                 previousSettledAt: previous.now,
                 nextSettledAt: next.now,
-                cadenceMs: turnoverSettlementCadenceMs,
+                cadencesMs: settlementCadencesMs,
               })
-          : createSettlementIntervals({
+          : createSettlementIntervalsForCadences({
               previousSettledAt: previousSettledAt(agent),
               nextSettledAt: next.now,
-              cadenceMs: turnoverSettlementCadenceMs ?? payload.deltaMs,
+              cadencesMs:
+                settlementCadencesMs.length === 0 ? [payload.deltaMs] : settlementCadencesMs,
             })
         : [],
     ]),
@@ -425,7 +438,15 @@ export function handleAdvanceSimulationTimeCommand(input: {
       }
     }
 
-    if (input.stochasticIllness !== undefined) {
+    if (
+      input.stochasticIllness !== undefined &&
+      isPolicySettlementDue({
+        policyVersion: input.stochasticIllness.policyVersion,
+        legacyPolicyVersion: undefined,
+        settlementCadenceMs: input.stochasticIllness.settlementCadenceMs,
+        currentSimulationTime: currentSettlementTime,
+      })
+    ) {
       for (const agent of agents) {
         if (!shouldSettleAgent(agent)) {
           continue;
@@ -433,7 +454,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
         const probabilityPercent = calculateStochasticIllnessProbabilityPercent({
           illnessProbabilityPercentPerHour:
             input.stochasticIllness.illnessProbabilityPercentPerHour,
-          durationSeconds: agentDurationSeconds(agent),
+          durationSeconds:
+            input.stochasticIllness.settlementCadenceMs === undefined
+              ? agentDurationSeconds(agent)
+              : resolveCadenceElapsedMs({
+                  agent,
+                  currentSimulationTime: currentSettlementTime,
+                  settlementCadenceMs: input.stochasticIllness.settlementCadenceMs,
+                }) / 1000,
         });
         const illnessOccurs = rollProbabilityPercent(
           probabilityPercent,
@@ -441,10 +469,13 @@ export function handleAdvanceSimulationTimeCommand(input: {
             createStochasticIllnessSeed({
               input,
               payload,
-              agent,
-              ...(amortization === undefined
+              ...(input.stochasticIllness.policyVersion === undefined
                 ? {}
-                : { evaluatedAt: currentInterval(agent).currentSimulationTime }),
+                : { policyVersion: input.stochasticIllness.policyVersion }),
+              agentId: agent.agentId,
+              ...(input.stochasticIllness.policyVersion !== undefined || amortization !== undefined
+                ? { evaluatedAt: currentInterval(agent).currentSimulationTime }
+                : {}),
             }),
           ),
         );
@@ -494,7 +525,15 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // Its policy cadence participates in interval enumeration above, so the
     // threshold crossing and health loss replay identically for merged and
     // step-by-step advances.
-    if (input.starvation !== undefined) {
+    if (
+      input.starvation !== undefined &&
+      isPolicySettlementDue({
+        policyVersion: input.starvation.policyVersion,
+        legacyPolicyVersion: 'starvation-health-decay-v1',
+        settlementCadenceMs: input.starvation.settlementCadenceMs,
+        currentSimulationTime: currentSettlementTime,
+      })
+    ) {
       for (const agent of agents) {
         if (!shouldSettleAgent(agent)) {
           continue;
@@ -508,7 +547,14 @@ export function handleAdvanceSimulationTimeCommand(input: {
           reason: 'starvation',
           nextPhysiology: applyStarvationHealthDecay({
             ...getCurrentPhysiology(physiologyByAgent, agent),
-            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            elapsedMs:
+              input.starvation.policyVersion === 'starvation-health-decay-v1'
+                ? interval.currentSimulationTime - interval.previousSimulationTime
+                : resolveCadenceElapsedMs({
+                    agent,
+                    currentSimulationTime: currentSettlementTime,
+                    settlementCadenceMs: input.starvation.settlementCadenceMs,
+                  }),
             policy: input.starvation,
           }),
         });
@@ -772,18 +818,38 @@ export function handleAdvanceSimulationTimeCommand(input: {
     // effect from the next interval on. The block re-folds its own events so
     // the next interval (and the recruitment/exam cycles below) read
     // post-lifecycle state — released jobs, gone agents.
-    if (
-      input.lifecycle !== undefined ||
-      input.migration !== undefined ||
-      input.starvation !== undefined
-    ) {
+    const lifecycleDue =
+      input.lifecycle !== undefined &&
+      isPolicySettlementDue({
+        policyVersion: input.lifecycle.policyVersion,
+        legacyPolicyVersion: 'town-lifecycle-v1',
+        settlementCadenceMs: input.lifecycle.settlementCadenceMs,
+        currentSimulationTime: currentSettlementTime,
+      });
+    const migrationDue =
+      input.migration !== undefined &&
+      isPolicySettlementDue({
+        policyVersion: input.migration.policyVersion,
+        legacyPolicyVersion: 'town-migration-v1',
+        settlementCadenceMs: input.migration.settlementCadenceMs,
+        currentSimulationTime: currentSettlementTime,
+      });
+    const starvationDue =
+      input.starvation !== undefined &&
+      isPolicySettlementDue({
+        policyVersion: input.starvation.policyVersion,
+        legacyPolicyVersion: 'starvation-health-decay-v1',
+        settlementCadenceMs: input.starvation.settlementCadenceMs,
+        currentSimulationTime: currentSettlementTime,
+      });
+    if (lifecycleDue || migrationDue || starvationDue) {
       const lifecycleStart = events.length;
       creditBank = appendLifecycleSettlementEvents({
         handlerInput: input,
         payload,
-        policy: input.lifecycle,
-        ...(input.starvation === undefined ? {} : { starvation: input.starvation }),
-        ...(input.migration === undefined ? {} : { migration: input.migration }),
+        policy: lifecycleDue ? input.lifecycle : undefined,
+        ...(starvationDue ? { starvation: input.starvation } : {}),
+        ...(migrationDue ? { migration: input.migration } : {}),
         events,
         agents,
         projection: settlementProjection,
@@ -1493,7 +1559,7 @@ function excludeFromApplicationSettlement(
 }
 
 /**
- * Lifecycle settlement (town-lifecycle-v1), running at the END of each
+ * Versioned lifecycle settlement, running at the END of each
  * settlement interval. Per agent, in agentId order:
  *
  * 1. Aging — the stage is a pure function of the registration timestamp, the
@@ -1704,6 +1770,26 @@ function appendLifecycleSettlementEvents(input: {
     }
     const interval = input.intervalFor(agent);
     const policy = input.policy;
+    const lifecycleElapsedMs =
+      policy === undefined
+        ? 0
+        : policy.policyVersion === 'town-lifecycle-v1'
+          ? interval.currentSimulationTime - interval.previousSimulationTime
+          : resolveCadenceElapsedMs({
+              agent,
+              currentSimulationTime: interval.currentSimulationTime,
+              settlementCadenceMs: policy.settlementCadenceMs,
+            });
+    const migrationElapsedMs =
+      input.migration === undefined
+        ? 0
+        : input.migration.policyVersion === 'town-migration-v1'
+          ? interval.currentSimulationTime - interval.previousSimulationTime
+          : resolveCadenceElapsedMs({
+              agent,
+              currentSimulationTime: interval.currentSimulationTime,
+              settlementCadenceMs: input.migration.settlementCadenceMs,
+            });
     let job = agent.job;
     let retiredAtMs = agent.retiredAtMs;
     const ageMs =
@@ -1777,7 +1863,7 @@ function appendLifecycleSettlementEvents(input: {
       retiredAtMs <= interval.previousSimulationTime
     ) {
       const accrual = calculatePensionAccrual({
-        elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+        elapsedMs: lifecycleElapsedMs,
         policy,
       });
       const amount = treasuryFunded ? Math.min(accrual, treasuryBalance) : accrual;
@@ -1791,7 +1877,7 @@ function appendLifecycleSettlementEvents(input: {
             nextBalance: previousBalance + amount,
             fundingSource: treasuryFunded ? 'treasury' : 'mint',
             pensionPerHour: policy.pensionPerHour,
-            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            elapsedMs: lifecycleElapsedMs,
             settledAt: interval.currentSimulationTime,
             policyVersion: policy.policyVersion,
             reason: 'retirement-pension',
@@ -1833,7 +1919,8 @@ function appendLifecycleSettlementEvents(input: {
         const health = getCurrentPhysiology(input.physiologyByAgent, agent).health;
         const roll = createSeededRandom(
           createIllnessDeathSeed({
-            input: { handlerInput: input.handlerInput, payload: input.payload },
+            handlerInput: input.handlerInput,
+            policyVersion: policy.policyVersion,
             agentId: agent.agentId,
             evaluatedAt: interval.currentSimulationTime,
           }),
@@ -1841,7 +1928,7 @@ function appendLifecycleSettlementEvents(input: {
         if (
           evaluateIllnessDeath({
             health,
-            elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+            elapsedMs: lifecycleElapsedMs,
             roll,
             policy,
           })
@@ -1879,7 +1966,7 @@ function appendLifecycleSettlementEvents(input: {
       }
     }
 
-    // Out-migration (town-migration-v1, CS2 NotHappy): the same per-cadence
+    // Out-migration (town-migration-v2, CS2 NotHappy): the same per-cadence
     // roll discipline as illness death; the departing agent liquidates
     // through the shared path and leaves with their estate burned out of the
     // town economy.
@@ -1902,7 +1989,7 @@ function appendLifecycleSettlementEvents(input: {
       if (
         evaluateOutMigrationDecision({
           wellbeing,
-          elapsedMs: interval.currentSimulationTime - interval.previousSimulationTime,
+          elapsedMs: migrationElapsedMs,
           roll,
           policy: input.migration,
         })
@@ -1966,21 +2053,28 @@ function createOutMigrationSeed(input: {
   ].join(':');
 }
 function createIllnessDeathSeed(input: {
-  readonly input: {
-    readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
-    readonly payload: { readonly deltaMs: number };
-  };
+  readonly handlerInput: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+  readonly policyVersion: string;
   readonly agentId: AgentId;
   readonly evaluatedAt: number;
 }): string {
-  const { handlerInput, payload } = input.input;
+  if (input.policyVersion === 'town-lifecycle-v1') {
+    return [
+      'agent-illness-death',
+      ...(input.handlerInput.randomSeed === undefined ? [] : [input.handlerInput.randomSeed]),
+      input.handlerInput.command.simulationId,
+      input.handlerInput.command.id,
+      input.handlerInput.projection.clock.now,
+      assertAdvanceSimulationTimePayload(input.handlerInput.command.payload).deltaMs,
+      input.evaluatedAt,
+      input.agentId,
+    ].join(':');
+  }
   return [
     'agent-illness-death',
-    ...(handlerInput.randomSeed === undefined ? [] : [handlerInput.randomSeed]),
-    handlerInput.command.simulationId,
-    handlerInput.command.id,
-    handlerInput.projection.clock.now,
-    payload.deltaMs,
+    ...(input.handlerInput.randomSeed === undefined ? [] : [input.handlerInput.randomSeed]),
+    input.handlerInput.command.simulationId,
+    input.policyVersion,
     input.evaluatedAt,
     input.agentId,
   ].join(':');
@@ -2447,10 +2541,10 @@ export function isSamePhysiology(
   );
 }
 
-function createSettlementIntervals(input: {
+function createSettlementIntervalsForCadences(input: {
   readonly previousSettledAt: number;
   readonly nextSettledAt: number;
-  readonly cadenceMs: number;
+  readonly cadencesMs: readonly number[];
 }): readonly {
   readonly previousSimulationTime: number;
   readonly currentSimulationTime: number;
@@ -2458,19 +2552,68 @@ function createSettlementIntervals(input: {
   if (input.previousSettledAt > input.nextSettledAt) {
     throw new Error('agent time settlement cannot move backwards');
   }
+  for (const cadenceMs of input.cadencesMs) {
+    if (!Number.isFinite(cadenceMs) || cadenceMs <= 0) {
+      throw new Error('agent time settlement cadence must be positive finite');
+    }
+  }
+  const settlementTimes = new Set<number>([input.nextSettledAt]);
+  for (const cadenceMs of input.cadencesMs) {
+    for (
+      let boundary = (Math.floor(input.previousSettledAt / cadenceMs) + 1) * cadenceMs;
+      boundary <= input.nextSettledAt;
+      boundary += cadenceMs
+    ) {
+      settlementTimes.add(boundary);
+    }
+  }
   const intervals: Array<{
     readonly previousSimulationTime: number;
     readonly currentSimulationTime: number;
   }> = [];
   let previousSimulationTime = input.previousSettledAt;
-  while (previousSimulationTime < input.nextSettledAt) {
-    const nextCadenceBoundary =
-      (Math.floor(previousSimulationTime / input.cadenceMs) + 1) * input.cadenceMs;
-    const currentSimulationTime = Math.min(input.nextSettledAt, nextCadenceBoundary);
+  for (const currentSimulationTime of [...settlementTimes].sort((left, right) => left - right)) {
+    if (currentSimulationTime <= previousSimulationTime) {
+      continue;
+    }
     intervals.push({ previousSimulationTime, currentSimulationTime });
     previousSimulationTime = currentSimulationTime;
   }
   return intervals;
+}
+
+function isPolicySettlementDue(input: {
+  readonly policyVersion: string | undefined;
+  readonly legacyPolicyVersion: string | undefined;
+  readonly settlementCadenceMs: number | undefined;
+  readonly currentSimulationTime: number;
+}): boolean {
+  if (
+    input.policyVersion === undefined ||
+    (input.legacyPolicyVersion !== undefined &&
+      input.policyVersion === input.legacyPolicyVersion)
+  ) {
+    return true;
+  }
+  return (
+    input.settlementCadenceMs !== undefined &&
+    input.currentSimulationTime % input.settlementCadenceMs === 0
+  );
+}
+
+function resolveCadenceElapsedMs(input: {
+  readonly agent: WorldAgentState;
+  readonly currentSimulationTime: number;
+  readonly settlementCadenceMs: number;
+}): number {
+  return Math.max(
+    0,
+    input.currentSimulationTime -
+      Math.max(
+        resolveAgentAgeAnchorMs(input.agent),
+        input.currentSimulationTime - input.settlementCadenceMs,
+      ),
+  );
 }
 
 /**
@@ -2488,25 +2631,35 @@ export function hashAgentSettlementBucket(agentId: AgentId): number {
 function createStochasticIllnessSeed(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly payload: { readonly deltaMs: number };
-  readonly agent: WorldAgentState;
+  readonly policyVersion?: string;
+  readonly agentId: AgentId;
   readonly evaluatedAt?: number;
 }): string {
+  if (input.policyVersion === undefined) {
+    return [
+      'stochastic-illness',
+      ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
+      input.input.command.simulationId,
+      input.input.command.id,
+      input.input.projection.clock.now,
+      input.payload.deltaMs,
+      ...(input.evaluatedAt === undefined ? [] : [input.evaluatedAt]),
+      input.agentId,
+    ].join(':');
+  }
   return [
     'stochastic-illness',
     ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
     input.input.command.simulationId,
-    input.input.command.id,
-    input.input.projection.clock.now,
-    input.payload.deltaMs,
-    ...(input.evaluatedAt === undefined ? [] : [input.evaluatedAt]),
-    input.agent.agentId,
+    input.policyVersion,
+    input.evaluatedAt,
+    input.agentId,
   ].join(':');
 }
 
 function appendWeatherTransitionEvent(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
   readonly events: WorldEvent[];
-  readonly payload: { readonly deltaMs: number };
   readonly nextSimulationTime: number;
 }): void {
   const policy = input.input.weather;
@@ -2514,6 +2667,47 @@ function appendWeatherTransitionEvent(input: {
     return;
   }
   assertTownWeatherPolicy(policy);
+  if (policy.policyVersion === 'town-weather-v1') {
+    appendLegacyWeatherTransitionEvent(input, policy);
+    return;
+  }
+  const boundaries = listTownWeatherTransitionBoundaries({
+    transitionCadenceMs: policy.transitionCadenceMs,
+    previousSimulationTime: input.input.projection.clock.now,
+    nextSimulationTime: input.nextSimulationTime,
+  });
+  let current = input.input.projection.weather?.current ?? policy.initialWeather;
+  for (const boundary of boundaries) {
+    const next = sampleTownWeatherTransition({
+      policy,
+      current,
+      rng: createSeededRandom(
+        createWeatherTransitionSeed({ input: input.input, policy, boundary }),
+      ),
+    });
+    if (next === current) {
+      continue;
+    }
+    input.events.push(
+      makeEvent(input.input, input.events.length, 'WeatherChanged', {
+        policyVersion: policy.policyVersion,
+        from: current,
+        to: next,
+        transitionedAt: boundary,
+      }),
+    );
+    current = next;
+  }
+}
+
+function appendLegacyWeatherTransitionEvent(
+  input: {
+    readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
+    readonly events: WorldEvent[];
+    readonly nextSimulationTime: number;
+  },
+  policy: TownWeatherPolicy,
+): void {
   if (
     !isTownWeatherTransitionDue({
       transitionCadenceMs: policy.transitionCadenceMs,
@@ -2524,10 +2718,20 @@ function appendWeatherTransitionEvent(input: {
     return;
   }
   const current = input.input.projection.weather?.current ?? policy.initialWeather;
+  const payload = assertAdvanceSimulationTimePayload(input.input.command.payload);
   const next = sampleTownWeatherTransition({
     policy,
     current,
-    rng: createSeededRandom(createWeatherTransitionSeed(input)),
+    rng: createSeededRandom(
+      [
+        'town-weather',
+        ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
+        input.input.command.simulationId,
+        input.input.command.id,
+        input.input.projection.clock.now,
+        payload.deltaMs,
+      ].join(':'),
+    ),
   });
   if (next === current) {
     return;
@@ -2544,15 +2748,15 @@ function appendWeatherTransitionEvent(input: {
 
 function createWeatherTransitionSeed(input: {
   readonly input: Parameters<typeof handleAdvanceSimulationTimeCommand>[0];
-  readonly payload: { readonly deltaMs: number };
+  readonly policy: TownWeatherPolicy;
+  readonly boundary: number;
 }): string {
   return [
     'town-weather',
     ...(input.input.randomSeed === undefined ? [] : [input.input.randomSeed]),
     input.input.command.simulationId,
-    input.input.command.id,
-    input.input.projection.clock.now,
-    input.payload.deltaMs,
+    input.policy.policyVersion,
+    input.boundary,
   ].join(':');
 }
 

@@ -1,5 +1,5 @@
 /**
- * Out-migration rules (town-migration-v1): the happiness-driven departure
+ * Out-migration rules (town-migration-v2): the happiness-driven departure
  * minimal set. CS2 (HouseholdBehaviorSystem) evaluates a per-tick departure
  * probability in permille as a polynomial of average happiness:
  *   −53.35·h + 5.408·√(95.96h² + 1013h + 6576) − 298.5

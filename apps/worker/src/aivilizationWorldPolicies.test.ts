@@ -52,6 +52,7 @@ describe('AIvilization default world command policies', () => {
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
+        stochasticIllness: 'stochastic-illness-v2',
         contextView: 'world-decision-context-view-v12',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
@@ -296,9 +297,9 @@ describe('AIvilization default world command policies', () => {
     expect(off.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
 
     const on = createAivilizationWorldPolicyManifest({ townWeather: true });
-    expect(on.policyVersions).toMatchObject({ townWeather: 'town-weather-v1' });
+    expect(on.policyVersions).toMatchObject({ townWeather: 'town-weather-v2' });
     expect(on.parameters.townWeather).toMatchObject({
-      policyVersion: 'town-weather-v1',
+      policyVersion: 'town-weather-v2',
       initialWeather: 'sunny',
       transitionCadenceMs: 3_600_000,
     });
@@ -309,13 +310,13 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townWeather',
           provenance: 'experimental',
-          policyVersion: 'town-weather-v1',
+          policyVersion: 'town-weather-v2',
         }),
       ]),
     );
 
     const policy = createAivilizationTownWeatherPolicy();
-    expect(policy.policyVersion).toBe('town-weather-v1');
+    expect(policy.policyVersion).toBe('town-weather-v2');
     expect(() => assertTownWeatherPolicy(policy)).not.toThrow();
   });
 
@@ -404,7 +405,7 @@ describe('AIvilization default world command policies', () => {
 
     const on = createAivilizationWorldPolicyManifest({ townSurvivalPressure: true });
     expect(on.policyVersions).toMatchObject({
-      townSurvivalPressure: 'starvation-health-decay-v1',
+      townSurvivalPressure: 'starvation-health-decay-v2',
     });
     expect(on.parameters.townSurvivalPressure).toMatchObject({
       settlementCadenceMs: 3_600_000,
@@ -419,7 +420,7 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townSurvivalPressure',
           provenance: 'experimental',
-          policyVersion: 'starvation-health-decay-v1',
+          policyVersion: 'starvation-health-decay-v2',
         }),
       ]),
     );
@@ -445,7 +446,7 @@ describe('AIvilization default world command policies', () => {
         townSurvivalPressure: true,
       })(projection).starvation,
     ).toMatchObject({
-      policyVersion: 'starvation-health-decay-v1',
+      policyVersion: 'starvation-health-decay-v2',
       satietyThreshold: 20,
     });
   });
@@ -737,12 +738,12 @@ describe('AIvilization default world command policies', () => {
     const off = createAivilizationWorldPolicyManifest();
     expect(off.policyVersions).not.toHaveProperty('townLifecycle');
     expect(off.parameters).not.toHaveProperty('townLifecycle');
-    expect(JSON.stringify(off)).not.toContain('town-lifecycle-v1');
+    expect(JSON.stringify(off)).not.toContain('town-lifecycle-v2');
 
     const on = createAivilizationWorldPolicyManifest({ townLifecycle: true });
-    expect(on.policyVersions).toMatchObject({ townLifecycle: 'town-lifecycle-v1' });
+    expect(on.policyVersions).toMatchObject({ townLifecycle: 'town-lifecycle-v2' });
     expect(on.parameters.townLifecycle).toMatchObject({
-      policyVersion: 'town-lifecycle-v1',
+      policyVersion: 'town-lifecycle-v2',
       dayLengthMs: 86_400_000,
       stageThresholdsDays: { teen: 15, adult: 21, elderly: 70 },
       minLifespanDays: 90,
@@ -756,13 +757,13 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townLifecycle',
           provenance: 'experimental',
-          policyVersion: 'town-lifecycle-v1',
+          policyVersion: 'town-lifecycle-v2',
         }),
       ]),
     );
 
     const policy = createAivilizationTownLifecyclePolicy();
-    expect(policy.policyVersion).toBe('town-lifecycle-v1');
+    expect(policy.policyVersion).toBe('town-lifecycle-v2');
     expect(() => assertValidLifecyclePolicy(policy)).not.toThrow();
 
     // The opt-in policy reaches command policies only when the switch is on.
@@ -773,7 +774,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed', undefined, { townLifecycle: true })(projection)
         .lifecycle?.policyVersion,
-    ).toBe('town-lifecycle-v1');
+    ).toBe('town-lifecycle-v2');
   });
 
   test('declares the town discourse policy in the manifest only when the switch is on', () => {
@@ -846,12 +847,12 @@ describe('AIvilization default world command policies', () => {
     const off = createAivilizationWorldPolicyManifest();
     expect(off.policyVersions).not.toHaveProperty('townMigration');
     expect(off.parameters).not.toHaveProperty('townMigration');
-    expect(JSON.stringify(off)).not.toContain('town-migration-v1');
+    expect(JSON.stringify(off)).not.toContain('town-migration-v2');
 
     const on = createAivilizationWorldPolicyManifest({ townMigration: true });
-    expect(on.policyVersions).toMatchObject({ townMigration: 'town-migration-v1' });
+    expect(on.policyVersions).toMatchObject({ townMigration: 'town-migration-v2' });
     expect(on.parameters.townMigration).toMatchObject({
-      policyVersion: 'town-migration-v1',
+      policyVersion: 'town-migration-v2',
       maxProbabilityPerHour: 1,
       fallbackWellbeing: 50,
       settlementCadenceMs: 86_400_000,
@@ -860,7 +861,7 @@ describe('AIvilization default world command policies', () => {
     expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
 
     const policy = createAivilizationOutMigrationPolicy();
-    expect(policy.policyVersion).toBe('town-migration-v1');
+    expect(policy.policyVersion).toBe('town-migration-v2');
     expect(() => assertValidOutMigrationPolicy(policy)).not.toThrow();
 
     const projection = createWorldProjection({
@@ -870,7 +871,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(projection)
         .migration?.policyVersion,
-    ).toBe('town-migration-v1');
+    ).toBe('town-migration-v2');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {
@@ -1041,6 +1042,8 @@ describe('AIvilization default world command policies', () => {
       minHealth: 10,
     });
     expect(policies.stochasticIllness).toEqual({
+      policyVersion: 'stochastic-illness-v2',
+      settlementCadenceMs: 3_600_000,
       illnessProbabilityPercentPerHour: 1,
       healthDamage: 5,
       minHealth: 10,

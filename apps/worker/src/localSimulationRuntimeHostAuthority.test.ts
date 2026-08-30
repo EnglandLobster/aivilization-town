@@ -877,7 +877,7 @@ describe('regional markets in the simulation-wide authority', () => {
     });
     const authority = host.authority!;
 
-    // No weather exists until the town-weather-v1 cadence (3_600_000 ms of
+    // No weather exists until the town-weather cadence (3_600_000 ms of
     // simulation time) has been evaluated at least once with a state change.
     expect(authority.getSnapshot().projection.weather).toBeUndefined();
     for (

@@ -372,7 +372,7 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       helpLines: [
         'Town weather is a repository-specific extension (not a paper mechanism): pass',
         '--town-weather on or AIVILIZATION_TOWN_WEATHER=1 to let the simulation-wide authority',
-        'settle the town-weather-v1 Markov chain during time advancement. Disabled by default.',
+        'settle the town-weather-v2 boundary-replayable Markov chain during time advancement. Disabled by default.',
       ],
       registrySource:
         'Authoritative town weather is not a paper mechanism; states, matrix, and cadence are repository-defined.',
@@ -590,7 +590,7 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       helpTitle: 'Population lifecycle: aging, retirement, death, and pension',
       helpLines: [
         'The town lifecycle is a repository-specific extension (not a paper mechanism): pass',
-        '--town-lifecycle on or AIVILIZATION_TOWN_LIFECYCLE=1 to settle the town-lifecycle-v1',
+        '--town-lifecycle on or AIVILIZATION_TOWN_LIFECYCLE=1 to settle the town-lifecycle-v2',
         'stage transitions, forced retirement with a treasury-funded pension, and pre-rolled',
         'lifespan or illness deaths during time advancement. Deaths liquidate the estate:',
         'enterprise jobs released, loans written off, deposits forfeited, and the circulating',

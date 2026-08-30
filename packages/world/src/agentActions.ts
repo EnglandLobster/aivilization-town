@@ -229,7 +229,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly calendar?: TownCalendarPolicy;
   /**
-   * Optional town-lifecycle policy (town-lifecycle-v1). When present, the
+   * Optional versioned town-lifecycle policy. When present, the
    * lifecycle block of AdvanceSimulationTime settles aging (AgentAged),
    * forced retirement with the treasury pension (AgentRetired/PensionPaid),
    * and pre-rolled-lifespan or illness deaths with estate liquidation
@@ -253,7 +253,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly collectiveAction?: CollectiveActionPolicy;
   /**
-   * Optional out-migration policy (town-migration-v1). When present, the
+   * Optional out-migration policy (town-migration-v2). When present, the
    * population-turnover block of AdvanceSimulationTime additionally rolls
    * the CS2 NotHappy departure per agent and cadence; departing agents
    * liquidate through the shared estate path. Omitted keeps the population

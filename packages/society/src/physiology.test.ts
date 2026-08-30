@@ -7,6 +7,7 @@ import {
   applySleepDeprivationHealthDecay,
   applyStarvationHealthDecay,
   applyStochasticIllnessHealthDecay,
+  assertValidStochasticIllnessPolicy,
   assertValidStarvationHealthDecayPolicy,
   calculateStochasticIllnessProbabilityPercent,
   isIncapacitated,
@@ -216,6 +217,43 @@ describe('physiology', () => {
         durationSeconds: 7200,
       }),
     ).toBe(100);
+  });
+
+  test('validates the versioned stochastic illness cadence and probability boundary', () => {
+    expect(() =>
+      assertValidStochasticIllnessPolicy({
+        policyVersion: 'stochastic-illness-v2',
+        settlementCadenceMs: 3_600_000,
+        illnessProbabilityPercentPerHour: 100,
+        healthDamage: 5,
+        minHealth: 0,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertValidStochasticIllnessPolicy({
+        illnessProbabilityPercentPerHour: 1,
+        healthDamage: 5,
+        minHealth: 0,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertValidStochasticIllnessPolicy({
+        policyVersion: 'stochastic-illness-v2',
+        settlementCadenceMs: 0,
+        illnessProbabilityPercentPerHour: 1,
+        healthDamage: 5,
+        minHealth: 0,
+      }),
+    ).toThrow('settlementCadenceMs');
+    expect(() =>
+      assertValidStochasticIllnessPolicy({
+        policyVersion: 'stochastic-illness-v2',
+        settlementCadenceMs: 3_600_000,
+        illnessProbabilityPercentPerHour: 101,
+        healthDamage: 5,
+        minHealth: 0,
+      }),
+    ).toThrow('must not exceed 100');
   });
 
   test('decays health when stochastic illness occurs without crossing the floor', () => {

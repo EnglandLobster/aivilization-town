@@ -80,6 +80,40 @@ describe('local simulation runtime host simulation-wide authority wiring', () =>
     });
   });
 
+  test('aggregates every partition fiscal account into the unified authority seed', async () => {
+    const rootDir = createRootDir();
+    const baseManifest = createManifest();
+    const host = await bootstrapLocalSimulationRuntimeHostFromManifest({
+      rootDir,
+      bootstrappedAt: 100,
+      manifest: {
+        ...baseManifest,
+        partitions: baseManifest.partitions.map((partition) => ({
+          ...partition,
+          moneySupply: 251_100,
+          initialTreasury: 50_000,
+          initialBankReserves: 200_000,
+        })),
+      },
+      scenarioPresets: createScenarioPresets(),
+      policies,
+      localizedPlanners: [],
+      steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+      agents: [],
+      simulationWideAuthority: {
+        enabled: true,
+        workerId: 'authority-worker',
+        leaseDurationMs: 30_000,
+      },
+    });
+
+    expect(host.authority?.getSnapshot().projection).toMatchObject({
+      treasury: 100_000,
+      moneySupply: 502_200,
+      bank: { balance: 400_000, deposits: {}, loans: {}, creditHistoryByAgent: {} },
+    });
+  });
+
   test('exposes authority and materializers when enabled and keeps legacy interactions disabled', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

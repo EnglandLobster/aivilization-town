@@ -25,6 +25,137 @@ const agentB = asAgentId('agent-b');
 const lease = { workerId: 'router-worker', observedAt: 1, durationMs: 30_000 };
 
 describe('simulation command router', () => {
+  test('synchronizes mutable Agent state before global trade settlement', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+    const projection = createPartitionProjection({
+      agentId: agentA,
+      locationId: asLocationId('town-square'),
+      balance: 0,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [createTradeDraft(agentA)],
+      projection,
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-stale-balance:agent-a',
+      commandIdPrefix: 'tick-stale-balance:agent-a',
+    });
+
+    expect(authority.getSnapshot().projection.agents[agentA]?.balance).toBe(0);
+    expect(authority.getSnapshot().projection.marketPools['Fish']?.commodityReserve).toBe(100);
+    expect(result.events.some((event) => event.type === 'ActionRejected')).toBe(true);
+    expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
+  });
+
+  test('decides and reports mixed local/global drafts in durable replay order', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+    const projection = {
+      ...createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      treasury: 0,
+    };
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [createTradeDraft(agentA), createStudyDraft(agentA)],
+      projection,
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-mixed-order:agent-a',
+      commandIdPrefix: 'tick-mixed-order:agent-a',
+    });
+
+    const educationIndex = result.events.findIndex((event) => event.type === 'EducationChanged');
+    const rejectionIndex = result.events.findIndex((event) => event.type === 'ActionRejected');
+    expect(educationIndex).toBeGreaterThanOrEqual(0);
+    expect(rejectionIndex).toBeGreaterThan(educationIndex);
+    expect(result.events.some((event) => event.type === 'TradeExecuted')).toBe(false);
+    expect(eventStore.readStream(partition.eventStreamName).map((event) => event.type)).toEqual(
+      result.events.slice(0, rejectionIndex).map((event) => event.type),
+    );
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'mixed-replay' }).deliveries,
+    ).toEqual([
+      expect.objectContaining({
+        operationKind: 'command-rejected',
+        events: expect.arrayContaining([expect.objectContaining({ type: 'ActionRejected' })]),
+      }),
+    ]);
+    expect(result.hasUnstreamedAuthorityEvents).toBe(true);
+  });
+
+  test('journals an accepted global command followed by a rejection in replay order', async () => {
+    const authority = createRouterAuthority({
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+    });
+    const router = createSimulationCommandRouter({
+      authority,
+      lease: () => lease,
+      partitionKey: partitionA,
+    });
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const partition = createSimulationPartition({
+      simulationId: 'sim-1',
+      partitionKey: partitionA,
+    });
+
+    const result = await router.routeCommandDrafts({
+      commandDrafts: [createTradeDraft(agentA), createTradeDraft(agentA)],
+      projection: createPartitionProjection({
+        agentId: agentA,
+        locationId: asLocationId('town-square'),
+      }),
+      policies: createAivilizationWorldCommandPolicies('router-test'),
+      eventStore,
+      streamName: partition.eventStreamName,
+      appendIdempotencyKey: 'tick-global-accept-reject:agent-a',
+      commandIdPrefix: 'tick-global-accept-reject:agent-a',
+    });
+
+    const tradeIndex = result.events.findIndex((event) => event.type === 'TradeExecuted');
+    const rejectionIndex = result.events.findIndex((event) => event.type === 'ActionRejected');
+    expect(tradeIndex).toBeGreaterThanOrEqual(0);
+    expect(rejectionIndex).toBeGreaterThan(tradeIndex);
+    expect(eventStore.readStream(partition.eventStreamName)).toEqual([]);
+    expect(
+      authority
+        .readInbox({ partitionKey: partitionA, consumerId: 'global-replay' })
+        .deliveries.map((delivery) => delivery.operationKind),
+    ).toEqual(['trade', 'command-rejected']);
+    expect(result.hasUnstreamedAuthorityEvents).toBe(true);
+  });
+
   test('syncs the partition location view into the authority before settlement', async () => {
     // Seed says agent-a stands at the market, but its owner partition's durable
     // reality (the routed projection) is the town square. Routing any draft
@@ -111,7 +242,9 @@ describe('simulation command router', () => {
 
     // The sync ran before settlement, so the co-location check passed against
     // fresh global state and the conversation settled instead of rejecting.
-    const conversationEvents = result.events.filter((event) => event.type === 'ConversationRecorded');
+    const conversationEvents = result.events.filter(
+      (event) => event.type === 'ConversationRecorded',
+    );
     expect(conversationEvents).toHaveLength(1);
 
     // Both owner partitions receive the settled conversation through inboxes.
@@ -191,9 +324,7 @@ describe('simulation command router', () => {
         kind: 'social' as const,
         activityAffinities: ['social'],
         capacity: 20,
-        connections: [
-          { targetLocationId: asLocationId('school'), travelDurationSeconds: 120 },
-        ],
+        connections: [{ targetLocationId: asLocationId('school'), travelDurationSeconds: 120 }],
       },
       {
         locationId: asLocationId('school'),
@@ -359,9 +490,7 @@ describe('simulation command router', () => {
       locationId: asLocationId('town-square'),
       physiology: { energy: 90, satiety: 90, health: 100 },
     });
-    expect(
-      Object.values(snapshot.operations).map((entry) => entry.operation),
-    ).toContainEqual(
+    expect(Object.values(snapshot.operations).map((entry) => entry.operation)).toContainEqual(
       expect.objectContaining({ kind: 'location-sync', registeredAgentIds: [newcomer] }),
     );
 
@@ -391,8 +520,7 @@ describe('simulation command router', () => {
       partitionKey: partitionA,
       // Affinity: the school belongs to partition-b; everything else keeps the
       // mover's current owner.
-      resolveLocationOwner: (locationId) =>
-        locationId === 'school' ? partitionB : undefined,
+      resolveLocationOwner: (locationId) => (locationId === 'school' ? partitionB : undefined),
       captureCognitiveSnapshot: ({ agentId, capturedAt }) => {
         capturedSnapshots.push({ agentId, capturedAt });
         return Promise.resolve({
@@ -548,6 +676,7 @@ function createRouterAuthority(seedLocations: {
 function createPartitionProjection(input: {
   readonly agentId: typeof agentA;
   readonly locationId: ReturnType<typeof asLocationId>;
+  readonly balance?: number;
 }) {
   return createWorldProjection({
     clock: { now: 0, tickDurationMs: 1_000 },
@@ -573,7 +702,7 @@ function createPartitionProjection(input: {
         locationId: input.locationId,
         physiology: { energy: 100, satiety: 100, health: 100 },
         educationScore: 0,
-        balance: 500,
+        balance: input.balance ?? 500,
         residentialTier: 1,
         job: null,
         inventory: {},
@@ -591,6 +720,17 @@ function createStudyDraft(actorId: typeof agentA): CommandDraft {
     source: 'agent-runtime',
     type: 'AgentStudy',
     payload: { durationSeconds: 120, educationRatePerSecond: 0.5 },
+    issuedAt: 100,
+  };
+}
+
+function createTradeDraft(actorId: typeof agentA): CommandDraft {
+  return {
+    simulationId: asSimulationId('sim-1'),
+    actorId,
+    source: 'agent-runtime',
+    type: 'AgentTrade',
+    payload: { side: 'buy', commodityName: 'Fish', quantity: 1 },
     issuedAt: 100,
   };
 }

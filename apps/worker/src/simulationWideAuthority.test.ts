@@ -461,6 +461,7 @@ describe('simulation-wide authority', () => {
       },
     });
 
+    const journalBefore = verifySimulationWideAuthorityJournal({ rootDir, simulationId });
     expect(() =>
       authority.settleMove({
         operationId: 'move-over-capacity',
@@ -471,6 +472,9 @@ describe('simulation-wide authority', () => {
         targetLocationId: 'tiny-room',
       }),
     ).toThrow(/at capacity/);
+    const journalAfter = verifySimulationWideAuthorityJournal({ rootDir, simulationId });
+    expect(journalAfter.recordCount).toBe(journalBefore.recordCount);
+    expect(journalAfter.valid).toBe(true);
   });
 
   test('writes the audit journal as a verifiable hash chain and fails closed on tamper', () => {
@@ -593,6 +597,14 @@ describe('simulation-wide authority', () => {
       durationMs: 100,
       partitionKey: partitionA,
       agentLocations: [{ agentId: agentA, locationId: 'town-square' }],
+      agentStates: [
+        {
+          ...authority.getSnapshot().projection.agents[agentA]!,
+          locationId: asLocationId('town-square'),
+          balance: 25,
+          inventory: { Fish: 2 },
+        },
+      ],
     });
     const syncB = authority.syncPartitionAgentLocations({
       operationId: 'sync-b-1',
@@ -607,6 +619,10 @@ describe('simulation-wide authority', () => {
     expect(syncB.updatedAgentIds).toEqual([agentB]);
     const snapshot = authority.getSnapshot();
     expect(snapshot.projection.agents[agentA]?.locationId).toBe(asLocationId('town-square'));
+    expect(snapshot.projection.agents[agentA]).toMatchObject({
+      balance: 25,
+      inventory: { Fish: 2 },
+    });
     expect(snapshot.projection.agents[agentB]?.locationId).toBe(asLocationId('town-square'));
 
     // Without the sync the conversation below would settle against the stale

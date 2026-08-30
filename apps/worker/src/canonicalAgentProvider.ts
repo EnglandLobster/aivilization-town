@@ -136,6 +136,7 @@ export function createCanonicalLocalRuntimeAgentProvider(
         : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
       policies: input.policies,
       educationOpportunityCost,
+      ...(societyDirectory === undefined ? {} : { societyDirectory }),
       ...(marketOverride === undefined ? {} : { marketOverride }),
       resolveRuntime: createCanonicalWorkerRuntimeResolver({
         simulationId: storage.partition.simulationId,

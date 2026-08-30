@@ -107,7 +107,7 @@ export function settleDemandDrivenArrivals(input: {
         ? fallbackWellbeing
         : wellbeingValues.reduce((total, value) => total + value, 0) / wellbeingValues.length;
     const roll = createSeededRandom(
-      `${input.simulationId}:${migrationPolicyVersion}:arrival:${settledAt}`,
+      `${input.commandPolicies.randomSeed ?? input.simulationId}:${input.simulationId}:${migrationPolicyVersion}:arrival:${settledAt}`,
     ).nextFloat();
     const decision = evaluateInMigrationDemand({
       population: populationBefore,

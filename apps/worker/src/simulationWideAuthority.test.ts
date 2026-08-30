@@ -204,18 +204,19 @@ describe('simulation-wide authority', () => {
     expect(Object.keys(snapshot.projection.socialRelations)).toHaveLength(2);
   });
 
-  test('moves ownership only after the shared spatial command has committed', () => {
+  test('moves ownership only after the canonical spatial command has committed', () => {
     const authority = createAuthority();
 
-    const transfer = authority.transferAgent({
+    const transfer = authority.settleMove({
       operationId: 'transfer-1',
       workerId: 'worker-a',
       observedAt: 1,
       durationMs: 100,
       agentId: agentA,
       destinationPartitionKey: partitionB,
-      destinationLocationId: 'market',
+      targetLocationId: 'market',
       reason: 'move to the shared market',
+      cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
     });
     const snapshot = authority.getSnapshot();
 
@@ -223,19 +224,21 @@ describe('simulation-wide authority', () => {
     expect(snapshot.ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
     expect(snapshot.projection.agents[agentA]?.locationId).toBe(asLocationId('market'));
     expect(snapshot.pendingTransfers).toEqual({});
+    expect(snapshot.pendingMoves ?? {}).toEqual({});
   });
 
-  test('publishes a completed transfer to both owner inboxes after travel finishes', () => {
+  test('publishes a completed cross-owner move to both owner inboxes after travel finishes', () => {
     const authority = createAuthority(undefined, true);
-    const departure = authority.transferAgent({
+    const departure = authority.settleMove({
       operationId: 'transfer-with-travel',
       workerId: 'worker-a',
       observedAt: 1,
       durationMs: 100,
       agentId: agentA,
       destinationPartitionKey: partitionB,
-      destinationLocationId: 'market',
+      targetLocationId: 'market',
       reason: 'walk to market',
+      cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
     });
     const arrival = authority.advanceTime({
       operationId: 'advance-transfer',
@@ -248,23 +251,102 @@ describe('simulation-wide authority', () => {
     expect(departure.status).toBe('in-transit');
     expect(arrival).toMatchObject({
       kind: 'time-advanced',
-      completedTransfers: [
+      completedMoves: [
         {
           operationId: 'transfer-with-travel',
+          agentId: agentA,
+          ownerPartitionKey: partitionA,
+          destinationPartitionKey: partitionB,
+        },
+      ],
+    });
+    expect(
+      authority.readInbox({ partitionKey: partitionA, consumerId: 'source-move-materializer' })
+        .deliveries,
+    ).toMatchObject([
+      { operationId: 'transfer-with-travel', operationKind: 'move' },
+      { operationId: 'advance-transfer', operationKind: 'time-advanced' },
+    ]);
+    expect(
+      authority.readInbox({ partitionKey: partitionB, consumerId: 'destination-move-materializer' })
+        .deliveries,
+    ).toMatchObject([{ operationId: 'advance-transfer', operationKind: 'time-advanced' }]);
+    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+  });
+
+  test('completes a legacy in-transit transfer restored from persisted v1 state', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-legacy-transfer-'));
+    const authority = createAuthority(rootDir, true);
+    authority.settleMove({
+      operationId: 'move-used-to-create-transit-state',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      destinationPartitionKey: partitionB,
+      targetLocationId: 'market',
+      reason: 'walk to market',
+      cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
+    });
+
+    const statePath = join(
+      rootDir,
+      'simulation-wide-authority',
+      encodeURIComponent('unified-town'),
+      'state.json',
+    );
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as {
+      pendingTransfers: Record<
+        string,
+        {
+          operationId: string;
+          sourcePartitionKey: PartitionKey;
+          destinationPartitionKey: PartitionKey;
+          destinationLocationId: string;
+        }
+      >;
+      pendingMoves?: Record<
+        string,
+        {
+          operationId: string;
+          ownerPartitionKey: PartitionKey;
+          destinationPartitionKey: PartitionKey;
+        }
+      >;
+    };
+    const pendingMove = persisted.pendingMoves?.[agentA];
+    if (pendingMove === undefined) throw new Error('expected an in-transit canonical move');
+    persisted.pendingTransfers[agentA] = {
+      operationId: 'legacy-transfer-in-transit',
+      sourcePartitionKey: pendingMove.ownerPartitionKey,
+      destinationPartitionKey: pendingMove.destinationPartitionKey,
+      destinationLocationId: 'market',
+    };
+    delete persisted.pendingMoves?.[agentA];
+    writeFileSync(statePath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    const restarted = createAuthority(rootDir, true);
+    const advance = restarted.advanceTime({
+      operationId: 'advance-legacy-transfer',
+      workerId: 'worker-a',
+      observedAt: 10_001,
+      durationMs: 100,
+      deltaMs: 10_000,
+    })[0];
+
+    expect(advance).toMatchObject({
+      kind: 'time-advanced',
+      completedTransfers: [
+        {
+          operationId: 'legacy-transfer-in-transit',
           agentId: agentA,
           sourcePartitionKey: partitionA,
           destinationPartitionKey: partitionB,
         },
       ],
     });
-    expect(
-      authority.readInbox({ partitionKey: partitionB, consumerId: 'owner-transfer-materializer' })
-        .deliveries,
-    ).toMatchObject([
-      { operationId: 'transfer-with-travel', operationKind: 'transfer' },
-      { operationId: 'advance-transfer', operationKind: 'time-advanced' },
-    ]);
-    expect(authority.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+    expect(restarted.getSnapshot().ownerPartitionKeyByAgentId[agentA]).toBe(partitionB);
+    expect(restarted.getSnapshot().pendingTransfers).toEqual({});
   });
 
   test('does not duplicate or leak owner credit cash during a completed transfer', () => {
@@ -278,15 +360,16 @@ describe('simulation-wide authority', () => {
       commandType: 'AgentDeposit',
       payload: { amount: 100 },
     });
-    authority.transferAgent({
+    authority.settleMove({
       operationId: 'transfer-during-credit-accrual',
       workerId: 'worker-a',
       observedAt: 2,
       durationMs: 100,
       agentId: agentA,
       destinationPartitionKey: partitionB,
-      destinationLocationId: 'market',
+      targetLocationId: 'market',
       reason: 'walk to market',
+      cognitiveSnapshot: createTestCognitiveSnapshot(agentA),
     });
     authority.advanceTime({
       operationId: 'advance-transfer-with-credit',

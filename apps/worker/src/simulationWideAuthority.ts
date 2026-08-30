@@ -127,14 +127,6 @@ export type SimulationWideConversationRequest = SimulationWideAuthorityLease & {
   readonly turns: readonly AgentStartConversationTurnPayload[];
 };
 
-export type SimulationWideTransferRequest = SimulationWideAuthorityLease & {
-  readonly operationId: string;
-  readonly agentId: string;
-  readonly destinationPartitionKey: PartitionKey;
-  readonly destinationLocationId: string;
-  readonly reason: string;
-};
-
 export type SimulationWideMoveRequest = SimulationWideAuthorityLease & {
   readonly operationId: string;
   readonly agentId: string;
@@ -590,9 +582,6 @@ export type SimulationWideAuthorityService = {
   readonly settleConflict: (
     request: SimulationWideConflictRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'conflict' };
-  readonly transferAgent: (
-    request: SimulationWideTransferRequest,
-  ) => SimulationWideAuthorityOperation & { readonly kind: 'transfer' };
   readonly settleMove: (
     request: SimulationWideMoveRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'move' };
@@ -1410,92 +1399,6 @@ export function createSimulationWideAuthority(input: {
             state: {
               ...state,
               projection: events.reduce(applyWorldEvent, state.projection),
-            },
-            operation,
-          };
-        },
-      });
-    },
-    transferAgent(request) {
-      const agentId = asAgentId(request.agentId);
-      const destinationLocationId = asLocationId(request.destinationLocationId);
-      return mutate({
-        operationId: request.operationId,
-        requestFingerprint: stableStringify({
-          kind: 'transfer',
-          agentId,
-          destinationPartitionKey: request.destinationPartitionKey,
-          destinationLocationId,
-          reason: request.reason,
-        }),
-        lease: request,
-        create: (state, fencingToken) => {
-          const sourcePartitionKey = requireOwner(state, agentId);
-          if (!state.partitionKeys.includes(request.destinationPartitionKey)) {
-            throw new Error(`unknown destination partition ${request.destinationPartitionKey}`);
-          }
-          const policies = resolveWorldCommandPolicies({
-            policies: input.policies,
-            projection: state.projection,
-          });
-          const events = dispatchWorldCommand({
-            command: createCommandEnvelope({
-              id: `simulation-wide-transfer-${request.operationId}`,
-              simulationId: state.simulationId,
-              actorId: agentId,
-              source: 'agent-runtime',
-              type: 'AgentMoveTo',
-              payload: { targetLocationId: destinationLocationId, reason: request.reason },
-              issuedAt: request.observedAt,
-            }),
-            projection: state.projection,
-            policies,
-            nextSequence: state.revision + 1,
-          });
-          const rejection = events.find((event) => event.type === 'ActionRejected');
-          if (rejection?.type === 'ActionRejected') {
-            throw new SimulationWideCommandRejectedError(
-              'transfer',
-              rejection.payload.reason,
-              events,
-            );
-          }
-          const projection = events.reduce(applyWorldEvent, state.projection);
-          const arrived = events.some((event) => event.type === 'AgentLocationChanged');
-          const operation: Extract<
-            SimulationWideAuthorityOperation,
-            { readonly kind: 'transfer' }
-          > = {
-            kind: 'transfer',
-            operationId: request.operationId,
-            fencingToken,
-            sourcePartitionKey,
-            destinationPartitionKey: request.destinationPartitionKey,
-            agentId,
-            status: arrived ? 'completed' : 'in-transit',
-            events,
-          };
-          return {
-            state: {
-              ...state,
-              projection,
-              ownerPartitionKeyByAgentId: arrived
-                ? {
-                    ...state.ownerPartitionKeyByAgentId,
-                    [agentId]: request.destinationPartitionKey,
-                  }
-                : state.ownerPartitionKeyByAgentId,
-              pendingTransfers: arrived
-                ? state.pendingTransfers
-                : {
-                    ...state.pendingTransfers,
-                    [agentId]: {
-                      operationId: request.operationId,
-                      sourcePartitionKey,
-                      destinationPartitionKey: request.destinationPartitionKey,
-                      destinationLocationId,
-                    },
-                  },
             },
             operation,
           };

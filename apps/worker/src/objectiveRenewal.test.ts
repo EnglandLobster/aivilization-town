@@ -269,6 +269,72 @@ describe('worker objective renewal', () => {
     });
   });
 
+  test('creates an autonomous owner objective for a strictly advantageous enterprise external trade', () => {
+    const owner = createAgent({ agentId: agentA, educationScore: 500, balance: 100 });
+    const projection = createWorldProjection({
+      agents: [owner],
+      enterprises: [
+        {
+          enterpriseId: 'bakery',
+          name: 'Bakery',
+          ownerAgentId: agentA,
+          occupationName: 'Baker',
+          balance: 100,
+          inventory: { Apple: 2 },
+          maxEmployees: 3,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 0,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+        },
+      ],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 }],
+    });
+    const policies: WorldCommandPolicies = {
+      ...createRulesPolicies(),
+      externalTrade: {
+        policyVersion: 'test-external-trade-v1',
+        balanceDecayRatioPerCadence: 0.01,
+        cadenceMs: 1_000,
+        priceImpactRatio: 0.2,
+        balanceScale: 50,
+        source: 'objective renewal external trade test',
+      },
+    };
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: owner,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection,
+        agentId: agentA,
+        policies,
+      }),
+    });
+
+    expect(proposal.objective).toMatchObject({
+      statement:
+        'Export one Apple for Bakery through the external market while its quote beats the town market.',
+      affinityTags: ['trade', 'market', 'sell', 'external', 'enterprise', 'Apple'],
+      planningDomains: ['trade'],
+    });
+    expect(proposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'enterprise-external-export',
+      score: 85,
+    });
+  });
+
   test('renews missing active objectives and saves durable branch plans', async () => {
     const intentionRepository = new InMemoryAgentIntentionRepository();
     const longTermProfileRepository = new InMemoryLongTermProfileRepository();

@@ -95,18 +95,29 @@ const enterprisePolicy: NonNullable<WorldCommandPolicies['enterprise']> = {
   maximumEmployees: 4,
 };
 
+const externalTradePolicy: NonNullable<WorldCommandPolicies['externalTrade']> = {
+  policyVersion: 'test-external-trade-v1',
+  balanceDecayRatioPerCadence: 0.01,
+  cadenceMs: 1_000,
+  priceImpactRatio: 0.2,
+  balanceScale: 50,
+  source: 'canonical domain runtime test',
+};
+
 function createEnterpriseState(input: {
   readonly enterpriseId: string;
   readonly ownerAgentId: AgentId;
   readonly jobPostingOpenSlots?: number;
+  readonly balance?: number;
+  readonly inventory?: Readonly<Record<string, number>>;
 }): WorldEnterpriseState {
   return {
     enterpriseId: input.enterpriseId,
     name: `Enterprise ${input.enterpriseId}`,
     ownerAgentId: input.ownerAgentId,
     occupationName: 'Baker',
-    balance: 100,
-    inventory: {},
+    balance: input.balance ?? 100,
+    inventory: input.inventory ?? {},
     maxEmployees: 3,
     employeeAgentIds: [],
     status: 'active',
@@ -219,7 +230,13 @@ describe('canonical domain runtimes', () => {
           physiology: { energy: 25, satiety: 50, health: 100 },
         }),
         projection: createProjection({
-          agents: [createAgent({ agentId: agentA, balance: 10, physiology: { energy: 25, satiety: 50, health: 100 } })],
+          agents: [
+            createAgent({
+              agentId: agentA,
+              balance: 10,
+              physiology: { energy: 25, satiety: 50, health: 100 },
+            }),
+          ],
           marketPools: [],
           bank: createBankState({ reserves: 10_000 }),
         }),
@@ -240,7 +257,13 @@ describe('canonical domain runtimes', () => {
         projection: createProjection({
           agents: [worker, createAgent({ agentId: agentB })],
           marketPools: [],
-          enterprises: [createEnterpriseState({ enterpriseId: 'e-1', ownerAgentId: agentB, jobPostingOpenSlots: 2 })],
+          enterprises: [
+            createEnterpriseState({
+              enterpriseId: 'e-1',
+              ownerAgentId: agentB,
+              jobPostingOpenSlots: 2,
+            }),
+          ],
         }),
       }),
       {},
@@ -286,6 +309,152 @@ describe('canonical domain runtimes', () => {
     expect(firstProposal(fundBinding.microPlanners, 'enterprise')).toMatchObject({
       commandType: 'AgentFundEnterprise',
       payload: { enterpriseId: 'e-1', amount: 60 },
+    });
+  });
+
+  test('proposes owner-only enterprise export/import when the external quote beats the visible AMM', async () => {
+    const owner = createAgent({ agentId: agentA, balance: 100 });
+    const projection = createProjection({
+      agents: [owner],
+      locations: [market()],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 }],
+      enterprises: [
+        createEnterpriseState({
+          enterpriseId: 'e-1',
+          ownerAgentId: agentA,
+          balance: 100,
+          inventory: { Apple: 2 },
+        }),
+      ],
+    });
+    const externalObjective: LongHorizonObjective = {
+      ...createObjective(agentA),
+      statement: 'Use the enterprise external market opportunity for Apple.',
+      affinityTags: ['trade', 'external', 'enterprise', 'Apple'],
+    };
+
+    const exportBinding = await resolveCanonicalBinding(
+      createRuntimeContext({ agent: owner, projection, activeObjective: externalObjective }),
+      { trade: { side: 'sell', commodityName: 'Apple', quantity: 1 } },
+      { ...policies, externalTrade: externalTradePolicy },
+    );
+    expect(firstProposal(exportBinding.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentExportCommodity',
+      payload: { commodityName: 'Apple', quantity: 1, asEnterpriseId: 'e-1' },
+      resourceEstimate: { inventoryCosts: { Apple: 1 } },
+    });
+
+    const importBinding = await resolveCanonicalBinding(
+      createRuntimeContext({ agent: owner, projection, activeObjective: externalObjective }),
+      { trade: { side: 'buy', commodityName: 'Apple', quantity: 1 } },
+      { ...policies, externalTrade: externalTradePolicy },
+    );
+    expect(firstProposal(importBinding.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentImportCommodity',
+      payload: { commodityName: 'Apple', quantity: 1, asEnterpriseId: 'e-1' },
+      resourceEstimate: { currencyCost: 10 },
+    });
+  });
+
+  test('prices external proposals from the owner current regional market only', async () => {
+    const eastMarket = asLocationId('east-market');
+    const owner = createAgent({ agentId: agentA, balance: 100, locationId: eastMarket });
+    const projection = createProjection({
+      agents: [owner],
+      locations: [
+        {
+          locationId: eastMarket,
+          name: 'East Market',
+          kind: 'market',
+          activityAffinities: ['trade'],
+          capacity: null,
+          regionId: 'east',
+        },
+      ],
+      // Put the inaccessible expensive pool first to catch accidental
+      // Object.values()/bare-commodity selection.
+      marketPools: [
+        {
+          commodity: 'Apple',
+          commodityReserve: 100,
+          currencyReserve: 10_000,
+          regionId: 'west',
+        },
+        {
+          commodity: 'Apple',
+          commodityReserve: 100,
+          currencyReserve: 1_000,
+          regionId: 'east',
+        },
+      ],
+      enterprises: [
+        createEnterpriseState({
+          enterpriseId: 'e-1',
+          ownerAgentId: agentA,
+          balance: 500,
+        }),
+      ],
+    });
+    const externalObjective: LongHorizonObjective = {
+      ...createObjective(agentA),
+      statement: 'Import Apple for the enterprise through the external market.',
+      affinityTags: ['trade', 'buy', 'external', 'enterprise', 'Apple'],
+    };
+    const binding = await resolveCanonicalBinding(
+      createRuntimeContext({ agent: owner, projection, activeObjective: externalObjective }),
+      { trade: { side: 'buy', commodityName: 'Apple' } },
+      {
+        ...policies,
+        regionalMarkets: { enabled: true },
+        externalTrade: externalTradePolicy,
+      },
+    );
+
+    expect(firstProposal(binding.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentImportCommodity',
+      payload: { commodityName: 'Apple', asEnterpriseId: 'e-1' },
+      resourceEstimate: { currencyCost: 10 },
+    });
+  });
+
+  test('keeps external enterprise trade owner-gated and preserves legacy trade without policy', async () => {
+    const outsider = createAgent({ agentId: agentA, balance: 100 });
+    const externalObjective: LongHorizonObjective = {
+      ...createObjective(agentA),
+      statement: 'Export Apple through an enterprise external market.',
+      affinityTags: ['trade', 'sell', 'external', 'enterprise', 'Apple'],
+    };
+    const projection = createProjection({
+      agents: [outsider, createAgent({ agentId: agentB })],
+      marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1_000 }],
+      enterprises: [
+        createEnterpriseState({
+          enterpriseId: 'e-1',
+          ownerAgentId: agentB,
+          inventory: { Apple: 2 },
+        }),
+      ],
+    });
+    const context = createRuntimeContext({
+      agent: outsider,
+      projection,
+      activeObjective: externalObjective,
+    });
+
+    const noOwnership = await resolveCanonicalBinding(
+      context,
+      { trade: { side: 'sell', commodityName: 'Apple' } },
+      { ...policies, externalTrade: externalTradePolicy },
+    );
+    expect(firstProposal(noOwnership.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentObserveLocation',
+    });
+
+    const noPolicy = await resolveCanonicalBinding(context, {
+      trade: { side: 'sell', commodityName: 'Apple' },
+    });
+    expect(firstProposal(noPolicy.microPlanners, 'trade')).toMatchObject({
+      commandType: 'AgentTrade',
     });
   });
 
@@ -380,7 +549,8 @@ describe('canonical domain runtimes', () => {
           },
           {
             speakerAgentId: agentA,
-            utterance: 'Here is how town plans fits my plans, but I would rather listen to you first.',
+            utterance:
+              'Here is how town plans fits my plans, but I would rather listen to you first.',
             intent: 'share-goal-and-listen',
           },
           {
@@ -819,9 +989,7 @@ describe('canonical domain runtimes', () => {
       projection: createProjection({
         agents: [agent],
         locations: [townSquare()],
-        marketPools: [
-          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
-        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
       }),
       worldDecisionContext: createSocietyDecisionContextForTest({
         agent,
@@ -892,9 +1060,7 @@ describe('canonical domain runtimes', () => {
             focus: 'community routines',
           },
         ],
-        marketPools: [
-          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
-        ],
+        marketPools: [{ commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 }],
       }),
       worldDecisionContext: createSocietyDecisionContextForTest({
         agent,
@@ -924,9 +1090,9 @@ describe('canonical domain runtimes', () => {
         };
       };
     };
-    expect(payload.planningContext.targetSelection.candidates.map((candidate) => candidate.agentId)).toEqual(
-      expect.arrayContaining([agentC, remoteAgentId]),
-    );
+    expect(
+      payload.planningContext.targetSelection.candidates.map((candidate) => candidate.agentId),
+    ).toEqual(expect.arrayContaining([agentC, remoteAgentId]));
   });
 
   test('turns an explicit resource-help social objective into an authoritative peer transfer', async () => {
@@ -1692,11 +1858,13 @@ function createProjection(input: {
       | 'social';
     readonly activityAffinities: readonly string[];
     readonly capacity: number | null;
+    readonly regionId?: string;
   }[];
   readonly marketPools: readonly {
     readonly commodity: string;
     readonly commodityReserve: number;
     readonly currencyReserve: number;
+    readonly regionId?: string;
   }[];
   readonly treasury?: number;
   readonly educationExamApplications?: readonly WorldEducationExamApplicationState[];

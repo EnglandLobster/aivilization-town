@@ -56,6 +56,10 @@ import {
   AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS,
   type AivilizationExperimentalFeatureKey,
 } from './experimentalFeatures';
+import {
+  createExternalTradeActionProposerPolicyManifest,
+  EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
+} from './externalTradePlanning';
 import type { WorldCommandPolicyResolver } from './worldCommandPolicySource';
 import { createProjectionBackedWorldCommandPolicies } from './wagePolicy';
 import {
@@ -570,6 +574,7 @@ export function createAivilizationWorldPolicyManifest(
       agentActivityTimeAllocation: EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION,
       globalSynthesis: DETERMINISTIC_GLOBAL_SYNTHESIS_POLICY_VERSION,
       autonomousObjectiveSelection: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
+      externalTradeActionProposer: EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
       strategicPlanning: DETERMINISTIC_STRATEGIC_PLANNING_POLICY_VERSION,
       agentRegistration: RUNTIME_AGENT_REGISTRATION_POLICY_VERSION,
       strategicPlanRenewal: STRATEGIC_PLAN_RENEWAL_POLICY_VERSION,
@@ -639,6 +644,7 @@ export function createAivilizationWorldPolicyManifest(
       ),
       planning: {
         autonomousObjectiveSelection: createAutonomousObjectiveSelectionPolicyManifest(),
+        externalTradeActionProposer: createExternalTradeActionProposerPolicyManifest(),
         globalSynthesis: createDeterministicGlobalSynthesisPolicyManifest(),
         strategicPlanning: createDeterministicStrategicPlanningPolicyManifest(),
         strategicPlanRenewal: createStrategicPlanRenewalPolicyManifest(),
@@ -839,6 +845,7 @@ function createCanonicalPolicyRegistry(manifest: {
       [
         'globalSynthesis',
         'autonomousObjectiveSelection',
+        'externalTradeActionProposer',
         'strategicPlanning',
         'strategicPlanRenewal',
       ],

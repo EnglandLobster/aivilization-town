@@ -42,7 +42,8 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v3',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v4',
+        externalTradeActionProposer: 'external-trade-action-proposer-v1',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -78,7 +79,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v3',
+            policyVersion: 'autonomous-objective-selection-v4',
             source: 'repository-design',
             lifeCourse: {
               policyVersion: 'autonomous-life-course-v2',
@@ -95,6 +96,11 @@ describe('AIvilization default world command policies', () => {
                 profitableProduction: 56,
               },
             },
+          },
+          externalTradeActionProposer: {
+            policyVersion: 'external-trade-action-proposer-v1',
+            minimumRelativeAdvantageRatio: 0,
+            actorEligibility: 'operational-enterprise-owner-only',
           },
           globalSynthesis: {
             policyVersion: 'global-action-synthesis-v1',
@@ -602,9 +608,8 @@ describe('AIvilization default world command policies', () => {
     });
     expect(createAivilizationWorldCommandPolicies('seed')(projection).migration).toBeUndefined();
     expect(
-      createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(
-        projection,
-      ).migration?.policyVersion,
+      createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(projection)
+        .migration?.policyVersion,
     ).toBe('town-migration-v1');
   });
 

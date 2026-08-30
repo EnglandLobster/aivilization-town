@@ -284,6 +284,18 @@ export function createCanonicalLocalRuntimeTownServerInput(
   if (config.townConstructionEnabled && !config.simulationWideAuthorityEnabled) {
     throw new Error('town construction requires the simulation-wide authority');
   }
+  if (config.townWeatherEnabled && !config.simulationWideAuthorityEnabled) {
+    throw new Error('town weather requires the simulation-wide authority');
+  }
+  if (config.townServiceQualityEnabled && !config.simulationWideAuthorityEnabled) {
+    throw new Error('town service quality requires the simulation-wide authority');
+  }
+  if (config.townMigrationEnabled && !config.simulationWideAuthorityEnabled) {
+    throw new Error('two-way town migration requires the simulation-wide authority');
+  }
+  if (config.regionalMarketsEnabled && !config.simulationWideAuthorityEnabled) {
+    throw new Error('regional markets require the simulation-wide authority');
+  }
   const resolvedRunManifest = createCanonicalLocalRuntimeTownResolvedRunManifest(config);
   const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
     config.profileId,

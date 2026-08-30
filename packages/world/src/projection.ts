@@ -1254,26 +1254,35 @@ export function applyWorldEvent(
         },
       };
     }
-    case 'ResourceTransferred':
-      return updateAgent(
-        updateAgent(projection, event.payload.sourceAgentId, (agent) => ({
-          ...agent,
-          inventory: removeInventory(
-            agent.inventory,
-            event.payload.commodityName,
-            event.payload.quantity,
-          ),
-        })),
-        event.payload.targetAgentId,
-        (agent) => ({
-          ...agent,
-          inventory: addInventory(
-            agent.inventory,
-            event.payload.commodityName,
-            event.payload.quantity,
-          ),
-        }),
-      );
+    case 'ResourceTransferred': {
+      const hasSource = projection.agents[event.payload.sourceAgentId] !== undefined;
+      const hasTarget = projection.agents[event.payload.targetAgentId] !== undefined;
+      if (!hasSource && !hasTarget) {
+        throw new Error(
+          `cannot replay resource transfer without participant ${event.payload.sourceAgentId} or ${event.payload.targetAgentId}`,
+        );
+      }
+      const afterSource = !hasSource
+        ? projection
+        : updateAgent(projection, event.payload.sourceAgentId, (agent) => ({
+            ...agent,
+            inventory: removeInventory(
+              agent.inventory,
+              event.payload.commodityName,
+              event.payload.quantity,
+            ),
+          }));
+      return !hasTarget
+        ? afterSource
+        : updateAgent(afterSource, event.payload.targetAgentId, (agent) => ({
+            ...agent,
+            inventory: addInventory(
+              agent.inventory,
+              event.payload.commodityName,
+              event.payload.quantity,
+            ),
+          }));
+    }
     case 'CommodityConsumed':
       return updateAgent(projection, event.payload.agentId, (agent) => ({
         ...agent,

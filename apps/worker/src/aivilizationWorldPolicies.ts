@@ -84,6 +84,10 @@ import {
   CONFLICT_ACTION_PROPOSER_POLICY_VERSION,
   createConflictActionProposerPolicyManifest,
 } from './conflictPlanning';
+import {
+  createEnterpriseActionProposerPolicyManifest,
+  ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
+} from './canonicalDomainRuntimes';
 
 export const AIVILIZATION_WORLD_POLICY_MANIFEST_SCHEMA_VERSION =
   'aivilization-world-policy-manifest-v2';
@@ -609,6 +613,7 @@ export function createAivilizationWorldPolicyManifest(
       globalSynthesis: DETERMINISTIC_GLOBAL_SYNTHESIS_POLICY_VERSION,
       autonomousObjectiveSelection: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
       externalTradeActionProposer: EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
+      enterpriseActionProposer: ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
       socialMatterActionProposer: SOCIAL_MATTER_ACTION_PROPOSER_POLICY_VERSION,
       conflictActionProposer: CONFLICT_ACTION_PROPOSER_POLICY_VERSION,
       contextView: WORLD_DECISION_CONTEXT_VIEW_VERSION,
@@ -690,6 +695,7 @@ export function createAivilizationWorldPolicyManifest(
         autonomousObjectiveSelection: createAutonomousObjectiveSelectionPolicyManifest(),
         contextView: createPerStageContextViewManifest(),
         externalTradeActionProposer: createExternalTradeActionProposerPolicyManifest(),
+        enterpriseActionProposer: createEnterpriseActionProposerPolicyManifest(),
         socialMatterActionProposer: createSocialMatterActionProposerPolicyManifest(),
         conflictActionProposer: createConflictActionProposerPolicyManifest(),
         globalSynthesis: createDeterministicGlobalSynthesisPolicyManifest(),
@@ -905,6 +911,7 @@ function createCanonicalPolicyRegistry(manifest: {
         'globalSynthesis',
         'autonomousObjectiveSelection',
         'externalTradeActionProposer',
+        'enterpriseActionProposer',
         'socialMatterActionProposer',
         'conflictActionProposer',
         'contextView',

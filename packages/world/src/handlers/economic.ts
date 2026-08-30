@@ -9,13 +9,10 @@ import { isEnterpriseOperational } from '@aivilization/enterprise';
 import {
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
-  deriveEducationLevel,
-  evaluateEffectiveEducationScoreForOccupation,
   evaluateOccupationApplication,
   evaluateResourceTransferSocialOutcome,
   evaluateResidentialTierUpgrade,
   evaluateTradeTax,
-  resolveOccupation,
   type EducationSystemPolicy,
   type RecruitmentCyclePolicy,
   type ResidentialTierUpgradePolicy,
@@ -28,7 +25,7 @@ import {
   assertAgentUpgradeResidentialTierPayload,
 } from '../commands';
 import type { WorldEvent } from '../events';
-import type { WorldAgentState, WorldProjection } from '../projection';
+import type { WorldProjection } from '../projection';
 import { resolveAgentRegion, resolveMarketPool } from '../regionalMarkets';
 import type { SocialMattersPolicy } from '../matters';
 import { appendMatterFulfillmentEvents } from './matters';
@@ -41,6 +38,7 @@ import {
   rejectCommand,
   resolveCommandAgent,
 } from './shared';
+import { resolveEffectiveApplicationEducationScore } from './occupationQualification';
 
 export function handleAgentGiveResourceCommand(input: {
   readonly command: CommandEnvelope<'AgentGiveResource', unknown>;
@@ -494,9 +492,7 @@ export function handleAgentApplyJobCommand(input: {
     occupationName: payload.occupationName,
     residentialTier: agent.residentialTier,
     educationScore: agent.educationScore,
-    ...(effectiveEducationScore === agent.educationScore
-      ? {}
-      : { effectiveEducationScore }),
+    ...(effectiveEducationScore === agent.educationScore ? {} : { effectiveEducationScore }),
   });
 
   if (input.recruitmentCycle !== undefined) {
@@ -590,30 +586,4 @@ export function handleAgentUpgradeResidentialTierCommand(input: {
       },
     }),
   ];
-}
-
-/**
- * Effective education score used to evaluate one job application. Legacy runs
- * (no education-system policy, or the policy disabled) keep the raw score; an
- * enabled policy routes through the domain pure function so the vocational
- * track bonus applies. The level falls back to the score-derived level,
- * matching the education-system fallback semantics.
- */
-function resolveEffectiveApplicationEducationScore(input: {
-  readonly agent: WorldAgentState;
-  readonly occupationName: string;
-  readonly educationSystem?: EducationSystemPolicy;
-}): number {
-  const policy = input.educationSystem;
-  if (policy === undefined || !policy.enabled) {
-    return input.agent.educationScore;
-  }
-  return evaluateEffectiveEducationScoreForOccupation({
-    score: input.agent.educationScore,
-    level:
-      input.agent.educationLevel ?? deriveEducationLevel(input.agent.educationScore, policy),
-    ...(input.agent.educationTrack === undefined ? {} : { track: input.agent.educationTrack }),
-    occupationTier: resolveOccupation({ occupationName: input.occupationName }).jobTier,
-    policy,
-  });
 }

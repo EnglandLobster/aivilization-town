@@ -48,12 +48,13 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v6',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v7',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
+        enterpriseActionProposer: 'enterprise-action-proposer-v1',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v12',
+        contextView: 'world-decision-context-view-v13',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -89,7 +90,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v12',
+            contextViewVersion: 'world-decision-context-view-v13',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -126,7 +127,7 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v6',
+            policyVersion: 'autonomous-objective-selection-v7',
             source: 'repository-design',
             lifeCourse: {
               policyVersion: 'autonomous-life-course-v2',

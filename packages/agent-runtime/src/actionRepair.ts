@@ -49,6 +49,7 @@ export const AGENT_ACTION_COMMAND_TYPES = [
   'AgentRequestLoan',
   'AgentRespondMatter',
   'AgentSeeDoctor',
+  'AgentSetEnterpriseJobPosting',
   'AgentSignPetition',
   'AgentSleep',
   'AgentStartConversation',

@@ -41,7 +41,11 @@ import {
   type WorldCommandPolicySource,
 } from './worldCommandPolicySource';
 import { createWorldDecisionContextFromProjection } from './worldDecisionContext';
-import { DEFAULT_BANKING_ACTION_PROPOSER_POLICY } from './canonicalDomainRuntimes';
+import {
+  DEFAULT_BANKING_ACTION_PROPOSER_POLICY,
+  DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY,
+  resolveEnterpriseFounderAgentId,
+} from './canonicalDomainRuntimes';
 import { createStrategicPlanContextSnapshot } from './strategicPlanRenewal';
 import { publishPlanningSession } from './planningSessionPublication';
 import { resolveAgentMarketPools } from './worldDecisionContext';
@@ -52,7 +56,7 @@ import {
 } from './conflictPlanning';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v6';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v7';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;
@@ -64,6 +68,10 @@ const SOCIAL_MATTER_RESPONSE_SCORE = 54;
 const SOCIAL_CONFLICT_INTERVENTION_SCORE = 91;
 const SOCIAL_CONFLICT_ATTACK_SCORE = 74;
 const SOCIAL_CONFLICT_CONFRONT_SCORE = 70;
+const ENTERPRISE_FOUNDING_SCORE = 65;
+const ENTERPRISE_HIRING_SCORE = 87;
+const ENTERPRISE_SALE_SCORE = 86;
+const ENTERPRISE_PRODUCTION_SCORE = 84;
 
 export function createAutonomousObjectiveSelectionPolicyManifest() {
   return {
@@ -96,6 +104,15 @@ export function createAutonomousObjectiveSelectionPolicyManifest() {
       selection:
         'largest-relative-advantage-over-current-visible-regional-amm-then-stable-tie-break',
       proposerPolicyVersion: DEFAULT_EXTERNAL_TRADE_ACTION_PROPOSER_POLICY.policyVersion,
+    },
+    endogenousEnterprise: {
+      proposerPolicyVersion: DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.policyVersion,
+      foundingScore: ENTERPRISE_FOUNDING_SCORE,
+      hiringScore: ENTERPRISE_HIRING_SCORE,
+      saleScore: ENTERPRISE_SALE_SCORE,
+      productionScore: ENTERPRISE_PRODUCTION_SCORE,
+      founderElection: 'highest-balance-eligible-agent-then-agent-id',
+      lifecycle: 'found-produce-sell-hire-employer-payroll',
     },
     socialMatterObligation: {
       proposerPolicyVersion: DEFAULT_SOCIAL_MATTER_ACTION_PROPOSER_POLICY.policyVersion,
@@ -500,6 +517,10 @@ function scoreObjectiveCandidates(
     ?.filter(
       (enterprise) =>
         enterprise.status === 'active' &&
+        (input.worldDecisionContext?.rules?.occupations.find(
+          (rule) => rule.occupationName === enterprise.occupationName,
+        )?.eligible ??
+          true) &&
         (enterprise.jobPosting?.openSlots ?? 0) > 0 &&
         !enterprise.employeeAgentIds.includes(input.agent.agentId) &&
         enterprise.ownerAgentId !== input.agent.agentId,
@@ -519,6 +540,8 @@ function scoreObjectiveCandidates(
       profileEvidenceRecordIds: [],
     });
   }
+
+  candidates.push(...createEndogenousEnterpriseObjectiveCandidates(input));
 
   const externalTradeCandidate = createEnterpriseExternalTradeObjectiveCandidate(input);
   if (externalTradeCandidate !== undefined) {
@@ -651,6 +674,132 @@ function scoreObjectiveCandidates(
   });
 
   return candidates.sort(compareObjectiveCandidates);
+}
+
+function createEndogenousEnterpriseObjectiveCandidates(
+  input: AutonomousObjectiveProposerInput,
+): readonly ObjectiveCandidate[] {
+  const enterpriseRule = input.worldDecisionContext?.rules?.enterprise;
+  if (enterpriseRule === undefined) {
+    return [];
+  }
+  const operationalEnterprises = Object.values(input.projection.enterprises).filter(
+    (enterprise) => enterprise.status === 'active' || enterprise.status === 'insolvent',
+  );
+  const candidates: ObjectiveCandidate[] = [];
+  const targetEnterpriseCount = Math.max(
+    1,
+    Math.ceil(
+      Object.keys(input.projection.agents).length /
+        DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.targetResidentsPerFirm,
+    ),
+  );
+  const minimumFounderBalance =
+    enterpriseRule.minimumInitialCapital +
+    DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.ownerBalanceFloor;
+  if (
+    operationalEnterprises.length < targetEnterpriseCount &&
+    resolveEnterpriseFounderAgentId({
+      projection: input.projection,
+      minimumFounderBalance,
+    }) === input.agentId
+  ) {
+    candidates.push({
+      id: 'enterprise-founder',
+      statement: 'Found an enterprise to produce goods, serve demand, and create town employment.',
+      priority: 2,
+      affinityTags: ['enterprise', 'enterprise-founder', 'found', 'business'],
+      planningDomains: ['enterprise'],
+      score: ENTERPRISE_FOUNDING_SCORE,
+      rationale: `The town has ${operationalEnterprises.length} operational enterprise(s) against a density target of ${targetEnterpriseCount}; this Agent is the deterministic capital-eligible founder.`,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    });
+  }
+
+  const ownedEnterprise = operationalEnterprises
+    .filter((enterprise) => enterprise.ownerAgentId === input.agentId)
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
+  if (ownedEnterprise === undefined || ownedEnterprise.status !== 'active') {
+    return candidates;
+  }
+
+  const occupationRule = input.worldDecisionContext?.rules?.occupations.find(
+    (occupation) => occupation.occupationName === ownedEnterprise.occupationName,
+  );
+  const wageOffer = occupationRule?.currentWage ?? occupationRule?.baseWage;
+  const remainingCapacity = ownedEnterprise.maxEmployees - ownedEnterprise.employeeAgentIds.length;
+  if (
+    ownedEnterprise.cumulativeSales > 0 &&
+    remainingCapacity > 0 &&
+    (ownedEnterprise.jobPosting?.openSlots ?? 0) <= ownedEnterprise.employeeAgentIds.length &&
+    wageOffer !== undefined &&
+    ownedEnterprise.balance >=
+      wageOffer * DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.payrollReserveCycles
+  ) {
+    candidates.push({
+      id: `enterprise-hiring:${ownedEnterprise.enterpriseId}`,
+      statement: `Hire for ${ownedEnterprise.name} after proven sales while preserving payroll reserves.`,
+      priority: 2,
+      affinityTags: ['enterprise', 'enterprise-hiring', 'hire', 'job'],
+      planningDomains: ['enterprise'],
+      score: ENTERPRISE_HIRING_SCORE,
+      rationale: `The enterprise has realized sales, ${remainingCapacity} position(s) of capacity, and at least ${DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY.payrollReserveCycles} wage cycles of cash.`,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    });
+  }
+
+  const listedInventory = Object.entries(ownedEnterprise.inventory)
+    .flatMap(([commodity, quantity]) => {
+      const price = input.worldDecisionContext?.market.spotPrices.find(
+        (candidate) => candidate.commodity === commodity,
+      )?.spotPrice;
+      return quantity >= 1 && price !== undefined ? [{ commodity, price }] : [];
+    })
+    .sort(
+      (left, right) => right.price - left.price || left.commodity.localeCompare(right.commodity),
+    )[0];
+  if (listedInventory !== undefined) {
+    candidates.push({
+      id: `enterprise-sale:${ownedEnterprise.enterpriseId}:${listedInventory.commodity}`,
+      statement: `Sell one ${listedInventory.commodity} for enterprise ${ownedEnterprise.name} through the town market.`,
+      priority: 2,
+      affinityTags: ['enterprise', 'trade', 'market', 'sell', listedInventory.commodity],
+      planningDomains: ['trade'],
+      score: ENTERPRISE_SALE_SCORE,
+      rationale: `The enterprise owns market-listed ${listedInventory.commodity} inventory at spot price ${listedInventory.price}.`,
+      shortTermMemoryContextIds: [],
+      profileEntryKeys: [],
+      profileEvidenceRecordIds: [],
+    });
+  } else {
+    const production = input.worldDecisionContext?.rules?.production
+      .filter((candidate) => candidate.producible && (candidate.grossMargin ?? 0) > 0)
+      .sort(
+        (left, right) =>
+          (right.grossMarginPerSecond ?? right.grossMargin ?? 0) -
+            (left.grossMarginPerSecond ?? left.grossMargin ?? 0) ||
+          left.commodity.localeCompare(right.commodity),
+      )[0];
+    if (production !== undefined) {
+      candidates.push({
+        id: `enterprise-production:${ownedEnterprise.enterpriseId}:${production.commodity}`,
+        statement: `Produce ${production.commodity} for enterprise ${ownedEnterprise.name} to supply the town market.`,
+        priority: 2,
+        affinityTags: ['enterprise', 'production', 'produce', 'market', production.commodity],
+        planningDomains: ['production'],
+        score: ENTERPRISE_PRODUCTION_SCORE,
+        rationale: `The enterprise has no listed inventory; ${production.commodity} is currently producible with positive estimated gross margin.`,
+        shortTermMemoryContextIds: [],
+        profileEntryKeys: [],
+        profileEvidenceRecordIds: [],
+      });
+    }
+  }
+  return candidates;
 }
 
 function createSocialConflictObjectiveCandidate(

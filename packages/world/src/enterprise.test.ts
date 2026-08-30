@@ -92,7 +92,7 @@ describe('agent enterprises', () => {
       payload: {
         enterpriseId: 'orchard-co',
         name: 'Orchard Co',
-        occupationName: 'Worker',
+        occupationName: 'Cleaner',
         initialCapital: 500,
         maxEmployees: 2,
       },
@@ -151,7 +151,7 @@ describe('agent enterprises', () => {
       actorId: 'worker',
       type: 'AgentWork',
       payload: {
-        occupationName: 'Worker',
+        occupationName: 'Cleaner',
         laborSeconds: 3_600,
         enterpriseId: 'orchard-co',
       },
@@ -181,6 +181,67 @@ describe('agent enterprises', () => {
     });
     expect(projection.agents.worker?.job).toBeNull();
     expect(totalPrivateMoney(projection)).toBeCloseTo(projection.moneySupply);
+  });
+
+  test('enforces society qualifications for catalog occupations on enterprise hiring', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          agentId: asAgentId('owner'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 500,
+          balance: 0,
+          residentialTier: 6,
+          job: null,
+          inventory: {},
+        },
+        {
+          agentId: asAgentId('worker'),
+          physiology: { energy: 100, satiety: 100, health: 100 },
+          educationScore: 0,
+          balance: 0,
+          residentialTier: 1,
+          job: null,
+          inventory: {},
+        },
+      ],
+      enterprises: [
+        {
+          enterpriseId: 'clinic',
+          name: 'Clinic',
+          ownerAgentId: asAgentId('owner'),
+          occupationName: 'Doctor',
+          balance: 1_000,
+          inventory: {},
+          maxEmployees: 2,
+          employeeAgentIds: [],
+          status: 'active',
+          foundedAt: 0,
+          cumulativeSales: 100,
+          cumulativePurchases: 0,
+          cumulativeWages: 0,
+          jobPosting: { wageOffer: 429, openSlots: 1 },
+        },
+      ],
+    });
+    const events = dispatchWorldCommand({
+      command: createCommandEnvelope({
+        id: 'join-unqualified-clinic',
+        simulationId: 'sim-enterprise',
+        source: 'agent-runtime',
+        actorId: 'worker',
+        type: 'AgentJoinEnterprise',
+        payload: { enterpriseId: 'clinic' },
+        issuedAt: 0,
+      }),
+      projection,
+      policies,
+      nextSequence: 1,
+    });
+
+    expect(events[0]?.type).toBe('ActionRejected');
+    const rejectionReason = events[0]?.type === 'ActionRejected' ? events[0].payload.reason : '';
+    expect(rejectionReason).toContain('residential-tier-too-low');
   });
 
   test('pays policy-bounded dividends as a balanced enterprise-to-owner transfer', () => {

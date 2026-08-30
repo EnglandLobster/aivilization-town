@@ -362,6 +362,17 @@ export type WorldDecisionConsumptionRule = {
   readonly activeDurableQuantity: number;
 };
 
+/**
+ * External enterprise constraints visible to planning. These are read-only
+ * policy facts; the enterprise aggregate remains authoritative at settlement.
+ */
+export type WorldDecisionEnterpriseRule = {
+  readonly policyVersion: string;
+  readonly minimumInitialCapital: number;
+  readonly maximumInitialCapital: number;
+  readonly maximumEmployees: number;
+};
+
 export type WorldDecisionRulesContext = {
   readonly criticalThresholds?: {
     readonly energy: number;
@@ -372,6 +383,7 @@ export type WorldDecisionRulesContext = {
   readonly consumption?: readonly WorldDecisionConsumptionRule[];
   readonly residentialUpgrade?: WorldDecisionResidentialUpgradeRule;
   readonly educationOpportunityCost?: WorldDecisionEducationOpportunityCostRule;
+  readonly enterprise?: WorldDecisionEnterpriseRule;
 };
 
 export type WorldDecisionSocietyAgentContext = {
@@ -820,7 +832,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v12';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v13';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

@@ -29,6 +29,7 @@ import type {
   AgentApplyJobPayload,
   AgentEatPayload,
   AgentExportCommodityPayload,
+  AgentFoundEnterprisePayload,
   AgentFundEnterprisePayload,
   AgentGiveResourcePayload,
   AgentImportCommodityPayload,
@@ -39,6 +40,7 @@ import type {
   AgentRaisePetitionPayload,
   AgentRequestLoanPayload,
   AgentSeeDoctorPayload,
+  AgentSetEnterpriseJobPostingPayload,
   AgentSignPetitionPayload,
   AgentStartConversationPayload,
   AgentUpgradeResidentialTierPayload,
@@ -351,7 +353,9 @@ function createGovernanceActionProposal(input: {
     description: `Enact the threshold petition ${petition.petitionId} as a subsidy policy change.`,
     commandType: 'SetSubsidyPolicy',
     payload: {
-      minimumBalance: roundPolicyNumber(clamp(current.minimumBalance + direction * 10, 0, maximumFloor)),
+      minimumBalance: roundPolicyNumber(
+        clamp(current.minimumBalance + direction * 10, 0, maximumFloor),
+      ),
       maxSubsidy: roundPolicyNumber(clamp(current.maxSubsidy + direction * 10, 0, maximumAmount)),
       reason: petition.statement,
       petitionId: petition.petitionId,
@@ -576,6 +580,14 @@ export function createWorkDomainRuntimeRegistration(
           }
 
           const laborSeconds = config.laborSeconds ?? CANONICAL_WORK_LABOR_SECONDS;
+          const employer = Object.values(context.projection.enterprises)
+            .filter(
+              (enterprise) =>
+                (enterprise.status === 'active' || enterprise.status === 'insolvent') &&
+                enterprise.occupationName === occupationName &&
+                enterprise.employeeAgentIds.includes(context.agent.agentId),
+            )
+            .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
           return {
             id: createCanonicalActionId('work', selectedSubtask),
             description: `Work as ${occupationName}.`,
@@ -584,6 +596,7 @@ export function createWorkDomainRuntimeRegistration(
             payload: {
               occupationName,
               laborSeconds,
+              ...(employer === undefined ? {} : { enterpriseId: employer.enterpriseId }),
             },
             resourceEstimate: createLaborResourceEstimate(laborSeconds, laborCost),
           };
@@ -652,6 +665,10 @@ export function createTradeDomainRuntimeRegistration(
               payload: { focus: `external ${side} ${commodityName} enterprise quote` },
             };
           }
+          const enterprise = resolveEnterpriseForOperationalAction({
+            context,
+            selectedSubtask,
+          });
           return {
             id: createCanonicalActionId('trade', selectedSubtask),
             description: `${side} ${commodityName}.`,
@@ -661,13 +678,16 @@ export function createTradeDomainRuntimeRegistration(
               side,
               commodityName,
               quantity,
+              ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
             },
-            ...createTradeResourceEstimate({
-              side,
-              commodityName,
-              quantity,
-              context,
-            }),
+            ...(enterprise === undefined
+              ? createTradeResourceEstimate({
+                  side,
+                  commodityName,
+                  quantity,
+                  context,
+                })
+              : {}),
           };
         },
       }),
@@ -741,12 +761,7 @@ function hasEnterpriseExternalTradeIntent(input: {
 }): boolean {
   return collectContextualTargetTexts(input).some((text) => {
     const tokens = new Set(tokenizeText(text));
-    return (
-      tokens.has('external') ||
-      tokens.has('export') ||
-      tokens.has('import') ||
-      tokens.has('enterprise')
-    );
+    return tokens.has('external') || tokens.has('export') || tokens.has('import');
   });
 }
 
@@ -1045,6 +1060,10 @@ export function createProductionDomainRuntimeRegistration(
         context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
+          const enterprise = resolveEnterpriseForOperationalAction({
+            context,
+            selectedSubtask,
+          });
           const commodityName = resolveProductionTargetCommodityName({
             config,
             context,
@@ -1059,6 +1078,7 @@ export function createProductionDomainRuntimeRegistration(
             availableLaborSeconds,
             context,
             productionPolicy,
+            ...(enterprise === undefined ? {} : { inventory: enterprise.inventory }),
             ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
           });
           const actionCommodityName = nextProductionStep?.commodityName ?? commodityName;
@@ -1076,6 +1096,7 @@ export function createProductionDomainRuntimeRegistration(
               commodityName: actionCommodityName,
               quantity: actionQuantity,
               availableLaborSeconds,
+              ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
             },
             ...(nextProductionStep === undefined
               ? createProductionResourceEstimate({
@@ -1084,9 +1105,15 @@ export function createProductionDomainRuntimeRegistration(
                   availableLaborSeconds,
                   context,
                   productionPolicy,
+                  ...(enterprise === undefined ? {} : { inventory: enterprise.inventory }),
                   ...(educationSystemPolicy === undefined ? {} : { educationSystemPolicy }),
                 })
-              : { resourceEstimate: createProductionStepResourceEstimate(nextProductionStep) }),
+              : {
+                  resourceEstimate: createProductionStepResourceEstimate(
+                    nextProductionStep,
+                    enterprise !== undefined,
+                  ),
+                }),
           };
         },
       }),
@@ -1232,7 +1259,9 @@ export type CanonicalActionProposal =
   | ConflictActionProposal
   | AtomicActionProposal<'AgentRequestLoan', AgentRequestLoanPayload>
   | AtomicActionProposal<'AgentJoinEnterprise', AgentJoinEnterprisePayload>
+  | AtomicActionProposal<'AgentFoundEnterprise', AgentFoundEnterprisePayload>
   | AtomicActionProposal<'AgentFundEnterprise', AgentFundEnterprisePayload>
+  | AtomicActionProposal<'AgentSetEnterpriseJobPosting', AgentSetEnterpriseJobPostingPayload>
   | AtomicActionProposal<'AgentExportCommodity', AgentExportCommodityPayload>
   | AtomicActionProposal<'AgentImportCommodity', AgentImportCommodityPayload>
   | AtomicActionProposal<'SetTaxPolicy', SetTaxPolicyPayload>
@@ -1272,7 +1301,9 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentIntervene',
   'AgentRequestLoan',
   'AgentJoinEnterprise',
+  'AgentFoundEnterprise',
   'AgentFundEnterprise',
+  'AgentSetEnterpriseJobPosting',
   'AgentExportCommodity',
   'AgentImportCommodity',
   'SetTaxPolicy',
@@ -1331,9 +1362,63 @@ export type BankingDomainRuntimeConfig = {
 export type EnterpriseDomainRuntimeConfig = {
   /** Minimum balance the owner keeps before funding their own enterprise. */
   readonly fundingOwnerBalanceFloor?: number;
+  /** Maximum headcount chosen by the Agent for a newly founded enterprise. */
+  readonly foundingMaximumEmployees?: number;
+  /** Number of open positions published after the enterprise proves demand. */
+  readonly hiringOpenSlots?: number;
 };
 
 const DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR = 100;
+export const ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION = 'enterprise-action-proposer-v1';
+export type EnterpriseActionProposerPolicy = {
+  readonly policyVersion: string;
+  readonly ownerBalanceFloor: number;
+  readonly targetResidentsPerFirm: number;
+  readonly payrollReserveCycles: number;
+  readonly foundingMaximumEmployees: number;
+  readonly hiringOpenSlots: number;
+};
+
+export const DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY: EnterpriseActionProposerPolicy = {
+  policyVersion: ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
+  ownerBalanceFloor: DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR,
+  targetResidentsPerFirm: 8,
+  payrollReserveCycles: 2,
+  foundingMaximumEmployees: 3,
+  hiringOpenSlots: 1,
+};
+
+export function assertValidEnterpriseActionProposerPolicy(
+  policy: EnterpriseActionProposerPolicy,
+): void {
+  if (policy.policyVersion.trim().length === 0) {
+    throw new Error('enterprise action proposer policyVersion must not be empty');
+  }
+  for (const [name, value] of [
+    ['ownerBalanceFloor', policy.ownerBalanceFloor],
+    ['targetResidentsPerFirm', policy.targetResidentsPerFirm],
+    ['payrollReserveCycles', policy.payrollReserveCycles],
+  ] as const) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`enterprise action proposer ${name} must be positive finite`);
+    }
+  }
+  if (!Number.isInteger(policy.foundingMaximumEmployees) || policy.foundingMaximumEmployees <= 0) {
+    throw new Error('enterprise action proposer foundingMaximumEmployees must be positive integer');
+  }
+  if (!Number.isInteger(policy.hiringOpenSlots) || policy.hiringOpenSlots <= 0) {
+    throw new Error('enterprise action proposer hiringOpenSlots must be positive integer');
+  }
+}
+
+export function createEnterpriseActionProposerPolicyManifest() {
+  return {
+    ...DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY,
+    founderElection: 'highest-balance-eligible-agent-then-agent-id' as const,
+    capitalRule: 'surplus-above-owner-balance-floor-clamped-to-domain-policy' as const,
+    hiringGate: 'realized-sales-plus-payroll-reserve-plus-capacity' as const,
+  };
+}
 
 /**
  * Deterministic survival-bridge loan proposal. All gates are rigid: a bank
@@ -1394,6 +1479,12 @@ export function resolveEnterpriseJoinProposal(input: {
   const agent = input.context.agent;
   const candidate = Object.values(input.context.projection.enterprises)
     .filter((enterprise) => enterprise.status === 'active')
+    .filter((enterprise) => {
+      const occupationRule = input.context.worldDecisionContext?.rules?.occupations.find(
+        (rule) => rule.occupationName === enterprise.occupationName,
+      );
+      return occupationRule === undefined || occupationRule.eligible;
+    })
     .filter(
       (enterprise) =>
         enterprise.ownerAgentId !== agent.agentId &&
@@ -1411,6 +1502,119 @@ export function resolveEnterpriseJoinProposal(input: {
     commandType: 'AgentJoinEnterprise',
     priority: input.selectedSubtask.score,
     payload: { enterpriseId: candidate.enterpriseId },
+  };
+}
+
+/**
+ * Endogenous firm ignition. The strategy elects at most one founder from the
+ * current authoritative projection while firm density is below its target.
+ * Capital and headcount are clamped to the external enterprise policy; the
+ * aggregate validates the same constraints again at settlement.
+ */
+export function resolveEnterpriseFoundingProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly enterprisePolicy: NonNullable<WorldCommandPolicies['enterprise']>;
+  readonly proposerPolicy: EnterpriseActionProposerPolicy;
+}): AtomicActionProposal<'AgentFoundEnterprise', AgentFoundEnterprisePayload> | undefined {
+  if (!hasEnterpriseIntent(input, 'found')) {
+    return undefined;
+  }
+  const operationalEnterprises = Object.values(input.context.projection.enterprises).filter(
+    (enterprise) => enterprise.status === 'active' || enterprise.status === 'insolvent',
+  );
+  const targetEnterpriseCount = Math.max(
+    1,
+    Math.ceil(
+      Object.keys(input.context.projection.agents).length /
+        input.proposerPolicy.targetResidentsPerFirm,
+    ),
+  );
+  if (operationalEnterprises.length >= targetEnterpriseCount) {
+    return undefined;
+  }
+  const minimumFounderBalance =
+    input.proposerPolicy.ownerBalanceFloor + input.enterprisePolicy.minimumInitialCapital;
+  const selectedFounder = resolveEnterpriseFounderAgentId({
+    projection: input.context.projection,
+    minimumFounderBalance,
+  });
+  if (selectedFounder !== input.context.agent.agentId) {
+    return undefined;
+  }
+  const founder = input.context.agent;
+  const initialCapital = Math.min(
+    input.enterprisePolicy.maximumInitialCapital,
+    Math.floor(founder.balance - input.proposerPolicy.ownerBalanceFloor),
+  );
+  if (initialCapital < input.enterprisePolicy.minimumInitialCapital) {
+    return undefined;
+  }
+  const enterpriseId = createAgentEnterpriseId(founder.agentId);
+  const maxEmployees = Math.min(
+    input.enterprisePolicy.maximumEmployees,
+    input.proposerPolicy.foundingMaximumEmployees,
+  );
+  return {
+    id: `${createCanonicalActionId('enterprise', input.selectedSubtask)}-found`,
+    description: `Found ${enterpriseId} with ${initialCapital} capital.`,
+    commandType: 'AgentFoundEnterprise',
+    priority: input.selectedSubtask.score,
+    payload: {
+      enterpriseId,
+      name: `${founder.registration?.displayName ?? founder.agentId} Works`,
+      occupationName: DEFAULT_OCCUPATION_NAME,
+      initialCapital,
+      maxEmployees,
+    },
+  };
+}
+
+export function resolveEnterpriseJobPostingProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly proposerPolicy: EnterpriseActionProposerPolicy;
+}):
+  | AtomicActionProposal<'AgentSetEnterpriseJobPosting', AgentSetEnterpriseJobPostingPayload>
+  | undefined {
+  if (!hasEnterpriseIntent(input, 'hire')) {
+    return undefined;
+  }
+  const enterprise = Object.values(input.context.projection.enterprises)
+    .filter(
+      (candidate) =>
+        candidate.ownerAgentId === input.context.agent.agentId && candidate.status === 'active',
+    )
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
+  if (
+    enterprise === undefined ||
+    enterprise.cumulativeSales <= 0 ||
+    (enterprise.jobPosting?.openSlots ?? 0) > enterprise.employeeAgentIds.length
+  ) {
+    return undefined;
+  }
+  const occupation = input.context.worldDecisionContext?.rules?.occupations.find(
+    (candidate) => candidate.occupationName === enterprise.occupationName,
+  );
+  const wageOffer = occupation?.currentWage ?? occupation?.baseWage;
+  const openSlots = Math.min(
+    enterprise.maxEmployees,
+    enterprise.employeeAgentIds.length + input.proposerPolicy.hiringOpenSlots,
+  );
+  if (
+    wageOffer === undefined ||
+    wageOffer <= 0 ||
+    openSlots <= 0 ||
+    enterprise.balance < wageOffer * input.proposerPolicy.payrollReserveCycles
+  ) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('enterprise', input.selectedSubtask)}-post-job`,
+    description: `Publish ${openSlots} ${enterprise.occupationName} opening(s) at ${enterprise.name}.`,
+    commandType: 'AgentSetEnterpriseJobPosting',
+    priority: input.selectedSubtask.score,
+    payload: { enterpriseId: enterprise.enterpriseId, wageOffer, openSlots },
   };
 }
 
@@ -1495,6 +1699,15 @@ export function createEnterpriseDomainRuntimeRegistration(
 ): WorkerDomainRuntimeRegistration {
   const fundingOwnerBalanceFloor =
     config.fundingOwnerBalanceFloor ?? DEFAULT_ENTERPRISE_FUNDING_OWNER_BALANCE_FLOOR;
+  const proposerPolicy: EnterpriseActionProposerPolicy = {
+    ...DEFAULT_ENTERPRISE_ACTION_PROPOSER_POLICY,
+    ownerBalanceFloor: fundingOwnerBalanceFloor,
+    ...(config.foundingMaximumEmployees === undefined
+      ? {}
+      : { foundingMaximumEmployees: config.foundingMaximumEmployees }),
+    ...(config.hiringOpenSlots === undefined ? {} : { hiringOpenSlots: config.hiringOpenSlots }),
+  };
+  assertValidEnterpriseActionProposerPolicy(proposerPolicy);
   return {
     domain: 'enterprise',
     createMicroPlanners: (context) => [
@@ -1505,6 +1718,43 @@ export function createEnterpriseDomainRuntimeRegistration(
         resolveTargetLocationId: () => DEFAULT_DOMAIN_LOCATION_IDS.enterprise,
         propose: (selectedSubtask) => {
           if (enterprisePolicy !== undefined) {
+            const foundingIntent = hasEnterpriseIntent({ context, selectedSubtask }, 'found');
+            const foundingProposal = resolveEnterpriseFoundingProposal({
+              context,
+              selectedSubtask,
+              enterprisePolicy,
+              proposerPolicy,
+            });
+            if (foundingProposal !== undefined) {
+              return foundingProposal;
+            }
+            if (foundingIntent) {
+              return {
+                id: `${createCanonicalActionId('enterprise', selectedSubtask)}-found-observe`,
+                description: 'Recheck capital and town firm density before founding.',
+                commandType: 'AgentObserveLocation',
+                priority: selectedSubtask.score,
+                payload: { focus: 'enterprise founding eligibility' },
+              };
+            }
+            const hiringIntent = hasEnterpriseIntent({ context, selectedSubtask }, 'hire');
+            const postingProposal = resolveEnterpriseJobPostingProposal({
+              context,
+              selectedSubtask,
+              proposerPolicy,
+            });
+            if (postingProposal !== undefined) {
+              return postingProposal;
+            }
+            if (hiringIntent) {
+              return {
+                id: `${createCanonicalActionId('enterprise', selectedSubtask)}-hiring-observe`,
+                description: 'Recheck sales, capacity, and payroll reserves before hiring.',
+                commandType: 'AgentObserveLocation',
+                priority: selectedSubtask.score,
+                payload: { focus: 'enterprise hiring eligibility' },
+              };
+            }
             const joinProposal = resolveEnterpriseJoinProposal({ context, selectedSubtask });
             if (joinProposal !== undefined) {
               return joinProposal;
@@ -1529,6 +1779,47 @@ export function createEnterpriseDomainRuntimeRegistration(
       }),
     ],
   };
+}
+
+function hasEnterpriseIntent(
+  input: {
+    readonly context: WorkerDomainRuntimeFactoryInput;
+    readonly selectedSubtask?: PrioritizedSubtask;
+  },
+  kind: 'found' | 'hire',
+): boolean {
+  const pattern =
+    kind === 'found'
+      ? /\b(?:found|start|create|launch)\b.*\b(?:enterprise|business|firm)\b|\benterprise-founder\b/u
+      : /\b(?:hire|hiring|recruit|job posting|open position)\b|\benterprise-hiring\b/u;
+  return collectContextualTargetTexts(input).some((text) => pattern.test(text.toLowerCase()));
+}
+
+function createAgentEnterpriseId(agentId: AgentId): string {
+  const safeAgentId = agentId.replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 80) || 'agent';
+  let hash = 2_166_136_261;
+  for (const character of agentId) {
+    hash = Math.imul(hash ^ character.codePointAt(0)!, 16_777_619) >>> 0;
+  }
+  return `enterprise-${safeAgentId}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+export function resolveEnterpriseFounderAgentId(input: {
+  readonly projection: WorkerDomainRuntimeFactoryInput['projection'];
+  readonly minimumFounderBalance: number;
+}): AgentId | undefined {
+  const operationalEnterprises = Object.values(input.projection.enterprises).filter(
+    (enterprise) => enterprise.status === 'active' || enterprise.status === 'insolvent',
+  );
+  return Object.values(input.projection.agents)
+    .filter((agent) => agent.balance >= input.minimumFounderBalance)
+    .filter(
+      (agent) =>
+        !operationalEnterprises.some((enterprise) => enterprise.ownerAgentId === agent.agentId),
+    )
+    .sort(
+      (left, right) => right.balance - left.balance || left.agentId.localeCompare(right.agentId),
+    )[0]?.agentId;
 }
 
 function resolveSocialResourceGift(input: {
@@ -1990,6 +2281,7 @@ function resolveNextProductionStep(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly productionPolicy?: WorldCommandPolicies['production'];
   readonly educationSystemPolicy?: EducationSystemPolicy;
+  readonly inventory?: Readonly<Record<string, number>>;
 }): ProductionChainStep | undefined {
   const productionChain = planProductionChain({
     commodityName: input.commodityName,
@@ -2019,6 +2311,7 @@ function createProductionEstimateAgentState(input: {
   readonly availableLaborSeconds: number;
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly educationSystemPolicy?: EducationSystemPolicy;
+  readonly inventory?: Readonly<Record<string, number>>;
 }): ProductionAgentState {
   const agent = input.context.agent;
   const educationLevel =
@@ -2032,18 +2325,21 @@ function createProductionEstimateAgentState(input: {
     satiety: agent.physiology.satiety,
     health: agent.physiology.health,
     availableLaborSeconds: input.availableLaborSeconds,
-    inventory: agent.inventory,
+    inventory: input.inventory ?? agent.inventory,
     educationScore: agent.educationScore,
     ...(educationLevel === undefined ? {} : { educationLevel }),
   };
 }
 
-function createProductionStepResourceEstimate(step: ProductionChainStep): ActionResourceEstimate {
+function createProductionStepResourceEstimate(
+  step: ProductionChainStep,
+  enterpriseOwnedInventory = false,
+): ActionResourceEstimate {
   return {
     actionSeconds: step.laborSeconds,
     energyCost: step.energyCost,
     satietyCost: step.satietyCost,
-    ...(Object.keys(step.consumedInputs).length === 0
+    ...(enterpriseOwnedInventory || Object.keys(step.consumedInputs).length === 0
       ? {}
       : { inventoryCosts: step.consumedInputs }),
   };
@@ -2056,6 +2352,7 @@ function createProductionResourceEstimate(input: {
   readonly context: WorkerDomainRuntimeFactoryInput;
   readonly productionPolicy?: WorldCommandPolicies['production'];
   readonly educationSystemPolicy?: EducationSystemPolicy;
+  readonly inventory?: Readonly<Record<string, number>>;
 }): { readonly resourceEstimate?: ActionResourceEstimate } {
   const productionPlan = planProduction({
     commodityName: input.commodityName,
@@ -2077,11 +2374,31 @@ function createProductionResourceEstimate(input: {
       actionSeconds: productionPlan.laborSeconds,
       energyCost: productionPlan.energyCost,
       satietyCost: productionPlan.satietyCost,
-      ...(Object.keys(productionPlan.consumedInputs).length === 0
+      ...(input.inventory !== undefined || Object.keys(productionPlan.consumedInputs).length === 0
         ? {}
         : { inventoryCosts: productionPlan.consumedInputs }),
     },
   };
+}
+
+function resolveEnterpriseForOperationalAction(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask?: PrioritizedSubtask;
+}) {
+  const hasEnterpriseIntent = collectContextualTargetTexts(input).some((text) =>
+    tokenizeText(text).includes('enterprise'),
+  );
+  if (!hasEnterpriseIntent) {
+    return undefined;
+  }
+  return Object.values(input.context.projection.enterprises)
+    .filter((enterprise) => enterprise.status === 'active' || enterprise.status === 'insolvent')
+    .filter(
+      (enterprise) =>
+        enterprise.ownerAgentId === input.context.agent.agentId ||
+        enterprise.employeeAgentIds.includes(input.context.agent.agentId),
+    )
+    .sort((left, right) => left.enterpriseId.localeCompare(right.enterpriseId))[0];
 }
 
 function createCanonicalActionId(

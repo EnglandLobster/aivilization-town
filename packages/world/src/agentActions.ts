@@ -706,6 +706,12 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentJoinEnterprise', unknown>,
         projection: input.projection,
         policy: input.policies.enterprise,
+        populationEducationScores:
+          input.policies.jobApplication?.populationEducationScores ??
+          Object.values(input.projection.agents).map((agent) => agent.educationScore),
+        ...(input.policies.educationSystem === undefined
+          ? {}
+          : { educationSystem: input.policies.educationSystem }),
         nextSequence: input.nextSequence,
       });
     case 'AgentFundEnterprise':

@@ -1,5 +1,10 @@
 import type { CommandEnvelope } from '@aivilization/sim-core';
 import {
+  evaluateOccupationApplication,
+  resolveOccupation,
+  type EducationSystemPolicy,
+} from '@aivilization/society';
+import {
   assertAgentCloseEnterprisePayload,
   assertAgentFoundEnterprisePayload,
   assertAgentFundEnterprisePayload,
@@ -28,6 +33,7 @@ import {
   rejectCommand,
   resolveCommandAgent,
 } from './shared';
+import { resolveEffectiveApplicationEducationScore } from './occupationQualification';
 
 export function handleAgentFoundEnterpriseCommand(input: {
   readonly command: CommandEnvelope<'AgentFoundEnterprise', unknown>;
@@ -94,6 +100,8 @@ export function handleAgentJoinEnterpriseCommand(input: {
   readonly command: CommandEnvelope<'AgentJoinEnterprise', unknown>;
   readonly projection: WorldProjection;
   readonly policy: EnterprisePolicy;
+  readonly populationEducationScores: readonly number[];
+  readonly educationSystem?: EducationSystemPolicy;
   readonly nextSequence: number;
 }): WorldEvent[] {
   const agent = resolveCommandAgent(input.projection, input.command);
@@ -108,13 +116,65 @@ export function handleAgentJoinEnterpriseCommand(input: {
   if (agent.job !== null) {
     return rejectCommand(input, 'AgentJoinEnterprise', `agent already has job ${agent.job}`);
   }
+  const isCatalogOccupation =
+    parsePayload(() => {
+      resolveOccupation({ occupationName: enterprise.occupationName });
+      return true;
+    }).status === 'valid';
+  let consumedInventory: Readonly<Record<string, number>> = {};
+  if (isCatalogOccupation) {
+    const effectiveScoreResult = parsePayload(() =>
+      resolveEffectiveApplicationEducationScore({
+        agent,
+        occupationName: enterprise.occupationName,
+        ...(input.educationSystem === undefined ? {} : { educationSystem: input.educationSystem }),
+      }),
+    );
+    if (effectiveScoreResult.status === 'invalid') {
+      return rejectCommand(input, 'AgentJoinEnterprise', effectiveScoreResult.reason);
+    }
+    const qualificationResult = parsePayload(() =>
+      evaluateOccupationApplication({
+        occupationName: enterprise.occupationName,
+        agent: {
+          residentialTier: agent.residentialTier,
+          educationScore: effectiveScoreResult.payload,
+          inventory: agent.inventory,
+        },
+        populationEducationScores: input.populationEducationScores,
+      }),
+    );
+    if (qualificationResult.status === 'invalid') {
+      return rejectCommand(input, 'AgentJoinEnterprise', qualificationResult.reason);
+    }
+    if (qualificationResult.payload.status === 'rejected') {
+      return rejectCommand(
+        input,
+        'AgentJoinEnterprise',
+        `${qualificationResult.payload.reason}: ${qualificationResult.payload.detail}`,
+      );
+    }
+    consumedInventory = qualificationResult.payload.consumedInventory;
+  }
   const decision = decideJoinEnterprise({ enterprise, agentId: agent.agentId });
   if (decision.status === 'rejected') {
     return rejectCommand(input, 'AgentJoinEnterprise', decision.reason);
   }
   const joined = decision.events.find((event) => event.type === 'EnterpriseMemberJoined');
+  const prerequisiteEvents = Object.entries(consumedInventory)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([itemName, quantity], index) =>
+      makeEvent(input, index, 'InventoryChanged', {
+        agentId: agent.agentId,
+        itemName,
+        delta: -quantity,
+        reason: 'enterprise-employment-prerequisite',
+      }),
+    );
+  const joinedOffset = prerequisiteEvents.length;
   return [
-    makeEvent(input, 0, 'EnterpriseMemberJoined', {
+    ...prerequisiteEvents,
+    makeEvent(input, joinedOffset, 'EnterpriseMemberJoined', {
       enterpriseId: enterprise.enterpriseId,
       agentId: agent.agentId,
       occupationName: enterprise.occupationName,
@@ -123,7 +183,7 @@ export function handleAgentJoinEnterpriseCommand(input: {
         ? { wageOffer: joined.wageOffer }
         : {}),
     }),
-    makeMemoryEvent(input, 1, {
+    makeMemoryEvent(input, joinedOffset + 1, {
       summary: `Joined ${enterprise.name} as ${enterprise.occupationName}.`,
       status: 'succeeded',
       tags: ['enterprise', 'joined', enterprise.enterpriseId, enterprise.occupationName],

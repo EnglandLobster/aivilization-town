@@ -132,6 +132,77 @@ describe('worker objective renewal', () => {
     expect(afterCompaction.id).toBe('auto-objective-agent-a-100-101');
   });
 
+  test('elects one capital-eligible founder and exposes the external enterprise constraints', () => {
+    const wealthy: WorldAgentState = {
+      ...createAgent({ agentId: agentA, balance: 500, educationScore: 500 }),
+      job: 'Cleaner',
+    };
+    const runnerUp: WorldAgentState = {
+      ...createAgent({ agentId: agentB, balance: 300, educationScore: 500 }),
+      job: 'Cleaner',
+    };
+    const projection = createWorldProjection({ agents: [wealthy, runnerUp] });
+    const policies: WorldCommandPolicies = {
+      ...createRulesPolicies(),
+      enterprise: {
+        policyVersion: 'test-enterprise-v1',
+        minimumInitialCapital: 100,
+        maximumInitialCapital: 1_000,
+        maximumEmployees: 4,
+      },
+    };
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: agentA,
+      policies,
+    });
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentA,
+      agent: wealthy,
+      projection,
+      intentionState: {
+        agentId: agentA,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentA),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: context,
+    });
+
+    expect(context.rules?.enterprise).toEqual({
+      policyVersion: 'test-enterprise-v1',
+      minimumInitialCapital: 100,
+      maximumInitialCapital: 1_000,
+      maximumEmployees: 4,
+    });
+    expect(proposal.decisionTrace.selectedCandidateId).toBe('enterprise-founder');
+    expect(proposal.objective.planningDomains).toEqual(['enterprise']);
+
+    const runnerUpProposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agentB,
+      agent: runnerUp,
+      projection,
+      intentionState: {
+        agentId: agentB,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: createProfile(agentB),
+      shortTermMemoryContext: [],
+      issuedAt: 100,
+      worldDecisionContext: createWorldDecisionContextFromProjection({
+        projection,
+        agentId: agentB,
+        policies,
+      }),
+    });
+    expect(runnerUpProposal.decisionTrace.selectedCandidateId).not.toBe('enterprise-founder');
+  });
+
   test('balances education against direct costs, foregone income, and the minimum reserve', () => {
     const policies = createEducationOpportunityCostPolicies();
     const investProjection = createProjection([

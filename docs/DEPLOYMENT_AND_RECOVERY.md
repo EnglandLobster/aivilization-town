@@ -409,6 +409,15 @@ reclaimed attempt cannot overwrite the terminal state of its successor. Missing 
 as expired leases and are recoverable, but stale workers fail their terminal transition instead of
 silently corrupting queue counters.
 
+Interrupted lifecycle batches persist progress after every completed tick and resume the remaining
+tick suffix under the original operation identity. A replay may reconstruct an authority decision in
+memory while deliberately leaving its inbox delivery unmaterialized; such a projection is never saved
+against the older partition stream version. The following normal materialization appends and
+acknowledges that delivery before a new checkpoint is published. Snapshots remain a disposable replay
+accelerator: if replaying a valid stream tail on a checkpoint violates a domain invariant, hydration
+retries from the trusted initial projection and the complete authoritative event prefix. Recovery only
+succeeds when that complete event replay succeeds; a corrupt event stream still fails closed.
+
 ## Verification and rollback acceptance
 
 A restored or migrated copy is promotable only when:

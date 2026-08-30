@@ -787,7 +787,7 @@ describe('local runtime town executable composition', () => {
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-migration-v2');
+    expect(disabledManifest).not.toContain('town-migration-v3');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -796,7 +796,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-migration-v2');
+    expect(enabledManifest).toContain('town-migration-v3');
   });
 
   test('town service quality is off by default and enabled by flag or env', () => {

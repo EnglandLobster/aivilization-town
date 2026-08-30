@@ -853,25 +853,32 @@ describe('AIvilization default world command policies', () => {
     ).toBe('collective-action-v1');
   });
 
-  test('declares the out-migration policy in the manifest only when the switch is on', () => {
+  test('declares the two-way migration policy in the manifest only when the switch is on', () => {
     const off = createAivilizationWorldPolicyManifest();
     expect(off.policyVersions).not.toHaveProperty('townMigration');
     expect(off.parameters).not.toHaveProperty('townMigration');
-    expect(JSON.stringify(off)).not.toContain('town-migration-v2');
+    expect(JSON.stringify(off)).not.toContain('town-migration-v3');
 
     const on = createAivilizationWorldPolicyManifest({ townMigration: true });
-    expect(on.policyVersions).toMatchObject({ townMigration: 'town-migration-v2' });
+    expect(on.policyVersions).toMatchObject({ townMigration: 'town-migration-v3' });
     expect(on.parameters.townMigration).toMatchObject({
-      policyVersion: 'town-migration-v2',
+      policyVersion: 'town-migration-v3',
       maxProbabilityPerHour: 1,
       fallbackWellbeing: 50,
       settlementCadenceMs: 86_400_000,
+      inMigration: {
+        settlementCadenceMs: 86_400_000,
+        maximumArrivalsPerCadence: 2,
+        minimumAttractiveWellbeing: 20,
+        housingDemandWeight: 0.75,
+        jobDemandWeight: 0.25,
+      },
     });
     expect(on.policyRegistry.unregisteredParameterPaths).toEqual([]);
     expect(on.policyRegistry.unregisteredPolicyVersionKeys).toEqual([]);
 
     const policy = createAivilizationOutMigrationPolicy();
-    expect(policy.policyVersion).toBe('town-migration-v2');
+    expect(policy.policyVersion).toBe('town-migration-v3');
     expect(() => assertValidOutMigrationPolicy(policy)).not.toThrow();
 
     const projection = createWorldProjection({
@@ -881,7 +888,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed', undefined, { townMigration: true })(projection)
         .migration?.policyVersion,
-    ).toBe('town-migration-v2');
+    ).toBe('town-migration-v3');
   });
 
   test('declares the canonical education system policy in the manifest and registry', () => {

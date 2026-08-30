@@ -263,6 +263,7 @@ export function createAivilizationOutMigrationPolicy(): OutMigrationPolicy {
     maxProbabilityPerHour: aivilizationOutMigrationPolicyDefaults.maxProbabilityPerHour,
     fallbackWellbeing: aivilizationOutMigrationPolicyDefaults.fallbackWellbeing,
     settlementCadenceMs: aivilizationOutMigrationPolicyDefaults.settlementCadenceMs,
+    inMigration: { ...aivilizationOutMigrationPolicyDefaults.inMigration },
   };
   assertValidOutMigrationPolicy(policy);
   return policy;
@@ -664,21 +665,24 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       policyVersion: aivilizationOutMigrationPolicyDefaults.policyVersion,
       cliFlag: '--town-migration',
       envVar: 'AIVILIZATION_TOWN_MIGRATION',
-      helpTitle: 'Happiness-driven out-migration (CS2 NotHappy shape)',
+      helpTitle: 'Two-way migration: wellbeing departures and demand-driven arrivals',
       helpLines: [
-        'Out-migration is a repository-specific extension (not a paper mechanism): pass',
+        'Population flow is a repository-specific extension (not a paper mechanism): pass',
         '--town-migration on or AIVILIZATION_TOWN_MIGRATION=1 to roll the CS2 NotHappy',
         'departure rule per agent and cadence — persistently unhappy agents leave town',
         'with the full estate liquidation (jobs released, loans written off, deposits',
         'forfeited, currency burned out of the town economy). The probability follows',
         'the CS2 polynomial of happiness, zero near wellbeing 48, capped at 1%/h.',
-        'Runs without --town-wellbeing stay migration-free (fallback wellbeing 50).',
-        'In-migration is a future extension. Disabled by default.',
+        'Runs without --town-wellbeing keep out-migration off (fallback wellbeing 50).',
+        'The authority evaluates housing vacancy, open jobs, and average wellbeing once',
+        'per simulation day and admits at most two residents into real housing capacity.',
+        'Disabled by default.',
       ],
       registrySource:
-        'Out-migration is not a paper mechanism; the departure shape cap, fallback wellbeing, and cadence are repository-defined (CS2 NotHappy benchmark).',
+        'Migration is not a paper mechanism; departure shape, demand weights, housing cap, and cadence are repository-defined (CS2 population-flow benchmark).',
       createManifestParameters: () => ({
         ...aivilizationOutMigrationPolicyDefaults,
+        inMigration: { ...aivilizationOutMigrationPolicyDefaults.inMigration },
       }),
       withCommandPolicy: (policies) => ({
         ...policies,

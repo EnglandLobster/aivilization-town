@@ -50,13 +50,13 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v10',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v11',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         enterpriseActionProposer: 'enterprise-action-proposer-v3',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v16',
+        contextView: 'world-decision-context-view-v17',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -100,7 +100,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v16',
+            contextViewVersion: 'world-decision-context-view-v17',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -137,14 +137,15 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v10',
+            policyVersion: 'autonomous-objective-selection-v11',
             source: 'repository-design',
             lifeCourse: {
-              policyVersion: 'autonomous-life-course-v3',
+              policyVersion: 'autonomous-life-course-v4',
               occupationSelection: 'current-wage-times-stable-agent-preference-then-tier-then-name',
               marketBuySlippageReserveMultiplier: 1.1,
               scores: {
                 secureHousing: 92,
+                expandHousing: 88,
                 occupationApplication: 82,
                 residentialUpgrade: 78,
                 progressionAcquisition: 76,

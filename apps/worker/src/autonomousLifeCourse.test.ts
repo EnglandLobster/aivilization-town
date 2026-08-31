@@ -37,29 +37,7 @@ describe('canonical autonomous life-course policy', () => {
       societyDirectory: createHousingDirectory(agent),
     });
 
-    const proposal = createDefaultAutonomousObjectiveProposal({
-      agentId: agent.agentId,
-      agent,
-      projection,
-      intentionState: {
-        agentId: agent.agentId,
-        completedObjectives: [],
-        scheduledIntentions: [],
-        updatedAt: 0,
-      },
-      longTermProfile: {
-        agentId: agent.agentId,
-        beliefs: [],
-        habits: [],
-        mood: [],
-        values: [],
-        personality: [],
-        socialRecords: [],
-      },
-      shortTermMemoryContext: [],
-      issuedAt: 0,
-      worldDecisionContext,
-    });
+    const proposal = createProposalFromContext({ agent, projection, worldDecisionContext });
 
     expect(proposal.decisionTrace).toMatchObject({
       selectedCandidateId: 'secure-housing:home-west',
@@ -69,6 +47,62 @@ describe('canonical autonomous life-course policy', () => {
       statement: 'Secure a home at home-west.',
       planningDomains: ['residential'],
       affinityTags: ['residential', 'housing', 'home', 'shelter'],
+    });
+  });
+
+  test('turns an enabled material-backed construction opportunity into an autonomous goal', () => {
+    const agent = createAgent({
+      locationId: asLocationId('home-west'),
+      residenceLocationId: asLocationId('home-west'),
+      inventory: { Wood: 2 },
+    });
+    const projection = createWorldProjection({
+      agents: [agent],
+      locations: [
+        {
+          locationId: asLocationId('home-west'),
+          name: 'West Homes',
+          kind: 'residence',
+          activityAffinities: ['residential'],
+          capacity: 1,
+        },
+      ],
+      marketPools: createCommodityMarketPoolSeeds({
+        commodityReserve: 100,
+        currencyReserve: 1_000,
+      }),
+    });
+    const policies = createAivilizationWorldCommandPolicies(
+      'life-course-construction-test',
+      undefined,
+      { townConstruction: true },
+    )(projection);
+    const worldDecisionContext = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: agent.agentId,
+      policies,
+      societyDirectory: createHousingDirectory(agent),
+    });
+
+    expect(worldDecisionContext.rules?.housingConstruction).toMatchObject({
+      policyVersion: 'town-construction-v1',
+      locationId: 'home-west',
+      occupancyRatio: 1,
+      inventoryCosts: { Wood: 2 },
+      missingInventory: {},
+      electedBuilderAgentId: 'career-agent',
+      eligible: true,
+      rejectionReasons: [],
+    });
+    const proposal = createProposalFromContext({ agent, projection, worldDecisionContext });
+    expect(proposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'expand-housing:home-west',
+      score: 88,
+    });
+    expect(proposal.objective).toMatchObject({
+      statement: 'Expand housing capacity at home-west.',
+      planningDomains: ['residential'],
+      affinityTags: ['residential', 'housing', 'construction', 'supply'],
     });
   });
 
@@ -263,6 +297,36 @@ function createProposal(input: {
   });
 }
 
+function createProposalFromContext(input: {
+  readonly agent: WorldAgentState;
+  readonly projection: ReturnType<typeof createWorldProjection>;
+  readonly worldDecisionContext: ReturnType<typeof createWorldDecisionContextFromProjection>;
+}) {
+  return createDefaultAutonomousObjectiveProposal({
+    agentId: input.agent.agentId,
+    agent: input.agent,
+    projection: input.projection,
+    intentionState: {
+      agentId: input.agent.agentId,
+      completedObjectives: [],
+      scheduledIntentions: [],
+      updatedAt: 0,
+    },
+    longTermProfile: {
+      agentId: input.agent.agentId,
+      beliefs: [],
+      habits: [],
+      mood: [],
+      values: [],
+      personality: [],
+      socialRecords: [],
+    },
+    shortTermMemoryContext: [],
+    issuedAt: 0,
+    worldDecisionContext: input.worldDecisionContext,
+  });
+}
+
 function createProjection(
   agent: WorldAgentState,
   jobApplications: readonly ReturnType<typeof createPendingApplication>[] = [],
@@ -332,7 +396,9 @@ function createHousingDirectory(agent: WorldAgentState): LocalSimulationSocietyD
         ownerLastAppliedSequence: 0,
         publicState: {
           locationId: agent.locationId,
-          residenceLocationId: null,
+          ...(agent.residenceLocationId === undefined
+            ? {}
+            : { residenceLocationId: agent.residenceLocationId }),
           job: agent.job,
           residentialTier: agent.residentialTier,
           educationScore: agent.educationScore,

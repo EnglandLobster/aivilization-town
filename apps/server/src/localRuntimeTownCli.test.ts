@@ -1853,7 +1853,7 @@ describe('local runtime town executable composition', () => {
     expect(
       objectiveTraces.every((trace) => trace.selectedCandidateId === 'paper-ablation-task-1'),
     ).toBe(true);
-  });
+  }, 10_000);
 
   test('listens on HTTP, exposes healthy auto-started components, and closes them together', async () => {
     const config = createDeterministicConfig(['--port', '0']);

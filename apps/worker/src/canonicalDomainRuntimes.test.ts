@@ -1288,6 +1288,59 @@ describe('canonical domain runtimes', () => {
     });
   });
 
+  test.each(['at-capacity', 'unreachable'] as const)(
+    'reassesses locally instead of moving to a destination reported as %s',
+    async (status) => {
+      const agent = createAgent({
+        agentId: agentA,
+        locationId: asLocationId('residential-block'),
+      });
+      const baseDecisionContext = createSocietyDecisionContextForTest({
+        agent,
+        societyAgents: [],
+      });
+      const context = createRuntimeContext({
+        agent,
+        projection: createProjection({
+          agents: [agent],
+          locations: [residentialBlock(), school()],
+          marketPools: [],
+        }),
+        worldDecisionContext: {
+          ...baseDecisionContext,
+          mobility: {
+            policyVersion: 'town-spatial-graph-v2',
+            destinations: [
+              status === 'at-capacity'
+                ? {
+                    status,
+                    locationId: 'school',
+                    name: 'School',
+                    kind: 'education',
+                    capacity: 1,
+                    capacityUsage: 1,
+                  }
+                : {
+                    status,
+                    locationId: 'school',
+                    name: 'School',
+                    kind: 'education',
+                  },
+            ],
+          },
+        },
+      });
+      const binding = await resolveCanonicalBinding(context);
+
+      expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
+        id: 'canonical-study-step-a-wait-for-access',
+        commandType: 'AgentObserveLocation',
+        payload: { focus: 'Access conditions for School' },
+        priority: 10,
+      });
+    },
+  );
+
   test('proposes zero-duration first placement before an unplaced agent studies', async () => {
     const agent = createAgent({
       agentId: agentA,

@@ -88,7 +88,9 @@ import {
 } from './conflictPlanning';
 import {
   createEnterpriseActionProposerPolicyManifest,
+  createLocationAwareActionProposerPolicyManifest,
   ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
+  LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION,
 } from './canonicalDomainRuntimes';
 
 export const AIVILIZATION_WORLD_POLICY_MANIFEST_SCHEMA_VERSION =
@@ -619,6 +621,7 @@ export function createAivilizationWorldPolicyManifest(
       autonomousObjectiveSelection: AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION,
       externalTradeActionProposer: EXTERNAL_TRADE_ACTION_PROPOSER_POLICY_VERSION,
       enterpriseActionProposer: ENTERPRISE_ACTION_PROPOSER_POLICY_VERSION,
+      locationAwareActionProposer: LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION,
       socialMatterActionProposer: SOCIAL_MATTER_ACTION_PROPOSER_POLICY_VERSION,
       conflictActionProposer: CONFLICT_ACTION_PROPOSER_POLICY_VERSION,
       contextView: WORLD_DECISION_CONTEXT_VIEW_VERSION,
@@ -703,6 +706,7 @@ export function createAivilizationWorldPolicyManifest(
         contextView: createPerStageContextViewManifest(),
         externalTradeActionProposer: createExternalTradeActionProposerPolicyManifest(),
         enterpriseActionProposer: createEnterpriseActionProposerPolicyManifest(),
+        locationAwareActionProposer: createLocationAwareActionProposerPolicyManifest(),
         socialMatterActionProposer: createSocialMatterActionProposerPolicyManifest(),
         conflictActionProposer: createConflictActionProposerPolicyManifest(),
         globalSynthesis: createDeterministicGlobalSynthesisPolicyManifest(),
@@ -920,6 +924,7 @@ function createCanonicalPolicyRegistry(manifest: {
         'autonomousObjectiveSelection',
         'externalTradeActionProposer',
         'enterpriseActionProposer',
+        'locationAwareActionProposer',
         'socialMatterActionProposer',
         'conflictActionProposer',
         'contextView',

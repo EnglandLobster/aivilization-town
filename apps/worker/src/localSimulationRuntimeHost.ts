@@ -131,6 +131,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     manifest: input.manifest,
     scenarioPresets: input.scenarioPresets,
   });
+  assertResidentialAssignmentHasAuthoritativeOccupancy({
+    input,
+    resolvedManifest,
+  });
   const timeDeltaMsByPartition = new Map(
     resolvedManifest.partitions.map((partition) => [
       partition.partitionKey,
@@ -509,6 +513,30 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     ...(authority === undefined ? {} : { authority }),
     materializers,
   };
+}
+
+function assertResidentialAssignmentHasAuthoritativeOccupancy(input: {
+  readonly input: LocalSimulationRuntimeHostInput;
+  readonly resolvedManifest: ResolvedLocalSimulationRuntimeManifest;
+}): void {
+  if (
+    input.resolvedManifest.partitions.length <= 1 ||
+    input.input.simulationWideAuthority?.enabled === true
+  ) {
+    return;
+  }
+  const hasResidence = input.resolvedManifest.partitions.some((partition) =>
+    partition.preset.locations.some((location) => location.kind === 'residence'),
+  );
+  if (!hasResidence) return;
+  const residentialAssignmentMayBeEnabled =
+    typeof input.input.policies === 'function' ||
+    input.input.policies.residentialAssignment !== undefined;
+  if (residentialAssignmentMayBeEnabled) {
+    throw new Error(
+      'multi-partition residential assignment requires the simulation-wide authority',
+    );
+  }
 }
 
 async function advanceAuthorityAtPartitionBarrier(input: {

@@ -351,7 +351,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
    */
   readonly physiologicalSafetyNet?: PhysiologicalSafetyNetPolicy;
   /**
-   * Optional town-wellbeing policy (town-wellbeing-v1). When present,
+   * Optional town-wellbeing policy. When present,
    * AdvanceSimulationTime settles the durable per-agent wellbeing scalar from
    * the current tick's physiology, employment, housing, lifestyle, arrears,
    * distress, and social relation factors, emitting WellbeingChanged whenever

@@ -1,5 +1,5 @@
 import { createCommodityMarketPoolSeeds } from '@aivilization/content';
-import { asAgentId } from '@aivilization/sim-core';
+import { asAgentId, asLocationId, asSimulationId } from '@aivilization/sim-core';
 import { createWorldProjection, type WorldAgentState } from '@aivilization/world';
 import { describe, expect, test } from 'vitest';
 import {
@@ -7,9 +7,71 @@ import {
   createAutonomousLifeCourseCandidates,
   createDefaultAutonomousObjectiveProposal,
   createWorldDecisionContextFromProjection,
+  type LocalSimulationSocietyDirectory,
 } from './index';
 
 describe('canonical autonomous life-course policy', () => {
+  test('makes securing a real vacancy the priority for an unhoused Agent', () => {
+    const agent = createAgent({ residenceLocationId: null });
+    const projection = createWorldProjection({
+      agents: [agent],
+      locations: [
+        {
+          locationId: asLocationId('home-west'),
+          name: 'West Homes',
+          kind: 'residence',
+          activityAffinities: ['residential'],
+          capacity: 2,
+        },
+      ],
+      marketPools: createCommodityMarketPoolSeeds({
+        commodityReserve: 100,
+        currencyReserve: 1_000,
+      }),
+    });
+    const policies = createAivilizationWorldCommandPolicies('life-course-test')(projection);
+    const worldDecisionContext = createWorldDecisionContextFromProjection({
+      projection,
+      agentId: agent.agentId,
+      policies,
+      societyDirectory: createHousingDirectory(agent),
+    });
+
+    const proposal = createDefaultAutonomousObjectiveProposal({
+      agentId: agent.agentId,
+      agent,
+      projection,
+      intentionState: {
+        agentId: agent.agentId,
+        completedObjectives: [],
+        scheduledIntentions: [],
+        updatedAt: 0,
+      },
+      longTermProfile: {
+        agentId: agent.agentId,
+        beliefs: [],
+        habits: [],
+        mood: [],
+        values: [],
+        personality: [],
+        socialRecords: [],
+      },
+      shortTermMemoryContext: [],
+      issuedAt: 0,
+      worldDecisionContext,
+    });
+
+    expect(proposal.decisionTrace).toMatchObject({
+      selectedCandidateId: 'secure-housing:home-west',
+      score: 92,
+    });
+    expect(proposal.objective).toMatchObject({
+      statement: 'Secure a home at home-west.',
+      planningDomains: ['residential'],
+      affinityTags: ['residential', 'housing', 'home', 'shelter'],
+    });
+  });
+
   test('chooses an explicit eligible occupation instead of the generic Cleaner fallback', () => {
     const selectedOccupations = new Set<string>();
     for (let index = 1; index <= 32; index += 1) {
@@ -247,4 +309,35 @@ function createPendingApplications(agent: WorldAgentState, count: number) {
     ...createPendingApplication(agent),
     applicationId: `pending-${agent.agentId}-${index}`,
   }));
+}
+
+function createHousingDirectory(agent: WorldAgentState): LocalSimulationSocietyDirectory {
+  return {
+    schemaVersion: 'local-simulation-society-directory-v1',
+    directoryId: 'housing-directory',
+    manifestId: 'housing-manifest',
+    simulationId: asSimulationId('sim-housing'),
+    partitionBoundaries: [
+      {
+        partitionKey: 'world-main',
+        lastAppliedSequence: 0,
+        snapshotSequence: 0,
+        simulationTime: 0,
+      },
+    ],
+    agents: [
+      {
+        agentId: agent.agentId,
+        ownerPartitionKey: 'world-main',
+        ownerLastAppliedSequence: 0,
+        publicState: {
+          locationId: agent.locationId,
+          residenceLocationId: null,
+          job: agent.job,
+          residentialTier: agent.residentialTier,
+          educationScore: agent.educationScore,
+        },
+      },
+    ],
+  };
 }

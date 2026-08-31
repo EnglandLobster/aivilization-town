@@ -61,6 +61,12 @@ export type WellbeingFactorCoefficients = {
   readonly unemployed: number;
   /** Per-tier additive, indexed by residentialTier; out-of-range tiers contribute 0. */
   readonly residentialTier: readonly number[];
+  /**
+   * Additive while the Agent has no durable residence. Optional for replay and
+   * policy compatibility: v1 policies did not distinguish housing quality
+   * from actually having a home.
+   */
+  readonly unhoused?: number;
   /** Per-tier additive, indexed by {@link WELLBEING_LIFESTYLE_TIER_ORDER}. */
   readonly lifestyleTier: readonly number[];
   /** × accumulated upkeep arrears (negative). */
@@ -112,6 +118,11 @@ export type WellbeingInputs = {
   readonly satiety: number;
   readonly employed: boolean;
   readonly residentialTier: number;
+  /**
+   * Whether the Agent has a durable residence assignment. Optional keeps
+   * policy-free and pre-residential-assignment callers on their legacy path.
+   */
+  readonly housed?: boolean;
   /**
    * Wealth lifestyle tier resolved with the same evaluateLifestyleTier policy
    * the read path uses. Absent when the run carries no lifestyle policy; the
@@ -168,6 +179,9 @@ export function evaluateWellbeing(input: {
     satiety: (coefficients.satiety * (inputs.satiety - 50)) / 50,
     employment: inputs.employed ? coefficients.employed : coefficients.unemployed,
     residentialTier: coefficients.residentialTier[inputs.residentialTier] ?? 0,
+    ...(coefficients.unhoused === undefined
+      ? {}
+      : { unhoused: inputs.housed === false ? coefficients.unhoused : 0 }),
     lifestyleTier:
       inputs.lifestyleTier === undefined
         ? 0
@@ -250,6 +264,9 @@ export function assertValidWellbeingPolicy(policy: WellbeingPolicy): void {
   coefficients.residentialTier.forEach((value, index) =>
     assertFinite(value, `coefficients.residentialTier[${index}]`),
   );
+  if (coefficients.unhoused !== undefined) {
+    assertFinite(coefficients.unhoused, 'coefficients.unhoused');
+  }
   coefficients.lifestyleTier.forEach((value, index) =>
     assertFinite(value, `coefficients.lifestyleTier[${index}]`),
   );

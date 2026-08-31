@@ -114,7 +114,7 @@ export type WorldAgentState = {
    */
   readonly upkeepArrears?: number;
   /**
-   * Durable wellbeing scalar (town-wellbeing-v1), settled during time
+   * Durable wellbeing scalar (town-wellbeing), settled during time
    * advancement via WellbeingChanged. Optional so legacy snapshots and
    * registrations stay byte-for-byte compatible; absent means the policy
    * initialValue (legacy).

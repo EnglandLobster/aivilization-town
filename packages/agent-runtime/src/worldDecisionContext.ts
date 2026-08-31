@@ -109,7 +109,7 @@ export type WorldDecisionAgentContext = {
     readonly retired: boolean;
   };
   /**
-   * Optional durable wellbeing view (town-wellbeing-v1): the authoritative
+   * Optional durable wellbeing view (town-wellbeing): the authoritative
    * settled scalar plus its derived band. Present only when the resolved
    * command policies carry a wellbeing policy; the value comes straight from
    * the projection (absent durable value means the policy initialValue), and

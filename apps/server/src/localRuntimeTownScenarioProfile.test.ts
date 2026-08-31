@@ -75,6 +75,7 @@ describe('local runtime town daemon scenario profiles', () => {
       'world-east',
     ]);
     expect(totalAgents(standard.scenarioPresets)).toBe(100);
+    expect(countHousedAgents(standard.scenarioPresets)).toBe(100);
 
     const survivalTown = createLocalRuntimeTownDaemonScenarioProfile('survival-town-100');
     expect(survivalTown).toMatchObject({
@@ -120,6 +121,12 @@ describe('local runtime town daemon scenario profiles', () => {
     });
     expect(stress.manifest.partitions).toHaveLength(10);
     expect(totalAgents(stress.scenarioPresets)).toBe(1000);
+    expect(countHousedAgents(stress.scenarioPresets)).toBe(100);
+    expect(
+      stress.scenarioPresets
+        .flatMap((preset) => preset.agentSeeds)
+        .filter((agent) => agent.residenceLocationId === null),
+    ).toHaveLength(900);
     expect(stress.runtimeRunQueue.pollIntervalMs).toBeGreaterThan(0);
     expect(stress.runtimeScheduler.scheduleIntervalMs).toBeGreaterThan(0);
     expect(stress.manifest.partitions.map((partition) => partition.partitionKey)).toEqual([
@@ -219,4 +226,12 @@ describe('local runtime town daemon scenario profiles', () => {
 
 function totalAgents(scenarioPresets: readonly ScenarioPreset[]): number {
   return scenarioPresets.reduce((total, preset) => total + preset.agentSeeds.length, 0);
+}
+
+function countHousedAgents(scenarioPresets: readonly ScenarioPreset[]): number {
+  return scenarioPresets.reduce(
+    (total, preset) =>
+      total + preset.agentSeeds.filter((agent) => agent.residenceLocationId != null).length,
+    0,
+  );
 }

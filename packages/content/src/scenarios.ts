@@ -639,6 +639,12 @@ export type CreateAivilizationPopulationScenarioPresetInput = {
   readonly timeScale?: number;
   readonly clock?: SimulationClock;
   readonly locations?: readonly TownLocationConfig[];
+  /**
+   * Optional pre-allocated home assignments. Multi-partition composition must
+   * allocate these once across the whole town rather than independently per
+   * partition, otherwise every shard can consume the same finite slots.
+   */
+  readonly residenceLocationIds?: readonly (LocationId | null)[];
   readonly source?: string;
 };
 
@@ -1598,7 +1604,11 @@ export function createAivilizationPopulationScenarioPreset(
   assertNonEmptyString(source, 'source');
   assertPositiveFinite(timeScale, 'timeScale');
   assertNonEmptyArray(locations, 'locations');
-  const residenceLocationIds = allocateScenarioResidences(input.agentCount, locations);
+  const residenceLocationIds =
+    input.residenceLocationIds ?? allocateScenarioResidenceLocationIds(input.agentCount, locations);
+  if (residenceLocationIds.length !== input.agentCount) {
+    throw new Error('residenceLocationIds length must equal agentCount');
+  }
 
   return {
     id: input.id,
@@ -1623,10 +1633,12 @@ export function createAivilizationPopulationScenarioPreset(
   };
 }
 
-function allocateScenarioResidences(
+export function allocateScenarioResidenceLocationIds(
   agentCount: number,
   locations: readonly TownLocationConfig[],
 ): readonly (LocationId | null)[] {
+  assertPositiveInteger(agentCount, 'agentCount');
+  assertNonEmptyArray(locations, 'locations');
   const slots: LocationId[] = [];
   for (const location of locations
     .filter((candidate) => candidate.kind === 'residence')

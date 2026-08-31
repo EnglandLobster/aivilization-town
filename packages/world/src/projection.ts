@@ -2671,7 +2671,7 @@ export function resolveResidentialOccupancy(
   ).length;
 }
 
-function assertResidentialCapacityNotExceeded(
+export function assertResidentialCapacityNotExceeded(
   agents: Readonly<Record<string, WorldAgentState>>,
   locations: Readonly<Record<string, WorldLocationState>>,
 ): void {

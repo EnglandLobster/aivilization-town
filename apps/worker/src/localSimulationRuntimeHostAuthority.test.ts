@@ -44,6 +44,46 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host simulation-wide authority wiring', () => {
+  test('fails closed when merged partition seeds overbook one residence', async () => {
+    const residenceLocationId = asLocationId('residential-block');
+    const scenarioPresets = createScenarioPresets().map((preset) => ({
+      ...preset,
+      locations: [
+        ...preset.locations,
+        {
+          locationId: residenceLocationId,
+          name: 'Residential Block',
+          kind: 'residence' as const,
+          activityAffinities: ['sleep' as const],
+          capacity: 1,
+          source: 'test',
+        },
+      ],
+      agentSeeds: preset.agentSeeds.map((agent) => ({
+        ...agent,
+        residenceLocationId,
+      })),
+    }));
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir: createRootDir(),
+        bootstrappedAt: 100,
+        manifest: createManifest(),
+        scenarioPresets,
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        simulationWideAuthority: {
+          enabled: true,
+          workerId: 'authority-worker',
+          leaseDurationMs: 30_000,
+        },
+      }),
+    ).rejects.toThrow('residence residential-block occupancy 2 exceeds capacity 1');
+  });
+
   test('waits at the authority clock barrier when one partition reaches the next tick first', async () => {
     const rootDir = createRootDir();
     const manifest = createManifest();

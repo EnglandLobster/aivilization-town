@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { asLocationId } from '@aivilization/sim-core';
 import {
   activities,
   aivilizationAblationScenarioPreset,
@@ -360,5 +361,37 @@ describe('AIvilization source content', () => {
     expect(scenarioPreset.source).toBe(
       'AIvilization v0 backend runtime scale profile for 25/100/1000 agent town modes',
     );
+  });
+
+  test('accepts town-wide residence allocations for partitioned population presets', () => {
+    const first = createAivilizationPopulationScenarioPreset({
+      id: 'partition-one',
+      name: 'Partition One',
+      description: 'First partition',
+      agentCount: 2,
+      residenceLocationIds: ['residential-block', 'residential-block'].map(asLocationId),
+    });
+    const second = createAivilizationPopulationScenarioPreset({
+      id: 'partition-two',
+      name: 'Partition Two',
+      description: 'Second partition',
+      agentCount: 2,
+      residenceLocationIds: [null, null],
+    });
+
+    expect(first.agentSeeds.map((agent) => agent.residenceLocationId)).toEqual([
+      'residential-block',
+      'residential-block',
+    ]);
+    expect(second.agentSeeds.map((agent) => agent.residenceLocationId)).toEqual([null, null]);
+    expect(() =>
+      createAivilizationPopulationScenarioPreset({
+        id: 'invalid-partition',
+        name: 'Invalid Partition',
+        description: 'Mismatched allocation',
+        agentCount: 2,
+        residenceLocationIds: [null],
+      }),
+    ).toThrow('residenceLocationIds length must equal agentCount');
   });
 });

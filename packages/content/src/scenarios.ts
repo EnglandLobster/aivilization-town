@@ -201,6 +201,7 @@ export type ScenarioTownWellbeingPolicyConfig = {
     readonly employed: number;
     readonly unemployed: number;
     readonly residentialTier: readonly number[];
+    readonly unhoused?: number;
     readonly lifestyleTier: readonly number[];
     readonly upkeepArrearsPerUnit: number;
     readonly distress: number;
@@ -706,7 +707,7 @@ const socialMattersPolicySource =
 const townConflictPolicySource =
   'Town conflict system; town-conflict-v2 grievance and damage parameters are repository policy decisions because the paper does not model conflict';
 const townWellbeingPolicySource =
-  'Town wellbeing; town-wellbeing-v1 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
+  'Town wellbeing; town-wellbeing-v2 baseline, convergence rate, and factor coefficients are repository policy decisions benchmarked against the CS2 citizen Happiness aggregation (health, wealth, employment, actual housing, and social factors feeding one well-being value), because the paper does not model wellbeing';
 const townCalendarPolicySource =
   'Town calendar; town-calendar-v1 day length, phase boundaries, and passive decay rates are repository policy decisions benchmarked against the CS2 daily cycle (citizen sleep window 0.875→0.175), because the paper does not model a day/night calendar';
 const migrationPolicySource =
@@ -1026,14 +1027,15 @@ export const aivilizationTownConflictPolicyDefaults = {
   source: townConflictPolicySource,
 } as const satisfies ScenarioTownConflictPolicyConfig;
 
-export const TOWN_WELLBEING_POLICY_VERSION = 'town-wellbeing-v1';
+export const TOWN_WELLBEING_POLICY_VERSION = 'town-wellbeing-v2';
 
 /**
  * Agent wellbeing (幸福感) authoritative state variable, benchmarked against
  * the Cities: Skylines II citizen Happiness system. Opt-in via the
  * town-wellbeing switch. AdvanceSimulationTime settles one per-agent scalar:
  * the target is the baseline plus per-factor contributions (physiology axes
- * normalized around 50, employment, housing/lifestyle tiers, upkeep arrears,
+ * normalized around 50, employment, actual housing plus housing/lifestyle
+ * tiers, upkeep arrears,
  * safety-net distress, and social relation means), and the durable value
  * converges toward it by at most convergencePerHour per hour, snapping onto
  * the target once reachable so quiet agents stop emitting events. Coefficients
@@ -1054,6 +1056,9 @@ export const aivilizationTownWellbeingPolicyDefaults = {
     unemployed: -6,
     // Indexed by residentialTier (tiers start at 1; index 0 is unused).
     residentialTier: [0, -4, -2, 0, 2, 4, 6],
+    // A quality tier without an assigned home is not shelter. CS2 likewise
+    // treats homelessness as an independent, strong happiness penalty.
+    unhoused: -10,
     // Indexed by the canonical lifestyle order struggling..affluent.
     lifestyleTier: [-6, -2, 2, 6],
     upkeepArrearsPerUnit: -0.05,

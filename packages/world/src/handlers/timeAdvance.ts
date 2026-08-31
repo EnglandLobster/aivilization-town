@@ -187,7 +187,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
    */
   readonly lifestyle?: LifestylePolicy;
   /**
-   * Optional town-wellbeing policy (town-wellbeing-v1). When present,
+   * Optional town-wellbeing policy. When present,
    * AdvanceSimulationTime settles the durable per-agent wellbeing scalar after
    * the physiology and safety-net effects (so it reads this tick's freshest
    * axes) and emits WellbeingChanged whenever the value moves. Absent keeps
@@ -2205,7 +2205,7 @@ function createIllnessDeathSeed(input: {
 }
 
 /**
- * Per-agent wellbeing settlement (town-wellbeing-v1). The running value lives
+ * Per-agent wellbeing settlement (town-wellbeing). The running value lives
  * in `wellbeingByAgent` across the catch-up intervals of one advance (the same
  * convention as the physiology/balance maps), seeded from the durable
  * projection value or the policy initialValue for legacy agents. The lifestyle
@@ -2278,6 +2278,11 @@ function appendWellbeingEvents(input: {
         satiety: physiology.satiety,
         employed: agent.job !== null,
         residentialTier: input.tierByAgent.get(agent.agentId) ?? agent.residentialTier,
+        ...(input.input.residentialAssignment === undefined
+          ? {}
+          : {
+              housed: resolveAgentResidenceLocationId(input.projection, agent) !== null,
+            }),
         ...(lifestyleTier === undefined ? {} : { lifestyleTier }),
         upkeepArrears: input.arrearsByAgent.get(agent.agentId) ?? agent.upkeepArrears ?? 0,
         distressActive,

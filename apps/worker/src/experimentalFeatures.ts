@@ -565,7 +565,7 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       helpLines: [
         'Agent wellbeing is a repository-specific extension (not a paper mechanism): pass',
         '--town-wellbeing on or AIVILIZATION_TOWN_WELLBEING=1 to settle the durable per-agent',
-        'town-wellbeing-v1 scalar during time advancement and expose it in planning contexts.',
+        'town-wellbeing-v2 scalar during time advancement, including authoritative homelessness, and expose it in planning contexts.',
         'Disabled by default.',
       ],
       registrySource:

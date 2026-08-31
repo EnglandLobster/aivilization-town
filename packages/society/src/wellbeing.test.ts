@@ -23,6 +23,7 @@ const policy: WellbeingPolicy = {
     employed: 4,
     unemployed: -6,
     residentialTier: [0, -4, -2, 0, 2, 4, 6],
+    unhoused: -10,
     lifestyleTier: [-6, -2, 2, 6],
     upkeepArrearsPerUnit: -0.5,
     distress: -8,
@@ -58,6 +59,7 @@ describe('evaluateWellbeing', () => {
         satiety: 75, // +3
         employed: true, // +4
         residentialTier: 6, // +6
+        housed: false, // -10
         lifestyleTier: 'affluent', // +6
         upkeepArrears: 4, // -2
         distressActive: true, // -8
@@ -66,14 +68,15 @@ describe('evaluateWellbeing', () => {
       }),
       policy,
     });
-    // 50 + 10 - 6 + 3 + 4 + 6 + 6 - 2 - 8 + 3 - 2 = 64
-    expect(result.target).toBeCloseTo(64);
+    // 50 + 10 - 6 + 3 + 4 + 6 - 10 + 6 - 2 - 8 + 3 - 2 = 54
+    expect(result.target).toBeCloseTo(54);
     expect(result.factorContributions).toEqual({
       health: 10,
       energy: -6,
       satiety: 3,
       employment: 4,
       residentialTier: 6,
+      unhoused: -10,
       lifestyleTier: 6,
       upkeepArrears: -2,
       distress: -8,
@@ -81,6 +84,42 @@ describe('evaluateWellbeing', () => {
       negativeRelation: -2,
       serviceQuality: 0,
     });
+  });
+
+  it('penalizes an explicitly unhoused Agent while keeping legacy policies byte-compatible', () => {
+    const unhoused = evaluateWellbeing({
+      previous: 50,
+      inputs: createInputs({ housed: false }),
+      policy,
+    });
+    const housed = evaluateWellbeing({
+      previous: 50,
+      inputs: createInputs({ housed: true }),
+      policy,
+    });
+    const legacyCoefficients: WellbeingPolicy['coefficients'] = {
+      health: policy.coefficients.health,
+      energy: policy.coefficients.energy,
+      satiety: policy.coefficients.satiety,
+      employed: policy.coefficients.employed,
+      unemployed: policy.coefficients.unemployed,
+      residentialTier: policy.coefficients.residentialTier,
+      lifestyleTier: policy.coefficients.lifestyleTier,
+      upkeepArrearsPerUnit: policy.coefficients.upkeepArrearsPerUnit,
+      distress: policy.coefficients.distress,
+      positiveRelation: policy.coefficients.positiveRelation,
+      negativeRelation: policy.coefficients.negativeRelation,
+    };
+    const legacy = evaluateWellbeing({
+      previous: 50,
+      inputs: createInputs({ housed: false }),
+      policy: { ...policy, coefficients: legacyCoefficients },
+    });
+
+    expect(unhoused.factorContributions.unhoused).toBe(-10);
+    expect(unhoused.target).toBe(housed.target - 10);
+    expect(legacy.factorContributions).not.toHaveProperty('unhoused');
+    expect(legacy.target).toBe(housed.target);
   });
 
   it('includes the authority-settled service contribution without changing policy coefficients', () => {
@@ -188,6 +227,7 @@ describe('evaluateWellbeing', () => {
         satiety: 0,
         employed: false,
         residentialTier: 1,
+        housed: false,
         lifestyleTier: 'struggling',
         upkeepArrears: 400,
         distressActive: true,
@@ -365,6 +405,12 @@ describe('assertValidWellbeingPolicy', () => {
         coefficients: { ...policy.coefficients, residentialTier: [0, Number.NaN] },
       }),
     ).toThrow('coefficients.residentialTier[1] must be finite');
+    expect(() =>
+      assertValidWellbeingPolicy({
+        ...policy,
+        coefficients: { ...policy.coefficients, unhoused: Number.NaN },
+      }),
+    ).toThrow('coefficients.unhoused must be finite');
   });
 
   it('rejects non-increasing band thresholds', () => {

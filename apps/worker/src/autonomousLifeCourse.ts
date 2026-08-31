@@ -4,9 +4,10 @@ import type {
 } from '@aivilization/agent-runtime';
 import type { WorldAgentState } from '@aivilization/world';
 
-export const AUTONOMOUS_LIFE_COURSE_POLICY_VERSION = 'autonomous-life-course-v2';
+export const AUTONOMOUS_LIFE_COURSE_POLICY_VERSION = 'autonomous-life-course-v3';
 
 const scores = {
+  secureHousing: 92,
   occupationApplication: 82,
   residentialUpgrade: 78,
   progressionAcquisition: 76,
@@ -40,6 +41,7 @@ export function createAutonomousLifeCoursePolicyManifest() {
     source: 'repository-design' as const,
     paperDefinesCandidateUtility: false as const,
     precedence: [
+      'secure-housing',
       'occupation-application',
       'residential-upgrade',
       'progression-acquisition',
@@ -61,6 +63,7 @@ export function createAutonomousLifeCoursePolicyManifest() {
       'current-tier-prerequisite-supply-before-positive-gross-margin-per-second' as const,
     inventoryLiquidation:
       'sell-surplus-above-future-occupation-prerequisite-reserve-before-more-profitable-production' as const,
+    housingSelection: 'most-vacancies-then-location-id' as const,
   };
 }
 
@@ -74,6 +77,25 @@ export function createAutonomousLifeCourseCandidates(input: {
   }
 
   const candidates: AutonomousLifeCourseCandidate[] = [];
+  const housing = input.worldDecisionContext.society?.housing;
+  const availableResidence = housing?.residences
+    .filter((residence) => residence.vacancies > 0)
+    .sort(
+      (left, right) =>
+        right.vacancies - left.vacancies || left.locationId.localeCompare(right.locationId),
+    )[0];
+  if (input.worldDecisionContext.agent.housed === false && availableResidence !== undefined) {
+    candidates.push(
+      createCandidate({
+        id: `secure-housing:${availableResidence.locationId}`,
+        statement: `Secure a home at ${availableResidence.locationId}.`,
+        affinityTags: ['residential', 'housing', 'home', 'shelter'],
+        planningDomains: ['residential'],
+        score: scores.secureHousing,
+        rationale: `The Agent is unhoused and ${availableResidence.locationId} has ${availableResidence.vacancies} authoritative vacancy slot(s).`,
+      }),
+    );
+  }
   const currentOccupation = rules.occupations.find(
     (occupation) => occupation.occupationName === input.agent.job,
   );

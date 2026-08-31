@@ -208,7 +208,7 @@ export type SafetyNetGrantedPayload = {
 
 /**
  * Durable per-agent wellbeing scalar settled during time advancement
- * (town-wellbeing-v1). `previous`/`next` carry the durable value before/after
+ * (town-wellbeing). `previous`/`next` carry the durable value before/after
  * this step, `target` the clamped instantaneous target the value converges
  * toward; replaying the event restores `next` verbatim, so no recomputation
  * ever happens in the projection.

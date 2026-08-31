@@ -1688,6 +1688,29 @@ describe('town wellbeing settlement', () => {
     expect(replayed.agents).toEqual(projection.agents);
   });
 
+  test('feeds authoritative homelessness into the versioned wellbeing target', () => {
+    const projection = createWellbeingProjection();
+    const events = advanceWellbeing(projection, 1, {
+      ...wellbeingPolicies,
+      residentialAssignment: {
+        policyVersion: 'residential-assignment-v1',
+        arrivalSelection: 'most-vacancies-then-location-id',
+      },
+      wellbeing: {
+        ...wellbeingPolicy,
+        policyVersion: 'town-wellbeing-v2',
+        coefficients: { ...wellbeingPolicy.coefficients, unhoused: -10 },
+      },
+    });
+
+    expect(wellbeingChangedPayload(events[1])).toMatchObject({
+      agentId: 'agent-wellbeing',
+      target: 54,
+      policyVersion: 'town-wellbeing-v2',
+      factorContributions: { unhoused: -10 },
+    });
+  });
+
   test('is deterministic: redispatching the same command yields identical events', () => {
     const projection = createWellbeingProjection();
     const command = createCommandEnvelope({

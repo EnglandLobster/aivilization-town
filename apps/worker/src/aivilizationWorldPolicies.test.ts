@@ -50,7 +50,7 @@ describe('AIvilization default world command policies', () => {
         educationOpportunityCost: 'education-opportunity-cost-v2',
         agentActivityTimeAllocation: 'exclusive-agent-activity-time-v2',
         globalSynthesis: 'global-action-synthesis-v1',
-        autonomousObjectiveSelection: 'autonomous-objective-selection-v9',
+        autonomousObjectiveSelection: 'autonomous-objective-selection-v10',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         enterpriseActionProposer: 'enterprise-action-proposer-v3',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
@@ -137,13 +137,14 @@ describe('AIvilization default world command policies', () => {
             },
           },
           autonomousObjectiveSelection: {
-            policyVersion: 'autonomous-objective-selection-v9',
+            policyVersion: 'autonomous-objective-selection-v10',
             source: 'repository-design',
             lifeCourse: {
-              policyVersion: 'autonomous-life-course-v2',
+              policyVersion: 'autonomous-life-course-v3',
               occupationSelection: 'current-wage-times-stable-agent-preference-then-tier-then-name',
               marketBuySlippageReserveMultiplier: 1.1,
               scores: {
+                secureHousing: 92,
                 occupationApplication: 82,
                 residentialUpgrade: 78,
                 progressionAcquisition: 76,
@@ -682,12 +683,12 @@ describe('AIvilization default world command policies', () => {
     const off = createAivilizationWorldPolicyManifest();
     expect(off.policyVersions).not.toHaveProperty('townWellbeing');
     expect(off.parameters).not.toHaveProperty('townWellbeing');
-    expect(JSON.stringify(off)).not.toContain('town-wellbeing-v1');
+    expect(JSON.stringify(off)).not.toContain('town-wellbeing-v2');
 
     const on = createAivilizationWorldPolicyManifest({ townWellbeing: true });
-    expect(on.policyVersions).toMatchObject({ townWellbeing: 'town-wellbeing-v1' });
+    expect(on.policyVersions).toMatchObject({ townWellbeing: 'town-wellbeing-v2' });
     expect(on.parameters.townWellbeing).toMatchObject({
-      policyVersion: 'town-wellbeing-v1',
+      policyVersion: 'town-wellbeing-v2',
       initialValue: 50,
       baseline: 50,
       convergencePerHour: 2,
@@ -699,13 +700,14 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townWellbeing',
           provenance: 'experimental',
-          policyVersion: 'town-wellbeing-v1',
+          policyVersion: 'town-wellbeing-v2',
         }),
       ]),
     );
 
     const policy = createAivilizationTownWellbeingPolicy();
-    expect(policy.policyVersion).toBe('town-wellbeing-v1');
+    expect(policy.policyVersion).toBe('town-wellbeing-v2');
+    expect(policy.coefficients.unhoused).toBe(-10);
     expect(() => assertValidWellbeingPolicy(policy)).not.toThrow();
 
     // The opt-in policy reaches command policies only when the switch is on.
@@ -716,7 +718,7 @@ describe('AIvilization default world command policies', () => {
     expect(
       createAivilizationWorldCommandPolicies('seed', undefined, { townWellbeing: true })(projection)
         .wellbeing?.policyVersion,
-    ).toBe('town-wellbeing-v1');
+    ).toBe('town-wellbeing-v2');
   });
 
   test('declares the town calendar policy in the manifest only when the switch is on', () => {

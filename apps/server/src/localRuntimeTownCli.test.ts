@@ -597,13 +597,13 @@ describe('local runtime town executable composition', () => {
       }).townWellbeingEnabled,
     ).toBe(true);
 
-    // The resolved run manifest only declares town-wellbeing-v1 when enabled.
+    // The resolved run manifest only declares town-wellbeing-v2 when enabled.
     const disabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({ ...base, env: {} }),
       ),
     );
-    expect(disabledManifest).not.toContain('town-wellbeing-v1');
+    expect(disabledManifest).not.toContain('town-wellbeing-v2');
     const enabledManifest = JSON.stringify(
       createCanonicalLocalRuntimeTownResolvedRunManifest(
         resolveLocalRuntimeTownCliConfig({
@@ -612,7 +612,7 @@ describe('local runtime town executable composition', () => {
         }),
       ),
     );
-    expect(enabledManifest).toContain('town-wellbeing-v1');
+    expect(enabledManifest).toContain('town-wellbeing-v2');
   });
 
   test('town calendar is off by default and enabled by flag or env', () => {

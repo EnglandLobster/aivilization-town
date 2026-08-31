@@ -1,8 +1,17 @@
-import { evaluateHousingConstruction, type HousingConstructionPolicy } from '@aivilization/society';
+import {
+  evaluateHousingConstruction,
+  evaluateResidenceChange,
+  type HousingConstructionPolicy,
+  type ResidentialAssignmentPolicy,
+} from '@aivilization/society';
 import type { CommandEnvelope } from '@aivilization/sim-core';
-import { assertAgentBuildHousingPayload } from '../commands';
+import { assertAgentBuildHousingPayload, assertAgentChooseResidencePayload } from '../commands';
 import type { WorldEvent } from '../events';
-import type { WorldProjection } from '../projection';
+import {
+  resolveAgentResidenceLocationId,
+  resolveResidentialOccupancy,
+  type WorldProjection,
+} from '../projection';
 import {
   makeEvent,
   makeMemoryEvent,
@@ -10,6 +19,65 @@ import {
   rejectCommand,
   resolveCommandAgent,
 } from './shared';
+
+export function handleAgentChooseResidenceCommand(input: {
+  readonly command: CommandEnvelope<'AgentChooseResidence', unknown>;
+  readonly projection: WorldProjection;
+  readonly policy: ResidentialAssignmentPolicy;
+  readonly nextSequence: number;
+}): WorldEvent[] {
+  const agent = resolveCommandAgent(input.projection, input.command);
+  const payloadResult = parsePayload(() =>
+    assertAgentChooseResidencePayload(input.command.payload),
+  );
+  if (payloadResult.status === 'invalid') {
+    return rejectCommand(input, 'AgentChooseResidence', payloadResult.reason);
+  }
+  const residence = input.projection.locations[payloadResult.payload.locationId];
+  if (residence === undefined || residence.kind !== 'residence') {
+    return rejectCommand(
+      input,
+      'AgentChooseResidence',
+      `location ${payloadResult.payload.locationId} is not residential`,
+    );
+  }
+  if (agent.locationId !== residence.locationId) {
+    return rejectCommand(
+      input,
+      'AgentChooseResidence',
+      `agent must be at residential location ${residence.locationId}`,
+    );
+  }
+  const decision = evaluateResidenceChange({
+    previousResidenceLocationId: resolveAgentResidenceLocationId(input.projection, agent),
+    target: {
+      locationId: residence.locationId,
+      capacity: residence.capacity,
+      occupied: resolveResidentialOccupancy(input.projection, residence.locationId),
+    },
+    policy: input.policy,
+  });
+  if (decision.status === 'rejected') {
+    return rejectCommand(input, 'AgentChooseResidence', `${decision.reason}: ${decision.detail}`);
+  }
+  return [
+    makeEvent(input, 0, 'AgentResidenceChanged', {
+      agentId: agent.agentId,
+      previousResidenceLocationId: decision.previousResidenceLocationId,
+      nextResidenceLocationId: decision.nextResidenceLocationId,
+      capacityAtDecision: decision.capacity,
+      occupancyBefore: decision.occupancyBefore,
+      occupancyAfter: decision.occupancyAfter,
+      reason: 'agent-choice',
+      policyVersion: decision.policyVersion,
+    }),
+    makeMemoryEvent(input, 1, {
+      summary: `Chose ${residence.name} as home.`,
+      status: 'succeeded',
+      tags: ['residence', residence.locationId],
+    }),
+  ];
+}
 
 export function handleAgentBuildHousingCommand(input: {
   readonly command: CommandEnvelope<'AgentBuildHousing', unknown>;

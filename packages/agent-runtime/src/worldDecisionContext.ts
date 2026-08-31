@@ -9,6 +9,9 @@ import type {
 export type WorldDecisionAgentContext = {
   readonly agentId: AgentId;
   readonly locationId: string | null;
+  /** Durable home, independent from the agent's current physical location. */
+  readonly residenceLocationId?: string | null;
+  readonly housed?: boolean;
   /**
    * The citizen's own display name, sanitized at the adapter boundary via
    * {@link sanitizeDecisionDisplayName} (control characters stripped,
@@ -60,9 +63,9 @@ export type WorldDecisionAgentContext = {
   /** Accumulated unpaid residential upkeep; absent or zero when the household is current. */
   readonly upkeepArrears?: number;
   /**
-   * Region the agent currently belongs to (resolved from its location, the
-   * same source authoritative trade gating and upkeep pricing use). Present
-   * only when the resolved command policies carry residential upkeep pricing.
+   * Region of the agent's durable home (legacy contexts fall back to current
+   * location), from the same source authoritative upkeep pricing uses.
+   * Present only when the resolved command policies carry residential upkeep pricing.
    */
   readonly regionId?: string;
   /**
@@ -73,7 +76,7 @@ export type WorldDecisionAgentContext = {
   readonly regionalLandValueIndex?: number;
   /**
    * Effective per-hour residential upkeep rate for the agent's current tier
-   * and region (base tier cost plus the land value term), resolved with the
+   * and home region (base tier cost plus the land value term), resolved with the
    * same function and policy the settlement uses. Absent when the tier has no
    * configured upkeep cost.
    */
@@ -391,6 +394,7 @@ export type WorldDecisionSocietyAgentContext = {
   readonly ownerPartitionKey: string;
   readonly ownerLastAppliedSequence: number;
   readonly locationId: string | null;
+  readonly residenceLocationId?: string | null;
   readonly job: string | null;
   readonly residentialTier: number;
   readonly educationScore: number;
@@ -415,18 +419,21 @@ export type WorldDecisionSocietyContext = {
   }[];
   readonly agents: readonly WorldDecisionSocietyAgentContext[];
   /**
-   * Simulation-wide finite housing supply. Population is used as occupied
-   * demand because `locationId` is current physical presence, not a durable
-   * home assignment. Absent when any residence has unlimited capacity.
+   * Simulation-wide finite housing supply and concrete residence occupancy.
+   * Absent when any residence has unlimited capacity.
    */
   readonly housing?: {
     readonly population: number;
+    readonly occupiedResidences: number;
+    readonly unhousedPopulation: number;
     readonly totalResidentialCapacity: number;
     readonly vacancies: number;
     readonly occupancyRatio: number;
     readonly residences: readonly {
       readonly locationId: string;
       readonly capacity: number;
+      readonly occupied: number;
+      readonly vacancies: number;
     }[];
   };
 };
@@ -894,7 +901,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v15';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v16';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

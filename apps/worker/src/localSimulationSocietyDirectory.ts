@@ -13,6 +13,7 @@ export type LocalSimulationSocietyDirectoryAgent = {
   readonly ownerLastAppliedSequence: number;
   readonly publicState: {
     readonly locationId: WorldAgentState['locationId'];
+    readonly residenceLocationId?: WorldAgentState['residenceLocationId'];
     readonly job: WorldAgentState['job'];
     readonly residentialTier: number;
     readonly educationScore: number;
@@ -181,6 +182,9 @@ function createDirectoryAgent(input: {
     ownerLastAppliedSequence: input.lastAppliedSequence,
     publicState: {
       locationId: input.agent.locationId,
+      ...(input.agent.residenceLocationId === undefined
+        ? {}
+        : { residenceLocationId: input.agent.residenceLocationId }),
       job: input.agent.job,
       residentialTier: input.agent.residentialTier,
       educationScore: input.agent.educationScore,

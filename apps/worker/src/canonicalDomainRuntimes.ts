@@ -28,6 +28,7 @@ import type {
   AgentApplyEducationExamPayload,
   AgentApplyJobPayload,
   AgentBuildHousingPayload,
+  AgentChooseResidencePayload,
   AgentEatPayload,
   AgentExportCommodityPayload,
   AgentFoundEnterprisePayload,
@@ -246,6 +247,7 @@ export function createCanonicalDomainRuntimeRegistrations(
       config.residential,
       policies?.residentialTierUpgrade,
       policies?.housingConstruction,
+      policies?.residentialAssignment,
     ),
     createHealthDomainRuntimeRegistration(config.health),
     createEatDomainRuntimeRegistration(config.eat, policies?.satietyRecoveryByCommodity),
@@ -1128,6 +1130,7 @@ export function createResidentialDomainRuntimeRegistration(
   config: ResidentialDomainRuntimeConfig = {},
   upgradePolicy?: WorldCommandPolicies['residentialTierUpgrade'],
   housingConstructionPolicy?: WorldCommandPolicies['housingConstruction'],
+  residentialAssignmentPolicy?: WorldCommandPolicies['residentialAssignment'],
 ): WorkerDomainRuntimeRegistration {
   return {
     domain: 'residential',
@@ -1137,6 +1140,14 @@ export function createResidentialDomainRuntimeRegistration(
         context,
         planRecord: context.planRecord,
         propose: (selectedSubtask) => {
+          const residenceProposal = resolveResidenceChoiceProposal({
+            context,
+            selectedSubtask,
+            policy: residentialAssignmentPolicy,
+          });
+          if (residenceProposal !== undefined) {
+            return residenceProposal;
+          }
           const constructionProposal = resolveHousingConstructionProposal({
             context,
             selectedSubtask,
@@ -1167,11 +1178,46 @@ export function createResidentialDomainRuntimeRegistration(
           };
         },
         resolveTargetLocationId: () =>
+          resolveResidenceChoiceLocationId(context, residentialAssignmentPolicy) ??
           resolveHousingConstructionLocationId(context, housingConstructionPolicy) ??
           DEFAULT_DOMAIN_LOCATION_IDS.residential,
       }),
     ],
   };
+}
+
+function resolveResidenceChoiceProposal(input: {
+  readonly context: WorkerDomainRuntimeFactoryInput;
+  readonly selectedSubtask: PrioritizedSubtask;
+  readonly policy?: WorldCommandPolicies['residentialAssignment'];
+}): AtomicActionProposal<'AgentChooseResidence', AgentChooseResidencePayload> | undefined {
+  const locationId = resolveResidenceChoiceLocationId(input.context, input.policy);
+  if (locationId === undefined || input.context.worldDecisionContext?.agent.housed !== false) {
+    return undefined;
+  }
+  return {
+    id: `${createCanonicalActionId('residential', input.selectedSubtask)}-choose-home`,
+    description: `Choose ${locationId} as a durable home.`,
+    commandType: 'AgentChooseResidence',
+    priority: input.selectedSubtask.score,
+    payload: { locationId },
+  };
+}
+
+function resolveResidenceChoiceLocationId(
+  context: WorkerDomainRuntimeFactoryInput,
+  policy?: WorldCommandPolicies['residentialAssignment'],
+): LocationId | undefined {
+  if (policy === undefined || context.worldDecisionContext?.agent.housed !== false) {
+    return undefined;
+  }
+  return context.worldDecisionContext.society?.housing?.residences
+    .filter((residence) => residence.vacancies > 0)
+    .sort(
+      (left, right) =>
+        right.vacancies - left.vacancies || left.locationId.localeCompare(right.locationId),
+    )
+    .map((residence) => asLocationId(residence.locationId))[0];
 }
 
 export function resolveProductionTargetCommodityName(
@@ -1269,6 +1315,7 @@ export type CanonicalActionProposal =
   | AtomicActionProposal<'AgentProduce', AgentProducePayload>
   | AtomicActionProposal<'AgentUpgradeResidentialTier', AgentUpgradeResidentialTierPayload>
   | AtomicActionProposal<'AgentBuildHousing', AgentBuildHousingPayload>
+  | AtomicActionProposal<'AgentChooseResidence', AgentChooseResidencePayload>
   | AtomicActionProposal<'AgentRaisePetition', AgentRaisePetitionPayload>
   | AtomicActionProposal<'AgentSignPetition', AgentSignPetitionPayload>
   | SocialMatterActionProposal
@@ -1307,6 +1354,7 @@ export const CANONICAL_ACTION_PROPOSAL_COMMAND_TYPES = [
   'AgentProduce',
   'AgentUpgradeResidentialTier',
   'AgentBuildHousing',
+  'AgentChooseResidence',
   'AgentRaisePetition',
   'AgentSignPetition',
   'AgentRaiseMatter',

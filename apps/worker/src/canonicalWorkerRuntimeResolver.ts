@@ -28,6 +28,7 @@ import {
   dispatchWorldCommand,
   type AgentObserveLocationPayload,
   type AgentBuildHousingPayload,
+  type AgentChooseResidencePayload,
   type AgentMoveToPayload,
   type AgentProducePayload,
   type AgentUpgradeResidentialTierPayload,
@@ -289,6 +290,15 @@ function decideResidentialSubtaskCompletion(input: {
   readonly selectedSubtask: Parameters<CycleSubtaskCompletionPolicy>[0]['selectedSubtask'];
   readonly simulationResults: Parameters<CycleSubtaskCompletionPolicy>[0]['simulationResults'];
 }): ReturnType<CycleSubtaskCompletionPolicy> | undefined {
+  const residenceAction = input.simulationResults
+    .map((result) => acceptedActionFromSimulationResult(result))
+    .find(isAgentChooseResidenceAction);
+  if (residenceAction !== undefined) {
+    return {
+      status: 'in-progress',
+      reason: `secured a home at ${residenceAction.payload.locationId} before continuing the residential goal`,
+    };
+  }
   const constructionAction = input.simulationResults
     .map((result) => acceptedActionFromSimulationResult(result))
     .find(isAgentBuildHousingAction);
@@ -365,6 +375,12 @@ function isAgentBuildHousingAction(
   action: AtomicActionProposal | undefined,
 ): action is AtomicActionProposal<'AgentBuildHousing', AgentBuildHousingPayload> {
   return action !== undefined && action.commandType === 'AgentBuildHousing';
+}
+
+function isAgentChooseResidenceAction(
+  action: AtomicActionProposal | undefined,
+): action is AtomicActionProposal<'AgentChooseResidence', AgentChooseResidencePayload> {
+  return action !== undefined && action.commandType === 'AgentChooseResidence';
 }
 
 export function createWorldCommandDryRunSimulator(

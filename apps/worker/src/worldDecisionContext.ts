@@ -63,6 +63,7 @@ import {
 import {
   evaluateWorldRenewableResourceProduction,
   resolveAgentAgeAnchorMs,
+  resolveAgentResidenceLocationId,
 } from '@aivilization/world';
 import type {
   WorldAgentState,
@@ -199,6 +200,12 @@ export function createWorldDecisionContextFromProjection(input: {
     agent: {
       agentId: agent.agentId,
       locationId: agent.locationId,
+      ...(input.policies?.residentialAssignment === undefined
+        ? {}
+        : {
+            residenceLocationId: resolveAgentResidenceLocationId(input.projection, agent),
+            housed: resolveAgentResidenceLocationId(input.projection, agent) !== null,
+          }),
       ...(displayName === undefined ? {} : { displayName }),
       ...(relations === undefined ? {} : { relations }),
       physiology: { ...agent.physiology },
@@ -293,6 +300,7 @@ export function createWorldDecisionContextFromProjection(input: {
               matterCounterpartAgentIds,
             },
             input.projection.locations,
+            input.policies,
           ),
         }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
@@ -1345,7 +1353,7 @@ function createBankingDecisionContext(input: {
 
 /**
  * Expose the agent's housing price signal when the resolved policies carry
- * residential upkeep pricing: the agent's region, its latest land value
+ * residential upkeep pricing: the agent's home region, its latest land value
  * index, and the effective per-hour upkeep rate. All three come from the same
  * projection slice, region resolution, policy, and rate function the
  * authoritative settlement uses, so planning and settlement never diverge.
@@ -1365,9 +1373,16 @@ function createHousingDecisionContext(input: {
   if (policy === undefined) {
     return {};
   }
+  const residenceLocationId =
+    input.policies?.residentialAssignment === undefined
+      ? undefined
+      : resolveAgentResidenceLocationId(input.projection, input.agent);
+  if (residenceLocationId === null) {
+    return {};
+  }
   const regionId = resolveAgentRegion({
     projection: input.projection,
-    agentLocationId: input.agent.locationId,
+    agentLocationId: residenceLocationId ?? input.agent.locationId,
   });
   // The land value index only enters pricing when a land value policy is
   // active; without one the authoritative settlement prices flat, so the
@@ -1396,6 +1411,7 @@ function createSocietyDecisionContext(
     readonly matterCounterpartAgentIds: readonly AgentId[];
   },
   locations: WorldProjection['locations'],
+  policies?: WorldCommandPolicies,
 ) {
   // §7 step 2 budget binding: the full cross-partition directory scales with
   // total population; the per-agent view keeps every local-partition neighbor
@@ -1434,11 +1450,33 @@ function createSocietyDecisionContext(
   const residences = Object.values(locations)
     .filter((location) => location.kind === 'residence')
     .sort((left, right) => left.locationId.localeCompare(right.locationId));
+  const residenceLocationIds = new Set(residences.map((location) => location.locationId));
+  const resolvedResidenceByAgentId = new Map(
+    directory.agents.map((agent) => {
+      const explicitResidence = agent.publicState.residenceLocationId;
+      const residenceLocationId =
+        explicitResidence !== undefined
+          ? explicitResidence
+          : agent.publicState.locationId !== null &&
+              residenceLocationIds.has(asLocationId(agent.publicState.locationId))
+            ? agent.publicState.locationId
+            : null;
+      return [agent.agentId, residenceLocationId] as const;
+    }),
+  );
   const finiteHousing =
     residences.length > 0 && residences.every((location) => location.capacity !== null)
       ? residences.map((location) => ({
           locationId: location.locationId,
           capacity: location.capacity as number,
+          occupied:
+            policies?.residentialAssignment === undefined
+              ? directory.agents.filter(
+                  (agent) => agent.publicState.locationId === location.locationId,
+                ).length
+              : [...resolvedResidenceByAgentId.values()].filter(
+                  (residenceLocationId) => residenceLocationId === location.locationId,
+                ).length,
         }))
       : undefined;
   const totalResidentialCapacity = finiteHousing?.reduce(
@@ -1450,13 +1488,26 @@ function createSocietyDecisionContext(
     totalResidentialCapacity === undefined ||
     totalResidentialCapacity === 0
       ? undefined
-      : {
-          population: directory.agents.length,
-          totalResidentialCapacity,
-          vacancies: Math.max(0, totalResidentialCapacity - directory.agents.length),
-          occupancyRatio: Math.min(1, directory.agents.length / totalResidentialCapacity),
-          residences: finiteHousing,
-        };
+      : (() => {
+          const occupiedResidences =
+            policies?.residentialAssignment === undefined
+              ? directory.agents.length
+              : [...resolvedResidenceByAgentId.values()].filter(
+                  (residenceLocationId) => residenceLocationId !== null,
+                ).length;
+          return {
+            population: directory.agents.length,
+            occupiedResidences,
+            unhousedPopulation: Math.max(0, directory.agents.length - occupiedResidences),
+            totalResidentialCapacity,
+            vacancies: Math.max(0, totalResidentialCapacity - occupiedResidences),
+            occupancyRatio: Math.min(1, occupiedResidences / totalResidentialCapacity),
+            residences: finiteHousing.map((residence) => ({
+              ...residence,
+              vacancies: Math.max(0, residence.capacity - residence.occupied),
+            })),
+          };
+        })();
   return {
     directoryId: directory.directoryId,
     simulationId: directory.simulationId,
@@ -1466,6 +1517,9 @@ function createSocietyDecisionContext(
       ownerPartitionKey: agent.ownerPartitionKey,
       ownerLastAppliedSequence: agent.ownerLastAppliedSequence,
       locationId: agent.publicState.locationId,
+      ...(agent.publicState.residenceLocationId === undefined
+        ? {}
+        : { residenceLocationId: agent.publicState.residenceLocationId }),
       job: agent.publicState.job,
       residentialTier: agent.publicState.residentialTier,
       educationScore: agent.publicState.educationScore,

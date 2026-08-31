@@ -1887,6 +1887,10 @@ describe('authority lifecycle and memory-sync scoping', () => {
     const basePolicies = createAivilizationWorldCommandPolicies('authority-migration-test');
     const policies: WorldCommandPolicyResolver = (projection) => ({
       ...basePolicies(projection),
+      residentialAssignment: {
+        policyVersion: 'residential-assignment-test-v1',
+        arrivalSelection: 'most-vacancies-then-location-id',
+      },
       migration: {
         policyVersion: 'town-migration-test-v3',
         maxProbabilityPerHour: 1,
@@ -2143,6 +2147,67 @@ describe('authority lifecycle and memory-sync scoping', () => {
     if (advance?.kind !== 'time-advanced') throw new Error('expected time advance');
     expect(advance.events.some((event) => event.type === 'AgentRegistered')).toBe(true);
     expect(authority.getSnapshot().projection.locations['residential-block']?.capacity).toBe(7);
+  });
+
+  test('serializes the final residence vacancy across partitions', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-residence-'));
+    const basePolicies = createAivilizationWorldCommandPolicies('residence-test', undefined, {
+      townConstruction: true,
+    });
+    const authority = createSimulationWideAuthority({
+      rootDir,
+      policies: basePolicies,
+      seed: {
+        manifestId: 'residence-manifest',
+        simulationId,
+        partitionKeys: [partitionA, partitionB],
+        owners: [
+          { agentId: agentA, partitionKey: partitionA },
+          { agentId: agentB, partitionKey: partitionB },
+        ],
+        projection: createWorldProjection({
+          locations: [
+            {
+              locationId: asLocationId('last-home'),
+              name: 'Last home',
+              kind: 'residence',
+              activityAffinities: [],
+              capacity: 1,
+            },
+          ],
+          agents: [agentA, agentB].map((agentId) => ({
+            agentId,
+            locationId: asLocationId('last-home'),
+            residenceLocationId: null,
+            physiology: { energy: 100, satiety: 100, health: 100 },
+            educationScore: 0,
+            balance: 0,
+            residentialTier: 1,
+            job: null,
+            inventory: {},
+          })),
+        }),
+      },
+    });
+    const first = authority.settleResidence({
+      operationId: 'residence-a',
+      ...lease(),
+      agentId: agentA,
+      residence: { locationId: asLocationId('last-home') },
+    });
+    expect(first.events[0]).toMatchObject({
+      type: 'AgentResidenceChanged',
+      payload: { occupancyBefore: 0, occupancyAfter: 1 },
+    });
+    expect(() =>
+      authority.settleResidence({
+        operationId: 'residence-b',
+        ...lease(),
+        agentId: agentB,
+        residence: { locationId: asLocationId('last-home') },
+      }),
+    ).toThrow('residence-full');
+    expect(authority.getSnapshot().projection.agents[agentB]?.residenceLocationId).toBeNull();
   });
 });
 

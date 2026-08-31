@@ -39,6 +39,9 @@ export function createWorldProjectionFromScenario(input: ScenarioProjectionInput
     agents: input.preset.agentSeeds.map((agent) => ({
       agentId: agent.agentId,
       locationId: agent.locationId,
+      ...(agent.residenceLocationId === undefined
+        ? {}
+        : { residenceLocationId: agent.residenceLocationId }),
       physiology: agent.physiology,
       educationScore: agent.educationScore,
       balance: agent.balance,

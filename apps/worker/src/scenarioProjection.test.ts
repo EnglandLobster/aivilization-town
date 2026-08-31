@@ -20,6 +20,7 @@ describe('scenario projection adapter', () => {
     expect(projection.clock).toEqual({ now: 0, tickDurationMs: 1000 });
     expect(projection.agents['ablation-agent-001']).toMatchObject({
       locationId: null,
+      residenceLocationId: 'residential-block',
       physiology: { energy: 60, satiety: 60, health: 60 },
       educationScore: 0,
       balance: 0,

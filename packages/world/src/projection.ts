@@ -78,6 +78,8 @@ export type WorldGovernanceState = TownGovernanceState & {
 export type WorldAgentState = {
   readonly agentId: AgentId;
   readonly locationId: LocationId | null;
+  /** Durable home assignment, independent of current physical location. */
+  readonly residenceLocationId?: LocationId | null;
   readonly physiology: PhysiologicalState;
   readonly educationScore: number;
   readonly balance: number;
@@ -696,6 +698,14 @@ export function createWorldProjection(input: {
         `agent ${agent.agentId} location ${locationId} is not in projection locations`,
       );
     }
+    if (agent.residenceLocationId !== undefined && agent.residenceLocationId !== null) {
+      const residence = locations[agent.residenceLocationId];
+      if (residence === undefined || residence.kind !== 'residence') {
+        throw new Error(
+          `agent ${agent.agentId} residence ${agent.residenceLocationId} is not a residential location`,
+        );
+      }
+    }
     agents[agent.agentId] = {
       ...agent,
       locationId,
@@ -705,6 +715,7 @@ export function createWorldProjection(input: {
         : { durableGoods: agent.durableGoods.map((lot) => ({ ...lot })) }),
     };
   }
+  assertResidentialCapacityNotExceeded(agents, locations);
 
   const marketPools: Record<string, AmmPool> = {};
   for (const pool of input.marketPools ?? []) {
@@ -966,6 +977,23 @@ export function applyWorldEvent(
         throw new Error(`cannot replay duplicate agent registration ${event.payload.agentId}`);
       }
       const initialState = event.payload.initialState;
+      if (
+        initialState.residenceLocationId !== undefined &&
+        initialState.residenceLocationId !== null
+      ) {
+        const residence = projection.locations[initialState.residenceLocationId];
+        if (residence === undefined || residence.kind !== 'residence') {
+          throw new Error(
+            `registered agent ${event.payload.agentId} has invalid residence ${initialState.residenceLocationId}`,
+          );
+        }
+        const occupied = resolveResidentialOccupancy(projection, initialState.residenceLocationId);
+        if (residence.capacity !== null && occupied >= residence.capacity) {
+          throw new Error(
+            `registered agent ${event.payload.agentId} exceeds residence ${residence.locationId} capacity`,
+          );
+        }
+      }
       return applyMoneyTransferToSupply(
         {
           ...projection,
@@ -1521,6 +1549,39 @@ export function applyWorldEvent(
           inventory: applyInventoryChanges(agent.inventory, event.payload.consumedInventory, -1),
         }),
       );
+    case 'AgentResidenceChanged': {
+      const residence = projection.locations[event.payload.nextResidenceLocationId];
+      if (residence === undefined || residence.kind !== 'residence') {
+        throw new Error(`unknown residential location ${event.payload.nextResidenceLocationId}`);
+      }
+      if (
+        residence.capacity !== event.payload.capacityAtDecision ||
+        event.payload.occupancyAfter !== event.payload.occupancyBefore + 1 ||
+        event.payload.occupancyBefore < 0 ||
+        (event.payload.capacityAtDecision !== null &&
+          event.payload.occupancyAfter > event.payload.capacityAtDecision)
+      ) {
+        throw new Error(`invalid residence occupancy evidence for ${residence.locationId}`);
+      }
+      const occupied = resolveResidentialOccupancy(
+        projection,
+        event.payload.nextResidenceLocationId,
+      );
+      if (occupied !== event.payload.occupancyBefore) {
+        throw new Error(
+          `residence ${residence.locationId} occupancy expected ${event.payload.occupancyBefore}, available ${occupied}`,
+        );
+      }
+      return updateAgent(projection, event.payload.agentId, (agent) => {
+        const previous = resolveAgentResidenceLocationId(projection, agent);
+        if (previous !== event.payload.previousResidenceLocationId) {
+          throw new Error(
+            `agent ${agent.agentId} residence expected ${String(event.payload.previousResidenceLocationId)}, available ${String(previous)}`,
+          );
+        }
+        return { ...agent, residenceLocationId: event.payload.nextResidenceLocationId };
+      });
+    }
     case 'HousingCapacityExpanded': {
       const location = projection.locations[event.payload.locationId];
       if (location === undefined) {
@@ -2519,6 +2580,9 @@ export function applyWorldEvent(
           [event.payload.agentId]: {
             agentId: event.payload.agentId,
             locationId: state.locationId,
+            ...(state.residenceLocationId === undefined
+              ? {}
+              : { residenceLocationId: state.residenceLocationId }),
             physiology: { ...state.physiology },
             educationScore: state.educationScore,
             balance: state.balance,
@@ -2584,6 +2648,42 @@ export function applyWorldEvent(
     }
   }
   throw new Error(`unhandled world event ${event.type}`);
+}
+
+/** Resolves legacy snapshots without inventing a durable mutation during hydration. */
+export function resolveAgentResidenceLocationId(
+  projection: Pick<WorldProjection, 'locations'>,
+  agent: Pick<WorldAgentState, 'locationId' | 'residenceLocationId'>,
+): LocationId | null {
+  if (agent.residenceLocationId !== undefined) return agent.residenceLocationId;
+  if (agent.locationId !== null && projection.locations[agent.locationId]?.kind === 'residence') {
+    return agent.locationId;
+  }
+  return null;
+}
+
+export function resolveResidentialOccupancy(
+  projection: Pick<WorldProjection, 'agents' | 'locations'>,
+  locationId: LocationId,
+): number {
+  return Object.values(projection.agents).filter(
+    (agent) => resolveAgentResidenceLocationId(projection, agent) === locationId,
+  ).length;
+}
+
+function assertResidentialCapacityNotExceeded(
+  agents: Readonly<Record<string, WorldAgentState>>,
+  locations: Readonly<Record<string, WorldLocationState>>,
+): void {
+  for (const location of Object.values(locations)) {
+    if (location.kind !== 'residence' || location.capacity === null) continue;
+    const occupied = resolveResidentialOccupancy({ agents, locations }, location.locationId);
+    if (occupied > location.capacity) {
+      throw new Error(
+        `residence ${location.locationId} occupancy ${occupied} exceeds capacity ${location.capacity}`,
+      );
+    }
+  }
 }
 
 function assertOwnershipCirculatingBalance(input: {

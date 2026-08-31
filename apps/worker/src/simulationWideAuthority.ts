@@ -43,6 +43,7 @@ import {
   type AgentPostBulletinPayload,
   type AgentDepositPayload,
   type AgentBuildHousingPayload,
+  type AgentChooseResidencePayload,
   type AgentRequestLoanPayload,
   type AgentWithdrawPayload,
   type TownWeatherPolicy,
@@ -304,6 +305,12 @@ export type SimulationWideConstructionRequest = SimulationWideAuthorityLease & {
   readonly housing: AgentBuildHousingPayload;
 };
 
+export type SimulationWideResidenceRequest = SimulationWideAuthorityLease & {
+  readonly operationId: string;
+  readonly agentId: AgentId;
+  readonly residence: AgentChooseResidencePayload;
+};
+
 /**
  * A conflict command (confront/attack/intervene) settled against the
  * authoritative world state. Conflict facts are town-wide, so every partition
@@ -559,6 +566,16 @@ export type SimulationWideAuthorityOperation =
       readonly status: 'completed';
     }
   | {
+      /** One Agent's durable home assignment, validated against global occupancy. */
+      readonly kind: 'residence';
+      readonly operationId: string;
+      readonly fencingToken: number;
+      readonly ownerPartitionKey: PartitionKey;
+      readonly locationId: string;
+      readonly events: readonly WorldEvent[];
+      readonly status: 'completed';
+    }
+  | {
       /**
        * A conflict command (confront/attack/intervene) settled against the one
        * authoritative world state, with world-adjudicated grievance, damage,
@@ -676,6 +693,9 @@ export type SimulationWideAuthorityService = {
   readonly settleConstruction: (
     request: SimulationWideConstructionRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'construction' };
+  readonly settleResidence: (
+    request: SimulationWideResidenceRequest,
+  ) => SimulationWideAuthorityOperation & { readonly kind: 'residence' };
   readonly settleMatter: (
     request: SimulationWideMatterRequest,
   ) => SimulationWideAuthorityOperation & { readonly kind: 'matter' };
@@ -1493,6 +1513,68 @@ export function createSimulationWideAuthority(input: {
             fencingToken,
             ownerPartitionKey,
             locationId: expanded.payload.locationId,
+            events,
+            status: 'completed',
+          };
+          return {
+            state: {
+              ...state,
+              projection: events.reduce(applyWorldEvent, state.projection),
+            },
+            operation,
+          };
+        },
+      });
+    },
+    settleResidence(request) {
+      return mutate({
+        operationId: request.operationId,
+        requestFingerprint: stableStringify({
+          kind: 'residence',
+          agentId: request.agentId,
+          residence: request.residence,
+        }),
+        lease: request,
+        create: (state, fencingToken) => {
+          const ownerPartitionKey = state.ownerPartitionKeyByAgentId[request.agentId];
+          if (ownerPartitionKey === undefined) {
+            throw new Error(`cannot choose residence for unowned Agent ${request.agentId}`);
+          }
+          const events = dispatchWorldCommand({
+            command: createCommandEnvelope({
+              id: `simulation-wide-residence-${request.operationId}`,
+              simulationId: state.simulationId,
+              actorId: request.agentId,
+              source: 'agent-runtime',
+              type: 'AgentChooseResidence',
+              payload: request.residence,
+              issuedAt: request.observedAt,
+            }),
+            projection: state.projection,
+            policies: resolvePolicies(state.projection),
+            nextSequence: state.revision + 1,
+          });
+          const rejection = events.find((event) => event.type === 'ActionRejected');
+          if (rejection?.type === 'ActionRejected') {
+            throw new SimulationWideCommandRejectedError(
+              'residence',
+              rejection.payload.reason,
+              events,
+            );
+          }
+          const changed = events.find((event) => event.type === 'AgentResidenceChanged');
+          if (changed?.type !== 'AgentResidenceChanged') {
+            throw new Error('simulation-wide residence settlement produced no residence event');
+          }
+          const operation: Extract<
+            SimulationWideAuthorityOperation,
+            { readonly kind: 'residence' }
+          > = {
+            kind: 'residence',
+            operationId: request.operationId,
+            fencingToken,
+            ownerPartitionKey,
+            locationId: changed.payload.nextResidenceLocationId,
             events,
             status: 'completed',
           };
@@ -2931,6 +3013,14 @@ function createInboxDeliveries(
             ? operation.events
             : operation.events.filter((event) => event.type === 'HousingCapacityExpanded'),
       }));
+    case 'residence':
+      return partitionKeys.map((partitionKey) => ({
+        operationId: operation.operationId,
+        fencingToken: operation.fencingToken,
+        partitionKey,
+        operationKind: operation.kind,
+        events: partitionKey === operation.ownerPartitionKey ? operation.events : [],
+      }));
     case 'matter':
       return partitionKeys.map((partitionKey) => ({
         operationId: operation.operationId,
@@ -3360,6 +3450,9 @@ function createOwnershipTransferEvents(input: {
       circulatingBalanceTransferred: state.balance,
       agentState: {
         locationId: state.locationId,
+        ...(state.residenceLocationId === undefined
+          ? {}
+          : { residenceLocationId: state.residenceLocationId }),
         physiology: { ...state.physiology },
         educationScore: state.educationScore,
         balance: state.balance,

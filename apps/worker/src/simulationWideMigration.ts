@@ -7,10 +7,16 @@ import {
   type PartitionKey,
   type SimulationId,
 } from '@aivilization/sim-core';
-import { evaluateInMigrationDemand, type InMigrationPolicy } from '@aivilization/society';
+import {
+  evaluateInMigrationDemand,
+  selectResidenceForArrival,
+  type InMigrationPolicy,
+} from '@aivilization/society';
 import {
   applyWorldEvent,
   dispatchWorldCommand,
+  resolveAgentResidenceLocationId,
+  resolveResidentialOccupancy,
   type WorldCommandPolicies,
   type WorldEvent,
   type WorldProjection,
@@ -60,6 +66,10 @@ export function settleDemandDrivenArrivals(input: {
   const policy = input.policy;
   const migrationPolicyVersion = input.migrationPolicyVersion;
   const fallbackWellbeing = input.fallbackWellbeing;
+  const residentialAssignmentPolicy = input.commandPolicies.residentialAssignment;
+  if (residentialAssignmentPolicy === undefined) {
+    throw new Error('demand-driven migration requires a residential assignment policy');
+  }
 
   let projection = input.projection;
   const events = [...input.existingEvents];
@@ -95,6 +105,9 @@ export function settleDemandDrivenArrivals(input: {
           : total,
       0,
     );
+    const occupiedResidentialCapacity = Object.values(projection.agents).filter(
+      (agent) => resolveAgentResidenceLocationId(projection, agent) !== null,
+    ).length;
     const openJobSlots = Object.values(projection.enterprises).reduce(
       (total, enterprise) => total + (enterprise.jobPosting?.openSlots ?? 0),
       0,
@@ -112,6 +125,7 @@ export function settleDemandDrivenArrivals(input: {
     const decision = evaluateInMigrationDemand({
       population: populationBefore,
       residentialCapacity,
+      occupiedResidentialCapacity,
       openJobSlots,
       averageWellbeing,
       roll,
@@ -119,6 +133,17 @@ export function settleDemandDrivenArrivals(input: {
     });
 
     for (let index = 0; index < decision.arrivalCount; index += 1) {
+      const residence = selectResidenceForArrival({
+        residences: Object.values(projection.locations)
+          .filter((location) => location.kind === 'residence')
+          .map((location) => ({
+            locationId: location.locationId,
+            capacity: location.capacity,
+            occupied: resolveResidentialOccupancy(projection, location.locationId),
+          })),
+        policy: residentialAssignmentPolicy,
+      });
+      if (residence === null) break;
       const agentId = asAgentId(
         `immigrant-${sha256Hex(`${input.simulationId}:${settledAt}:${index}`).slice(0, 20)}`,
       );
@@ -156,6 +181,10 @@ export function settleDemandDrivenArrivals(input: {
         ...registered,
         payload: {
           ...registered.payload,
+          initialState: {
+            ...registered.payload.initialState,
+            residenceLocationId: residence.locationId,
+          },
           migrationArrival: {
             migrationPolicyVersion,
             settledAt,
@@ -165,6 +194,9 @@ export function settleDemandDrivenArrivals(input: {
             averageWellbeing,
             housingVacancies: decision.housingVacancies,
             demandScore: decision.demandScore,
+            residenceLocationId: residence.locationId,
+            occupiedResidentialCapacity,
+            residentialAssignmentPolicyVersion: residentialAssignmentPolicy.policyVersion,
           },
         },
       };

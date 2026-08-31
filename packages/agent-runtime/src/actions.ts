@@ -8,6 +8,17 @@ export type ActionResourceEstimate = {
   readonly inventoryCosts?: Readonly<Record<string, number>>;
 };
 
+/**
+ * A proposal may remain in the candidate set for traceability while being
+ * ineligible for execution under the current read context. The simulator is
+ * still authoritative; this marker only prevents a planner from repeatedly
+ * selecting a condition it already knows cannot currently succeed.
+ */
+export type ActionAvailability = {
+  readonly status: 'blocked';
+  readonly reason: string;
+};
+
 export type ActionSynthesisContext = {
   readonly branchId?: string;
   readonly subtaskId?: string;
@@ -34,6 +45,7 @@ export type AtomicActionProposal<
   readonly commandType: TCommandType;
   readonly payload: TPayload;
   readonly priority?: number;
+  readonly availability?: ActionAvailability;
   readonly resourceEstimate?: ActionResourceEstimate;
   readonly synthesisContext?: ActionSynthesisContext;
 };

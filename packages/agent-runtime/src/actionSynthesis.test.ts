@@ -14,9 +14,7 @@ describe('action synthesis', () => {
     });
 
     expect(result.acceptedActions.map((action) => action.id)).toEqual(['sleep', 'work']);
-    expect(result.rejectedActions).toEqual([
-      { action: study, reason: 'maxActions exhausted' },
-    ]);
+    expect(result.rejectedActions).toEqual([{ action: study, reason: 'maxActions exhausted' }]);
   });
 
   test('rejects actions that would exceed shared resource budgets', () => {
@@ -47,6 +45,30 @@ describe('action synthesis', () => {
     expect(result.acceptedActions.map((action) => action.id)).toEqual(['work', 'eat-bread']);
     expect(result.rejectedActions).toEqual([
       { action: secondMeal, reason: 'inventory budget exceeded for Bread' },
+    ]);
+  });
+
+  test('skips a known-blocked proposal and selects a feasible lower-priority alternative', () => {
+    const blocked = {
+      ...createAction('blocked-work', 100),
+      availability: {
+        status: 'blocked',
+        reason: 'destination workshop is at-capacity',
+      },
+    } satisfies AtomicActionProposal;
+    const alternative = createAction('eat-now', 1);
+
+    const result = synthesizeActionCandidates({
+      actions: [blocked, alternative],
+      policy: { maxActions: 1 },
+    });
+
+    expect(result.acceptedActions.map((action) => action.id)).toEqual(['eat-now']);
+    expect(result.rejectedActions).toEqual([
+      {
+        action: blocked,
+        reason: 'action unavailable: destination workshop is at-capacity',
+      },
     ]);
   });
 
@@ -146,7 +168,10 @@ describe('action synthesis', () => {
     // exceeds the 100 * 0.3 = 30 non-survival cap.
     expect(struggling.acceptedActions.map((action) => action.id)).toEqual(['buy-food']);
     expect(struggling.rejectedActions).toEqual([
-      { action: buyTransistor, reason: 'struggling lifestyle non-survival currency budget exceeded' },
+      {
+        action: buyTransistor,
+        reason: 'struggling lifestyle non-survival currency budget exceeded',
+      },
     ]);
 
     const stable = synthesizeActionCandidates({

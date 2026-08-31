@@ -4,7 +4,7 @@ import type {
   ShortTermMemoryRecord,
 } from '@aivilization/memory';
 import type { AgentId } from '@aivilization/sim-core';
-import type { ActionResourceEstimate, AtomicActionProposal } from './actions';
+import type { ActionAvailability, ActionResourceEstimate, AtomicActionProposal } from './actions';
 import type {
   LlmLongTermProfileContextTrace,
   LlmShortTermMemoryContextTrace,
@@ -150,6 +150,10 @@ export function applyActionSequenceProposal(input: {
       action.resourceEstimate === undefined
         ? undefined
         : validateResourceEstimate(action.resourceEstimate, `actions[${index}].resourceEstimate`);
+    const availability = resolveInheritedAvailability({
+      deterministicActions: input.deterministicActions,
+      commandType,
+    });
 
     return {
       id: action.id,
@@ -157,9 +161,27 @@ export function applyActionSequenceProposal(input: {
       commandType,
       payload,
       ...(priority === undefined ? {} : { priority }),
+      ...(availability === undefined ? {} : { availability }),
       ...(resourceEstimate === undefined ? {} : { resourceEstimate }),
     };
   });
+}
+
+function resolveInheritedAvailability(input: {
+  readonly deterministicActions: readonly AtomicActionProposal[];
+  readonly commandType: AtomicActionProposal['commandType'];
+}): ActionAvailability | undefined {
+  const matching = input.deterministicActions.filter(
+    (action) => action.commandType === input.commandType,
+  );
+  if (
+    matching.length === 0 ||
+    matching.some((action) => action.availability?.status !== 'blocked')
+  ) {
+    return undefined;
+  }
+  const reason = matching[0]?.availability?.reason;
+  return reason === undefined ? undefined : { status: 'blocked', reason };
 }
 
 export function createActionSequenceGenerationTraceActions(

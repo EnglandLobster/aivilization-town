@@ -56,7 +56,7 @@ describe('AIvilization default world command policies', () => {
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v15',
+        contextView: 'world-decision-context-view-v16',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -100,7 +100,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v15',
+            contextViewVersion: 'world-decision-context-view-v16',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -260,6 +260,11 @@ describe('AIvilization default world command policies', () => {
           parameterPath: 'townSpatialGraph',
           provenance: 'repository-defined',
           policyVersion: 'town-spatial-graph-v2',
+        }),
+        expect.objectContaining({
+          parameterPath: 'residentialAssignment',
+          provenance: 'repository-defined',
+          policyVersion: 'residential-assignment-v1',
         }),
       ]),
     );
@@ -1091,6 +1096,10 @@ describe('AIvilization default world command policies', () => {
       },
     });
     expect(policies.residentialTierUpgrade?.maxResidentialTier).toBe(6);
+    expect(policies.residentialAssignment).toEqual({
+      policyVersion: 'residential-assignment-v1',
+      arrivalSelection: 'most-vacancies-then-location-id',
+    });
     expect(policies.residentialTierUpgrade?.costs).toContainEqual({
       targetResidentialTier: 5,
       currencyCost: 500,

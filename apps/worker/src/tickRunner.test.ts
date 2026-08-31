@@ -2131,20 +2131,11 @@ describe('worker tick runner', () => {
     ).toEqual([
       [1, 'SimulationTimeAdvanced'],
       [2, 'PhysiologyChanged'],
-      [3, 'ResidentialUpkeepCharged'],
-      [4, 'ResidentialUpkeepArrearsUpdated'],
-      [5, 'PhysiologicalDistressChanged'],
-      [6, 'SafetyNetGranted'],
-      [7, 'ShortTermMemoryRecorded'],
+      [3, 'PhysiologicalDistressChanged'],
+      [4, 'SafetyNetGranted'],
+      [5, 'ShortTermMemoryRecorded'],
     ]);
-    expect(result.events[3]).toMatchObject({
-      payload: {
-        agentId: agentOne,
-        previousArrears: 0,
-        nextArrears: 10,
-        reason: 'upkeep-arrears',
-      },
-    });
+    expect(result.events.some((event) => event.type === 'ResidentialUpkeepCharged')).toBe(false);
     expect(result.events[1]).toMatchObject({
       payload: {
         agentId: agentOne,
@@ -2154,9 +2145,10 @@ describe('worker tick runner', () => {
       },
     });
     expect(result.projection.agents[agentOne]?.physiology.health).toBe(72);
-    expect(result.projection.agents[agentOne]?.balance).toBe(0);
+    expect(result.projection.agents[agentOne]?.balance).toBe(10);
+    expect(result.projection.agents[agentOne]?.upkeepArrears).toBeUndefined();
     expect(result.projection.agents[agentOne]?.inventory).toEqual({ Apple: 2 });
-    expect(result.projection.moneySupply).toBe(990);
+    expect(result.projection.moneySupply).toBe(1000);
     expect(result.projection.physiologicalDistressByAgent[agentOne]).toEqual({
       policyVersion: 'physiological-safety-net-v1',
       distressStartedAt: 0,

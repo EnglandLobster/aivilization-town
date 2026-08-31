@@ -18,6 +18,7 @@ export * from './physiology';
 export * from './publicBudget';
 export * from './recruitment';
 export * from './residential';
+export * from './residence';
 export * from './housingConstruction';
 export * from './serviceQuality';
 export * from './social';

@@ -100,6 +100,8 @@ export type AgentRegisteredPayload = {
   readonly agentId: AgentId;
   readonly initialState: {
     readonly locationId: null;
+    /** Durable home assignment; absent on registrations recorded before residence-v1. */
+    readonly residenceLocationId?: LocationId | null;
     readonly physiology: PhysiologicalState;
     readonly educationScore: number;
     readonly balance: number;
@@ -118,6 +120,10 @@ export type AgentRegisteredPayload = {
     readonly averageWellbeing: number;
     readonly housingVacancies: number;
     readonly demandScore: number;
+    /** Concrete vacancy selected by residence-v1 for this arrival. */
+    readonly residenceLocationId?: LocationId;
+    readonly occupiedResidentialCapacity?: number;
+    readonly residentialAssignmentPolicyVersion?: string;
   };
   readonly humanAttribution?: HumanCommandAttribution;
 };
@@ -1475,6 +1481,8 @@ export type AgentOwnershipArrivedPayload = {
   readonly circulatingBalanceTransferred?: number;
   readonly agentState: {
     readonly locationId: LocationId | null;
+    /** Durable home assignment; absent on ownership arrivals recorded before residence-v1. */
+    readonly residenceLocationId?: LocationId | null;
     readonly physiology: PhysiologicalState;
     readonly educationScore: number;
     readonly balance: number;
@@ -1562,6 +1570,17 @@ export type AgentOwnershipArrivedPayload = {
   readonly conflictRecords?: readonly WorldConflictRecord[];
 };
 
+export type AgentResidenceChangedPayload = {
+  readonly agentId: AgentId;
+  readonly previousResidenceLocationId: LocationId | null;
+  readonly nextResidenceLocationId: LocationId;
+  readonly capacityAtDecision: number | null;
+  readonly occupancyBefore: number;
+  readonly occupancyAfter: number;
+  readonly reason: 'agent-choice' | 'migration-arrival';
+  readonly policyVersion: string;
+};
+
 export type WorldEventPayloadByType = {
   readonly AgentRegistered: AgentRegisteredPayload;
   readonly AgentRegistrationRejected: AgentRegistrationRejectedPayload;
@@ -1582,6 +1601,7 @@ export type WorldEventPayloadByType = {
   readonly JobAssigned: JobAssignedPayload;
   readonly RecruitmentCycleCompleted: RecruitmentCycleCompletedPayload;
   readonly ResidentialTierUpgraded: ResidentialTierUpgradedPayload;
+  readonly AgentResidenceChanged: AgentResidenceChangedPayload;
   readonly HousingCapacityExpanded: HousingCapacityExpandedPayload;
   readonly ResidentialTierDowngraded: ResidentialTierDowngradedPayload;
   readonly ResidentialUpkeepCharged: ResidentialUpkeepChargedPayload;

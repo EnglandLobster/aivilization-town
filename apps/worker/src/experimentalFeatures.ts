@@ -15,6 +15,7 @@ import {
   aivilizationSurvivalTimePolicyDefaults,
   aivilizationTownWellbeingPolicyDefaults,
   aivilizationHousingConstructionPolicyDefaults,
+  aivilizationResidentialAssignmentPolicyDefaults,
 } from '@aivilization/content';
 import {
   assertValidRenewableResourcePolicy,
@@ -43,6 +44,8 @@ import {
   type StarvationHealthDecayPolicy,
   assertValidHousingConstructionPolicy,
   type HousingConstructionPolicy,
+  assertValidResidentialAssignmentPolicy,
+  type ResidentialAssignmentPolicy,
 } from '@aivilization/society';
 import {
   assertTownWeatherPolicy,
@@ -258,6 +261,15 @@ export function createAivilizationHousingConstructionPolicy(): HousingConstructi
     locationSelection: aivilizationHousingConstructionPolicyDefaults.locationSelection,
   };
   assertValidHousingConstructionPolicy(policy);
+  return policy;
+}
+
+export function createAivilizationResidentialAssignmentPolicy(): ResidentialAssignmentPolicy {
+  const policy: ResidentialAssignmentPolicy = {
+    policyVersion: aivilizationResidentialAssignmentPolicyDefaults.policyVersion,
+    arrivalSelection: aivilizationResidentialAssignmentPolicyDefaults.arrivalSelection,
+  };
+  assertValidResidentialAssignmentPolicy(policy);
   return policy;
 }
 
@@ -693,10 +705,12 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       createManifestParameters: () => ({
         ...aivilizationHousingConstructionPolicyDefaults,
         inventoryCosts: { ...aivilizationHousingConstructionPolicyDefaults.inventoryCosts },
+        residentialAssignment: { ...aivilizationResidentialAssignmentPolicyDefaults },
       }),
       withCommandPolicy: (policies) => ({
         ...policies,
         housingConstruction: createAivilizationHousingConstructionPolicy(),
+        residentialAssignment: createAivilizationResidentialAssignmentPolicy(),
       }),
     },
     {
@@ -722,10 +736,12 @@ export const AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS: readonly AivilizationExper
       createManifestParameters: () => ({
         ...aivilizationOutMigrationPolicyDefaults,
         inMigration: { ...aivilizationOutMigrationPolicyDefaults.inMigration },
+        residentialAssignment: { ...aivilizationResidentialAssignmentPolicyDefaults },
       }),
       withCommandPolicy: (policies) => ({
         ...policies,
         migration: createAivilizationOutMigrationPolicy(),
+        residentialAssignment: createAivilizationResidentialAssignmentPolicy(),
       }),
     },
   ];

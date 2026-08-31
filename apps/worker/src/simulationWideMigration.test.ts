@@ -43,7 +43,9 @@ describe('simulation-wide migration settlement', () => {
           'agent-b': partitionKey,
         },
         partitionKeys: [partitionKey],
-        commandPolicies: createAivilizationWorldCommandPoliciesSnapshot([], randomSeed),
+        commandPolicies: createAivilizationWorldCommandPoliciesSnapshot([], randomSeed, undefined, {
+          townMigration: true,
+        }),
         migrationPolicyVersion: 'town-migration-seed-test-v3',
         fallbackWellbeing: 100,
         policy,
@@ -56,6 +58,15 @@ describe('simulation-wide migration settlement', () => {
     expect(noArrival.events).toEqual([]);
     expect(replay).toEqual(noArrival);
     expect(arrival.events.map((event) => event.type)).toEqual(['AgentRegistered']);
+    expect(arrival.events[0]).toMatchObject({
+      payload: {
+        initialState: { residenceLocationId: 'residential-block' },
+        migrationArrival: {
+          residenceLocationId: 'residential-block',
+          residentialAssignmentPolicyVersion: 'residential-assignment-v1',
+        },
+      },
+    });
     expect(arrival.registeredAgents).toHaveLength(1);
   });
 });

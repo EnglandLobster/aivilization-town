@@ -250,6 +250,12 @@ export type ScenarioHousingConstructionPolicyConfig = {
   readonly source: string;
 };
 
+export type ScenarioResidentialAssignmentPolicyConfig = {
+  readonly policyVersion: string;
+  readonly arrivalSelection: 'most-vacancies-then-location-id';
+  readonly source: string;
+};
+
 export type ScenarioCollectiveActionPolicyConfig = {
   readonly policyVersion: string;
   readonly petitionSignatureThreshold: number;
@@ -553,6 +559,8 @@ export type ScenarioAgentSeed = {
   readonly job: string | null;
   readonly inventory: ScenarioInventorySeed;
   readonly locationId: LocationId | null;
+  /** Durable home assignment; distinct from the Agent's current physical location. */
+  readonly residenceLocationId?: LocationId | null;
   readonly source: string;
   readonly tags: readonly string[];
 };
@@ -601,6 +609,7 @@ export type CreateAivilizationAblationAgentSeedsInput = {
   readonly idPrefix?: string;
   readonly startingIndex?: number;
   readonly locationId?: LocationId | null;
+  readonly residenceLocationId?: LocationId | null;
   readonly residentialTier?: number;
   readonly source?: string;
 };
@@ -611,6 +620,9 @@ export type CreateAivilizationPopulationAgentSeedsInput = {
   readonly displayNamePrefix?: string;
   readonly startingIndex?: number;
   readonly locationIds?: readonly LocationId[];
+  readonly residenceLocationId?: LocationId | null;
+  /** Optional per-agent durable homes, used by scenario capacity allocation. */
+  readonly residenceLocationIds?: readonly (LocationId | null)[];
   readonly residentialTier?: number;
   readonly source?: string;
 };
@@ -693,6 +705,8 @@ const migrationPolicySource =
   'Population flow; town-migration-v3 combines the CS2 NotHappy departure shape with repository-defined housing/job/wellbeing arrival demand and cadence, because the paper does not model population turnover';
 const housingConstructionPolicySource =
   'Housing supply response; town-construction-v1 turns scarce finite residential capacity and owned construction material into durable capacity through an Agent command, benchmarked against the CS2 zone/building supply loop';
+const residentialAssignmentPolicySource =
+  'Residential assignment; residential-assignment-v1 separates durable home occupancy from physical presence and serializes vacancy claims on the town authority';
 const collectiveActionPolicySource =
   'Collective action; collective-action-v1 petition threshold and expiry are repository policy decisions (AI-native mechanism with no CS2 counterpart), because the paper does not model collective action';
 const townDiscoursePolicySource =
@@ -1127,6 +1141,14 @@ export const aivilizationOutMigrationPolicyDefaults = {
 } as const satisfies ScenarioOutMigrationPolicyConfig;
 
 export const TOWN_CONSTRUCTION_POLICY_VERSION = 'town-construction-v1';
+export const RESIDENTIAL_ASSIGNMENT_POLICY_VERSION = 'residential-assignment-v1';
+
+/** Shared by endogenous construction and migration so both use one vacancy truth. */
+export const aivilizationResidentialAssignmentPolicyDefaults = {
+  policyVersion: RESIDENTIAL_ASSIGNMENT_POLICY_VERSION,
+  arrivalSelection: 'most-vacancies-then-location-id',
+  source: residentialAssignmentPolicySource,
+} as const satisfies ScenarioResidentialAssignmentPolicyConfig;
 
 /**
  * Minimal endogenous housing-supply response. At 80% occupancy, one resident
@@ -1451,6 +1473,10 @@ export function createAivilizationAblationAgentSeeds(
   const startingIndex = input.startingIndex ?? 1;
   const residentialTier = input.residentialTier ?? 1;
   const locationId = input.locationId === undefined ? null : input.locationId;
+  const residenceLocationId =
+    input.residenceLocationId === undefined
+      ? (townLocations.find((location) => location.kind === 'residence')?.locationId ?? null)
+      : input.residenceLocationId;
   const source = input.source ?? ablationSetupSource;
 
   assertNonEmptyString(idPrefix, 'idPrefix');
@@ -1476,6 +1502,7 @@ export function createAivilizationAblationAgentSeeds(
         job: null,
         inventory: {},
         locationId,
+        residenceLocationId,
         source,
         tags: ['ablation', 'empty-profile'],
       };
@@ -1511,6 +1538,8 @@ export function createAivilizationPopulationAgentSeeds(
   const residentialTier = input.residentialTier ?? 1;
   const source = input.source ?? runtimeScaleProfileSource;
   const locationIds = input.locationIds ?? townLocations.map((location) => location.locationId);
+  const residenceLocationId =
+    input.residenceLocationId === undefined ? null : input.residenceLocationId;
 
   assertPositiveInteger(input.agentCount, 'agentCount');
   assertNonEmptyString(idPrefix, 'idPrefix');
@@ -1546,6 +1575,10 @@ export function createAivilizationPopulationAgentSeeds(
       job: null,
       inventory: {},
       locationId,
+      residenceLocationId:
+        input.residenceLocationIds === undefined
+          ? residenceLocationId
+          : (input.residenceLocationIds[index] ?? null),
       source,
       tags: ['runtime-scale', 'profile-seeded'],
     };
@@ -1565,6 +1598,7 @@ export function createAivilizationPopulationScenarioPreset(
   assertNonEmptyString(source, 'source');
   assertPositiveFinite(timeScale, 'timeScale');
   assertNonEmptyArray(locations, 'locations');
+  const residenceLocationIds = allocateScenarioResidences(input.agentCount, locations);
 
   return {
     id: input.id,
@@ -1582,10 +1616,27 @@ export function createAivilizationPopulationScenarioPreset(
       ...(input.startingIndex === undefined ? {} : { startingIndex: input.startingIndex }),
       ...(input.residentialTier === undefined ? {} : { residentialTier: input.residentialTier }),
       locationIds: locations.map((location) => location.locationId),
+      residenceLocationIds,
       source,
     }),
     source,
   };
+}
+
+function allocateScenarioResidences(
+  agentCount: number,
+  locations: readonly TownLocationConfig[],
+): readonly (LocationId | null)[] {
+  const slots: LocationId[] = [];
+  for (const location of locations
+    .filter((candidate) => candidate.kind === 'residence')
+    .sort((left, right) => left.locationId.localeCompare(right.locationId))) {
+    const available = location.capacity ?? agentCount;
+    for (let index = 0; index < available && slots.length < agentCount; index += 1) {
+      slots.push(location.locationId);
+    }
+  }
+  return Array.from({ length: agentCount }, (_, index) => slots[index] ?? null);
 }
 
 export const aivilizationAblationScenarioPreset = {

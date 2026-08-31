@@ -8,6 +8,7 @@ import {
   aivilizationLifestylePolicyDefaults,
   aivilizationProductionPolicyDefaults,
   aivilizationResidentialPhysiologyCaps,
+  aivilizationResidentialAssignmentPolicyDefaults,
   aivilizationScenarioDefaults,
   aivilizationSurvivalTimePolicyDefaults,
   aivilizationTaxPolicyDefaults,
@@ -56,6 +57,7 @@ import {
 } from './canonicalMemoryConsolidation';
 import {
   AIVILIZATION_EXPERIMENTAL_FEATURE_SPECS,
+  createAivilizationResidentialAssignmentPolicy,
   type AivilizationExperimentalFeatureKey,
 } from './experimentalFeatures';
 import {
@@ -312,6 +314,7 @@ export function createAivilizationWorldCommandPoliciesSnapshot(
     wageCalculator: calculateOccupationWage,
     laborCost: { ...canonicalLaborCost },
     criticalThresholds: { ...canonicalCriticalThresholds },
+    residentialAssignment: createAivilizationResidentialAssignmentPolicy(),
     residentialPhysiologyCaps: {
       caps: aivilizationResidentialPhysiologyCaps.map((cap) => ({
         residentialTier: cap.residentialTier,
@@ -647,6 +650,7 @@ export function createAivilizationWorldPolicyManifest(
               aivilizationSurvivalTimePolicyDefaults.physiologicalSafetyNet.policyVersion,
           }),
       residentialUpkeep: aivilizationSurvivalTimePolicyDefaults.residentialUpkeep.policyVersion,
+      residentialAssignment: aivilizationResidentialAssignmentPolicyDefaults.policyVersion,
       landValue: aivilizationSurvivalTimePolicyDefaults.landValue.policyVersion,
       stochasticIllness: aivilizationSurvivalTimePolicyDefaults.stochasticIllness.policyVersion,
       memoryConsolidation: CANONICAL_MEMORY_CONSOLIDATION_POLICY_ID,
@@ -818,6 +822,7 @@ export function createAivilizationWorldPolicyManifest(
             prerequisiteCommodity: tier.prerequisiteCommodity,
           })),
       },
+      residentialAssignment: { ...aivilizationResidentialAssignmentPolicyDefaults },
       occupations: occupations.map((occupation) => ({ ...occupation })),
       ...experimentalParameters,
     },
@@ -1063,6 +1068,13 @@ function createCanonicalPolicyRegistry(manifest: {
       [],
       'repository-defined',
       'Paper specifies tier prerequisites; repository defines currency costs and atomic settlement.',
+    ),
+    registryEntry(
+      'residentialAssignment',
+      aivilizationResidentialAssignmentPolicyDefaults.policyVersion,
+      ['residentialAssignment'],
+      'repository-defined',
+      'Durable home assignment is distinct from physical location; the authority freezes vacancy evidence and deterministic migrant selection.',
     ),
     registryEntry(
       'occupations',

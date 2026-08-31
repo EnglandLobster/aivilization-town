@@ -230,6 +230,10 @@ export type AgentBuildHousingPayload = {
   readonly locationId: LocationId;
 };
 
+export type AgentChooseResidencePayload = {
+  readonly locationId: LocationId;
+};
+
 export type AdvanceSimulationTimePayload = {
   readonly deltaMs: number;
 };
@@ -995,6 +999,17 @@ export function assertAgentBuildHousingPayload(payload: unknown): AgentBuildHous
   const locationId = payload['locationId'];
   if (typeof locationId !== 'string' || locationId.trim().length === 0) {
     throw new Error('AgentBuildHousing locationId must not be empty');
+  }
+  return { locationId: asLocationId(locationId.trim()) };
+}
+
+export function assertAgentChooseResidencePayload(payload: unknown): AgentChooseResidencePayload {
+  if (!isRecord(payload)) {
+    throw new Error('AgentChooseResidence payload must be an object');
+  }
+  const locationId = payload['locationId'];
+  if (typeof locationId !== 'string' || locationId.trim().length === 0) {
+    throw new Error('AgentChooseResidence locationId must not be empty');
   }
   return { locationId: asLocationId(locationId.trim()) };
 }

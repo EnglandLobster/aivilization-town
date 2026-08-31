@@ -24,11 +24,10 @@
 ### A. 空间与城市形态（最大差距）
 
 - 现状：地点为图节点（`packages/world/src/projection.ts` `WorldLocationState`），
-  `mapPosition` 仅供渲染；住宅只是 Agent 身上的 `residentialTier` 数值，无地块/房产实体；
-  `zoning|construct|building` 在模拟代码中零命中。
-  （2026-08-14 更新：地点已有 `capacity` 与双区域 `regionId`，人口+流动性驱动的
-  区域地价指数已落地 `packages/society/src/landValue.ts`，调节住宅维护费；
-  地块/房产实体与建造仍为零。）
+  `mapPosition` 仅供渲染；Agent 已有独立于当前位置的持久 `residenceLocationId`，住宅容量按
+  真实居所占用，Agent 可自主选择空置住宅，迁入者由权威确定性分配具体空位，维护费按居所
+  区域地价而非临时活动地点计价。`town-construction-v1` 可消耗真实材料扩充住宅容量；仍无
+  地块、房产所有权、租约或建筑 condition 实体。
 - CS 级需求：zoning（住宅/商业/工业分区）、建筑随需求生长/升级/废弃、
   地价系统（区位/服务覆盖/环境定价）、可建造路网。
 - AI-native 加成：Agent 自主决定开店/买地/建房，城市形态成为社会涌现结果。
@@ -175,10 +174,11 @@ E 的税率/预算/补贴已经是参与者和合资格 Agent 可调的权威命
   存款没收、流通余额销毁出镇经济、未决申请/事项取消）。无 settled
   wellbeing 时按 fallback 50（中性）——不开 town-wellbeing 的运行零迁出，
   互锁显式。
-- **需求驱动迁入**（同一 flag）：`society/migration.ts` 纯计算住房压力、岗位压力与
-  wellbeing 吸引力；住房容量是硬上限，fractional arrival 使用 cadence+simulation seed。
-  authority 按跨越的每个日边界逐次决策、登记、分配 owner 和投递，`AgentRegistered`
-  记录 `migrationPolicyVersion` 与需求快照。重复 operation 幂等，跨分区初始资金贡献同步更新。
+- **需求驱动迁入**（同一 flag）：`society/migration.ts` 纯计算真实居所占用形成的住房压力、
+  岗位压力与 wellbeing 吸引力；住房容量是硬上限，fractional arrival 使用
+  cadence+simulation seed。authority 按跨越的每个日边界逐次决策、选择具体住宅空位、登记、
+  分配 owner 和投递，`AgentRegistered` 冻结居所、分配策略版本与需求快照。重复 operation
+  幂等，跨分区初始资金贡献同步更新。
 
 ### 集体行动进展（2026-08-15，P4b-1 请愿最小集已落地）
 
@@ -267,6 +267,10 @@ E 的税率/预算/补贴已经是参与者和合资格 Agent 可调的权威命
 > 行程在其冻结路径的每条有向边贡献一个并发单位，后续移动按 BPR 形状的有界延迟重新选路；
 > simulation-wide authority 统一结算跨分区流量，Agent 可见同源路线估价。未引入车道、载具或
 > 虚假的实体货运。**
+> **2026-08-31 P8 居所切片：`residential-assignment-v1` 将“家”从当前位置与住宅品质档位中
+> 分离。选择居所和迁入占位均在 simulation-wide authority 上串行校验，最后一个空位不会被
+> 跨分区重复占用；Agent 规划上下文可见真实占用/空置，住宅维护费始终按家所在区域计价。
+> 旧事件/快照继续采用兼容回退，不改写历史语义。**
 > 以下为原始排序，保留作历史脉络：
 
 1. **F 昼夜/日历 + D 生理被动衰减**：小改动，小镇立刻"有日子过"。

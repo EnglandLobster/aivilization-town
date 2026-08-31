@@ -782,7 +782,7 @@ describe('runtime profile run report repositories', () => {
             rationale: 'Context view is intentionally minimal.',
             worldDecisionContext: {
               agentId: 'agent-1',
-              contextViewVersion: 'world-decision-context-view-v15',
+              contextViewVersion: 'world-decision-context-view-v16',
               contextViewStage: 'social-dialogue',
               visibleContextSections: ['salience', 'agent', 'society'],
               salienceCount: 0,

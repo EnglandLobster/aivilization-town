@@ -64,6 +64,8 @@ export type InMigrationDemandDecision = {
 export function evaluateInMigrationDemand(input: {
   readonly population: number;
   readonly residentialCapacity: number;
+  /** Concrete occupied residence slots; omitted preserves legacy population-based semantics. */
+  readonly occupiedResidentialCapacity?: number;
   readonly openJobSlots: number;
   readonly averageWellbeing: number;
   /** Caller-seeded roll used only for the fractional remainder. */
@@ -73,6 +75,12 @@ export function evaluateInMigrationDemand(input: {
   assertValidInMigrationPolicy(input.policy);
   assertNonNegativeInteger(input.population, 'population');
   assertNonNegativeInteger(input.residentialCapacity, 'residentialCapacity');
+  if (input.occupiedResidentialCapacity !== undefined) {
+    assertNonNegativeInteger(input.occupiedResidentialCapacity, 'occupiedResidentialCapacity');
+    if (input.occupiedResidentialCapacity > input.residentialCapacity) {
+      throw new Error('in-migration occupiedResidentialCapacity exceeds residentialCapacity');
+    }
+  }
   assertNonNegativeInteger(input.openJobSlots, 'openJobSlots');
   if (
     !Number.isFinite(input.averageWellbeing) ||
@@ -85,7 +93,8 @@ export function evaluateInMigrationDemand(input: {
     throw new Error('in-migration roll must be within [0, 1)');
   }
 
-  const housingVacancies = Math.max(0, input.residentialCapacity - input.population);
+  const occupiedResidentialCapacity = input.occupiedResidentialCapacity ?? input.population;
+  const housingVacancies = Math.max(0, input.residentialCapacity - occupiedResidentialCapacity);
   const housingPressure =
     input.residentialCapacity === 0 ? 0 : housingVacancies / input.residentialCapacity;
   const laborPressure = Math.min(1, input.openJobSlots / Math.max(1, input.population));

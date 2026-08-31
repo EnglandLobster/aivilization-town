@@ -1167,10 +1167,12 @@ describe('canonical domain runtimes', () => {
         ...societyContext.society!,
         housing: {
           population: 2,
+          occupiedResidences: 2,
+          unhousedPopulation: 0,
           totalResidentialCapacity: 2,
           vacancies: 0,
           occupancyRatio: 1,
-          residences: [{ locationId: 'residential-block', capacity: 2 }],
+          residences: [{ locationId: 'residential-block', capacity: 2, occupied: 2, vacancies: 0 }],
         },
       },
     };
@@ -1195,6 +1197,64 @@ describe('canonical domain runtimes', () => {
       commandType: 'AgentBuildHousing',
       payload: { locationId: 'residential-block' },
       resourceEstimate: { inventoryCosts: { Wood: 2 } },
+    });
+  });
+
+  test('lets an unhoused agent claim a visible vacancy before upgrading housing quality', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: asLocationId('residential-block'),
+    });
+    const projection = createProjection({
+      agents: [agent],
+      locations: [{ ...residentialBlock(), capacity: 2 }],
+      marketPools: [],
+    });
+    const societyContext = createSocietyDecisionContextForTest({
+      agent,
+      societyAgents: [
+        {
+          agentId: agentA,
+          ownerPartitionKey: 'partition-a',
+          locationId: asLocationId('residential-block'),
+        },
+      ],
+    });
+    const worldDecisionContext: WorldDecisionContext = {
+      ...societyContext,
+      agent: {
+        ...societyContext.agent,
+        residenceLocationId: null,
+        housed: false,
+      },
+      society: {
+        ...societyContext.society!,
+        housing: {
+          population: 1,
+          occupiedResidences: 0,
+          unhousedPopulation: 1,
+          totalResidentialCapacity: 2,
+          vacancies: 2,
+          occupancyRatio: 0,
+          residences: [{ locationId: 'residential-block', capacity: 2, occupied: 0, vacancies: 2 }],
+        },
+      },
+    };
+    const binding = await resolveCanonicalBinding(
+      createRuntimeContext({ agent, projection, worldDecisionContext }),
+      {},
+      {
+        ...policies,
+        residentialAssignment: {
+          policyVersion: 'residential-assignment-v1',
+          arrivalSelection: 'most-vacancies-then-location-id',
+        },
+      },
+    );
+
+    expect(firstProposal(binding.microPlanners, 'residential')).toMatchObject({
+      commandType: 'AgentChooseResidence',
+      payload: { locationId: 'residential-block' },
     });
   });
 

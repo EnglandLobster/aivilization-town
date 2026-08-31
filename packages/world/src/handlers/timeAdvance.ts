@@ -65,6 +65,7 @@ import {
   type RecruitmentCyclePolicy,
   type PublicBudgetPolicy,
   type ResidentialUpkeepPolicy,
+  type ResidentialAssignmentPolicy,
   type ServiceQualityPolicy,
   type TownPublicService,
   type SafetyNetSubsidyPolicy,
@@ -81,6 +82,7 @@ import type { WorldEvent } from '../events';
 import {
   applyWorldEvent,
   resolveAgentAgeAnchorMs,
+  resolveAgentResidenceLocationId,
   type WorldAgentState,
   type WorldProjection,
 } from '../projection';
@@ -144,6 +146,7 @@ export function handleAdvanceSimulationTimeCommand(input: {
    */
   readonly migration?: OutMigrationPolicy;
   readonly residentialUpkeep?: ResidentialUpkeepPolicy;
+  readonly residentialAssignment?: ResidentialAssignmentPolicy;
   readonly landValue?: LandValuePolicy;
   /** Authority-scoped because service occupancy must be measured town-wide. */
   readonly serviceQuality?: ServiceQualityPolicy;
@@ -653,6 +656,13 @@ export function handleAdvanceSimulationTimeCommand(input: {
           continue;
         }
         let currentTier = tierByAgent.get(agent.agentId) ?? agent.residentialTier;
+        const residenceLocationId =
+          input.residentialAssignment === undefined
+            ? undefined
+            : resolveAgentResidenceLocationId(input.projection, agent);
+        if (residenceLocationId === null) {
+          continue;
+        }
         // With a land value policy the interval is segmented at every index
         // boundary and each segment priced at its own effective rate; without
         // one the whole interval prices flat (legacy v1 behavior). Arrears
@@ -667,9 +677,12 @@ export function handleAdvanceSimulationTimeCommand(input: {
                 currentSimulationTime: interval.currentSimulationTime,
                 regionAtStart: resolveAgentRegion({
                   projection: input.projection,
-                  agentLocationId: agent.locationId,
+                  agentLocationId: residenceLocationId ?? agent.locationId,
                 }),
-                regionArrivals: regionArrivalsByAgent.get(agent.agentId) ?? [],
+                regionArrivals:
+                  residenceLocationId === undefined
+                    ? (regionArrivalsByAgent.get(agent.agentId) ?? [])
+                    : [],
                 timeline: landValue.timeline,
               });
         for (const segment of segments) {

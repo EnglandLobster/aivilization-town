@@ -8,6 +8,7 @@ import type {
   PhysiologicalSafetyNetPolicy,
   RecruitmentCyclePolicy,
   ResidentialPhysiologyCapPolicy,
+  ResidentialAssignmentPolicy,
   ResidentialTierUpgradePolicy,
   ResidentialUpkeepPolicy,
   ServiceQualityPolicy,
@@ -97,7 +98,10 @@ import {
   handleSetSubsidyPolicyCommand,
   handleSetTaxPolicyCommand,
 } from './handlers/governance';
-import { handleAgentBuildHousingCommand } from './handlers/housing';
+import {
+  handleAgentBuildHousingCommand,
+  handleAgentChooseResidenceCommand,
+} from './handlers/housing';
 import { rejectBusyAgentCommand, rejectCommand } from './handlers/shared';
 
 // The command handlers live in ./handlers by domain. They are re-exported here
@@ -160,7 +164,10 @@ export {
   handleSetSubsidyPolicyCommand,
   handleSetTaxPolicyCommand,
 } from './handlers/governance';
-export { handleAgentBuildHousingCommand } from './handlers/housing';
+export {
+  handleAgentBuildHousingCommand,
+  handleAgentChooseResidenceCommand,
+} from './handlers/housing';
 
 export type WorldCommandPolicies = WorldEconomicPolicies & {
   readonly governance?: TownGovernancePolicy;
@@ -358,6 +365,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
     readonly recruitmentCycle?: RecruitmentCyclePolicy;
   };
   readonly residentialTierUpgrade?: ResidentialTierUpgradePolicy;
+  readonly residentialAssignment?: ResidentialAssignmentPolicy;
   readonly housingConstruction?: HousingConstructionPolicy;
 };
 
@@ -415,6 +423,9 @@ export function dispatchWorldCommand(input: {
         ...(input.policies.residentialUpkeep === undefined
           ? {}
           : { residentialUpkeep: input.policies.residentialUpkeep }),
+        ...(input.policies.residentialAssignment === undefined
+          ? {}
+          : { residentialAssignment: input.policies.residentialAssignment }),
         ...(input.policies.landValue === undefined ? {} : { landValue: input.policies.landValue }),
         ...(input.policies.serviceQuality === undefined
           ? {}
@@ -911,6 +922,20 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentUpgradeResidentialTier', unknown>,
         projection: input.projection,
         policy: input.policies.residentialTierUpgrade,
+        nextSequence: input.nextSequence,
+      });
+    case 'AgentChooseResidence':
+      if (input.policies.residentialAssignment === undefined) {
+        return rejectCommand(
+          input,
+          'AgentChooseResidence',
+          'missing residential assignment policy',
+        );
+      }
+      return handleAgentChooseResidenceCommand({
+        command: input.command as CommandEnvelope<'AgentChooseResidence', unknown>,
+        projection: input.projection,
+        policy: input.policies.residentialAssignment,
         nextSequence: input.nextSequence,
       });
     case 'AgentBuildHousing':

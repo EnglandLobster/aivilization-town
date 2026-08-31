@@ -15,11 +15,13 @@ import type {
   WorldDecisionConsumptionRule,
   WorldDecisionEducationReturnContext,
   WorldDecisionExternalTradeCommodityContext,
+  WorldDecisionHousingConstructionRule,
   WorldDecisionOccupationRule,
   WorldDecisionProductionRule,
   WorldDecisionRelationContext,
   WorldDecisionResidentialUpgradeRule,
   WorldDecisionRulesContext,
+  WorldDecisionSocietyContext,
   WorldDecisionSocialMatterContext,
 } from '@aivilization/agent-runtime';
 import {
@@ -49,6 +51,7 @@ import {
   EDUCATION_EXAM_TARGET_LEVELS,
   EDUCATION_SYSTEM_MAX_LEVEL,
   evaluateEffectiveEducationScoreForOccupation,
+  evaluateHousingConstruction,
   evaluateLifestyleTier,
   isCompulsoryLevel,
   isEducationExamTargetLevel,
@@ -179,6 +182,14 @@ export function createWorldDecisionContextFromProjection(input: {
     ...(input.marketOverride === undefined ? {} : { override: input.marketOverride.marketPools }),
   });
   const latestPriceIndex = resolveLatestPriceIndex(input.projection.marketPriceIndices);
+  const townHousing =
+    input.societyDirectory === undefined
+      ? undefined
+      : createTownHousingDecisionContext(
+          input.societyDirectory,
+          input.projection.locations,
+          input.policies,
+        );
   const rules =
     input.policies === undefined
       ? undefined
@@ -187,6 +198,7 @@ export function createWorldDecisionContextFromProjection(input: {
           agent,
           policies: input.policies,
           marketPools,
+          ...(townHousing === undefined ? {} : { townHousing }),
           ...(input.educationOpportunityCost === undefined
             ? {}
             : { educationOpportunityCost: input.educationOpportunityCost }),
@@ -299,8 +311,7 @@ export function createWorldDecisionContextFromProjection(input: {
               relationEntries,
               matterCounterpartAgentIds,
             },
-            input.projection.locations,
-            input.policies,
+            townHousing,
           ),
         }),
     ...(input.projection.weather === undefined ? {} : { weather: { ...input.projection.weather } }),
@@ -1410,8 +1421,7 @@ function createSocietyDecisionContext(
     readonly relationEntries: readonly WorldDecisionRelationContext[];
     readonly matterCounterpartAgentIds: readonly AgentId[];
   },
-  locations: WorldProjection['locations'],
-  policies?: WorldCommandPolicies,
+  townHousing?: WorldDecisionSocietyContext['housing'],
 ) {
   // §7 step 2 budget binding: the full cross-partition directory scales with
   // total population; the per-agent view keeps every local-partition neighbor
@@ -1447,6 +1457,47 @@ function createSocietyDecisionContext(
           (agent) =>
             agent.ownerPartitionKey === self.ownerPartitionKey || foreignAllowed.has(agent.agentId),
         );
+  return {
+    directoryId: directory.directoryId,
+    simulationId: directory.simulationId,
+    partitionBoundaries: directory.partitionBoundaries.map((boundary) => ({ ...boundary })),
+    agents: visibleAgents.map((agent) => ({
+      agentId: agent.agentId,
+      ownerPartitionKey: agent.ownerPartitionKey,
+      ownerLastAppliedSequence: agent.ownerLastAppliedSequence,
+      locationId: agent.publicState.locationId,
+      ...(agent.publicState.residenceLocationId === undefined
+        ? {}
+        : { residenceLocationId: agent.publicState.residenceLocationId }),
+      job: agent.publicState.job,
+      residentialTier: agent.publicState.residentialTier,
+      educationScore: agent.publicState.educationScore,
+      ...(agent.publicState.displayName === undefined
+        ? {}
+        : { displayName: agent.publicState.displayName }),
+      ...(agent.publicState.activityAvailableAt === undefined
+        ? {}
+        : { activityAvailableAt: agent.publicState.activityAvailableAt }),
+      ...(agent.publicState.transit === undefined
+        ? {}
+        : {
+            transit: {
+              fromLocationId: agent.publicState.transit.fromLocationId,
+              toLocationId: agent.publicState.transit.toLocationId,
+              departedAt: agent.publicState.transit.departedAt,
+              arrivesAt: agent.publicState.transit.arrivesAt,
+            },
+          }),
+    })),
+    ...(townHousing === undefined ? {} : { housing: townHousing }),
+  };
+}
+
+function createTownHousingDecisionContext(
+  directory: LocalSimulationSocietyDirectory,
+  locations: WorldProjection['locations'],
+  policies?: WorldCommandPolicies,
+): WorldDecisionSocietyContext['housing'] | undefined {
   const residences = Object.values(locations)
     .filter((location) => location.kind === 'residence')
     .sort((left, right) => left.locationId.localeCompare(right.locationId));
@@ -1483,64 +1534,30 @@ function createSocietyDecisionContext(
     (total, residence) => total + residence.capacity,
     0,
   );
-  const housing =
+  if (
     finiteHousing === undefined ||
     totalResidentialCapacity === undefined ||
     totalResidentialCapacity === 0
-      ? undefined
-      : (() => {
-          const occupiedResidences =
-            policies?.residentialAssignment === undefined
-              ? directory.agents.length
-              : [...resolvedResidenceByAgentId.values()].filter(
-                  (residenceLocationId) => residenceLocationId !== null,
-                ).length;
-          return {
-            population: directory.agents.length,
-            occupiedResidences,
-            unhousedPopulation: Math.max(0, directory.agents.length - occupiedResidences),
-            totalResidentialCapacity,
-            vacancies: Math.max(0, totalResidentialCapacity - occupiedResidences),
-            occupancyRatio: Math.min(1, occupiedResidences / totalResidentialCapacity),
-            residences: finiteHousing.map((residence) => ({
-              ...residence,
-              vacancies: Math.max(0, residence.capacity - residence.occupied),
-            })),
-          };
-        })();
+  ) {
+    return undefined;
+  }
+  const occupiedResidences =
+    policies?.residentialAssignment === undefined
+      ? directory.agents.length
+      : [...resolvedResidenceByAgentId.values()].filter(
+          (residenceLocationId) => residenceLocationId !== null,
+        ).length;
   return {
-    directoryId: directory.directoryId,
-    simulationId: directory.simulationId,
-    partitionBoundaries: directory.partitionBoundaries.map((boundary) => ({ ...boundary })),
-    agents: visibleAgents.map((agent) => ({
-      agentId: agent.agentId,
-      ownerPartitionKey: agent.ownerPartitionKey,
-      ownerLastAppliedSequence: agent.ownerLastAppliedSequence,
-      locationId: agent.publicState.locationId,
-      ...(agent.publicState.residenceLocationId === undefined
-        ? {}
-        : { residenceLocationId: agent.publicState.residenceLocationId }),
-      job: agent.publicState.job,
-      residentialTier: agent.publicState.residentialTier,
-      educationScore: agent.publicState.educationScore,
-      ...(agent.publicState.displayName === undefined
-        ? {}
-        : { displayName: agent.publicState.displayName }),
-      ...(agent.publicState.activityAvailableAt === undefined
-        ? {}
-        : { activityAvailableAt: agent.publicState.activityAvailableAt }),
-      ...(agent.publicState.transit === undefined
-        ? {}
-        : {
-            transit: {
-              fromLocationId: agent.publicState.transit.fromLocationId,
-              toLocationId: agent.publicState.transit.toLocationId,
-              departedAt: agent.publicState.transit.departedAt,
-              arrivesAt: agent.publicState.transit.arrivesAt,
-            },
-          }),
+    population: directory.agents.length,
+    occupiedResidences,
+    unhousedPopulation: Math.max(0, directory.agents.length - occupiedResidences),
+    totalResidentialCapacity,
+    vacancies: Math.max(0, totalResidentialCapacity - occupiedResidences),
+    occupancyRatio: Math.min(1, occupiedResidences / totalResidentialCapacity),
+    residences: finiteHousing.map((residence) => ({
+      ...residence,
+      vacancies: Math.max(0, residence.capacity - residence.occupied),
     })),
-    ...(housing === undefined ? {} : { housing }),
   };
 }
 
@@ -1638,6 +1655,7 @@ function createWorldDecisionRulesContext(input: {
   readonly policies: WorldCommandPolicies;
   readonly marketPools: Readonly<Record<string, AmmPool>>;
   readonly educationOpportunityCost?: EducationOpportunityCostConfig;
+  readonly townHousing?: WorldDecisionSocietyContext['housing'];
 }): WorldDecisionRulesContext {
   return {
     criticalThresholds: { ...input.policies.criticalThresholds },
@@ -1655,6 +1673,7 @@ function createWorldDecisionRulesContext(input: {
         }),
     ...withConsumptionRules(input),
     ...withResidentialUpgradeRule(input),
+    ...withHousingConstructionRule(input),
     ...withEducationOpportunityCostRule(input),
   };
 }
@@ -1733,6 +1752,75 @@ function withResidentialUpgradeRule(input: {
     rejectionReasons,
   };
   return { residentialUpgrade };
+}
+
+function withHousingConstructionRule(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly policies: WorldCommandPolicies;
+  readonly townHousing?: WorldDecisionSocietyContext['housing'];
+}): Pick<WorldDecisionRulesContext, 'housingConstruction'> | Record<string, never> {
+  const policy = input.policies.housingConstruction;
+  const housing = input.townHousing;
+  if (policy === undefined || housing === undefined) {
+    return {};
+  }
+  const location = housing.residences
+    .filter((residence) => residence.capacity < policy.maximumLocationCapacity)
+    .sort(
+      (left, right) =>
+        left.capacity - right.capacity || left.locationId.localeCompare(right.locationId),
+    )[0];
+  const hasRequiredInventory = (inventory: Readonly<Record<string, number>>) =>
+    Object.entries(policy.inventoryCosts).every(
+      ([itemName, quantity]) => (inventory[itemName] ?? 0) >= quantity,
+    );
+  const electedBuilderAgentId =
+    Object.values(input.projection.agents)
+      .filter((candidate) => hasRequiredInventory(candidate.inventory))
+      .sort((left, right) => left.agentId.localeCompare(right.agentId))[0]?.agentId ?? null;
+  const missingInventory = Object.fromEntries(
+    Object.entries(policy.inventoryCosts)
+      .map(
+        ([itemName, quantity]) =>
+          [itemName, Math.max(0, quantity - (input.agent.inventory[itemName] ?? 0))] as const,
+      )
+      .filter(([, quantity]) => quantity > 0)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+  const decision =
+    location === undefined
+      ? undefined
+      : evaluateHousingConstruction({
+          locationCapacity: location.capacity,
+          totalResidentialCapacity: housing.totalResidentialCapacity,
+          population: housing.population,
+          builderInventory: input.agent.inventory,
+          policy,
+        });
+  const rejectionReasons = [
+    ...(location === undefined ? ['capacity-limit-reached'] : []),
+    ...(housing.occupancyRatio < policy.minimumOccupancyRatio ? ['demand-too-low'] : []),
+    ...(decision?.status === 'rejected' ? [decision.reason] : []),
+    ...(electedBuilderAgentId !== null && electedBuilderAgentId !== input.agent.agentId
+      ? ['another-builder-elected']
+      : []),
+  ];
+  const rule: WorldDecisionHousingConstructionRule = {
+    policyVersion: policy.policyVersion,
+    locationId: location?.locationId ?? null,
+    occupancyRatio: housing.occupancyRatio,
+    minimumOccupancyRatio: policy.minimumOccupancyRatio,
+    inventoryCosts: copyPositiveSortedRecord(policy.inventoryCosts),
+    missingInventory,
+    electedBuilderAgentId,
+    eligible:
+      decision?.status === 'accepted' &&
+      housing.occupancyRatio >= policy.minimumOccupancyRatio &&
+      electedBuilderAgentId === input.agent.agentId,
+    rejectionReasons: [...new Set(rejectionReasons)],
+  };
+  return { housingConstruction: rule };
 }
 
 function withEducationOpportunityCostRule(input: {

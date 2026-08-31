@@ -339,6 +339,23 @@ export type WorldDecisionResidentialUpgradeRule = {
   readonly rejectionReasons: readonly string[];
 };
 
+/**
+ * Read-only construction opportunity derived from the versioned society
+ * policy and the authoritative town housing view. Settlement still re-runs
+ * the society decision and capacity checks on the world authority.
+ */
+export type WorldDecisionHousingConstructionRule = {
+  readonly policyVersion: string;
+  readonly locationId: string | null;
+  readonly occupancyRatio: number;
+  readonly minimumOccupancyRatio: number;
+  readonly inventoryCosts: Readonly<Record<string, number>>;
+  readonly missingInventory: Readonly<Record<string, number>>;
+  readonly electedBuilderAgentId: AgentId | null;
+  readonly eligible: boolean;
+  readonly rejectionReasons: readonly string[];
+};
+
 export type WorldDecisionEducationOpportunityCostRule = {
   readonly policyVersion: string;
   readonly studyDurationSeconds: number;
@@ -385,6 +402,7 @@ export type WorldDecisionRulesContext = {
   readonly production: readonly WorldDecisionProductionRule[];
   readonly consumption?: readonly WorldDecisionConsumptionRule[];
   readonly residentialUpgrade?: WorldDecisionResidentialUpgradeRule;
+  readonly housingConstruction?: WorldDecisionHousingConstructionRule;
   readonly educationOpportunityCost?: WorldDecisionEducationOpportunityCostRule;
   readonly enterprise?: WorldDecisionEnterpriseRule;
 };
@@ -901,7 +919,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v16';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v17';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

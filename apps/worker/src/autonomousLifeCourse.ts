@@ -4,10 +4,11 @@ import type {
 } from '@aivilization/agent-runtime';
 import type { WorldAgentState } from '@aivilization/world';
 
-export const AUTONOMOUS_LIFE_COURSE_POLICY_VERSION = 'autonomous-life-course-v3';
+export const AUTONOMOUS_LIFE_COURSE_POLICY_VERSION = 'autonomous-life-course-v4';
 
 const scores = {
   secureHousing: 92,
+  expandHousing: 88,
   occupationApplication: 82,
   residentialUpgrade: 78,
   progressionAcquisition: 76,
@@ -42,6 +43,7 @@ export function createAutonomousLifeCoursePolicyManifest() {
     paperDefinesCandidateUtility: false as const,
     precedence: [
       'secure-housing',
+      'expand-housing',
       'occupation-application',
       'residential-upgrade',
       'progression-acquisition',
@@ -93,6 +95,19 @@ export function createAutonomousLifeCourseCandidates(input: {
         planningDomains: ['residential'],
         score: scores.secureHousing,
         rationale: `The Agent is unhoused and ${availableResidence.locationId} has ${availableResidence.vacancies} authoritative vacancy slot(s).`,
+      }),
+    );
+  }
+  const housingConstruction = rules.housingConstruction;
+  if (housingConstruction?.eligible === true && housingConstruction.locationId !== null) {
+    candidates.push(
+      createCandidate({
+        id: `expand-housing:${housingConstruction.locationId}`,
+        statement: `Expand housing capacity at ${housingConstruction.locationId}.`,
+        affinityTags: ['residential', 'housing', 'construction', 'supply'],
+        planningDomains: ['residential'],
+        score: scores.expandHousing,
+        rationale: `Town housing occupancy is ${Math.round(housingConstruction.occupancyRatio * 100)}%, the Agent is the elected builder, and the required inventory is available.`,
       }),
     );
   }

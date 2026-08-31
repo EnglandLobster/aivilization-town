@@ -57,7 +57,7 @@ import {
 import { isEnterpriseOccupationQualified } from './enterprisePlanning';
 
 const DEFAULT_OBJECTIVE_MEMORY_RETRIEVAL_LIMIT = 8;
-export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v10';
+export const AUTONOMOUS_OBJECTIVE_SELECTION_POLICY_VERSION = 'autonomous-objective-selection-v11';
 
 const MARKET_PARTICIPATION_SCORE = 12;
 const MARKET_BUY_MINIMUM_SPOT_PRICE_MULTIPLIER = 2;

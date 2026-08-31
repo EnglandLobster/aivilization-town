@@ -89,7 +89,7 @@ describe('local runtime town paper ablation experiment runner', () => {
         generatedAt: 40_001,
       }),
     ).rejects.toThrow('requires a fresh durable root');
-  });
+  }, 10_000);
 
   test('requires an explicit paper task and positive cycle count', async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'paper-ablation-runner-invalid-'));

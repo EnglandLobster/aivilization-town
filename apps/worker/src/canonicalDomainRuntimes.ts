@@ -1990,10 +1990,7 @@ function createLocationAwareActionProposal(input: {
   if (input.context.projection.locations[targetLocationId] === undefined) {
     return [input.action];
   }
-  if (
-    input.context.agent.locationId === null ||
-    input.context.agent.locationId === targetLocationId
-  ) {
+  if (input.context.agent.locationId === targetLocationId) {
     return [input.action];
   }
 

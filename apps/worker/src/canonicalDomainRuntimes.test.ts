@@ -622,7 +622,11 @@ describe('canonical domain runtimes', () => {
   });
 
   test('proposes owner-only enterprise export/import when the external quote beats the visible AMM', async () => {
-    const owner = createAgent({ agentId: agentA, balance: 100 });
+    const owner = createAgent({
+      agentId: agentA,
+      balance: 100,
+      locationId: asLocationId('market'),
+    });
     const projection = createProjection({
       agents: [owner],
       locations: [market()],
@@ -1281,6 +1285,31 @@ describe('canonical domain runtimes', () => {
       commandType: 'AgentMoveTo',
       payload: { targetLocationId: 'school', reason: 'study' },
       priority: 10,
+    });
+  });
+
+  test('proposes zero-duration first placement before an unplaced agent studies', async () => {
+    const agent = createAgent({
+      agentId: agentA,
+      locationId: null,
+    });
+    const context = createRuntimeContext({
+      agent,
+      projection: createProjection({
+        agents: [agent, createAgent({ agentId: agentB }), createAgent({ agentId: agentC })],
+        locations: [residentialBlock(), school()],
+        marketPools: [
+          { commodity: 'Apple', commodityReserve: 100, currencyReserve: 1000 },
+          { commodity: 'Book', commodityReserve: 100, currencyReserve: 1000 },
+        ],
+      }),
+    });
+    const binding = await resolveCanonicalBinding(context);
+
+    expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
+      id: 'canonical-study-step-a-move',
+      commandType: 'AgentMoveTo',
+      payload: { targetLocationId: 'school', reason: 'study' },
     });
   });
 

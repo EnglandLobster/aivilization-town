@@ -1389,6 +1389,17 @@ export const CANONICAL_COMMAND_TYPE_LIST_IS_EXHAUSTIVE: RequireNever<
 > = true;
 
 export const BANKING_ACTION_PROPOSER_POLICY_VERSION = 'banking-action-proposer-v1';
+export const LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION = 'location-aware-action-proposer-v1';
+
+export function createLocationAwareActionProposerPolicyManifest() {
+  return {
+    policyVersion: LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION,
+    capacityRule: 'observe-and-reassess-when-authoritative-context-reports-at-capacity' as const,
+    reachabilityRule:
+      'observe-and-reassess-when-authoritative-context-reports-unreachable' as const,
+    authorityRule: 'world-remains-final-movement-authority' as const,
+  };
+}
 
 /**
  * Versioned gates for the banking domain's deterministic loan proposal
@@ -1995,6 +2006,26 @@ function createLocationAwareActionProposal(input: {
   }
 
   const targetLocation = input.context.projection.locations[targetLocationId];
+  const mobilityDestination = input.context.worldDecisionContext?.mobility?.destinations.find(
+    (candidate) => candidate.locationId === targetLocationId,
+  );
+  if (
+    input.context.agent.locationId !== null &&
+    mobilityDestination !== undefined &&
+    mobilityDestination.status !== 'reachable'
+  ) {
+    return [
+      {
+        id: `${createCanonicalActionId(input.domain, input.selectedSubtask)}-wait-for-access`,
+        description: `Observe current conditions while ${targetLocation.name} is ${mobilityDestination.status}.`,
+        commandType: 'AgentObserveLocation',
+        priority: input.selectedSubtask.score,
+        payload: {
+          focus: `Access conditions for ${targetLocation.name}`,
+        },
+      },
+    ];
+  }
   return [
     {
       id: `${createCanonicalActionId(input.domain, input.selectedSubtask)}-move`,

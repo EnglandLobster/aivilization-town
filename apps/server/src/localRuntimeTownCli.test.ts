@@ -278,6 +278,34 @@ describe('local runtime town executable composition', () => {
     ).toBe(false);
   });
 
+  test('allows authority opt-out only for single-partition profiles', () => {
+    const singlePartition = resolveLocalRuntimeTownCliConfig({
+      argv: ['--', '--llm-mode', 'deterministic', '--simulation-wide-authority', 'off'],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(singlePartition, 100)).not.toThrow();
+
+    const multiPartition = resolveLocalRuntimeTownCliConfig({
+      argv: [
+        '--',
+        '--profile',
+        'default-100',
+        '--llm-mode',
+        'deterministic',
+        '--simulation-wide-authority',
+        'off',
+      ],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    expect(() => createCanonicalLocalRuntimeTownServerInput(multiPartition, 100)).toThrow(
+      'multi-partition profiles require the simulation-wide authority',
+    );
+  });
+
   test('regional markets are off by default and enabled by flag or env', () => {
     const base = {
       argv: ['--', '--llm-mode', 'deterministic'] as readonly string[],

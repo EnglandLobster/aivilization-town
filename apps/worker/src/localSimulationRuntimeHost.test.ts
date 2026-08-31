@@ -37,6 +37,44 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host', () => {
+  test('fails closed when partition-local residence assignment could overbook global capacity', async () => {
+    const scenarioPresets = createScenarioPresets().map((preset) => ({
+      ...preset,
+      locations: [
+        ...preset.locations,
+        {
+          locationId: asLocationId('residential-block'),
+          name: 'Residential Block',
+          kind: 'residence' as const,
+          activityAffinities: ['sleep' as const],
+          capacity: 1,
+          source: 'test',
+        },
+      ],
+    }));
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir: createRootDir(),
+        bootstrappedAt: 123,
+        manifest: createManifest(),
+        scenarioPresets,
+        policies: {
+          ...policies,
+          residentialAssignment: {
+            policyVersion: 'residential-assignment-v1',
+            arrivalSelection: 'most-vacancies-then-location-id',
+          },
+        },
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+      }),
+    ).rejects.toThrow(
+      'multi-partition residential assignment requires the simulation-wide authority',
+    );
+  });
+
   test('preserves manifest treasury and bank reserves in the live bootstrap checkpoint', async () => {
     const rootDir = createRootDir();
     const baseManifest = createManifest();

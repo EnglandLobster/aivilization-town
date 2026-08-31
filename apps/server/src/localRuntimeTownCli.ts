@@ -178,8 +178,8 @@ export function resolveLocalRuntimeTownCliConfig(
   const llm = llmMode === 'provider' ? resolveProviderLlmConfig(env) : undefined;
   const participantAccess = resolveParticipantAccessConfig({ env, host });
   // The simulation-wide authority (one unified society and market) is the
-  // default settlement path. It is only disabled when explicitly turned off, so
-  // the legacy per-partition path stays reachable for local mechanism work.
+  // default settlement path. It is only disabled when explicitly turned off;
+  // that legacy path is safe only for single-partition mechanism work.
   const simulationWideAuthorityEnabled = parseBooleanFlagWithDefault(
     options.simulationWideAuthority ?? env.AIVILIZATION_SIMULATION_WIDE_AUTHORITY,
     true,
@@ -278,6 +278,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
 ): LocalRuntimeTownServerInput {
   assertFiniteTimestamp(bootstrappedAt, 'bootstrappedAt');
   const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
+  if (!config.simulationWideAuthorityEnabled && profile.manifest.partitions.length > 1) {
+    throw new Error('multi-partition profiles require the simulation-wide authority');
+  }
   if (config.townCarryingCapacityEnabled && profile.manifest.partitions.length !== 1) {
     throw new Error('town carrying capacity currently requires a single-partition profile');
   }
@@ -540,8 +543,8 @@ export function createLocalRuntimeTownCliHelp(): string {
     '  --help               Show this help',
     '',
     'The simulation-wide authority (one unified AMM and social graph) is the default',
-    'settlement path. Pass --simulation-wide-authority off or',
-    'AIVILIZATION_SIMULATION_WIDE_AUTHORITY=0 to use the legacy per-partition path.',
+    'settlement path. Single-partition profiles may pass --simulation-wide-authority off or',
+    'AIVILIZATION_SIMULATION_WIDE_AUTHORITY=0 for isolated local mechanism work.',
     'Regional markets are a repository-specific extension (not a paper mechanism): pass',
     '--regional-markets on or AIVILIZATION_REGIONAL_MARKETS=1 to keep per-region AMM pools',
     'with divergent prices under one settlement authority. Disabled by default.',

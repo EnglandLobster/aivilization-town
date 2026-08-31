@@ -1307,6 +1307,48 @@ describe('simulation-wide authority', () => {
     ).toMatchObject([{ operationId: 'conversation-after-sync', operationKind: 'conversation' }]);
   });
 
+  test('rejects partition syncs that violate global physical or residential capacity', () => {
+    const physical = createAuthority(undefined, false, {
+      agentALocationId: 'town-square',
+      agentBLocationId: 'market',
+      townSquareCapacity: 1,
+    });
+    expect(() =>
+      physical.syncPartitionAgentLocations({
+        operationId: 'invalid-physical-sync',
+        workerId: 'worker-b',
+        observedAt: 1,
+        durationMs: 100,
+        partitionKey: partitionB,
+        agentLocations: [{ agentId: agentB, locationId: 'town-square' }],
+      }),
+    ).toThrow('location town-square occupancy 2 exceeds capacity 1');
+    expect(physical.getSnapshot().projection.agents[agentB]?.locationId).toBe('market');
+
+    const residential = createAuthority(undefined, false, {
+      agentAResidenceLocationId: 'homes',
+    });
+    expect(() =>
+      residential.syncPartitionAgentLocations({
+        operationId: 'invalid-residence-sync',
+        workerId: 'worker-b',
+        observedAt: 1,
+        durationMs: 100,
+        partitionKey: partitionB,
+        agentLocations: [{ agentId: agentB, locationId: 'town-square' }],
+        agentStates: [
+          {
+            ...residential.getSnapshot().projection.agents[agentB]!,
+            residenceLocationId: asLocationId('homes'),
+          },
+        ],
+      }),
+    ).toThrow('residence homes occupancy 2 exceeds capacity 1');
+    expect(
+      residential.getSnapshot().projection.agents[agentB]?.residenceLocationId,
+    ).toBeUndefined();
+  });
+
   test('publishes multi-partition fiscal totals only at an equal-clock barrier', () => {
     const authority = createAuthority();
     const sync = (
@@ -2239,6 +2281,8 @@ function createAuthority(
   seedLocationOverrides: {
     readonly agentALocationId?: string;
     readonly agentBLocationId?: string;
+    readonly agentAResidenceLocationId?: string | null;
+    readonly townSquareCapacity?: number;
     readonly agentAInventory?: Readonly<Record<string, number>>;
   } = {},
   policies: WorldCommandPolicyResolver = createAivilizationWorldCommandPolicies('authority-test'),
@@ -2262,7 +2306,7 @@ function createAuthority(
             name: 'Town square',
             kind: 'social',
             activityAffinities: ['social'],
-            capacity: 20,
+            capacity: seedLocationOverrides.townSquareCapacity ?? 20,
             ...(usesTravelRoute
               ? {
                   connections: [
@@ -2285,11 +2329,26 @@ function createAuthority(
                 }
               : {}),
           },
+          {
+            locationId: asLocationId('homes'),
+            name: 'Homes',
+            kind: 'residence',
+            activityAffinities: ['sleep'],
+            capacity: 1,
+          },
         ],
         agents: [
           {
             agentId: agentA,
             locationId: asLocationId(seedLocationOverrides.agentALocationId ?? 'town-square'),
+            ...(seedLocationOverrides.agentAResidenceLocationId === undefined
+              ? {}
+              : {
+                  residenceLocationId:
+                    seedLocationOverrides.agentAResidenceLocationId === null
+                      ? null
+                      : asLocationId(seedLocationOverrides.agentAResidenceLocationId),
+                }),
             physiology: { energy: 100, satiety: 100, health: 100 },
             educationScore: 0,
             balance: 500,

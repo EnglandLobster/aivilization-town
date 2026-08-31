@@ -28,6 +28,13 @@ function createProjection(existingResidents = 0) {
         activityAffinities: [],
         capacity: 2,
       },
+      {
+        locationId: asLocationId('lobby'),
+        name: 'Lobby',
+        kind: 'social',
+        activityAffinities: [],
+        capacity: null,
+      },
     ],
     agents: [
       {
@@ -43,7 +50,7 @@ function createProjection(existingResidents = 0) {
       },
       ...Array.from({ length: existingResidents }, (_, index) => ({
         agentId: asAgentId(`agent-${String.fromCharCode(98 + index)}`),
-        locationId: asLocationId('homes'),
+        locationId: asLocationId('lobby'),
         residenceLocationId: asLocationId('homes'),
         physiology: { energy: 100, satiety: 100, health: 100 },
         educationScore: 0,

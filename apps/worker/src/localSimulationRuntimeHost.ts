@@ -5,7 +5,11 @@ import {
   type SimulationTimestamp,
 } from '@aivilization/sim-core';
 import type { AmmPool } from '@aivilization/economy';
-import { assertResidentialCapacityNotExceeded, type WorldProjection } from '@aivilization/world';
+import {
+  assertPhysicalLocationCapacityNotExceeded,
+  assertResidentialCapacityNotExceeded,
+  type WorldProjection,
+} from '@aivilization/world';
 import type { AgentPostBulletinPayload } from '@aivilization/world';
 import {
   createLocalSimulationBackendRegistry,
@@ -742,6 +746,7 @@ function mergeSeedProjection(
       bankBalance += projection.bank.balance;
     }
   }
+  assertPhysicalLocationCapacityNotExceeded(agents, locations);
   assertResidentialCapacityNotExceeded(agents, locations);
   assertUniformPoolKeySet(partitions, marketPools);
   return {

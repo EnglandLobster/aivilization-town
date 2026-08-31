@@ -44,6 +44,31 @@ afterEach(() => {
 });
 
 describe('local simulation runtime host simulation-wide authority wiring', () => {
+  test('fails closed when merged partition seeds overbook one physical location', async () => {
+    const scenarioPresets = createScenarioPresets().map((preset) => ({
+      ...preset,
+      locations: preset.locations.map((location) => ({ ...location, capacity: 1 })),
+    }));
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir: createRootDir(),
+        bootstrappedAt: 100,
+        manifest: createManifest(),
+        scenarioPresets,
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        simulationWideAuthority: {
+          enabled: true,
+          workerId: 'authority-worker',
+          leaseDurationMs: 30_000,
+        },
+      }),
+    ).rejects.toThrow('location main-square occupancy 2 exceeds capacity 1');
+  });
+
   test('fails closed when merged partition seeds overbook one residence', async () => {
     const residenceLocationId = asLocationId('residential-block');
     const scenarioPresets = createScenarioPresets().map((preset) => ({

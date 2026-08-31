@@ -2151,6 +2151,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
 
   test('serializes the final residence vacancy across partitions', () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-residence-'));
+    const existingResident = asAgentId('agent-existing-resident');
     const basePolicies = createAivilizationWorldCommandPolicies('residence-test', undefined, {
       townConstruction: true,
     });
@@ -2164,6 +2165,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
         owners: [
           { agentId: agentA, partitionKey: partitionA },
           { agentId: agentB, partitionKey: partitionB },
+          { agentId: existingResident, partitionKey: partitionA },
         ],
         projection: createWorldProjection({
           locations: [
@@ -2172,20 +2174,40 @@ describe('authority lifecycle and memory-sync scoping', () => {
               name: 'Last home',
               kind: 'residence',
               activityAffinities: [],
-              capacity: 1,
+              capacity: 2,
+            },
+            {
+              locationId: asLocationId('away'),
+              name: 'Away',
+              kind: 'social',
+              activityAffinities: [],
+              capacity: null,
             },
           ],
-          agents: [agentA, agentB].map((agentId) => ({
-            agentId,
-            locationId: asLocationId('last-home'),
-            residenceLocationId: null,
-            physiology: { energy: 100, satiety: 100, health: 100 },
-            educationScore: 0,
-            balance: 0,
-            residentialTier: 1,
-            job: null,
-            inventory: {},
-          })),
+          agents: [
+            ...[agentA, agentB].map((agentId) => ({
+              agentId,
+              locationId: asLocationId('last-home'),
+              residenceLocationId: null,
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 0,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            })),
+            {
+              agentId: existingResident,
+              locationId: asLocationId('away'),
+              residenceLocationId: asLocationId('last-home'),
+              physiology: { energy: 100, satiety: 100, health: 100 },
+              educationScore: 0,
+              balance: 0,
+              residentialTier: 1,
+              job: null,
+              inventory: {},
+            },
+          ],
         }),
       },
     });
@@ -2197,7 +2219,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
     });
     expect(first.events[0]).toMatchObject({
       type: 'AgentResidenceChanged',
-      payload: { occupancyBefore: 0, occupancyAfter: 1 },
+      payload: { occupancyBefore: 1, occupancyAfter: 2 },
     });
     expect(() =>
       authority.settleResidence({

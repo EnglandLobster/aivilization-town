@@ -394,4 +394,37 @@ describe('AIvilization source content', () => {
       }),
     ).toThrow('residenceLocationIds length must equal agentCount');
   });
+
+  test('leaves overflow population unplaced after finite initial location capacity is exhausted', () => {
+    const preset = createAivilizationPopulationScenarioPreset({
+      id: 'capacity-limited',
+      name: 'Capacity Limited',
+      description: 'Two slots for three Agents',
+      agentCount: 3,
+      locations: [
+        {
+          locationId: asLocationId('location-a'),
+          name: 'A',
+          kind: 'social',
+          activityAffinities: ['socialize'],
+          capacity: 1,
+          source: 'test',
+        },
+        {
+          locationId: asLocationId('location-b'),
+          name: 'B',
+          kind: 'production',
+          activityAffinities: ['work'],
+          capacity: 1,
+          source: 'test',
+        },
+      ],
+    });
+
+    expect(preset.agentSeeds.map((agent) => agent.locationId)).toEqual([
+      'location-a',
+      'location-b',
+      null,
+    ]);
+  });
 });

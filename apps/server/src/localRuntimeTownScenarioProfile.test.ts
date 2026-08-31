@@ -121,6 +121,12 @@ describe('local runtime town daemon scenario profiles', () => {
     });
     expect(stress.manifest.partitions).toHaveLength(10);
     expect(totalAgents(stress.scenarioPresets)).toBe(1000);
+    expect(countPlacedAgents(stress.scenarioPresets)).toBe(350);
+    expect(
+      stress.scenarioPresets
+        .flatMap((preset) => preset.agentSeeds)
+        .filter((agent) => agent.locationId === null),
+    ).toHaveLength(650);
     expect(countHousedAgents(stress.scenarioPresets)).toBe(100);
     expect(
       stress.scenarioPresets
@@ -232,6 +238,14 @@ function countHousedAgents(scenarioPresets: readonly ScenarioPreset[]): number {
   return scenarioPresets.reduce(
     (total, preset) =>
       total + preset.agentSeeds.filter((agent) => agent.residenceLocationId != null).length,
+    0,
+  );
+}
+
+function countPlacedAgents(scenarioPresets: readonly ScenarioPreset[]): number {
+  return scenarioPresets.reduce(
+    (total, preset) =>
+      total + preset.agentSeeds.filter((agent) => agent.locationId !== null).length,
     0,
   );
 }

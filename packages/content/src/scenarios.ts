@@ -619,7 +619,7 @@ export type CreateAivilizationPopulationAgentSeedsInput = {
   readonly idPrefix?: string;
   readonly displayNamePrefix?: string;
   readonly startingIndex?: number;
-  readonly locationIds?: readonly LocationId[];
+  readonly locationIds?: readonly (LocationId | null)[];
   readonly residenceLocationId?: LocationId | null;
   /** Optional per-agent durable homes, used by scenario capacity allocation. */
   readonly residenceLocationIds?: readonly (LocationId | null)[];
@@ -639,6 +639,8 @@ export type CreateAivilizationPopulationScenarioPresetInput = {
   readonly timeScale?: number;
   readonly clock?: SimulationClock;
   readonly locations?: readonly TownLocationConfig[];
+  /** Optional town-wide capacity allocation for each Agent's initial position. */
+  readonly initialLocationIds?: readonly (LocationId | null)[];
   /**
    * Optional pre-allocated home assignments. Multi-partition composition must
    * allocate these once across the whole town rather than independently per
@@ -1604,6 +1606,11 @@ export function createAivilizationPopulationScenarioPreset(
   assertNonEmptyString(source, 'source');
   assertPositiveFinite(timeScale, 'timeScale');
   assertNonEmptyArray(locations, 'locations');
+  const initialLocationIds =
+    input.initialLocationIds ?? allocateScenarioLocationIds(input.agentCount, locations);
+  if (initialLocationIds.length !== input.agentCount) {
+    throw new Error('initialLocationIds length must equal agentCount');
+  }
   const residenceLocationIds =
     input.residenceLocationIds ?? allocateScenarioResidenceLocationIds(input.agentCount, locations);
   if (residenceLocationIds.length !== input.agentCount) {
@@ -1625,12 +1632,43 @@ export function createAivilizationPopulationScenarioPreset(
         : { displayNamePrefix: input.displayNamePrefix }),
       ...(input.startingIndex === undefined ? {} : { startingIndex: input.startingIndex }),
       ...(input.residentialTier === undefined ? {} : { residentialTier: input.residentialTier }),
-      locationIds: locations.map((location) => location.locationId),
+      locationIds: initialLocationIds,
       residenceLocationIds,
       source,
     }),
     source,
   };
+}
+
+export function allocateScenarioLocationIds(
+  agentCount: number,
+  locations: readonly TownLocationConfig[],
+): readonly (LocationId | null)[] {
+  assertPositiveInteger(agentCount, 'agentCount');
+  assertNonEmptyArray(locations, 'locations');
+  const remaining = locations.map((location) => location.capacity ?? agentCount);
+  const allocated: (LocationId | null)[] = [];
+  let cursor = 0;
+  for (let agentIndex = 0; agentIndex < agentCount; agentIndex += 1) {
+    let selectedIndex: number | undefined;
+    for (let attempt = 0; attempt < locations.length; attempt += 1) {
+      const candidateIndex = (cursor + attempt) % locations.length;
+      if ((remaining[candidateIndex] ?? 0) > 0) {
+        selectedIndex = candidateIndex;
+        break;
+      }
+    }
+    if (selectedIndex === undefined) {
+      allocated.push(null);
+      continue;
+    }
+    const location = locations[selectedIndex];
+    if (location === undefined) throw new Error('locations must not be empty');
+    allocated.push(location.locationId);
+    remaining[selectedIndex] = (remaining[selectedIndex] ?? 0) - 1;
+    cursor = (selectedIndex + 1) % locations.length;
+  }
+  return allocated;
 }
 
 export function allocateScenarioResidenceLocationIds(

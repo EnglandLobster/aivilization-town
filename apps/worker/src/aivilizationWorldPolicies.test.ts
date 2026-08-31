@@ -53,7 +53,7 @@ describe('AIvilization default world command policies', () => {
         autonomousObjectiveSelection: 'autonomous-objective-selection-v11',
         externalTradeActionProposer: 'external-trade-action-proposer-v1',
         enterpriseActionProposer: 'enterprise-action-proposer-v3',
-        locationAwareActionProposer: 'location-aware-action-proposer-v1',
+        locationAwareActionProposer: 'location-aware-action-proposer-v2',
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
@@ -101,9 +101,10 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           locationAwareActionProposer: {
-            policyVersion: 'location-aware-action-proposer-v1',
-            capacityRule: 'observe-and-reassess-when-authoritative-context-reports-at-capacity',
-            reachabilityRule: 'observe-and-reassess-when-authoritative-context-reports-unreachable',
+            policyVersion: 'location-aware-action-proposer-v2',
+            capacityRule: 'mark-candidate-blocked-when-authoritative-context-reports-at-capacity',
+            reachabilityRule:
+              'mark-candidate-blocked-when-authoritative-context-reports-unreachable',
             authorityRule: 'world-remains-final-movement-authority',
           },
           contextView: {

@@ -1335,6 +1335,10 @@ describe('canonical domain runtimes', () => {
       expect(firstProposal(binding.microPlanners, 'study')).toMatchObject({
         id: 'canonical-study-step-a-wait-for-access',
         commandType: 'AgentObserveLocation',
+        availability: {
+          status: 'blocked',
+          reason: `destination school is ${status}`,
+        },
         payload: { focus: 'Access conditions for School' },
         priority: 10,
       });

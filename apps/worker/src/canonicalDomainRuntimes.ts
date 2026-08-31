@@ -1389,14 +1389,14 @@ export const CANONICAL_COMMAND_TYPE_LIST_IS_EXHAUSTIVE: RequireNever<
 > = true;
 
 export const BANKING_ACTION_PROPOSER_POLICY_VERSION = 'banking-action-proposer-v1';
-export const LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION = 'location-aware-action-proposer-v1';
+export const LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION = 'location-aware-action-proposer-v2';
 
 export function createLocationAwareActionProposerPolicyManifest() {
   return {
     policyVersion: LOCATION_AWARE_ACTION_PROPOSER_POLICY_VERSION,
-    capacityRule: 'observe-and-reassess-when-authoritative-context-reports-at-capacity' as const,
+    capacityRule: 'mark-candidate-blocked-when-authoritative-context-reports-at-capacity' as const,
     reachabilityRule:
-      'observe-and-reassess-when-authoritative-context-reports-unreachable' as const,
+      'mark-candidate-blocked-when-authoritative-context-reports-unreachable' as const,
     authorityRule: 'world-remains-final-movement-authority' as const,
   };
 }
@@ -2020,6 +2020,10 @@ function createLocationAwareActionProposal(input: {
         description: `Observe current conditions while ${targetLocation.name} is ${mobilityDestination.status}.`,
         commandType: 'AgentObserveLocation',
         priority: input.selectedSubtask.score,
+        availability: {
+          status: 'blocked',
+          reason: `destination ${targetLocationId} is ${mobilityDestination.status}`,
+        },
         payload: {
           focus: `Access conditions for ${targetLocation.name}`,
         },

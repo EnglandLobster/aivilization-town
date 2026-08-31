@@ -239,7 +239,11 @@ function normalizeScoringPolicy(
       'branchUrgencyWeight',
       0,
     ),
-    subtaskScoreWeight: normalizeScoringWeight(scoring?.subtaskScoreWeight, 'subtaskScoreWeight', 0),
+    subtaskScoreWeight: normalizeScoringWeight(
+      scoring?.subtaskScoreWeight,
+      'subtaskScoreWeight',
+      0,
+    ),
   };
 }
 
@@ -350,6 +354,14 @@ function firstBudgetRejection(input: {
   readonly ledger: ResourceLedger;
   readonly policy: NormalizedActionSynthesisPolicy;
 }): string | undefined {
+  if (input.action.availability?.status === 'blocked') {
+    const reason = input.action.availability.reason.trim();
+    if (reason.length === 0) {
+      throw new Error(`action ${input.action.id} blocked availability reason must not be empty`);
+    }
+    return `action unavailable: ${reason}`;
+  }
+
   const branchLimitRejection = branchLimitRejectionReason({
     action: input.action,
     ledger: input.ledger,
@@ -483,10 +495,7 @@ function firstInventoryBudgetRejection(input: {
   return undefined;
 }
 
-function applyEstimateToLedger(
-  ledger: ResourceLedger,
-  estimate: NormalizedResourceEstimate,
-): void {
+function applyEstimateToLedger(ledger: ResourceLedger, estimate: NormalizedResourceEstimate): void {
   ledger.actionSeconds += estimate.actionSeconds;
   ledger.energyCost += estimate.energyCost;
   ledger.satietyCost += estimate.satietyCost;
@@ -542,7 +551,10 @@ function assertSynthesisContext(action: AtomicActionProposal): void {
     context.strategicAlignment,
     `action ${action.id} synthesisContext.strategicAlignment`,
   );
-  assertFiniteIfPresent(context.branchUrgency, `action ${action.id} synthesisContext.branchUrgency`);
+  assertFiniteIfPresent(
+    context.branchUrgency,
+    `action ${action.id} synthesisContext.branchUrgency`,
+  );
 }
 
 function normalizeOptionalFinite(value: number | undefined, name: string): number {

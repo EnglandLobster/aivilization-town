@@ -2129,6 +2129,11 @@ export function createSimulationWideAuthority(input: {
               throw new Error(`unknown simulation-wide Agent ${agentId}`);
             }
             const locationId = entry.locationId === null ? null : asLocationId(entry.locationId);
+            if (locationId !== null && state.projection.locations[locationId] === undefined) {
+              throw new Error(
+                `simulation-wide Agent ${agentId} reports unknown location ${locationId}`,
+              );
+            }
             if (agent.locationId === locationId) {
               continue;
             }

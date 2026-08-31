@@ -599,6 +599,10 @@ export function enforceWorldProjectionMemoryRetention(
 export function normalizeLegacyWorldProjectionSnapshot(
   projection: WorldProjection,
 ): WorldProjection {
+  validateSpatialLocations(projection.locations);
+  assertAgentLocationReferencesValid(projection.agents, projection.locations);
+  assertPhysicalLocationCapacityNotExceeded(projection.agents, projection.locations);
+  assertResidentialCapacityNotExceeded(projection.agents, projection.locations);
   for (const enterprise of Object.values(projection.enterprises)) {
     assertValidEnterpriseState(normalizeEnterpriseState(enterprise));
   }
@@ -2702,6 +2706,26 @@ export function assertPhysicalLocationCapacityNotExceeded(
     if (occupied > location.capacity) {
       throw new Error(
         `location ${location.locationId} occupancy ${occupied} exceeds capacity ${location.capacity}`,
+      );
+    }
+  }
+}
+
+function assertAgentLocationReferencesValid(
+  agents: Readonly<Record<string, WorldAgentState>>,
+  locations: Readonly<Record<string, WorldLocationState>>,
+): void {
+  for (const agent of Object.values(agents)) {
+    if (agent.locationId !== null && locations[agent.locationId] === undefined) {
+      throw new Error(
+        `agent ${agent.agentId} location ${agent.locationId} is not in projection locations`,
+      );
+    }
+    if (agent.residenceLocationId === undefined || agent.residenceLocationId === null) continue;
+    const residence = locations[agent.residenceLocationId];
+    if (residence === undefined || residence.kind !== 'residence') {
+      throw new Error(
+        `agent ${agent.agentId} residence ${agent.residenceLocationId} is not a residential location`,
       );
     }
   }

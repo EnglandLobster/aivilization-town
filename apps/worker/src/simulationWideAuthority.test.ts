@@ -1240,6 +1240,26 @@ describe('simulation-wide authority', () => {
     expect(() => createAuthority(rootDir)).toThrow(/bank balance must be non-negative finite/);
   });
 
+  test('rejects a persisted authority snapshot with impossible location occupancy', () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'aivilization-authority-corrupt-capacity-'));
+    createAuthority(rootDir);
+    const statePath = join(
+      rootDir,
+      'simulation-wide-authority',
+      encodeURIComponent('unified-town'),
+      'state.json',
+    );
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as {
+      projection: { locations: Record<string, { capacity: number | null }> };
+    };
+    persisted.projection.locations['town-square']!.capacity = 1;
+    writeFileSync(statePath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    expect(() => createAuthority(rootDir)).toThrow(
+      'location town-square occupancy 2 exceeds capacity 1',
+    );
+  });
+
   test('keeps the global projection fresh through partition location syncs', () => {
     const authority = createAuthority(undefined, true, {
       agentALocationId: 'market',
@@ -1324,6 +1344,16 @@ describe('simulation-wide authority', () => {
       }),
     ).toThrow('location town-square occupancy 2 exceeds capacity 1');
     expect(physical.getSnapshot().projection.agents[agentB]?.locationId).toBe('market');
+    expect(() =>
+      physical.syncPartitionAgentLocations({
+        operationId: 'invalid-unknown-location-sync',
+        workerId: 'worker-b',
+        observedAt: 1,
+        durationMs: 100,
+        partitionKey: partitionB,
+        agentLocations: [{ agentId: agentB, locationId: 'missing-place' }],
+      }),
+    ).toThrow('simulation-wide Agent agent-b reports unknown location missing-place');
 
     const residential = createAuthority(undefined, false, {
       agentAResidenceLocationId: 'homes',
@@ -2060,7 +2090,7 @@ describe('authority lifecycle and memory-sync scoping', () => {
       operationId: 'location-sync-memory-1',
       partitionKey: partitionA,
       ...lease(),
-      agentLocations: [{ agentId: agentA, locationId: 'school' }],
+      agentLocations: [{ agentId: agentA, locationId: 'market' }],
       newMemoryRecords: [record],
     };
     const first = authority.syncPartitionAgentLocations(request);

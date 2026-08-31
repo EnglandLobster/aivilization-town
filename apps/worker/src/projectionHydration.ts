@@ -64,16 +64,16 @@ export function hydrateWorldProjectionFromEventStream(
     streamVersion,
   });
   const replayFromSequence = checkpointHydration?.fromSequence ?? fromSequence;
-  const initialProjection = enforceWorldProjectionMemoryRetention(
-    normalizeLegacyWorldProjectionSnapshot(
-      checkpointHydration?.projection ?? input.initialProjection,
-    ),
-  );
   const events = input.eventStore
     .readStream(input.streamName, { afterSequence: replayFromSequence })
     .filter((event) => event.sequence <= toSequence);
   let projection: WorldProjection;
   try {
+    const initialProjection = enforceWorldProjectionMemoryRetention(
+      normalizeLegacyWorldProjectionSnapshot(
+        checkpointHydration?.projection ?? input.initialProjection,
+      ),
+    );
     projection = replayEvents(initialProjection, events, applyWorldEvent);
   } catch (checkpointReplayError) {
     if (checkpointHydration === undefined) {

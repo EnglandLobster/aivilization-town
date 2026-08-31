@@ -144,6 +144,17 @@ describe('canonical local runtime agent provider', () => {
       directoryId: 'canonical-provider-directory',
       agents: [{ agentId, ownerPartitionKey: storage.partition.partitionKey }],
     });
+    const refreshed = await agents[0]?.refresh?.({
+      projection: {
+        ...availableProjection,
+        agents: {
+          ...availableProjection.agents,
+          [agentId]: { ...availableProjection.agents[agentId]!, balance: 999 },
+        },
+      },
+    });
+    expect(refreshed?.worldDecisionContext?.agent.balance).toBe(999);
+    expect(refreshed?.observedStateSummary).toContain('balance=999');
     const renewalTraces = await storage.objectiveRenewalTraceRepository.query({
       simulationId: 'sim-career-progression',
       partitionKey: 'world-main',
@@ -185,10 +196,7 @@ describe('canonical local runtime agent provider', () => {
       agents: [hiredAgent],
     });
     const provider = createCanonicalLocalRuntimeAgentProvider({
-      policies: createAivilizationWorldCommandPoliciesSnapshot(
-        [400],
-        'employment-feedback-test',
-      ),
+      policies: createAivilizationWorldCommandPoliciesSnapshot([400], 'employment-feedback-test'),
     });
 
     const agents = await provider({
@@ -208,7 +216,7 @@ describe('canonical local runtime agent provider', () => {
       },
     ]);
     expect(intentionState.activeObjective).toMatchObject({
-      statement: 'Apply for Receptionist to advance through the town\'s occupation ladder.',
+      statement: "Apply for Receptionist to advance through the town's occupation ladder.",
       planningDomains: ['work'],
     });
     expect(agents).toHaveLength(1);
@@ -217,9 +225,7 @@ describe('canonical local runtime agent provider', () => {
       partitionKey: 'world-main',
       agentId,
     });
-    expect(renewalTraces.at(-1)?.selectedCandidateId).toBe(
-      'occupation-application:Receptionist',
-    );
+    expect(renewalTraces.at(-1)?.selectedCandidateId).toBe('occupation-application:Receptionist');
 
     const applicationObjective = intentionState.activeObjective!;
     await storage.planProgressRepository.save(
@@ -265,9 +271,7 @@ describe('canonical local runtime agent provider', () => {
       agentId,
     });
     expect(
-      finalRenewalTraces.some(
-        (trace) => trace.selectedCandidateId === 'employment-income:Cleaner',
-      ),
+      finalRenewalTraces.some((trace) => trace.selectedCandidateId === 'employment-income:Cleaner'),
     ).toBe(true);
   });
 });

@@ -11,7 +11,9 @@
   社会关系演化、24 小时作息日程（`packages/agent-runtime/src/dailyPlanning.ts`）；
   `PerStageContextView` 已按排序、行动、对话、反应、重规划等阶段裁剪 LLM 输入，
   salience 仅投影生存阈值、活跃意图、高重要度记忆和 eligible rules，视图版本与
-  实际可见段进入 trace/manifest，不再把完整世界 JSON 倍乘注入每个阶段。
+  实际可见段进入 trace/manifest，不再把完整世界 JSON 倍乘注入每个阶段；context view v18
+  还会在每个 Agent 行动前按同 tick 已落地事实刷新，避免后序 Agent 使用 tick 起点的旧余额、
+  库存、岗位、政策或目的地容量预留。
 - **城市层仍未达到 CS**：全镇仍是固定地点抽象图（`packages/content/src/locations.ts`），
   没有建造、区划与实体物流；需求驱动迁入已形成最小闭环，区域地价、财政、生命周期、服务质量和
   治理杠杆已经形成可回放闭环。当前最大差距转向空间形态与多层系统的可视化反馈。

@@ -2593,6 +2593,49 @@ describe('worker tick runner', () => {
     ).resolves.toHaveLength(1);
   });
 
+  test('refreshes later Agent bindings from the latest in-tick projection', async () => {
+    const eventStore = new InMemoryEventStore<WorldEvent>();
+    const repositories = createRepositories();
+    const agents = createTickAgents();
+    const firstAgent = agents[0];
+    const secondAgent = agents[1];
+    if (firstAgent === undefined || secondAgent === undefined) {
+      throw new Error('expected two tick agents');
+    }
+    const observedEducation: number[] = [];
+
+    const result = await runWorkerSimulationTick({
+      tickId: 'tick-refresh-bindings',
+      simulationId,
+      issuedAt: 100,
+      projection: createProjection(),
+      policies,
+      eventStore,
+      streamName: partition.eventStreamName,
+      expectedVersion: 0,
+      agents: [
+        {
+          ...firstAgent,
+          refresh: ({ projection }) => {
+            observedEducation.push(projection.agents[agentOne]?.educationScore ?? -1);
+            return firstAgent;
+          },
+        },
+        {
+          ...secondAgent,
+          refresh: ({ projection }) => {
+            observedEducation.push(projection.agents[agentOne]?.educationScore ?? -1);
+            return secondAgent;
+          },
+        },
+      ],
+      ...repositories,
+    });
+
+    expect(observedEducation).toEqual([10, 70]);
+    expect(result.projection.agents[agentTwo]?.educationScore).toBe(50);
+  });
+
   test('recovers persisted tick append stages without recomputing them from a changed retry request', async () => {
     const eventStore = new InMemoryEventStore<WorldEvent>();
     const repositories = createRepositories();

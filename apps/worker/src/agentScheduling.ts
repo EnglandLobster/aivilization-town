@@ -24,7 +24,7 @@ import type {
   LongTermAgentProfile,
   LongTermProfileRepository,
 } from '@aivilization/memory';
-import type { AgentId } from '@aivilization/sim-core';
+import { asAgentId, type AgentId } from '@aivilization/sim-core';
 import {
   isAgentAvailableForWorldAction,
   type WorldAgentState,
@@ -71,7 +71,7 @@ export type WorkerAgentRuntimeResolver = (input: {
   readonly marketOverride?: WorldDecisionMarketOverride;
 }) => WorkerAgentRuntimeBinding | undefined | Promise<WorkerAgentRuntimeBinding | undefined>;
 
-export async function buildWorkerTickAgentsFromActivePlans(input: {
+export type WorkerActivePlanAgentSchedulingInput = {
   readonly projection: WorldProjection;
   readonly intentionRepository: AgentIntentionRepository;
   readonly planRepository: BranchPlanRepository;
@@ -84,7 +84,11 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
   readonly societyDirectory?: LocalSimulationSocietyDirectory;
   readonly marketOverride?: WorldDecisionMarketOverride;
   readonly resolveRuntime: WorkerAgentRuntimeResolver;
-}): Promise<readonly WorkerTickAgentInput[]> {
+};
+
+export async function buildWorkerTickAgentsFromActivePlans(
+  input: WorkerActivePlanAgentSchedulingInput,
+): Promise<readonly WorkerTickAgentInput[]> {
   validateMemoryRetrievalBudget(input);
   const agents: WorkerTickAgentInput[] = [];
   const worldDecisionPolicies =
@@ -96,119 +100,155 @@ export async function buildWorkerTickAgentsFromActivePlans(input: {
         });
 
   for (const agentId of Object.keys(input.projection.agents).sort()) {
-    const agent = input.projection.agents[agentId];
-    if (agent === undefined) {
-      continue;
-    }
-    if (!isAgentAvailableForWorldAction(input.projection, agent.agentId)) {
-      continue;
-    }
-
-    const intentionState = await input.intentionRepository.getOrCreate(agent.agentId);
-    const activeObjective = intentionState.activeObjective;
-    if (activeObjective === undefined) {
-      continue;
-    }
-
-    const planRecord = await input.planRepository.get({
-      planId: activeObjective.id,
-      agentId: agent.agentId,
+    const scheduled = await buildWorkerTickAgentFromActivePlanWithPolicies({
+      input,
+      agentId: asAgentId(agentId),
+      worldDecisionPolicies,
     });
-    if (planRecord === undefined) {
-      continue;
-    }
-    const progress =
-      input.planProgressRepository === undefined
-        ? undefined
-        : await input.planProgressRepository.get({
-            planId: activeObjective.id,
-            agentId: agent.agentId,
-          });
-    if (progress !== undefined && !hasSelectableSubtasks({ plan: planRecord.plan, progress })) {
-      continue;
-    }
-
-    const longTermProfile =
-      input.longTermProfileRepository === undefined
-        ? undefined
-        : await input.longTermProfileRepository.getOrCreate(agent.agentId);
-    const worldDecisionContext = createWorldDecisionContextFromProjection({
-      projection: input.projection,
-      agentId: agent.agentId,
-      ...(worldDecisionPolicies === undefined ? {} : { policies: worldDecisionPolicies }),
-      ...(input.educationOpportunityCost === undefined
-        ? {}
-        : { educationOpportunityCost: input.educationOpportunityCost }),
-      ...(input.societyDirectory === undefined ? {} : { societyDirectory: input.societyDirectory }),
-      ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
-    });
-    const runtime = await input.resolveRuntime({
-      agentId: agent.agentId,
-      agent,
-      projection: input.projection,
-      activeObjective,
-      planRecord,
-      ...(longTermProfile === undefined ? {} : { longTermProfile }),
-      ...(input.marketOverride === undefined ? {} : { marketOverride: input.marketOverride }),
-      worldDecisionContext,
-    });
-    if (runtime === undefined) {
-      continue;
-    }
-
-    agents.push({
-      agentId: agent.agentId,
-      observedStateSummary: summarizeObservedAgentState(agent),
-      worldDecisionContext,
-      planId: activeObjective.id,
-      ...(progress === undefined ? {} : { progress }),
-      signals: activeObjective.affinityTags.map((tag) => ({
-        key: tag,
-        weight: activeObjective.priority,
-      })),
-      ...(input.memoryRetrievalLimit === undefined
-        ? {}
-        : { memoryRetrievalLimit: input.memoryRetrievalLimit }),
-      ...(input.memoryRetrievalCandidateLimit === undefined
-        ? {}
-        : { memoryRetrievalCandidateLimit: input.memoryRetrievalCandidateLimit }),
-      microPlanners: runtime.microPlanners,
-      ...(runtime.actionSynthesis === undefined
-        ? {}
-        : { actionSynthesis: runtime.actionSynthesis }),
-      ...(runtime.subtaskPrioritizer === undefined
-        ? {}
-        : { subtaskPrioritizer: runtime.subtaskPrioritizer }),
-      ...(runtime.actionSequenceGenerator === undefined
-        ? {}
-        : { actionSequenceGenerator: runtime.actionSequenceGenerator }),
-      ...(runtime.socialDialogueGenerator === undefined
-        ? {}
-        : { socialDialogueGenerator: runtime.socialDialogueGenerator }),
-      ...(runtime.socialSignalExtractor === undefined
-        ? {}
-        : { socialSignalExtractor: runtime.socialSignalExtractor }),
-      ...(runtime.globalSynthesizer === undefined
-        ? {}
-        : { globalSynthesizer: runtime.globalSynthesizer }),
-      ...(runtime.reactiveCorrector === undefined
-        ? {}
-        : { reactiveCorrector: runtime.reactiveCorrector }),
-      ...(runtime.replanningDecider === undefined
-        ? {}
-        : { replanningDecider: runtime.replanningDecider }),
-      simulate: runtime.simulate,
-      ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
-      ...(runtime.subtaskCompletion === undefined
-        ? {}
-        : { subtaskCompletion: runtime.subtaskCompletion }),
-      ...(runtime.replanningPolicy === undefined
-        ? {}
-        : { replanningPolicy: runtime.replanningPolicy }),
-    });
+    if (scheduled !== undefined) agents.push(scheduled);
   }
 
   return agents;
+}
+
+export async function buildWorkerTickAgentFromActivePlan(
+  input: WorkerActivePlanAgentSchedulingInput & { readonly agentId: AgentId },
+): Promise<WorkerTickAgentInput | undefined> {
+  validateMemoryRetrievalBudget(input);
+  const worldDecisionPolicies =
+    input.policies === undefined
+      ? undefined
+      : resolveWorldCommandPolicies({
+          policies: input.policies,
+          projection: input.projection,
+        });
+  return buildWorkerTickAgentFromActivePlanWithPolicies({
+    input,
+    agentId: input.agentId,
+    worldDecisionPolicies,
+  });
+}
+
+async function buildWorkerTickAgentFromActivePlanWithPolicies(input: {
+  readonly input: WorkerActivePlanAgentSchedulingInput;
+  readonly agentId: AgentId;
+  readonly worldDecisionPolicies: ReturnType<typeof resolveWorldCommandPolicies> | undefined;
+}): Promise<WorkerTickAgentInput | undefined> {
+  const scheduling = input.input;
+  const agent = scheduling.projection.agents[input.agentId];
+  if (
+    agent === undefined ||
+    !isAgentAvailableForWorldAction(scheduling.projection, agent.agentId)
+  ) {
+    return undefined;
+  }
+
+  const intentionState = await scheduling.intentionRepository.getOrCreate(agent.agentId);
+  const activeObjective = intentionState.activeObjective;
+  if (activeObjective === undefined) {
+    return undefined;
+  }
+
+  const planRecord = await scheduling.planRepository.get({
+    planId: activeObjective.id,
+    agentId: agent.agentId,
+  });
+  if (planRecord === undefined) {
+    return undefined;
+  }
+  const progress =
+    scheduling.planProgressRepository === undefined
+      ? undefined
+      : await scheduling.planProgressRepository.get({
+          planId: activeObjective.id,
+          agentId: agent.agentId,
+        });
+  if (progress !== undefined && !hasSelectableSubtasks({ plan: planRecord.plan, progress })) {
+    return undefined;
+  }
+
+  const longTermProfile =
+    scheduling.longTermProfileRepository === undefined
+      ? undefined
+      : await scheduling.longTermProfileRepository.getOrCreate(agent.agentId);
+  const worldDecisionContext = createWorldDecisionContextFromProjection({
+    projection: scheduling.projection,
+    agentId: agent.agentId,
+    ...(input.worldDecisionPolicies === undefined ? {} : { policies: input.worldDecisionPolicies }),
+    ...(scheduling.educationOpportunityCost === undefined
+      ? {}
+      : { educationOpportunityCost: scheduling.educationOpportunityCost }),
+    ...(scheduling.societyDirectory === undefined
+      ? {}
+      : { societyDirectory: scheduling.societyDirectory }),
+    ...(scheduling.marketOverride === undefined
+      ? {}
+      : { marketOverride: scheduling.marketOverride }),
+  });
+  const runtime = await scheduling.resolveRuntime({
+    agentId: agent.agentId,
+    agent,
+    projection: scheduling.projection,
+    activeObjective,
+    planRecord,
+    ...(longTermProfile === undefined ? {} : { longTermProfile }),
+    ...(scheduling.marketOverride === undefined
+      ? {}
+      : { marketOverride: scheduling.marketOverride }),
+    worldDecisionContext,
+  });
+  if (runtime === undefined) {
+    return undefined;
+  }
+
+  return {
+    agentId: agent.agentId,
+    observedStateSummary: summarizeObservedAgentState(agent),
+    worldDecisionContext,
+    planId: activeObjective.id,
+    ...(progress === undefined ? {} : { progress }),
+    signals: activeObjective.affinityTags.map((tag) => ({
+      key: tag,
+      weight: activeObjective.priority,
+    })),
+    ...(scheduling.memoryRetrievalLimit === undefined
+      ? {}
+      : { memoryRetrievalLimit: scheduling.memoryRetrievalLimit }),
+    ...(scheduling.memoryRetrievalCandidateLimit === undefined
+      ? {}
+      : { memoryRetrievalCandidateLimit: scheduling.memoryRetrievalCandidateLimit }),
+    microPlanners: runtime.microPlanners,
+    ...(runtime.actionSynthesis === undefined ? {} : { actionSynthesis: runtime.actionSynthesis }),
+    ...(runtime.subtaskPrioritizer === undefined
+      ? {}
+      : { subtaskPrioritizer: runtime.subtaskPrioritizer }),
+    ...(runtime.actionSequenceGenerator === undefined
+      ? {}
+      : { actionSequenceGenerator: runtime.actionSequenceGenerator }),
+    ...(runtime.socialDialogueGenerator === undefined
+      ? {}
+      : { socialDialogueGenerator: runtime.socialDialogueGenerator }),
+    ...(runtime.socialSignalExtractor === undefined
+      ? {}
+      : { socialSignalExtractor: runtime.socialSignalExtractor }),
+    ...(runtime.globalSynthesizer === undefined
+      ? {}
+      : { globalSynthesizer: runtime.globalSynthesizer }),
+    ...(runtime.reactiveCorrector === undefined
+      ? {}
+      : { reactiveCorrector: runtime.reactiveCorrector }),
+    ...(runtime.replanningDecider === undefined
+      ? {}
+      : { replanningDecider: runtime.replanningDecider }),
+    simulate: runtime.simulate,
+    ...(runtime.repair === undefined ? {} : { repair: runtime.repair }),
+    ...(runtime.subtaskCompletion === undefined
+      ? {}
+      : { subtaskCompletion: runtime.subtaskCompletion }),
+    ...(runtime.replanningPolicy === undefined
+      ? {}
+      : { replanningPolicy: runtime.replanningPolicy }),
+  };
 }
 
 function validateMemoryRetrievalBudget(input: {

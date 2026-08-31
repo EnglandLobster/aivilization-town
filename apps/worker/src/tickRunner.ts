@@ -103,8 +103,24 @@ type WorkerTickAgentPlanInput =
       readonly planId: string;
     };
 
+export type WorkerTickAgentRefreshInput = {
+  /** Latest in-tick projection after every earlier Agent's durable facts. */
+  readonly projection: WorldProjection;
+  /** Latest authority-owned market/transit view, when one is configured. */
+  readonly marketOverride?: WorldDecisionMarketOverride;
+};
+
 export type WorkerTickAgentInput = {
   readonly agentId: AgentId;
+  /**
+   * Rebuild projection-derived context immediately before this Agent acts.
+   * Canonical providers use this to avoid giving later Agents the tick-start
+   * balances, inventory, capacity reservations, jobs, and policy view after
+   * earlier Agents have already changed them. Static/test bindings may omit it.
+   */
+  readonly refresh?: (
+    input: WorkerTickAgentRefreshInput,
+  ) => WorkerTickAgentInput | undefined | Promise<WorkerTickAgentInput | undefined>;
   readonly observedStateSummary: string;
   readonly worldDecisionContext?: WorldDecisionContext;
   readonly progress?: BranchPlanProgress;
@@ -330,9 +346,24 @@ export async function runWorkerSimulationTick(
   let agentLoopFailure: unknown;
 
   try {
-    for (const [index, agent] of tickAgents.entries()) {
+    for (const [index, scheduledAgent] of tickAgents.entries()) {
       if (index > 0 && index % AGENT_LOOP_COOPERATIVE_YIELD_INTERVAL === 0) {
         await yieldWorkerHostControl();
+      }
+      const agent =
+        scheduledAgent.refresh === undefined
+          ? scheduledAgent
+          : await scheduledAgent.refresh({
+              projection,
+              ...(marketOverride === undefined ? {} : { marketOverride }),
+            });
+      if (agent === undefined) {
+        continue;
+      }
+      if (agent.agentId !== scheduledAgent.agentId) {
+        throw new Error(
+          `worker tick agent refresh changed identity from ${scheduledAgent.agentId} to ${agent.agentId}`,
+        );
       }
       if (!isAgentAvailableForWorldAction(projection, agent.agentId)) {
         skippedBusyAgentIds.push(agent.agentId);

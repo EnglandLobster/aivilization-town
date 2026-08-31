@@ -365,6 +365,16 @@ export function attachLocalRuntimeTownLlmAgentStages(input: {
 }): WorkerTickAgentInput {
   return {
     ...input.agent,
+    ...(input.agent.refresh === undefined
+      ? {}
+      : {
+          refresh: async (refreshInput) => {
+            const refreshed = await input.agent.refresh?.(refreshInput);
+            return refreshed === undefined
+              ? undefined
+              : attachLocalRuntimeTownLlmAgentStages({ agent: refreshed, runtime: input.runtime });
+          },
+        }),
     ...(input.agent.subtaskPrioritizer !== undefined ||
     input.runtime.subtaskPrioritizer === undefined
       ? {}

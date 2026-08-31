@@ -13,7 +13,10 @@ import {
   type SubtaskPrioritizer,
 } from '@aivilization/agent-runtime';
 import type { ObjectiveRenewalTrace } from '@aivilization/observability';
-import { buildWorkerTickAgentsFromActivePlans } from './agentScheduling';
+import {
+  buildWorkerTickAgentFromActivePlan,
+  buildWorkerTickAgentsFromActivePlans,
+} from './agentScheduling';
 import type { WorldStateActionSynthesisPolicyConfig } from './actionSynthesisPolicy';
 import { createCanonicalWorkerRuntimeResolver } from './canonicalWorkerRuntimeResolver';
 import type { CanonicalDomainRuntimeConfig } from './canonicalDomainRuntimes';
@@ -124,8 +127,40 @@ export function createCanonicalLocalRuntimeAgentProvider(
       educationOpportunityCost,
     });
 
-    return buildWorkerTickAgentsFromActivePlans({
-      projection,
+    const resolveRuntime = createCanonicalWorkerRuntimeResolver({
+      simulationId: storage.partition.simulationId,
+      policies: input.policies,
+      issuedAt,
+      commandIdPrefix: `${storage.partition.partitionKey}:canonical-agent-provider:${issuedAt}`,
+      ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
+      actionSynthesis:
+        input.actionSynthesis === undefined
+          ? CANONICAL_OPPORTUNITY_COST_ACTION_SYNTHESIS_CONFIG
+          : input.actionSynthesis,
+      ...(input.replanningPolicy === undefined ? {} : { replanningPolicy: input.replanningPolicy }),
+      ...(input.subtaskPrioritizer === undefined
+        ? {}
+        : { subtaskPrioritizer: input.subtaskPrioritizer }),
+      ...(input.actionSequenceGenerator === undefined
+        ? {}
+        : { actionSequenceGenerator: input.actionSequenceGenerator }),
+      socialDialogueGenerator,
+      ...(input.socialSignalExtractor === undefined
+        ? {}
+        : { socialSignalExtractor: input.socialSignalExtractor }),
+      globalSynthesizer,
+      ...(input.reactiveCorrector === undefined
+        ? {}
+        : { reactiveCorrector: input.reactiveCorrector }),
+      ...(input.replanningDecider === undefined
+        ? {}
+        : { replanningDecider: input.replanningDecider }),
+    });
+    const createSchedulingInput = (
+      currentProjection: typeof projection,
+      currentMarketOverride: typeof marketOverride,
+    ) => ({
+      projection: currentProjection,
       intentionRepository: storage.intentionRepository,
       planRepository: storage.planRepository,
       planProgressRepository: storage.planProgressRepository,
@@ -137,39 +172,20 @@ export function createCanonicalLocalRuntimeAgentProvider(
       policies: input.policies,
       educationOpportunityCost,
       ...(societyDirectory === undefined ? {} : { societyDirectory }),
-      ...(marketOverride === undefined ? {} : { marketOverride }),
-      resolveRuntime: createCanonicalWorkerRuntimeResolver({
-        simulationId: storage.partition.simulationId,
-        policies: input.policies,
-        issuedAt,
-        commandIdPrefix: `${storage.partition.partitionKey}:canonical-agent-provider:${issuedAt}`,
-        ...(input.domainConfig === undefined ? {} : { domainConfig: input.domainConfig }),
-        actionSynthesis:
-          input.actionSynthesis === undefined
-            ? CANONICAL_OPPORTUNITY_COST_ACTION_SYNTHESIS_CONFIG
-            : input.actionSynthesis,
-        ...(input.replanningPolicy === undefined
-          ? {}
-          : { replanningPolicy: input.replanningPolicy }),
-        ...(input.subtaskPrioritizer === undefined
-          ? {}
-          : { subtaskPrioritizer: input.subtaskPrioritizer }),
-        ...(input.actionSequenceGenerator === undefined
-          ? {}
-          : { actionSequenceGenerator: input.actionSequenceGenerator }),
-        socialDialogueGenerator,
-        ...(input.socialSignalExtractor === undefined
-          ? {}
-          : { socialSignalExtractor: input.socialSignalExtractor }),
-        globalSynthesizer,
-        ...(input.reactiveCorrector === undefined
-          ? {}
-          : { reactiveCorrector: input.reactiveCorrector }),
-        ...(input.replanningDecider === undefined
-          ? {}
-          : { replanningDecider: input.replanningDecider }),
-      }),
+      ...(currentMarketOverride === undefined ? {} : { marketOverride: currentMarketOverride }),
+      resolveRuntime,
     });
+    const agents = await buildWorkerTickAgentsFromActivePlans(
+      createSchedulingInput(projection, marketOverride),
+    );
+    return agents.map((agent) => ({
+      ...agent,
+      refresh: ({ projection: currentProjection, marketOverride: currentMarketOverride }) =>
+        buildWorkerTickAgentFromActivePlan({
+          ...createSchedulingInput(currentProjection, currentMarketOverride),
+          agentId: agent.agentId,
+        }),
+    }));
   };
 }
 

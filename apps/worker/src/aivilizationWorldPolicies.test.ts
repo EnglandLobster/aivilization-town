@@ -56,7 +56,7 @@ describe('AIvilization default world command policies', () => {
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v17',
+        contextView: 'world-decision-context-view-v18',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
@@ -100,7 +100,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v17',
+            contextViewVersion: 'world-decision-context-view-v18',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,

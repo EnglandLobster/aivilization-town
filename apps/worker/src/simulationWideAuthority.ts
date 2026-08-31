@@ -32,6 +32,8 @@ import {
 } from '@aivilization/society';
 import {
   applyWorldEvent,
+  assertPhysicalLocationCapacityNotExceeded,
+  assertResidentialCapacityNotExceeded,
   dispatchWorldCommand,
   normalizeLegacyWorldProjectionSnapshot,
   WORLD_PROJECTION_RECENT_MEMORY_RECORD_LIMIT,
@@ -2135,6 +2137,8 @@ export function createSimulationWideAuthority(input: {
               updatedAgentIds.push(agentId);
             }
           }
+          assertPhysicalLocationCapacityNotExceeded(agents, state.projection.locations);
+          assertResidentialCapacityNotExceeded(agents, state.projection.locations);
           // Merge the partition's memory delta into the bounded authority
           // cache: unknown record ids append (id-first idempotency — a
           // replayed sync after a crash skips records it already merged),

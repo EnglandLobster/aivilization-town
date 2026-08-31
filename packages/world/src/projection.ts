@@ -715,6 +715,7 @@ export function createWorldProjection(input: {
         : { durableGoods: agent.durableGoods.map((lot) => ({ ...lot })) }),
     };
   }
+  assertPhysicalLocationCapacityNotExceeded(agents, locations);
   assertResidentialCapacityNotExceeded(agents, locations);
 
   const marketPools: Record<string, AmmPool> = {};
@@ -2681,6 +2682,26 @@ export function assertResidentialCapacityNotExceeded(
     if (occupied > location.capacity) {
       throw new Error(
         `residence ${location.locationId} occupancy ${occupied} exceeds capacity ${location.capacity}`,
+      );
+    }
+  }
+}
+
+export function assertPhysicalLocationCapacityNotExceeded(
+  agents: Readonly<Record<string, WorldAgentState>>,
+  locations: Readonly<Record<string, WorldLocationState>>,
+): void {
+  const occupancyByLocationId: Record<string, number> = {};
+  for (const agent of Object.values(agents)) {
+    if (agent.locationId === null) continue;
+    occupancyByLocationId[agent.locationId] = (occupancyByLocationId[agent.locationId] ?? 0) + 1;
+  }
+  for (const location of Object.values(locations)) {
+    if (location.capacity === null) continue;
+    const occupied = occupancyByLocationId[location.locationId] ?? 0;
+    if (occupied > location.capacity) {
+      throw new Error(
+        `location ${location.locationId} occupancy ${occupied} exceeds capacity ${location.capacity}`,
       );
     }
   }

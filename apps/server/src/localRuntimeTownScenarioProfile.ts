@@ -1,8 +1,10 @@
 import {
   aivilizationAblationScenarioPreset,
   aivilizationEducationSystemPolicyDefaults,
+  allocateScenarioResidenceLocationIds,
   createAivilizationPopulationScenarioPreset,
   createCommodityMarketPoolSeeds,
+  townLocations,
   type ScenarioPreset,
 } from '@aivilization/content';
 import type { PartitionKey } from '@aivilization/sim-core';
@@ -277,7 +279,12 @@ function createScenarioPresets(
   }
 
   let startingIndex = 1;
+  const residenceLocationIds = allocateScenarioResidenceLocationIds(
+    config.partitions.reduce((total, partition) => total + partition.agentCount, 0),
+    townLocations,
+  );
   return config.partitions.map((partition) => {
+    const residenceAllocationStart = startingIndex - 1;
     const preset = createAivilizationPopulationScenarioPreset({
       id: `${config.manifestId}-${partition.partitionKey}`,
       name: `${config.name} ${partition.label}`,
@@ -286,6 +293,10 @@ function createScenarioPresets(
       idPrefix: `${config.profileId}-${partition.partitionKey}-agent`,
       displayNamePrefix: `${config.name} ${partition.label} Agent`,
       startingIndex,
+      residenceLocationIds: residenceLocationIds.slice(
+        residenceAllocationStart,
+        residenceAllocationStart + partition.agentCount,
+      ),
     });
     startingIndex += partition.agentCount;
     return preset;

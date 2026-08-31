@@ -74,6 +74,7 @@ export type PerStageContextView = {
   readonly salience: readonly PerStageContextSalienceEntry[];
   readonly agent: PerStageAgentContext;
   readonly market?: WorldDecisionMarketContext;
+  readonly mobility?: WorldDecisionContext['mobility'];
   readonly townPulse?: WorldDecisionContext['townPulse'];
   readonly society?: PerStageSocietyContext;
   readonly weather?: WorldDecisionContext['weather'];
@@ -221,6 +222,15 @@ export function createPerStageContextViewTrace(
       : { hasDisplayName: true, displayNameLength: agent.displayName.length }),
     ...(agent.relations === undefined ? {} : { relationCount: agent.relations.length }),
     ...(view.townPulse === undefined ? {} : { townPulseCount: view.townPulse.length }),
+    ...(view.mobility === undefined
+      ? {}
+      : {
+          mobilityDestinationCount: view.mobility.destinations.length,
+          congestedMobilityDestinationCount: view.mobility.destinations.filter(
+            (destination) =>
+              destination.status === 'reachable' && destination.congestionMultiplier > 1,
+          ).length,
+        }),
     ...(view.conflicts === undefined ? {} : { conflictCount: view.conflicts.length }),
     hasPhysiology:
       physiology !== undefined &&
@@ -309,6 +319,7 @@ function createRankingContextView(
     salience,
     agent: context.agent,
     market: context.market,
+    ...(context.mobility === undefined ? {} : { mobility: context.mobility }),
     ...(context.townPulse === undefined ? {} : { townPulse: context.townPulse }),
     ...(context.weather === undefined ? {} : { weather: context.weather }),
     ...(context.calendar === undefined ? {} : { calendar: context.calendar }),
@@ -399,6 +410,7 @@ function createActionableContextView(
     salience,
     agent: context.agent,
     market: context.market,
+    ...(context.mobility === undefined ? {} : { mobility: context.mobility }),
     ...(context.townPulse === undefined ? {} : { townPulse: context.townPulse }),
     ...(context.society === undefined
       ? {}
@@ -678,6 +690,7 @@ function visibleContextSections(view: PerStageContextView): readonly string[] {
   const sections: string[] = ['salience', 'agent'];
   const optionalSections = [
     'market',
+    'mobility',
     'townPulse',
     'society',
     'weather',

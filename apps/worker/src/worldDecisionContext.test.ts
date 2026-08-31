@@ -109,6 +109,111 @@ describe('worker world decision context', () => {
     ).toBeUndefined();
   });
 
+  test('uses the authority transit override for congestion-aware mobility estimates', () => {
+    const projection = createWorldProjection({
+      agents: [
+        {
+          ...createLocalAgent(agentId),
+          locationId: asLocationId('a'),
+        },
+        {
+          ...createLocalAgent(asAgentId('stationary-b')),
+          locationId: asLocationId('b'),
+        },
+      ],
+      locations: [
+        {
+          locationId: asLocationId('a'),
+          name: 'A',
+          kind: 'residence',
+          activityAffinities: [],
+          capacity: 10,
+          connections: [
+            { targetLocationId: asLocationId('b'), travelDurationSeconds: 100 },
+            { targetLocationId: asLocationId('c'), travelDurationSeconds: 130 },
+          ],
+        },
+        {
+          locationId: asLocationId('b'),
+          name: 'B',
+          kind: 'social',
+          activityAffinities: [],
+          capacity: 1,
+          connections: [
+            { targetLocationId: asLocationId('a'), travelDurationSeconds: 100 },
+            { targetLocationId: asLocationId('d'), travelDurationSeconds: 100 },
+          ],
+        },
+        {
+          locationId: asLocationId('c'),
+          name: 'C',
+          kind: 'social',
+          activityAffinities: [],
+          capacity: 10,
+          connections: [
+            { targetLocationId: asLocationId('a'), travelDurationSeconds: 130 },
+            { targetLocationId: asLocationId('d'), travelDurationSeconds: 130 },
+          ],
+        },
+        {
+          locationId: asLocationId('d'),
+          name: 'D',
+          kind: 'production',
+          activityAffinities: [],
+          capacity: 10,
+          connections: [
+            { targetLocationId: asLocationId('b'), travelDurationSeconds: 100 },
+            { targetLocationId: asLocationId('c'), travelDurationSeconds: 130 },
+          ],
+        },
+      ],
+    });
+    const transitByAgent = Object.fromEntries(
+      Array.from({ length: 3 }, (_, index) => {
+        const transitAgentId = asAgentId(`commuter-${index}`);
+        return [
+          transitAgentId,
+          {
+            agentId: transitAgentId,
+            fromLocationId: asLocationId('a'),
+            toLocationId: asLocationId('d'),
+            routeLocationIds: [asLocationId('a'), asLocationId('b'), asLocationId('d')],
+            spatialPolicyVersion: 'town-spatial-graph-v2',
+            baseTravelDurationSeconds: 200,
+            congestionMultiplier: 1,
+            travelDurationSeconds: 200,
+            departedAt: 0,
+            arrivesAt: 200_000,
+            reason: 'commute',
+          },
+        ];
+      }),
+    );
+
+    const context = createWorldDecisionContextFromProjection({
+      projection,
+      agentId,
+      marketOverride: { marketPools: projection.marketPools, transitByAgent },
+    });
+
+    expect(context.mobility?.policyVersion).toBe('town-spatial-graph-v2');
+    expect(
+      context.mobility?.destinations.find((destination) => destination.locationId === 'd'),
+    ).toMatchObject({
+      status: 'reachable',
+      locationId: 'd',
+      routeLocationIds: ['a', 'c', 'd'],
+      baseTravelDurationSeconds: 260,
+      edgeCongestionMultiplier: 1,
+      destinationCongestionMultiplier: 1.15,
+      congestionMultiplier: 1.15,
+      estimatedTravelDurationSeconds: 299,
+    });
+    expect(
+      context.mobility?.destinations.find((destination) => destination.locationId === 'b'),
+    ).toMatchObject({ status: 'at-capacity', capacity: 1, capacityUsage: 1 });
+  });
+
   test('binds a versioned cross-partition society directory without copying private state', () => {
     const projection = createWorldProjection({
       locations: [

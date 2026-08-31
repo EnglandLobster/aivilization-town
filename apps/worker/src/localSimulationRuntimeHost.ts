@@ -407,16 +407,17 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
                 // The materializer's projection reflects the partition stream
                 // after consuming the inbox. The step passes its own hydrated
                 // projection for context; we return the materialized one so the
-                // tick plans against authoritative state. The market override is
-                // the authority's unified global pool sampled once for this tick:
-                // the partition projection's own pools only reflect this
-                // partition's trades, so planning and the price index read the
-                // authoritative pools instead. It is read-only and never
-                // persisted into the partition checkpoint.
+                // tick plans against authoritative state. The planning override
+                // samples the authority's unified pools and in-flight routes at
+                // one revision: partition-local pools and traffic are incomplete.
+                // It is read-only and never persisted into the checkpoint.
                 const authorityProjection = authority!.getSnapshot().projection;
                 return {
                   projection: result.projection,
-                  marketOverride: { marketPools: authorityProjection.marketPools },
+                  marketOverride: {
+                    marketPools: authorityProjection.marketPools,
+                    transitByAgent: authorityProjection.transitByAgent,
+                  },
                   ...(recoveringInterruptedTick === true
                     ? { authorityEventsMaterialized: false as const }
                     : {}),

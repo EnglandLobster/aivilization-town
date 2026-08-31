@@ -654,7 +654,8 @@ export function createAivilizationWorldPolicyManifest(
       ...experimentalPolicyVersions,
     },
     formulas: {
-      travelDuration: 'ceil(shortestPathBaseDuration*(1+min(1,destinationOccupancy/capacity)*0.5))',
+      travelDuration:
+        'ceil(sum(edgeBaseDuration*edgeFlowMultiplier)*(1+min(1,destinationOccupancy/capacity)*0.5))',
       educationAccumulation: 'H(t+dt)=H(t)+educationRatePerSecond*durationSeconds',
       lowerTierWage: 'baseWage*overallPriceIndex',
       higherTierWage:
@@ -845,7 +846,7 @@ function createCanonicalPolicyRegistry(manifest: {
   const entries = [
     registryEntry(
       'townSpatialGraph',
-      'town-spatial-graph-v1',
+      'town-spatial-graph-v2',
       ['townSpatialGraph'],
       'repository-defined',
       'Paper requires situated agents but does not specify town geometry.',

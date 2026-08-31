@@ -352,6 +352,14 @@ export type WorldAgentTransitState = {
   readonly spatialPolicyVersion: string;
   readonly baseTravelDurationSeconds: number;
   readonly congestionMultiplier: number;
+  readonly edgeCongestionMultiplier?: number;
+  readonly destinationCongestionMultiplier?: number;
+  readonly routeEdgeFlows?: readonly {
+    readonly fromLocationId: LocationId;
+    readonly toLocationId: LocationId;
+    readonly activeTraversalCount: number;
+    readonly congestionMultiplier: number;
+  }[];
   readonly travelDurationSeconds: number;
   readonly departedAt: number;
   readonly arrivesAt: number;
@@ -771,7 +779,13 @@ export function createWorldProjection(input: {
           transitByAgent: Object.fromEntries(
             Object.entries(input.transitByAgent).map(([agentId, transit]) => [
               agentId,
-              { ...transit },
+              {
+                ...transit,
+                routeLocationIds: [...transit.routeLocationIds],
+                ...(transit.routeEdgeFlows === undefined
+                  ? {}
+                  : { routeEdgeFlows: transit.routeEdgeFlows.map((edge) => ({ ...edge })) }),
+              },
             ]),
           ),
         }),
@@ -1618,6 +1632,11 @@ export function applyWorldEvent(
           [event.payload.agentId]: {
             ...event.payload,
             routeLocationIds: [...event.payload.routeLocationIds],
+            ...(event.payload.routeEdgeFlows === undefined
+              ? {}
+              : {
+                  routeEdgeFlows: event.payload.routeEdgeFlows.map((edge) => ({ ...edge })),
+                }),
           },
         },
       };

@@ -21,6 +21,11 @@ export type LocalSimulationSocietyDirectoryAgent = {
     readonly transit?: {
       readonly fromLocationId: string;
       readonly toLocationId: string;
+      readonly routeLocationIds?: readonly string[];
+      readonly spatialPolicyVersion?: string;
+      readonly baseTravelDurationSeconds?: number;
+      readonly congestionMultiplier?: number;
+      readonly travelDurationSeconds?: number;
       readonly departedAt: number;
       readonly arrivesAt: number;
     };
@@ -189,6 +194,11 @@ function createDirectoryAgent(input: {
             transit: {
               fromLocationId: transit.fromLocationId,
               toLocationId: transit.toLocationId,
+              routeLocationIds: [...transit.routeLocationIds],
+              spatialPolicyVersion: transit.spatialPolicyVersion,
+              baseTravelDurationSeconds: transit.baseTravelDurationSeconds,
+              congestionMultiplier: transit.congestionMultiplier,
+              travelDurationSeconds: transit.travelDurationSeconds,
               departedAt: transit.departedAt,
               arrivesAt: transit.arrivesAt,
             },

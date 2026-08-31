@@ -56,18 +56,26 @@ describe('AIvilization default world command policies', () => {
         socialMatterActionProposer: 'social-matter-action-proposer-v1',
         conflictActionProposer: 'conflict-action-proposer-v1',
         stochasticIllness: 'stochastic-illness-v2',
-        contextView: 'world-decision-context-view-v14',
+        contextView: 'world-decision-context-view-v15',
         strategicPlanning: 'deterministic-strategic-planning-v3',
         strategicPlanRenewal: 'strategic-plan-renewal-v3',
         memoryConsolidation: 'dual-process-memory-consolidation-v4',
         worldProjectionMemoryRetention: 'world-projection-memory-retention-v1',
-        townSpatialGraph: 'town-spatial-graph-v1',
+        townSpatialGraph: 'town-spatial-graph-v2',
       },
       parameters: {
         townSpatialGraph: {
-          policyVersion: 'town-spatial-graph-v1',
-          routing: 'minimum-base-travel-duration',
+          policyVersion: 'town-spatial-graph-v2',
+          routing: 'minimum-edge-congestion-adjusted-travel-duration',
           capacitySemantics: 'destination-occupancy-reserved-at-move-commit',
+          congestion: {
+            edgeFlow: {
+              referenceFlow: 2,
+              delayFactor: 0.15,
+              exponent: 4,
+              maximumDelayRatio: 2,
+            },
+          },
         },
         agentAllocation: {
           schemaVersion: 'canonical-agent-allocation-policy-v1',
@@ -92,7 +100,7 @@ describe('AIvilization default world command policies', () => {
         },
         planning: {
           contextView: {
-            contextViewVersion: 'world-decision-context-view-v14',
+            contextViewVersion: 'world-decision-context-view-v15',
             matterView: {
               maxCount: 8,
               responseMaxCount: 8,
@@ -251,7 +259,7 @@ describe('AIvilization default world command policies', () => {
         expect.objectContaining({
           parameterPath: 'townSpatialGraph',
           provenance: 'repository-defined',
-          policyVersion: 'town-spatial-graph-v1',
+          policyVersion: 'town-spatial-graph-v2',
         }),
       ]),
     );

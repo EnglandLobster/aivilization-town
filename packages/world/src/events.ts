@@ -1037,7 +1037,17 @@ export type AgentLocationChangedPayload = {
   readonly routeLocationIds?: readonly LocationId[];
   readonly baseTravelDurationSeconds?: number;
   readonly congestionMultiplier?: number;
+  readonly edgeCongestionMultiplier?: number;
+  readonly destinationCongestionMultiplier?: number;
+  readonly routeEdgeFlows?: readonly SpatialRouteEdgeFlowPayload[];
   readonly travelDurationSeconds?: number;
+};
+
+export type SpatialRouteEdgeFlowPayload = {
+  readonly fromLocationId: LocationId;
+  readonly toLocationId: LocationId;
+  readonly activeTraversalCount: number;
+  readonly congestionMultiplier: number;
 };
 
 export type AgentTravelStartedPayload = {
@@ -1048,6 +1058,9 @@ export type AgentTravelStartedPayload = {
   readonly spatialPolicyVersion: string;
   readonly baseTravelDurationSeconds: number;
   readonly congestionMultiplier: number;
+  readonly edgeCongestionMultiplier?: number;
+  readonly destinationCongestionMultiplier?: number;
+  readonly routeEdgeFlows?: readonly SpatialRouteEdgeFlowPayload[];
   readonly travelDurationSeconds: number;
   readonly departedAt: number;
   readonly arrivesAt: number;

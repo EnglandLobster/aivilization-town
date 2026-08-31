@@ -36,7 +36,7 @@ import {
   sanitizeDecisionDisplayName,
   sanitizeDecisionMatterText,
 } from '@aivilization/agent-runtime';
-import type { AgentId } from '@aivilization/sim-core';
+import { asLocationId, type AgentId } from '@aivilization/sim-core';
 import {
   calculateApplicationQuota,
   calculateRecruitmentCycleNumber,
@@ -76,6 +76,8 @@ import {
   DEFAULT_MARKET_REGION_ID,
   resolveAgentRegion,
   resolveCreditLimit,
+  resolveSpatialRoute,
+  TOWN_SPATIAL_GRAPH_POLICY_VERSION,
 } from '@aivilization/world';
 import type { AmmPool } from '@aivilization/economy';
 import {
@@ -89,12 +91,13 @@ import type { LocalSimulationSocietyDirectory } from './localSimulationSocietyDi
  * A read-only override for the market prices an agent plans against. When the
  * simulation-wide authority owns the unified AMM, the partition projection's
  * `marketPools` only reflect this partition's own trades, so planning must read
- * the authoritative global pools instead. This is deliberately just the pool map
- * (not a full projection): it feeds spot-price reads only and never replaces the
- * projection that is dispatched against or persisted to the checkpoint.
+ * the authoritative global pools instead. The optional transit table is sampled
+ * from that same authority revision so mobility estimates do not use a stale,
+ * partition-local edge flow. This never replaces or persists the projection.
  */
 export type WorldDecisionMarketOverride = {
   readonly marketPools: Readonly<Record<string, AmmPool>>;
+  readonly transitByAgent?: WorldProjection['transitByAgent'];
 };
 
 /**
@@ -271,6 +274,14 @@ export function createWorldDecisionContextFromProjection(input: {
             },
           }),
     },
+    ...createMobilityDecisionContext({
+      projection: input.projection,
+      agent,
+      ...(input.societyDirectory === undefined ? {} : { societyDirectory: input.societyDirectory }),
+      ...(input.marketOverride?.transitByAgent === undefined
+        ? {}
+        : { transitByAgent: input.marketOverride.transitByAgent }),
+    }),
     ...(input.societyDirectory === undefined
       ? {}
       : {
@@ -304,6 +315,100 @@ export function createWorldDecisionContextFromProjection(input: {
       ...(input.policies === undefined ? {} : { policies: input.policies }),
     }),
     ...(rules === undefined ? {} : { rules }),
+  };
+}
+
+function createMobilityDecisionContext(input: {
+  readonly projection: WorldProjection;
+  readonly agent: WorldAgentState;
+  readonly societyDirectory?: LocalSimulationSocietyDirectory;
+  readonly transitByAgent?: WorldProjection['transitByAgent'];
+}): Pick<WorldDecisionContext, 'mobility'> | Record<string, never> {
+  if (
+    !Object.values(input.projection.locations).some(
+      (location) => location.connections !== undefined,
+    )
+  ) {
+    return {};
+  }
+  const activeTransits =
+    input.transitByAgent !== undefined
+      ? Object.values(input.transitByAgent)
+      : input.societyDirectory !== undefined
+        ? input.societyDirectory.agents.flatMap((directoryAgent) => {
+            const transit = directoryAgent.publicState.transit;
+            return transit?.routeLocationIds === undefined
+              ? []
+              : [
+                  {
+                    toLocationId: asLocationId(transit.toLocationId),
+                    routeLocationIds: transit.routeLocationIds.map(asLocationId),
+                  },
+                ];
+          })
+        : Object.values(input.projection.transitByAgent ?? {});
+  const agentLocations =
+    input.societyDirectory === undefined
+      ? Object.values(input.projection.agents).map((agent) => ({
+          locationId: agent.locationId,
+        }))
+      : input.societyDirectory.agents.map((agent) => ({
+          locationId: agent.publicState.locationId,
+        }));
+  const destinations = Object.values(input.projection.locations)
+    .filter((location) => location.locationId !== input.agent.locationId)
+    .sort((left, right) => left.locationId.localeCompare(right.locationId))
+    .map((location) => {
+      const occupancy = agentLocations.filter(
+        (entry) => entry.locationId === location.locationId,
+      ).length;
+      const reservations = activeTransits.filter(
+        (transit) => transit.toLocationId === location.locationId,
+      ).length;
+      const capacityUsage = occupancy + reservations;
+      if (location.capacity !== null && capacityUsage >= location.capacity) {
+        return {
+          status: 'at-capacity' as const,
+          locationId: location.locationId,
+          name: location.name,
+          kind: location.kind,
+          capacity: location.capacity,
+          capacityUsage,
+        };
+      }
+      const route = resolveSpatialRoute({
+        locations: input.projection.locations,
+        fromLocationId: input.agent.locationId,
+        toLocationId: location.locationId,
+        destinationOccupancy: capacityUsage,
+        activeTransits,
+      });
+      if (route === null) {
+        return {
+          status: 'unreachable' as const,
+          locationId: location.locationId,
+          name: location.name,
+          kind: location.kind,
+        };
+      }
+      return {
+        status: 'reachable' as const,
+        locationId: location.locationId,
+        name: location.name,
+        kind: location.kind,
+        routeLocationIds: route.locationIds,
+        baseTravelDurationSeconds: route.baseTravelDurationSeconds,
+        edgeCongestionMultiplier: route.edgeCongestionMultiplier,
+        destinationCongestionMultiplier: route.destinationCongestionMultiplier,
+        congestionMultiplier: route.congestionMultiplier,
+        estimatedTravelDurationSeconds: route.travelDurationSeconds,
+      };
+    });
+  return {
+    mobility: {
+      policyVersion: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
+      destinations,
+    },
   };
 }
 
@@ -1372,7 +1477,14 @@ function createSocietyDecisionContext(
         : { activityAvailableAt: agent.publicState.activityAvailableAt }),
       ...(agent.publicState.transit === undefined
         ? {}
-        : { transit: { ...agent.publicState.transit } }),
+        : {
+            transit: {
+              fromLocationId: agent.publicState.transit.fromLocationId,
+              toLocationId: agent.publicState.transit.toLocationId,
+              departedAt: agent.publicState.transit.departedAt,
+              arrivesAt: agent.publicState.transit.arrivesAt,
+            },
+          }),
     })),
     ...(housing === undefined ? {} : { housing }),
   };

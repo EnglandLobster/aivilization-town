@@ -627,6 +627,48 @@ describe('simulation-wide authority', () => {
     );
   });
 
+  test('prices a later partition move against simulation-wide active edge flow', () => {
+    const authority = createAuthority(undefined, true);
+
+    authority.settleMove({
+      operationId: 'edge-flow-first',
+      workerId: 'worker-a',
+      observedAt: 1,
+      durationMs: 100,
+      agentId: agentA,
+      targetLocationId: 'market',
+    });
+    const second = authority.settleMove({
+      operationId: 'edge-flow-second',
+      workerId: 'worker-b',
+      observedAt: 2,
+      durationMs: 100,
+      agentId: agentB,
+      targetLocationId: 'market',
+    });
+    const travel = second.events.find((event) => event.type === 'AgentTravelStarted');
+
+    expect(second.status).toBe('in-transit');
+    expect(travel).toMatchObject({
+      payload: {
+        spatialPolicyVersion: 'town-spatial-graph-v2',
+        routeLocationIds: ['town-square', 'market'],
+        routeEdgeFlows: [
+          {
+            fromLocationId: 'town-square',
+            toLocationId: 'market',
+            activeTraversalCount: 1,
+            congestionMultiplier: 1.009375,
+          },
+        ],
+        baseTravelDurationSeconds: 10,
+        edgeCongestionMultiplier: 1.009375,
+        destinationCongestionMultiplier: 1.025,
+        travelDurationSeconds: 11,
+      },
+    });
+  });
+
   test('settles an immediate cross-owner move with paired ownership events and snapshot delivery', () => {
     const authority = createAuthority();
     const snapshot = createTestCognitiveSnapshot(agentA);

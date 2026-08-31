@@ -57,6 +57,7 @@ export function handleAgentMoveToCommand(input: {
     fromLocationId: agent.locationId,
     toLocationId: payload.targetLocationId,
     destinationOccupancy: destinationCapacityUsage,
+    activeTransits: Object.values(input.projection.transitByAgent ?? {}),
   });
   if (route === null) {
     return rejectCommand(
@@ -81,6 +82,9 @@ export function handleAgentMoveToCommand(input: {
         spatialPolicyVersion: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
         baseTravelDurationSeconds: route.baseTravelDurationSeconds,
         congestionMultiplier: route.congestionMultiplier,
+        edgeCongestionMultiplier: route.edgeCongestionMultiplier,
+        destinationCongestionMultiplier: route.destinationCongestionMultiplier,
+        routeEdgeFlows: route.edgeFlows,
         travelDurationSeconds: route.travelDurationSeconds,
         departedAt: input.projection.clock.now,
         arrivesAt: input.projection.clock.now + route.travelDurationSeconds * 1000,
@@ -100,6 +104,9 @@ export function handleAgentMoveToCommand(input: {
               routeLocationIds: route.locationIds,
               baseTravelDurationSeconds: route.baseTravelDurationSeconds,
               congestionMultiplier: route.congestionMultiplier,
+              edgeCongestionMultiplier: route.edgeCongestionMultiplier,
+              destinationCongestionMultiplier: route.destinationCongestionMultiplier,
+              routeEdgeFlows: route.edgeFlows,
               travelDurationSeconds: route.travelDurationSeconds,
             }
           : {}),
@@ -225,6 +232,15 @@ export function appendCompletedTravelArrivals(input: {
         routeLocationIds: transit.routeLocationIds,
         baseTravelDurationSeconds: transit.baseTravelDurationSeconds,
         congestionMultiplier: transit.congestionMultiplier,
+        ...(transit.edgeCongestionMultiplier === undefined
+          ? {}
+          : { edgeCongestionMultiplier: transit.edgeCongestionMultiplier }),
+        ...(transit.destinationCongestionMultiplier === undefined
+          ? {}
+          : { destinationCongestionMultiplier: transit.destinationCongestionMultiplier }),
+        ...(transit.routeEdgeFlows === undefined
+          ? {}
+          : { routeEdgeFlows: transit.routeEdgeFlows.map((edge) => ({ ...edge })) }),
         travelDurationSeconds: transit.travelDurationSeconds,
       }),
     );

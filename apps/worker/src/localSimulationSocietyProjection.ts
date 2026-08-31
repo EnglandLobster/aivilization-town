@@ -239,7 +239,14 @@ export function createLocalSimulationSocietyProjectionService(input: {
         locationId: agent.publicState.locationId,
         ...(agent.publicState.transit === undefined
           ? {}
-          : { transit: { ...agent.publicState.transit } }),
+          : {
+              transit: {
+                fromLocationId: agent.publicState.transit.fromLocationId,
+                toLocationId: agent.publicState.transit.toLocationId,
+                departedAt: agent.publicState.transit.departedAt,
+                arrivesAt: agent.publicState.transit.arrivesAt,
+              },
+            }),
       }));
       const market =
         authorityView !== undefined

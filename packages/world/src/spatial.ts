@@ -1,13 +1,28 @@
 import type { LocationId } from '@aivilization/sim-core';
 
-import type { WorldLocationState } from './projection';
+import type { WorldAgentTransitState, WorldLocationState } from './projection';
 
-export const TOWN_SPATIAL_GRAPH_POLICY_VERSION = 'town-spatial-graph-v1';
+export const TOWN_SPATIAL_GRAPH_POLICY_VERSION = 'town-spatial-graph-v2';
 export const TOWN_SPATIAL_CONGESTION_MAX_DELAY_RATIO = 0.5;
+export const TOWN_SPATIAL_EDGE_REFERENCE_FLOW = 2;
+export const TOWN_SPATIAL_EDGE_DELAY_FACTOR = 0.15;
+export const TOWN_SPATIAL_EDGE_DELAY_EXPONENT = 4;
+export const TOWN_SPATIAL_EDGE_MAX_DELAY_RATIO = 2;
+
+export type SpatialRouteEdgeFlow = {
+  readonly fromLocationId: LocationId;
+  readonly toLocationId: LocationId;
+  /** Active traversals already committed before this route is selected. */
+  readonly activeTraversalCount: number;
+  readonly congestionMultiplier: number;
+};
 
 export type SpatialRoute = {
   readonly locationIds: readonly LocationId[];
+  readonly edgeFlows: readonly SpatialRouteEdgeFlow[];
   readonly baseTravelDurationSeconds: number;
+  readonly edgeCongestionMultiplier: number;
+  readonly destinationCongestionMultiplier: number;
   readonly congestionMultiplier: number;
   readonly travelDurationSeconds: number;
 };
@@ -17,12 +32,22 @@ export function createTownSpatialGraphPolicyManifest() {
     policyVersion: TOWN_SPATIAL_GRAPH_POLICY_VERSION,
     provenance: 'repository-design-calibrated-to-canonical-pixel-map',
     coordinateSystem: 'normalized-map-space-origin-top-left',
-    routing: 'minimum-base-travel-duration',
+    routing: 'minimum-edge-congestion-adjusted-travel-duration',
     edgeSemantics: 'bidirectional-explicit-edges',
     capacitySemantics: 'destination-occupancy-reserved-at-move-commit',
     congestion: {
-      basis: 'destination-occupancy-before-arrival-divided-by-capacity',
-      maximumDelayRatio: TOWN_SPATIAL_CONGESTION_MAX_DELAY_RATIO,
+      destination: {
+        basis: 'destination-occupancy-before-arrival-divided-by-capacity',
+        maximumDelayRatio: TOWN_SPATIAL_CONGESTION_MAX_DELAY_RATIO,
+      },
+      edgeFlow: {
+        accounting: 'each-active-transit-counts-on-every-directed-route-edge-until-arrival',
+        formula: '1+min(maxDelayRatio,delayFactor*(activeFlow/referenceFlow)^exponent)',
+        referenceFlow: TOWN_SPATIAL_EDGE_REFERENCE_FLOW,
+        delayFactor: TOWN_SPATIAL_EDGE_DELAY_FACTOR,
+        exponent: TOWN_SPATIAL_EDGE_DELAY_EXPONENT,
+        maximumDelayRatio: TOWN_SPATIAL_EDGE_MAX_DELAY_RATIO,
+      },
     },
     travelSettlement:
       'origin-retained-during-transit-destination-capacity-reserved-at-commit-arrival-event-emitted-when-clock-crosses-arrivesAt',
@@ -36,9 +61,18 @@ export function resolveSpatialRoute(input: {
   readonly fromLocationId: LocationId | null;
   readonly toLocationId: LocationId;
   readonly destinationOccupancy: number;
+  readonly activeTransits?: readonly Pick<WorldAgentTransitState, 'routeLocationIds'>[];
 }): SpatialRoute | null {
+  const activeFlowByEdge = countActiveTransitFlowByEdge(input.activeTransits ?? []);
   if (input.fromLocationId === null) {
-    return createRoute([input.toLocationId], 0, input.locations[input.toLocationId], 0);
+    return createRoute({
+      locationIds: [input.toLocationId],
+      baseTravelDurationSeconds: 0,
+      edgeAdjustedTravelDurationSeconds: 0,
+      destination: input.locations[input.toLocationId],
+      destinationOccupancy: 0,
+      activeFlowByEdge,
+    });
   }
 
   const source = input.locations[input.fromLocationId];
@@ -48,15 +82,18 @@ export function resolveSpatialRoute(input: {
   }
 
   if (source.connections === undefined && destination.connections === undefined) {
-    return createRoute(
-      [input.fromLocationId, input.toLocationId],
-      0,
+    return createRoute({
+      locationIds: [input.fromLocationId, input.toLocationId],
+      baseTravelDurationSeconds: 0,
+      edgeAdjustedTravelDurationSeconds: 0,
       destination,
-      input.destinationOccupancy,
-    );
+      destinationOccupancy: input.destinationOccupancy,
+      activeFlowByEdge,
+    });
   }
 
   const distanceByLocation = new Map<LocationId, number>([[input.fromLocationId, 0]]);
+  const baseDistanceByLocation = new Map<LocationId, number>([[input.fromLocationId, 0]]);
   const previousByLocation = new Map<LocationId, LocationId>();
   const unvisited = new Set<LocationId>(
     Object.values(input.locations).map((location) => location.locationId),
@@ -67,7 +104,11 @@ export function resolveSpatialRoute(input: {
     let currentDistance = Number.POSITIVE_INFINITY;
     for (const locationId of unvisited) {
       const candidateDistance = distanceByLocation.get(locationId) ?? Number.POSITIVE_INFINITY;
-      if (candidateDistance < currentDistance) {
+      if (
+        candidateDistance < currentDistance ||
+        (candidateDistance === currentDistance &&
+          (currentLocationId === undefined || locationId.localeCompare(currentLocationId) < 0))
+      ) {
         currentLocationId = locationId;
         currentDistance = candidateDistance;
       }
@@ -84,18 +125,29 @@ export function resolveSpatialRoute(input: {
       if (!unvisited.has(connection.targetLocationId)) {
         continue;
       }
-      const candidateDistance = currentDistance + connection.travelDurationSeconds;
+      const edgeFlow =
+        activeFlowByEdge.get(
+          createDirectedEdgeKey(currentLocationId, connection.targetLocationId),
+        ) ?? 0;
+      const candidateDistance =
+        currentDistance +
+        connection.travelDurationSeconds * resolveEdgeCongestionMultiplier(edgeFlow);
       const knownDistance =
         distanceByLocation.get(connection.targetLocationId) ?? Number.POSITIVE_INFINITY;
       if (candidateDistance < knownDistance) {
         distanceByLocation.set(connection.targetLocationId, candidateDistance);
+        baseDistanceByLocation.set(
+          connection.targetLocationId,
+          (baseDistanceByLocation.get(currentLocationId) ?? 0) + connection.travelDurationSeconds,
+        );
         previousByLocation.set(connection.targetLocationId, currentLocationId);
       }
     }
   }
 
-  const baseTravelDurationSeconds = distanceByLocation.get(input.toLocationId);
-  if (baseTravelDurationSeconds === undefined) {
+  const edgeAdjustedTravelDurationSeconds = distanceByLocation.get(input.toLocationId);
+  const baseTravelDurationSeconds = baseDistanceByLocation.get(input.toLocationId);
+  if (edgeAdjustedTravelDurationSeconds === undefined || baseTravelDurationSeconds === undefined) {
     return null;
   }
 
@@ -110,29 +162,83 @@ export function resolveSpatialRoute(input: {
     cursor = previous;
   }
 
-  return createRoute(
-    reversedPath.reverse(),
+  return createRoute({
+    locationIds: reversedPath.reverse(),
     baseTravelDurationSeconds,
+    edgeAdjustedTravelDurationSeconds,
     destination,
-    input.destinationOccupancy,
-  );
+    destinationOccupancy: input.destinationOccupancy,
+    activeFlowByEdge,
+  });
 }
 
-function createRoute(
-  locationIds: readonly LocationId[],
-  baseTravelDurationSeconds: number,
-  destination: WorldLocationState | undefined,
-  destinationOccupancy: number,
-): SpatialRoute {
+function createRoute(input: {
+  readonly locationIds: readonly LocationId[];
+  readonly baseTravelDurationSeconds: number;
+  readonly edgeAdjustedTravelDurationSeconds: number;
+  readonly destination: WorldLocationState | undefined;
+  readonly destinationOccupancy: number;
+  readonly activeFlowByEdge: ReadonlyMap<string, number>;
+}): SpatialRoute {
   const occupancyRatio =
-    destination?.capacity === null || destination?.capacity === undefined
+    input.destination?.capacity === null || input.destination?.capacity === undefined
       ? 0
-      : Math.min(1, destinationOccupancy / destination.capacity);
-  const congestionMultiplier = 1 + occupancyRatio * TOWN_SPATIAL_CONGESTION_MAX_DELAY_RATIO;
+      : Math.min(1, input.destinationOccupancy / input.destination.capacity);
+  const destinationCongestionMultiplier =
+    1 + occupancyRatio * TOWN_SPATIAL_CONGESTION_MAX_DELAY_RATIO;
+  const edgeCongestionMultiplier =
+    input.baseTravelDurationSeconds === 0
+      ? 1
+      : input.edgeAdjustedTravelDurationSeconds / input.baseTravelDurationSeconds;
+  const congestionMultiplier = edgeCongestionMultiplier * destinationCongestionMultiplier;
+  const edgeFlows = input.locationIds.slice(0, -1).map((fromLocationId, index) => {
+    const toLocationId = input.locationIds[index + 1]!;
+    const activeTraversalCount =
+      input.activeFlowByEdge.get(createDirectedEdgeKey(fromLocationId, toLocationId)) ?? 0;
+    return {
+      fromLocationId,
+      toLocationId,
+      activeTraversalCount,
+      congestionMultiplier: resolveEdgeCongestionMultiplier(activeTraversalCount),
+    };
+  });
   return {
-    locationIds: [...locationIds],
-    baseTravelDurationSeconds,
+    locationIds: [...input.locationIds],
+    edgeFlows,
+    baseTravelDurationSeconds: input.baseTravelDurationSeconds,
+    edgeCongestionMultiplier,
+    destinationCongestionMultiplier,
     congestionMultiplier,
-    travelDurationSeconds: Math.ceil(baseTravelDurationSeconds * congestionMultiplier),
+    travelDurationSeconds: Math.ceil(
+      input.edgeAdjustedTravelDurationSeconds * destinationCongestionMultiplier,
+    ),
   };
+}
+
+function countActiveTransitFlowByEdge(
+  activeTransits: readonly Pick<WorldAgentTransitState, 'routeLocationIds'>[],
+): ReadonlyMap<string, number> {
+  const flowByEdge = new Map<string, number>();
+  for (const transit of activeTransits) {
+    for (let index = 0; index < transit.routeLocationIds.length - 1; index += 1) {
+      const fromLocationId = transit.routeLocationIds[index]!;
+      const toLocationId = transit.routeLocationIds[index + 1]!;
+      const edgeKey = createDirectedEdgeKey(fromLocationId, toLocationId);
+      flowByEdge.set(edgeKey, (flowByEdge.get(edgeKey) ?? 0) + 1);
+    }
+  }
+  return flowByEdge;
+}
+
+function createDirectedEdgeKey(fromLocationId: LocationId, toLocationId: LocationId): string {
+  return `${fromLocationId}\u0000${toLocationId}`;
+}
+
+function resolveEdgeCongestionMultiplier(activeTraversalCount: number): number {
+  const delayRatio = Math.min(
+    TOWN_SPATIAL_EDGE_MAX_DELAY_RATIO,
+    TOWN_SPATIAL_EDGE_DELAY_FACTOR *
+      (activeTraversalCount / TOWN_SPATIAL_EDGE_REFERENCE_FLOW) ** TOWN_SPATIAL_EDGE_DELAY_EXPONENT,
+  );
+  return 1 + delayRatio;
 }

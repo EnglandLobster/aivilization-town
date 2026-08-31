@@ -3234,7 +3234,23 @@ describe('agent movement command handling', () => {
       baseTravelDurationSeconds: 200,
       congestionMultiplier: 1.25,
       travelDurationSeconds: 250,
-      spatialPolicyVersion: 'town-spatial-graph-v1',
+      spatialPolicyVersion: 'town-spatial-graph-v2',
+      edgeCongestionMultiplier: 1,
+      destinationCongestionMultiplier: 1.25,
+      routeEdgeFlows: [
+        {
+          fromLocationId: 'home',
+          toLocationId: 'square',
+          activeTraversalCount: 0,
+          congestionMultiplier: 1,
+        },
+        {
+          fromLocationId: 'square',
+          toLocationId: 'work',
+          activeTraversalCount: 0,
+          congestionMultiplier: 1,
+        },
+      ],
     });
     expect(events[1]?.payload).toMatchObject({
       activity: 'travel',

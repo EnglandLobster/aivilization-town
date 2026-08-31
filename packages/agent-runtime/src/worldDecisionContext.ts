@@ -431,6 +431,40 @@ export type WorldDecisionSocietyContext = {
   };
 };
 
+export type WorldDecisionMobilityDestinationContext =
+  | {
+      readonly status: 'reachable';
+      readonly locationId: string;
+      readonly name: string;
+      readonly kind: string;
+      readonly routeLocationIds: readonly string[];
+      readonly baseTravelDurationSeconds: number;
+      readonly edgeCongestionMultiplier: number;
+      readonly destinationCongestionMultiplier: number;
+      readonly congestionMultiplier: number;
+      readonly estimatedTravelDurationSeconds: number;
+    }
+  | {
+      readonly status: 'unreachable';
+      readonly locationId: string;
+      readonly name: string;
+      readonly kind: string;
+    }
+  | {
+      readonly status: 'at-capacity';
+      readonly locationId: string;
+      readonly name: string;
+      readonly kind: string;
+      readonly capacity: number;
+      readonly capacityUsage: number;
+    };
+
+/** Current route estimates from the same spatial policy used at settlement. */
+export type WorldDecisionMobilityContext = {
+  readonly policyVersion: string;
+  readonly destinations: readonly WorldDecisionMobilityDestinationContext[];
+};
+
 /**
  * Optional simulation-wide weather visible to agent planning. Present only
  * when the town-weather policy is enabled; the
@@ -636,6 +670,8 @@ export type WorldDecisionGovernanceContext = {
 export type WorldDecisionContext = {
   readonly agent: WorldDecisionAgentContext;
   readonly market: WorldDecisionMarketContext;
+  /** Read-only observation; move settlement rechecks the latest traffic. */
+  readonly mobility?: WorldDecisionMobilityContext;
   /**
    * Optional town-pulse view (context-view v3): recent town-wide occurrences
    * (deaths, departures, arrivals, petition thresholds, weather shifts,
@@ -691,6 +727,8 @@ export type WorldDecisionContextTrace = {
   readonly relationCount?: number;
   /** Present when the town-pulse view carried at least one news entry. */
   readonly townPulseCount?: number;
+  readonly mobilityDestinationCount?: number;
+  readonly congestedMobilityDestinationCount?: number;
   readonly hasPhysiology: boolean;
   readonly hasJob: boolean;
   readonly hasBalance: boolean;
@@ -760,6 +798,15 @@ export function createWorldDecisionContextTrace(
       ? {}
       : { relationCount: context.agent.relations.length }),
     ...(context.townPulse === undefined ? {} : { townPulseCount: context.townPulse.length }),
+    ...(context.mobility === undefined
+      ? {}
+      : {
+          mobilityDestinationCount: context.mobility.destinations.length,
+          congestedMobilityDestinationCount: context.mobility.destinations.filter(
+            (destination) =>
+              destination.status === 'reachable' && destination.congestionMultiplier > 1,
+          ).length,
+        }),
     ...(context.conflicts === undefined ? {} : { conflictCount: context.conflicts.length }),
     hasPhysiology:
       Number.isFinite(context.agent.physiology.energy) &&
@@ -847,7 +894,7 @@ export function createWorldDecisionContextTrace(
  * does NOT occupy a domain policyVersion slot —
  * docs/AGENT_CONTEXT_DESIGN.md §4 right 5.
  */
-export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v14';
+export const WORLD_DECISION_CONTEXT_VIEW_VERSION = 'world-decision-context-view-v15';
 
 /** Hard cap for display-name free text entering prompts (injection hygiene). */
 export const DECISION_FREE_TEXT_MAX_LENGTH = 64;

@@ -50,9 +50,28 @@ function createProjection(
 ): WorldProjection {
   return createWorldProjection({
     clock: { now: input.now ?? 0, tickDurationMs: 1000 },
+    locations: [
+      {
+        locationId: asLocationId('home'),
+        name: 'Home',
+        kind: 'residence',
+        activityAffinities: ['sleep'],
+        capacity: null,
+        connections: [{ targetLocationId: asLocationId('school'), travelDurationSeconds: 10 }],
+      },
+      {
+        locationId: asLocationId('school'),
+        name: 'School',
+        kind: 'education',
+        activityAffinities: ['study'],
+        capacity: null,
+        connections: [{ targetLocationId: asLocationId('home'), travelDurationSeconds: 10 }],
+      },
+    ],
     agents: [
       {
         agentId: asAgentId('agent-1'),
+        locationId: asLocationId('home'),
         physiology: { energy: 100, satiety: 80, health: 100 },
         educationScore: input.educationScore ?? 10,
         balance: 100,

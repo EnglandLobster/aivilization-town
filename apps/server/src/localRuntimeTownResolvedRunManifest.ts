@@ -45,6 +45,7 @@ import {
 import {
   createLocalRuntimeTownDaemonScenarioProfile,
   createLocalRuntimeTownEducationSystemPolicyOverride,
+  LOCAL_RUNTIME_TOWN_REGIONAL_MARKET_SEEDING_POLICY_VERSION,
 } from './localRuntimeTownScenarioProfile';
 import type { LocalRuntimeTownCliConfig } from './localRuntimeTownCli';
 import { createLocalRuntimeTownProductionSloPolicy } from './localRuntimeTownProductionSlo';
@@ -55,10 +56,41 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
   config: LocalRuntimeTownCliConfig,
 ): LocalSimulationRuntimeResolvedRunManifest {
   assertReproducibleSourceRevision(config.sourceRevision, 'config.sourceRevision');
-  const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
+  const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId, {
+    regionalMarkets: config.regionalMarketsEnabled,
+  });
   const educationSystemOverride = createLocalRuntimeTownEducationSystemPolicyOverride(
     config.profileId,
   );
+  const worldPolicyManifest = createAivilizationWorldPolicyManifest({
+    ...(config.participantAccess?.mode !== 'authenticated'
+      ? {}
+      : {
+          agentRegistration: {
+            maxAgentsPerCreator: config.participantAccess.maxAgentsPerParticipant,
+            creatorIdentityRule: 'authenticated-principal-subject',
+          },
+        }),
+    ...(config.townWeatherEnabled ? { townWeather: true } : {}),
+    ...(config.townConditionsEnabled ? { townConditions: true } : {}),
+    ...(config.townBulletinEnabled ? { townBulletin: true } : {}),
+    ...(config.socialMattersEnabled ? { socialMatters: true } : {}),
+    ...(config.townConflictEnabled ? { townConflict: true } : {}),
+    ...(config.townWellbeingEnabled ? { townWellbeing: true } : {}),
+    ...(config.townCalendarEnabled ? { townCalendar: true } : {}),
+    ...(config.townLifecycleEnabled ? { townLifecycle: true } : {}),
+    ...(config.townDiscourseEnabled ? { townDiscourse: true } : {}),
+    ...(config.townCollectiveActionEnabled ? { townCollectiveAction: true } : {}),
+    ...(config.townMigrationEnabled ? { townMigration: true } : {}),
+    ...(config.townServiceQualityEnabled ? { townServiceQuality: true } : {}),
+    ...(config.townGovernanceEnabled ? { townGovernance: true } : {}),
+    ...(config.townSurvivalPressureEnabled ? { townSurvivalPressure: true } : {}),
+    ...(config.townCarryingCapacityEnabled ? { townCarryingCapacity: true } : {}),
+    ...(config.townConstructionEnabled ? { townConstruction: true } : {}),
+    // The paper-ablation cohort runs with the education system disabled;
+    // record that override so the manifest provenance matches the runtime.
+    ...(educationSystemOverride === undefined ? {} : { educationSystem: educationSystemOverride }),
+  });
 
   return createLocalSimulationRuntimeResolvedRunManifest({
     schemaVersion: LOCAL_SIMULATION_RUNTIME_RESOLVED_RUN_MANIFEST_SCHEMA_VERSION,
@@ -84,37 +116,23 @@ export function createCanonicalLocalRuntimeTownResolvedRunManifest(
       'scenario',
     ),
     policies: createLocalSimulationRuntimeJsonObject(
-      createAivilizationWorldPolicyManifest({
-        ...(config.participantAccess?.mode !== 'authenticated'
-          ? {}
-          : {
-              agentRegistration: {
-                maxAgentsPerCreator: config.participantAccess.maxAgentsPerParticipant,
-                creatorIdentityRule: 'authenticated-principal-subject',
+      config.regionalMarketsEnabled
+        ? {
+            ...worldPolicyManifest,
+            policyVersions: {
+              ...worldPolicyManifest.policyVersions,
+              regionalMarketSeeding: LOCAL_RUNTIME_TOWN_REGIONAL_MARKET_SEEDING_POLICY_VERSION,
+            },
+            parameters: {
+              ...worldPolicyManifest.parameters,
+              regionalMarketSeeding: {
+                policyVersion: LOCAL_RUNTIME_TOWN_REGIONAL_MARKET_SEEDING_POLICY_VERSION,
+                regionRule: 'regions-containing-market-locations',
+                reserveAllocation: 'equal-split-preserving-per-partition-total-reserves',
               },
-            }),
-        ...(config.townWeatherEnabled ? { townWeather: true } : {}),
-        ...(config.townConditionsEnabled ? { townConditions: true } : {}),
-        ...(config.townBulletinEnabled ? { townBulletin: true } : {}),
-        ...(config.socialMattersEnabled ? { socialMatters: true } : {}),
-        ...(config.townConflictEnabled ? { townConflict: true } : {}),
-        ...(config.townWellbeingEnabled ? { townWellbeing: true } : {}),
-        ...(config.townCalendarEnabled ? { townCalendar: true } : {}),
-        ...(config.townLifecycleEnabled ? { townLifecycle: true } : {}),
-        ...(config.townDiscourseEnabled ? { townDiscourse: true } : {}),
-        ...(config.townCollectiveActionEnabled ? { townCollectiveAction: true } : {}),
-        ...(config.townMigrationEnabled ? { townMigration: true } : {}),
-        ...(config.townServiceQualityEnabled ? { townServiceQuality: true } : {}),
-        ...(config.townGovernanceEnabled ? { townGovernance: true } : {}),
-        ...(config.townSurvivalPressureEnabled ? { townSurvivalPressure: true } : {}),
-        ...(config.townCarryingCapacityEnabled ? { townCarryingCapacity: true } : {}),
-        ...(config.townConstructionEnabled ? { townConstruction: true } : {}),
-        // The paper-ablation cohort runs with the education system disabled;
-        // record that override so the manifest provenance matches the runtime.
-        ...(educationSystemOverride === undefined
-          ? {}
-          : { educationSystem: educationSystemOverride }),
-      }),
+            },
+          }
+        : worldPolicyManifest,
       'policies',
     ),
     cognition: createLocalSimulationRuntimeJsonObject(

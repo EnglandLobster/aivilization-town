@@ -10,7 +10,7 @@ import {
 } from '@aivilization/content';
 import type { PartitionKey } from '@aivilization/sim-core';
 import type { LocalSimulationRuntimeManifest } from '@aivilization/worker';
-import type { WorldCommandPolicies } from '@aivilization/world';
+import { resolveRegionId, type WorldCommandPolicies } from '@aivilization/world';
 import type {
   LocalRuntimeTownRecoveryInput,
   LocalRuntimeTownRunQueueWorkerInput,
@@ -36,6 +36,18 @@ export type LocalRuntimeTownDaemonScenarioProfile = {
   readonly runtimeRunQueue: LocalRuntimeTownRunQueueWorkerInput;
   readonly runtimeScheduler: LocalRuntimeTownSchedulerInput;
   readonly runtimeRecovery: LocalRuntimeTownRecoveryInput;
+};
+
+export const LOCAL_RUNTIME_TOWN_REGIONAL_MARKET_SEEDING_POLICY_VERSION =
+  'regional-market-seeding-v1';
+
+export type LocalRuntimeTownDaemonScenarioProfileOptions = {
+  /**
+   * Seed one independent AMM pool set for every region that contains an
+   * actual market venue. Reserves are split evenly so enabling the mechanism
+   * changes market topology without silently multiplying external liquidity.
+   */
+  readonly regionalMarkets?: boolean;
 };
 
 type ProfilePartitionConfig = {
@@ -204,10 +216,11 @@ const profileConfigs = {
 
 export function createLocalRuntimeTownDaemonScenarioProfile(
   profileId: LocalRuntimeTownDaemonScenarioProfileId,
+  options: LocalRuntimeTownDaemonScenarioProfileOptions = {},
 ): LocalRuntimeTownDaemonScenarioProfile {
   const config = profileConfigs[profileId];
   const scenarioPresets = createScenarioPresets(config);
-  const manifest = createManifest(config, scenarioPresets);
+  const manifest = createManifest(config, scenarioPresets, options);
 
   return {
     profileId: config.profileId,
@@ -315,10 +328,14 @@ function createScenarioPresets(
 function createManifest(
   config: LocalRuntimeTownDaemonScenarioProfileConfig,
   scenarioPresets: readonly ScenarioPreset[],
+  options: LocalRuntimeTownDaemonScenarioProfileOptions,
 ): LocalSimulationRuntimeManifest {
   const presetsByPartition = new Map(
     scenarioPresets.map((preset, index) => [config.partitions[index]?.partitionKey, preset]),
   );
+
+  const marketRegionIds =
+    options.regionalMarkets === true ? resolveMarketRegionIds(scenarioPresets) : undefined;
 
   return {
     id: config.manifestId,
@@ -328,10 +345,20 @@ function createManifest(
       commandConsumerIdPrefix: config.commandConsumerIdPrefix,
     },
     partitions: config.partitions.map((partition) => {
-      const marketPools = createCommodityMarketPoolSeeds({
-        commodityReserve: config.commodityReserve,
-        currencyReserve: config.currencyReserve,
-      });
+      const marketPools =
+        marketRegionIds === undefined
+          ? createCommodityMarketPoolSeeds({
+              commodityReserve: config.commodityReserve,
+              currencyReserve: config.currencyReserve,
+            })
+          : marketRegionIds.flatMap((regionId) =>
+              createCommodityMarketPoolSeeds({
+                commodityReserve: config.commodityReserve / marketRegionIds.length,
+                currencyReserve: config.currencyReserve / marketRegionIds.length,
+                source: `AIvilization Town ${LOCAL_RUNTIME_TOWN_REGIONAL_MARKET_SEEDING_POLICY_VERSION}: equal reserve split across declared market-location regions`,
+                regionId,
+              }),
+            );
       const preset = presetsByPartition.get(partition.partitionKey);
       if (preset === undefined) {
         throw new Error(`scenario preset missing for partition ${partition.partitionKey}`);
@@ -358,4 +385,20 @@ function createManifest(
       };
     }),
   };
+}
+
+function resolveMarketRegionIds(scenarioPresets: readonly ScenarioPreset[]): readonly string[] {
+  const regionIds = new Set<string>();
+  for (const preset of scenarioPresets) {
+    for (const location of preset.locations) {
+      if (location.kind === 'market') {
+        regionIds.add(resolveRegionId(location.regionId));
+      }
+    }
+  }
+  const resolved = [...regionIds].sort((left, right) => left.localeCompare(right));
+  if (resolved.length === 0) {
+    throw new Error('regional markets require at least one market location');
+  }
+  return resolved;
 }

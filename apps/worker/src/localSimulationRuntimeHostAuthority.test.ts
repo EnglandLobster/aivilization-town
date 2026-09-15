@@ -1061,6 +1061,47 @@ describe('regional markets in the simulation-wide authority', () => {
     expect(seed.moneySupply).toBe(2_000);
   });
 
+  test('regional markets fail before bootstrap when a market region has no seeded pool', async () => {
+    const manifest = createRegionalManifest();
+    const legacyGlobalManifest: LocalSimulationRuntimeManifest = {
+      ...manifest,
+      partitions: manifest.partitions.map((partition) => ({
+        ...partition,
+        ...(partition.marketPools === undefined
+          ? {}
+          : {
+              marketPools: partition.marketPools.map((pool) => ({
+                commodity: pool.commodity,
+                commodityReserve: pool.commodityReserve,
+                currencyReserve: pool.currencyReserve,
+                source: pool.source,
+              })),
+            }),
+      })),
+    };
+
+    await expect(
+      bootstrapLocalSimulationRuntimeHostFromManifest({
+        rootDir: createRootDir(),
+        bootstrappedAt: 100,
+        manifest: legacyGlobalManifest,
+        scenarioPresets: createRegionalScenarioPresets(),
+        policies,
+        localizedPlanners: [],
+        steeringSimulator: ({ action }) => ({ status: 'accepted', action }),
+        agents: [],
+        simulationWideAuthority: {
+          enabled: true,
+          workerId: 'authority-worker',
+          leaseDurationMs: 30_000,
+          regionalMarkets: true,
+        },
+      }),
+    ).rejects.toThrow(
+      'regional markets require an AMM pool seed for market region downtown in partition world-main',
+    );
+  });
+
   test('regional markets on: society projection reports a regional-authority market', async () => {
     const rootDir = createRootDir();
     const host = await bootstrapLocalSimulationRuntimeHostFromManifest({

@@ -335,6 +335,40 @@ describe('local runtime town executable composition', () => {
         env: { AIVILIZATION_REGIONAL_MARKETS: '1' },
       }).regionalMarketsEnabled,
     ).toBe(true);
+
+    const enabledConfig = resolveLocalRuntimeTownCliConfig({
+      argv: [
+        '--',
+        '--profile',
+        'default-100',
+        '--llm-mode',
+        'deterministic',
+        '--regional-markets',
+        'on',
+      ],
+      cwd: '/workspace',
+      sourceRevision,
+      env: {},
+    });
+    const enabledInput = createCanonicalLocalRuntimeTownServerInput(enabledConfig, 100);
+    expect(
+      enabledInput.manifest.partitions.every((partition) =>
+        (partition.marketPools ?? []).every((pool) => pool.regionId === 'harbor'),
+      ),
+    ).toBe(true);
+    expect(enabledInput.resolvedRunManifest?.payload).toMatchObject({
+      scenario: { manifest: enabledInput.manifest },
+      policies: {
+        policyVersions: { regionalMarketSeeding: 'regional-market-seeding-v1' },
+        parameters: {
+          regionalMarketSeeding: {
+            policyVersion: 'regional-market-seeding-v1',
+            regionRule: 'regions-containing-market-locations',
+            reserveAllocation: 'equal-split-preserving-per-partition-total-reserves',
+          },
+        },
+      },
+    });
   });
 
   test('town weather is off by default and enabled by flag or env', () => {

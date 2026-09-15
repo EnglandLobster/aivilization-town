@@ -277,7 +277,9 @@ export function createCanonicalLocalRuntimeTownServerInput(
   } = {},
 ): LocalRuntimeTownServerInput {
   assertFiniteTimestamp(bootstrappedAt, 'bootstrappedAt');
-  const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId);
+  const profile = createLocalRuntimeTownDaemonScenarioProfile(config.profileId, {
+    regionalMarkets: config.regionalMarketsEnabled,
+  });
   if (!config.simulationWideAuthorityEnabled && profile.manifest.partitions.length > 1) {
     throw new Error('multi-partition profiles require the simulation-wide authority');
   }

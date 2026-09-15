@@ -8,6 +8,8 @@ import type { AmmPool } from '@aivilization/economy';
 import {
   assertPhysicalLocationCapacityNotExceeded,
   assertResidentialCapacityNotExceeded,
+  regionIdFromPoolKey,
+  resolveRegionId,
   type WorldProjection,
 } from '@aivilization/world';
 import type { AgentPostBulletinPayload } from '@aivilization/world';
@@ -139,6 +141,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
     input,
     resolvedManifest,
   });
+  const regionalMarketRegionIds = assertRegionalMarketSeedsCoverMarketLocations({
+    input,
+    resolvedManifest,
+  });
   const timeDeltaMsByPartition = new Map(
     resolvedManifest.partitions.map((partition) => [
       partition.partitionKey,
@@ -216,6 +222,10 @@ export async function bootstrapLocalSimulationRuntimeHostFromManifest(
       workerId: activeAuthorityOptions.workerId,
       observedAt: input.bootstrappedAt,
       durationMs: activeAuthorityOptions.leaseDurationMs,
+    });
+    assertRegionalMarketProjectionCoversMarketLocations({
+      requiredRegionIds: regionalMarketRegionIds,
+      projection: authority.getSnapshot().projection,
     });
     const resolveLocationOwner = createLocationAffinityResolver(resolvedManifest);
     for (const partition of partitions) {
@@ -543,6 +553,66 @@ function assertResidentialAssignmentHasAuthoritativeOccupancy(input: {
   }
 }
 
+/**
+ * Regional settlement is only usable when every declared market venue has a
+ * matching regional pool in every partition seed. Check before scenario
+ * bootstrap writes anything: otherwise a typo such as an untagged legacy pool
+ * would let cognition plan trades that the authority can only reject later.
+ */
+function assertRegionalMarketSeedsCoverMarketLocations(input: {
+  readonly input: LocalSimulationRuntimeHostInput;
+  readonly resolvedManifest: ResolvedLocalSimulationRuntimeManifest;
+}): readonly string[] {
+  if (input.input.simulationWideAuthority?.regionalMarkets !== true) {
+    return [];
+  }
+  const requiredRegionIds = resolveManifestMarketRegionIds(input.resolvedManifest);
+  for (const partition of input.resolvedManifest.partitions) {
+    const seededRegionIds = new Set(
+      (partition.marketPools ?? []).map((pool) => resolveRegionId(pool.regionId)),
+    );
+    for (const regionId of requiredRegionIds) {
+      if (!seededRegionIds.has(regionId)) {
+        throw new Error(
+          `regional markets require an AMM pool seed for market region ${regionId} in partition ${partition.partitionKey}`,
+        );
+      }
+    }
+  }
+  return requiredRegionIds;
+}
+
+function resolveManifestMarketRegionIds(
+  resolvedManifest: ResolvedLocalSimulationRuntimeManifest,
+): readonly string[] {
+  const regionIds = new Set<string>();
+  for (const partition of resolvedManifest.partitions) {
+    for (const location of partition.preset.locations) {
+      if (location.kind === 'market') {
+        regionIds.add(resolveRegionId(location.regionId));
+      }
+    }
+  }
+  return [...regionIds].sort((left, right) => left.localeCompare(right));
+}
+
+/** A recovered pre-fix authority can still contain legacy global pools. */
+function assertRegionalMarketProjectionCoversMarketLocations(input: {
+  readonly requiredRegionIds: readonly string[];
+  readonly projection: WorldProjection;
+}): void {
+  const recoveredRegionIds = new Set(
+    Object.keys(input.projection.marketPools).map(regionIdFromPoolKey),
+  );
+  for (const regionId of input.requiredRegionIds) {
+    if (!recoveredRegionIds.has(regionId)) {
+      throw new Error(
+        `regional market authority state is missing AMM pools for market region ${regionId}; use a fresh runtime root or an explicit state migration`,
+      );
+    }
+  }
+}
+
 async function advanceAuthorityAtPartitionBarrier(input: {
   readonly authority: SimulationWideAuthorityService;
   readonly operationId: string;
@@ -649,6 +719,9 @@ function createAuthoritySeed(input: {
           {
             moneySupply: projection.moneySupply,
             ...(projection.treasury === undefined ? {} : { treasury: projection.treasury }),
+            ...(projection.publicBudget === undefined
+              ? {}
+              : { publicBudget: projection.publicBudget }),
           },
         ];
       }),

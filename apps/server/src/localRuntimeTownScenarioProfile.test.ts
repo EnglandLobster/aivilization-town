@@ -77,6 +77,26 @@ describe('local runtime town daemon scenario profiles', () => {
     expect(totalAgents(standard.scenarioPresets)).toBe(100);
     expect(countHousedAgents(standard.scenarioPresets)).toBe(100);
 
+    const regionalStandard = createLocalRuntimeTownDaemonScenarioProfile('default-100', {
+      regionalMarkets: true,
+    });
+    for (const partition of regionalStandard.manifest.partitions) {
+      const pools = partition.marketPools ?? [];
+      expect(pools).toHaveLength(commodities.length - 1);
+      expect(new Set(pools.map((pool) => pool.regionId))).toEqual(new Set(['harbor']));
+      expect(pools.every((pool) => pool.source.includes('regional-market-seeding-v1'))).toBe(true);
+      const legacyPools =
+        standard.manifest.partitions.find(
+          (candidate) => candidate.partitionKey === partition.partitionKey,
+        )?.marketPools ?? [];
+      expect(pools.reduce((total, pool) => total + pool.commodityReserve, 0)).toBe(
+        legacyPools.reduce((total, pool) => total + pool.commodityReserve, 0),
+      );
+      expect(pools.reduce((total, pool) => total + pool.currencyReserve, 0)).toBe(
+        legacyPools.reduce((total, pool) => total + pool.currencyReserve, 0),
+      );
+    }
+
     const survivalTown = createLocalRuntimeTownDaemonScenarioProfile('survival-town-100');
     expect(survivalTown).toMatchObject({
       profileId: 'survival-town-100',

@@ -163,6 +163,7 @@ export function createSimulationCommandRouter(input: {
       moneySupply: projection.moneySupply,
       ...(projection.treasury === undefined ? {} : { treasury: projection.treasury }),
       ...(projection.bank === undefined ? {} : { bank: projection.bank }),
+      ...(projection.publicBudget === undefined ? {} : { publicBudget: projection.publicBudget }),
     };
     const partitionRuntimeState = {
       activityTimeByAgent: projection.activityTimeByAgent,

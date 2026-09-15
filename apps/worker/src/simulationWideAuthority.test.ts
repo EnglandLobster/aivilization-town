@@ -1421,6 +1421,43 @@ describe('simulation-wide authority', () => {
     });
   });
 
+  test('aggregates partition-owned public-service accounts at the fiscal barrier', () => {
+    const authority = createAuthority();
+    const sync = (partitionKey: PartitionKey, agentId: AgentId, service: string, balance: number) =>
+      authority.syncPartitionAgentLocations({
+        operationId: `public-service-sync:${partitionKey}`,
+        workerId: `worker-${partitionKey}`,
+        observedAt: 1_000,
+        durationMs: 100,
+        partitionKey,
+        partitionClockNow: 1_000,
+        agentLocations: [{ agentId, locationId: 'market' }],
+        partitionAccounts: {
+          moneySupply: 500,
+          treasury: 100,
+          publicBudget: {
+            cumulativeSpendingByService: { [service]: balance },
+            serviceBalances: { [service]: balance },
+            lastSettledAt: 1_000,
+          },
+        },
+      });
+
+    sync(partitionA, agentA, 'education', 30);
+    expect(authority.getSnapshot().projection.publicBudget).toBeUndefined();
+    sync(partitionB, agentB, 'healthcare', 20);
+    expect(authority.getSnapshot().projection.publicBudget).toEqual({
+      cumulativeSpendingByService: { education: 30, healthcare: 20 },
+      serviceBalances: { education: 30, healthcare: 20 },
+      lastSettledAt: 1_000,
+    });
+    expect(authority.getSnapshot().partitionAccountsByKey?.[partitionA]?.publicBudget).toEqual({
+      cumulativeSpendingByService: { education: 30 },
+      serviceBalances: { education: 30 },
+      lastSettledAt: 1_000,
+    });
+  });
+
   test('rejects a location sync for Agents owned by another partition and replays idempotently', () => {
     const authority = createAuthority();
 

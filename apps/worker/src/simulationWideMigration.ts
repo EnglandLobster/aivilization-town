@@ -32,7 +32,7 @@ export function settleDemandDrivenArrivals(input: {
   readonly ownerPartitionKeyByAgentId: Readonly<Record<string, PartitionKey>>;
   readonly partitionKeys: readonly PartitionKey[];
   readonly partitionAccountsByKey?: Readonly<
-    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>
+    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>>
   >;
   readonly commandPolicies: WorldCommandPolicies;
   readonly migrationPolicyVersion?: string;
@@ -43,7 +43,7 @@ export function settleDemandDrivenArrivals(input: {
   readonly events: readonly WorldEvent[];
   readonly ownerPartitionKeyByAgentId: Readonly<Record<string, PartitionKey>>;
   readonly partitionAccountsByKey:
-    | Readonly<Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>>
+    | Readonly<Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>>>
     | undefined;
   readonly registeredAgents: readonly {
     readonly agentId: AgentId;

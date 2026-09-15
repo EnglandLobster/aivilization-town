@@ -766,9 +766,9 @@ export type MarketPriceIndexRecordedPayload = {
  * read-model fact: every field is derived from authoritative projection state
  * at `recordedAt` and the event never changes economic state on replay.
  *
- * `composition` splits where currency sits: the first four sectors are the
- * circulating accounts whose sum tracks `moneySupply` (agent, enterprise,
- * treasury, town-bank cash); `ammPoolCurrency` is the currency locked in AMM
+ * `composition` splits where currency sits: agents, enterprises, treasury,
+ * town-bank cash, and public-service accounts sum to `moneySupply`;
+ * `ammPoolCurrency` is the currency locked in AMM
  * pools and `ammPoolCommodityValue` the same pools' commodity reserves valued
  * at each pool's spot price; `externalNetInflow` is the cumulative net
  * currency the external market injected into domestic pools
@@ -790,6 +790,12 @@ export type EconomicCompositionRecordedPayload = {
     readonly enterprises: number;
     readonly treasury: number;
     readonly bank: number;
+    /**
+     * Cash accumulated in education, healthcare, infrastructure, and other
+     * public-service accounts. Optional for replay compatibility with v1
+     * observations that omitted this circulating sector.
+     */
+    readonly publicServices?: number;
     readonly ammPoolCurrency: number;
     readonly ammPoolCommodityValue: number;
     readonly externalNetInflow: number;

@@ -119,7 +119,7 @@ export type SimulationWideAuthoritySeed = {
   readonly partitionKeys: readonly PartitionKey[];
   /** Initial owner-partition fiscal contributions for barrier aggregation. */
   readonly partitionAccountsByKey?: Readonly<
-    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>
+    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>>
   >;
 };
 
@@ -230,7 +230,10 @@ export type SimulationWideLocationSyncRequest = SimulationWideAuthorityLease & {
    * excluded from multi-partition summation because it is authority-owned and
    * replicated to partitions as a snapshot.
    */
-  readonly partitionAccounts?: Pick<WorldProjection, 'moneySupply' | 'treasury' | 'bank'>;
+  readonly partitionAccounts?: Pick<
+    WorldProjection,
+    'moneySupply' | 'treasury' | 'bank' | 'publicBudget'
+  >;
   /**
    * Owner-scoped runtime state required by global authorization and exact
    * cross-owner handoff. The authority mirrors these facts but never decides
@@ -625,7 +628,7 @@ export type SimulationWideAuthoritySnapshot = {
   readonly partitionClockNowByKey?: Readonly<Record<string, number>>;
   /** Latest fiscal contribution reported by each owner partition. */
   readonly partitionAccountsByKey?: Readonly<
-    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>
+    Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>>
   >;
   readonly pendingTransfers: Readonly<
     Record<
@@ -2253,6 +2256,9 @@ export function createSimulationWideAuthority(input: {
                     ...(request.partitionAccounts.treasury === undefined
                       ? {}
                       : { treasury: request.partitionAccounts.treasury }),
+                    ...(request.partitionAccounts.publicBudget === undefined
+                      ? {}
+                      : { publicBudget: clone(request.partitionAccounts.publicBudget) }),
                   },
                 };
           let synchronizedProjection: WorldProjection = {
@@ -2279,6 +2285,9 @@ export function createSimulationWideAuthority(input: {
               ...(request.partitionAccounts.bank === undefined
                 ? {}
                 : { bank: clone(request.partitionAccounts.bank) }),
+              ...(request.partitionAccounts.publicBudget === undefined
+                ? {}
+                : { publicBudget: clone(request.partitionAccounts.publicBudget) }),
             };
           } else if (
             nextPartitionAccountsByKey !== undefined &&
@@ -2296,6 +2305,7 @@ export function createSimulationWideAuthority(input: {
               0,
             );
             const hasTreasury = contributions.some((accounts) => accounts.treasury !== undefined);
+            const publicBudget = mergePartitionPublicBudgets(contributions);
             if (hasTreasury) {
               synchronizedProjection = {
                 ...synchronizedProjection,
@@ -2304,11 +2314,16 @@ export function createSimulationWideAuthority(input: {
                   (total, accounts) => total + (accounts.treasury ?? 0),
                   0,
                 ),
+                ...(publicBudget === undefined ? {} : { publicBudget }),
               };
             } else {
               const { treasury: previousTreasury, ...withoutTreasury } = synchronizedProjection;
               void previousTreasury;
-              synchronizedProjection = { ...withoutTreasury, moneySupply };
+              synchronizedProjection = {
+                ...withoutTreasury,
+                moneySupply,
+                ...(publicBudget === undefined ? {} : { publicBudget }),
+              };
             }
           }
           return {
@@ -2842,7 +2857,7 @@ function createSimulationWideServiceQualityFunding(input: {
   readonly nextSimulationTime: number;
   readonly partitionKeys: readonly PartitionKey[];
   readonly partitionAccountsByKey:
-    | Readonly<Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury'>>>
+    | Readonly<Record<string, Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>>>
     | undefined;
   readonly publicBudget: PublicBudgetPolicy;
 }): Readonly<Record<number, Partial<Record<TownPublicService, number>>>> {
@@ -2881,6 +2896,28 @@ function createSimulationWideServiceQualityFunding(input: {
     fundingBySettledAt[settledAt] = funding;
   }
   return fundingBySettledAt;
+}
+
+function mergePartitionPublicBudgets(
+  contributions: readonly Pick<WorldProjection, 'moneySupply' | 'treasury' | 'publicBudget'>[],
+): WorldProjection['publicBudget'] | undefined {
+  const budgets = contributions.flatMap((accounts) =>
+    accounts.publicBudget === undefined ? [] : [accounts.publicBudget],
+  );
+  if (budgets.length === 0) return undefined;
+  const cumulativeSpendingByService: Record<string, number> = {};
+  const serviceBalances: Record<string, number> = {};
+  let lastSettledAt = 0;
+  for (const budget of budgets) {
+    for (const [service, amount] of Object.entries(budget.cumulativeSpendingByService)) {
+      cumulativeSpendingByService[service] = (cumulativeSpendingByService[service] ?? 0) + amount;
+    }
+    for (const [service, amount] of Object.entries(budget.serviceBalances)) {
+      serviceBalances[service] = (serviceBalances[service] ?? 0) + amount;
+    }
+    lastSettledAt = Math.max(lastSettledAt, budget.lastSettledAt);
+  }
+  return { cumulativeSpendingByService, serviceBalances, lastSettledAt };
 }
 
 function assertEveryPartitionPublishedThrough(

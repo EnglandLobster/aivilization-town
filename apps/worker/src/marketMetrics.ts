@@ -133,6 +133,10 @@ export function createEconomicCompositionPayload(input: {
       enterprises: enterprises.reduce((total, enterprise) => total + enterprise.balance, 0),
       treasury: projection.treasury ?? 0,
       bank: bank?.balance ?? 0,
+      publicServices: Object.values(projection.publicBudget?.serviceBalances ?? {}).reduce(
+        (total, balance) => total + balance,
+        0,
+      ),
       ammPoolCurrency: pools.reduce((total, pool) => total + pool.currencyReserve, 0),
       ammPoolCommodityValue: pools.reduce(
         (total, pool) => total + pool.commodityReserve * getSpotPrice(pool),

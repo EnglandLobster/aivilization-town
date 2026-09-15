@@ -357,6 +357,7 @@ describe('worker economic composition metrics', () => {
         enterprises: 0,
         treasury: 0,
         bank: 0,
+        publicServices: 0,
         ammPoolCurrency: 1000,
         ammPoolCommodityValue: 1000,
         externalNetInflow: 0,
@@ -409,6 +410,7 @@ describe('worker economic composition metrics', () => {
         enterprises: 0,
         treasury: 0,
         bank: 0,
+        publicServices: 0,
         ammPoolCurrency: 2000,
         ammPoolCommodityValue: 2000,
         externalNetInflow: 0,
@@ -418,6 +420,21 @@ describe('worker economic composition metrics', () => {
       deposits: 0,
       loansOutstanding: 0,
     });
+  });
+
+  test('includes public-service cash in the circulating composition', () => {
+    const projection: WorldProjection = {
+      ...createWorldProjection({ agents: [], moneySupply: 50 }),
+      publicBudget: {
+        cumulativeSpendingByService: { education: 30, healthcare: 20 },
+        serviceBalances: { education: 30, healthcare: 20 },
+        lastSettledAt: 100,
+      },
+    };
+
+    expect(
+      createEconomicCompositionPayload({ projection, recordedAt: 100 }).composition.publicServices,
+    ).toBe(50);
   });
 
   test('records the per-level education distribution, deriving missing levels from the score', () => {
@@ -517,9 +534,9 @@ describe('worker economic composition metrics', () => {
       source: 'test',
     } as const;
 
-    expect(
-      createEconomicCompositionPayload({ projection, recordedAt: 7 }),
-    ).not.toHaveProperty('educationDistribution');
+    expect(createEconomicCompositionPayload({ projection, recordedAt: 7 })).not.toHaveProperty(
+      'educationDistribution',
+    );
     expect(
       createEconomicCompositionPayload({
         projection,
@@ -593,10 +610,7 @@ describe('worker economic composition metrics', () => {
       (event) => event.type === 'EconomicCompositionRecorded',
     );
     expect(compositionEvent).toBeDefined();
-    const replayed = applyWorldEvent(
-      createWorldProjection({ agents: [] }),
-      compositionEvent!,
-    );
+    const replayed = applyWorldEvent(createWorldProjection({ agents: [] }), compositionEvent!);
     expect(replayed.economicComposition?.educationDistribution).toEqual({
       0: 0,
       1: 0,

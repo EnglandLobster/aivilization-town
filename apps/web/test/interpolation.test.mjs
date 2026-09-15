@@ -11,6 +11,7 @@ import {
   resolveAgentPosition,
   transitPosition,
 } from '../public/ui/map/interpolation.js';
+import { computeRoadNetwork } from '../public/ui/map/roads.js';
 
 const fromRect = { x: 0.2, y: 0.3, width: 0.2, height: 0.2 };
 const toRect = { x: 0.8, y: 0.7, width: 0.2, height: 0.2 };
@@ -147,5 +148,69 @@ describe('resolveAgentPosition', () => {
     ).toBeNull();
     expect(resolveAgentPosition({ agentId: 'agent-1', locationId: null }, world, 1000)).toBeNull();
     expect(resolveAgentPosition(undefined, world, 1000)).toBeNull();
+  });
+});
+
+describe('resolveAgentPosition with a road network', () => {
+  const L = {
+    'lower-left': { locationId: 'lower-left', mapPosition: { x: 0.2, y: 0.8, width: 0.2, height: 0.2 } },
+    'top-left': { locationId: 'top-left', mapPosition: { x: 0.2, y: 0.2, width: 0.2, height: 0.2 } },
+    'top-right': { locationId: 'top-right', mapPosition: { x: 0.8, y: 0.2, width: 0.2, height: 0.2 } },
+  };
+  L['lower-left'].connections = [
+    { targetLocationId: 'top-left', travelDurationSeconds: 100 },
+    { targetLocationId: 'top-right', travelDurationSeconds: 200 },
+  ];
+  L['top-left'].connections = [{ targetLocationId: 'top-right', travelDurationSeconds: 100 }];
+  const roadWorld = { locations: L, transitByAgent: {}, roads: computeRoadNetwork(L) };
+
+  test('travelers follow the orthogonal road waypoints, not the diagonal', () => {
+    const transitWorld = {
+      ...roadWorld,
+      transitByAgent: {
+        'agent-1': {
+          agentId: 'agent-1',
+          fromLocationId: 'lower-left',
+          toLocationId: 'top-right',
+          routeLocationIds: ['lower-left', 'top-left', 'top-right'],
+          departedAt: 0,
+          arrivesAt: 10_000,
+        },
+      },
+    };
+    const mid = resolveAgentPosition(
+      { agentId: 'agent-1', locationId: 'lower-left' },
+      transitWorld,
+      5000,
+    );
+    expect(mid.state).toBe('transit');
+    // The elbow route runs via the top-left corner; at t=0.5 the agent must be
+    // near the top row (y ≈ 0.2), far above the straight diagonal (y = 0.5).
+    expect(mid.y).toBeLessThan(0.45);
+    // And it must sit on one of the road legs (x ≈ 0.2 or y ≈ 0.2).
+    const onRoad = Math.abs(mid.x - 0.2) < 0.06 || Math.abs(mid.y - 0.2) < 0.06;
+    expect(onRoad).toBe(true);
+  });
+
+  test('falls back to the straight segment without a network', () => {
+    const transitWorld = {
+      locations: roadWorld.locations,
+      transitByAgent: {
+        'agent-1': {
+          agentId: 'agent-1',
+          fromLocationId: 'lower-left',
+          toLocationId: 'top-right',
+          departedAt: 0,
+          arrivesAt: 10_000,
+        },
+      },
+    };
+    const mid = resolveAgentPosition(
+      { agentId: 'agent-1', locationId: 'lower-left' },
+      transitWorld,
+      5000,
+    );
+    expect(mid.x).toBeCloseTo(0.5);
+    expect(mid.y).toBeCloseTo(0.5);
   });
 });

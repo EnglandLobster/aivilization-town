@@ -4,9 +4,11 @@
  * Honesty contract: agents have no continuous coordinates in any projection.
  * Everything here is a deterministic, replayable *visualization* of semantic
  * state — residents drift inside their location's authoritative `mapPosition`
- * rect (agentId-hash driven, no randomness), travelers move along the straight
- * segment between connection endpoints using the authoritative
- * `departedAt`/`arrivesAt` timestamps. The UI labels this as
+ * rect (agentId-hash driven, no randomness), travelers move along the road
+ * waypoints synthesized from the connection graph (see `roads.js`) using the
+ * authoritative `departedAt`/`arrivesAt` timestamps, including multi-hop
+ * `routeLocationIds` routes. Without a road network the module falls back to
+ * the straight segment between connection endpoints. The UI labels this as
  * "semantic layout · interpolated movement".
  *
  * Pure module: no DOM access, safe to import from tests.
@@ -15,6 +17,8 @@
  * matching the projection `mapPosition` contract in
  * `packages/content/src/locations.ts`.
  */
+
+import { positionAlongWaypoints, routeWaypointsForTransit } from './roads.js';
 
 const TWO_PI = Math.PI * 2;
 /** Keep drifting agents this far inside their location rect. */
@@ -95,6 +99,10 @@ export function transitPosition(transit, fromRect, toRect, nowMs) {
 /**
  * Resolves where an agent should be drawn at `nowMs`.
  *
+ * `world.roads` may carry a road network from `computeRoadNetwork`; when
+ * present, transit follows its waypoint chain (roads + multi-hop routes),
+ * otherwise the straight center-to-center segment is used.
+ *
  * Returns `{ x, y, state, direction }` where state is `'transit'` (en route,
  * progress < 1) or `'resident'` (inside a location rect, including the moment
  * of arrival). Returns `null` when the projection gives no authoritative
@@ -110,6 +118,11 @@ export function resolveAgentPosition(agent, world, nowMs) {
     const fromRect = locations[transit.fromLocationId]?.mapPosition;
     const toRect = locations[transit.toLocationId]?.mapPosition;
     if (fromRect && toRect) {
+      const waypoints = routeWaypointsForTransit(transit, locations, world?.roads);
+      if (waypoints) {
+        const along = positionAlongWaypoints(waypoints, transitProgress(transit, nowMs));
+        if (along) return { ...along, state: 'transit' };
+      }
       return { ...transitPosition(transit, fromRect, toRect, nowMs), state: 'transit' };
     }
   }
@@ -117,4 +130,15 @@ export function resolveAgentPosition(agent, world, nowMs) {
   const rect = locations[locationId]?.mapPosition;
   if (!rect) return null;
   return { ...residentOffset(agent.agentId, rect, nowMs), state: 'resident' };
+}
+
+/** Clamp of transit completion to [0, 1] against the authoritative window. */
+function transitProgress(transit, nowMs) {
+  const departedAt = Number(transit?.departedAt);
+  const arrivesAt = Number(transit?.arrivesAt);
+  const duration = arrivesAt - departedAt;
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return nowMs >= arrivesAt ? 1 : 0;
+  }
+  return Math.min(1, Math.max(0, (nowMs - departedAt) / duration));
 }

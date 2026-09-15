@@ -49,21 +49,49 @@ Context has three levels and must never be visually conflated:
 Agents have **no continuous coordinates** in any projection. The map is a semantic visualization:
 
 - Buildings render at their authoritative normalized `mapPosition` rects (center-based, 0–1).
+- The road network is synthesized from the authoritative `connections` graph: every connection
+  becomes a deterministic orthogonal (elbow) pixel road between building borders
+  (`ui/map/roads.js`). The same waypoints drive traveler movement, so people visibly walk along
+  the streets, including multi-hop `routeLocationIds` routes. Without a connection graph the
+  module falls back to straight center-to-center segments.
 - Resident agents drift inside their location rect via a deterministic agentId-hash function of
   time — no randomness, replayable frame-for-frame.
-- Traveling agents interpolate linearly between connection endpoints using the authoritative
-  `departedAt`/`arrivesAt` timestamps against the simulation clock (last authoritative `clock.now`
-  plus wall-clock elapsed).
-- All counts (occupancy, incoming, population) come from the projection only.
+- Traveling agents interpolate over the road waypoints using the authoritative
+  `departedAt`/`arrivesAt` timestamps against the simulation clock (last authoritative
+  `clock.now` plus wall-clock elapsed).
+- Traffic heat on roads comes only from authoritative transit data (`routeEdgeFlows` active
+  traversal counts, or active transits per hop when the authority publishes no flows). Green →
+  amber → red heat plus a counter badge at high congestion; no invented vehicles.
+- Scenery (trees, bushes, rocks, flowers), lampposts and the maritime shoreline are deterministic
+  decoration (`ui/map/decor.js`) placed by hash on a grid, never intersecting buildings, roads or
+  water. The shoreline is derived from maritime region ids (e.g. `harbor`); regional ground tints
+  reflect the authoritative `regionalLandValues` slice. All counts (occupancy, incoming,
+  population) come from the projection only.
+- The day/night layer (`ui/map/dayNight.js`) reads the flag-gated `calendar` slice and maps the
+  authoritative phase onto a smooth darkness/warmth ramp (mirrored `town-calendar-v1` phase
+  table): cool night tint, warm dawn/dusk wash, occupancy-proportional lit windows at night, and
+  lamp glows. The HUD clock chip shows "Day N · Phase".
+- Ambient life (`ui/map/ambient.js`): ongoing activities (`activityTimeByAgent`) render as
+  per-agent bubbles (sleep z's, work hammer, trade coin…), recent conversations
+  (`conversationRecords`) as short-lived speech links between participants, and the `townPulse`
+  ring as a fading town-news ticker in the canvas corner. Birds by day and fireflies at night are
+  purely decorative and deterministic.
+- Chimney smoke rises over occupied production/food buildings; agents wear deterministic
+  palette bands so citizens read as individuals.
 
 The UI states this plainly with the on-map label "semantic layout · interpolated movement".
 Implementation: `public/ui/map/interpolation.js` (pure, unit-tested), `renderer.js` (Canvas 2D
-layer pipeline: terrain → routes → buildings → agents → weather → selection), `picking.js`,
-`tilesheet.js`, `weatherLayer.js`.
+layer pipeline: static bake [terrain · region tints · water · plaza · roads · scenery ·
+lampposts] → water shimmer → traffic heat → buildings → agents → ambient → weather → day/night
+→ selection), `roads.js`, `decor.js`, `dayNight.js`, `ambient.js`, `picking.js`, `tilesheet.js`,
+`weatherLayer.js` — all pure modules except the renderer, all unit-tested where logic lives.
 
-Flag-gated mechanisms render only when the projection carries the field: `weather` (tint +
-particles), society `agentConditions`/`conflictRecords` (markers above agents), `bulletins`
-(topbar badge + board in the inspector). Missing fields render nothing and produce no errors.
+Flag-gated mechanisms render only when the projection carries the field: `weather` (tint,
+particles, storm lightning, fog banks; snowy weather also re-tints treetops), `calendar`
+(day/night + clock chip), `regionalLandValues` (region ground tints), society
+`agentConditions`/`conflictRecords` (markers above agents), `bulletins` (topbar badge + board in
+the inspector), `townPulse`/`activityTimeByAgent`/`conversationRecords` (ticker, bubbles,
+speech links). Missing fields render nothing and produce no errors.
 
 ## Assets and build
 

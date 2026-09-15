@@ -10,6 +10,7 @@
  * is labeled "semantic layout · interpolated movement" in the UI.
  */
 import { createMapRenderer } from './map/renderer.js';
+import { describeDaytime, resolveDaytime } from './map/dayNight.js';
 import {
   asArray,
   createWorkspaces,
@@ -102,6 +103,7 @@ const elements = {
   runtimeActionResult: byId('runtime-action-result'),
   townCanvas: byId('town-canvas'),
   townAgentTotal: byId('town-agent-total'),
+  townClockChip: byId('town-clock-chip'),
   inspector: byId('inspector'),
   inspectorClose: byId('inspector-close'),
   townLocationInspector: byId('town-location-inspector'),
@@ -276,18 +278,39 @@ function estimatedSimulationNow() {
 /** Pushes the latest world snapshot into the canvas renderer (flag-aware). */
 function pushMapWorld() {
   const world = townProjection() || {};
+  const partitionProjection = projection();
   mapRenderer.setWorld({
     locations: world.locations || {},
     agents: world.agents || {},
     transitByAgent: world.transitByAgent || {},
-    weather: state.societyProjection?.weather ?? projection()?.weather,
+    weather: state.societyProjection?.weather ?? partitionProjection?.weather,
     markersByAgent: computeAgentMarkers(state),
+    calendar: partitionProjection?.calendar,
+    townPulse: partitionProjection?.townPulse,
+    activityTimeByAgent: partitionProjection?.activityTimeByAgent,
+    conversationRecords: partitionProjection?.conversationRecords,
+    regionalLandValues: partitionProjection?.regionalLandValues,
   });
   const agentCount = Object.keys(world.agents || {}).length;
   elements.townAgentTotal.textContent = `${formatNumber(agentCount, 0)} Agents${
     state.societyProjection ? ' · simulation-wide' : ''
   }`;
+  updateClockChip();
   updateBulletinBadge(elements, state);
+}
+
+/** Canvas HUD chip: "Day 3 · Dusk · Rain" from authoritative slices. */
+function updateClockChip() {
+  const daytime = resolveDaytime(projection()?.calendar, estimatedSimulationNow());
+  const weather = state.societyProjection?.weather ?? projection()?.weather;
+  const parts = [];
+  const dayLabel = describeDaytime(daytime);
+  if (dayLabel) parts.push(dayLabel);
+  if (weather?.current) {
+    parts.push(splitWords(weather.current));
+  }
+  elements.townClockChip.hidden = parts.length === 0;
+  elements.townClockChip.textContent = parts.join(' · ');
 }
 
 // ---------------------------------------------------------------------------

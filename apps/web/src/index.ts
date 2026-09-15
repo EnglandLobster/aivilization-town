@@ -24,6 +24,10 @@ const javaScriptModulePaths = [
   'ui/map/interpolation.js',
   'ui/map/picking.js',
   'ui/map/weatherLayer.js',
+  'ui/map/roads.js',
+  'ui/map/decor.js',
+  'ui/map/dayNight.js',
+  'ui/map/ambient.js',
   'ui/panels/workspaces.js',
   'ui/panels/inspector.js',
 ] as const;

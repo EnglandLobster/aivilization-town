@@ -156,11 +156,14 @@
           <canvas
             id="town-canvas"
             role="img"
-            aria-label="Living town map: pixel-art buildings with agents moving between them"
+            aria-label="Living town map: pixel-art streets, buildings, weather, day-night cycle and agents moving between locations"
           ></canvas>
         </div>
         <div class="map-hud">
-          <span id="town-agent-total" class="town-agent-total" aria-live="polite">0 Agents</span>
+          <div class="map-hud-left">
+            <span id="town-clock-chip" class="town-clock-chip" aria-live="polite" hidden></span>
+            <span id="town-agent-total" class="town-agent-total" aria-live="polite">0 Agents</span>
+          </div>
           <span class="map-annotation">semantic layout · interpolated movement</span>
           <div class="map-controls" role="group" aria-label="Map view controls">
             <button id="map-zoom-in" class="icon-button" type="button" aria-label="Zoom in">

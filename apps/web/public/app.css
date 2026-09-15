@@ -412,6 +412,30 @@ input:disabled {
   pointer-events: auto;
 }
 
+.map-hud-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.town-clock-chip {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 14px;
+  background: color-mix(in srgb, var(--layer-01) 92%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
 .town-agent-total {
   display: inline-flex;
   min-height: 38px;
@@ -1949,6 +1973,10 @@ tbody tr.is-selected {
   .town-agent-total {
     min-height: 38px;
     justify-content: center;
+  }
+
+  .town-clock-chip {
+    display: none;
   }
 
   .metric {

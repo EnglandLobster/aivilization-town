@@ -1,0 +1,21 @@
+HANDOFF.md
+  s_1b5aed33a1ef5c::t_0d55bb8007ae44 1,3-6,10-77,80-83,87,91-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c140302a7c0d0d71f7867ccc19cb4d8e3547643e",
+  "prompts": {},
+  "sessions": {
+    "s_1b5aed33a1ef5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fea55-5f29-7dd3-991a-d201595f4619",
+        "model": "unknown"
+      },
+      "human_author": "Codex <codex@local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}

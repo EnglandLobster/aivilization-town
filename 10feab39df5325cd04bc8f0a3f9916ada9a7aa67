@@ -1,0 +1,33 @@
+CLAUDE.md
+  s_8d0ed4c76c5600::t_358511727504a1 1-141
+HANDOFF.md
+  s_8d0ed4c76c5600::t_b45b6e8052b266 3-4,9-60,63-66,69-72,74,78,80-88,90,92-97,101-115,119-128,132-133
+apps/web/public/app.js
+  s_d22549db07df39::t_75216ee3b0fb5a 14-15,47-49,275-292,391,394-395,486-515,531,551-569,604,620-622,892
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "10feab39df5325cd04bc8f0a3f9916ada9a7aa67",
+  "prompts": {},
+  "sessions": {
+    "s_8d0ed4c76c5600": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6002e72b-27c0-424c-bb24-9454c9cd0728",
+        "model": "unknown"
+      },
+      "human_author": "Codex <codex@local>"
+    },
+    "s_d22549db07df39": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8dce-80e6-7300-a560-0e0015228e52",
+        "model": "unknown"
+      },
+      "human_author": "Codex <codex@local>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}

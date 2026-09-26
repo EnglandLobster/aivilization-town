@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Programmatic placeholder tilesheet generator for the living-town canvas.
+ * Archived placeholder tilesheet generator for the former Canvas renderer.
  *
  * Status: this is the FALLBACK generator. The canonical
  * `public/ui/assets/tiles.png` is the Kenney Tiny Town (CC0) repack produced
@@ -9,8 +9,7 @@
  * only to regenerate placeholder art or those row-15 sprites — running it
  * overwrites the whole sheet.
  *
- * Dependency-free by design (the monorepo has a zero-runtime-dependency
- * policy): pixels are drawn into an RGBA buffer and encoded as PNG with a
+ * This asset tool has no runtime dependencies: pixels are drawn into an RGBA buffer and encoded as PNG with a
  * minimal hand-rolled encoder (raw scanlines, filter byte 0, zlib deflate via
  * node:zlib). Artists can replace `public/ui/assets/tiles.png` with a drawn
  * sheet as long as the tile layout below is preserved.
@@ -22,8 +21,7 @@
  *   row 15      agent walk sprites (4 directions × 2 frames), selection
  *               bracket, agent marker shadow
  *
- * The same constants are mirrored in `public/ui/map/tilesheet.js`; keep them
- * in sync when changing the layout.
+ * Historical Canvas renderer asset layout; the current Pixi renderer uses procedural art.
  *
  * Usage: node apps/web/tools/generate-tilesheet.mjs [outputPath]
  */

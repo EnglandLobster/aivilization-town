@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "commands": 16,
+  "policy": "resident-mobility-v1",
+  "checks": [
+    "compiled-cli",
+    "identity-bound-authorization",
+    "voluntary-quotation",
+    "escrow-bypass-rejected",
+    "actual-shared-travel",
+    "arrival-settlement",
+    "predeparture-refund",
+    "money-supply-conserved",
+    "exact-journal-replay"
+  ],
+  "date": "2026-09-26",
+  "mode": "explicit-cli-integration-acceptance",
+  "modelCalls": 0,
+  "capabilities": 180,
+  "groups": 38,
+  "skillPages": 60
+}

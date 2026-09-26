@@ -21,10 +21,16 @@
     "@aivilization/api": "workspace:*",
     "@aivilization/content": "workspace:*",
     "@aivilization/economy": "workspace:*",
+    "@aivilization/information": "workspace:*",
     "@aivilization/memory": "workspace:*",
     "@aivilization/observability": "workspace:*",
     "@aivilization/sim-core": "workspace:*",
     "@aivilization/society": "workspace:*",
-    "@aivilization/world": "workspace:*"
+    "@aivilization/world": "workspace:*",
+    "@aivilization/collaboration": "workspace:*",
+    "@aivilization/commerce": "workspace:*",
+    "@aivilization/services": "workspace:*",
+    "@aivilization/enterprise": "workspace:*",
+    "@aivilization/mobility": "workspace:*"
   }
 }

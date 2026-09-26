@@ -4,7 +4,7 @@
 The canonical sheet `apps/web/public/ui/assets/tiles.png` is derived from the
 Kenney "Tiny Town" asset pack (CC0, see ATTRIBUTION.md next to the sheet).
 This script is the reproducible record of that derivation. It preserves the
-layout contract consumed by `apps/web/public/ui/map/tilesheet.js`:
+historical Canvas renderer layout contract (retained for asset provenance):
 
   - 256x256 sheet of 16x16 tiles
   - row 0: terrain (grass cols 0-2, path cols 3-4, plaza cols 5-6)

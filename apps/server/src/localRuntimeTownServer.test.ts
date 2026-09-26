@@ -1012,41 +1012,31 @@ describe('local runtime town HTTP gateway', () => {
     expect(uiResponse.headers.get('content-security-policy')).toContain("default-src 'self'");
     const uiHtml = await uiResponse.text();
     expect(uiHtml).toContain('Aivilization Living City');
-    expect(uiHtml).toContain('aria-orientation="horizontal"');
-    expect(uiHtml).toContain('Mission control');
-    expect(uiHtml).toContain('id="view-description"');
-    expect(uiHtml).toContain('Access & ownership');
-    expect(uiHtml).toContain('semantic layout · interpolated movement');
-    expect(uiHtml).toContain('id="town-canvas"');
-    expect(uiHtml).toContain('type="module" src="/ui/app.js"');
-    const scriptResponse = await fetch(`${server.baseUrl}/ui/app.js`);
+    expect(uiHtml).toContain('id="root"');
+    const scriptPath = /<script[^>]+src="([^"]+)"/.exec(uiHtml)?.[1];
+    expect(scriptPath).toMatch(/^\/ui\/assets\/[^/]+\.js$/);
+    const scriptResponse = await fetch(`${server.baseUrl}${scriptPath}`);
     expect(scriptResponse.status).toBe(200);
     expect(scriptResponse.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+    expect(scriptResponse.headers.get('cache-control')).toContain('immutable');
     const script = await scriptResponse.text();
-    expect(script).toContain('loadAgentCognition');
     expect(script).toContain('aivilization.access-token');
-    expect(script).toContain('readViewFromLocation');
-    expect(script).toContain("window.history.pushState(null, '', `#${view}`)");
-    expect(script).toContain("'ArrowRight'");
-    // app.js is served at /ui/app.js, so relative imports must resolve under
-    // /ui/ — importing './ui/…' would produce /ui/ui/… 404s in the browser.
-    expect(script).toContain("import { createMapRenderer } from './map/renderer.js'");
-    expect(script).not.toContain("from './ui/");
-    const rendererResponse = await fetch(`${server.baseUrl}/ui/map/renderer.js`);
-    expect(rendererResponse.status).toBe(200);
-    expect(rendererResponse.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
-    const interpolationResponse = await fetch(`${server.baseUrl}/ui/map/interpolation.js`);
-    expect(interpolationResponse.status).toBe(200);
-    expect(await interpolationResponse.text()).toContain('resolveAgentPosition');
-    const workspacesResponse = await fetch(`${server.baseUrl}/ui/panels/workspaces.js`);
-    expect(workspacesResponse.status).toBe(200);
-    expect(await workspacesResponse.text()).toContain('data-location-id');
-    const tilesResponse = await fetch(`${server.baseUrl}/ui/assets/tiles.png`);
-    expect(tilesResponse.status).toBe(200);
-    expect(tilesResponse.headers.get('content-type')).toBe('image/png');
-    expect(tilesResponse.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
-    const tilesBytes = new Uint8Array(await tilesResponse.arrayBuffer());
-    expect([...tilesBytes.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    const atlasPath = /\/ui\/assets\/kenney-modern-city-[A-Za-z0-9_-]+\.png/.exec(script)?.[0];
+    expect(atlasPath).toBeDefined();
+    const atlasResponse = await fetch(`${server.baseUrl}${atlasPath}`);
+    expect(atlasResponse.status).toBe(200);
+    expect(atlasResponse.headers.get('content-type')).toBe('image/png');
+    expect(atlasResponse.headers.get('cache-control')).toContain('immutable');
+    expect([...new Uint8Array(await atlasResponse.arrayBuffer()).slice(0, 8)]).toEqual([
+      137, 80, 78, 71, 13, 10, 26, 10,
+    ]);
+    const cssPath = /<link[^>]+href="([^"]+\.css)"/.exec(uiHtml)?.[1];
+    expect(cssPath).toMatch(/^\/ui\/assets\/[^/]+\.css$/);
+    const cssResponse = await fetch(`${server.baseUrl}${cssPath}`);
+    expect(cssResponse.status).toBe(200);
+    expect(cssResponse.headers.get('content-type')).toBe('text/css; charset=utf-8');
+    expect((await fetch(`${server.baseUrl}/ui/`)).status).toBe(200);
+    expect((await fetch(`${server.baseUrl}/ui/.vite/manifest.json`)).status).toBe(404);
     await runtime.host.registry
       .getBackend({ simulationId: 'sim-1', partitionKey: 'world-main' })
       .storage.planRepository.save({

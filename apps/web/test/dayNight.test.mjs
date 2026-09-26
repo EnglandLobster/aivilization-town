@@ -7,7 +7,7 @@ import {
   describeDaytime,
   isNightlightTime,
   resolveDaytime,
-} from '../public/ui/map/dayNight.js';
+} from '../client/map/logic/dayNight.js';
 
 const HOUR = 3_600_000;
 

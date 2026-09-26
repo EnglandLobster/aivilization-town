@@ -1,0 +1,184 @@
+{
+  "date": "2026-09-25",
+  "opencodeVersion": "1.18.32",
+  "scope": "Prompted integration and separate unprompted two-opportunity sample; not evidence of population-scale emergence.",
+  "runs": [
+    {
+      "mode": "verification",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "root": ".local/open-residents/verification-20260925",
+      "opportunities": 6,
+      "capabilityCalls": 62,
+      "commits": 80,
+      "simulationTime": 600000,
+      "journalHeadHash": "8efe04e1ca8c70f11cb217b8f2dfd31632a3b538106f1fcea1d61acae9150289",
+      "nativeTools": {
+        "town_invoke": 62,
+        "town_context": 2,
+        "town_discover": 2
+      },
+      "onlyTownTools": true,
+      "documents": 2,
+      "messages": 6,
+      "sessions": ["ses_f2b18e4ffffeWb6wjmr6BMOkPi", "ses_f2b19a80affemaW1AT2h27YI1a"],
+      "residents": [
+        {
+          "id": "resident-001",
+          "locationId": "restaurant",
+          "cognitionEntries": 3,
+          "balance": 89.89898989898995
+        },
+        {
+          "id": "resident-002",
+          "locationId": "restaurant",
+          "cognitionEntries": 2,
+          "balance": 125
+        }
+      ],
+      "rejections": [
+        {
+          "sequence": 25,
+          "actorId": "resident-002",
+          "capability": "files.create",
+          "reason": "unknown-argument:expectedRevision"
+        }
+      ],
+      "worldEvents": {
+        "AgentTravelStarted": 2,
+        "AgentActivityTimeCommitted": 3,
+        "ShortTermMemoryRecorded": 3,
+        "SimulationTimeAdvanced": 6,
+        "AgentLocationChanged": 2,
+        "TradeExecuted": 1
+      },
+      "informationSpaces": [
+        {
+          "id": "town-commons",
+          "title": "市镇公共笔记"
+        }
+      ],
+      "acceptance": {
+        "mode": "prompted-integration-verification",
+        "passed": true,
+        "residents": [
+          {
+            "actorId": "resident-001",
+            "checks": {
+              "repeatedOpportunity": true,
+              "observedWorld": true,
+              "retrievedMemory": true,
+              "updatedCognition": true,
+              "authoredDocument": true,
+              "sentMessage": true,
+              "readMessage": true,
+              "startedJourney": true,
+              "waited": true,
+              "arrived": true
+            },
+            "missing": []
+          },
+          {
+            "actorId": "resident-002",
+            "checks": {
+              "repeatedOpportunity": true,
+              "observedWorld": true,
+              "retrievedMemory": true,
+              "updatedCognition": true,
+              "authoredDocument": true,
+              "sentMessage": true,
+              "readMessage": true,
+              "startedJourney": true,
+              "waited": true,
+              "arrived": true
+            },
+            "missing": []
+          }
+        ]
+      }
+    },
+    {
+      "mode": "free",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "root": ".local/open-residents/free-20260925",
+      "opportunities": 2,
+      "capabilityCalls": 34,
+      "commits": 40,
+      "simulationTime": 2000,
+      "journalHeadHash": "72ea5ee4071dc65e96637141868bc98f2db7192a2a1e99c39d08099322494632",
+      "nativeTools": {
+        "town_discover": 8,
+        "town_invoke": 34
+      },
+      "onlyTownTools": true,
+      "documents": 2,
+      "messages": 1,
+      "sessions": ["ses_f2b163f00ffelK4TOB2dqlC6wF", "ses_f2b16e948ffe5vJawkaO5GQddj"],
+      "residents": [
+        {
+          "id": "resident-001",
+          "locationId": "town-square",
+          "cognitionEntries": 1,
+          "balance": 100
+        },
+        {
+          "id": "resident-002",
+          "locationId": "town-square",
+          "cognitionEntries": 0,
+          "balance": 125
+        }
+      ],
+      "rejections": [],
+      "worldEvents": {
+        "JobApplicationSubmitted": 1,
+        "ShortTermMemoryRecorded": 3,
+        "AgentTravelStarted": 2,
+        "AgentActivityTimeCommitted": 2,
+        "SimulationTimeAdvanced": 2
+      },
+      "informationSpaces": [
+        {
+          "id": "town-voices",
+          "title": "小镇声音 · 居民观点采集"
+        }
+      ]
+    },
+    {
+      "mode": "incomplete-verification",
+      "model": "opencode-go/glm-5.3-flash",
+      "root": ".local/open-residents/glm-incomplete-20260925",
+      "opportunities": 4,
+      "capabilityCalls": 0,
+      "commits": 9,
+      "simulationTime": 3600000,
+      "journalHeadHash": "201b6d886afc97ed4d3ef291ee495f617cd4fc79867072dc4f9f513a79fe46b4",
+      "nativeTools": {
+        "town_context": 1,
+        "town_discover": 2
+      },
+      "onlyTownTools": true,
+      "documents": 0,
+      "messages": 0,
+      "sessions": ["ses_f2b1e30e2ffeY6FRLDf523Z0BF", "ses_f2b1f1e77ffefwA6oOL2QAcUxA"],
+      "residents": [
+        {
+          "id": "resident-001",
+          "locationId": "town-square",
+          "cognitionEntries": 0,
+          "balance": 100
+        },
+        {
+          "id": "resident-002",
+          "locationId": "town-square",
+          "cognitionEntries": 0,
+          "balance": 125
+        }
+      ],
+      "rejections": [],
+      "worldEvents": {
+        "SimulationTimeAdvanced": 1,
+        "PublicBudgetSpent": 3
+      },
+      "informationSpaces": []
+    }
+  ]
+}

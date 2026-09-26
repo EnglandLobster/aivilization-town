@@ -1,3 +1,4 @@
+import { commerceEscrowBalance } from '@aivilization/commerce';
 import {
   calculateGiniCoefficient,
   calculateNetWorth,
@@ -135,7 +136,7 @@ export function createEconomicCompositionPayload(input: {
       bank: bank?.balance ?? 0,
       publicServices: Object.values(projection.publicBudget?.serviceBalances ?? {}).reduce(
         (total, balance) => total + balance,
-        0,
+        projection.residentCommerce ? commerceEscrowBalance(projection.residentCommerce) : 0,
       ),
       ammPoolCurrency: pools.reduce((total, pool) => total + pool.currencyReserve, 0),
       ammPoolCommodityValue: pools.reduce(

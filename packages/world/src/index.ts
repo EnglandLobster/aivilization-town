@@ -19,3 +19,9 @@ export type WorldModuleStatus = {
   readonly packageName: '@aivilization/world';
   readonly owns: 'server-authoritative-command-event-projection';
 };
+
+export * from './residentCommerce';
+export * from './residentParticipation';
+export * from './residentLeases';
+
+export * from './residentMobility';

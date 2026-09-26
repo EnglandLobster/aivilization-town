@@ -1,0 +1,97 @@
+{
+  "mode": "prompted-cli-app-integration-not-emergence-proof",
+  "root": ".local/open-residents/cli-20260925",
+  "passed": true,
+  "coveredCapabilities": 48,
+  "cliGroups": 14,
+  "skillPages": 25,
+  "commandExecutions": 26,
+  "worldCapabilityCalls": 15,
+  "journalCommits": 22,
+  "moneySupply": 250225,
+  "turns": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v1",
+      "skillVersion": "town-resident-skill-v1",
+      "status": "completed",
+      "elapsedMs": 43813,
+      "commandExecutions": 10,
+      "nativeToolNames": ["bash"],
+      "readSkillEntry": true,
+      "readSkillPages": ["town wiki apps/index.md", "town wiki apps/shops.md"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-11-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v1",
+      "skillVersion": "town-resident-skill-v1",
+      "status": "completed",
+      "elapsedMs": 39268,
+      "commandExecutions": 16,
+      "nativeToolNames": ["bash"],
+      "readSkillEntry": true,
+      "readSkillPages": [
+        "town wiki capabilities.md",
+        "town wiki apps/index.md",
+        "town wiki apps/reviews.md",
+        "town wiki apps/shops.md"
+      ]
+    }
+  ],
+  "originalTextChecks": [
+    {
+      "documentId": "app-shops/posts/resident-001-924db1a6fc1ef94f59058ef9.md",
+      "authorId": "resident-001",
+      "contentMatchesCliInput": true,
+      "sha256": "ab8dcc4a6943643da79b96ee7326fed84969ce2f9bc1b09174f20573915a892f"
+    },
+    {
+      "documentId": "app-reviews/posts/resident-002-40131152938619de3cf79e8a.md",
+      "authorId": "resident-002",
+      "contentMatchesCliInput": true,
+      "sha256": "61b774855e66c18f47f4de367c78df4e573d35afc5fc5ffe4e8aab140973ac8b"
+    }
+  ],
+  "appVerification": {
+    "mode": "city-apps-verification",
+    "passed": true,
+    "appCount": 6,
+    "postCount": 2,
+    "actors": [
+      {
+        "actorId": "resident-001",
+        "indexed": true,
+        "readDirectory": true,
+        "readGuide": true,
+        "published": true,
+        "readPeer": false
+      },
+      {
+        "actorId": "resident-002",
+        "indexed": true,
+        "readDirectory": true,
+        "readGuide": true,
+        "published": true,
+        "readPeer": true
+      }
+    ]
+  },
+  "subprocessChecks": [
+    "executable CLI",
+    "restricted shell rejects host commands",
+    "raw text and stdin",
+    "identity and author revision",
+    "identical retries",
+    "balanced bank deposit",
+    "real movement",
+    "unchanged journal replay"
+  ]
+}

@@ -9,8 +9,8 @@ import {
   regionBounds,
   regionGroundTones,
   regionLabel,
-} from '../public/ui/map/decor.js';
-import { computeRoadNetwork } from '../public/ui/map/roads.js';
+} from '../client/map/logic/decor.js';
+import { computeRoadNetwork } from '../client/map/logic/roads.js';
 
 const locations = {
   'town-square': {

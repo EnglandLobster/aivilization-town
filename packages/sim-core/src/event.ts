@@ -10,6 +10,10 @@ import type { PartitionKey } from './partition';
 import type { SimulationTimestamp } from './time';
 
 export type CoreEventType =
+  | 'ResidentParticipationEnded'
+  | 'ResidentLeaseChanged'
+  | 'ResidentCommerceCommitted'
+  | 'ResidentMobilityCommitted'
   | 'AgentRegistered'
   | 'AgentRegistrationRejected'
   | 'RenewableResourceRegenerated'

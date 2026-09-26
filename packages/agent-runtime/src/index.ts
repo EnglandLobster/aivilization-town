@@ -35,6 +35,8 @@ export * from './subtaskPrioritization';
 export * from './subtaskPrioritizationSensitivity';
 export * from './worldDecisionContext';
 
+export * from './openAgent';
+
 export type AgentRuntimeModuleStatus = {
   readonly packageName: '@aivilization/agent-runtime';
   readonly owns: 'planning-simulation-replanning';

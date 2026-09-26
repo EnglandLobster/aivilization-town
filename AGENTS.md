@@ -117,6 +117,30 @@ credit 领域为纯决策函数与领域事件，不得依赖 `world`、worker�
 - Agent 的“想做什么”不能绕过 World/Domain 的权威校验。
 - 决策上下文是只读模型，不得成为领域真相来源。
 
+### `@aivilization/information` 与开放居民实验
+
+- `information` 拥有信息空间、文件作者/权限/修订、消息收发，以及个人订阅、原文版本传播和个人已读记录的纯决策与事件应用。
+- 传播只记录原文版本引用与作者原话；当前 ACL/撤下状态控制可见性。订阅通知按需读取，不自动扇出全文、唤醒或改写认知。
+- 普通文件正文不能产生经济、产权或身体状态变更；个人认知不能改写经历事实。
+- `apps/worker/src/openSociety` 编排信息、认知及现有 world 事件，使用独立单写入 journal。
+- `apps/residents` 是 HTTP/CLI/OpenCode adapter；居民认证必须绑定身份，不能由模型传 actor ID。
+- 居民操作统一经 `town` CLI；OpenCode 仅开放受限命令执行器，不暴露业务 MCP。Skill 为按需查阅的索引；原始公共文本不得被改写成指令。
+- 开放居民模式不依赖候选动作生成器；默认上下文必须有界，更多信息由授权查询获取。
+- 城市应用的 Wiki 仅索引原始文本与作者填写的元数据；禁止自动摘要、合并观点、生成共识、评分或推荐排名。预置指南属于 `content`，不预造居民投稿。
+- 实验目录与 canonical daemon 分开；真实模型链路验收与无剧情自由运行分别报告，不能以模型文字代替事件证据。
+
+### `@aivilization/collaboration`、`@aivilization/commerce`、`@aivilization/services`
+
+- `collaboration` 拥有版本化多人提议、逐人同意和署名履行/争议声明；既有对话推断承诺保持 `world.socialCommitments` 的原有归属，不重复写入。
+- `commerce` 拥有报价、订单、付款请求与押金的纯决策/事件；依赖 economy 会计原语。world 应用端口原子编排账户/库存与 commerce 事件。
+- 订单托管现金属于 `public-service:resident-commerce` 流通账户，必须计入流通账户对账与经济构成；预留库存实际移出居民可用库存，释放时守恒。
+- `services` 拥有容量时段、预约和队列；签到依赖真实地点与忙碌状态，由 world 记录参与时长或真实移动。课程评语不能自行制造教育分数。
+- society 的居民租约、家庭关系、照护和授权病历各自使用独立聚合。world 编排租金/押金/居住事实；information 原文、医疗陈述不自动改变产权、体征或人格。
+- 生活连续性 v2：information 维护实际分页群已读；memory 的 v2 活跃认知限额允许归档；services v2 记录 ended/实际时长，不能推断满意或完整履约；commerce 的版本化和解须对方独立同意。
+- resident-natural-day-v1 仅为显式开放实验策略，按真实劳动时长计薪，canonical 与旧 manifest 不变。ResidentParticipationEnded 只释放对应活动预留，不绕过其他忙碌状态；居民可部分参与或离开。
+- 服务供给 v3：services 拥有提供者时间与接待容量；enterprise 只读端口验证成员/经营状态，人员本人开始或离开，world 原子预留/释放真实时间。供给详情按需 CLI 查询；服务参与不自动变成工资、药效或学历。路线见 `specs/CS2_MECHANISM_MIGRATION_V1.md`。
+- 当前新生活模块只在独立开放居民实验启用，尚未接入分区 authority 或 canonical planner。不要把实验 journal 的成功等同于跨分区支持。
+
 ### `@aivilization/world`
 
 `world` 是服务器权威的应用与集成边界，负责：
@@ -152,7 +176,7 @@ sim-core
 economy + sim-core
 └── enterprise
 
-credit + economy + enterprise + memory + sim-core + society
+credit + economy + enterprise + commerce + memory + sim-core + society
 └── world
 
 llm + memory + sim-core + society
@@ -384,6 +408,7 @@ domain-package/
 - **感知**：机制通过 context 字段、记忆通道或要闻中的哪一种进入市民认知；若刻意不可见，说明原因。
 - **行动**：市民能否作用于该机制；若不能，相关命令必须有明确的接入计划或休眠决断。
 - **预算与阶段可见性**：新增上下文段必须定义上限、排序、剪枝以及哪些 planning stage 能看到它；不得默认向所有 LLM 调用注入完整上下文。
+- **交付方式**：新增能力必须按 `specs/RESIDENT_CONTEXT_DELIVERY.md` 区分常态预览、主动 CLI 查询、行动回执与供应商会话历史；给出真实可用的展开入口。不得因复用完整决策模型而隐式扩大每轮注入。存入记忆不等于每轮自动召回，未再次注入也不等于已从模型历史中删除。
 
 ## 16. 相关架构文档
 
@@ -391,3 +416,7 @@ domain-package/
 - `docs/reports/CS2_VS_OUR_ECONOMY_COMPARISON.md`：当前经济能力、差距与演进方向。
 
 若代码与文档冲突，应先确认是实现偏离还是文档过期，然后在同一变更中修正，不能长期保留两套真相。
+
+### 居民出行领域
+
+`@aivilization/mobility` 拥有车辆/驾驶授权、司机登记、报价和行程状态机；world 原子编排真实共同行程与 commerce 托管。`ride-deposit-` 是出行专用托管命名空间，公共押金命令不得绕过行程结算。新 continuity 开放实验显式播种有限车辆，旧 manifest 不补造资产；初始车不是历史购买。车辆位置只通过有司机的实际旅行变化。新功能尚未接入 canonical planner/分区 authority。

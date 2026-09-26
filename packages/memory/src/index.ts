@@ -15,6 +15,8 @@ export * from './socialReflection';
 export * from './socialModelSynthesis';
 export * from './worldContext';
 
+export * from './cognition';
+
 export type MemoryModuleStatus = {
   readonly packageName: '@aivilization/memory';
   readonly owns: 'stm-ltm-profile-consolidation';

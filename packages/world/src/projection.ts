@@ -1,3 +1,10 @@
+import type { MobilityState } from '@aivilization/mobility';
+import { applyResidentMobilityProjection } from './projectionReducers/residentMobility';
+import { applyResidentParticipationEnded } from './projectionReducers/residentParticipation';
+import type { ResidentLeaseState } from '@aivilization/society';
+import { applyResidentLeaseProjection } from './projectionReducers/residentLeases';
+import type { CommerceState } from '@aivilization/commerce';
+import { applyResidentCommerceProjection } from './projectionReducers/residentCommerce';
 import {
   addInventory,
   assertMoneySupplyDelta,
@@ -401,6 +408,9 @@ export type WorldResourceFlowMetricsState = {
 };
 
 export type WorldProjection = {
+  readonly residentLeases?: ResidentLeaseState;
+  readonly residentCommerce?: CommerceState;
+  readonly residentMobility?: MobilityState;
   readonly clock: SimulationClock;
   readonly agents: Readonly<Record<string, WorldAgentState>>;
   readonly enterprises: Readonly<Record<string, WorldEnterpriseState>>;
@@ -956,6 +966,12 @@ export function applyWorldEvent(
     townPulse === sourceProjection.townPulse
       ? sourceProjection
       : { ...sourceProjection, townPulse };
+  const leaseProjection = applyResidentLeaseProjection(projection, event);
+  if (leaseProjection !== undefined) return leaseProjection;
+  const mobilityProjection = applyResidentMobilityProjection(projection, event);
+  if (mobilityProjection !== undefined) return mobilityProjection;
+  const commerceProjection = applyResidentCommerceProjection(projection, event);
+  if (commerceProjection !== undefined) return commerceProjection;
   const enterpriseProjection = applyEnterpriseProjectionEvent(projection, event);
   if (enterpriseProjection !== undefined) {
     return enterpriseProjection;
@@ -1859,6 +1875,8 @@ export function applyWorldEvent(
         }),
       );
     }
+    case 'ResidentParticipationEnded':
+      return applyResidentParticipationEnded(projection, event);
     case 'AgentActivityTimeCommitted':
       return applyAgentActivityTimeCommitment(projection, event);
     case 'WagePaid': {

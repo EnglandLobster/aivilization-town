@@ -1,0 +1,261 @@
+{
+  "mode": "prompted-life-integration-not-emergence-or-scale-test",
+  "root": ".local/open-residents/life-complete-20260925",
+  "passed": true,
+  "capabilities": 156,
+  "cliGroups": 35,
+  "skillPages": 54,
+  "residentCount": 2,
+  "turnCount": 8,
+  "commandExecutions": 122,
+  "successfulCommandExits": 121,
+  "commandErrors": [
+    {
+      "actorId": "resident-002",
+      "command": "town health records",
+      "exitCode": 2
+    }
+  ],
+  "residentCapabilityCalls": 60,
+  "journalCommits": 88,
+  "allNativeToolsBash": true,
+  "allCommandsTown": true,
+  "turns": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 33207,
+      "commands": 18,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-11-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 101347,
+      "commands": 27,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-28-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 22662,
+      "commands": 15,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-38-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 27783,
+      "commands": 18,
+      "errors": 1,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-51-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 19488,
+      "commands": 10,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-59-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 28398,
+      "commands": 13,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-69-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 30990,
+      "commands": 16,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-81-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v3",
+      "skillVersion": "town-resident-skill-v3",
+      "status": "completed",
+      "elapsedMs": 15967,
+      "commands": 5,
+      "errors": 0,
+      "nativeTools": ["bash"]
+    }
+  ],
+  "originalTextChecks": [
+    {
+      "route": "groups create",
+      "recordId": "life-group",
+      "actorId": "resident-001",
+      "field": "title",
+      "matchesCliInput": true,
+      "sha256": "7dde5b0d85897f64426a7df611a540ada695d0b3775fe035293530587efacced"
+    },
+    {
+      "route": "proposals create",
+      "recordId": "life-proposal",
+      "actorId": "resident-001",
+      "field": "terms",
+      "matchesCliInput": true,
+      "sha256": "69645f125c06d7780c5b82a00c06ed3dc680fcbccc595f8717f9434d65d3bd47"
+    },
+    {
+      "route": "households propose",
+      "recordId": "life-family",
+      "actorId": "resident-001",
+      "field": "terms",
+      "matchesCliInput": true,
+      "sha256": "74723b21baf11712e0401379c16eb901a3394b2a170f0303181904b588a14c23"
+    },
+    {
+      "route": "offers publish",
+      "recordId": "life-offer",
+      "actorId": "resident-001",
+      "field": "description",
+      "matchesCliInput": true,
+      "sha256": "a77bfa6dd354ba04cb7ed0a6836373722b94d4a7995dd5319ed97d33e4f04694"
+    },
+    {
+      "route": "care request",
+      "recordId": "life-care",
+      "actorId": "resident-001",
+      "field": "description",
+      "matchesCliInput": true,
+      "sha256": "f5c3f9efe58bb596e75f9ade087fbbeb4dbd470c1c7f086c578bbf18819852cf"
+    },
+    {
+      "route": "groups send",
+      "recordId": "comm-f753fcabd779f23d92cfafc940d80efd",
+      "actorId": "resident-001",
+      "field": "content",
+      "matchesCliInput": true,
+      "sha256": "8e74f6b37f84120d67cac6cf6afc341b9915b60799b29bd5f989380db6ee7bbb"
+    },
+    {
+      "route": "health record",
+      "recordId": "life-health",
+      "actorId": "resident-001",
+      "field": "content",
+      "matchesCliInput": true,
+      "sha256": "324ea4b1d91b77b4bcb7286e364aea48f3147c40965b9eaca6a869147cd00087"
+    },
+    {
+      "route": "services publish",
+      "recordId": "life-event",
+      "actorId": "resident-001",
+      "field": "description",
+      "matchesCliInput": true,
+      "sha256": "cef83064661350d48654eebb97e0f33a268f46878592fe55a342da245f074d1f"
+    },
+    {
+      "route": "orders deliver",
+      "recordId": "life-order",
+      "actorId": "resident-001",
+      "field": "content",
+      "matchesCliInput": true,
+      "sha256": "8c1c0e368dd6aa87b07349e24674da79c3c1ee0d91766a3c10eaa85f64ee1e45"
+    },
+    {
+      "route": "payments request",
+      "recordId": "life-split",
+      "actorId": "resident-001",
+      "field": "description",
+      "matchesCliInput": true,
+      "sha256": "bd9ec0ec353778af3831bb823aec02d622fe7b65e60091b9209fe27d11999764"
+    },
+    {
+      "route": "deposits lock",
+      "recordId": "life-deposit",
+      "actorId": "resident-002",
+      "field": "purpose",
+      "matchesCliInput": true,
+      "sha256": "c84a7fcab04d740d5b3261b7fd90e4f3e303fe6d7e4d6275e3220a00218ff759"
+    }
+  ],
+  "verification": {
+    "mode": "prompted-life-integration-not-emergence",
+    "model": "opencode-go/deepseek-v4.1-flash",
+    "passed": true,
+    "checks": {
+      "groupConsentAndExit": true,
+      "proposalAccepted": true,
+      "orderCompleted": true,
+      "paymentSettled": true,
+      "depositReturned": true,
+      "bookingCompleted": true,
+      "familyAccepted": true,
+      "careCompleted": true,
+      "healthPermissionRevoked": true
+    }
+  },
+  "replay": {
+    "reportEqual": true,
+    "journalUnchanged": true,
+    "journalSha256": "71c93d95462b15df1d25897ee813321790c693fddb7d2cf7a77824fd94fa4aba"
+  },
+  "compiledCliAcceptance": {
+    "commands": 38,
+    "passed": true
+  },
+  "repositoryTests": {
+    "passed": 2186,
+    "skipped": 1
+  },
+  "limits": [
+    "Explicit stage prompts and ordered opportunities; not spontaneous emergence evidence.",
+    "Single-writer experimental runtime; no city-scale throughput claim.",
+    "No birth/childhood, drug pharmacology, private land ownership or automatic subjective-service arbitration."
+  ]
+}

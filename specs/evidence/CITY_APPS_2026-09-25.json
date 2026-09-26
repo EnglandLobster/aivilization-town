@@ -1,0 +1,48 @@
+{
+  "mode": "prompted-app-infrastructure-verification",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "opencodeVersion": "1.18.32",
+  "acceptance": {
+    "mode": "city-apps-verification",
+    "passed": true,
+    "appCount": 6,
+    "postCount": 2,
+    "actors": [
+      {
+        "actorId": "resident-001",
+        "indexed": true,
+        "readDirectory": true,
+        "readGuide": true,
+        "published": true,
+        "readPeer": false
+      },
+      {
+        "actorId": "resident-002",
+        "indexed": true,
+        "readDirectory": true,
+        "readGuide": true,
+        "published": true,
+        "readPeer": true
+      }
+    ]
+  },
+  "commits": 24,
+  "capabilityCalls": 17,
+  "originals": [
+    {
+      "actor": "resident-001",
+      "documentId": "app-shops/posts/resident-001-001.md",
+      "bodyExactlyPreserved": true,
+      "titleExactlyPreserved": true
+    },
+    {
+      "actor": "resident-002",
+      "documentId": "app-reviews/posts/resident-002-001.md",
+      "bodyExactlyPreserved": true,
+      "titleExactlyPreserved": true
+    }
+  ],
+  "moneySupplyUnchanged": true,
+  "rejections": [],
+  "journalHeadHash": "a9a5c27affa9d5596ef8084ffaaae9f356bc970b775381b97814e20ef66feb43"
+}

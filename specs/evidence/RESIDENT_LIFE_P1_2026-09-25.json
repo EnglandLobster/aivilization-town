@@ -1,0 +1,171 @@
+{
+  "mode": "prompted-distribution-integration-not-emergence-or-load-test",
+  "root": ".local/open-residents/distribution-verified-20260925",
+  "passed": true,
+  "coveredCapabilities": 56,
+  "newCapabilities": 8,
+  "cliGroups": 17,
+  "skillPages": 29,
+  "commandExecutions": 53,
+  "commandFailures": [
+    {
+      "actorId": "resident-002",
+      "exitCode": 2,
+      "commandPrefix": "town apps publish"
+    },
+    {
+      "actorId": "resident-003",
+      "exitCode": 2,
+      "commandPrefix": "town help apps"
+    },
+    {
+      "actorId": "resident-003",
+      "exitCode": 2,
+      "commandPrefix": "town apps list"
+    },
+    {
+      "actorId": "resident-003",
+      "exitCode": 2,
+      "commandPrefix": "town wiki social/commands/subscriptions.md"
+    }
+  ],
+  "allNativeToolsBash": true,
+  "allCommandsTown": true,
+  "journalCommits": 49,
+  "residentCapabilityCalls": 29,
+  "turns": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 14044,
+      "commandExecutions": 4,
+      "commandFailures": 0,
+      "nativeToolNames": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-7-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 31166,
+      "commandExecutions": 10,
+      "commandFailures": 1,
+      "nativeToolNames": ["bash"]
+    },
+    {
+      "actorId": "resident-003",
+      "turnId": "turn-14-resident-003",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 42206,
+      "commandExecutions": 22,
+      "commandFailures": 3,
+      "nativeToolNames": ["bash"]
+    },
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-28-resident-001",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 19129,
+      "commandExecutions": 4,
+      "commandFailures": 0,
+      "nativeToolNames": ["bash"]
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-34-resident-002",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 13124,
+      "commandExecutions": 6,
+      "commandFailures": 0,
+      "nativeToolNames": ["bash"]
+    },
+    {
+      "actorId": "resident-003",
+      "turnId": "turn-42-resident-003",
+      "driver": "opencode",
+      "openCodeVersion": "1.18.32",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "transport": "resident-cli-v2",
+      "skillVersion": "town-resident-skill-v2",
+      "status": "completed",
+      "elapsedMs": 17484,
+      "commandExecutions": 7,
+      "commandFailures": 0,
+      "nativeToolNames": ["bash"]
+    }
+  ],
+  "originalTextChecks": {
+    "documentId": "app-community/posts/resident-002-cccc1f160d8523f9e75fffb7.md",
+    "authorId": "resident-002",
+    "contentMatchesCliInput": true,
+    "contentSha256": "70c7c1bd35629dcc75074fa5d2d4df15869308c62553d2085429a2cbfe47ea91",
+    "shareMatchesCliComment": true,
+    "commentSha256": "9e82ca0d806e82889cfee1509522685a30ac7a59d59d30e4b062577999565722",
+    "pinnedRevision": 1,
+    "downstreamReadOriginalAndCommentExactly": true
+  },
+  "verification": {
+    "mode": "distribution-verification",
+    "passed": true,
+    "checks": {
+      "readerFollowedPublisher": true,
+      "downstreamFollowedReader": true,
+      "originalPublished": true,
+      "readerAcknowledgedOriginal": true,
+      "originalShared": true,
+      "downstreamAcknowledgedShare": true
+    },
+    "publications": [
+      {
+        "id": "publication-1",
+        "publisherId": "resident-002",
+        "documentId": "app-community/posts/resident-002-cccc1f160d8523f9e75fffb7.md",
+        "documentRevision": 1,
+        "kind": "published"
+      },
+      {
+        "id": "publication-2",
+        "publisherId": "resident-001",
+        "documentId": "app-community/posts/resident-002-cccc1f160d8523f9e75fffb7.md",
+        "documentRevision": 1,
+        "kind": "shared"
+      }
+    ]
+  },
+  "replay": {
+    "reportEqual": true,
+    "journalUnchanged": true,
+    "journalSha256": "e9598c052ad1611a5780fdd180bfed413804eb98cac62666bdd5a3ecb8653e0a"
+  },
+  "earlierAttempt": {
+    "root": ".local/open-residents/distribution-20260925",
+    "passed": false,
+    "reason": "Free scheduling gave four opportunities to the short-waiting third resident before the reader woke; six-turn acceptance ended before sharing.",
+    "correction": "Only distribution-verification explicitly orders A/B/C twice, advancing simulation time to respect each actor wake time. Free-mode scheduling unchanged."
+  }
+}

@@ -21,6 +21,8 @@
     "@aivilization/enterprise": "workspace:*",
     "@aivilization/memory": "workspace:*",
     "@aivilization/sim-core": "workspace:*",
-    "@aivilization/society": "workspace:*"
+    "@aivilization/society": "workspace:*",
+    "@aivilization/commerce": "workspace:*",
+    "@aivilization/mobility": "workspace:*"
   }
 }

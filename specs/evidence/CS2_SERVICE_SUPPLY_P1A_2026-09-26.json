@@ -1,0 +1,51 @@
+{
+  "scope": "CS2 mechanism migration P1a: actual service provider capacity",
+  "date": "2026-09-26",
+  "policy": "resident-services-v3",
+  "supplyPolicy": "service-supply-v1",
+  "catalog": "open-capabilities-v6",
+  "transport": "resident-cli-v4",
+  "skill": "town-resident-skill-v5",
+  "commands": 162,
+  "cliGroups": 35,
+  "skillPages": 56,
+  "tests": {
+    "passed": 2207,
+    "skipped": 1,
+    "filesPassed": 298,
+    "filesSkipped": 1
+  },
+  "lint": true,
+  "typecheck": true,
+  "build": true,
+  "skillValidation": true,
+  "cliAcceptance": {
+    "serviceSupply": {
+      "passed": true,
+      "commands": 20
+    },
+    "continuity": {
+      "passed": true,
+      "commands": 29
+    }
+  },
+  "newTests": {
+    "domain": 3,
+    "worker": 2
+  },
+  "replay": {
+    "domainEvents": true,
+    "runtimeState": true,
+    "journalBytesUnchanged": true
+  },
+  "compatibility": "Existing v1/v2 manifests and events retain their rules. New continuity init uses v3. CLI transport stays v4; optional flags and a command are additive.",
+  "modelRun": false,
+  "remainingStages": [
+    "P1b resources and compensation",
+    "P2 premises",
+    "P3 logistics",
+    "P4 public service production",
+    "P5 environment",
+    "P6 transport modes"
+  ]
+}

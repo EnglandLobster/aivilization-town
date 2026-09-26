@@ -11,6 +11,7 @@ import {
 import type { SimulationTimestamp } from './time';
 
 export type CoreCommandType =
+  | 'ResidentParticipate'
   | 'AgentProduce'
   | 'AgentTrade'
   | 'AgentGiveResource'

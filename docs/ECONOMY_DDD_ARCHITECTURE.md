@@ -223,3 +223,11 @@ its solvency calculation; it must not absorb the banking model.
 - Replay tests keep historical events and optional legacy fields compatible.
 - Full repository typecheck and tests are required after an event or policy
   version is introduced.
+
+## 开放居民出行（resident-mobility-v1）
+
+`mobility` 是独立纯领域包，拥有车辆/驾驶授权、司机登记、报价及行程生命周期；world 新增单向依赖以调用该领域决定，worker 依赖其公开只读类型/调度边界。没有反向依赖。`ResidentMobilityCommitted` 保存最终领域事实，独立 reducer 重放。实际位置与时间继续属于 world。
+
+`residentMobilityCommand` 原子编排车辆状态、双方完全一致的真实旅行和 commerce 押金；`advanceResidentMobility` 在真实到达/订单时限边界处理结算。车费托管位于已有 `public-service:resident-commerce` 流通账户，采用平衡 entries，不新增货币或游离账户。`ride-deposit-` 命名空间只能由出行应用端口结算；普通居民 deposits 命令不可旁路。接客途中取消退款不会取消已发生的移动。
+
+新 continuity 生活实验在 manifest.initialWorld 显式播种一辆车并记录 policy/provenance，旧 manifest 无此字段则关闭。不把实验能力视作 canonical/跨分区支持；详见 `specs/RESIDENT_MOBILITY_V1.md`。

@@ -76,3 +76,29 @@ function assertFinite(value: number, name: string): void {
     throw new Error(`${name} must be finite`);
   }
 }
+
+export type LaborPayPolicy = {
+  readonly version: 'labor-proportional-pay-v1';
+  readonly referenceSeconds: number;
+};
+/** Existing quoted wages remain intact; an opted-in regime states the time period of that quote. */
+export function calculateLaborPay(
+  quotedWage: number,
+  laborSeconds: number,
+  policy: LaborPayPolicy,
+): number {
+  if (
+    policy.version !== 'labor-proportional-pay-v1' ||
+    !Number.isFinite(policy.referenceSeconds) ||
+    policy.referenceSeconds <= 0
+  )
+    throw new Error('invalid-labor-pay-policy');
+  if (
+    !Number.isFinite(quotedWage) ||
+    quotedWage < 0 ||
+    !Number.isFinite(laborSeconds) ||
+    laborSeconds <= 0
+  )
+    throw new Error('invalid-labor-pay-input');
+  return quotedWage * (laborSeconds / policy.referenceSeconds);
+}

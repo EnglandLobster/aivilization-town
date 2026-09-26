@@ -7,7 +7,7 @@ import {
   computeConversationLinks,
   computePulseTicker,
   describePulseRecord,
-} from '../public/ui/map/ambient.js';
+} from '../client/map/logic/ambient.js';
 
 describe('computeActivityBubbles', () => {
   const activities = {
@@ -111,7 +111,12 @@ describe('computePulseTicker', () => {
         { sequence: 1, occurredAt: now - 700_000, kind: 'arrival' },
         { sequence: 2, occurredAt: now - 100_000, kind: 'weather-change', detail: 'sunny → rainy' },
         { sequence: 3, occurredAt: now - 50_000, kind: 'death', subjectDisplayName: 'Ada' },
-        { sequence: 4, occurredAt: now - 10_000, kind: 'enterprise-founded', subjectEnterpriseName: 'Bakery' },
+        {
+          sequence: 4,
+          occurredAt: now - 10_000,
+          kind: 'enterprise-founded',
+          subjectEnterpriseName: 'Bakery',
+        },
       ],
       now,
     );
@@ -126,7 +131,9 @@ describe('computePulseTicker', () => {
       kind: 'arrival',
     }));
     expect(computePulseTicker(many, now)).toHaveLength(3);
-    expect(computePulseTicker([{ sequence: 1, occurredAt: now + 5_000, kind: 'arrival' }], now)).toEqual([]);
+    expect(
+      computePulseTicker([{ sequence: 1, occurredAt: now + 5_000, kind: 'arrival' }], now),
+    ).toEqual([]);
     expect(computePulseTicker(undefined, now)).toEqual([]);
   });
 });
@@ -136,13 +143,15 @@ describe('describePulseRecord', () => {
     expect(describePulseRecord({ kind: 'death', subjectDisplayName: 'Ada' }).text).toBe(
       'Ada passed away',
     );
-    expect(
-      describePulseRecord({ kind: 'weather-change', detail: 'sunny → rainy' }).text,
-    ).toBe('Weather: sunny → rainy');
-    expect(describePulseRecord({ kind: 'arrival', subjectDisplayName: 'Bo' }).text).toBe('Bo arrived');
-    expect(describePulseRecord({ kind: 'enterprise-closed', subjectEnterpriseName: 'Mill' }).text).toBe(
-      'Mill closed',
+    expect(describePulseRecord({ kind: 'weather-change', detail: 'sunny → rainy' }).text).toBe(
+      'Weather: sunny → rainy',
     );
+    expect(describePulseRecord({ kind: 'arrival', subjectDisplayName: 'Bo' }).text).toBe(
+      'Bo arrived',
+    );
+    expect(
+      describePulseRecord({ kind: 'enterprise-closed', subjectEnterpriseName: 'Mill' }).text,
+    ).toBe('Mill closed');
   });
 
   test('falls back gracefully for unknown kinds', () => {

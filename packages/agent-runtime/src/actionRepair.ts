@@ -20,6 +20,7 @@ import type { WorldDecisionContext, WorldDecisionContextTrace } from './worldDec
 
 export type AgentActionCommandType = Exclude<
   CoreCommandType,
+  | 'ResidentParticipate' // Internal booking application port; not a canonical LLM action.
   | 'SetLongHorizonObjective'
   | 'IssueReactiveCommand'
   | 'RegisterAgent'

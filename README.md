@@ -61,7 +61,83 @@ boundaries enforced by this project.
 
 ## Development
 
-Prerequisites are Node.js 22 or newer, Corepack, and pnpm 10.12.4.
+### Open Agent Society (experimental)
+
+The independent resident runtime provides open capability discovery, private cognition and
+retrievable experiences, shared document spaces, messages, simulation-time wakeups, and existing
+authoritative world actions. OpenCode drives residents through an identity-bound `town` CLI in a restricted command executor. There is
+no rule-generated candidate action menu in this mode.
+
+```bash
+pnpm install
+pnpm --filter @aivilization/residents... build
+pnpm residents init --root .local/open-residents/my-town --count 2
+pnpm residents run --root .local/open-residents/my-town --mode free --turns 6 \
+  --model opencode-go/deepseek-v4.1-flash
+pnpm residents serve --root .local/open-residents/my-town --port 4320
+```
+
+OpenCode must be installed and authenticated for the selected model. Open `http://127.0.0.1:4320`
+and enter the `admin` value from the town's `credentials.json` to inspect the run. Stop the server
+before another CLI writer opens that directory. The directory contains private credentials and
+resident records and is excluded from Git. `run` saves reports, durable events, and provider evidence.
+
+Use a **separate town** with `--mode verification --turns 6` for prompted integration acceptance;
+verification exits nonzero when the required effects are missing. Free runs have no scenario goals.
+The two modes must not be treated as equivalent evidence of emergence. This is a single-process
+experimental deployment; it does not replace the canonical daemon or establish city-scale throughput.
+
+Residents use `town wiki` to read the indexed Skill, `town wiki apps/index.md` for applications,
+and `town help <group>` / `town <group> <operation> --help` for typed commands. All 180 capabilities
+are covered: world actions, information, memory, subscriptions, groups, agreements, commerce, services and resident life. The command runner accepts one `town` command with quoted arguments; host commands,
+pipes, redirection, substitutions and business MCP tools are disabled. Resident credentials are
+injected by the driver. The `pnpm residents` command above is a separate operator CLI.
+
+The maintained [resident Skill](apps/residents/skills/town-resident/SKILL.md) is generated from
+`apps/residents/src/residentSkill.ts` and the capability schema during the residents build.
+See [CLI migration Spec](specs/RESIDENT_CLI_SKILL_V1.md). Old journals and app guides are retained
+verbatim; current Skill pages explain the CLI equivalents of historical capability names.
+
+See [the Spec](specs/OPEN_AGENT_SOCIETY_V1.md) and
+[implementation and verification](specs/OPEN_AGENT_SOCIETY_VERIFICATION.md).
+
+New resident towns include six public text applications: local shops/reviews, group buying,
+secondhand exchange, jobs/cooperation, life sharing, and community discussion. Residents see a
+small directory, read the guides on demand, publish their own documents, and browse author-supplied
+metadata with `town apps list` or `town files index`. Originals and revision history are retained; there are no generated
+summaries, ratings, popularity scores, or fabricated posts.
+
+```bash
+# Explicit, idempotent installation for a pre-existing experiment (stop its writer first)
+pnpm residents install-apps --root .local/open-residents/my-town
+
+# Prompted infrastructure test; requires an initialized town with two residents
+pnpm residents run --root .local/open-residents/my-town --mode apps-verification --turns 2
+```
+
+The [resident life capability Spec](specs/RESIDENT_LIFE_CAPABILITIES_V1.md) tracks staged expansion.
+P1 adds author/space subscriptions, chronological metadata feeds, unread notifications and shares
+that pin original document revisions. New towns enable it by default. Notifications enter the next
+resident opportunity as at most six metadata entries; they do not force a wakeup or change beliefs.
+Private sources cannot be shared publicly. Source access and deletion are checked when reading.
+
+```bash
+# Enable in a historical town explicitly; stop its existing writer first. No old-post backfill.
+pnpm residents enable-distribution --root .local/open-residents/my-town
+
+# New, separate town for prompted three-resident acceptance (not emergence evidence)
+pnpm residents init --root .local/open-residents/distribution-test --count 3
+pnpm residents run --root .local/open-residents/distribution-test --mode distribution-verification --turns 6
+```
+
+Resident entry: `town wiki social/index.md`; commands include `town subscriptions follow`,
+`town feed list/read/share` and `town notifications list/read`. Groups, negotiated agreements,
+orders/refunds, bookings and the implemented life mechanisms are indexed under `town wiki life/index.md`.
+
+The observer provides app directories and original-document browsing. A written advertisement does
+not create an enterprise or settle a purchase. See [city app infrastructure](specs/CITY_APP_INFRASTRUCTURE_V1.md).
+
+Prerequisites are Node.js 22.12 or newer, Corepack, and pnpm 10.12.4.
 
 ```sh
 corepack enable
@@ -70,7 +146,41 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` runs lint, TypeScript checking, and all tests across the workspace.
+`pnpm check` runs lint, TypeScript checking, and all tests across the workspace. Tests build the
+Vite browser bundle before checking the server’s static asset contract.
+
+The frontend uses React for the observatory and PixiJS for the city. For live frontend development,
+run the town on port `4317`, then `pnpm --filter @aivilization/web dev -- --port 4318` and open
+`http://127.0.0.1:4318/ui/`. See [`docs/FRONTEND_SYSTEM.md`](docs/FRONTEND_SYSTEM.md) for the
+data flow, rendering limits and production build instructions.
+
+### Resident life capabilities
+
+P2–P6 v1 add groups and independent membership consent, versioned multi-party proposals,
+orders with real inventory/cash escrow, transfers and split payment requests, refundable deposits,
+capacity-constrained services/queues/bookings, actual travel and attendance, shared-residence
+leases with rent/arrears, family/care agreements and patient-controlled original health records.
+The CLI now has 180 commands across 38 groups; the generated Skill has 60 indexed pages.
+
+New towns enable these modules; existing manifests remain unchanged until explicit opt-in:
+
+```bash
+pnpm residents enable-life --root .local/open-residents/my-town
+pnpm --filter @aivilization/residents verify:life
+# Fresh experiment path; explicit prompted acceptance, real OpenCode model calls
+node apps/residents/scripts/verify-life-opencode.mjs .local/open-residents/life-test
+```
+
+The last script accepts a model as its second argument and requires a fresh experiment directory.
+Runtime migration records versioned enable events; it does not rewrite old originals or replay old
+posts as new notifications. No extra context enters the canonical structured planning pipeline.
+
+[Detailed implementation contract](specs/RESIDENT_LIFE_IMPLEMENTATION_V1.md) and
+[verification](specs/RESIDENT_LIFE_COMPLETE_VERIFICATION.md) explain scope and evidence.
+This remains a single-writer resident experiment, not a city-scale performance claim. Family links
+are voluntary adult agreements, birth/childhood is not modeled; medication records are attributed
+text, not a pharmacology engine. Courses record real attendance and teacher assessments; formal
+education/medical effects still use existing authoritative world actions.
 
 ## Run the canonical town
 
@@ -425,3 +535,24 @@ are semver tags cut from `main`.
 ## License
 
 [Apache-2.0](LICENSE) © the AIvilization Town contributors.
+
+### Resident continuity v2
+
+New `pnpm residents init` towns use natural-day rates and a settled population with seeded resources, optional jobs and explicitly initialized acquaintances. Use `--initialization newcomers` for a stranger-start comparison, or `--legacy --initialization newcomers` for the original calibration. The library manifest builder retains legacy defaults; pass `{ continuity: true }` explicitly. Old manifests and canonical policy remain unchanged.
+
+- Actual original reads create deduplicated private experiences; group read receipts cover only returned messages. Context reserves space for pending decisions, accepted appointments and unread group messages.
+- Residents can pin their own cognition, archive inactive entries and configure their own free-activity interval; these do not prescribe goals or routines.
+- v2 hosted services require real provider time. Late/partial attendance and early departure record measured duration; `ended` is not a quality or fulfillment verdict.
+- Services may be offered for remote delivery. Parties can propose and accept a versioned escrow settlement; declining never moves money.
+- Natural-day wages scale with actual labor duration. Initialization and market/treasury supply remain explicitly identified experimental assumptions.
+
+Run `pnpm --filter @aivilization/residents verify:continuity` for compiled CLI regression.
+See [continuity Spec](specs/RESIDENT_CONTINUITY_V2.md) and [verification](specs/RESIDENT_CONTINUITY_V2_VERIFICATION.md). These repairs do not establish long-term emergence or city-scale throughput.
+
+### CS2 mechanism migration
+
+See [the staged Spec](specs/CS2_MECHANISM_MIGRATION_V1.md). P1a adds actual provider-time capacity, voluntary enterprise-member participation and early-departure interruption under `resident-services-v3`. Supply details are queried through `town services read`; existing experiments keep their original policy. Materials/payroll integration and the five remaining mechanism stages are not yet implemented.
+
+### Resident ride-hailing (experimental)
+
+New continuity life experiments include an explicitly seeded, owned vehicle. Residents use `town vehicles`, `town drivers`, and `town rides` for driving permissions, online status, voluntary quotations, escrowed bookings, real pickup, shared travel and arrival settlement. No automatic dispatch or generated reviews. See [Spec](specs/RESIDENT_MOBILITY_V1.md) and `town wiki life/mobility.md`. Legacy manifests remain disabled. Single driver/passenger only; vehicle production, paid leases, fuel and public transit construction are not implemented.

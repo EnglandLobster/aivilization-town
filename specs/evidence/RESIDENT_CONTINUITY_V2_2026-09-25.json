@@ -1,0 +1,230 @@
+{
+  "mode": "free-activity-smoke-not-long-term-emergence-or-scale-test",
+  "root": ".local/open-residents/continuity-free-20260925",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "openCodeVersion": "1.18.32",
+  "capabilities": 161,
+  "cliGroups": 35,
+  "skillPages": 55,
+  "residentCount": 4,
+  "turnCount": 4,
+  "turns": [
+    {
+      "actorId": "resident-001",
+      "turnId": "turn-2-resident-001",
+      "status": "completed",
+      "elapsedMs": 72335,
+      "commandExecutions": 36,
+      "task": "free-activity",
+      "exitCode": 0
+    },
+    {
+      "actorId": "resident-002",
+      "turnId": "turn-14-resident-002",
+      "status": "provider-error",
+      "elapsedMs": 179504,
+      "commandExecutions": 43,
+      "task": "free-activity",
+      "exitCode": null
+    },
+    {
+      "actorId": "resident-003",
+      "turnId": "turn-33-resident-003",
+      "status": "completed",
+      "elapsedMs": 36072,
+      "commandExecutions": 10,
+      "task": "free-activity",
+      "exitCode": 0
+    },
+    {
+      "actorId": "resident-004",
+      "turnId": "turn-38-resident-004",
+      "status": "completed",
+      "elapsedMs": 46788,
+      "commandExecutions": 17,
+      "task": "free-activity",
+      "exitCode": 0
+    }
+  ],
+  "completedModelTurns": 3,
+  "providerErrorTurns": 1,
+  "interruption": "Second turn exceeded the 180000 ms driver deadline after successful work and wait. Continued remaining residents from persisted journal with 300000 ms deadlines; original error retained.",
+  "commandExecutions": 106,
+  "successfulCommandExits": 100,
+  "allNativeToolsBash": true,
+  "allCommandsTown": true,
+  "commandErrors": [
+    {
+      "tool": "bash",
+      "command": "town apps list",
+      "exitCode": 2
+    },
+    {
+      "tool": "bash",
+      "command": "town city observe",
+      "exitCode": 2
+    },
+    {
+      "tool": "bash",
+      "command": "town self",
+      "exitCode": 2
+    },
+    {
+      "tool": "bash",
+      "command": "town business work --occupation-name Waiter --labor-seconds 3600 --request-id work-test-2",
+      "exitCode": 1
+    },
+    {
+      "tool": "bash",
+      "command": "town schedule wait --until-simulation-time 4120000 --handoff \"在 school 完成 4000 秒学习（学历分数应向 180 靠近）；醒来后查教育状态，若达标则申请 target-level 3 考试\"",
+      "exitCode": 2
+    },
+    {
+      "tool": "bash",
+      "command": "town city observe",
+      "exitCode": 2
+    }
+  ],
+  "residentCapabilityCalls": 31,
+  "journalCommits": 44,
+  "simulationTime": 240000,
+  "initialMoneySupply": 252190,
+  "finalMoneySupply": 252190,
+  "worldEventCounts": {
+    "AgentTravelStarted": 2,
+    "AgentActivityTimeCommitted": 4,
+    "ShortTermMemoryRecorded": 5,
+    "SimulationTimeAdvanced": 4,
+    "PhysiologyChanged": 17,
+    "WagePaid": 1,
+    "ActionRejected": 1,
+    "EducationCompulsoryFeeCovered": 1,
+    "EducationChanged": 1
+  },
+  "wageFacts": [
+    {
+      "agentId": "resident-002",
+      "amount": 31.625,
+      "fundingSource": "treasury",
+      "laborPayPolicy": {
+        "referenceSeconds": 28800,
+        "version": "labor-proportional-pay-v1"
+      },
+      "laborSeconds": 3600,
+      "occupationName": "Waiter"
+    }
+  ],
+  "residentActivities": [
+    {
+      "actorId": "resident-001",
+      "activity": {
+        "activity": "travel",
+        "agentId": "resident-001",
+        "availableAt": 729000,
+        "commandType": "AgentMoveTo",
+        "durationSeconds": 729,
+        "policyVersion": "exclusive-agent-activity-time-v2",
+        "settlementTiming": "effects-at-completion",
+        "startedAt": 0,
+        "committedAt": 0
+      },
+      "nextWakeAt": 729000
+    },
+    {
+      "actorId": "resident-002",
+      "activity": {
+        "activity": "labor",
+        "agentId": "resident-002",
+        "availableAt": 3660000,
+        "commandType": "AgentWork",
+        "durationSeconds": 3600,
+        "policyVersion": "exclusive-agent-activity-time-v2",
+        "settlementTiming": "effects-at-commit",
+        "startedAt": 60000,
+        "committedAt": 60000
+      },
+      "nextWakeAt": 3660000
+    },
+    {
+      "actorId": "resident-003",
+      "activity": {
+        "agentId": "resident-003",
+        "activity": "education",
+        "commandType": "AgentStudy",
+        "durationSeconds": 4000,
+        "policyVersion": "exclusive-agent-activity-time-v2",
+        "settlementTiming": "effects-at-commit",
+        "startedAt": 120000,
+        "availableAt": 4120000,
+        "committedAt": 120000
+      },
+      "nextWakeAt": 4120000
+    },
+    {
+      "actorId": "resident-004",
+      "activity": {
+        "agentId": "resident-004",
+        "activity": "travel",
+        "commandType": "AgentMoveTo",
+        "durationSeconds": 1111,
+        "settlementTiming": "effects-at-completion",
+        "policyVersion": "exclusive-agent-activity-time-v2",
+        "startedAt": 180000,
+        "availableAt": 1291000,
+        "committedAt": 180000
+      },
+      "nextWakeAt": 1291000
+    }
+  ],
+  "provenance": {
+    "attention": "resident-attention-v2",
+    "capabilityCatalog": "open-capabilities-v5",
+    "cityApps": "city-apps-v1",
+    "cognition": "resident-cognition-v2",
+    "collaboration": "collaboration-v1",
+    "commerce": "resident-commerce-v1",
+    "communication": "communication-v1",
+    "context": "open-agent-context-v1",
+    "distribution": "information-distribution-v1",
+    "documentIndex": "document-index-v1",
+    "documentMetadata": "document-metadata-v1",
+    "information": "information-space-v1",
+    "initialBackground": "resident-initialization-v2",
+    "initialization": "resident-initialization-v2",
+    "laborPay": "labor-proportional-pay-v1",
+    "leases": "resident-leases-v1",
+    "life": "resident-life-v1",
+    "mode": "experimental-open-agent",
+    "reading": "resident-original-reading-v2",
+    "residentSkill": "town-resident-skill-v4",
+    "rhythm": "resident-natural-day-v1",
+    "scheduler": "open-simulation-round-robin-v1",
+    "services": "resident-services-v2",
+    "settlement": "order-settlement-v1",
+    "transport": "resident-cli-v4",
+    "worldPolicyAdapter": "resident-natural-day-adapter-v1"
+  },
+  "replay": {
+    "reportEqual": true,
+    "journalBytesUnchanged": true,
+    "journalSha256": "f69f3fab66667a082ee6c1436e5487636a8da29cbaa2c7b4def2c5a8cb6cca1e"
+  },
+  "deterministicAcceptance": {
+    "continuityRealCliCommands": 29,
+    "continuityPassed": true,
+    "lifeRealCliCommands": 38,
+    "lifePassed": true,
+    "cliPassed": true,
+    "testsPassed": 2199,
+    "testsSkipped": 1,
+    "lint": true,
+    "typecheck": true,
+    "build": true,
+    "skillValidation": true
+  },
+  "limitations": [
+    "Four opportunities only, includes one timed-out model turn.",
+    "No claim of sustained society, interpersonal emergence, or large-scale throughput.",
+    "Free-run choices were not scripted; domain regressions separately test the new service and settlement mechanisms."
+  ]
+}

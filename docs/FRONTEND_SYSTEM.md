@@ -1,179 +1,134 @@
-# Aivilization frontend system
+# Frontend system
 
-## Product position
+## Responsibility and authority
 
-The web application is a **living-city observatory**: the pixel-town canvas is the first-class
-surface, and the evidence panels arrange themselves around it. It is neither a generic
-administration dashboard nor a game HUD. Every surface must help an operator or researcher answer
-one of four questions:
+`apps/web` is an input/output adapter for the server-authoritative town. It owns presentation,
+selection, camera position and observation state. It owns no domain aggregate and makes no economic,
+movement, employment or lifecycle decisions. Commands go through the existing HTTP authority;
+projections and durable events remain server-owned. This migration changes neither event schemas
+nor policy versions.
 
-1. Is the simulation trustworthy and progressing?
-2. What is happening in the population and economy?
-3. Why did an Agent decide or act this way?
-4. What intervention was submitted, authorized, and durably observed?
+## Architecture
 
-The canvas answers the continuous form of question 2 at a glance; everything else drills down from
-it.
+- **React + TypeScript** own semantic DOM, navigation, forms, directories and inspection panels.
+- **PixiJS 8** owns the WebGL map, retained scene graph, batched citizen particles, camera and picking.
+  Its `pixi.js/unsafe-eval` compatibility entry installs static shader/particle synchronizers so the
+  server keeps its strict CSP without granting `unsafe-eval`.
+- **Vite** builds the browser application. `src/index.ts` exposes the existing `createTownWebAssets()`
+  adapter, serving `dist/client` from the same server origin. HTML is not cached; hashed assets are
+  immutable. Build metadata and arbitrary files are not publicly served. No CDN is required.
+- **`client/store.ts`** is an external subscription store consumed through `useSyncExternalStore`.
+  Snapshot publication drives DOM updates; Pixi's animation loop reads the last published world.
+  It does not trigger React renders each frame.
+- **`client/model.ts`** normalizes compatible read models. Society locations and public citizen
+  directory take precedence over partition replicas. Private detail comes only from the selected
+  owner partition. An absent directory transit must not revive an old partition transit.
+- **`client/map/logic/`** contains framework-independent interpolation, roads, ambient, scenery,
+  picking and calendar functions. Existing Node tests continue to exercise their contracts.
+
+The former `public/app.js`, Canvas renderer and imperative panel renderers have been removed.
+Historical Kenney assets and attribution remain under `public/ui/assets`. The active renderer uses
+Roguelike Modern City and Roguelike Characters from `client/map/assets/`; the archived Tiny Town
+sheet is not shipped. Original CC0 notices accompany both active sheets.
 
 ## Information architecture
 
-The default view is the full-stage canvas town. The five workspaces are overlay panels on top of
-it, toggled from the workspace rail (or closed back to the map), with hash routing kept compatible
-(`#overview`, `#town`, `#market`, `#cognition`, `#steering`; empty or `#map` is the bare canvas):
+| Workspace | User-facing purpose | Data |
+| --- | --- | --- |
+| Explore | See the town, inspect places, follow a citizen | Public directory, location registry, observed activity, transit, calendar, weather |
+| Citizens | Search, filter and select residents | Public directory plus selected partition details; 50 rows per page |
+| Economy | Inspect supply, reserves and recent exchange evidence | Society market authority, bounded trades and OHLC requests |
+| Minds | Follow an individual's intentions, memories and decisions | Selected owner's plans, profile, decision and renewal traces |
+| Participate | Authenticate, register a citizen, submit intentions and guidance | Existing access, registration, objective, reactive-command and steering APIs |
+| Mission control | Run/pause/resume, change observation scope, inspect bulletins, validate and replay | Runtime, daemon, partitions, bulletin and validation read models |
 
-| Workspace       | Primary question                                                     | Mutability                |
-| --------------- | -------------------------------------------------------------------- | ------------------------- |
-| Mission control | Is the runtime healthy, reproducible, and operable?                  | Read plus runtime control |
-| Population      | Who exists, where are they, and what state are they in?              | Read                      |
-| Economy         | What are pools, prices, exchanges, and aggregate observations doing? | Read                      |
-| Cognition       | What plan, memory, and trace explains an Agent's behavior?           | Read                      |
-| Interventions   | What durable human command should enter the simulation?              | Write                     |
+The inspector links location occupancy to residents, residents to their observed state, and residents
+to cognition. Unknown fields are shown as unavailable rather than invented values. Counts identify
+observation windows or partition scope where they are not town-wide. Post-bootstrap registration
+and intervention outcomes remain durable server commands.
 
-Around the canvas:
+## Observation lifecycle
 
-- **Top context bar**: partition selection, refresh cadence, connection, theme, bulletin badge.
-- **Right inspector drawer**: click a building for residents/capacity/incoming travelers; click an
-  agent for a condition-aware summary and a path into the cognition workspace; `Esc` deselects.
-- **Bottom intervention dock**: objective, reactive-command, and replay forms as collapsible
-  sections. Access, registration, and steering traces stay in the Interventions workspace.
+1. Load runtime discovery and access/daemon status, then the selected projection and public society
+   read models. Optional endpoint failures are visible and preserve the last successful observation.
+2. Open the existing partition SSE stream. `sync-batch` notifications coalesce for 250 ms before
+   refreshing the snapshot. A configurable visible-page polling interval covers missed notifications.
+3. Load bounded, expensive evidence only for the active panel. Selection of a citizen owned by
+   another partition switches the detail scope before requesting cognition.
+4. Abort invalidated reads and reject responses from an older scope revision. A submitted command
+   has a separate request lifetime so navigation does not cancel it.
+5. Keep explicit participant consent, Bearer authentication and server authorization. Tokens use the
+   existing session-storage key. Credentials never enter town state or the map.
 
-Context has three levels and must never be visually conflated:
+**Current limit:** SSE still invalidates full snapshots. It is not a delta transport. The directory
+is still fetched as a whole, and selection lookup/picking and some model normalization remain
+linear in the observed population. The backend `headless-stress-1000` profile does not establish
+browser capacity or a tens-of-thousands-agent production deployment.
 
-- Global runtime: connection, daemon health, refresh cadence, and theme.
-- Partition: simulation ID and partition key selected in the context bar.
-- Entity: selected Agent or building on the canvas, market pool, plan, trace, or operation inside a
-  workspace.
+## Map rendering and honesty
 
-## The canvas and its honesty contract
+The presentation is an orthogonal pixel town with cream interface surfaces and quiet typography.
+Kenney’s CC0 city tiles compose distinct homes, a school, clinic, restaurant, market, workshop and
+public square, with matching roads, paving, trees and street furniture. Citizens use the CC0
+Roguelike Characters sheet. Atlas textures use nearest-neighbor sampling; no paid or externally
+hosted art is required. Vite builds hashed PNG assets served by the existing server. See
+`apps/web/client/map/assets/ATTRIBUTION.md` for original archive URLs and licenses. Light and dark
+interfaces share the same semantic layout. Normalized domain coordinates are unchanged;
+`geometry.ts` provides the invertible orthogonal presentation transform.
 
-Agents have **no continuous coordinates** in any projection. The map is a semantic visualization:
+- Static scenery is retained and rebuilt only when location geometry, snow or relevant land values
+  change. The scene uses shared atlas frames, sprites, tiled ground and a Container tree; it is **not** baked
+  to RenderTexture. `townArt.ts` owns frame lifetime and `townBuildings.ts` owns tile composition. Known PNG assets
+  skip automatic format detection and blob-worker decoding to keep the strict CSP intact.
+- Citizen sprites are reused by ID. Particle batches contain only visible individuals. Distant large
+  populations and dense locations use aggregate occupancy; route colors use observed traffic.
+- A city view above 1,200 citizens aggregates at the overview zoom. Locations above 1,200 residents
+  stay aggregated even when zoomed in. More than 1,200 simultaneous journeys use route flows at all
+  zoom levels. The directory and inspector preserve access to individuals.
+- Movement remains deterministic interpolation over observed transit windows and road paths.
+  Decorative resident drift is placed in the location forecourt to avoid walking over roofs; it is
+  presentation, not a new authoritative position or decision. The time
+  overlay labels movement as interpolated; animation extrapolation is capped at five seconds.
+- Production smoke is conditional on observed occupancy; activity badges, conversation links,
+  day/night tint and weather follow available read models. Missing facts do not become fake events.
+- Camera pan/zoom/focus run independently of data refresh. Non-map workspaces and hidden tabs stop
+  rendering; active rendering is capped at 60 FPS. Reduced-motion preference suppresses decorative animation and camera easing.
+- WebGL initialization failure shows recovery information and links to the usable DOM directory.
 
-- Buildings render at their authoritative normalized `mapPosition` rects (center-based, 0–1).
-- The road network is synthesized from the authoritative `connections` graph: every connection
-  becomes a deterministic orthogonal (elbow) pixel road between building borders
-  (`ui/map/roads.js`). The same waypoints drive traveler movement, so people visibly walk along
-  the streets, including multi-hop `routeLocationIds` routes. Without a connection graph the
-  module falls back to straight center-to-center segments.
-- Resident agents drift inside their location rect via a deterministic agentId-hash function of
-  time — no randomness, replayable frame-for-frame.
-- Traveling agents interpolate over the road waypoints using the authoritative
-  `departedAt`/`arrivesAt` timestamps against the simulation clock (last authoritative
-  `clock.now` plus wall-clock elapsed).
-- Traffic heat on roads comes only from authoritative transit data (`routeEdgeFlows` active
-  traversal counts, or active transits per hop when the authority publishes no flows). Green →
-  amber → red heat plus a counter badge at high congestion; no invented vehicles.
-- Scenery (trees, bushes, rocks, flowers), lampposts and the maritime shoreline are deterministic
-  decoration (`ui/map/decor.js`) placed by hash on a grid, never intersecting buildings, roads or
-  water. The shoreline is derived from maritime region ids (e.g. `harbor`); regional ground tints
-  reflect the authoritative `regionalLandValues` slice. All counts (occupancy, incoming,
-  population) come from the projection only.
-- The day/night layer (`ui/map/dayNight.js`) reads the flag-gated `calendar` slice and maps the
-  authoritative phase onto a smooth darkness/warmth ramp (mirrored `town-calendar-v1` phase
-  table): cool night tint, warm dawn/dusk wash, occupancy-proportional lit windows at night, and
-  lamp glows. The HUD clock chip shows "Day N · Phase".
-- Ambient life (`ui/map/ambient.js`): ongoing activities (`activityTimeByAgent`) render as
-  per-agent bubbles (sleep z's, work hammer, trade coin…), recent conversations
-  (`conversationRecords`) as short-lived speech links between participants, and the `townPulse`
-  ring as a fading town-news ticker in the canvas corner. Birds by day and fireflies at night are
-  purely decorative and deterministic.
-- Chimney smoke rises over occupied production/food buildings; agents wear deterministic
-  palette bands so citizens read as individuals.
+The 30,000-citizen unit fixture checks normalization/grouping correctness, **not frame rate**.
+Shipping a large city requires measuring realistic devices, transit density, memory, API payloads,
+SSE pressure and backend simulation cost together. Next transport work should add versioned public
+snapshot deltas and spatial subscriptions; subsequent rendering work should profile spatial indices
+and transit-path caching. These are separate changes, not performance guarantees of this migration.
 
-The UI states this plainly with the on-map label "semantic layout · interpolated movement".
-Implementation: `public/ui/map/interpolation.js` (pure, unit-tested), `renderer.js` (Canvas 2D
-layer pipeline: static bake [terrain · region tints · water · plaza · roads · scenery ·
-lampposts] → water shimmer → traffic heat → buildings → agents → ambient → weather → day/night
-→ selection), `roads.js`, `decor.js`, `dayNight.js`, `ambient.js`, `picking.js`, `tilesheet.js`,
-`weatherLayer.js` — all pure modules except the renderer, all unit-tested where logic lives.
+## Accessibility and responsive behavior
 
-Flag-gated mechanisms render only when the projection carries the field: `weather` (tint,
-particles, storm lightning, fog banks; snowy weather also re-tints treetops), `calendar`
-(day/night + clock chip), `regionalLandValues` (region ground tints), society
-`agentConditions`/`conflictRecords` (markers above agents), `bulletins` (topbar badge + board in
-the inspector), `townPulse`/`activityTimeByAgent`/`conversationRecords` (ticker, bubbles,
-speech links). Missing fields render nothing and produce no errors.
+The shell has semantic navigation, an accessible skip link, visible focus rings, native forms,
+labelled controls, status outputs and table headings. All places have DOM buttons and all citizens
+are accessible through a searchable, paginated directory. Canvas picking is never required to read
+or operate on a citizen. Escape returns to the map and closes the inspector.
 
-## Assets and build
+Wide displays use a left place rail, central city/workspace and optional inspector. Narrow displays
+hide the rail, keep navigation available, and overlay inspection without document-level horizontal
+overflow. Dense tables scroll within their containers. GPU controls have accessible button names;
+no hover-only control is required. Contrast and assistive-technology behavior should continue to be
+reviewed as panels evolve; this document is not an accessibility certification.
 
-- `public/ui/assets/tiles.png` is a 16px-tile pixel sheet derived from Kenney "Tiny Town" (CC0 —
-  see `public/ui/assets/ATTRIBUTION.md`) by `apps/web/tools/repack-kenney-tilesheet.py`, which
-  composes the source tiles onto the layout contract below. The agent walk sprites and selection
-  bracket on the last row remain original placeholder art from
-  `apps/web/tools/generate-tilesheet.mjs` (dependency-free Node: hand-rolled PNG encoder over
-  `node:zlib`), which also serves as the procedural fallback when the Kenney pack is unavailable.
-  Building sprites are organized as 7 location kinds × 3 upgrade levels; only level 1
-  is drawn today — levels 2–3 are reserved frames for spatial growth (#8), and a day/night tint
-  layer is reserved for the world clock (#12). The PNG is committed.
-- All assets are explicitly registered in `createTownWebAssets()` (`apps/web/src/index.ts`) and
-  served same-origin by the Node static gateway with exact-path matching. JavaScript modules are
-  `no-cache`; the tilesheet is immutable. CSP (`script-src 'self'`) is satisfied by plain ES
-  modules — no inline scripts, no bundler, no runtime dependencies.
+## Build and development
 
-## Design language
+```sh
+pnpm --filter @aivilization/web build
+# Start the runtime separately on port 4317 for the dev proxy:
+pnpm --filter @aivilization/server start -- --profile smoke-25 --llm-mode deterministic --port 4317
+pnpm --filter @aivilization/web dev -- --host 127.0.0.1 --port 4318
+```
 
-The visual language is an editorial laboratory notebook rather than a conventional blue enterprise
-console. Warm paper surfaces and ink-colored type keep dense evidence readable. A single moss accent
-marks selection, progress, and primary action; rust is reserved for destructive or failed states.
-The canvas sits inside this frame as the living exhibit.
+Vite serves `/ui/` and proxies `/runtime`, `/simulations` and `/access` to `127.0.0.1:4317`.
+Production uses the server's `/` or `/ui/` after `pnpm build`. Rebuild browser assets and restart the
+server to pick up production changes. A missing client build fails with an explicit build instruction.
+`pnpm test` builds the browser first so server asset-contract tests exercise real hashed output.
 
-### Core tokens
-
-- Background: warm paper, with a deep green-black equivalent in dark mode.
-- Surface hierarchy: paper, raised sheet, inset evidence field.
-- Primary text: ink; secondary text: slate-brown.
-- Accent: moss green. It carries selection and action, never decoration alone.
-- Typography: an editorial serif for workspace titles, a humanist sans serif for interface text, and
-  tabular monospace for IDs, timestamps, sequences, and measurements.
-- Radius: restrained and hierarchical. Large sheets use 18px, controls 8px, evidence tags 4px.
-- Motion: 160–240ms opacity and transform transitions only; reduced-motion preferences win.
-
-## Component rules
-
-- The application shell uses a masthead and horizontal workspace rail. It avoids a permanent
-  sidebar so the canvas and wide research tables retain horizontal space.
-- The context bar is the only place that changes partition and refresh cadence.
-- Metrics form an asymmetric evidence strip; values always use tabular figures.
-- Cards are reserved for bounded evidence groups. Related tables may share one continuous surface.
-- The canvas owns spatial selection; overlays and the inspector drawer never mutate simulation
-  state by themselves — they only select, filter, or route into forms.
-- Forms have explicit labels, inline results, and visible authorization context. Destructive
-  controls cannot share the primary-action treatment.
-- Loading uses layout-shaped skeletons. Empty states say what evidence is absent. Errors stay close
-  to the failed surface and preserve partial data elsewhere.
-- Status must use text and shape in addition to color.
-
-## Responsive behavior
-
-- At 1180px, asymmetric evidence grids collapse to one column where comparison is no longer useful,
-  and the intervention dock wraps to two columns.
-- At 860px, the workspace rail becomes a horizontally scrollable, sticky tab strip; context controls
-  form a two-column grid; the dock stacks vertically; overlays and the inspector go full-width.
-- At 560px, metrics and forms become single-column, tables scroll inside their evidence surface, and
-  primary actions use the full available width.
-- Below 860px, the canvas keeps a playable 760px minimum width inside its own horizontal scroller;
-  the document itself must not gain horizontal overflow.
-- The application uses `min-height: 100dvh` and never relies on a fixed mobile viewport height.
-
-## Accessibility and interaction contract
-
-- Keep the skip link, semantic landmarks, tab roles, keyboard navigation, and visible focus rings.
-- Horizontal workspace tabs respond to left/right arrows; vertical up/down behavior is retained as a
-  compatibility fallback. Activating the already-active tab closes its overlay back to the map.
-- Announcements use the existing polite live regions. A successful result does not use an
-  exclamation mark; an error states the failed action and recovery path.
-- Canvas selection has DOM equivalents: buildings and agents remain selectable from the Population
-  workspace (locations grid, agent table), and every canvas drill-down is mirrored in the inspector
-  drawer with real buttons. Selecting a resident synchronizes the canonical Agent table and detail
-  panel.
-- Color contrast targets WCAG AA. All dense numeric fields use tabular figures and retain text
-  labels.
-
-## Implementation boundary
-
-The application remains dependency-free vanilla HTML, CSS, and JavaScript, now organized as native
-ES modules: `app.js` only bootstraps (context bar wiring, router, SSE, assembly); render logic
-lives in `public/ui/panels/*`, map machinery in `public/ui/map/*`. Existing DOM IDs, API routes,
-authentication behavior (`sessionStorage['aivilization.access-token']`), SSE invalidation
-(`sync-batch` → debounced `refreshAll`), and form submissions are stable contracts. Pure map logic
-(interpolation) is unit-tested via the `@aivilization/web` vitest project; the rest of `public/` is
-served statically and pinned through the server-side asset contract tests.
+Required verification: `pnpm lint`, `pnpm -r --sort typecheck`, `pnpm test`, `pnpm build`, plus browser
+checks of production CSP, the real runtime, selections, panel navigation, commands and mobile layout.
+Node tests deliberately do not import Pixi or require a GPU. Tests cover old snapshots, authority
+precedence, stale responses, consent, lazy resources and deterministic map logic.

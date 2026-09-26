@@ -31,3 +31,10 @@ export type SocietyModuleStatus = {
   readonly packageName: '@aivilization/society';
   readonly owns: 'education-occupation-relationships';
 };
+
+export * from './residentHouseholds';
+export * from './residentCare';
+export * from './residentHealthRecords';
+export * from './residentLeases';
+export * from './residentLearning';
+export * from './residentRhythm';

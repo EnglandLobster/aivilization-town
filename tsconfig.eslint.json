@@ -3,7 +3,8 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": false,
-    "noEmit": true
+    "noEmit": true,
+    "jsx": "react-jsx"
   },
   "include": [
     "eslint.config.js",
@@ -11,6 +12,7 @@
     "vitest.workspace-aliases.ts",
     "scripts/**/*.mjs",
     "apps/**/*.ts",
-    "packages/**/*.ts"
+    "packages/**/*.ts",
+    "apps/**/*.tsx"
   ]
 }

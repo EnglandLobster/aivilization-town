@@ -1,90 +1,56 @@
 import type { AgentCycleTrace } from '@aivilization/observability';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { relative, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 export type TownWebAsset = {
   readonly path: string;
   readonly contentType: string;
   readonly body: string | Uint8Array;
   readonly cacheControl: string;
 };
-
 export type WebInspectionPanelContract = {
   readonly selectedTrace?: AgentCycleTrace;
   readonly showsPlannerInternals: true;
 };
-
-const TEXT_JAVASCRIPT = 'text/javascript; charset=utf-8';
-
-/** Browser ES modules served verbatim; keep in sync with `public/`. */
-const javaScriptModulePaths = [
-  'app.js',
-  'ui/map/renderer.js',
-  'ui/map/tilesheet.js',
-  'ui/map/interpolation.js',
-  'ui/map/picking.js',
-  'ui/map/weatherLayer.js',
-  'ui/map/roads.js',
-  'ui/map/decor.js',
-  'ui/map/dayNight.js',
-  'ui/map/ambient.js',
-  'ui/panels/workspaces.js',
-  'ui/panels/inspector.js',
-] as const;
+/** Production and tests serve the same Vite output through the same-origin gateway. */
 export function createTownWebAssets(): readonly TownWebAsset[] {
-  const html = readWebAsset('index.html');
-  const css = readWebAsset('app.css');
-  const tiles = readBinaryWebAsset('ui/assets/tiles.png');
+  const directory = [
+    new URL('./client/', import.meta.url),
+    new URL('../dist/client/', import.meta.url),
+  ].find((candidate) => existsSync(new URL('index.html', candidate)));
+  if (!directory)
+    throw new Error('Town client is not built. Run pnpm --filter @aivilization/web build.');
+  const root = fileURLToPath(directory),
+    html = readFileSync(new URL('index.html', directory), 'utf8');
   return [
-    {
-      path: '/',
+    ...['/', '/ui', '/ui/'].map((path) => ({
+      path,
       contentType: 'text/html; charset=utf-8',
       body: html,
       cacheControl: 'no-store',
-    },
-    {
-      path: '/ui',
-      contentType: 'text/html; charset=utf-8',
-      body: html,
-      cacheControl: 'no-store',
-    },
-    {
-      path: '/ui/app.css',
-      contentType: 'text/css; charset=utf-8',
-      body: css,
-      cacheControl: 'no-cache',
-    },
-    ...javaScriptModulePaths.map((modulePath) => ({
-      path: modulePath.startsWith('ui/') ? `/${modulePath}` : `/ui/${modulePath}`,
-      contentType: TEXT_JAVASCRIPT,
-      body: readWebAsset(modulePath),
-      cacheControl: 'no-cache',
     })),
-    {
-      path: '/ui/assets/tiles.png',
-      contentType: 'image/png',
-      body: tiles,
-      cacheControl: 'public, max-age=31536000, immutable',
-    },
+    ...readdirSync(directory, { recursive: true, withFileTypes: true })
+      .filter((file) => file.isFile())
+      .flatMap((file) => {
+        const name = relative(root, join(file.parentPath, file.name)).replaceAll('\\', '/');
+        // Internal manifests and source maps are not application routes.
+        if (!name.startsWith('assets/') || name.endsWith('.map')) return [];
+        const extension = name.slice(name.lastIndexOf('.'));
+        const types: Record<string, string> = {
+          '.js': 'text/javascript; charset=utf-8',
+          '.css': 'text/css; charset=utf-8',
+          '.png': 'image/png',
+          '.svg': 'image/svg+xml',
+          '.woff2': 'font/woff2',
+        };
+        return [
+          {
+            path: `/ui/${name}`,
+            contentType: types[extension] ?? 'application/octet-stream',
+            body: readFileSync(join(root, name)),
+            cacheControl: 'public, max-age=31536000, immutable',
+          },
+        ];
+      }),
   ];
-}
-
-function readWebAsset(fileName: string): string {
-  return readFileSync(resolveWebAsset(fileName), 'utf8');
-}
-
-function readBinaryWebAsset(fileName: string): Uint8Array {
-  return readFileSync(resolveWebAsset(fileName));
-}
-
-function resolveWebAsset(fileName: string): string {
-  const candidates = [
-    new URL(`./${fileName}`, import.meta.url),
-    new URL(`../public/${fileName}`, import.meta.url),
-  ];
-  const asset = candidates.find((candidate) => existsSync(candidate));
-  if (asset === undefined) {
-    throw new Error(`town web asset not found: ${fileName}`);
-  }
-  return fileURLToPath(asset);
 }

@@ -1,3 +1,4 @@
+import { calculateLaborPay, type LaborPayPolicy } from '@aivilization/society';
 import {
   getInventoryQuantity,
   planProduction,
@@ -531,6 +532,7 @@ export function handleAgentWorkCommand(input: {
   readonly command: CommandEnvelope<'AgentWork', unknown>;
   readonly projection: WorldProjection;
   readonly wageCalculator: (occupationName: string) => number;
+  readonly laborPay?: LaborPayPolicy;
   readonly laborCost: {
     readonly energyCostPerHour: number;
     readonly satietyCostPerHour: number;
@@ -587,8 +589,13 @@ export function handleAgentWorkCommand(input: {
   // Enterprise employees earn the contracted wage offer recorded at join time;
   // legacy members without an offer and non-enterprise work fall back to the
   // world wage regime.
-  const wage =
+  const quote =
     enterprise?.employeeWageOffers?.[agent.agentId] ?? input.wageCalculator(payload.occupationName);
+  const wageResult = parsePayload(() =>
+    input.laborPay ? calculateLaborPay(quote, payload.laborSeconds, input.laborPay) : quote,
+  );
+  if (wageResult.status === 'invalid') return rejectCommand(input, 'AgentWork', wageResult.reason);
+  const wage = wageResult.payload;
   if (!Number.isFinite(wage) || wage < 0) {
     return rejectCommand(input, 'AgentWork', 'wageCalculator must return a non-negative wage');
   }
@@ -644,6 +651,9 @@ export function handleAgentWorkCommand(input: {
         occupationName: payload.occupationName,
         amount: paid,
         fundingSource,
+        ...(input.laborPay
+          ? { laborPayPolicy: input.laborPay, laborSeconds: payload.laborSeconds }
+          : {}),
         ...(enterprise === undefined ? {} : { enterpriseId: enterprise.enterpriseId }),
       }),
     );
@@ -828,10 +838,7 @@ export function handleAgentProduceCommand(input: {
   }
 
   const events: WorldEvent[] = [];
-  if (
-    resourceSettlement !== undefined &&
-    resourceSettlement.extraction.status === 'accepted'
-  ) {
+  if (resourceSettlement !== undefined && resourceSettlement.extraction.status === 'accepted') {
     if (resourceSettlement.regeneration !== undefined) {
       events.push(
         makeEvent(input, events.length, 'RenewableResourceRegenerated', {

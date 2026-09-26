@@ -12,6 +12,8 @@
       "@aivilization/credit": ["packages/credit/src/index.ts"],
       "@aivilization/economy": ["packages/economy/src/index.ts"],
       "@aivilization/enterprise": ["packages/enterprise/src/index.ts"],
+      "@aivilization/information": ["packages/information/src/index.ts"],
+      "@aivilization/residents": ["apps/residents/src/index.ts"],
       "@aivilization/llm": ["packages/llm/src/index.ts"],
       "@aivilization/memory": ["packages/memory/src/index.ts"],
       "@aivilization/observability": ["packages/observability/src/index.ts"],
@@ -20,7 +22,11 @@
       "@aivilization/society": ["packages/society/src/index.ts"],
       "@aivilization/worker": ["apps/worker/src/index.ts"],
       "@aivilization/web": ["apps/web/src/index.ts"],
-      "@aivilization/world": ["packages/world/src/index.ts"]
+      "@aivilization/world": ["packages/world/src/index.ts"],
+      "@aivilization/collaboration": ["packages/collaboration/src/index.ts"],
+      "@aivilization/commerce": ["packages/commerce/src/index.ts"],
+      "@aivilization/services": ["packages/services/src/index.ts"],
+      "@aivilization/mobility": ["packages/mobility/src/index.ts"]
     },
     "strict": true,
     "noUncheckedIndexedAccess": true,

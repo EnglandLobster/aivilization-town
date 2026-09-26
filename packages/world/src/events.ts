@@ -1,3 +1,7 @@
+import type { ResidentMobilityPayload } from './residentMobility';
+import type { LaborPayPolicy } from '@aivilization/society';
+import type { ResidentLease } from '@aivilization/society';
+import type { ResidentCommercePayload } from './residentCommerce';
 import type { AmmPool, Inventory } from '@aivilization/economy';
 import type { BankState } from '@aivilization/credit';
 import type { ShortTermMemoryRecord } from '@aivilization/memory';
@@ -335,6 +339,7 @@ export const LEGACY_EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION =
 export const EXCLUSIVE_AGENT_ACTIVITY_TIME_POLICY_VERSION = 'exclusive-agent-activity-time-v2';
 
 export type AgentActivityKind =
+  | 'participation'
   | 'travel'
   | 'education'
   | 'labor'
@@ -356,7 +361,18 @@ export type AgentActivityTimeCommittedPayload = {
   readonly availableAt: number;
 };
 
+export type ResidentParticipationEndedPayload = {
+  readonly policyVersion: 'resident-participation-end-v1';
+  readonly agentId: AgentId;
+  readonly startedAt: number;
+  readonly previousAvailableAt: number;
+  readonly endedAt: number;
+  readonly durationSeconds: number;
+};
+
 export type WagePaidPayload = {
+  readonly laborPayPolicy?: LaborPayPolicy;
+  readonly laborSeconds?: number;
   readonly agentId: AgentId;
   readonly occupationName: string;
   readonly amount: number;
@@ -1588,6 +1604,9 @@ export type AgentResidenceChangedPayload = {
 };
 
 export type WorldEventPayloadByType = {
+  readonly ResidentLeaseChanged: { lease: ResidentLease; policyVersion: string };
+  readonly ResidentMobilityCommitted: ResidentMobilityPayload;
+  readonly ResidentCommerceCommitted: ResidentCommercePayload;
   readonly AgentRegistered: AgentRegisteredPayload;
   readonly AgentRegistrationRejected: AgentRegistrationRejectedPayload;
   readonly RenewableResourceRegenerated: RenewableResourceRegeneratedPayload;
@@ -1635,6 +1654,7 @@ export type WorldEventPayloadByType = {
   readonly EducationExamCycleCompleted: EducationExamCycleCompletedPayload;
   readonly AgentActivityTimeCommitted: AgentActivityTimeCommittedPayload;
   readonly WagePaid: WagePaidPayload;
+  readonly ResidentParticipationEnded: ResidentParticipationEndedPayload;
   readonly EnterpriseFounded: EnterpriseFoundedPayload;
   readonly EnterpriseMemberJoined: EnterpriseMemberJoinedPayload;
   readonly EnterpriseFunded: EnterpriseFundedPayload;

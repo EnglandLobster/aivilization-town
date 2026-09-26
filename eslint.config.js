@@ -23,13 +23,14 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'apps/web/tools/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'apps/web/tools/**/*.mjs', 'apps/residents/scripts/**/*.mjs'],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       parserOptions: {
         project: false,
       },
       globals: {
+        structuredClone: 'readonly',
         Buffer: 'readonly',
         console: 'readonly',
         process: 'readonly',
@@ -46,7 +47,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/web/public/**/*.js'],
+    files: ['apps/web/public/**/*.js', 'apps/web/client/map/logic/**/*.js'],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       parserOptions: {

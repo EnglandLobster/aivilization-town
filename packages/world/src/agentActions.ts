@@ -1,3 +1,4 @@
+import type { LaborPayPolicy } from '@aivilization/society';
 import type { CommandEnvelope, CoreCommandType } from '@aivilization/sim-core';
 import type { RenewableResourcePolicy } from '@aivilization/economy';
 import type {
@@ -178,6 +179,7 @@ export type WorldCommandPolicies = WorldEconomicPolicies & {
   readonly satietyRecoveryByCommodity: Readonly<Record<string, number>>;
   readonly maxSatiety: number;
   readonly wageCalculator: (occupationName: string) => number;
+  readonly laborPay?: LaborPayPolicy;
   readonly laborCost: {
     readonly energyCostPerHour: number;
     readonly satietyCostPerHour: number;
@@ -389,6 +391,12 @@ export function dispatchWorldCommand(input: {
   }
 
   switch (input.command.type) {
+    case 'ResidentParticipate':
+      return rejectCommand(
+        input,
+        'ResidentParticipate',
+        'participation requires an accepted booking or care agreement',
+      );
     case 'RegisterAgent':
       return handleRegisterAgentCommand({
         command: input.command as CommandEnvelope<'RegisterAgent', unknown>,
@@ -701,6 +709,7 @@ export function dispatchWorldCommand(input: {
         command: input.command as CommandEnvelope<'AgentWork', unknown>,
         projection: input.projection,
         wageCalculator: input.policies.wageCalculator,
+        ...(input.policies.laborPay === undefined ? {} : { laborPay: input.policies.laborPay }),
         laborCost: input.policies.laborCost,
         criticalThresholds: input.policies.criticalThresholds,
         ...(input.policies.tax === undefined ? {} : { tax: input.policies.tax }),

@@ -3,6 +3,16 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = new URL('./', import.meta.url);
 
 export const workspaceAliases = {
+  '@aivilization/mobility': fileURLToPath(new URL('packages/mobility/src/index.ts', workspaceRoot)),
+  '@aivilization/services': fileURLToPath(new URL('packages/services/src/index.ts', workspaceRoot)),
+  '@aivilization/commerce': fileURLToPath(new URL('packages/commerce/src/index.ts', workspaceRoot)),
+  '@aivilization/collaboration': fileURLToPath(
+    new URL('packages/collaboration/src/index.ts', workspaceRoot),
+  ),
+  '@aivilization/information': fileURLToPath(
+    new URL('packages/information/src/index.ts', workspaceRoot),
+  ),
+  '@aivilization/residents': fileURLToPath(new URL('apps/residents/src/index.ts', workspaceRoot)),
   '@aivilization/agent-runtime': fileURLToPath(
     new URL('packages/agent-runtime/src/index.ts', workspaceRoot),
   ),

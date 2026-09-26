@@ -1,7 +1,7 @@
 /**
  * Unit tests for the client-side movement interpolation used by the
  * living-town canvas. The module under test is a plain browser ES module
- * (`public/ui/map/interpolation.js`) imported directly — it has no DOM
+ * (`client/map/logic/interpolation.js`) imported directly — it has no DOM
  * dependencies, which is what makes it testable from node.
  */
 import { describe, expect, test } from 'vitest';
@@ -10,8 +10,8 @@ import {
   residentOffset,
   resolveAgentPosition,
   transitPosition,
-} from '../public/ui/map/interpolation.js';
-import { computeRoadNetwork } from '../public/ui/map/roads.js';
+} from '../client/map/logic/interpolation.js';
+import { computeRoadNetwork } from '../client/map/logic/roads.js';
 
 const fromRect = { x: 0.2, y: 0.3, width: 0.2, height: 0.2 };
 const toRect = { x: 0.8, y: 0.7, width: 0.2, height: 0.2 };
@@ -153,9 +153,18 @@ describe('resolveAgentPosition', () => {
 
 describe('resolveAgentPosition with a road network', () => {
   const L = {
-    'lower-left': { locationId: 'lower-left', mapPosition: { x: 0.2, y: 0.8, width: 0.2, height: 0.2 } },
-    'top-left': { locationId: 'top-left', mapPosition: { x: 0.2, y: 0.2, width: 0.2, height: 0.2 } },
-    'top-right': { locationId: 'top-right', mapPosition: { x: 0.8, y: 0.2, width: 0.2, height: 0.2 } },
+    'lower-left': {
+      locationId: 'lower-left',
+      mapPosition: { x: 0.2, y: 0.8, width: 0.2, height: 0.2 },
+    },
+    'top-left': {
+      locationId: 'top-left',
+      mapPosition: { x: 0.2, y: 0.2, width: 0.2, height: 0.2 },
+    },
+    'top-right': {
+      locationId: 'top-right',
+      mapPosition: { x: 0.8, y: 0.2, width: 0.2, height: 0.2 },
+    },
   };
   L['lower-left'].connections = [
     { targetLocationId: 'top-left', travelDurationSeconds: 100 },

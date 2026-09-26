@@ -1,6 +1,6 @@
 /**
  * Unit tests for the road-network geometry used by the living-town canvas.
- * The module under test (`public/ui/map/roads.js`) is a plain browser ES
+ * The module under test (`client/map/logic/roads.js`) is a plain browser ES
  * module with no DOM dependencies.
  */
 import { describe, expect, test } from 'vitest';
@@ -15,7 +15,7 @@ import {
   positionAlongWaypoints,
   routeWaypointsForTransit,
   segmentDistance,
-} from '../public/ui/map/roads.js';
+} from '../client/map/logic/roads.js';
 
 const locations = {
   'town-square': {
@@ -78,8 +78,8 @@ describe('borderAnchor', () => {
 describe('computeRoadNetwork', () => {
   test('deduplicates bidirectional connections', () => {
     // town-square ↔ residential-block appears in both locations' lists.
-    const count = network.edges.filter((edge) =>
-      edge.key === edgeKey('town-square', 'residential-block'),
+    const count = network.edges.filter(
+      (edge) => edge.key === edgeKey('town-square', 'residential-block'),
     ).length;
     expect(count).toBe(1);
   });
@@ -161,7 +161,11 @@ describe('routeWaypointsForTransit', () => {
 
   test('returns null without placed hops', () => {
     expect(
-      routeWaypointsForTransit({ fromLocationId: 'nowhere', toLocationId: 'school' }, locations, network),
+      routeWaypointsForTransit(
+        { fromLocationId: 'nowhere', toLocationId: 'school' },
+        locations,
+        network,
+      ),
     ).toBeNull();
     expect(routeWaypointsForTransit(undefined, locations, network)).toBeNull();
   });

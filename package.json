@@ -11,9 +11,10 @@
     "drill:runtime-recovery": "pnpm --filter @aivilization/server recovery-drill",
     "migrate:runtime-data-v1-to-v2": "pnpm --filter @aivilization/server migrate-data-v1-to-v2",
     "regrade:runtime-resource-envelope": "node --enable-source-maps apps/server/dist/localRuntimeTownResourceEnvelopeCliMain.js",
-    "test": "vitest run",
+    "test": "pnpm --filter @aivilization/web build:client && vitest run",
     "typecheck": "pnpm -r --sort typecheck",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "pnpm --filter @aivilization/web build:client && vitest run --coverage",
+    "residents": "node apps/residents/dist/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",

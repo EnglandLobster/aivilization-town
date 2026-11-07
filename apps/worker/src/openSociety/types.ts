@@ -8,17 +8,9 @@ import type {
   CanonicalMemoryEntry,
 } from '../canonicalMemoryContinuation';
 import type { CanonicalPolicyContinuation } from '../canonicalPolicyContinuation';
-import type { ServiceSupplyRelationPolicy } from '@aivilization/services';
-import type { ServiceAffiliationPolicy } from '@aivilization/services';
-import type { ServicePrincipalsPolicy } from '@aivilization/services';
-import type { ServiceSupplyPolicy } from '@aivilization/services';
 import type { ResourceControlPolicy } from '@aivilization/authority';
 import type { SocietyEffectOrder } from './effectOrder';
-import type {
-  ProgramReactionsPolicy,
-  ProgramConditionsPolicy,
-  ProgramActionsPolicy,
-} from '@aivilization/collaboration';
+import type { ProgramConditionsPolicy, ProgramActionsPolicy } from '@aivilization/collaboration';
 import type {
   CollectivesPolicy,
   CollectivesState,
@@ -27,19 +19,7 @@ import type {
 import type { ResidentRhythmPolicy } from '@aivilization/society';
 import type { SocietyKernelPolicy } from './kernelPolicy';
 import type { SharedRecordsState, SharedRecordsEvent } from '@aivilization/information';
-import type {
-  RecordViewsPolicy,
-  RecordViewsState,
-  RecordViewEvent,
-} from '@aivilization/information';
 import type { CoordinationState, CoordinationEvent } from '@aivilization/collaboration';
-import type { ResidentLifeState, ResidentLifeEvents, RESIDENT_LIFE_POLICIES } from './lifeState';
-import type {
-  ServicesEvent,
-  ServicesPolicy,
-  ServicesState,
-  ServiceControlPolicy,
-} from '@aivilization/services';
 import type {
   CollaborationEvent,
   CollaborationPolicy,
@@ -55,9 +35,6 @@ import type {
   CommunicationEvent,
   CommunicationPolicy,
   CommunicationState,
-  DistributionEvent,
-  DistributionPolicy,
-  DistributionState,
   InformationEvent,
   InformationPolicy,
   InformationState,
@@ -80,10 +57,8 @@ export type OpenSocietyManifest = {
   readonly groupControlPolicy?: GroupControlPolicy;
   readonly resourceControlPolicy?: ResourceControlPolicy;
   readonly programConditionsPolicy?: ProgramConditionsPolicy;
-  readonly programReactionsPolicy?: ProgramReactionsPolicy;
   readonly programActionsPolicy?: ProgramActionsPolicy;
   readonly collectivesPolicy?: CollectivesPolicy;
-  readonly recordViewsPolicy?: RecordViewsPolicy;
   readonly societyKernelPolicy?: SocietyKernelPolicy;
   readonly schemaVersion: typeof OPEN_SOCIETY_SCHEMA_VERSION;
   readonly simulationId: string;
@@ -93,16 +68,7 @@ export type OpenSocietyManifest = {
   readonly initialization?: 'settled' | 'newcomers';
   readonly informationPolicy: InformationPolicy;
   readonly collaborationPolicy?: CollaborationPolicy;
-  readonly lifeVersion?: 'resident-life-v1';
-  readonly lifePolicies?: typeof RESIDENT_LIFE_POLICIES;
-  readonly servicesPolicy?: ServicesPolicy;
-  readonly servicePrincipalPolicy?: ServicePrincipalsPolicy;
-  readonly serviceSupplyPolicy?: ServiceSupplyPolicy;
-  readonly serviceAffiliationPolicy?: ServiceAffiliationPolicy;
-  readonly serviceSupplyRelationPolicy?: ServiceSupplyRelationPolicy;
-  readonly serviceControlPolicy?: ServiceControlPolicy;
   readonly communicationPolicy?: CommunicationPolicy;
-  readonly distributionPolicy?: DistributionPolicy;
   readonly cognitionVersion: string;
   readonly worldPolicies: Readonly<Record<string, unknown>>;
   readonly initialWorld: WorldProjection;
@@ -188,14 +154,10 @@ export type OpenSocietyState = {
   readonly actionPlans?: OpenAgentActionPlansPolicy;
   readonly resourceControlPolicy?: ResourceControlPolicy;
   readonly collectives?: CollectivesState;
-  readonly recordViews?: RecordViewsState;
   readonly sharedRecords?: SharedRecordsState;
   readonly coordination?: CoordinationState;
   readonly collaboration?: CollaborationState;
-  readonly life?: ResidentLifeState;
-  readonly services?: ServicesState;
   readonly communication?: CommunicationState;
-  readonly distribution?: DistributionState;
   readonly cityApps?: CityAppDirectory;
   readonly revision: number;
   readonly worldSequence: number;
@@ -207,17 +169,13 @@ export type OpenSocietyState = {
   readonly reminders: Readonly<Record<string, ResidentReminder>>;
   readonly turns: Readonly<Record<string, ResidentTurn>>;
 };
-export type OpenSocietyEffects = ResidentLifeEvents & {
+export type OpenSocietyEffects = {
   readonly effectOrder?: SocietyEffectOrder;
-  readonly resourceControlEnabled?: ResourceControlPolicy;
   readonly collectiveEvents?: readonly CollectiveEvent[];
-  readonly recordViewEvents?: readonly RecordViewEvent[];
   readonly sharedRecordsEvents?: readonly SharedRecordsEvent[];
   readonly coordinationEvents?: readonly CoordinationEvent[];
   readonly collaborationEvents?: readonly CollaborationEvent[];
-  readonly servicesEvents?: readonly ServicesEvent[];
   readonly communicationEvents?: readonly CommunicationEvent[];
-  readonly distributionEvents?: readonly DistributionEvent[];
   readonly cityApps?: CityAppDirectory;
   readonly worldEvents?: readonly WorldEvent[];
   readonly informationEvents?: readonly InformationEvent[];

@@ -143,6 +143,8 @@ test('reading receipts are permitted but cannot smuggle membership changes throu
     }),
   ).not.toThrow();
   expect(() =>
-    assertCapabilityEffects(tool('rules.read'), { lifeEnabled: 'resident-life-v1' }),
+    assertCapabilityEffects(tool('rules.read'), {
+      reminders: [{ id: 'r', ownerId: t.a, at: 0, text: 'x', done: false }],
+    }),
   ).toThrow('capability-effect-boundary-violation');
 });

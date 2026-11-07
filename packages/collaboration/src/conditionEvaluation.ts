@@ -84,11 +84,9 @@ export function evaluateProgramConditions(input: {
           ? 'resident-claim'
           : kind === 'statement'
             ? 'signed-claim'
-            : kind === 'view'
-              ? 'resident-computation'
-              : kind === 'decision'
-                ? 'procedural-fact'
-                : 'world-fact',
+            : kind === 'decision'
+              ? 'procedural-fact'
+              : 'world-fact',
     });
   }
   return { accepted: true, matched: evidence.every((e) => e.matched), evidence, work };

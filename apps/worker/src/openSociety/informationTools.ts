@@ -1,9 +1,6 @@
 import {
   canReadSpace,
   communicationBlocked,
-  applyDistributionEvent,
-  recordDocumentPublication,
-  type DistributionEvent,
   decideInformationCommand,
   documentKey,
   indexInformationDocuments,
@@ -178,15 +175,6 @@ export function executeInformationTool(input: {
     agentExists: (id) => state.world.agents[id] !== undefined,
   });
   if (!decision.accepted) throw new ToolRefusal(decision.reason);
-  const distributionEvents: DistributionEvent[] = [];
-  let distribution = state.distribution;
-  if (distribution !== undefined)
-    for (const event of decision.events) {
-      if (event.type !== 'DocumentCreated' && event.type !== 'DocumentUpdated') continue;
-      const publication = recordDocumentPublication(distribution, event.document);
-      distributionEvents.push(publication);
-      distribution = applyDistributionEvent(distribution, publication);
-    }
   const experiences: ResidentExperience[] = [];
   const residents = [];
   const sent = decision.events.find((event) => event.type === 'MessageSent');
@@ -251,7 +239,6 @@ export function executeInformationTool(input: {
       informationEvents: decision.events,
       experiences,
       residents,
-      ...(distributionEvents.length === 0 ? {} : { distributionEvents }),
     },
   };
 }

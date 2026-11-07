@@ -24,7 +24,6 @@ export type ProgramConditionSource =
       readonly field: string;
       readonly signerId: string;
     }
-  | { readonly kind: 'view'; readonly viewId: string; readonly viewRevision: number }
   | { readonly kind: 'clock' }
   | {
       readonly kind: 'personal-fact';
@@ -100,13 +99,6 @@ function parseSource(v: unknown): ProgramConditionSource | undefined {
     return undefined;
   }
   if (
-    v.kind === 'view' &&
-    keys(v, ['kind', 'viewId', 'viewRevision']) &&
-    id(v.viewId) &&
-    revision(v.viewRevision)
-  )
-    return { kind: 'view', viewId: v.viewId, viewRevision: v.viewRevision };
-  if (
     v.kind === 'personal-fact' &&
     id(v.actorId) &&
     typeof v.field === 'string' &&
@@ -167,7 +159,6 @@ export function parseProgramConditions(
     const numeric =
       source.kind === 'clock' ||
       source.kind === 'common-balance' ||
-      source.kind === 'view' ||
       (source.kind === 'personal-fact' && source.field !== 'locationId');
     if (numeric && typeof raw.value !== 'number') return undefined;
     if (

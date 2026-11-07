@@ -46,7 +46,6 @@ export function dispatchOpenWorldCommand(input: {
   payload: unknown;
 }) {
   return dispatchWorldCommand({
-    ...(input.state.services ? { serviceDirectory: input.state.services } : {}),
     ...(input.enterpriseAuthorization
       ? { enterpriseAuthorization: input.enterpriseAuthorization }
       : {}),

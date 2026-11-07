@@ -7,7 +7,6 @@ import { residentLifeInbox } from './lifeContext';
 import { ownRestContext } from './restContext';
 import { publicGovernanceContext } from './publicGovernanceContext';
 import { RESIDENT_CONTEXT_DELIVERY as delivery, residentPresentSelf } from './contextDelivery';
-import { listDistributionFeed, communicationBlocked } from '@aivilization/information';
 import { asAgentId } from '@aivilization/sim-core';
 import { enterpriseController, enterpriseControlVersion } from '@aivilization/enterprise';
 import { controllerVisibleTo } from './resourceControlAccess';
@@ -84,29 +83,7 @@ export function buildOpenResidentContext(
   const lastTurn = Object.values(state.turns)
     .filter((turn) => turn.actorId === actorId && turn.status !== 'running')
     .at(-1);
-  const notifications =
-    state.distribution === undefined ||
-    state.communication?.preferences[actorId]?.subscriptionContext === false
-      ? undefined
-      : listDistributionFeed(state.distribution, state.information, actorId, true).filter(
-          (p) => !communicationBlocked(state.communication, actorId, p.publisherId),
-        );
   return {
-    ...(notifications === undefined
-      ? {}
-      : {
-          notifications: {
-            version: state.distribution!.policy.version,
-            items: notifications.slice(
-              0,
-              Math.min(state.distribution!.policy.contextItems, policy.contextMessages),
-            ),
-            unreadTotal: notifications.length,
-            expandedBy: 'town notifications list',
-            readWith: 'town notifications read',
-            note: 'Subscription updates only; original text is read on demand. No automatic wake or change of intention.',
-          },
-        }),
     // Pending group, proposal, order and payment items; present whenever residents can talk.
     ...(state.communication
       ? { lifeInbox: residentLifeInbox(state, actorId, policy.contextMessages) }
@@ -125,17 +102,14 @@ export function buildOpenResidentContext(
       worldRules: 'town city observe --view rules --section index',
       ownQualifications: 'town city observe --view qualifications',
       ownPrograms: 'town programs list',
-      recordViewsEnabled: !!state.recordViews,
       collectivesEnabled: !!state.collectives,
       materialsEnabled: !!state.world.materials,
       premisesEnabled: !!state.world.premises,
-      serviceEngagementsEnabled: !!state.world.serviceEngagements,
       logisticsEnabled: !!state.world.logistics,
       evidenceTradeEnabled: !!state.world.residentTrade,
       premisesRightsEnabled: !!state.world.premisesRights,
       groupControlEnabled: !!state.communication?.groupControlPolicy,
       resourceControlEnabled: !!state.resourceControlPolicy,
-      programReactionsEnabled: !!state.coordination?.reactions,
       programConditionsEnabled: !!state.coordination?.conditionsPolicy,
       commonAccountsEnabled: !!state.world.commonAccounts,
       commonResources: 'town funds list',
@@ -263,19 +237,12 @@ export function buildOpenResidentContext(
     capabilities: [
       ...(state.world.materials?.extraction ? ['sources'] : []),
       ...(state.world.publicGovernance ? ['governance'] : []),
-      ...(state.world.capitalAgreements ? ['capital'] : []),
       'rules',
       ...(state.sharedRecords ? ['registers', 'records'] : []),
       ...(state.coordination ? ['programs', 'mandates'] : []),
-      ...(state.coordination?.reactions ? ['reactions'] : []),
       ...(state.resourceControlPolicy ? ['resources'] : []),
-      ...(state.world.serviceEngagements ? ['engagements'] : []),
-      ...(state.world.logistics ? ['freight'] : []),
-      ...(state.world.residentTrade ? ['trades'] : []),
-      ...(state.world.premisesRights ? ['permits'] : []),
       ...(state.world.materials ? ['stocks', 'production'] : []),
       ...(state.world.premises ? ['sites', 'construction', 'premises', 'materials'] : []),
-      ...(state.recordViews ? ['views'] : []),
       ...(state.collectives ? ['collectives'] : []),
       ...(state.world.commonAccounts ? ['funds'] : []),
       'world',
@@ -285,29 +252,10 @@ export function buildOpenResidentContext(
       'files',
       'messages',
       'schedule',
-      ...(state.distribution ? ['subscriptions', 'feed', 'notifications'] : []),
-      ...(state.life
-        ? [
-            'groups',
-            'blocks',
-            'proposals',
-            'commitments',
-            'offers',
-            'orders',
-            'payments',
-            'deposits',
-            'services',
-            'bookings',
-            'queues',
-            'households',
-            'care',
-            'health',
-            'courses',
-            'leases',
-            'housing',
-            'civic',
-          ]
-        : []),
+      ...(state.communication ? ['groups', 'blocks', 'notifications'] : []),
+      ...(state.collaboration ? ['proposals', 'commitments'] : []),
+      ...(state.world.residentCommerce ? ['offers', 'orders', 'payments', 'deposits'] : []),
+      'housing',
     ],
     contract: [
       'Choose your own intentions. You may explore, revise a goal, act, or wait. No candidate action list limits your choices.',
@@ -427,30 +375,6 @@ export function observeResidentWorld(
       const baseRules = residentWorldContext(state, actorId, policies).rules;
       const rules = {
         ...baseRules,
-        ...(state.services
-          ? {
-              services: {
-                policy: state.services.policy,
-                principalPolicy: state.services.principalPolicy ?? null,
-                publicServiceAuthority: !!state.world.publicGovernance?.authority.grant.services,
-                publicCreationAuthority:
-                  !!state.world.publicGovernance?.authority.grant.serviceCreation,
-                ...(state.services.policyTransition
-                  ? {
-                      transition: {
-                        version: state.services.policyTransition.version,
-                        at: state.services.policyTransition.at,
-                        previousVersion: state.services.policyTransition.previousPolicy.version,
-                        retiredServiceCount:
-                          state.services.policyTransition.retiredServiceIds.length,
-                      },
-                    }
-                  : {}),
-                readWith: 'town services list',
-                note: 'Closed legacy services remain history; new provider rules require new offers and personal attendance. No providers or facilities are created by activation.',
-              },
-            }
-          : {}),
         ...(manifest.rhythm ? { living: manifest.rhythm } : {}),
         ...(policies.educationSystem
           ? {

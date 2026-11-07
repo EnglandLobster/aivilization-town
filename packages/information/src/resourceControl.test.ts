@@ -18,8 +18,6 @@ import {
   applySharedRecordsEvent,
   canReadRegister,
 } from './sharedRecords';
-import { emptyRecordViewsState } from './recordViewModel';
-import { decideRecordView, applyRecordViewEvent, evaluateRecordView } from './recordViews';
 import {
   decideInformationResourceControl,
   decideInformationResourceManagement,
@@ -38,7 +36,6 @@ function fixture() {
     information: emptyInformationState(),
     informationPolicy: DEFAULT_INFORMATION_POLICY,
     sharedRecords: emptySharedRecordsState(),
-    recordViews: emptyRecordViewsState(),
   };
   const apply = (e: InformationResourceEffects) => {
     s = {
@@ -48,7 +45,6 @@ function fixture() {
         applySharedRecordsEvent,
         s.sharedRecords!,
       ),
-      recordViews: (e.recordViewEvents ?? []).reduce(applyRecordViewEvent, s.recordViews!),
     };
   };
   for (const command of [
@@ -105,28 +101,6 @@ function fixture() {
   });
   if (!record.accepted) throw Error(record.reason);
   apply({ sharedRecordsEvents: record.events });
-  const view = decideRecordView({
-    state: s.recordViews!,
-    records: s.sharedRecords!,
-    actorId: 'a',
-    at: 0,
-    exists,
-    command: {
-      type: 'views.publish',
-      id: 'v',
-      expectedRevision: 0,
-      title: '自己的算法',
-      visibility: 'private',
-      readers: ['b'],
-      definition: {
-        sourceRegisterId: 'r',
-        select: ['value'],
-        aggregate: { op: 'sum', field: 'value' },
-      },
-    },
-  });
-  if (!view.accepted) throw Error(view.reason);
-  apply({ recordViewEvents: view.events });
   const control = (
     kind: InformationResourceKind,
     id: string,
@@ -172,7 +146,6 @@ function fixture() {
 test.each([
   ['space', 's'],
   ['register', 'r'],
-  ['view', 'v'],
 ] as const)(
   '%s control changes through its own events and preserves original authorship',
   (kind, id) => {
@@ -272,11 +245,11 @@ test('collective control never implicitly grants private usage to old owners, me
     revision: 2,
   });
 });
-test('settings invalidate pending offers and view revisions preserve actual definition provenance', () => {
+test('changing settings invalidates a pending control offer', () => {
   const t = fixture();
-  t.adopt('view', 'v');
+  t.adopt('space', 's');
   expect(
-    t.control('view', 'v', 'b', {
+    t.control('space', 's', 'b', {
       type: 'offer',
       expectedVersion: 3,
       target: { kind: 'resident', id: 'c' },
@@ -284,17 +257,16 @@ test('settings invalidate pending offers and view revisions preserve actual defi
       terms: '提议',
     }).accepted,
   ).toBe(true);
-  const op = parseInformationResourceOperation('view', {
-    type: 'revise',
-    title: '重新选择算法',
+  const op = parseInformationResourceOperation('space', {
+    type: 'configure',
     visibility: 'private',
-    readers: ['b'],
-    definition: { sourceRegisterId: 'r', select: ['value'], aggregate: { op: 'count' } },
+    posting: 'members',
+    members: ['b'],
   })!;
   const d = decideInformationResourceManagement({
     state: t.state,
-    id: 'v',
-    expectedRevision: 4,
+    id: 's',
+    expectedRevision: getInformationResource(t.state, 'space', 's')!.revision,
     expectedControlVersion: 4,
     actorId: 'b',
     at: 20,
@@ -304,36 +276,9 @@ test('settings invalidate pending offers and view revisions preserve actual defi
   });
   if (!d.accepted) throw Error(d.reason);
   t.apply(d.effects);
-  expect(t.state.recordViews!.views.v).toMatchObject({
-    ownerId: 'a',
-    definedBy: 'b',
-    definitionDecisionId: 'decision',
-    control: { version: 5 },
-  });
-  expect(t.state.recordViews!.views.v!.control).not.toHaveProperty('offer');
-  expect(t.control('view', 'v', 'c', { type: 'accept', expectedVersion: 5 }).accepted).toBe(false);
-  const result = evaluateRecordView({
-    state: t.state.recordViews!,
-    records: t.state.sharedRecords!,
-    actorId: 'b',
-    id: 'v',
-    expectedRevision: 5,
-    offset: 0,
-    limit: 1,
-  });
-  expect(result).toMatchObject({
-    accepted: true,
-    result: { authorId: 'b', aggregate: { value: 1 } },
-  });
-  const forged = decideRecordView({
-    state: t.state.recordViews!,
-    records: t.state.sharedRecords!,
-    actorId: 'a',
-    at: 30,
-    exists,
-    command: { type: 'views.disable', id: 'v', expectedRevision: 5 },
-  });
-  expect(forged.accepted).toBe(false);
+  expect(t.state.information.spaces.s!.control).toMatchObject({ version: 5 });
+  expect(t.state.information.spaces.s!.control).not.toHaveProperty('offer');
+  expect(t.control('space', 's', 'c', { type: 'accept', expectedVersion: 5 }).accepted).toBe(false);
 });
 test('closed administrative operations do not admit balance, membership or author rewrites', () => {
   for (const op of [

@@ -42,33 +42,8 @@ export function premisesAuthorization(
   return {
     authorize,
     controlAvailable: (c) => controllerAvailable(s, c),
-    additionalObligations: (id) => {
-      const location = s.world.premises?.buildings[id]?.locationId;
-      if (!location || !s.services) return false;
-      const serviceIds = new Set(
-        Object.values(s.services.services)
-          .filter((v) => v.locationId === location)
-          .map((v) => v.id),
-      );
-      const slotIds = new Set(
-        Object.values(s.services.slots)
-          .filter((v) => serviceIds.has(v.serviceId))
-          .map((v) => v.id),
-      );
-      return (
-        Object.values(s.services.services).some((v) => serviceIds.has(v.id) && v.active) ||
-        Object.values(s.services.slots).some(
-          (v) => slotIds.has(v.id) && v.active && v.end > s.world.clock.now,
-        ) ||
-        Object.values(s.services.bookings).some(
-          (v) =>
-            slotIds.has(v.slotId) && ['requested', 'accepted', 'checked-in'].includes(v.status),
-        ) ||
-        Object.values(s.services.queues).some(
-          (v) => serviceIds.has(v.serviceId) && v.status === 'waiting',
-        )
-      );
-    },
+    // Other mechanisms used to hold buildings open (scheduled services); none remain.
+    additionalObligations: () => false,
   };
 }
 const metadata = (b: PremisesBuilding) => ({

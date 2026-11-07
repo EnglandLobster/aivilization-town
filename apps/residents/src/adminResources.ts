@@ -20,33 +20,13 @@ function sections(s: State): Readonly<Record<string, Section>> {
     sites: { title: '建设用地', statePath: 'premises', records: w.premises?.sites },
     construction: { title: '建设工程', statePath: 'premises', records: w.premises?.projects },
     buildings: { title: '实体建筑', statePath: 'premises', records: w.premises?.buildings },
-    permits: {
-      title: '空间使用许可',
-      statePath: 'premisesRights',
-      records: w.premisesRights?.permits,
-    },
-    directory: { title: '居民服务目录', statePath: 'services', records: s.services?.services },
-    engagements: {
-      title: '实际服务约定',
-      statePath: 'serviceEngagements',
-      records: w.serviceEngagements?.engagements,
-    },
     study: {
       title: '实际学习',
       statePath: 'residentStudy.process',
       records: w.residentStudy?.process.sessions,
     },
     rest: { title: '实际休息', statePath: 'residentRest', records: w.residentRest?.sessions },
-    freight: { title: '货运约定', statePath: 'logistics', records: w.logistics?.freight },
-    vehicles: {
-      title: '车辆',
-      statePath: 'residentMobility',
-      records: w.residentMobility?.vehicles,
-    },
-    rides: { title: '共同行程', statePath: 'residentMobility', records: w.residentMobility?.rides },
     transit: { title: '在途居民', statePath: 'world.transitByAgent', records: w.transitByAgent },
-    orders: { title: '事实订单', statePath: 'residentTrade', records: w.residentTrade?.orders },
-    sales: { title: '有偿资源交接', statePath: 'resourceSales', records: w.resourceSales?.sales },
     enterprises: { title: '企业', statePath: 'enterprise', records: w.enterprises },
   };
 }

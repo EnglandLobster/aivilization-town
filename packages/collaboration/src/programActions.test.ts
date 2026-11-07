@@ -87,15 +87,7 @@ test('resource actions admit only exact supported control transitions and cannot
     expect(parse({ ...definition, steps: [{ ...steps[0], capability }] })).toBeUndefined();
 });
 test('each supported resource retains exact domain identity, original terms and finite revisions', () => {
-  for (const resourceKind of [
-    'premises',
-    'stock',
-    'space',
-    'register',
-    'view',
-    'group',
-    'service',
-  ]) {
+  for (const resourceKind of ['premises', 'stock', 'space', 'register', 'group']) {
     const value = { ...action, resourceKind };
     expect(parseProgramResourceControl(value, PROGRAM_ACTIONS_POLICY)).toEqual(value);
   }
@@ -151,12 +143,7 @@ test('explicit action activation preserves legacy programs and denies forged res
   expect(committed.programs.exchange!.actionPolicyVersion).toBe(PROGRAM_ACTIONS_POLICY.version);
 });
 test('both resource seller and payer independently mandate the exact version, with revocation and one-use consumption', () => {
-  let state = emptyCoordinationState(
-    COORDINATION_POLICY,
-    undefined,
-    undefined,
-    PROGRAM_ACTIONS_POLICY,
-  );
+  let state = emptyCoordinationState(COORDINATION_POLICY, undefined, PROGRAM_ACTIONS_POLICY);
   const decide = (
     actorId: string,
     command: Parameters<typeof decideCoordination>[0]['command'],
@@ -282,12 +269,7 @@ test('v3 explicitly adds enterprise control and preserves old v2 program semanti
   const value = { ...action, resourceKind: 'enterprise' };
   expect(parseProgramResourceControl(value, PROGRAM_ACTIONS_POLICY)).toBeUndefined();
   expect(parseProgramResourceControl(value, ENTERPRISE_PROGRAM_ACTIONS_POLICY)).toEqual(value);
-  let state = emptyCoordinationState(
-    COORDINATION_POLICY,
-    undefined,
-    undefined,
-    PROGRAM_ACTIONS_POLICY,
-  );
+  let state = emptyCoordinationState(COORDINATION_POLICY, undefined, PROGRAM_ACTIONS_POLICY);
   const d = decideCoordination({
     state,
     actorId: 'seller',

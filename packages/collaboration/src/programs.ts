@@ -9,7 +9,6 @@ export {
   prepareProgramStepAuthority,
   assertProgramExecutionAuthority,
 } from './programAuthorization';
-import { applyProgramReactionEvent } from './reactions';
 import { assertProgramConditionsPolicy } from './conditionModel';
 import {
   canReadProgram,
@@ -323,14 +322,6 @@ export function applyCoordinationEvent(
     if (s.conditionsPolicy) throw new Error('program-conditions-already-enabled');
     assertProgramConditionsPolicy(e.policy);
     return { ...s, conditionsPolicy: e.policy };
-  }
-  if (
-    e.type === 'ProgramReactionsEnabled' ||
-    e.type === 'ProgramWatchChanged' ||
-    e.type === 'ProgramReactionChanged'
-  ) {
-    if (!s.conditionsPolicy) throw new Error('reaction-conditions-required');
-    return { ...s, reactions: applyProgramReactionEvent(s.reactions, e) };
   }
   if (e.type === 'ResidentProgramChanged') {
     const p = e.program;

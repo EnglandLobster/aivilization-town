@@ -1,52 +1,23 @@
+import { assertTownConsistency } from './townConsistency';
 import { messageWakeAt, residentBusyUntil } from './attention';
 import { plannableCapabilities, resolveActionPlanArguments } from './actionPlans';
-import { assertPeriodicAccessState } from '@aivilization/world';
-import { assertResourceAdapterState } from '@aivilization/world';
 import { advanceResidentConstructionTrade } from '@aivilization/world';
-import {
-  CONSTRUCTION_TRADE_POLICY,
-  nextConstructionTradeBoundary,
-  tradeFactsEqual,
-} from '@aivilization/commerce';
-import { assertResourceSalesPolicy } from '@aivilization/commerce';
+import { nextConstructionTradeBoundary } from '@aivilization/commerce';
 import { nextPeriodicBoundary } from '@aivilization/world';
-import { assertPeriodicObligationsState } from '@aivilization/commerce';
 import { advanceResourceSales } from '@aivilization/world';
-import { assertPhysicalHousingRestPolicy } from '@aivilization/society';
-import { assertServiceSupplyRelationPolicy } from '@aivilization/services';
-import { assertServiceAffiliationPolicy } from '@aivilization/services';
-import { assertServiceSupplyPolicy } from '@aivilization/services';
-import { assertServicePrincipalsPolicy } from '@aivilization/services';
 import { advanceResidentPrincipalEvidenceTrade } from '@aivilization/world';
-import { assertPrincipalTradePolicy, nextPrincipalTradeBoundary } from '@aivilization/commerce';
+import { nextPrincipalTradeBoundary } from '@aivilization/commerce';
 import { executeResourcePrincipalTool } from './resourcePrincipalTools';
-import { assertResourcePrincipalPolicy } from '@aivilization/authority';
 import { executeHousingOccupancyTool } from './housingOccupancyTools';
-import { assertHousingOccupancyState } from '@aivilization/society';
-import { assertPublicHousingState } from '@aivilization/society';
 import { executeHousingChoiceTool } from './housingChoiceTools';
-import { assertHousingChoiceState } from '@aivilization/society';
-import { CAPITAL_AGREEMENTS_POLICY, assertEnterpriseCapitalState } from '@aivilization/enterprise';
-import { assertPublicEmploymentState } from '@aivilization/society';
-import { assertResidentExtractionCompatibility } from '@aivilization/world';
-import { MATERIAL_EXTRACTION_POLICY } from '@aivilization/materials';
-import { assertPremisesRightsPolicy, nextPremisesRightsBoundary } from '@aivilization/premises';
+import { nextPremisesRightsBoundary } from '@aivilization/premises';
 import {
-  assertResidentStudyConfiguration,
-  assertServiceTimePolicy,
-  assertEducationAuthorityState,
-  assertResidentLaborConfiguration,
-  assertResidentRestTimeCompatibility,
   advanceResidentPremisesRights,
   settleResidentPremisesProvisions,
 } from '@aivilization/world';
-import {
-  TRADE_PUBLIC_FUNDING_POLICY,
-  assertEvidenceTradePolicy,
-  nextEvidenceTradeBoundary,
-} from '@aivilization/commerce';
+import { nextEvidenceTradeBoundary } from '@aivilization/commerce';
 import { advanceResidentEvidenceTrade } from '@aivilization/world';
-import { nextLogisticsBoundary, assertLogisticsPolicy } from '@aivilization/logistics';
+import { nextLogisticsBoundary } from '@aivilization/logistics';
 import { advanceResidentLogistics } from '@aivilization/world';
 
 import { nextServiceEngagementBoundary } from '@aivilization/services';
@@ -61,11 +32,10 @@ import {
 import { nextMaterialBoundary } from '@aivilization/materials';
 import { executeMaterialTool, advanceOpenMaterials } from './materialTools';
 import { executeResourceControlTool } from './resourceControlTools';
-import { nextReactionBoundary } from '@aivilization/collaboration';
 import { executeCommonAccountTool } from './commonAccountTools';
 import { nextCollectiveBoundary, advanceCollectives } from '@aivilization/collaboration';
 import { executeCollectiveTool } from './collectiveTools';
-import { nextMobilityBoundary, validateMobilityPolicy } from '@aivilization/mobility';
+import { nextMobilityBoundary } from '@aivilization/mobility';
 import { nextProgramBoundary, programAdvanceWithinBudget } from '@aivilization/collaboration';
 import { executeCoordinationTool } from './coordinationTools';
 import { executeSharedRecordTool } from './sharedRecordTools';
@@ -78,12 +48,9 @@ import {
 } from './capabilityBoundaries';
 import { advanceResidentMobility } from '@aivilization/world';
 import { experiencePeople, readingExperiences, ORIGINAL_READS } from './readingExperiences';
-import { RESIDENT_LIFE_POLICIES } from './lifeState';
 import type { WorldEvent } from '@aivilization/world';
-import { advanceCare, assertResidentRestPolicy } from '@aivilization/society';
 import { nextResidentLeaseBoundary, advanceResidentLeases } from '@aivilization/world';
 import { executeLifeTool } from './lifeTools';
-import { advanceServices, personalServiceAdministrator } from '@aivilization/services';
 import { executeCommerceTool } from './commerceTools';
 import { expireProposals } from '@aivilization/collaboration';
 import { executeCollaborationTool } from './collaborationTools';
@@ -137,221 +104,11 @@ export class OpenSocietyRuntime {
       ) {
         throw new Error('world-policy-version-mismatch');
       }
-      if (this.state.world.materials?.extraction) {
-        assertResidentExtractionCompatibility(this.state.world, this.policies());
-        if (!publicEqual(this.state.world.materials.extraction.policy, MATERIAL_EXTRACTION_POLICY))
-          throw Error('unsupported-material-extraction-policy');
-      }
-      if (
-        this.state.world.residentTrade?.publicFunding &&
-        !publicEqual(this.state.world.residentTrade.publicFunding, TRADE_PUBLIC_FUNDING_POLICY)
-      )
-        throw Error('unsupported-trade-public-funding-policy');
-      if (
-        !!this.state.world.publicGovernance?.authority.grant.goodsProcurement !==
-        !!this.state.world.residentTrade?.publicFunding
-      )
-        throw Error('inconsistent-public-goods-procurement-state');
-      if (
-        this.state.world.serviceEngagements?.publicFunding &&
-        !publicEqual(
-          this.state.world.serviceEngagements.publicFunding,
-          SERVICE_PUBLIC_FUNDING_POLICY,
-        )
-      )
-        throw Error('unsupported-service-public-funding-policy');
-      if (
-        !!this.state.world.publicGovernance?.authority.grant.procurement !==
-        !!this.state.world.serviceEngagements?.publicFunding
-      )
-        throw Error('inconsistent-public-procurement-state');
-      if (
-        !!this.state.world.publicEmployment !==
-        !!this.state.world.publicGovernance?.authority.grant.employment
-      )
-        throw Error('inconsistent-public-employment-state');
-      if (this.state.world.publicEmployment)
-        assertPublicEmploymentState(this.state.world.publicEmployment);
-      if (
-        this.state.world.capitalAgreements &&
-        !publicEqual(this.state.world.capitalAgreements.policy, CAPITAL_AGREEMENTS_POLICY)
-      )
-        throw Error('unsupported-capital-agreements-policy');
-      for (const e of Object.values(this.state.world.enterprises))
-        if (e.capital) {
-          if (!this.state.world.capitalAgreements)
-            throw Error('enterprise-capital-policy-required');
-          assertEnterpriseCapitalState(e.capital);
-        }
-      if (
-        !!this.state.world.publicHousing !==
-        !!this.state.world.publicGovernance?.authority.grant.housing
-      )
-        throw Error('inconsistent-public-housing-state');
-      if (this.state.world.publicHousing) {
-        if (!this.state.world.housingChoice) throw Error('public-housing-requires-housing-choice');
-        assertPublicHousingState(this.state.world.publicHousing);
-      }
-      if (
-        !this.state.world.resourceAdapters?.kinds.includes('stock') &&
-        !!this.state.world.materials?.resourcePrincipals !==
-          !!this.state.world.publicGovernance?.authority.grant.resourceCustody
-      )
-        throw Error('inconsistent-resource-principals-state');
-      if (
-        !this.state.world.resourceAdapters?.kinds.includes('premises') &&
-        !!this.state.world.premises?.resourcePrincipals !==
-          !!this.state.world.publicGovernance?.authority.grant.construction
-      )
-        throw Error('inconsistent-premises-principals-state');
-      if (
-        !this.state.world.resourceAdapters &&
-        !!this.state.world.resourceSales !==
-          !!this.state.world.publicGovernance?.authority.grant.resourceSales
-      )
-        throw Error('inconsistent-resource-sales-state');
-      if (
-        !this.state.world.periodicAccess &&
-        !!this.state.world.periodicObligations !==
-          !!this.state.world.publicGovernance?.authority.grant.periodicObligations
-      )
-        throw Error('inconsistent-periodic-obligations-state');
-      if (this.state.world.periodicObligations)
-        assertPeriodicObligationsState(this.state.world.periodicObligations);
-      assertResourceAdapterState(this.state.world);
-      assertPeriodicAccessState(this.state.world);
-      if (this.state.world.resourceSales) {
-        assertResourceSalesPolicy(this.state.world.resourceSales.policy);
-        const v2 = this.state.world.resourceSales.policy.version === 'resident-resource-sales-v2';
-        if (
-          !this.state.world.resourceAdapters &&
-          (this.state.world.publicGovernance?.authority.grant.resourceSales?.version !==
-            (v2 ? 'public-paid-resource-control-v2' : 'public-paid-resource-control-v1') ||
-            (v2 && !this.state.world.residentMobility?.principalPolicy))
-        )
-          throw Error('inconsistent-resource-sales-scope-version');
-      }
-      if (
-        !this.state.world.resourceAdapters?.kinds.includes('premises') &&
-        this.state.world.premises?.resourcePrincipals &&
-        !this.state.world.materials?.resourcePrincipals
-      )
-        throw Error('premises-principals-require-material-principals');
-      if (
-        !!this.state.world.premisesRights?.principalPolicy !==
-        !!this.state.world.publicGovernance?.authority.grant.principalPermits
-      )
-        throw Error('inconsistent-principal-permits-state');
-      if (
-        !this.state.world.resourceAdapters?.kinds.includes('vehicle') &&
-        !!this.state.world.residentMobility?.principalPolicy !==
-          !!this.state.world.publicGovernance?.authority.grant.vehicles
-      )
-        throw Error('inconsistent-vehicle-principals-state');
-      if (
-        this.state.services?.principalPolicy?.version !== 'resident-service-principals-v3' &&
-        !!this.state.services?.principalPolicy !==
-          !!this.state.world.publicGovernance?.authority.grant.services
-      )
-        throw Error('inconsistent-service-principals-state');
-      if (this.state.services?.principalPolicy)
-        assertServicePrincipalsPolicy(this.state.services.principalPolicy);
-      if (
-        (this.state.services?.principalPolicy?.version !== 'resident-service-principals-v3' &&
-          !!this.state.services?.registration !==
-            !!this.state.world.publicGovernance?.authority.grant.serviceCreation) ||
-        (!!this.state.world.publicGovernance?.authority.grant.serviceCreation &&
-          !this.state.services?.registration)
-      )
-        throw Error('inconsistent-service-supply-state');
-      if (this.state.services?.registration)
-        assertServiceSupplyPolicy(this.state.services.registration.policy);
-      if (this.state.services?.relationPolicy) {
-        if (!this.state.services.affiliations)
-          throw Error('inconsistent-service-supply-relations-state');
-        assertServiceSupplyRelationPolicy(this.state.services.relationPolicy);
-      }
-      if (this.state.services?.affiliations) {
-        if (!this.state.services.registration || !this.state.services.principalPolicy)
-          throw Error('inconsistent-service-affiliations-state');
-        assertServiceAffiliationPolicy(this.state.services.affiliations.policy);
-      }
-      const constructionTrade = this.state.world.residentTrade?.constructionOrders;
-      if (
-        (constructionTrade &&
-          !tradeFactsEqual(constructionTrade.policy, CONSTRUCTION_TRADE_POLICY)) ||
-        !!constructionTrade !==
-          !!this.state.world.publicGovernance?.authority.grant.constructionTrade
-      )
-        throw Error('construction-trade-authority-migration-mismatch');
-      if (this.state.world.residentTrade?.principalOrders)
-        assertPrincipalTradePolicy(this.state.world.residentTrade.principalOrders.policy);
-      if (
-        !!this.state.world.residentTrade?.principalOrders !==
-        !!this.state.world.publicGovernance?.authority.grant.principalTrade
-      )
-        throw Error('principal-trade-authority-migration-mismatch');
-
-      if (
-        this.state.world.premisesRights?.principalPolicy &&
-        !this.state.world.premises?.resourcePrincipals
-      )
-        throw Error('principal-permits-require-premises-principals');
-      if (this.state.world.materials?.resourcePrincipals)
-        assertResourcePrincipalPolicy(this.state.world.materials.resourcePrincipals);
-      if (this.state.world.physicalHousingRest)
-        assertPhysicalHousingRestPolicy(this.state.world.physicalHousingRest);
-      if (this.state.world.housingOccupancy)
-        assertHousingOccupancyState(this.state.world.housingOccupancy);
-      if (this.state.world.housingChoice) assertHousingChoiceState(this.state.world.housingChoice);
-      const publicGov = this.state.world.publicGovernance;
-      if (publicGov) {
-        if (!publicEqual(publicGov.authority.policy, PUBLIC_GOVERNANCE_POLICY))
-          throw Error('unsupported-public-governance-policy');
-        assertPublicGrant(publicGov.authority.grant);
-        assertPublicProcedure(publicGov.authority.procedure, publicGov.authority.grant);
-        assertValidTownGovernancePolicy(publicGov.institutionPolicy);
-        if (
-          !!publicGov.authority.grant.procurement !==
-            !!this.state.world.serviceEngagements?.publicFunding ||
-          (publicGov.authority.grant.procurement &&
-            this.state.world.governance?.publicBudget?.allocations.length)
-        )
-          throw Error('inconsistent-public-procurement-state');
-      }
-      assertEducationAuthorityState(this.state.world);
-      assertServiceTimePolicy(this.state.world, this.policies());
-      if (this.state.world.residentRest) {
-        assertResidentRestPolicy(this.state.world.residentRest.policy);
-        assertResidentRestTimeCompatibility(this.policies());
-      }
-      if (this.state.world.residentStudy)
-        assertResidentStudyConfiguration(
-          this.state.world,
-          this.state.world.residentStudy.configuration,
-        );
-      if (this.state.world.residentLabor)
-        assertResidentLaborConfiguration(
-          this.state.world,
-          this.state.world.residentLabor.configuration,
-        );
-      if (this.manifest.initialWorld.premisesRights)
-        assertPremisesRightsPolicy(this.manifest.initialWorld.premisesRights.policy);
-      if (this.manifest.initialWorld.residentTrade)
-        assertEvidenceTradePolicy(this.manifest.initialWorld.residentTrade.policy);
-      if (this.manifest.initialWorld.logistics)
-        assertLogisticsPolicy(this.manifest.initialWorld.logistics.policy);
-      if (this.manifest.initialWorld.residentMobility)
-        validateMobilityPolicy(this.manifest.initialWorld.residentMobility.policy);
+      assertTownConsistency(this.state.world, this.manifest, this.policies());
       if (
         !['resident-cognition-v1', 'resident-cognition-v2'].includes(this.manifest.cognitionVersion)
       )
         throw new Error('unsupported-cognition-version');
-      if (
-        this.manifest.lifePolicies &&
-        digest(this.manifest.lifePolicies) !== digest(RESIDENT_LIFE_POLICIES)
-      )
-        throw new Error('resident-life-policy-mismatch');
       if (this.manifest.provenance.cityApps !== undefined) {
         if (this.manifest.provenance.cityApps !== CITY_APPS_VERSION)
           throw new Error('unsupported-city-apps-version');
@@ -1159,7 +916,6 @@ export class OpenSocietyRuntime {
         nextOpenPremisesBoundary(working) ?? target,
         nextMobilityBoundary(working.world.residentMobility, working.world.clock.now) ?? target,
         nextProgramBoundary(working.coordination) ?? target,
-        nextReactionBoundary(working.coordination?.reactions) ?? target,
         nextCollectiveBoundary(working.collectives) ?? target,
       );
       if (until > working.world.clock.now) {
@@ -1333,32 +1089,6 @@ export class OpenSocietyRuntime {
         provenance: 'firsthand',
       });
     }
-    const serviceEvents = next.services ? advanceServices(next.services, next.world.clock.now) : [];
-    for (const event of serviceEvents) {
-      if (event.type !== 'BookingChanged') continue;
-      const booking = event.booking;
-      const slot = next.services!.slots[booking.slotId]!;
-      const service = next.services!.services[slot.serviceId]!;
-      const administrator = personalServiceAdministrator(service);
-      const people = [...new Set([booking.residentId, ...(administrator ? [administrator] : [])])];
-      for (const ownerId of people)
-        experiences.push({
-          id: `experience-booking-${booking.id}-${booking.revision}-${ownerId}`,
-          ownerId,
-          at: booking.endedAt ?? slot.end,
-          kind: 'observation',
-          summary: JSON.stringify({
-            kind: 'attendance-ended',
-            booking,
-            serviceId: service.id,
-            locationId: service.locationId,
-          }),
-          sourceIds: [booking.id, slot.id, service.id],
-          people,
-          locationIds: [service.locationId],
-          provenance: 'firsthand',
-        });
-    }
     const advanced = this.journal.commit({
       actorId: 'system',
       requestId,
@@ -1369,8 +1099,6 @@ export class OpenSocietyRuntime {
           ...(next.collaboration
             ? { collaborationEvents: expireProposals(next.collaboration, next.world.clock.now) }
             : {}),
-          ...(next.services ? { servicesEvents: serviceEvents } : {}),
-          ...(next.life ? { careEvents: advanceCare(next.life.care, next.world.clock.now) } : {}),
         }),
         experiences,
         residents: [...residents.values()],
@@ -1484,12 +1212,4 @@ export class OpenSocietyRuntime {
     });
   }
 }
-import {
-  PUBLIC_GOVERNANCE_POLICY,
-  assertPublicGrant,
-  assertPublicProcedure,
-  publicEqual,
-} from '@aivilization/governance';
-import { assertValidTownGovernancePolicy } from '@aivilization/society';
 import { executePublicGovernanceTool } from './publicGovernanceTools';
-import { SERVICE_PUBLIC_FUNDING_POLICY } from '@aivilization/services';

@@ -1,26 +1,17 @@
 import { canonicalCognitiveExperiences } from './canonicalCognition';
 import { canonicalMemoryExperiences } from './canonicalMemory';
-import { serviceSupplyRelationEventsFromWorld } from '@aivilization/world';
-import { serviceAffiliationEventsFromWorld } from '@aivilization/world';
-import { servicePrincipalEventsFromWorld } from '@aivilization/world';
-import { serviceSupplyEventsFromWorld } from '@aivilization/world';
 import { principalReplayAuthority } from './principalCollectiveAuthority';
 import { applyWorldEventWithPrincipalAuthority } from '@aivilization/world';
 import { assertResourceControlPolicy } from '@aivilization/authority';
 import { applyCollectiveEvent, emptyCollectivesState } from '@aivilization/collaboration';
-import { applyResidentLifeEvents, emptyResidentLifeState } from './lifeState';
 import { applySharedRecordsEvent, emptySharedRecordsState } from '@aivilization/information';
-import { applyRecordViewEvent, emptyRecordViewsState } from '@aivilization/information';
 import { applyCoordinationEvent, emptyCoordinationState } from '@aivilization/collaboration';
-import { applyServicesEvent, emptyServicesState } from '@aivilization/services';
 import { applyCollaborationEvent, emptyCollaborationState } from '@aivilization/collaboration';
 import {
   applyInformationEvent,
   applyCommunicationEvent,
   emptyCommunicationState,
   emptyInformationState,
-  applyDistributionEvent,
-  emptyDistributionState,
 } from '@aivilization/information';
 import { applyCognitiveEvent } from '@aivilization/memory';
 import { applyOrderedProgramEffects } from './programTransactionReplay';
@@ -41,33 +32,19 @@ export function initialOpenSocietyState(manifest: OpenSocietyManifest): OpenSoci
   )
     throw new Error('group-control-requires-communication-and-resource-control');
   if (manifest.resourceControlPolicy) assertResourceControlPolicy(manifest.resourceControlPolicy);
-  if (manifest.programReactionsPolicy && !manifest.programConditionsPolicy)
-    throw new Error('program-reactions-require-conditions');
   if (manifest.programConditionsPolicy && !manifest.societyKernelPolicy)
     throw new Error('program-conditions-require-coordination');
   if (manifest.programActionsPolicy && !manifest.societyKernelPolicy)
     throw new Error('program-actions-require-coordination');
   if (
-    manifest.serviceControlPolicy &&
-    (!manifest.servicesPolicy || !manifest.resourceControlPolicy)
-  )
-    throw Error('service-control-requires-services-and-resource-control');
-  if (manifest.recordViewsPolicy && !manifest.societyKernelPolicy)
-    throw new Error('record-views-require-shared-records');
-  if (
     manifest.societyKernelPolicy &&
     manifest.societyKernelPolicy.version !== 'agent-driven-society-v1'
   )
     throw new Error('unsupported-society-kernel-policy');
-  if (manifest.lifeVersion !== undefined && manifest.lifeVersion !== 'resident-life-v1')
-    throw new Error('unsupported-resident-life-version');
   return {
     ...(manifest.policy.actionPlans ? { actionPlans: manifest.policy.actionPlans } : {}),
     ...(manifest.collectivesPolicy
       ? { collectives: emptyCollectivesState(manifest.collectivesPolicy) }
-      : {}),
-    ...(manifest.recordViewsPolicy
-      ? { recordViews: emptyRecordViewsState(manifest.recordViewsPolicy) }
       : {}),
     ...(manifest.societyKernelPolicy
       ? {
@@ -75,7 +52,6 @@ export function initialOpenSocietyState(manifest: OpenSocietyManifest): OpenSoci
           coordination: emptyCoordinationState(
             manifest.societyKernelPolicy.coordination,
             manifest.programConditionsPolicy,
-            manifest.programReactionsPolicy,
             manifest.programActionsPolicy,
           ),
         }
@@ -87,9 +63,6 @@ export function initialOpenSocietyState(manifest: OpenSocietyManifest): OpenSoci
     ...(manifest.resourceControlPolicy
       ? { resourceControlPolicy: manifest.resourceControlPolicy }
       : {}),
-    ...(manifest.distributionPolicy === undefined
-      ? {}
-      : { distribution: emptyDistributionState(manifest.distributionPolicy) }),
     ...(manifest.communicationPolicy
       ? {
           communication: emptyCommunicationState(
@@ -101,12 +74,6 @@ export function initialOpenSocietyState(manifest: OpenSocietyManifest): OpenSoci
     ...(manifest.collaborationPolicy
       ? { collaboration: emptyCollaborationState(manifest.collaborationPolicy) }
       : {}),
-    ...(manifest.servicesPolicy
-      ? {
-          services: createInitialServiceDirectory(manifest),
-        }
-      : {}),
-    ...(manifest.lifeVersion ? { life: emptyResidentLifeState() } : {}),
     cognition: {},
     experiences: Object.fromEntries(
       manifest.residents
@@ -137,9 +104,6 @@ export function applyOpenSocietyEffects(
   effects: OpenSocietyEffects,
 ): OpenSocietyState {
   if (effects.effectOrder !== undefined) {
-    // Domain enablement is a separate explicit migration, never a delegated program step.
-    if (effects.resourceControlEnabled || effects.lifeEnabled)
-      throw Error('ordered-effects-cannot-enable-domains');
     const working = applyOrderedProgramEffects(state, effects, applyUnorderedSocietyEffects);
     // UI and cognitive delivery metadata follows the complete atomic domain transition.
     return applyOpenSocietyEffects(working, {
@@ -168,56 +132,10 @@ function applyUnorderedSocietyEffects(
 ): OpenSocietyState {
   let world = state.world;
   const principalAuthority = principalReplayAuthority(state, effects);
-  let serviceDirectory = state.services;
-  if (
-    effects.servicesEvents?.some((e) =>
-      [
-        'ServicePrincipalsEnabled',
-        'ServicePrincipalAuthoritySeparated',
-        'ServicePrincipalControlChanged',
-        'ServicePrincipalOperationCommitted',
-        'ServiceAffiliationsEnabled',
-        'ServiceAffiliationConsentApproved',
-        'ServiceAffiliationConsentRevoked',
-        'ServiceAffiliatedPrincipalControlChanged',
-        'ServiceSupplyRelationsEnabled',
-        'ServiceSupplyRelationChanged',
-        'ServiceSupplyPrincipalControlChanged',
-        'ServiceSupplyEnabled',
-        'PrincipalServiceCreated',
-        'PrincipalServiceReopened',
-      ].includes(e.type),
-    )
-  )
-    throw Error('service-principal-world-envelope-required');
-  if (
-    effects.servicesEvents?.length &&
-    effects.worldEvents?.some(
-      (e) =>
-        servicePrincipalEventsFromWorld(e).length ||
-        serviceSupplyEventsFromWorld(e).length ||
-        serviceAffiliationEventsFromWorld(e).length ||
-        serviceSupplyRelationEventsFromWorld(e).length,
-    )
-  )
-    throw Error('service-principal-duplicate-effect-channel');
   let worldSequence = state.worldSequence;
   for (const event of effects.worldEvents ?? []) {
     if (event.sequence !== worldSequence + 1) throw new Error('world-event-sequence-gap');
-    world = applyWorldEventWithPrincipalAuthority(
-      world,
-      event,
-      principalAuthority,
-      serviceDirectory,
-    );
-    for (const e of servicePrincipalEventsFromWorld(event))
-      serviceDirectory = applyServicesEvent(serviceDirectory, e);
-    for (const e of serviceSupplyRelationEventsFromWorld(event))
-      serviceDirectory = applyServicesEvent(serviceDirectory, e);
-    for (const e of serviceAffiliationEventsFromWorld(event))
-      serviceDirectory = applyServicesEvent(serviceDirectory, e);
-    for (const e of serviceSupplyEventsFromWorld(event))
-      serviceDirectory = applyServicesEvent(serviceDirectory, e);
+    world = applyWorldEventWithPrincipalAuthority(world, event, principalAuthority);
     worldSequence = event.sequence;
   }
   const information = (effects.informationEvents ?? []).reduce(
@@ -229,9 +147,6 @@ function applyUnorderedSocietyEffects(
     collectives = applyCollectiveEvent(collectives, event);
   let collaboration = state.collaboration;
   let sharedRecords = state.sharedRecords;
-  let recordViews = state.recordViews;
-  for (const event of effects.recordViewEvents ?? [])
-    recordViews = applyRecordViewEvent(recordViews, event);
   for (const event of effects.sharedRecordsEvents ?? [])
     sharedRecords = applySharedRecordsEvent(sharedRecords, event);
   let coordination = state.coordination;
@@ -239,44 +154,27 @@ function applyUnorderedSocietyEffects(
     coordination = applyCoordinationEvent(coordination, event);
   for (const event of effects.collaborationEvents ?? [])
     collaboration = applyCollaborationEvent(collaboration, event);
-  const life = applyResidentLifeEvents(state.life, effects);
-  let services = serviceDirectory;
-  for (const event of effects.servicesEvents ?? []) services = applyServicesEvent(services, event);
   let communication = state.communication;
   for (const event of effects.communicationEvents ?? [])
     communication = applyCommunicationEvent(communication, event);
-  let distribution = state.distribution;
-  for (const event of effects.distributionEvents ?? [])
-    distribution = applyDistributionEvent(distribution, event);
   const cognition = { ...state.cognition };
   for (const event of effects.cognitiveEvents ?? [])
     cognition[event.entry.ownerId] = applyCognitiveEvent(
       cognition[event.entry.ownerId] ?? {},
       event,
     );
-  if (effects.resourceControlEnabled) {
-    if (state.resourceControlPolicy) throw new Error('resource-control-already-enabled');
-    assertResourceControlPolicy(effects.resourceControlEnabled);
-  }
   const experiences = appendExperiences(state.experiences, effects.experiences ?? []);
   return {
     ...state,
-    ...(effects.resourceControlEnabled
-      ? { resourceControlPolicy: effects.resourceControlEnabled }
-      : {}),
     ...(effects.cityApps === undefined ? {} : { cityApps: effects.cityApps }),
     world,
     worldSequence,
     information,
-    ...(distribution === undefined ? {} : { distribution }),
     ...(communication ? { communication } : {}),
     ...(collaboration ? { collaboration } : {}),
     ...(collectives ? { collectives } : {}),
     ...(sharedRecords ? { sharedRecords } : {}),
-    ...(recordViews ? { recordViews } : {}),
     ...(coordination ? { coordination } : {}),
-    ...(services ? { services } : {}),
-    ...(life ? { life } : {}),
     cognition,
     experiences,
     residents: upsert(state.residents, effects.residents, (resident) => resident.actorId),
@@ -357,28 +255,4 @@ export function applyOpenSocietyCommit(
 ): OpenSocietyState {
   if (commit.sequence !== state.revision + 1) throw new Error('journal-sequence-gap');
   return { ...applyOpenSocietyEffects(state, commit), revision: commit.sequence };
-}
-
-function createInitialServiceDirectory(m: OpenSocietyManifest) {
-  let s = emptyServicesState(m.servicesPolicy);
-  if (m.serviceControlPolicy)
-    s = applyServicesEvent(s, { type: 'ServiceControlEnabled', policy: m.serviceControlPolicy });
-  if (m.servicePrincipalPolicy)
-    s = applyServicesEvent(s, {
-      type: 'ServicePrincipalsEnabled',
-      policy: m.servicePrincipalPolicy,
-    });
-  if (m.serviceSupplyPolicy)
-    s = applyServicesEvent(s, { type: 'ServiceSupplyEnabled', policy: m.serviceSupplyPolicy });
-  if (m.serviceAffiliationPolicy)
-    s = applyServicesEvent(s, {
-      type: 'ServiceAffiliationsEnabled',
-      policy: m.serviceAffiliationPolicy,
-    });
-  if (m.serviceSupplyRelationPolicy)
-    s = applyServicesEvent(s, {
-      type: 'ServiceSupplyRelationsEnabled',
-      policy: m.serviceSupplyRelationPolicy,
-    });
-  return s;
 }

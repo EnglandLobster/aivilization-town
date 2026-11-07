@@ -1,10 +1,4 @@
 import {
-  emptyProgramReactions,
-  type ProgramReactionsPolicy,
-  type ProgramReactionsState,
-  type ProgramReactionEvent,
-} from './reactionModel';
-import {
   parseProgramConditions,
   assertProgramConditionsPolicy,
   type ProgramConditionsPolicy,
@@ -87,7 +81,6 @@ export type ProgramSchedule = {
 };
 export type ProgramRun = {
   readonly execution?: ProgramExecutionRecord;
-  readonly reactionId?: string;
   readonly conditionEvidence?: readonly ConditionEvidence[];
   readonly id: string;
   readonly programId: string;
@@ -102,7 +95,6 @@ export type ProgramRun = {
 };
 export type CoordinationState = {
   readonly actionsPolicy?: ProgramActionsPolicy;
-  readonly reactions?: ProgramReactionsState;
   readonly conditionsPolicy?: ProgramConditionsPolicy;
   readonly policy: CoordinationPolicy;
   readonly programs: Readonly<Record<string, ResidentProgram>>;
@@ -112,7 +104,6 @@ export type CoordinationState = {
   readonly runs: Readonly<Record<string, ProgramRun>>;
 };
 export type CoordinationEvent =
-  | ProgramReactionEvent
   | { readonly type: 'ProgramActionsEnabled'; readonly policy: ProgramActionsPolicy }
   | {
       readonly type: 'ProgramActionsUpgraded';
@@ -189,18 +180,15 @@ export function assertCoordinationPolicy(p: CoordinationPolicy) {
 export function emptyCoordinationState(
   policy: CoordinationPolicy = COORDINATION_POLICY,
   conditionsPolicy?: ProgramConditionsPolicy,
-  reactionsPolicy?: ProgramReactionsPolicy,
   actionsPolicy?: ProgramActionsPolicy,
 ): CoordinationState {
   assertCoordinationPolicy(policy);
   if (conditionsPolicy) assertProgramConditionsPolicy(conditionsPolicy);
   if (actionsPolicy) assertProgramActionsPolicy(actionsPolicy);
-  if (reactionsPolicy && !conditionsPolicy) throw new Error('reaction-conditions-required');
   return {
     policy,
     ...(actionsPolicy ? { actionsPolicy } : {}),
     ...(conditionsPolicy ? { conditionsPolicy } : {}),
-    ...(reactionsPolicy ? { reactions: emptyProgramReactions(reactionsPolicy) } : {}),
     programs: {},
     history: {},
     mandates: {},

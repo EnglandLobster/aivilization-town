@@ -83,8 +83,7 @@ const time = (ms) => {
 const project = () => runtime.state.world.premises.projects.p,
   building = () => runtime.state.world.premises.buildings.home;
 try {
-  await cmd(a, 'permits.rules');
-  await cmd(a, 'rules.read', { id: 'premises-use-rights' });
+  await cmd(a, 'rules.read', { id: 'physical-premises' });
   await cmd(a, 'stocks.create', { id: 'materials', title: '实际供料', locationId });
   await cmd(a, 'stocks.deposit', {
     id: 'materials',
@@ -157,12 +156,6 @@ try {
     expectedRevision: 0,
     values: { value: 7 },
   });
-  await cmd(b, 'views.publish', {
-    id: 'view',
-    title: '居民查询',
-    visibility: 'private',
-    definition: { sourceRegisterId: 'register', select: ['value'] },
-  });
   await cmd(b, 'groups.create', { id: 'group', title: '居民群组' });
   await cmd(b, 'groups.invite', { groupId: 'group', residentId: d });
   const startBalances = {
@@ -181,9 +174,7 @@ try {
           ? runtime.state.information.spaces.space
           : kind === 'register'
             ? runtime.state.sharedRecords.registers.register
-            : kind === 'view'
-              ? runtime.state.recordViews.views.view
-              : runtime.state.communication.groups.group;
+            : runtime.state.communication.groups.group;
   async function publish(id, kind, amount) {
     const r = resource(kind),
       version = r.control?.version ?? 1;
@@ -250,7 +241,7 @@ try {
   assert.deepEqual(resource('space'), beforeFailure);
   assert.equal(runtime.state.coordination.mandates[`insufficient-${b}`].usedRuns, 0);
   assert.equal(runtime.state.coordination.mandates[`insufficient-${c}`].usedRuns, 0);
-  for (const kind of ['premises', 'stock', 'space', 'register', 'view', 'group']) {
+  for (const kind of ['premises', 'stock', 'space', 'register', 'group']) {
     const id = `exchange-${kind}`;
     await publish(id, kind, 3);
     await grant(b, id);
@@ -318,7 +309,7 @@ try {
     },
     cliCalls: results.length,
     expectedRefusals: results.filter((r) => r.exitCode !== 0).length,
-    resources: ['premises', 'stock', 'space', 'register', 'view', 'group'],
+    resources: ['premises', 'stock', 'space', 'register', 'group'],
     results,
     actualConstruction: true,
     independentlyMandatedParties: true,

@@ -7,18 +7,13 @@ import {
   type ProgramConditionSource,
   type ResidentProgram,
 } from '@aivilization/collaboration';
-import {
-  canReadRegister,
-  canReadRecordView,
-  evaluateRecordView,
-  sharedRecordKey,
-} from '@aivilization/information';
+import { canReadRegister, sharedRecordKey } from '@aivilization/information';
 import type { OpenSocietyState } from './types';
 const unavailable = (): ConditionRead => ({
   accepted: false,
   reason: 'condition-source-unavailable',
 });
-export function conditionPort(state: OpenSocietyState, readerId: string): ConditionReadPort {
+export function conditionPort(state: OpenSocietyState): ConditionReadPort {
   const commonMember = (accountId: string, actorId: string) => {
     const a = state.world.commonAccounts?.accounts[accountId],
       c = a ? state.collectives?.charters[a.collectiveId] : undefined;
@@ -32,10 +27,6 @@ export function conditionPort(state: OpenSocietyState, readerId: string): Condit
     if (s.kind === 'decision') {
       const d = state.collectives?.decisions[s.decisionId];
       return !!state.collectives && !!d && canReadCollectiveDecision(state.collectives, d, actor);
-    }
-    if (s.kind === 'view') {
-      const v = state.recordViews?.views[s.viewId];
-      return !!v && !!state.sharedRecords && canReadRecordView(v, actor, state.sharedRecords);
     }
     const r = state.sharedRecords?.registers[s.registerId];
     return !!r && canReadRegister(r, actor);
@@ -109,47 +100,6 @@ export function conditionPort(state: OpenSocietyState, readerId: string): Condit
         work: 1,
       };
     }
-    if (s.kind === 'view') {
-      const vs = state.recordViews,
-        records = state.sharedRecords,
-        v = vs?.views[s.viewId];
-      if (!vs || !records || !v || !v.definition.aggregate) return unavailable();
-      const query = evaluateRecordView({
-        state: {
-          ...vs,
-          policy: {
-            ...vs.policy,
-            maxEvaluations: Math.min(vs.policy.maxEvaluations, remainingWork),
-          },
-        },
-        records,
-        actorId: readerId,
-        id: s.viewId,
-        expectedRevision: s.viewRevision,
-        offset: 0,
-        limit: 1,
-      });
-      if (!query.accepted)
-        return {
-          accepted: false,
-          reason: query.reason.includes('budget')
-            ? 'condition-work-budget-exceeded'
-            : 'condition-evaluation-failed',
-        };
-      const value = query.result.aggregate?.value;
-      if (typeof value !== 'number' || !Number.isFinite(value))
-        return { accepted: false, reason: 'condition-evaluation-failed' };
-      return {
-        accepted: true,
-        value,
-        sourceVersions: {
-          viewRevision: query.result.viewRevision,
-          registerRevision: query.result.source.registerRevision,
-          dataRevision: query.result.source.dataRevision,
-        },
-        work: Math.max(1, query.result.scanned + query.result.evaluations),
-      };
-    }
     const records = state.sharedRecords,
       r = records?.records[sharedRecordKey(s.registerId, s.key)],
       register = records?.registers[s.registerId];
@@ -182,6 +132,6 @@ export function checkResidentProgramConditions(state: OpenSocietyState, program:
     conditions: program.conditions,
     policy,
     audiences: [...new Set([program.ownerId, ...program.runners, ...programPrincipals(program)])],
-    port: conditionPort(state, program.ownerId),
+    port: conditionPort(state),
   });
 }

@@ -50,18 +50,12 @@ export const ORIGINAL_READS = new Set([
   'governance.objections',
   'files.read',
   'groups.messages',
-  'feed.read',
-  'notifications.read',
   'records.read',
   'records.history',
   'programs.read',
   'programs.history',
   'programs.runs',
-  'reactions.history',
   'resources.read',
-  'views.read',
-  'views.history',
-  'views.query',
   'collectives.read',
   'collectives.history',
   'collectives.decision',
@@ -71,14 +65,43 @@ export const ORIGINAL_READS = new Set([
   'construction.read',
   'premises.read',
   'materials.read',
-  'engagements.read',
-  'engagements.ledger',
-  'trades.read',
-  'permits.read',
-  'trades.ledger',
-  'freight.read',
-  'freight.ledger',
 ]);
+/** Reads that return a page of originals in `items`; every other read returns one original. */
+const LIST_READS = new Set([
+  'governance.votes',
+  'governance.objections',
+  'groups.messages',
+  'records.history',
+  'programs.history',
+  'programs.runs',
+  'collectives.history',
+  'stocks.ledger',
+  'funds.ledger',
+]);
+/** Ledgers of the resident's own committed effects, as opposed to what someone else wrote. */
+const FIRSTHAND_READS = new Set(['stocks.ledger', 'funds.ledger', 'programs.runs']);
+const PREMISES_READS = new Set(['construction.read', 'premises.read', 'materials.read']);
+function sourceOf(name: string, artifact: Record<string, unknown>): string {
+  if (name.startsWith('governance.'))
+    return `public-original-${digest([name, artifact.id, artifact.revision ?? null, artifact])}`;
+  if (PREMISES_READS.has(name))
+    return `premises-original-${digest([name, artifact.id, artifact.revision ?? null, artifact])}`;
+  if (name === 'stocks.ledger') return `material-receipt-${String(artifact.id)}`;
+  if (name === 'production.read')
+    return `material-production-${digest([artifact.id, artifact.revision])}`;
+  if (name === 'resources.read')
+    return `resource-control-${digest([artifact.kind, artifact.id, artifact.revision])}`;
+  if (name === 'programs.runs') return `program-run-${String(artifact.id)}`;
+  if (name === 'funds.ledger') return `account-receipt-${String(artifact.id)}`;
+  if (name.startsWith('collectives.'))
+    return `collective-${name === 'collectives.decision' ? 'decision' : 'charter'}-${digest([artifact.id, artifact.revision])}`;
+  if (name.startsWith('records.'))
+    return `record-${digest([artifact.registerId, artifact.key, artifact.revision])}`;
+  if (name.startsWith('programs.')) return `program-${digest([artifact.id, artifact.revision])}`;
+  if (name === 'groups.messages') return `group-message-${String(artifact.id)}`;
+  if (name === 'files.read') return `document-${digest([artifact.id, artifact.revision])}`;
+  return `publication-${String(artifact.id)}`;
+}
 /** Record exactly the originals returned by a successful authorized read, once per version. */
 export function readingExperiences(
   state: OpenSocietyState,
@@ -88,79 +111,22 @@ export function readingExperiences(
 ): ResidentExperience[] {
   if (!ORIGINAL_READS.has(name)) return [];
   const result = record(data);
-  const artifacts =
-    name === 'governance.votes' ||
-    name === 'governance.objections' ||
-    name === 'groups.messages' ||
-    name === 'records.history' ||
-    name === 'programs.history' ||
-    name === 'programs.runs' ||
-    name === 'reactions.history' ||
-    name === 'views.history' ||
-    name === 'collectives.history' ||
-    name === 'stocks.ledger' ||
-    name === 'engagements.ledger' ||
-    name === 'freight.ledger' ||
-    name === 'trades.ledger' ||
-    name === 'funds.ledger'
-      ? Array.isArray(result.items)
-        ? result.items.map(record)
-        : []
-      : [result];
+  const artifacts = LIST_READS.has(name)
+    ? Array.isArray(result.items)
+      ? result.items.map(record)
+      : []
+    : [result];
   const added = new Set<string>();
   return artifacts.flatMap((artifact) => {
-    const document =
-      name === 'feed.read' || name === 'notifications.read' ? record(artifact.original) : artifact;
-    const source = name.startsWith('governance.')
-      ? `public-original-${digest([name, artifact.id, artifact.revision ?? null, artifact])}`
-      : [
-            'construction.read',
-            'premises.read',
-            'materials.read',
-            'engagements.read',
-            'engagements.ledger',
-            'trades.read',
-            'permits.read',
-            'trades.ledger',
-            'freight.read',
-            'freight.ledger',
-          ].includes(name)
-        ? `premises-original-${digest([name, artifact.id, artifact.revision ?? null, artifact])}`
-        : name === 'stocks.ledger'
-          ? `material-receipt-${String(artifact.id)}`
-          : name === 'production.read'
-            ? `material-production-${digest([artifact.id, artifact.revision])}`
-            : name === 'resources.read'
-              ? `resource-control-${digest([artifact.kind, artifact.id, artifact.revision])}`
-              : name === 'reactions.history'
-                ? `reaction-${digest([artifact.id, artifact.revision])}`
-                : name === 'programs.runs'
-                  ? `program-run-${String(artifact.id)}`
-                  : name === 'funds.ledger'
-                    ? `account-receipt-${String(artifact.id)}`
-                    : name.startsWith('collectives.')
-                      ? `collective-${name === 'collectives.decision' ? 'decision' : 'charter'}-${digest([artifact.id, artifact.revision])}`
-                      : name === 'views.query'
-                        ? `view-query-${digest([artifact.viewId, artifact.viewRevision, artifact.source, artifact.offset, artifact.limit])}`
-                        : name.startsWith('views.')
-                          ? `view-${digest([artifact.id, artifact.revision])}`
-                          : name.startsWith('records.')
-                            ? `record-${digest([artifact.registerId, artifact.key, artifact.revision])}`
-                            : name.startsWith('programs.')
-                              ? `program-${digest([artifact.id, artifact.revision])}`
-                              : name === 'groups.messages'
-                                ? `group-message-${String(artifact.id)}`
-                                : name === 'files.read'
-                                  ? `document-${digest([document.id, document.revision])}`
-                                  : `publication-${String(artifact.id)}`;
+    const source = sourceOf(name, artifact);
     const id = `experience-${source}-${actorId}`;
     if (hasExperience(state, actorId, id) || added.has(id)) return [];
     added.add(id);
     const occurredAt =
       typeof artifact.at === 'number'
         ? artifact.at
-        : typeof document.updatedAt === 'number'
-          ? document.updatedAt
+        : typeof artifact.updatedAt === 'number'
+          ? artifact.updatedAt
           : state.world.clock.now;
     return [
       {
@@ -174,21 +140,13 @@ export function readingExperiences(
           ...new Set([
             source,
             ...(typeof artifact.id === 'string' ? [artifact.id] : []),
-            ...(typeof artifact.viewId === 'string' ? [artifact.viewId] : []),
             ...(typeof artifact.registerId === 'string' && typeof artifact.key === 'string'
               ? [`${artifact.registerId}/${artifact.key}`]
               : []),
-            ...(typeof document.id === 'string' ? [document.id] : []),
           ]),
         ],
         people: experiencePeople(state, artifact),
-        provenance:
-          name === 'stocks.ledger' ||
-          name === 'funds.ledger' ||
-          name === 'programs.runs' ||
-          name === 'reactions.history'
-            ? ('firsthand' as const)
-            : ('message-claim' as const),
+        provenance: FIRSTHAND_READS.has(name) ? ('firsthand' as const) : ('message-claim' as const),
       },
     ];
   });

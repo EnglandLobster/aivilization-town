@@ -183,7 +183,6 @@ export function executePublicGovernanceTool(
   }
   const d = residentPublicGovernanceCommand({
     projection: s.world,
-    ...(s.services ? { directory: s.services } : {}),
     collective: principalCollectiveAuthority(s),
     premisesAuthorization: premisesAuthorization(s, () => undefined),
     controllerAvailable: (c) => controllerAvailable(s, c),

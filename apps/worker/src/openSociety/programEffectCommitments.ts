@@ -6,20 +6,12 @@ const allowed = new Set<OrderedEffectFamily>([
   'worldEvents',
   'informationEvents',
   'sharedRecordsEvents',
-  'recordViewEvents',
   'communicationEvents',
   'collectiveEvents',
-  'servicesEvents',
 ]);
 /** Stable references bind a run receipt to original owning-domain event bytes without copying private originals into another ledger. */
 export function programEffectCommitments(effects: OpenSocietyEffects) {
-  if (
-    effects.resourceControlEnabled ||
-    effects.lifeEnabled ||
-    effects.cityApps ||
-    effects.reminders?.length ||
-    effects.turns?.length
-  )
+  if (effects.cityApps || effects.reminders?.length || effects.turns?.length)
     throw Error('unsupported-program-step-metadata');
   const entries = validatedEffectOrder(effects).entries;
   if (!entries.length || entries.length > PROGRAM_ACTIONS_POLICY.maxStepEffects)

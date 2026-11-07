@@ -22,7 +22,6 @@ import { createOpenCodeResidentDriver } from './openCode';
 import { residentReport, verifyResidentChain } from './report';
 import { startResidentServer, record } from './server';
 import { cityAppsVerificationTask, verifyCityAppsChain } from './cityAppsVerification';
-import { distributionVerificationTask, verifyDistributionChain } from './distributionVerification';
 import { parseExperiment, runExperiment } from './experiment';
 import { preflightOpenCode } from './openCodeExecutable';
 
@@ -76,7 +75,7 @@ function print(value: unknown) {
 const HELP = `Open Agent Society — one authoritative experimental town
   init    --root DIR --count 3 --initialization settled|newcomers [--profile town-v1 (default) | town-interdependent-v1]
   serve   --root DIR --port 4320 [--partition-config FILE] [--host HOST --advertise-host NAME --tls-key FILE --tls-cert FILE] (observer and authenticated API)
-  run     --root DIR --turns 4 --mode free|verification|apps-verification|distribution-verification --model PROVIDER/MODEL [--concurrency N (free mode: residents due at the same simulated time act in parallel)]
+  run     --root DIR --turns 4 --mode free|verification|apps-verification --model PROVIDER/MODEL [--concurrency N (free mode: residents due at the same simulated time act in parallel)]
           free mode: [--target-opportunities N (run until the town has N opportunities in which a resident acted; resumable)]
           free mode: a provider failure before any call hands the opportunity back and is retried after a wait
           (--outage-backoff-ms 60000, doubling up to 15 minutes); gives up after --max-outage-minutes 180
@@ -271,11 +270,7 @@ async function main() {
     ].includes(command)
   )
     throw new Error('unknown-command');
-  if (
-    !['free', 'verification', 'apps-verification', 'distribution-verification'].includes(
-      values.mode,
-    )
-  )
+  if (!['free', 'verification', 'apps-verification'].includes(values.mode))
     throw new Error('invalid-mode');
   if (!['settled', 'newcomers'].includes(values.initialization))
     throw new Error('invalid-initialization');
@@ -469,11 +464,9 @@ async function main() {
     }
     if (command === 'verify') {
       const verification =
-        values.mode === 'distribution-verification'
-          ? verifyDistributionChain(runtime)
-          : values.mode === 'apps-verification'
-            ? verifyCityAppsChain(runtime)
-            : verifyResidentChain(runtime);
+        values.mode === 'apps-verification'
+          ? verifyCityAppsChain(runtime)
+          : verifyResidentChain(runtime);
       writeFileSync(join(root, 'verification.json'), JSON.stringify(verification, null, 2), {
         mode: 0o600,
       });
@@ -532,21 +525,6 @@ async function main() {
       // Verification modes keep their explicitly ordered sequential orchestration.
       for (let index = 0; values.mode !== 'free' && index < turnCount; index++) {
         let actorId = runtime.nextResident();
-        // This mode is an explicitly ordered integration scenario, not free scheduling.
-        // Honor the selected resident's wake time; a short wait by another resident
-        // must not starve the publisher/reader stages of this bounded acceptance run.
-        if (values.mode === 'distribution-verification') {
-          actorId = runtime.manifest.residents[index % 3]?.id;
-          if (actorId === undefined || runtime.state.distribution === undefined)
-            throw new Error('distribution-verification-needs-three-residents-and-enabled-feature');
-          const delay =
-            runtime.state.residents[actorId]!.nextWakeAt - runtime.state.world.clock.now;
-          if (delay > 86_400_000) throw new Error('verification-wake-exceeds-one-day');
-          if (delay > 0) {
-            const advanced = runtime.advanceTime(delay, randomUUID());
-            if (!advanced.ok) throw new Error(advanced.error);
-          }
-        }
         if (actorId === undefined) {
           const nextWake = Math.min(
             ...Object.values(runtime.state.residents).map((resident) => resident.nextWakeAt),
@@ -579,9 +557,6 @@ async function main() {
           ...(values.opencode === undefined ? {} : { executable: values.opencode }),
           ...(previous?.sessionId === undefined ? {} : { sessionId: previous.sessionId }),
           ...(values.mode === 'verification' ? { task: verificationTask(runtime, actorId) } : {}),
-          ...(values.mode === 'distribution-verification'
-            ? { task: distributionVerificationTask(runtime, actorId) }
-            : {}),
           ...(values.mode === 'apps-verification'
             ? { task: cityAppsVerificationTask(runtime, actorId) }
             : {}),
@@ -643,17 +618,11 @@ async function main() {
       await server.close();
       mkdirSync(root, { recursive: true, mode: 0o700 });
       const report = residentReport(runtime);
-      if (
-        values.mode === 'verification' ||
-        values.mode === 'apps-verification' ||
-        values.mode === 'distribution-verification'
-      ) {
+      if (values.mode === 'verification' || values.mode === 'apps-verification') {
         const verification =
           values.mode === 'verification'
             ? verifyResidentChain(runtime)
-            : values.mode === 'distribution-verification'
-              ? verifyDistributionChain(runtime)
-              : verifyCityAppsChain(runtime);
+            : verifyCityAppsChain(runtime);
         writeFileSync(join(root, 'verification.json'), JSON.stringify(verification, null, 2), {
           mode: 0o600,
         });

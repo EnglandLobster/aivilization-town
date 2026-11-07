@@ -30,14 +30,13 @@ const snapshot = (s: OpenSocietyState, m: OpenSocietyManifest): InformationResou
   informationPolicy: m.informationPolicy,
   ...(s.communication ? { communication: s.communication } : {}),
   ...(s.sharedRecords ? { sharedRecords: s.sharedRecords } : {}),
-  ...(s.recordViews ? { recordViews: s.recordViews } : {}),
 });
 const exact = (v: Readonly<Record<string, unknown>>, keys: readonly string[]) =>
   Object.keys(v).length === keys.length && keys.every((k) => Object.hasOwn(v, k));
 const integer = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 1;
 const kindOf = (v: unknown): InformationResourceKind | undefined =>
-  v === 'space' || v === 'register' || v === 'view' || v === 'group' ? v : undefined;
+  v === 'space' || v === 'register' || v === 'group' ? v : undefined;
 type ResourceAction = {
   readonly kind: InformationResourceKind;
   readonly expectedRevision: number;

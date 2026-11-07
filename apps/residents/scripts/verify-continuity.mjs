@@ -188,48 +188,6 @@ try {
   assert.equal(runtime.state.world.residentCommerce.orders.o.status, 'settled');
   assert.equal(runtime.state.world.residentCommerce.orders.o.escrow, 0);
   assert.equal(runtime.state.world.moneySupply, supply);
-  await call(a, [
-    'services',
-    'publish',
-    '--id',
-    's',
-    '--kind',
-    'appointment',
-    '--location-id',
-    'town-square',
-    '--title',
-    '临时交流',
-    '--description',
-    '自愿，允许提前离开',
-    '--capacity',
-    '2',
-  ]);
-  await call(a, [
-    'services',
-    'schedule',
-    '--id',
-    'slot',
-    '--service-id',
-    's',
-    '--start',
-    '1000',
-    '--end',
-    '10000',
-    '--capacity',
-    '2',
-  ]);
-  await call(b, ['bookings', 'request', '--id', 'booking', '--slot-id', 'slot', '--units', '1']);
-  await call(a, ['bookings', 'accept', '--id', 'booking', '--expected-revision', '1']);
-  runtime.advanceTime(1000, 'start');
-  await call(b, ['bookings', 'check-in', '--id', 'booking', '--expected-revision', '2'], 1);
-  await call(a, ['services', 'start', '--id', 'slot', '--expected-revision', '1']);
-  await call(b, ['bookings', 'check-in', '--id', 'booking', '--expected-revision', '2']);
-  runtime.advanceTime(1000, 'part');
-  await call(b, ['bookings', 'leave', '--id', 'booking', '--expected-revision', '3']);
-  assert.equal(runtime.state.services.bookings.booking.attendedMs, 1000);
-  assert.equal(runtime.state.services.bookings.booking.status, 'ended');
-  assert.equal(runtime.state.world.activityTimeByAgent[b].availableAt, 2000);
-  assert.equal(runtime.state.world.activityTimeByAgent[a].availableAt, 10000);
   const before = structuredClone(runtime.state);
   const journal = readFileSync(join(root, 'journal.jsonl'), 'utf8');
   await server.close();

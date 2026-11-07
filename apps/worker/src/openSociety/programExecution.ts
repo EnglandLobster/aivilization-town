@@ -35,15 +35,7 @@ export function mergeProgramEffects(
   a: OpenSocietyEffects,
   b: OpenSocietyEffects,
 ): OpenSocietyEffects {
-  if (
-    a.resourceControlEnabled ||
-    b.resourceControlEnabled ||
-    a.lifeEnabled ||
-    b.lifeEnabled ||
-    a.cityApps ||
-    b.cityApps
-  )
-    throw Error('cannot-merge-domain-enablement');
+  if (a.cityApps || b.cityApps) throw Error('cannot-merge-domain-enablement');
   const families: OpenSocietyEffects = {};
   for (const family of ORDERED_EFFECT_FAMILIES)
     if (a[family] !== undefined || b[family] !== undefined)
@@ -67,7 +59,6 @@ export function executeResidentProgram(input: {
   programRevision: number;
   runId: string;
   scheduleId?: string;
-  reactionId?: string;
 }): ToolExecution & { readonly error?: string } {
   const { state, manifest, runnerId, programId, programRevision, runId } = input;
   const s = state.coordination;
@@ -87,12 +78,7 @@ export function executeResidentProgram(input: {
     Object.hasOwn(state.world.agents, id),
   );
   // A caller without access cannot create evidence about another resident's private program.
-  if (
-    !check.accepted &&
-    check.reason === 'program-not-found' &&
-    !input.scheduleId &&
-    !input.reactionId
-  )
+  if (!check.accepted && check.reason === 'program-not-found' && !input.scheduleId)
     throw new ToolRefusal(check.reason);
   let error = check.accepted ? undefined : check.reason;
   let effects: OpenSocietyEffects = {};
@@ -233,7 +219,6 @@ export function executeResidentProgram(input: {
     at,
     ...(error ? { reason: error } : {}),
     ...(input.scheduleId ? { scheduleId: input.scheduleId } : {}),
-    ...(input.reactionId ? { reactionId: input.reactionId } : {}),
     ...(stepReceipts.length && !error
       ? { execution: { version: PROGRAM_ACTIONS_POLICY.execution, steps: stepReceipts } }
       : {}),

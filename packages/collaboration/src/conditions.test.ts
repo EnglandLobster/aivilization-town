@@ -109,7 +109,7 @@ test('all audiences and sources are authorized before any calculation or partial
   expect(reads).toBe(0);
   expect(auth).toEqual(['clock:a', 'clock:b', 'common-balance:a', 'common-balance:b']);
 });
-test('claim, personal signature and computed result retain distinct provenance and no raw values in evidence', () => {
+test('claim and personal signature retain distinct provenance and no raw values in evidence', () => {
   const conditions: ProgramCondition[] = [
     {
       source: { kind: 'record', registerId: 'r', key: 'x', revision: 'latest', field: 'ok' },
@@ -128,7 +128,6 @@ test('claim, personal signature and computed result retain distinct provenance a
       op: 'eq',
       value: true,
     },
-    { source: { kind: 'view', viewId: 'v', viewRevision: 1 }, op: 'gt', value: 2 },
   ];
   const result = evaluateProgramConditions({
     conditions,
@@ -136,21 +135,17 @@ test('claim, personal signature and computed result retain distinct provenance a
     audiences: ['a'],
     port: {
       canRead: () => true,
-      read: (s) => ({
+      read: () => ({
         accepted: true,
-        value: s.kind === 'view' ? 3 : true,
+        value: true,
         sourceVersions: { revision: 2 },
         work: 1,
       }),
     },
   });
-  expect(result).toMatchObject({ accepted: true, matched: true, work: 3 });
+  expect(result).toMatchObject({ accepted: true, matched: true, work: 2 });
   if (!result.accepted) return;
-  expect(result.evidence.map((e) => e.sourceClass)).toEqual([
-    'resident-claim',
-    'signed-claim',
-    'resident-computation',
-  ]);
+  expect(result.evidence.map((e) => e.sourceClass)).toEqual(['resident-claim', 'signed-claim']);
   expect(result.evidence.every((e) => !Object.hasOwn(e, 'value'))).toBe(true);
 });
 test('false comparisons are reported without promoting data to authority; type mismatch and exhausted work reject', () => {

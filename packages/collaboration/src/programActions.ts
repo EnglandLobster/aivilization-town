@@ -61,9 +61,7 @@ export type ProgramResourceKind =
   | 'stock'
   | 'space'
   | 'register'
-  | 'view'
   | 'group'
-  | 'service'
   | 'enterprise';
 export type ProgramResourceControl = {
   readonly resourceKind: ProgramResourceKind;
@@ -86,9 +84,7 @@ const kind = (v: unknown): v is ProgramResourceKind =>
   v === 'stock' ||
   v === 'space' ||
   v === 'register' ||
-  v === 'view' ||
   v === 'group' ||
-  v === 'service' ||
   v === 'enterprise';
 export function assertProgramActionsPolicy(p: ProgramActionsPolicy) {
   const expected = programActionsPolicy(p.version);

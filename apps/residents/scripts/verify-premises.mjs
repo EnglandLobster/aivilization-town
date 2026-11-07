@@ -193,19 +193,6 @@ try {
   time(runtime.state.world.activityTimeByAgent[b].availableAt - runtime.state.world.clock.now);
 
   await cmd(d, 'travel.go', { targetLocationId: 'premises-home' }, 1);
-  await cmd(
-    d,
-    'services.publish',
-    {
-      id: 'unauthorized-service',
-      kind: 'event',
-      locationId: 'premises-home',
-      title: '无经营权',
-      description: '名称不授予权利',
-      capacity: 1,
-    },
-    1,
-  );
   // Enlarge actual space with another independently reserved material contribution.
   const bigger = { ...blueprint, floorArea: 16, capacity: 4 };
   await reserve('r2', 'expansion', { Wood: 8 });

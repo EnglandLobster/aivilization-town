@@ -1,21 +1,14 @@
 import type { OpenSocietyEffects } from './types';
 
-/** Same family order as legacy applyOpenSocietyEffects. Old commits carry no order declaration. */
+/** Same family order as applyOpenSocietyEffects. */
 export const ORDERED_EFFECT_FAMILIES = [
   'worldEvents',
   'informationEvents',
   'collectiveEvents',
-  'recordViewEvents',
   'sharedRecordsEvents',
   'coordinationEvents',
   'collaborationEvents',
-  'householdEvents',
-  'careEvents',
-  'healthRecordEvents',
-  'learningEvents',
-  'servicesEvents',
   'communicationEvents',
-  'distributionEvents',
   'cognitiveEvents',
 ] as const satisfies readonly (keyof OpenSocietyEffects)[];
 export type OrderedEffectFamily = (typeof ORDERED_EFFECT_FAMILIES)[number];

@@ -9,23 +9,16 @@ type Meaning = 'world-fact' | 'attributed-claim' | 'consent' | 'authority' | 'in
 type Feature =
   | 'base'
   | 'action-plans'
-  | 'capital-agreements'
-  | 'periodic-obligations'
   | 'public-housing'
   | 'housing-occupancy'
   | 'resource-principals'
   | 'housing-choice'
   | 'public-employment'
   | 'public-governance'
-  | 'distribution'
   | 'communication'
   | 'collaboration'
   | 'commerce'
-  | 'services'
-  | 'life'
-  | 'mobility'
   | 'records'
-  | 'record-views'
   | 'collectives'
   | 'common-accounts'
   | 'program-conditions'
@@ -34,14 +27,6 @@ type Feature =
   | 'materials'
   | 'finite-material-sources'
   | 'premises'
-  | 'agreed-labor'
-  | 'service-employment'
-  | 'service-engagements'
-  | 'logistics'
-  | 'freight-custody'
-  | 'evidence-trade'
-  | 'premises-rights'
-  | 'program-reactions'
   | 'coordination';
 type Boundary = {
   readonly domain: string;
@@ -242,7 +227,6 @@ const declarations: readonly Declaration[] = [
       'worldEvents',
       'informationEvents',
       'sharedRecordsEvents',
-      'recordViewEvents',
       'communicationEvents',
     ]),
     records: ['authority', 'world-fact'],
@@ -277,7 +261,7 @@ const declarations: readonly Declaration[] = [
   declare('spaces.create', authority('information', 'base', ['informationEvents'])),
   declare(
     'files.create files.update files.delete',
-    claim('information', 'base', ['informationEvents', 'distributionEvents']),
+    claim('information', 'base', ['informationEvents']),
   ),
   declare('messages.send', claim('information', 'base', ['informationEvents', 'residents'])),
   declare('messages.read', {
@@ -343,10 +327,7 @@ const declarations: readonly Declaration[] = [
     changes:
       'Real co-located goods delivery, or an attributed service delivery statement under its order protocol.',
   }),
-  declare(
-    'housing.list',
-    query('society', 'life', ['world-fact', 'attributed-claim']),
-  ),
+  declare('housing.list', query('society', 'base', ['world-fact', 'attributed-claim'])),
   declare(
     'registers.list registers.read',
     query('information/shared-records', 'records', ['authority']),
@@ -381,9 +362,7 @@ const declarations: readonly Declaration[] = [
       'worldEvents',
       'informationEvents',
       'sharedRecordsEvents',
-      'recordViewEvents',
       'communicationEvents',
-      'servicesEvents',
     ]),
   ),
   declare('programs.publish programs.revise programs.disable', {
@@ -402,10 +381,8 @@ const declarations: readonly Declaration[] = [
       'informationEvents',
       'worldEvents',
       'residents',
-      'recordViewEvents',
       'communicationEvents',
       'effectOrder',
-      'servicesEvents',
     ]),
     records: ['world-fact', 'attributed-claim'],
     changes:
@@ -470,42 +447,21 @@ export function boundaryAvailability(tool: OpenToolDefinition, state: OpenSociet
     'action-plans': !!state.actionPlans,
     'public-housing': !!state.world.publicHousing,
     'housing-occupancy': !!state.world.housingOccupancy,
-    'resource-principals':
-      !!state.world.periodicObligations ||
-      !!state.world.materials?.resourcePrincipals ||
-      !!state.world.residentMobility?.principalPolicy ||
-      !!state.services?.principalPolicy,
+    'resource-principals': !!state.world.materials?.resourcePrincipals,
     'housing-choice': !!state.world.housingChoice,
-    'capital-agreements': !!state.world.capitalAgreements,
-    'periodic-obligations': !!state.world.periodicObligations,
     'public-employment': !!state.world.publicEmployment,
     'public-governance': !!state.world.publicGovernance,
-    distribution: !!state.distribution,
     communication: !!state.communication,
     collaboration: !!state.collaboration,
     commerce: !!state.world.residentCommerce,
-    services: !!state.services,
-    life: !!state.life,
-    mobility: !!state.world.residentMobility,
     records: !!state.sharedRecords,
-    'record-views': !!state.recordViews && !!state.sharedRecords,
     collectives: !!state.collectives,
     'common-accounts': !!state.world.commonAccounts,
     'resource-control': !!state.resourceControlPolicy,
     materials: !!state.world.materials,
     'finite-material-sources': !!state.world.materials?.extraction,
     premises: !!state.world.premises,
-    'service-engagements': !!state.world.serviceEngagements,
-    'agreed-labor':
-      state.world.residentLabor?.configuration.compensationSource ===
-      'accepted-enterprise-labor-terms-v1',
-    'service-employment': !!state.world.serviceEmployment,
-    logistics: !!state.world.logistics,
-    'freight-custody': !!state.world.logistics?.custody,
-    'evidence-trade': !!state.world.residentTrade,
-    'premises-rights': !!state.world.premisesRights,
     'group-control': !!state.communication?.groupControlPolicy,
-    'program-reactions': !!state.coordination?.reactions,
     'program-conditions': !!state.coordination?.conditionsPolicy,
     coordination: !!state.coordination,
   };
@@ -532,11 +488,7 @@ export function assertCapabilityEffects(tool: OpenToolDefinition, effects: OpenS
   )
     throw new Error(`capability-resource-authority-only:${tool.name}`);
   if (boundary.receiptOnly) {
-    const events = [
-      ...(effects.informationEvents ?? []),
-      ...(effects.communicationEvents ?? []),
-      ...(effects.distributionEvents ?? []),
-    ];
+    const events = [...(effects.informationEvents ?? []), ...(effects.communicationEvents ?? [])];
     const allowed = new Set(['MessageRead', 'GroupMessagesRead', 'PublicationRead']);
     for (const event of events)
       if (!allowed.has(event.type))

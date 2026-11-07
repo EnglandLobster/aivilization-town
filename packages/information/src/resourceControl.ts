@@ -31,26 +31,18 @@ import {
   type SharedRegister,
   type SharedRecordsEvent,
 } from './sharedRecords';
-import { decideRecordView } from './recordViews';
-import type { RecordViewsState, ResidentRecordView, RecordViewEvent } from './recordViewModel';
-export type InformationResourceKind = 'space' | 'register' | 'view' | 'group';
+export type InformationResourceKind = 'space' | 'register' | 'group';
 export type InformationResources = {
   readonly information: InformationState;
   readonly communication?: CommunicationState;
   readonly informationPolicy: InformationPolicy;
   readonly sharedRecords?: SharedRecordsState;
-  readonly recordViews?: RecordViewsState;
 };
-export type InformationControlledResource =
-  | InformationSpace
-  | SharedRegister
-  | ResidentRecordView
-  | ResidentGroup;
+export type InformationControlledResource = InformationSpace | SharedRegister | ResidentGroup;
 export type InformationResourceEffects = {
   readonly informationEvents?: readonly InformationEvent[];
   readonly communicationEvents?: readonly CommunicationEvent[];
   readonly sharedRecordsEvents?: readonly SharedRecordsEvent[];
-  readonly recordViewEvents?: readonly RecordViewEvent[];
 };
 export function getInformationResource(
   s: InformationResources,
@@ -60,7 +52,6 @@ export function getInformationResource(
   if (!validInformationId(id)) return undefined;
   if (kind === 'space') return s.information.spaces[id];
   if (kind === 'register') return s.sharedRecords?.registers[id];
-  if (kind === 'view') return s.recordViews?.views[id];
   return s.communication?.groupControlPolicy ? s.communication.groups[id] : undefined;
 }
 export function allInformationResources(
@@ -81,10 +72,6 @@ export function allInformationResources(
       kind: 'register' as const,
       resource,
     })),
-    ...Object.values(s.recordViews?.views ?? {}).map((resource) => ({
-      kind: 'view' as const,
-      resource,
-    })),
   ];
 }
 export function informationResourceMetadata(
@@ -98,7 +85,6 @@ export function informationResourceMetadata(
     controller: effectiveController(r),
     controlVersion: controlVersion(r),
     ...(kind === 'group' && 'closed' in r ? { closed: r.closed } : {}),
-    ...(kind === 'view' && 'active' in r ? { active: r.active } : {}),
     ...(r.control?.offer ? { offer: r.control.offer } : {}),
     readWith: `town resources read --kind ${kind} --id ${r.id}`,
   };
@@ -156,12 +142,7 @@ function replaceControl(
       ],
     };
   }
-  const r = s.recordViews!.views[id]!;
-  return {
-    recordViewEvents: [
-      { type: 'RecordViewChanged', view: { ...r, control, revision: r.revision + 1, at } },
-    ],
-  };
+  throw new Error('unsupported-information-resource');
 }
 export function decideInformationResourceControl(input: {
   state: InformationResources;
@@ -204,9 +185,7 @@ export function decideInformationResourceControl(input: {
         ? s.informationPolicy.maxSpacesPerOwner
         : kind === 'register'
           ? s.sharedRecords!.policy.maxRegistersPerOwner
-          : kind === 'group'
-            ? s.communication!.policy.maxGroups
-            : s.recordViews!.policy.maxViewsPerOwner;
+          : s.communication!.policy.maxGroups;
     if (count >= limit) return no('recipient-resource-quota');
   }
   return yes(replaceControl(s, kind, id, decision.control, at, input.command.type === 'accept'));
@@ -239,15 +218,6 @@ export type InformationResourceOperation =
       readonly visibility: 'public' | 'private';
       readonly readers: readonly string[];
       readonly editors: readonly string[];
-    }
-  | { readonly kind: 'view'; readonly type: 'disable' }
-  | {
-      readonly kind: 'view';
-      readonly type: 'revise';
-      readonly title: string;
-      readonly visibility: 'public' | 'private';
-      readonly readers: readonly string[];
-      readonly definition: unknown;
     };
 const object = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -286,8 +256,6 @@ export function parseInformationResourceOperation(
       return { kind, type: 'withdraw-invitation', invitationId: value.invitationId };
     return undefined;
   }
-  if (kind === 'view' && value.type === 'disable' && exact(value, ['type']))
-    return { kind, type: 'disable' };
   if (value.visibility !== 'public' && value.visibility !== 'private') return undefined;
   if (
     kind === 'space' &&
@@ -316,22 +284,6 @@ export function parseInformationResourceOperation(
       visibility: value.visibility,
       readers: value.readers,
       editors: value.editors,
-    };
-  if (
-    kind === 'view' &&
-    value.type === 'revise' &&
-    exact(value, ['type', 'visibility', 'title', 'readers', 'definition']) &&
-    typeof value.title === 'string' &&
-    strings(value.readers) &&
-    object(value.definition)
-  )
-    return {
-      kind,
-      type: 'revise',
-      visibility: value.visibility,
-      title: value.title,
-      readers: value.readers,
-      definition: value.definition,
     };
   return undefined;
 }
@@ -432,26 +384,5 @@ export function decideInformationResourceManagement(input: {
     });
     return d.accepted ? yes({ sharedRecordsEvents: d.events }) : d;
   }
-  if (!s.sharedRecords || !s.recordViews) return no('record-views-not-enabled');
-  const d = decideRecordView({
-    state: s.recordViews,
-    records: s.sharedRecords,
-    actorId,
-    at,
-    exists: input.exists,
-    controlAuthorization: input.authorize,
-    command:
-      op.type === 'disable'
-        ? { type: 'views.disable', id, expectedRevision: r.revision }
-        : {
-            type: 'views.revise',
-            id,
-            expectedRevision: r.revision,
-            title: op.title,
-            visibility: op.visibility,
-            readers: op.readers,
-            definition: op.definition,
-          },
-  });
-  return d.accepted ? yes({ recordViewEvents: d.events }) : d;
+  return no('unsupported-information-resource');
 }

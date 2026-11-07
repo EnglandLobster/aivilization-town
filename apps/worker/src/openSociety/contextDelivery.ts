@@ -34,12 +34,7 @@ export function residentPresentSelf(
     job: agent.job,
     educationScore: agent.educationScore,
     residentialTier: agent.residentialTier,
-    ...(state.world.periodicObligations
-      ? { periodicObligationsWith: 'town obligations list' }
-      : {}),
-    ...(state.world.materials?.resourcePrincipals ||
-    state.world.residentMobility?.principalPolicy ||
-    state.services?.principalPolicy
+    ...(state.world.materials?.resourcePrincipals
       ? { resourcePrincipalsWith: 'town principals list' }
       : {}),
     ...(state.world.housingOccupancy ? { housingOccupancyWith: 'town housing occupancy' } : {}),

@@ -185,24 +185,6 @@ export function assertProgramResourceEffects(
     });
     return;
   }
-  if (action.resourceKind === 'service') {
-    familyOnly(effects, ['servicesEvents']);
-    const old = state.services?.services[id],
-      policy = state.services?.controlPolicy;
-    if (!old || !policy || old.revision !== action.expectedRevision)
-      throw Error('program-service-control-source-mismatch');
-    const control = expectedControl(old, action, authority, policy.control.version);
-    same(effects.servicesEvents, [
-      {
-        type: 'ServiceControlChanged',
-        serviceId: id,
-        expectedRevision: old.revision,
-        operation: action.control.type,
-        control,
-      },
-    ]);
-    return;
-  }
   if (!state.resourceControlPolicy) throw Error('program-resource-control-not-enabled');
   if (action.resourceKind === 'space') {
     familyOnly(effects, ['informationEvents']);
@@ -228,17 +210,6 @@ export function assertProgramResourceEffects(
         type: 'SharedRegisterChanged',
         register: { ...base, control, revision: old.revision + 1, at },
       },
-    ]);
-    return;
-  }
-  if (action.resourceKind === 'view') {
-    familyOnly(effects, ['recordViewEvents']);
-    const old = state.recordViews?.views[id];
-    if (!old || old.revision !== action.expectedRevision)
-      throw Error('program-resource-revision-mismatch');
-    const control = expectedControl(old, action, authority, state.resourceControlPolicy.version);
-    same(effects.recordViewEvents, [
-      { type: 'RecordViewChanged', view: { ...old, control, revision: old.revision + 1, at } },
     ]);
     return;
   }

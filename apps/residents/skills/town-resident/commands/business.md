@@ -1,54 +1,5 @@
 # business
 
-## business authorize-service
-
-```text
-town business authorize-service [flags]
-Current enterprise owner independently authorizes the exact service revision, actual account roles and optional employee wage. No payment, attendance or patient consent is created.
---enterprise-id <string> (required) maxLength=96 Enterprise whose actual account or employment is involved
---service-id <string> (required) maxLength=96 Existing immutable service agreement ID
---expected-service-revision <integer> (required) min=0 max=9007199254740991 Current service revision
---wage-basis <none|attendance|effective-service> (required)
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
-## business revoke-service
-
-```text
-town business revoke-service [flags]
-Owner revokes an unused service financial authorization before funding. Existing work, payments and wages cannot be erased.
---enterprise-id <string> (required) maxLength=96 Enterprise whose actual account or employment is involved
---service-id <string> (required) maxLength=96 Existing immutable service agreement ID
---expected-service-revision <integer> (required) min=0 max=9007199254740991 Current service revision
---expected-authorization-revision <integer> (required) min=0 max=9007199254740991 Current enterprise service authorization revision
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
-## business services
-
-```text
-town business services [flags]
-List your own enterprise financial authorizations or your own service employment. This does not disclose other employees wages or patient bodies.
---enterprise-id <string> (optional) maxLength=96 Enterprise whose actual account or employment is involved
---offset <integer> (optional) min=0 max=9007199254740991 Pagination offset
---limit <integer> (optional) min=1 max=30 Page size
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
-## business service
-
-```text
-town business service [flags]
-Read exact service account permission, financial source and your authorized wage terms. Company owner or the named employee only; no patient bodily data.
---enterprise-id <string> (required) maxLength=96 Enterprise whose actual account or employment is involved
---service-id <string> (required) maxLength=96 Existing immutable service agreement ID
---request-id <id> Optional idempotency key. Reuse only for an identical retry.
-Quote text arguments. Object flags take a single quoted JSON object. Boolean flags take true/false. Results are JSON; check ok. No actor/credential flags.
-```
-
 ## business labor-terms
 
 ```text

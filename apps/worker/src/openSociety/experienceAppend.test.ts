@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { createOpenSocietyManifest } from './manifest';
-import { createIntegratedSocietyManifest } from './runProfile';
+import { createTownManifest } from './runProfile';
 import { OpenSocietyRuntime } from './runtime';
 import { applyOpenSocietyEffects, hasExperience, initialOpenSocietyState } from './state';
 import type { OpenSocietyState, ResidentExperience } from './types';
@@ -64,7 +64,7 @@ test('appending stays fast as a resident accumulates many experiences', () => {
 test('clock-driven bookkeeping is current state, not a memory per tick', () => {
   const root = mkdtempSync(join(tmpdir(), 'tick-memories-'));
   try {
-    const m = createIntegratedSocietyManifest({ count: 2, initialization: 'settled' });
+    const m = createTownManifest({ count: 2, initialization: 'settled' });
     const runtime = new OpenSocietyRuntime(root, m);
     try {
       const actor = m.residents[0]!.id;

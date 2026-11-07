@@ -1,4 +1,3 @@
-import { openPermitsFixture } from './testFixtures/openPermits';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -545,51 +544,5 @@ test('firm to public to collective building transfers require each actual author
   });
   t.ok(t.b, 'world.close_enterprise', { enterpriseId: 'firm' });
   expect(t.r.state.world.enterprises.firm!.status).toBe('closed');
-  t.replay();
-});
-
-test('explicit v1 building transition preserves accepted third-party permits, custody and bodies, and new owner cannot close unsettled space', () => {
-  const t = openPermitsFixture(true, { principals: true });
-  t.ok(t.b, 'permits.offer', t.offer());
-  t.ok(t.c, 'permits.accept', { id: 'permit', expectedRevision: 1 });
-  const rights = structuredClone(t.r.state.world.premisesRights),
-    agents = structuredClone(t.r.state.world.agents),
-    materials = structuredClone(t.r.state.world.materials);
-  expect(t.r.enablePremisesPrincipals().ok).toBe(true);
-  const control = (command: PrincipalControlCommand) => ({
-    resourceKind: 'premises',
-    resourceId: 'home',
-    resourceRevision: t.building().revision,
-    controlVersion: t.building().control.version,
-    command,
-  });
-  t.ok(t.b, 'principals.control', {
-    request: control({
-      type: 'offer',
-      target: { kind: 'resident', id: t.d },
-      terms: '第三人许可保留',
-      expiresAt: t.r.state.world.clock.now + 100000,
-    }),
-  });
-  expect(t.ok(t.d, 'principals.read', { kind: 'premises', id: 'home' }).data).toMatchObject({
-    offer: { target: { kind: 'resident', id: t.d } },
-  });
-  t.ok(t.d, 'principals.control', { request: control({ type: 'accept' }) });
-  expect(t.building().ownerId).toBe(t.b);
-  expect(t.building().control.controller).toEqual({ kind: 'resident', id: t.d });
-  expect(t.r.state.world.premisesRights).toEqual(rights);
-  expect(t.r.state.world.agents).toEqual(agents);
-  expect(t.r.state.world.materials).toEqual(materials);
-  expect(t.ok(t.c, 'permits.access', { buildingId: 'home' }).data).toMatchObject({
-    permissions: { operate: { allowed: true }, store: { allowed: true } },
-  });
-  const req = premisesPrincipalRequest(t.r.state.world.premises!, {
-    type: 'manage-premises',
-    id: 'home',
-    expectedRevision: t.building().revision,
-    command: { type: 'close' },
-  });
-  expect(t.call(t.b, 'principals.operate', { request: req }).ok).toBe(false);
-  expect(t.call(t.d, 'principals.operate', { request: req }).error).toBe('premises-unsettled');
   t.replay();
 });

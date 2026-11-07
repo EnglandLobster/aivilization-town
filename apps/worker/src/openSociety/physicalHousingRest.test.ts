@@ -32,24 +32,18 @@ function move(t: ReturnType<typeof setup>, actor: string, targetLocationId: stri
   t.ok(actor, 'world.move', { targetLocationId });
   t.time(t.r.state.world.activityTimeByAgent[actor]!.availableAt - t.r.state.world.clock.now);
 }
-function enter(t: ReturnType<typeof setup>, endIn = 3000000) {
-  const at = t.r.state.world.clock.now;
-  t.ok(t.b, 'permits.offer', {
-    id: 'living',
-    buildingId: 'home',
-    buildingRevision: t.r.state.world.premises!.buildings.home!.revision,
-    granteeKind: 'resident',
-    granteeId: t.c,
-    users: [t.c],
-    scopes: ['reside'],
-    mode: 'shared',
-    title: 'Original right',
-    terms: 'Independent dwelling',
-    startAt: at,
-    endAt: at + endIn,
-    acceptBy: at + 60000,
+/** The owner lets resident c live in the building; c walks in and registers residence there. */
+function enter(t: ReturnType<typeof setup>) {
+  const home = t.r.state.world.premises!.buildings.home!;
+  t.ok(t.b, 'premises.configure', {
+    id: 'home',
+    expectedRevision: home.revision,
+    title: home.title,
+    entry: 'listed',
+    visitors: [t.c],
+    operators: [],
+    residents: [t.c],
   });
-  t.ok(t.c, 'permits.accept', { id: 'living', expectedRevision: 1 });
   move(t, t.c, 'premises-home');
   t.ok(t.c, 'world.choose_residence', { locationId: 'premises-home' });
 }
@@ -103,7 +97,7 @@ test('explicit migration preserves actual assets, bodies, old source and manifes
   ).toThrow('physical-housing-needs-elapsed-rest-premises-and-occupancy');
   replay(t);
 });
-test('actual materials and labour create structure; only independent entry and real location produce elapsed recovery, old rights expiry does not erase the roof', () => {
+test('actual materials and labour create structure; only granted entry and real location produce elapsed recovery, a withdrawn grant does not erase the roof', () => {
   const t = setup();
   t.reserve();
   t.create();
@@ -119,7 +113,7 @@ test('actual materials and labour create structure; only independent entry and r
   t.time(t.project().plan.workMs);
   expect(t.stock().inventory).toEqual({});
   expect(t.r.state.world.premises!.buildings.home!.embodied).toEqual({ Wood: 8 });
-  enter(t, 180000);
+  enter(t);
   const before = structuredClone(t.r.state.world.agents[t.c]!);
   const source = t.ok(t.c, 'housing.occupancy', {}).data;
   expect(source).toMatchObject({
@@ -131,6 +125,17 @@ test('actual materials and labour create structure; only independent entry and r
   expect(t.r.state.world.agents[t.c]!.physiology).toEqual(before.physiology);
   t.time(300000);
   expect(t.r.state.world.agents[t.c]!.physiology.energy).toBeGreaterThan(before.physiology.energy);
+  // The owner withdraws the residence grant: the roof does not disappear with the permission.
+  const home = t.r.state.world.premises!.buildings.home!;
+  t.ok(t.b, 'premises.configure', {
+    id: 'home',
+    expectedRevision: home.revision,
+    title: home.title,
+    entry: 'listed',
+    visitors: [],
+    operators: [],
+    residents: [],
+  });
   expect(t.ok(t.c, 'housing.occupancy', {}).data).toMatchObject({
     currentPermission: false,
     requiresRightsResolution: true,

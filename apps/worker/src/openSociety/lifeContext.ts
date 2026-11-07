@@ -1,6 +1,4 @@
-import { mobilityInbox } from './mobilityTools';
 import { canReadGroup, communicationBlocked } from '@aivilization/information';
-import { canReadServiceBooking } from '@aivilization/services';
 import { canReadGroupInvitation } from './groupInvitationAccess';
 import type { OpenSocietyState } from './types';
 export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: number) {
@@ -11,7 +9,7 @@ export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: n
     readWith: string;
     section?: 'decisions' | 'appointments' | 'messages';
     dueAt?: number;
-  }[] = mobilityInbox(s, actorId);
+  }[] = [];
   for (const i of Object.values(s.communication?.invitations ?? {}))
     if (i.status === 'pending' && canReadGroupInvitation(s, i, actorId))
       items.push({
@@ -57,37 +55,6 @@ export function residentLifeInbox(s: OpenSocietyState, actorId: string, limit: n
         at: r.at,
         readWith: `town payments read --id ${r.id}`,
       });
-  for (const b of Object.values(s.services?.bookings ?? {}))
-    if (
-      !['cancelled', 'expired', 'completed', 'ended'].includes(b.status) &&
-      s.services &&
-      canReadServiceBooking(s.services, b, actorId, s.world.clock.now)
-    )
-      items.push({
-        kind: 'booking',
-        id: b.id,
-        at: b.at,
-        section: b.status === 'requested' ? 'decisions' : 'appointments',
-        dueAt: s.services.slots[b.slotId]!.start,
-        readWith: `town bookings read --id ${b.id}`,
-      });
-  for (const l of Object.values(s.life?.households.links ?? {}))
-    if (l.status === 'proposed' && l.partnerId === actorId)
-      items.push({
-        kind: 'household-proposal',
-        id: l.id,
-        at: l.at,
-        readWith: 'town households list',
-      });
-  for (const t of Object.values(s.life?.care.tasks ?? {}))
-    if (
-      !['completed', 'cancelled'].includes(t.status) &&
-      [t.providerId, t.recipientId].includes(actorId)
-    )
-      items.push({ kind: 'care-task', id: t.id, at: t.at, readWith: 'town care list' });
-  for (const l of Object.values(s.world.residentLeases?.leases ?? {}))
-    if (l.status !== 'ended' && [l.hostId, l.tenantId].includes(actorId))
-      items.push({ kind: 'lease', id: l.id, at: l.at, readWith: 'town leases list' });
   const sections = ['decisions', 'appointments', 'messages'] as const;
   const queues = sections.map((section) =>
     items

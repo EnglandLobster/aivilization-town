@@ -7,9 +7,8 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  createOpenSocietyManifest,
-  createIntegratedSocietyManifest,
-  isIntegratedSocietyProfile,
+  createTownManifest,
+  isTownProfile,
   OpenSocietyRuntime,
   activateSocietyFoundations,
   activateSocietyServices,
@@ -38,7 +37,6 @@ const { values, positionals } = parseArgs({
     root: { type: 'string', default: '.local/open-residents' },
     count: { type: 'string', default: '3' },
     initialization: { type: 'string', default: 'settled' },
-    legacy: { type: 'boolean', default: false },
     profile: { type: 'string' },
     source: { type: 'string' },
     'material-endowment': { type: 'string' },
@@ -81,7 +79,7 @@ function print(value: unknown) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 const HELP = `Open Agent Society — one authoritative experimental town
-  init    --root DIR --count 3 --initialization settled|newcomers [--legacy | --profile society-integrated-v1|v2|v3|v4 | society-interdependent-v1|v2|v3]
+  init    --root DIR --count 3 --initialization settled|newcomers [--profile town-v1 (default) | town-interdependent-v1]
   serve   --root DIR --port 4320 [--partition-config FILE] [--host HOST --advertise-host NAME --tls-key FILE --tls-cert FILE] (observer and authenticated API)
   run     --root DIR --turns 4 --mode free|verification|apps-verification|distribution-verification --model PROVIDER/MODEL [--concurrency N (free mode: residents due at the same simulated time act in parallel)]
           free mode: [--target-opportunities N (run until the town has N opportunities in which a resident acted; resumable)]
@@ -418,10 +416,7 @@ async function main() {
     throw new Error('invalid-mode');
   if (!['settled', 'newcomers'].includes(values.initialization))
     throw new Error('invalid-initialization');
-  if (
-    values.profile !== undefined &&
-    (command !== 'init' || !isIntegratedSocietyProfile(values.profile) || values.legacy)
-  )
+  if (values.profile !== undefined && (command !== 'init' || !isTownProfile(values.profile)))
     throw new Error('invalid-or-conflicting-initialization-profile');
   if (
     (values.host || values['advertise-host'] || values['tls-key'] || values['tls-cert']) &&
@@ -537,17 +532,11 @@ async function main() {
   const runtime = new OpenSocietyRuntime(
     root,
     command === 'init'
-      ? isIntegratedSocietyProfile(values.profile)
-        ? createIntegratedSocietyManifest({
-            profile: values.profile,
-            count: integer(values.count, 1, 50),
-            initialization: values.initialization as 'settled' | 'newcomers',
-          })
-        : createOpenSocietyManifest({
-            count: integer(values.count, 1, 50),
-            continuity: !values.legacy,
-            initialization: values.initialization as 'settled' | 'newcomers',
-          })
+      ? createTownManifest({
+          ...(isTownProfile(values.profile) ? { profile: values.profile } : {}),
+          count: integer(values.count, 1, 50),
+          initialization: values.initialization as 'settled' | 'newcomers',
+        })
       : undefined,
   );
   try {

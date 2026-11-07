@@ -11,9 +11,7 @@ test.each([
   'stock',
   'space',
   'register',
-  'view',
   'group',
-  'service',
   'enterprise',
 ] as const)(
   '%s actual runtime admission and journal recovery preserve a paid atomic exchange',
@@ -100,71 +98,6 @@ test('explicit enablement is idempotent, persisted and absent in old manifests',
   const reopened = f.t.replay();
   expect(reopened.enableProgramActions()).toEqual(first);
 });
-test('a paid exchange and its triggered reaction retain independent ordered receipts and delegated message provenance', () => {
-  const f = fixture('space', true),
-    t = f.t,
-    at = f.state.world.clock.now;
-  t.ok(t.c, 'programs.publish', {
-    id: 'notify',
-    title: '居民自己选择的通知',
-    purpose: '金额变化后发送固定原话',
-    runners: [t.c],
-    definition: {
-      actionPolicyVersion: PROGRAM_ACTIONS_POLICY.version,
-      conditions: [
-        {
-          source: { kind: 'personal-fact', actorId: t.c, field: 'balance' },
-          op: 'eq',
-          value: f.state.world.agents[t.c]!.balance - 30,
-        },
-      ],
-      steps: [
-        {
-          principalId: t.c,
-          capability: 'messages.send',
-          arguments: { recipientId: t.d, content: '这是我预先授权发送的原话' },
-        },
-      ],
-    },
-  });
-  t.ok(t.c, 'mandates.grant', {
-    id: 'notify-mandate',
-    programId: 'notify',
-    programRevision: 1,
-    runnerId: t.c,
-    maxRuns: 1,
-    expiresAt: at + 60000,
-  });
-  t.ok(t.c, 'reactions.watch', {
-    id: 'notice',
-    programId: 'notify',
-    programRevision: 1,
-    maxReactions: 1,
-    expiresAt: at + 60000,
-  });
-  t.ok(t.a, 'programs.run', { id: 'exchange', expectedRevision: 1 });
-  expect(f.resource().control?.controller?.id).toBe(t.c);
-  expect(Object.values(f.state.coordination!.runs).map((r) => r.status)).toEqual([
-    'succeeded',
-    'succeeded',
-  ]);
-  const notify = Object.values(f.state.coordination!.runs).find((r) => r.programId === 'notify')!;
-  const messages = Object.values(f.state.information.messages).filter(
-    (m) => m.programRunId === notify.id,
-  );
-  expect(messages).toHaveLength(1);
-  expect(messages[0]).toMatchObject({
-    senderId: t.c,
-    executedBy: t.c,
-    mandateId: 'notify-mandate',
-    content: '这是我预先授权发送的原话',
-  });
-  const origin = t.r.journal.commits.find((c) => c.capability === 'programs.run')!;
-  expect(origin.effectOrder).toBeDefined();
-  expect(origin.coordinationEvents!.some((e) => e.type === 'ProgramReactionChanged')).toBe(true);
-  t.replay();
-});
-
 test('v2 mandates remain v2 when executed after explicit enterprise-language upgrade; original manifest and journal replay remain stable', () => {
   const f = fixture('space', true),
     t = f.t,

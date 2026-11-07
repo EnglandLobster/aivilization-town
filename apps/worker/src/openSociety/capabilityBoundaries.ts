@@ -161,32 +161,8 @@ const declarations: readonly Declaration[] = [
     authority('enterprise/world', 'agreed-labor', ['worldEvents']),
   ),
   declare(
-    'business.services business.service',
-    query('enterprise/services/world', 'service-employment', ['world-fact', 'authority']),
-  ),
-  declare(
-    'business.authorize-service business.revoke-service',
-    authority('enterprise/services/world', 'service-employment', ['worldEvents']),
-  ),
-  declare(
     'governance.employment',
     query('governance/society/world', 'public-employment', ['world-fact', 'authority']),
-  ),
-  declare(
-    'capital.list capital.rights capital.agreements capital.read',
-    query('enterprise/economy/world', 'capital-agreements', ['world-fact', 'consent', 'authority']),
-  ),
-  declare(
-    'obligations.list obligations.read obligations.prepare',
-    query('commerce/enterprise/economy/world', 'periodic-obligations', [
-      'world-fact',
-      'consent',
-      'authority',
-    ]),
-  ),
-  declare(
-    'capital.close capital.initialize capital.propose capital.accept capital.authorize capital.execute capital.cancel',
-    authority('enterprise/economy/world', 'capital-agreements', ['worldEvents']),
   ),
   declare(
     'governance.status governance.list governance.read governance.votes governance.objections',
@@ -207,79 +183,6 @@ const declarations: readonly Declaration[] = [
       neverImplies:
         'No private group becomes a government; approval is not truth, arbitrary policy permission, new physical rules, retroactive history changes or invented public money.',
     },
-  ),
-  declare(
-    'permits.rules permits.list permits.read permits.access',
-    query('premises/authority/world', 'premises-rights', [
-      'world-fact',
-      'consent',
-      'authority',
-      'attributed-claim',
-    ]),
-  ),
-  declare('permits.offer permits.accept permits.withdraw permits.release', {
-    ...resource('premises/authority/world', 'premises-rights'),
-    records: ['world-fact', 'consent', 'authority', 'attributed-claim'],
-  }),
-  declare(
-    'trades.rules trades.list trades.read trades.ledger',
-    query('commerce/logistics/services/world', 'evidence-trade', [
-      'world-fact',
-      'attributed-claim',
-      'consent',
-      'authority',
-    ]),
-  ),
-  declare(
-    'trades.offer trades.accept trades.withdraw trades.observe trades.confirm trades.waive trades.dispute trades.propose-settlement trades.respond-settlement',
-    {
-      ...resource('commerce/economy/world', 'evidence-trade'),
-      records: ['world-fact', 'attributed-claim', 'consent', 'authority'],
-    },
-  ),
-  declare(
-    'freight.rules freight.list freight.read freight.ledger',
-    query('logistics/materials/world', 'logistics', [
-      'world-fact',
-      'authority',
-      'attributed-claim',
-    ]),
-  ),
-  declare(
-    'freight.handoffs',
-    query('logistics/world', 'freight-custody', ['world-fact', 'consent', 'authority']),
-  ),
-  declare(
-    'freight.handoff',
-    physical('logistics/materials/world', 'freight-custody', ['worldEvents']),
-  ),
-  declare(
-    'freight.offer freight.accept freight.fund freight.cancel',
-    resource('logistics/economy/materials/world', 'logistics'),
-  ),
-  declare(
-    'freight.load freight.deliver freight.return vehicles.drive',
-    physical('logistics/mobility/materials/world', 'logistics', ['worldEvents']),
-  ),
-  declare(
-    'engagements.models engagements.facilities engagements.list engagements.read engagements.ledger',
-    query('services/society/world', 'service-engagements', [
-      'world-fact',
-      'authority',
-      'attributed-claim',
-    ]),
-  ),
-  declare(
-    'engagements.offer engagements.fund engagements.cancel',
-    resource('services/economy/materials/world', 'service-engagements'),
-  ),
-  declare(
-    'engagements.accept',
-    authority('services/materials/world', 'service-engagements', ['worldEvents']),
-  ),
-  declare(
-    'engagements.start engagements.leave',
-    physical('services/society/world', 'service-engagements', ['worldEvents']),
   ),
 
   declare(
@@ -363,14 +266,6 @@ const declarations: readonly Declaration[] = [
     authority('collaboration/collectives', 'collectives', ['collectiveEvents']),
   ),
   declare(
-    'views.list views.read views.history views.query',
-    query('information/record-views', 'record-views', ['attributed-claim', 'interpretation']),
-  ),
-  declare(
-    'views.publish views.revise views.disable',
-    claim('information/record-views', 'record-views', ['recordViewEvents']),
-  ),
-  declare(
     'rules.list rules.read rules.capabilities rules.capability',
     query('integration', 'base', ['world-fact']),
   ),
@@ -408,20 +303,6 @@ const declarations: readonly Declaration[] = [
     ...authority('scheduling', 'action-plans', ['residents']),
     changes:
       'Only your own queued actions; each step later runs as your ordinary authorized command and can be refused.',
-  }),
-  declare(
-    'subscriptions.list feed.list feed.read notifications.list',
-    query('information', 'distribution', ['attributed-claim']),
-  ),
-  declare(
-    'subscriptions.follow subscriptions.unfollow',
-    authority('information', 'distribution', ['distributionEvents']),
-  ),
-  declare('feed.share', claim('information', 'distribution', ['distributionEvents'])),
-  declare('notifications.read', {
-    ...query('information', 'distribution', ['attributed-claim']),
-    effects: ['distributionEvents'],
-    receiptOnly: true,
   }),
   declare(
     'notifications.settings groups.list groups.invitations groups.members blocks.list',
@@ -471,51 +352,9 @@ const declarations: readonly Declaration[] = [
       'Real co-located goods delivery, or an attributed service delivery statement under its order protocol.',
   }),
   declare(
-    'services.list services.read bookings.list bookings.read queues.status',
-    query('services', 'services', ['world-fact', 'attributed-claim', 'consent']),
-  ),
-  declare(
-    'services.publish services.schedule services.close bookings.request bookings.accept bookings.cancel queues.join queues.leave queues.call',
-    authority('services', 'services', ['servicesEvents']),
-  ),
-  declare(
-    'services.start services.stop courses.start bookings.check-in bookings.leave',
-    physical('services', 'services', ['servicesEvents', 'worldEvents', 'residents']),
-  ),
-  declare(
-    'population.self housing.list civic.list leases.list',
+    'housing.list',
     query('society', 'life', ['world-fact', 'attributed-claim']),
   ),
-  declare('households.list care.list', query('society', 'life', ['consent', 'world-fact'])),
-  declare(
-    'households.propose households.accept households.reject households.end',
-    authority('society/households', 'life', ['householdEvents']),
-  ),
-  declare('care.request care.accept', authority('society/care', 'life', ['careEvents'])),
-  declare(
-    'care.start care.cancel',
-    physical('society/care', 'life', ['careEvents', 'worldEvents']),
-  ),
-  declare(
-    'health.grant health.revoke',
-    authority('society/health-records', 'life', ['healthRecordEvents']),
-  ),
-  declare('health.record', claim('society/health-records', 'life', ['healthRecordEvents'])),
-  declare(
-    'health.records courses.records',
-    query('society', 'life', ['attributed-claim', 'world-fact']),
-  ),
-  declare('courses.assess', claim('society/learning', 'life', ['learningEvents'])),
-  declare('leases.offer leases.accept leases.end leases.pay', resource('society/leases', 'life')),
-  declare(
-    'vehicles.list vehicles.read drivers.list rides.list rides.read rides.quotes',
-    query('mobility', 'mobility', ['world-fact', 'attributed-claim', 'authority']),
-  ),
-  declare(
-    'vehicles.authorize vehicles.revoke drivers.register drivers.online drivers.offline rides.request rides.quote rides.withdraw rides.book rides.cancel',
-    resource('mobility', 'mobility'),
-  ),
-  declare('rides.pickup rides.board', physical('mobility', 'mobility', ['worldEvents'])),
   declare(
     'registers.list registers.read',
     query('information/shared-records', 'records', ['authority']),
@@ -555,14 +394,6 @@ const declarations: readonly Declaration[] = [
       'servicesEvents',
     ]),
   ),
-  declare(
-    'reactions.list reactions.read reactions.history',
-    query('collaboration/reactions', 'program-reactions', ['authority', 'world-fact']),
-  ),
-  declare(
-    'reactions.watch reactions.cancel',
-    authority('collaboration/reactions', 'program-reactions', ['coordinationEvents']),
-  ),
   declare('programs.publish programs.revise programs.disable', {
     ...claim('collaboration/programs', 'coordination', ['coordinationEvents']),
     changes:
@@ -597,15 +428,6 @@ const declarations: readonly Declaration[] = [
     {
       ...resource('world/economy/enterprise/credit/society', 'base'),
       effects: ['worldEvents', 'residents'],
-    },
-  ),
-  declare(
-    'world.raise_petition world.sign_petition world.post_bulletin world.raise_matter world.respond_matter world.assign_matter world.close_matter',
-    {
-      ...authority('world/society/governance', 'base', ['worldEvents', 'residents']),
-      records: ['attributed-claim', 'consent'],
-      changes:
-        'Attributed civic participation under the existing public institution. A petition is not arbitrary lawmaking or direct policy mutation.',
     },
   ),
 ];

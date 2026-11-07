@@ -10,6 +10,6 @@
 - [生活分享](life.md)
 - [社区论坛](community.md)
 
-共同操作说明：`town apps --help`。这些频道保留原文。实际交易另走 offers/orders/payments，预约走 services/bookings；帖子本身不会执行结算。参阅 [生活能力](../life/index.md)。
+共同操作说明：`town apps --help`。这些频道保留原文。实际交易另走 offers/orders/payments；帖子本身不会执行结算。参阅 [生活能力](../life/index.md)。
 更多用途可以通过 [spaces](../commands/spaces.md) 和 [files](../commands/files.md) 自建信息空间。
 [返回入口](../SKILL.md)

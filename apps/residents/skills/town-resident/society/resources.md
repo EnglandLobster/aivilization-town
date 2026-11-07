@@ -19,11 +19,9 @@ resources list 列本人实际管理、所属集体管理或本人/集体被提�
 
 修改管理设置会取消挂起的交接；被撤销、过期、资源/控制版本不符的接受不会消费集体决定。给个人的交接不能由另一个成员代为接受。旧的registers nominate/accept仍用于从未进入新control状态的个人资源；进入后用resources offer/accept，避免旧提议绕过新的控制程序。原文作者、既有内容和历史版本在控制交接时保持原样。
 
-service 当前支持个人之间的 offer/accept/cancel，可通过已独立授权的 resource.control 程序与付款原子组合。用 services 的原生命令排期、处理预约或停止接待；resources manage 不代替这些命令。交接保留原发布者、预约、队列和正在进行的实际供给。新管理员不能代替旧服务人员出勤或停止其出勤；旧人员仍能本人离开。企业绑定服务和集体服务管理尚未接入，会明确拒绝。旧实验须由运行者显式 enable-service-control，且要求实际服务供给 v3。
+enterprise只交接经营权，两个revision均为控制版本，不代表企业全部财务版本。历史founderId不因交接改写；capitalShares是当前出资份额。个人管理者沿business/market原命令经营；集体必须提案并独立表态：resourceId固定企业ID，arguments包含expectedControlVersion和原命令参数，不再重复enterpriseId。支持business.post-job/layoff/close/authorize-service/revoke-service及market.trade/export/import。集体成员、旧创立人、普通员工不能直接动用公司资金。员工自己join/start/leave，服务双方自己接受及参加。
 
-enterprise只交接经营权，两个revision均为控制版本，不代表企业全部财务版本。历史founderId不因交接改写；已启用资本模式时capitalPositions/equityVersion是当前权益来源，旧模式仍显示capitalShares。个人管理者沿business/market原命令经营；集体必须提案并独立表态：resourceId固定企业ID，arguments包含expectedControlVersion和原命令参数，不再重复enterpriseId。支持business.post-job/layoff/close/authorize-service/revoke-service及market.trade/export/import。集体成员、旧创立人、普通员工不能直接动用公司资金。员工自己join/start/leave，服务双方自己接受及参加。
-
-企业管理者通过city observe --view enterprises按页看本公司经营事实；服务账用business services/service，个人工资用city observe --view labor。关闭须清结已有义务，余款和实物按已记录资本权益分配给权利人，不给执行关闭的管理员。business fund不会自动获得股份或债权；显式capital模式支持独立同意的出资和权益转让，以及无库存/未清义务的现金清算；完整实物清算和继承仍待接入；企业resource.control原子付费管理交接需显式program-actions-v3，见programs.md。群体失去程序法定人数会暂停新管理决定，不强迫任何人继续留在组织。
+企业管理者通过city observe --view enterprises按页看本公司经营事实；个人工资用city observe --view labor。关闭须清结已有义务，余款和实物按已记录资本权益分配给权利人，不给执行关闭的管理员。business fund不会自动获得股份或债权。群体失去程序法定人数会暂停新管理决定，不强迫任何人继续留在组织。
 
 目前资源管理不会转移货币、身体状态、社交关系或未实现的物理资产。旧实验由运行者显式enable-resource-control，群组控制还需enable-group-control；manifest不自动改写。默认上下文只给入口，详细状态按需读。
 

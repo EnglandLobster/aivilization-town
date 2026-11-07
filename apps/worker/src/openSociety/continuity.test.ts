@@ -114,47 +114,6 @@ test('oversized original read cannot mark messages read or manufacture perceptio
   expect(r.state.communication?.readMessageIds?.[a]).toBeUndefined();
 });
 
-test('feed reads preserve fixed originals and participants, personal pin survives newer notes', () => {
-  const { r, a, b, ok, replay } = setup();
-  ok(a, 'files.create', {
-    spaceId: 'app-reviews',
-    path: 'posts/read.md',
-    content: '值得参考的原始看法',
-  });
-  const publication = Object.values(r.state.distribution!.publications)[0]!;
-  ok(b, 'feed.read', { id: publication.id });
-  ok(b, 'feed.read', { id: publication.id });
-  const memories = r.state.experiences[b]!.filter((e) => e.sourceIds.includes(publication.id));
-  expect(memories).toHaveLength(1);
-  expect(memories[0]!.people).toContain(a);
-  ok(b, 'cognition.update', {
-    key: 'long-term',
-    kind: 'goal',
-    statement: '我自己想做的事',
-    confidence: 0.5,
-    evidenceIds: [],
-    expectedRevision: 0,
-    active: true,
-    pinned: true,
-    people: [a],
-  });
-  r.advanceTime(1000, 'advance');
-  for (let i = 0; i < 10; i++)
-    ok(b, 'cognition.update', {
-      key: `note-${i}`,
-      kind: 'note',
-      statement: '小事',
-      confidence: 0.5,
-      evidenceIds: [],
-      expectedRevision: 0,
-      active: true,
-    });
-  expect(r.context(b).cognition.items[0]?.key).toBe('long-term');
-  ok(b, 'schedule.configure', { freeActivityIntervalMs: 7200000 });
-  expect(r.state.residents[b]!.nextWakeAt - r.state.world.clock.now).toBe(7200000);
-  replay();
-});
-
 test('disputed partial refund can be settled with independent consent and exact conserved funds', () => {
   const { r, a, b, c, call, ok, replay } = setup();
   const startingA = r.state.world.agents[a]!.balance,
@@ -212,41 +171,6 @@ test('disputed partial refund can be settled with independent consent and exact 
   expect(
     r.state.experiences[b]!.some((e) => e.summary.includes('settled') && e.people.includes(a)),
   ).toBe(true);
-  replay();
-});
-
-test('hosted service reserves provider time, attendee can leave without teleport or satisfaction claims', () => {
-  const { r, a, b, c, call, ok, replay } = setup();
-  ok(a, 'services.publish', {
-    id: 's',
-    kind: 'appointment',
-    locationId: 'town-square',
-    title: '交流',
-    description: '自愿参与',
-    capacity: 2,
-  });
-  ok(a, 'services.schedule', { id: 'slot', serviceId: 's', start: 1000, end: 5000, capacity: 2 });
-  ok(b, 'bookings.request', { id: 'b', slotId: 'slot', units: 1 });
-  ok(a, 'bookings.accept', { id: 'b', expectedRevision: 1 });
-  r.advanceTime(1000, 'start');
-  expect(call(b, 'bookings.check-in', { id: 'b', expectedRevision: 2 })).toMatchObject({
-    ok: false,
-    error: 'provider-session-not-active',
-  });
-  ok(a, 'services.start', { id: 'slot', expectedRevision: 1 });
-  expect(r.state.world.activityTimeByAgent[a]?.availableAt).toBe(5000);
-  ok(b, 'bookings.check-in', { id: 'b', expectedRevision: 2 });
-  r.advanceTime(1000, 'middle');
-  expect(call(c, 'bookings.leave', { id: 'b', expectedRevision: 3 }).ok).toBe(false);
-  ok(b, 'bookings.leave', { id: 'b', expectedRevision: 3 });
-  expect(r.state.services!.bookings.b).toMatchObject({
-    status: 'ended',
-    attendedMs: 1000,
-    providerOverlapMs: 1000,
-  });
-  expect(r.state.world.activityTimeByAgent[b]?.availableAt).toBe(2000);
-  expect(r.state.world.activityTimeByAgent[a]?.availableAt).toBe(5000);
-  expect(r.state.world.agents[b]!.locationId).toBe('town-square');
   replay();
 });
 

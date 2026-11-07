@@ -1,12 +1,7 @@
 import {
-  validateCollectiveFreightCustody,
-  executeCollectiveFreightCustody,
-} from './freightCustodyCollectiveTools';
-import {
   validatePrincipalResourceAction,
   executeApprovedPrincipalResource,
 } from './resourcePrincipalTools';
-import { validateCapitalResource, executeApprovedCapital } from './capitalTools';
 import {
   validateEnterpriseControlResource,
   executeApprovedEnterpriseControl,
@@ -16,20 +11,6 @@ import {
   executeApprovedEnterpriseManagement,
 } from './enterpriseManagementTools';
 import type { ToolExecution } from './informationTools';
-import { validatePermitResourceAction, executeApprovedPermitResource } from './permitTools';
-import {
-  validateEvidenceTradeResourceAction,
-  executeApprovedEvidenceTradeResource,
-} from './evidenceTradeTools';
-import {
-  validateLogisticsResourceAction,
-  executeApprovedLogisticsResource,
-} from './logisticsTools';
-
-import {
-  validateEngagementResourceAction,
-  executeApprovedEngagementResource,
-} from './engagementTools';
 import { validatePremisesResourceAction, executeApprovedPremisesResource } from './premisesTools';
 import { validateMaterialResourceAction, executeApprovedMaterialResource } from './materialTools';
 import {
@@ -67,19 +48,9 @@ type Adapter = {
 };
 const adapters: readonly Adapter[] = [
   {
-    matches: (a) => a.capability === 'freight.handoff',
-    validate: (s, _m, c, a) => validateCollectiveFreightCustody(s, c, a),
-    execute: executeCollectiveFreightCustody,
-  },
-  {
     matches: (a) => a.capability.startsWith('principals.'),
     validate: (s, _m, c, a) => validatePrincipalResourceAction(s, c, a),
     execute: executeApprovedPrincipalResource,
-  },
-  {
-    matches: (a) => a.capability.startsWith('capital.'),
-    validate: (s, _m, c, a) => validateCapitalResource(s, c, a),
-    execute: executeApprovedCapital,
   },
   {
     matches: (a) => a.capability.startsWith('resources.') && a.arguments.kind === 'enterprise',
@@ -91,28 +62,6 @@ const adapters: readonly Adapter[] = [
     validate: (s, _m, c, a) => validateEnterpriseManagementResource(s, c, a),
     execute: (s, m, actor, c, d, a, r) =>
       executeApprovedEnterpriseManagement(s, m, actor, c, d, a, r),
-  },
-  {
-    matches: (a) => a.capability.startsWith('permits.'),
-    validate: (s, _m, c, a) => validatePermitResourceAction(s, c, a),
-    execute: (s, m, actor, c, d, a, r) => executeApprovedPermitResource(s, m, actor, c, d, a, r),
-  },
-  {
-    matches: (a) => a.capability.startsWith('trades.'),
-    validate: (s, _m, c, a) => validateEvidenceTradeResourceAction(s, c, a),
-    execute: (s, m, actor, c, d, a, r) =>
-      executeApprovedEvidenceTradeResource(s, m, actor, c, d, a, r),
-  },
-  {
-    matches: (a) => a.capability.startsWith('engagements.'),
-    validate: (s, _m, c, a) => validateEngagementResourceAction(s, c, a),
-    execute: (s, m, actor, c, d, a, r) =>
-      executeApprovedEngagementResource(s, m, actor, c, d, a, r),
-  },
-  {
-    matches: (a) => a.capability.startsWith('freight.'),
-    validate: (s, _m, c, a) => validateLogisticsResourceAction(s, c, a),
-    execute: (s, m, actor, c, d, a, r) => executeApprovedLogisticsResource(s, m, actor, c, d, a, r),
   },
   {
     matches: (a) =>

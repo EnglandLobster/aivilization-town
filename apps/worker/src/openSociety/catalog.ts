@@ -1,37 +1,25 @@
 import { LABOR_TERMS_TOOLS } from './laborTermsCatalog';
 import { RESOURCE_PRINCIPAL_TOOLS } from './resourcePrincipalCatalog';
-import { PERIODIC_TOOLS } from './periodicCatalog';
 import { HOUSING_OCCUPANCY_TOOLS } from './housingOccupancyCatalog';
 import { HOUSING_CHOICE_TOOLS } from './housingChoiceCatalog';
-import { CAPITAL_TOOLS } from './capitalCatalog';
-import { SERVICE_BUSINESS_TOOLS } from './serviceBusinessCatalog';
-import { EVIDENCE_TRADE_TOOLS } from './evidenceTradeCatalog';
-import { PERMIT_TOOLS } from './permitCatalog';
-import { ENGAGEMENT_TOOLS } from './engagementCatalog';
-import { LOGISTICS_TOOLS } from './logisticsCatalog';
 import { PREMISES_TOOLS } from './premisesCatalog';
 import { MATERIAL_TOOLS } from './materialCatalog';
 import { PUBLIC_GOVERNANCE_TOOLS } from './publicGovernanceCatalog';
 import { RESOURCE_CONTROL_TOOLS } from './resourceControlCatalog';
-import { REACTION_TOOLS } from './reactionCatalog';
 import { COMMON_ACCOUNT_TOOLS } from './commonAccountCatalog';
 import { COLLECTIVE_TOOLS } from './collectiveCatalog';
-import { MOBILITY_TOOLS } from './mobilityCatalog';
 import { KERNEL_TOOLS } from './kernelCatalog';
-import { RECORD_VIEW_TOOLS } from './recordViewCatalog';
 import { LIFE_TOOLS } from './lifeCatalog';
-import { SERVICES_TOOLS } from './servicesCatalog';
 import { COMMERCE_TOOLS } from './commerceCatalog';
 import { COLLABORATION_TOOLS } from './collaborationCatalog';
 import type { OpenToolDefinition, OpenToolProperty } from '@aivilization/agent-runtime';
 import type { CoreCommandType } from '@aivilization/sim-core';
 import { DOCUMENT_METADATA_POLICY } from '@aivilization/information';
-export const OPEN_CAPABILITY_CATALOG_VERSION = 'open-capabilities-v68';
+export const OPEN_CAPABILITY_CATALOG_VERSION = 'open-capabilities-v69';
 
 import { text, number, integer, choice, strings, tool, page } from './capabilitySchema';
 export { text, tool } from './capabilitySchema';
 import { COMMUNICATION_TOOLS } from './communicationCatalog';
-import { DISTRIBUTION_TOOLS } from './distributionCatalog';
 
 const document = { spaceId: text('Space ID', 96), path: text('Relative document path', 240) };
 const metadata = {
@@ -520,75 +508,23 @@ export const OPEN_WORLD_TOOLS: readonly WorldToolDefinition[] = [
     'Apply to an education examination; world controls qualifications and admission.',
     { targetLevel: { ...integer('Target level', 5), minimum: 1 } },
   ),
-  world(
-    'raise_petition',
-    'AgentRaisePetition',
-    'Publish a petition under existing collective-action rules.',
-    { topic: text('Topic', 100), statement: text('Original statement', 1000) },
-  ),
-  world('sign_petition', 'AgentSignPetition', 'Sign an existing petition as yourself.', {
-    petitionId: text('Petition ID', 200),
-  }),
-  world(
-    'post_bulletin',
-    'AgentPostBulletin',
-    'Publish a public bulletin under existing authority rules.',
-    { title: text('Title', 200), body: text('Original body', 2000) },
-  ),
-  world(
-    'raise_matter',
-    'AgentRaiseMatter',
-    'Raise a real help request in the existing social-matters domain.',
-    {
-      topic: text('Topic', 200),
-      statement: text('Original statement', 2000),
-      expiresInMs: integer('Lifetime in simulation milliseconds'),
-    },
-    ['topic', 'statement'],
-  ),
-  world('respond_matter', 'AgentRespondMatter', 'Personally respond to a public matter.', {
-    matterId: text('Matter ID', 200),
-    decision: choice(['accept', 'reject', 'defer', 'withdraw']),
-  }),
-  world('assign_matter', 'AgentAssignMatter', 'Assign your matter to a consenting responder.', {
-    matterId: text('Matter ID', 200),
-    assigneeAgentId: text('Resident', 96),
-  }),
-  world(
-    'close_matter',
-    'AgentCloseMatter',
-    'Request closure; the existing world validates evidence.',
-    { matterId: text('Matter ID', 200), outcome: choice(['fulfilled', 'breached', 'withdrawn']) },
-  ),
 ];
 export const OPEN_SOCIETY_TOOLS: readonly OpenToolDefinition[] = [
   ...PUBLIC_GOVERNANCE_TOOLS,
-  ...CAPITAL_TOOLS,
   ...HOUSING_CHOICE_TOOLS,
   ...HOUSING_OCCUPANCY_TOOLS,
   ...RESOURCE_PRINCIPAL_TOOLS,
-  ...PERIODIC_TOOLS,
   ...MATERIAL_TOOLS,
   ...PREMISES_TOOLS,
-  ...ENGAGEMENT_TOOLS,
-  ...SERVICE_BUSINESS_TOOLS,
   ...LABOR_TERMS_TOOLS,
-  ...LOGISTICS_TOOLS,
-  ...EVIDENCE_TRADE_TOOLS,
-  ...PERMIT_TOOLS,
   ...KERNEL_TOOLS,
-  ...REACTION_TOOLS,
   ...RESOURCE_CONTROL_TOOLS,
-  ...RECORD_VIEW_TOOLS,
   ...COLLECTIVE_TOOLS,
   ...COMMON_ACCOUNT_TOOLS,
   ...OPEN_INFORMATION_TOOLS,
-  ...DISTRIBUTION_TOOLS,
   ...COMMUNICATION_TOOLS,
   ...COLLABORATION_TOOLS,
   ...COMMERCE_TOOLS,
-  ...SERVICES_TOOLS,
   ...LIFE_TOOLS,
-  ...MOBILITY_TOOLS,
   ...OPEN_WORLD_TOOLS,
 ];

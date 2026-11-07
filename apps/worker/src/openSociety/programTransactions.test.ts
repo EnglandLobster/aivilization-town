@@ -17,7 +17,7 @@ function run(f: ReturnType<typeof fixture>, runId = 'exchange-run') {
     runId,
   });
 }
-test.each(['premises', 'stock', 'space', 'register', 'view', 'group', 'service'] as const)(
+test.each(['premises', 'stock', 'space', 'register', 'group'] as const)(
   '%s paid control exchange commits every signed step and exactly one balanced payment',
   (kind) => {
     const f = fixture(kind),

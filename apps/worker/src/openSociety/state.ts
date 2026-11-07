@@ -1,4 +1,3 @@
-import { freightCustodyReplayAuthority } from './freightCustodyCollectiveAuthority';
 import { canonicalCognitiveExperiences } from './canonicalCognition';
 import { canonicalMemoryExperiences } from './canonicalMemory';
 import { serviceSupplyRelationEventsFromWorld } from '@aivilization/world';
@@ -169,7 +168,6 @@ function applyUnorderedSocietyEffects(
 ): OpenSocietyState {
   let world = state.world;
   const principalAuthority = principalReplayAuthority(state, effects);
-  const custodyAuthority = freightCustodyReplayAuthority(state, effects);
   let serviceDirectory = state.services;
   if (
     effects.servicesEvents?.some((e) =>
@@ -211,7 +209,6 @@ function applyUnorderedSocietyEffects(
       event,
       principalAuthority,
       serviceDirectory,
-      custodyAuthority,
     );
     for (const e of servicePrincipalEventsFromWorld(event))
       serviceDirectory = applyServicesEvent(serviceDirectory, e);

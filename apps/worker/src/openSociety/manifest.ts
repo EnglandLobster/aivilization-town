@@ -2,33 +2,13 @@ import {
   resolveCanonicalPolicyContinuation,
   type CanonicalPolicyContinuation,
 } from '../canonicalPolicyContinuation';
-import { enableResidentConstructionTradeEvent } from '@aivilization/world';
-import { enableResourceSalesEvent, extendResourceSalesEvent } from '@aivilization/world';
-import { enablePeriodicObligationsEvent } from '@aivilization/world';
 import { enablePhysicalHousingRestEvent } from '@aivilization/world';
 import { PHYSICAL_HOUSING_REST_POLICY } from '@aivilization/society';
-import { SERVICE_SUPPLY_RELATION_POLICY } from '@aivilization/services';
-import { SERVICE_AFFILIATION_POLICY } from '@aivilization/services';
-import {
-  enableServicePrincipalsEvent,
-  enableServiceSupplyEvent,
-  applyWorldEventWithPrincipalAuthority,
-} from '@aivilization/world';
-import {
-  emptyServicesState,
-  SERVICE_PRINCIPALS_POLICY,
-  SERVICE_SUPPLY_POLICY,
-  applyServicesEvent,
-} from '@aivilization/services';
-import { enableVehiclePrincipalsEvent } from '@aivilization/world';
-import { enablePrincipalEvidenceTradeEvent } from '@aivilization/world';
-import { enablePrincipalPremisesRightsEvent } from '@aivilization/world';
 import { enablePremisesPrincipalsEvent } from '@aivilization/world';
 import { enableResourcePrincipalsEvent } from '@aivilization/world';
 import { enableHousingOccupancyEvent } from '@aivilization/world';
 import { publicHousingWorldPolicies, enablePublicHousingEvent } from '@aivilization/world';
 import { enableHousingChoiceEvent } from '@aivilization/world';
-import { enableResidentCapitalEvent } from '@aivilization/world';
 import { enablePublicEmploymentEvent, publicEmploymentWorldPolicies } from '@aivilization/world';
 import { ENTERPRISE_CONTROL_VERSION } from '@aivilization/enterprise';
 import { enablePublicLaborEvent } from '@aivilization/world';
@@ -39,37 +19,13 @@ import {
   enableResidentLaborEvent,
   enableProductiveEmploymentEvent,
   enableEducationAuthorityEvent,
-  enableServiceTimeEvent,
-  enableServiceEmploymentEvent,
   assertEducationAuthorityState,
 } from '@aivilization/world';
 import { seedOpenMaterialSources, EXTRACTION_SEED_VERSION } from './extractionPolicy';
-import {
-  emptyEvidenceTradeState,
-  EVIDENCE_TRADE_POLICY,
-  EVIDENCE_TRADE_POLICY_V2,
-} from '@aivilization/commerce';
-import {
-  applyPremisesRightsEvent,
-  PREMISES_RIGHTS_POLICY,
-  PREMISES_PROVISION_POLICY,
-} from '@aivilization/premises';
-import { LOGISTICS_POLICY } from '@aivilization/logistics';
-import { seedOpenLogistics, LOGISTICS_VEHICLE_SEED_VERSION } from './logisticsPolicy';
+import { applyPremisesRightsEvent, PREMISES_RIGHTS_POLICY } from '@aivilization/premises';
 
-import { seedOpenServiceEngagements, SERVICE_FACILITY_SEED_VERSION } from './engagementPolicy';
-import { SERVICE_ENGAGEMENTS_POLICY } from '@aivilization/services';
-import {
-  RESIDENT_SERVICE_EFFECTS_POLICY,
-  emptyResidentRestState,
-  RESIDENT_REST_POLICY,
-} from '@aivilization/society';
-import {
-  assertResidentRestTimeCompatibility,
-  enableResidentPublicProcurementEvent,
-  enableResidentPublicGoodsProcurementEvent,
-  applyWorldEvent,
-} from '@aivilization/world';
+import { emptyResidentRestState, RESIDENT_REST_POLICY } from '@aivilization/society';
+import { assertResidentRestTimeCompatibility, applyWorldEvent } from '@aivilization/world';
 import { seedOpenPremises, CONSTRUCTION_SITE_SEED_VERSION } from './premisesPolicy';
 import {
   PREMISES_POLICY,
@@ -86,7 +42,6 @@ import { RESIDENT_CLI_VERSION, RESIDENT_SKILL_VERSION } from './capabilityRoutes
 import { SOCIETY_RULEBOOK_VERSION } from './ruleDefinitions';
 import { RESOURCE_CONTROL_POLICY } from '@aivilization/authority';
 import {
-  PROGRAM_REACTIONS_POLICY,
   PROGRAM_CONDITIONS_POLICY,
   PROGRAM_ACTIONS_POLICY,
   ENTERPRISE_PROGRAM_ACTIONS_POLICY,
@@ -97,19 +52,11 @@ import {
   INVENTORY_REQUEST_PRECISION,
 } from '@aivilization/economy';
 import { COLLECTIVES_POLICY } from '@aivilization/collaboration';
-import { emptyMobilityState, MOBILITY_POLICY } from '@aivilization/mobility';
 import { RESIDENT_RHYTHM_POLICY, type ResidentRhythmPolicy } from '@aivilization/society';
 import { applyResidentRhythm } from './rhythmPolicy';
-import { RESIDENT_LIFE_POLICIES } from './lifeState';
-import {
-  SERVICES_POLICY,
-  STAFFED_SERVICES_POLICY,
-  SERVICE_CONTROL_POLICY,
-} from '@aivilization/services';
 import { COMMERCE_POLICY, emptyCommerceState } from '@aivilization/commerce';
 import { COLLABORATION_POLICY } from '@aivilization/collaboration';
 import { SOCIETY_KERNEL_POLICY } from './kernelPolicy';
-import { RECORD_VIEWS_POLICY } from '@aivilization/information';
 import {
   CITY_APPS_VERSION,
   initializeResidentPopulation,
@@ -130,7 +77,6 @@ import {
   COMMUNICATION_POLICY,
   DEFAULT_INFORMATION_POLICY,
   DOCUMENT_METADATA_POLICY,
-  DEFAULT_DISTRIBUTION_POLICY,
 } from '@aivilization/information';
 import { COGNITION_POLICY_VERSION, CONTINUOUS_COGNITION_VERSION } from '@aivilization/memory';
 import { asLocationId } from '@aivilization/sim-core';
@@ -201,60 +147,35 @@ export function createOpenSocietyManifest(input: {
   seed?: string;
   policy?: OpenAgentPolicy;
   cityApps?: boolean;
-  distribution?: boolean;
   life?: boolean;
   continuity?: boolean;
-  mobility?: boolean;
   societyKernel?: boolean;
-  recordViews?: boolean;
   collectives?: boolean;
   commonAccounts?: boolean;
   programConditions?: boolean;
-  programReactions?: boolean;
   programActions?: boolean;
   enterprisePrograms?: boolean;
-  serviceControl?: boolean;
   elapsedRest?: boolean;
   elapsedStudy?: boolean;
   elapsedLabor?: boolean;
   productiveEmployment?: boolean;
   educationAuthority?: boolean;
-  serviceTime?: boolean;
   publicLabor?: boolean;
-  serviceEmployment?: boolean;
   physicalProduction?: boolean;
   publicGovernance?: boolean;
   publicEmployment?: boolean;
-  capitalAgreements?: boolean;
   housingChoice?: boolean;
   housingOccupancy?: boolean;
   physicalHousingRest?: boolean;
   resourcePrincipals?: boolean;
   premisesPrincipals?: boolean;
-  servicePrincipals?: boolean;
-  serviceSupply?: boolean;
-  serviceAffiliations?: boolean;
-  serviceSupplyRelations?: boolean;
-  vehiclePrincipals?: boolean;
-  principalPermits?: boolean;
-  resourceSales?: boolean;
-  resourceSalesV2?: boolean;
-  periodicObligations?: boolean;
-  principalTrade?: boolean;
-  constructionTrade?: boolean;
   publicHousing?: boolean;
-  publicProcurement?: boolean;
-  publicGoodsProcurement?: boolean;
   resourceControl?: boolean;
   groupControl?: boolean;
   materials?: boolean;
   premises?: boolean;
   facilityUse?: boolean;
-  serviceEngagements?: boolean;
-  logistics?: boolean;
-  evidenceTrade?: boolean;
   premisesRights?: boolean;
-  paidPermits?: boolean;
   /** Learning by doing plus natural source regrowth (versioned material growth policies). */
   materialGrowth?: boolean;
   /** Paced direct-message wakes (resident-message-pacing-v1); absent keeps immediate wakes. */
@@ -282,29 +203,6 @@ export function createOpenSocietyManifest(input: {
   const continuity = input.continuity === true;
   const initialization = input.initialization ?? (continuity ? 'settled' : 'newcomers');
   const rhythm = continuity ? RESIDENT_RHYTHM_POLICY : undefined;
-  const servicesPolicy = continuity ? STAFFED_SERVICES_POLICY : SERVICES_POLICY;
-  if (input.periodicObligations && !input.publicGovernance)
-    throw Error('periodic-obligations-require-explicit-public-governance');
-  if (input.serviceSupplyRelations && !input.serviceAffiliations)
-    throw Error('service-supply-relations-require-service-affiliations');
-  if (input.serviceAffiliations && !input.serviceSupply)
-    throw Error('service-affiliations-require-service-supply');
-  if (
-    input.serviceSupply &&
-    (!input.servicePrincipals ||
-      !continuity ||
-      input.life === false ||
-      input.publicGovernance === false)
-  )
-    throw Error('service-supply-requires-principal-directory-and-recorded-providers');
-  if (
-    input.serviceControl &&
-    (!continuity ||
-      input.life === false ||
-      input.resourceControl === false ||
-      input.societyKernel === false)
-  )
-    throw Error('service-control-requires-recorded-providers-and-resource-control');
   const cognitionVersion = continuity ? CONTINUOUS_COGNITION_VERSION : COGNITION_POLICY_VERSION;
   const rawPreset = createAivilizationPopulationScenarioPreset({
     id: 'open-residents-v1',
@@ -341,20 +239,6 @@ export function createOpenSocietyManifest(input: {
       : {
           ...baseWorld,
           residentCommerce: emptyCommerceState(COMMERCE_POLICY),
-          ...(continuity && input.mobility !== false
-            ? {
-                residentMobility: emptyMobilityState([
-                  {
-                    id: 'seed-car-1',
-                    ownerId: preset.agentSeeds[0]!.agentId,
-                    authorized: [],
-                    seats: 2,
-                    locationId: baseWorld.agents[preset.agentSeeds[0]!.agentId]!.locationId!,
-                    revision: 1,
-                  },
-                ]),
-              }
-            : {}),
         };
   const groupControlEnabled =
     input.societyKernel !== false &&
@@ -376,25 +260,11 @@ export function createOpenSocietyManifest(input: {
     ...materialsWorld,
     ...(premisesEnabled ? seedOpenPremises(materialsWorld, input.facilityUse !== false) : {}),
   };
-  const serviceEngagementsEnabled = premisesEnabled && input.serviceEngagements !== false;
-  const serviceWorld = {
-    ...premisesWorld,
-    ...(serviceEngagementsEnabled ? seedOpenServiceEngagements(premisesWorld) : {}),
-  };
-  const logisticsEnabled =
-    premisesEnabled && input.facilityUse !== false && input.logistics !== false;
-  const evidenceTradeEnabled =
-    logisticsEnabled && serviceEngagementsEnabled && input.evidenceTrade !== false;
   const premisesRightsEnabled = premisesEnabled && input.premisesRights !== false;
-  const paidPermitsEnabled =
-    evidenceTradeEnabled && premisesRightsEnabled && input.paidPermits !== false;
-  const tradePolicy = paidPermitsEnabled ? EVIDENCE_TRADE_POLICY_V2 : EVIDENCE_TRADE_POLICY;
   let world: WorldProjection = {
-    ...serviceWorld,
-    ...(input.publicGovernance ? { publicGovernance: seedPublicGovernance(serviceWorld) } : {}),
+    ...premisesWorld,
+    ...(input.publicGovernance ? { publicGovernance: seedPublicGovernance(premisesWorld) } : {}),
     ...(input.elapsedRest ? { residentRest: emptyResidentRestState() } : {}),
-    ...(logisticsEnabled ? seedOpenLogistics(serviceWorld) : {}),
-    ...(evidenceTradeEnabled ? { residentTrade: emptyEvidenceTradeState(tradePolicy) } : {}),
     ...(premisesRightsEnabled
       ? {
           premisesRights: applyPremisesRightsEvent(undefined, {
@@ -430,17 +300,6 @@ export function createOpenSocietyManifest(input: {
       }),
     );
   }
-  if (input.serviceTime)
-    world = applyWorldEvent(
-      world,
-      enableServiceTimeEvent({
-        projection: world,
-        policies: openWorldPolicies(seed, world, rhythm),
-        simulationId: 'manifest-seed',
-        requestId: 'seed-service-time-v1',
-        nextSequence: 1,
-      }),
-    );
   if (input.elapsedStudy)
     world = applyWorldEvent(
       world,
@@ -475,47 +334,6 @@ export function createOpenSocietyManifest(input: {
         nextSequence: 1,
       }),
     );
-  if (input.servicePrincipals)
-    world = applyWorldEventWithPrincipalAuthority(
-      world,
-      enableServicePrincipalsEvent({
-        projection: world,
-        directory: emptyServicesState(servicesPolicy),
-        requestId: 'seed-service-principals-v2',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-      undefined,
-      emptyServicesState(servicesPolicy),
-    );
-  if (input.serviceSupply) {
-    const directory = applyServicesEvent(emptyServicesState(servicesPolicy), {
-      type: 'ServicePrincipalsEnabled',
-      policy: SERVICE_PRINCIPALS_POLICY,
-    });
-    world = applyWorldEventWithPrincipalAuthority(
-      world,
-      enableServiceSupplyEvent({
-        projection: world,
-        directory,
-        requestId: 'seed-service-supply-v3',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-      undefined,
-      directory,
-    );
-  }
-  if (input.vehiclePrincipals)
-    world = applyWorldEvent(
-      world,
-      enableVehiclePrincipalsEvent({
-        projection: world,
-        requestId: 'seed-vehicle-principals-v2',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-    );
   if (input.resourcePrincipals)
     world = applyWorldEvent(
       world,
@@ -536,67 +354,6 @@ export function createOpenSocietyManifest(input: {
         nextSequence: 1,
       }),
     );
-  if (input.principalPermits)
-    world = applyWorldEvent(
-      world,
-      enablePrincipalPremisesRightsEvent({
-        projection: world,
-        requestId: 'seed-principal-permits-v2',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-    );
-  if (input.periodicObligations) {
-    const d = enablePeriodicObligationsEvent({
-      projection: world,
-      requestId: 'seed-periodic-obligations-v1',
-      simulationId: 'manifest-seed',
-      nextSequence: 1,
-    });
-    if (!d.accepted) throw Error(d.reason);
-    for (const e of d.events) world = applyWorldEvent(world, e);
-  }
-  if (input.resourceSales || input.resourceSalesV2) {
-    const d = enableResourceSalesEvent({
-      projection: world,
-      requestId: 'seed-resource-sales-v1',
-      simulationId: 'manifest-seed',
-      nextSequence: 1,
-    });
-    if (!d.accepted) throw Error(d.reason);
-    for (const e of d.events) world = applyWorldEvent(world, e);
-  }
-  if (input.resourceSalesV2) {
-    const d = extendResourceSalesEvent({
-      projection: world,
-      requestId: 'seed-resource-sales-v2',
-      simulationId: 'manifest-seed',
-      nextSequence: 1,
-    });
-    if (!d.accepted) throw Error(d.reason);
-    for (const e of d.events) world = applyWorldEvent(world, e);
-  }
-  if (input.constructionTrade) {
-    const d = enableResidentConstructionTradeEvent({
-      projection: world,
-      requestId: 'seed-construction-trade-v1',
-      simulationId: 'manifest-seed',
-      nextSequence: 1,
-      enablePublicAuthority: true,
-    });
-    if (!d.accepted) throw Error(d.reason);
-    for (const e of d.events) world = applyWorldEvent(world, e);
-  }
-  if (input.principalTrade) {
-    const d = enablePrincipalEvidenceTradeEvent({
-      projection: world,
-      requestId: 'seed-principal-trade-v3',
-      simulationId: 'manifest-seed',
-      nextSequence: 1,
-    });
-    if (!d.accepted) throw Error(d.reason);
-    for (const e of d.events) world = applyWorldEvent(world, e);
-  }
   if (input.housingOccupancy)
     world = applyWorldEvent(
       world,
@@ -639,16 +396,6 @@ export function createOpenSocietyManifest(input: {
         nextSequence: 1,
       }),
     );
-  if (input.capitalAgreements)
-    world = applyWorldEvent(
-      world,
-      enableResidentCapitalEvent({
-        projection: world,
-        requestId: 'seed-capital-agreements-v1',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-    );
   if (input.publicEmployment)
     world = applyWorldEvent(
       world,
@@ -671,16 +418,6 @@ export function createOpenSocietyManifest(input: {
         nextSequence: 1,
       }),
     );
-  if (input.serviceEmployment)
-    world = applyWorldEvent(
-      world,
-      enableServiceEmploymentEvent({
-        projection: world,
-        requestId: 'seed-service-employment-v1',
-        simulationId: 'manifest-seed',
-        nextSequence: 1,
-      }),
-    );
   if (input.productiveEmployment)
     world = applyWorldEvent(
       world,
@@ -689,26 +426,6 @@ export function createOpenSocietyManifest(input: {
         requestId: 'seed-productive-employment-v1',
         simulationId: 'manifest-seed',
         nextSequence: 1,
-      }),
-    );
-  if (input.publicProcurement)
-    world = applyWorldEvent(
-      world,
-      enableResidentPublicProcurementEvent({
-        projection: world,
-        simulationId: 'manifest-seed',
-        requestId: 'seed-public-procurement-v1',
-        nextSequence: 1,
-      }),
-    );
-  if (input.publicGoodsProcurement)
-    world = applyWorldEvent(
-      world,
-      enableResidentPublicGoodsProcurementEvent({
-        projection: world,
-        simulationId: 'manifest-seed',
-        requestId: 'seed-public-goods-procurement-v1',
-        nextSequence: 2,
       }),
     );
   if (input.elapsedRest)
@@ -720,13 +437,6 @@ export function createOpenSocietyManifest(input: {
   ];
   return {
     ...(groupControlEnabled ? { groupControlPolicy: GROUP_CONTROL_POLICY } : {}),
-    ...(input.servicePrincipals ? { servicePrincipalPolicy: SERVICE_PRINCIPALS_POLICY } : {}),
-    ...(input.serviceSupply ? { serviceSupplyPolicy: SERVICE_SUPPLY_POLICY } : {}),
-    ...(input.serviceAffiliations ? { serviceAffiliationPolicy: SERVICE_AFFILIATION_POLICY } : {}),
-    ...(input.serviceSupplyRelations
-      ? { serviceSupplyRelationPolicy: SERVICE_SUPPLY_RELATION_POLICY }
-      : {}),
-    ...(input.serviceControl ? { serviceControlPolicy: SERVICE_CONTROL_POLICY } : {}),
     ...(input.societyKernel === false
       ? {}
       : {
@@ -743,14 +453,8 @@ export function createOpenSocietyManifest(input: {
             : { resourceControlPolicy: RESOURCE_CONTROL_POLICY }),
           ...(input.programConditions === false
             ? {}
-            : {
-                programConditionsPolicy: PROGRAM_CONDITIONS_POLICY,
-                ...(input.programReactions === false
-                  ? {}
-                  : { programReactionsPolicy: PROGRAM_REACTIONS_POLICY }),
-              }),
+            : { programConditionsPolicy: PROGRAM_CONDITIONS_POLICY }),
           ...(input.collectives === false ? {} : { collectivesPolicy: COLLECTIVES_POLICY }),
-          ...(input.recordViews === false ? {} : { recordViewsPolicy: RECORD_VIEWS_POLICY }),
         }),
     schemaVersion: OPEN_SOCIETY_SCHEMA_VERSION,
     simulationId: input.simulationId ?? 'open-town',
@@ -773,17 +477,12 @@ export function createOpenSocietyManifest(input: {
     },
     ...(rhythm ? { rhythm, initialization } : {}),
     informationPolicy: DEFAULT_INFORMATION_POLICY,
-    ...(input.distribution === false ? {} : { distributionPolicy: DEFAULT_DISTRIBUTION_POLICY }),
     ...(input.life === false
       ? {}
       : {
           communicationPolicy: COMMUNICATION_POLICY,
           collaborationPolicy: COLLABORATION_POLICY,
-          servicesPolicy,
         }),
-    ...(input.life === false
-      ? {}
-      : { lifeVersion: 'resident-life-v1' as const, lifePolicies: RESIDENT_LIFE_POLICIES }),
     cognitionVersion,
     worldPolicies: serializableWorldPolicy(seed, world, rhythm),
     initialWorld: world,
@@ -815,31 +514,8 @@ export function createOpenSocietyManifest(input: {
             publicLaborFunding: 'treasury-prefunded-gross-wage',
           }
         : {}),
-      ...(input.serviceEmployment
-        ? {
-            serviceEmployment: 'resident-service-employment-v1',
-            enterpriseServiceBusiness: 'enterprise-service-business-v1',
-            serviceAttendance: 'resident-service-attendance-v1',
-          }
-        : {}),
       inventoryRequestPrecision: INVENTORY_REQUEST_PRECISION.version,
-      ...(evidenceTradeEnabled ? { evidenceTrade: tradePolicy.version } : {}),
       ...(premisesRightsEnabled ? { premisesRights: PREMISES_RIGHTS_POLICY.version } : {}),
-      ...(paidPermitsEnabled ? { premisesProvision: PREMISES_PROVISION_POLICY.version } : {}),
-      ...(logisticsEnabled
-        ? {
-            logistics: LOGISTICS_POLICY.version,
-            physicalLoad: LOGISTICS_POLICY.loadModel,
-            vehicleCargoSeed: LOGISTICS_VEHICLE_SEED_VERSION,
-          }
-        : {}),
-      ...(serviceEngagementsEnabled
-        ? {
-            serviceEngagements: SERVICE_ENGAGEMENTS_POLICY.version,
-            serviceEffects: RESIDENT_SERVICE_EFFECTS_POLICY.version,
-            serviceFacilitySeed: SERVICE_FACILITY_SEED_VERSION,
-          }
-        : {}),
       ...(premisesEnabled && input.facilityUse !== false
         ? { facilityUse: PREMISES_FACILITY_USE_POLICY.version }
         : {}),
@@ -854,52 +530,16 @@ export function createOpenSocietyManifest(input: {
         ? { materials: MATERIALS_POLICY.version, processing: 'resident-processing-v1' }
         : {}),
       ...(groupControlEnabled ? { groupControl: GROUP_CONTROL_POLICY.version } : {}),
-      ...(input.serviceControl ? { serviceControl: SERVICE_CONTROL_POLICY.version } : {}),
       ...(input.publicHousing ? { publicHousing: 'resident-public-housing-v1' } : {}),
       ...(input.housingOccupancy ? { housingOccupancy: 'resident-housing-occupancy-v1' } : {}),
       ...(input.physicalHousingRest
         ? { physicalHousingRest: PHYSICAL_HOUSING_REST_POLICY.version }
-        : {}),
-      ...(input.servicePrincipals ? { servicePrincipals: 'resident-service-principals-v2' } : {}),
-      ...(input.serviceSupply ? { serviceRegistration: 'resident-service-supply-v3' } : {}),
-      ...(input.serviceAffiliations
-        ? { serviceAffiliation: 'resident-service-affiliation-v4' }
-        : {}),
-      ...(input.serviceSupplyRelations
-        ? { serviceSupplyRelationships: 'resident-service-supply-relations-v5' }
-        : {}),
-      ...(input.vehiclePrincipals ? { vehiclePrincipals: 'resident-vehicle-principals-v2' } : {}),
-      ...(input.resourceSales || input.resourceSalesV2
-        ? {
-            resourceSales: input.resourceSalesV2
-              ? 'resident-resource-sales-v2'
-              : 'resident-resource-sales-v1',
-            publicResourceSales: input.resourceSalesV2
-              ? 'public-paid-resource-control-v2'
-              : 'public-paid-resource-control-v1',
-            enterpriseResourceSalesAccounting: input.resourceSalesV2
-              ? 'enterprise-resource-sales-cash-accounting-v2'
-              : 'enterprise-resource-sales-cash-accounting-v1',
-          }
-        : {}),
-      ...(input.periodicObligations
-        ? {
-            periodicObligations: 'resident-periodic-obligations-v1',
-            publicPeriodicObligations: 'public-finite-periodic-commitments-v1',
-            enterprisePeriodicAccounting: 'enterprise-periodic-obligations-cash-v1',
-          }
-        : {}),
-      ...(input.constructionTrade ? { constructionTrade: 'construction-trade-v1' } : {}),
-      ...(input.principalTrade ? { principalTrade: 'resident-principal-evidence-trade-v3' } : {}),
-      ...(input.principalPermits
-        ? { principalPermits: 'resident-premises-principal-permits-v2' }
         : {}),
       ...(input.premisesPrincipals
         ? { premisesPrincipals: 'premises-resource-principals-v2' }
         : {}),
       ...(input.resourcePrincipals ? { resourcePrincipals: 'resource-principals-v2' } : {}),
       ...(input.housingChoice ? { housingChoice: 'resident-housing-choice-v1' } : {}),
-      ...(input.capitalAgreements ? { capitalAgreements: 'enterprise-capital-agreements-v1' } : {}),
       ...(input.publicEmployment
         ? { publicEmployment: 'resident-public-employment-rules-v1' }
         : {}),
@@ -907,18 +547,6 @@ export function createOpenSocietyManifest(input: {
         ? {
             publicGovernance: PUBLIC_GOVERNANCE_POLICY.version,
             publicGrant: 'open-town-public-grant-v1',
-          }
-        : {}),
-      ...(input.publicGoodsProcurement
-        ? {
-            publicGoodsProcurement: 'resident-public-goods-procurement-v1',
-            tradePublicFunding: 'resident-trade-public-funding-v1',
-          }
-        : {}),
-      ...(input.publicProcurement
-        ? {
-            publicProcurement: 'resident-public-procurement-v1',
-            servicePublicFunding: 'resident-service-public-funding-v1',
           }
         : {}),
       ...(input.physicalProduction
@@ -939,12 +567,6 @@ export function createOpenSocietyManifest(input: {
             earnedPayroll: 'enterprise-earned-payroll-v1',
             withholding: 'labor-reference-period-withholding-v1',
             employmentOpportunityCost: 'education-opportunity-cost-v3',
-          }
-        : {}),
-      ...(input.serviceTime
-        ? {
-            serviceTime: 'resident-service-time-v1',
-            servicePhysiology: 'resident-service-physiology-v2',
           }
         : {}),
       ...(input.educationAuthority
@@ -975,13 +597,7 @@ export function createOpenSocietyManifest(input: {
             rulebook: SOCIETY_RULEBOOK_VERSION,
           }),
       mode: 'experimental-open-agent',
-      ...(world.residentMobility
-        ? { mobility: MOBILITY_POLICY.version, vehicleSeed: 'explicit-one-owned-car-v1' }
-        : {}),
       worldPolicyAdapter: rhythm ? 'resident-natural-day-adapter-v1' : 'canonical-world-adapter-v1',
-      ...(input.life !== false && servicesPolicy.version === 'resident-services-v3'
-        ? { serviceSupply: 'service-supply-v1' }
-        : {}),
       ...(rhythm
         ? {
             rhythm: rhythm.version,
@@ -1002,9 +618,6 @@ export function createOpenSocietyManifest(input: {
             communication: COMMUNICATION_POLICY.version,
             collaboration: COLLABORATION_POLICY.version,
             commerce: COMMERCE_POLICY.version,
-            services: servicesPolicy.version,
-            life: 'resident-life-v1',
-            leases: 'resident-leases-v1',
           }),
       scheduler: 'open-simulation-round-robin-v1',
       initialBackground: initialized
@@ -1012,11 +625,6 @@ export function createOpenSocietyManifest(input: {
         : 'explicit-template-v1-not-lived-memory',
       transport: RESIDENT_CLI_VERSION,
       residentSkill: RESIDENT_SKILL_VERSION,
-      ...(input.societyKernel === false ||
-      input.programConditions === false ||
-      input.programReactions === false
-        ? {}
-        : { programReactions: PROGRAM_REACTIONS_POLICY.version }),
       ...(input.societyKernel === false || input.programConditions === false
         ? {}
         : { programConditions: PROGRAM_CONDITIONS_POLICY.version }),
@@ -1033,14 +641,8 @@ export function createOpenSocietyManifest(input: {
       ...(input.societyKernel === false || input.collectives === false
         ? {}
         : { collectives: COLLECTIVES_POLICY.version }),
-      ...(input.societyKernel === false || input.recordViews === false
-        ? {}
-        : { recordViews: RECORD_VIEWS_POLICY.version }),
       capabilityBoundaries: 'resident-capability-boundaries-v1',
       ...(input.cityApps === false ? {} : { cityApps: CITY_APPS_VERSION }),
-      ...(input.distribution === false
-        ? {}
-        : { distribution: DEFAULT_DISTRIBUTION_POLICY.version }),
       documentIndex: 'document-index-v1',
       documentMetadata: DOCUMENT_METADATA_POLICY.version,
     },

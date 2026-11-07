@@ -107,7 +107,10 @@ export function buildOpenResidentContext(
             note: 'Subscription updates only; original text is read on demand. No automatic wake or change of intention.',
           },
         }),
-    ...(state.life ? { lifeInbox: residentLifeInbox(state, actorId, policy.contextMessages) } : {}),
+    // Pending group, proposal, order and payment items; present whenever residents can talk.
+    ...(state.communication
+      ? { lifeInbox: residentLifeInbox(state, actorId, policy.contextMessages) }
+      : {}),
     ...(state.world.publicGovernance
       ? { publicGovernance: publicGovernanceContext(state.world, actorId, policy.contextMessages) }
       : {}),

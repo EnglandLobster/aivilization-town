@@ -83,7 +83,7 @@ Quote text arguments. Object flags take a single quoted JSON object. Boolean fla
 
 ```text
 town governance propose [flags]
-Propose exact set-tax/set-budget/set-subsidy/set-procedure terms and expectedRevision, invalidate-decision with proposalId/expectedRevision/reason, enabled set-housing with complete terms from governance housing, enabled set-employment with complete terms from governance employment, or enabled fund-service with engagementId/expectedRevision/maximumCharge or fund-goods with orderId/expectedRevision/amount. Read governance status for scope; residents cannot create public jurisdiction.
+Propose exact set-tax/set-budget/set-subsidy/set-procedure terms and expectedRevision, invalidate-decision with proposalId/expectedRevision/reason, enabled set-housing with complete terms from governance housing, or enabled set-employment with complete terms from governance employment. Read governance status for scope; residents cannot create public jurisdiction.
 --id <string> (required) maxLength=160 Public proposal or objection ID
 --text <string> (required) maxLength=4000 Your original reason
 --action <object> (required) Exact action JSON: kind, expectedRevision, terms; invalidation uses proposalId/reason; fund-service uses engagementId/maximumCharge; fund-goods uses orderId/amount. No actor, authority, source or formula fields.

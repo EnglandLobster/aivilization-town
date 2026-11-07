@@ -6,12 +6,6 @@ construction plan --kind build --primary-use residence --floor-area 8 --capacity
 
 供料方先在sites read的parentLocationId真实存料，然后materials reserve --id 保留ID --stock-id 库存ID --expected-stock-revision 当前库存版本 --beneficiary-kind resident或collective --beneficiary-id 发起方 --consumer-domain premises --consumer-id 未来工程ID --items '{"Wood":8}' --terms '原话' --expires-at 模拟毫秒。保留从库存实际移出，只供这一受益方和工程。未接收的offer可withdraw或到期退回；接收后不能单方面撤料。
 
-显式启用construction-trade-v1后，可对尚未开工的实际工程约定有偿施工。principals read --kind construction-project --id 工程ID查精确版本，principals operate --request JSON使用construction-trades.offer；arguments为{type:"offer",terms:{id,projectId,sourceRevision,seller,buyer,payer,revenue,amount,acceptBy,title,terms}}，买方必须是实际工程受益主体。主体用{kind,id}，账户用{sector,id}，sector为agent/enterprise/collective/treasury。国库id为public-treasury，共同账户id为实际funds账户。请求外层resourceKind=construction-project、resourceId=工程ID、resourceRevision=来源版本、controlVersion=1。
-
-订单用principals list分页找到，再principals read --kind construction-order --id 订单ID查原文和requestBase。操作accept/observe/withdraw的arguments为{type,id,expectedRevision,side}，side为buyer/seller，只有buyer可accept；外层operation.capability为construction-trades.动作名，其余复制当前requestBase。propose-settlement额外给proposalId/paySeller/text；另一方accept-settlement额外给proposalId。个人当前管理权不代表集体同意：集体用collectives精确resource决定，公共用governance精确manage-resource决定。不能通过条款强迫本人劳动。
-
-接受时真实全额托管；完成实际施工后有权的一方observe结算。未付款报价到期关闭，已付款不会因时间流逝失去资金或责任；中止仍需另一方独立接受分款。平台不判断主观满意。报价不冻结他人项目；正文只按权限主动查询，不广播。旧实验需运行者显式enable-construction-trade，新manifest需显式启用，建设权本身不含采购权。
-
 工程控制方construction create输入蓝图参数、id/buildingId/siteId/expectedSiteRevision、controllerKind/controllerId、title/description、workers及reservationRefs。reservationRefs格式为保留ID@版本，可重复参数组合多方材料；合计必须恰好匹配蓝图。同意供料不等于同意为他人工作。
 
 工人本人出行到外部作业地点，再construction start --id 工程ID --expected-revision 当前工程版本 --until 模拟毫秒。单工位一次一人，大家可自愿接续。leave只停止本人，已有进度/体力消耗保留。完工自动结算保留材料、建筑和真实双向道路；cancel只退未消费材料。construction read检查progressMs、workMs、lastStop、settlementBlock；完工结算阻塞后先处理原因，再finish重试，不会无限续工。

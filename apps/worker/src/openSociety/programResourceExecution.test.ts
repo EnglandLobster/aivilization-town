@@ -72,7 +72,7 @@ test('modified authority, unrelated capabilities, revoked consent and changed re
   expect(f.state.world.premises!.buildings.home!.control.controller.id).toBe(f.t.b);
 });
 
-test.each(['stock', 'space', 'register', 'view', 'group'] as const)(
+test.each(['stock', 'space', 'register', 'group'] as const)(
   '%s keeps its owning resource semantics through the same independently authorized resource adapter',
   (resourceKind) => {
     const f = fixture(resourceKind),

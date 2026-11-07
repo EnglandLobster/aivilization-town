@@ -217,59 +217,6 @@ test('condition success does not bypass a later domain rejection or partially ex
   expect(t.r.state.coordination!.mandates.m!.usedRuns).toBe(0);
   t.replay();
 });
-test('view conditions compute under authorized readers, retain resident provenance and stop after source revocation', () => {
-  const t = setup();
-  t.ok(t.c, 'registers.create', {
-    id: 'inputs',
-    title: '源数据',
-    visibility: 'private',
-    readers: [t.a, t.b],
-    editors: [],
-    fields: { n: 'number' },
-  });
-  t.ok(t.c, 'records.put', {
-    registerId: 'inputs',
-    key: 'x',
-    expectedRevision: 0,
-    values: { n: 5 },
-  });
-  t.ok(t.b, 'views.publish', {
-    id: 'metric',
-    title: '居民自己的计算',
-    visibility: 'public',
-    readers: [],
-    definition: { sourceRegisterId: 'inputs', select: [], aggregate: { op: 'sum', field: 'n' } },
-  });
-  t.ok(t.c, 'registers.configure', {
-    id: 'inputs',
-    expectedRevision: 1,
-    visibility: 'private',
-    readers: [t.a],
-    editors: [],
-  });
-  t.publish([{ source: { kind: 'view', viewId: 'metric', viewRevision: 1 }, op: 'gte', value: 5 }]);
-  expect(t.ok(t.a, 'programs.run', { id: 'p', expectedRevision: 1 })).toMatchObject({
-    data: {
-      conditionEvidence: [
-        {
-          sourceClass: 'resident-computation',
-          sourceVersions: { viewRevision: 1, dataRevision: 1 },
-        },
-      ],
-    },
-  });
-  t.ok(t.c, 'registers.configure', {
-    id: 'inputs',
-    expectedRevision: 2,
-    visibility: 'private',
-    readers: [],
-    editors: [],
-  });
-  expect(t.call(t.a, 'programs.run', { id: 'p', expectedRevision: 1 }).error).toBe(
-    'condition-source-unavailable',
-  );
-  t.replay();
-});
 test('personal fact conditions do not proxy private balances to another runner, even with a payment mandate', () => {
   const t = setup();
   t.publish(
@@ -374,34 +321,6 @@ test('legacy manifests require explicit enabling and old unconditioned programs 
   expect(readFileSync(join(t.root, 'manifest.json'))).toEqual(bytes);
   t.replay();
 });
-test('combined view work is bounded before any payment', () => {
-  const t = setup(true, 1);
-  t.ok(t.a, 'registers.create', {
-    id: 'r',
-    title: '记录',
-    visibility: 'public',
-    readers: [],
-    editors: [],
-    fields: { n: 'number' },
-  });
-  t.ok(t.a, 'records.put', { registerId: 'r', key: 'x', expectedRevision: 0, values: { n: 2 } });
-  t.ok(t.a, 'views.publish', {
-    id: 'v',
-    title: '统计',
-    visibility: 'public',
-    readers: [],
-    definition: { sourceRegisterId: 'r', select: [], aggregate: { op: 'sum', field: 'n' } },
-  });
-  t.publish([{ source: { kind: 'view', viewId: 'v', viewRevision: 1 }, op: 'gte', value: 1 }]);
-  const before = structuredClone(t.r.state.world);
-  expect(t.call(t.a, 'programs.run', { id: 'p', expectedRevision: 1 }).error).toBe(
-    'condition-work-budget-exceeded',
-  );
-  expect(t.r.state.world).toEqual(before);
-  expect(t.r.state.coordination!.mandates.m!.usedRuns).toBe(0);
-  t.replay();
-});
-
 test('delegated record writing is not misrepresented as the principal personally signing a judgment', () => {
   const t = setup();
   t.register();
@@ -448,52 +367,6 @@ test('delegated record writing is not misrepresented as the principal personally
   t.ok(t.a, 'programs.run', { id: 'p', expectedRevision: 1 });
   t.replay();
 });
-test.each(['empty', 'division-zero'] as const)(
-  'invalid numeric view input %s cannot make a conditional payment succeed',
-  (kind) => {
-    const t = setup();
-    t.ok(t.a, 'registers.create', {
-      id: 'r',
-      title: '数据',
-      visibility: 'public',
-      readers: [],
-      editors: [],
-      fields: { n: 'number' },
-    });
-    if (kind === 'division-zero')
-      t.ok(t.a, 'records.put', {
-        registerId: 'r',
-        key: 'x',
-        expectedRevision: 0,
-        values: { n: 0 },
-      });
-    const definition =
-      kind === 'empty'
-        ? { sourceRegisterId: 'r', select: [], aggregate: { op: 'mean', field: 'n' } }
-        : {
-            sourceRegisterId: 'r',
-            select: [],
-            derive: { bad: { op: 'divide', left: { constant: 1 }, right: { field: 'n' } } },
-            aggregate: { op: 'sum', field: 'bad' },
-          };
-    t.ok(t.a, 'views.publish', {
-      id: 'v',
-      title: '计算',
-      visibility: 'public',
-      readers: [],
-      definition,
-    });
-    t.publish([{ source: { kind: 'view', viewId: 'v', viewRevision: 1 }, op: 'gte', value: 0 }]);
-    const before = structuredClone(t.r.state.world);
-    expect(t.call(t.a, 'programs.run', { id: 'p', expectedRevision: 1 }).error).toBe(
-      'condition-evaluation-failed',
-    );
-    expect(t.r.state.world).toEqual(before);
-    expect(t.r.state.coordination!.mandates.m!.usedRuns).toBe(0);
-    t.replay();
-  },
-);
-
 test('conditional scheduled runs evaluate at each exact simulation boundary and replay equally across large or split advances', () => {
   const one = setup(),
     many = setup();

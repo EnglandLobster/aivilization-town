@@ -17,7 +17,7 @@ const connection = { endpoint: 'http://127.0.0.1:12345', token: 'test-resident-t
 afterEach(() => vi.unstubAllGlobals());
 
 test('all registered capabilities have unique executable CLI routes with typed HTTP arguments', async () => {
-  expect(RESIDENT_COMMANDS).toHaveLength(390);
+  expect(RESIDENT_COMMANDS).toHaveLength(239);
   expect(new Set(RESIDENT_COMMANDS.map((command) => command.route)).size).toBe(
     OPEN_SOCIETY_TOOLS.length,
   );

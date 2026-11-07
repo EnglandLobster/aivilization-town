@@ -18,8 +18,6 @@ function fixture(productive = false) {
     continuity: true,
     elapsedRest: true,
     elapsedLabor: true,
-    serviceTime: true,
-    serviceEmployment: true,
     resourceControl: true,
     productiveEmployment: productive,
     initialization: 'newcomers',
@@ -246,105 +244,6 @@ test('failed exact spending keeps votes usable and creates no partial company ef
   t.ok(t.a, 'world.post_job', { enterpriseId: 'firm', wageOffer: 40, openSlots: 2 });
   t.replay();
 });
-test('collective service finance requires its own precise decision while workers and customers still participate independently', () => {
-  const t = fixture();
-  t.setup();
-  t.execute(
-    t.propose('business.post-job', 'firm', {
-      expectedControlVersion: 3,
-      wageOffer: 30,
-      openSlots: 3,
-    }),
-  );
-  t.ok(t.d, 'world.join_enterprise', { enterpriseId: 'firm' });
-  t.ok(t.d, 'engagements.offer', {
-    id: 'svc',
-    controllerKind: 'resident',
-    controllerId: t.d,
-    title: 'Residents chose the service',
-    terms: 'Actual participants, independent accounts and wages',
-    locationId: 'town-square',
-    providerId: t.d,
-    recipientId: t.c,
-    payerSector: 'agent',
-    payerId: t.c,
-    revenueSector: 'enterprise',
-    revenueId: 'firm',
-    providerShareBps: 0,
-    pricePerHour: 36,
-    modelId: 'personal-assistance-v1',
-    maxDurationMs: 3600000,
-    startAt: 0,
-    endAt: 7200000,
-    reservationRefs: [],
-  });
-  const service = () => t.r.state.world.serviceEngagements!.engagements.svc!;
-  t.ok(t.c, 'engagements.accept', { id: 'svc', expectedRevision: service().revision });
-  const terms = {
-    serviceId: 'svc',
-    expectedServiceRevision: service().revision,
-    wageBasis: 'attendance',
-  };
-  for (const actor of [t.a, t.b])
-    expect(t.call(actor, 'business.authorize-service', { enterpriseId: 'firm', ...terms }).ok).toBe(
-      false,
-    );
-  t.execute(
-    t.propose('business.authorize-service', 'firm', { expectedControlVersion: 3, ...terms }),
-  );
-  expect(service().status).toBe('accepted');
-  expect(service().providerPresence).toBeUndefined();
-  t.ok(t.c, 'engagements.fund', { id: 'svc', expectedRevision: service().revision });
-  const details = t.ok(t.d, 'engagements.read', { id: 'svc' }).data as {
-    ownEmployment: { expectedEmploymentRevision: number };
-  };
-  t.ok(t.d, 'engagements.start', {
-    id: 'svc',
-    expectedRevision: service().revision,
-    until: 60000,
-    expectedEmploymentRevision: details.ownEmployment.expectedEmploymentRevision,
-  });
-  t.ok(t.c, 'engagements.start', { id: 'svc', expectedRevision: service().revision, until: 60000 });
-  expect(t.r.advanceTime(60000, 'actual-company-service').ok).toBe(true);
-  const firm = t.r.state.world.enterprises.firm!,
-    claims = Object.values(firm.earnedPayroll!.claims);
-  expect(claims).toHaveLength(1);
-  expect(claims[0]).toMatchObject({ actorId: t.d, elapsedMs: 60000 });
-  expect(claims[0]!.earnedMicros).toBeGreaterThan(0);
-  expect(firm.serviceBusiness!.contracts.svc!.revenueMicros).toBeGreaterThan(0);
-  t.ok(t.b, 'business.service', { enterpriseId: 'firm', serviceId: 'svc' });
-  expect(t.call(t.a, 'business.service', { enterpriseId: 'firm', serviceId: 'svc' }).ok).toBe(
-    false,
-  );
-  const paid = claims[0]!.paidMicros,
-    contract = structuredClone(firm.serviceBusiness!.contracts.svc);
-  t.execute(
-    t.propose('resources.offer', 'firm', {
-      kind: 'enterprise',
-      expectedRevision: 3,
-      expectedControlVersion: 3,
-      target: { kind: 'resident', id: t.a },
-      expiresAt: 110000,
-      terms: 'Existing contracts and earned wages remain',
-    }),
-  );
-  t.ok(t.a, 'resources.accept', {
-    kind: 'enterprise',
-    id: 'firm',
-    expectedRevision: 4,
-    expectedControlVersion: 4,
-  });
-  expect(t.r.state.world.enterprises.firm!.serviceBusiness!.contracts.svc).toEqual(contract);
-  expect(
-    Object.values(t.r.state.world.enterprises.firm!.earnedPayroll!.claims)[0]!.paidMicros,
-  ).toBe(paid);
-  t.ok(t.a, 'business.service', { enterpriseId: 'firm', serviceId: 'svc' });
-  expect(t.call(t.b, 'business.service', { enterpriseId: 'firm', serviceId: 'svc' }).ok).toBe(
-    false,
-  );
-  t.replay();
-});
-
 test('the same collective authorizes its stock and company wages together while actual workers choose to start', () => {
   const t = fixture(true);
   t.setup();

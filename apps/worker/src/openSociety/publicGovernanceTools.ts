@@ -1,5 +1,3 @@
-import { assertConstructionOfferReadable } from './constructionTradeTools';
-import { decodeConstructionTradeOperation } from '@aivilization/world';
 import { premisesAuthorization } from './premisesTools';
 import { principalCollectiveAuthority } from './principalCollectiveAuthority';
 import { publicHousingQuery } from './publicHousingQuery';
@@ -182,14 +180,6 @@ export function executePublicGovernanceTool(
     else if (name === 'governance.withdraw') command = { type: 'withdraw', id, expectedRevision };
     else if (name === 'governance.execute') command = { type: 'execute', id, expectedRevision };
     else throw new ToolRefusal('unknown-public-capability');
-  }
-  if (command.type === 'execute') {
-    const action = a.proposals[command.id]?.action;
-    if (
-      action?.kind === 'manage-resource' &&
-      action.request.operation.capability.startsWith('construction-trades.')
-    )
-      assertConstructionOfferReadable(s, actorId, decodeConstructionTradeOperation(action.request));
   }
   const d = residentPublicGovernanceCommand({
     projection: s.world,

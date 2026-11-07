@@ -11,13 +11,13 @@ import {
 import { controlVersion } from '@aivilization/authority';
 import { executeProgramResourceControl } from '../programResourceExecution';
 import { applyOpenSocietyEffects } from '../state';
-import { openPermitsFixture } from './openPermits';
+import { builtPremisesFixture } from './builtPremises';
 import type { OpenSocietyState } from '../types';
 export function programResourceFixture(
   resourceKind: ProgramResourceKind = 'premises',
   durable = false,
 ) {
-  const t = openPermitsFixture(),
+  const t = builtPremisesFixture(),
     at = t.r.state.world.clock.now;
   const resourceId = resourceKind === 'premises' ? 'home' : 'asset';
   const policy =
@@ -48,37 +48,18 @@ export function programResourceFixture(
       content: '作者不会因为交割而改变',
     });
   }
-  if (resourceKind === 'register' || resourceKind === 'view')
+  if (resourceKind === 'register')
     t.ok(t.b, 'registers.create', {
-      id: resourceKind === 'register' ? resourceId : 'facts',
+      id: resourceId,
       title: '记录',
       visibility: 'private',
       readers: [],
       editors: [],
       fields: { value: 'number' },
     });
-  if (resourceKind === 'view')
-    t.ok(t.b, 'views.publish', {
-      id: resourceId,
-      title: '居民自己的查询',
-      visibility: 'private',
-      readers: [],
-      definition: { sourceRegisterId: 'facts', select: ['value'] },
-    });
   if (resourceKind === 'group') {
     t.ok(t.b, 'groups.create', { id: resourceId, title: '居民组' });
     t.ok(t.b, 'groups.invite', { groupId: resourceId, residentId: t.d });
-  }
-  if (resourceKind === 'service') {
-    if (!t.r.enableServiceControl().ok) throw Error('fixture-service-control');
-    t.ok(t.b, 'services.publish', {
-      id: resourceId,
-      kind: 'course',
-      locationId: t.location,
-      title: '居民自定课程',
-      description: '交接管理不转移出勤',
-      capacity: 2,
-    });
   }
   const read = (s: OpenSocietyState) =>
     resourceKind === 'enterprise'
@@ -94,11 +75,7 @@ export function programResourceFixture(
             ? s.information.spaces[resourceId]!
             : resourceKind === 'register'
               ? s.sharedRecords!.registers[resourceId]!
-              : resourceKind === 'view'
-                ? s.recordViews!.views[resourceId]!
-                : resourceKind === 'service'
-                  ? s.services!.services[resourceId]!
-                  : s.communication!.groups[resourceId]!;
+              : s.communication!.groups[resourceId]!;
   const resource = read(t.r.state);
   if (
     durable &&

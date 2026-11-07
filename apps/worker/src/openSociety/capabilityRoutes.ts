@@ -1,15 +1,8 @@
 /** Version of the resident CLI contract and generated on-demand Skill, shared with manifest provenance. */
 export const RESIDENT_CLI_VERSION = 'resident-cli-v4';
-export const RESIDENT_SKILL_VERSION = 'town-resident-skill-v78';
+export const RESIDENT_SKILL_VERSION = 'town-resident-skill-v79';
 const worldRoutes: Readonly<Record<string, string>> = {
   observe: 'city observe',
-  raise_petition: 'civic petition',
-  sign_petition: 'civic sign',
-  post_bulletin: 'civic post-bulletin',
-  raise_matter: 'civic request-help',
-  respond_matter: 'civic respond',
-  assign_matter: 'civic assign',
-  close_matter: 'civic close',
   move: 'travel go',
   eat: 'life eat',
   consume: 'life consume',

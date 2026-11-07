@@ -9,7 +9,7 @@ import {
   PROCESSED_COMMODITIES,
   serializableWorldPolicy,
 } from './manifest';
-import { createIntegratedSocietyManifest, INTERDEPENDENT_SOCIETY_PROFILE } from './runProfile';
+import { createTownManifest, TOWN_INTERDEPENDENT_PROFILE } from './runProfile';
 
 const clean: (() => void)[] = [];
 afterEach(() => {
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 test('the interdependent profile seeds a small purse, a raw-only outside market and material growth', () => {
-  const m = createIntegratedSocietyManifest({ profile: INTERDEPENDENT_SOCIETY_PROFILE, count: 3 });
+  const m = createTownManifest({ profile: TOWN_INTERDEPENDENT_PROFILE, count: 3 });
   const pools = Object.keys(m.initialWorld.marketPools);
   expect(pools).toContain('Wheat');
   expect(pools).not.toContain('Bread');
@@ -26,7 +26,7 @@ test('the interdependent profile seeds a small purse, a raw-only outside market 
   expect(m.initialWorld.treasury).toBe(3000);
   expect(m.initialWorld.materials?.expertise?.policy.version).toBe('resident-learning-by-doing-v1');
   expect(m.initialWorld.materials?.regrowth?.policy.version).toBe('material-source-regrowth-v1');
-  expect(m.provenance).toMatchObject({ runProfile: INTERDEPENDENT_SOCIETY_PROFILE });
+  expect(m.provenance).toMatchObject({ runProfile: TOWN_INTERDEPENDENT_PROFILE });
   const root = mkdtempSync(join(tmpdir(), 'interdependent-profile-'));
   clean.push(() => rmSync(root, { recursive: true, force: true }));
   const r = new OpenSocietyRuntime(root, m);

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import {
-  createIntegratedSocietyManifest,
+  createTownManifest,
   OpenSocietyRuntime,
   SocietyCommitReplica,
 } from '@aivilization/worker';
@@ -13,7 +13,7 @@ import { syncSocietyReplica } from './replica';
 
 test('trusted HTTP replication preserves complete private and money facts; residents cannot read the feed', async () => {
   const root = mkdtempSync(join(tmpdir(), 'society-feed-'));
-  const manifest = createIntegratedSocietyManifest({ count: 2 });
+  const manifest = createTownManifest({ count: 2 });
   const source = new OpenSocietyRuntime(join(root, 'authority'), manifest);
   const actor = manifest.residents[0]!.id;
   source.beginTurn(actor);

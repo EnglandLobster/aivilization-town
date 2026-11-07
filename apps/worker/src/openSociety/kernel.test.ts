@@ -103,9 +103,6 @@ function setup(enabled = true) {
 test('all capabilities have rule ownership; raw records and procedures are not forced into normal context', () => {
   for (const tool of OPEN_SOCIETY_TOOLS) expect(capabilityRuleIds(tool).length).toBeGreaterThan(0);
   expect(
-    capabilityRuleIds(OPEN_SOCIETY_TOOLS.find((t) => t.name === 'world.raise_petition')!),
-  ).toEqual(['integrity', 'public-institutions']);
-  expect(
     capabilityRuleIds(OPEN_SOCIETY_TOOLS.find((t) => t.name === 'world.build_housing')!),
   ).toContain('housing');
   const t = setup();

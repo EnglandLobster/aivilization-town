@@ -17,7 +17,6 @@ test('admin resources expose paged owning facts only to admin, reject ambiguous 
     count: 2,
     materials: true,
     societyKernel: true,
-    mobility: false,
     premises: false,
   });
   const r = new OpenSocietyRuntime(root, m);

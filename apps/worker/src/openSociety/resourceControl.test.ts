@@ -74,17 +74,6 @@ function fixture(enabled = true) {
       expectedRevision: 0,
       values: { score: 4 },
     });
-    ok(a, 'views.publish', {
-      id: 'v',
-      title: '原始算法',
-      visibility: 'private',
-      readers: [b],
-      definition: {
-        sourceRegisterId: 'records',
-        select: ['score'],
-        aggregate: { op: 'sum', field: 'score' },
-      },
-    });
   };
   const propose = (capability: string, resourceId: string, args: Record<string, unknown>) => {
     const id = `decision-${++m}`;
@@ -289,118 +278,6 @@ test('withdrawn or changed offer makes an old passed acceptance fail without con
     kind: 'resident',
     id: t.a,
   });
-  t.replay();
-});
-test('collective-to-person handover awaits the actual successor and preserves domain history', () => {
-  const t = fixture();
-  t.seed();
-  t.adopt('view', 'v');
-  t.execute(
-    t.propose('resources.offer', 'v', {
-      kind: 'view',
-      expectedRevision: 3,
-      expectedControlVersion: 3,
-      target: { kind: 'resident', id: t.d },
-      expiresAt: t.r.state.world.clock.now + 50000,
-      terms: '由接收方本人确认',
-    }),
-  );
-  expect(t.r.state.recordViews!.views.v!.control?.controller).toEqual({
-    kind: 'collective',
-    id: 'club',
-  });
-  expect(
-    t.call(t.b, 'resources.accept', {
-      kind: 'view',
-      id: 'v',
-      expectedRevision: 4,
-      expectedControlVersion: 4,
-    }).ok,
-  ).toBe(false);
-  t.ok(t.d, 'resources.read', { kind: 'view', id: 'v' });
-  t.ok(t.d, 'resources.accept', {
-    kind: 'view',
-    id: 'v',
-    expectedRevision: 4,
-    expectedControlVersion: 4,
-  });
-  expect(t.r.state.recordViews!.views.v!.control?.controller).toEqual({
-    kind: 'resident',
-    id: t.d,
-  });
-  expect(t.call(t.d, 'views.read', { id: 'v' }).error).toBe('view-not-found'); // Actual source is still private.
-  t.ok(t.d, 'resources.manage', {
-    kind: 'view',
-    id: 'v',
-    expectedRevision: 5,
-    expectedControlVersion: 5,
-    operation: { type: 'disable' },
-  });
-  expect(t.r.state.recordViews!.views.v!.ownerId).toBe(t.a);
-  expect(t.r.state.recordViews!.history.v?.[0]?.revision).toBe(1);
-  t.replay();
-});
-test('resource handover immediately removes old implicit source privileges from conditional reactions', () => {
-  const t = fixture();
-  t.seed();
-  t.ok(t.a, 'programs.publish', {
-    id: 'p',
-    title: '依赖本人读取权限',
-    purpose: '权限撤去不能继续',
-    runners: [t.a],
-    definition: {
-      conditions: [
-        {
-          source: {
-            kind: 'record',
-            registerId: 'records',
-            key: 'one',
-            revision: 'latest',
-            field: 'score',
-          },
-          op: 'eq',
-          value: 4,
-        },
-      ],
-      steps: [
-        {
-          principalId: t.a,
-          capability: 'payments.transfer',
-          arguments: { targetId: t.d, amount: 1, note: '有限授权' },
-        },
-      ],
-    },
-  });
-  t.ok(t.a, 'mandates.grant', {
-    id: 'm',
-    programId: 'p',
-    programRevision: 1,
-    runnerId: t.a,
-    maxRuns: 5,
-    expiresAt: t.r.state.world.clock.now + 100000,
-  });
-  t.offer('register', 'records');
-  t.ok(t.a, 'reactions.watch', {
-    id: 'w',
-    programId: 'p',
-    programRevision: 1,
-    maxReactions: 3,
-    expiresAt: t.r.state.world.clock.now + 100000,
-  });
-  const before = t.r.state.world.agents[t.a]!.balance;
-  t.execute(
-    t.propose('resources.accept', 'records', {
-      kind: 'register',
-      expectedRevision: 2,
-      expectedControlVersion: 2,
-    }),
-  );
-  expect(t.r.state.coordination!.reactions!.watches.w).toMatchObject({
-    status: 'failed',
-    reason: 'condition-source-unavailable',
-  });
-  expect(t.r.state.world.agents[t.a]!.balance).toBe(before);
-  expect(t.r.state.coordination!.mandates.m!.usedRuns).toBe(0);
   t.replay();
 });
 test('old manifest enables control once without rewriting seed; unsupported actions cannot invent another resource domain', () => {

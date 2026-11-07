@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import {
   OPEN_CAPABILITY_CATALOG_VERSION,
   RESIDENT_SKILL_VERSION,
-  isIntegratedSocietyProfile,
+  isTownProfile,
   type OpenSocietyManifest,
 } from '@aivilization/worker';
 
@@ -78,7 +78,7 @@ export function parseExperiment(value: unknown): ExperimentDefinition {
     for (const key of Object.keys(a))
       if (!['name', 'root', 'profile', 'count', 'initialization'].includes(key))
         fail(`arms[${i}].${key}`);
-    if (!isIntegratedSocietyProfile(a.profile)) fail(`arms[${i}].profile`);
+    if (!isTownProfile(a.profile)) fail(`arms[${i}].profile`);
     if (a.initialization !== 'settled' && a.initialization !== 'newcomers')
       fail(`arms[${i}].initialization`);
     return {

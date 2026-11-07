@@ -4,9 +4,7 @@ import { validateOpenToolArguments } from '@aivilization/agent-runtime';
 import type { CollectiveResourceAction } from '@aivilization/collaboration';
 import type { OpenSocietyState, OpenSocietyManifest } from './types';
 import { OPEN_WORLD_TOOLS } from './catalog';
-import { SERVICE_BUSINESS_TOOLS } from './serviceBusinessCatalog';
 import { executeOpenWorldTool } from './worldTools';
-import { executeServiceBusinessTool } from './serviceBusinessTools';
 import { openWorldPolicies } from './manifest';
 import { ToolRefusal } from './arguments';
 const operations: Readonly<Record<string, string>> = {
@@ -16,8 +14,6 @@ const operations: Readonly<Record<string, string>> = {
   'market.trade': 'world.trade',
   'market.export': 'world.export',
   'market.import': 'world.import',
-  'business.authorize-service': 'business.authorize-service',
-  'business.revoke-service': 'business.revoke-service',
 };
 function parameters(action: CollectiveResourceAction) {
   const name = operations[action.capability],
@@ -33,7 +29,7 @@ function parameters(action: CollectiveResourceAction) {
       ? { asEnterpriseId: action.resourceId }
       : { enterpriseId: action.resourceId }),
   };
-  const definition = [...OPEN_WORLD_TOOLS, ...SERVICE_BUSINESS_TOOLS].find((t) => t.name === name);
+  const definition = OPEN_WORLD_TOOLS.find((t) => t.name === name);
   if (!definition || validateOpenToolArguments(definition, args)) return undefined;
   return { name, args, expectedControlVersion: Number(expectedControlVersion) };
 }
@@ -67,8 +63,6 @@ export function executeApprovedEnterpriseManagement(
       sameController(c, { kind: 'collective', id: collectiveId })
         ? { actorId: actor, decisionId }
         : undefined;
-  if (p.name.startsWith('business.'))
-    return executeServiceBusinessTool(s, m, actor, p.name, p.args, requestId, authorize);
   const result = executeOpenWorldTool({
     state: s,
     manifest: m,

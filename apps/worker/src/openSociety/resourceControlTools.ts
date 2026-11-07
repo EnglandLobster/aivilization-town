@@ -1,6 +1,5 @@
 import { executeEnterpriseControlTool, visibleEnterpriseResources } from './enterpriseControlTools';
 import { parseResourceControlArguments } from './resourceControlArguments';
-import { executeServiceControlTool, visibleServiceResources } from './serviceControlTools';
 import { controllerAvailable, controllerVisibleTo } from './resourceControlAccess';
 import {
   effectiveController,
@@ -154,7 +153,6 @@ export function executeResourceControlTool(
   if (!state.resourceControlPolicy) throw new ToolRefusal('resource-control-not-enabled');
   if (args.kind === 'enterprise')
     return executeEnterpriseControlTool(state, manifest, actorId, name, args, requestId);
-  if (args.kind === 'service') return executeServiceControlTool(state, actorId, name, args);
   const resources = snapshot(state, manifest),
     id = stringArg(args, 'id');
   const visible = (r: ReturnType<typeof allInformationResources>[number]['resource']) =>
@@ -167,7 +165,6 @@ export function executeResourceControlTool(
           ...allInformationResources(resources)
             .filter((v) => visible(v.resource))
             .map((v) => informationResourceMetadata(v.kind, v.resource)),
-          ...visibleServiceResources(state, actorId),
           ...visibleEnterpriseResources(state, actorId),
         ].sort((a, b) => a.kind.localeCompare(b.kind, 'en') || a.id.localeCompare(b.id, 'en')),
         args,

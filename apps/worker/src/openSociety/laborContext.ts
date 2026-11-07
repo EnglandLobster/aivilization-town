@@ -1,8 +1,6 @@
 import { pageItems, ToolRefusal } from './arguments';
-import { ownServiceLaborRecords, serviceLaborDetails } from './serviceLaborContext';
 import { ownProductiveLaborRecords, productiveLaborDetails } from './productiveLaborContext';
 import { publicLaborDetails, activePublicLaborContext } from './publicLaborContext';
-import { activeServiceLaborContext } from './serviceLaborContext';
 import type { WorldProjection } from '@aivilization/world';
 import { activeProductiveLaborContext } from './productiveLaborContext';
 /** Own work/creditor facts only; the employer's other employees and their finances stay out of this preview. */
@@ -43,7 +41,6 @@ export function ownLaborContext(world: WorldProjection, actorId: string) {
         }
       : (activePublicLaborContext(world, actorId) ??
         activeProductiveLaborContext(world, actorId) ??
-        activeServiceLaborContext(world, actorId) ??
         null),
     ownUnpaid: unpaidMicros / 1e6,
     readWith: 'town city observe --view labor',
@@ -72,8 +69,6 @@ export function readOwnLabor(
       };
     const publicWork = publicLaborDetails(world, id);
     if (publicWork?.session.actorId === actorId) return publicWork;
-    const service = serviceLaborDetails(world, id);
-    if (service?.source.actorId === actorId) return service;
     const productive = productiveLaborDetails(world, id);
     if (productive?.source.actorId === actorId) return productive;
     throw new ToolRefusal('own-labor-not-found');
@@ -90,10 +85,7 @@ export function readOwnLabor(
         enterpriseId: s.enterpriseId,
         sourceKind: 'enterprise-work',
       })),
-    ...[
-      ...ownProductiveLaborRecords(world, actorId),
-      ...ownServiceLaborRecords(world, actorId),
-    ].map((c) => {
+    ...ownProductiveLaborRecords(world, actorId).map((c) => {
       const claim = world.enterprises[c.enterpriseId]!.earnedPayroll!.claims[c.id]!;
       return {
         id: c.id,

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { createIntegratedSocietyManifest, OpenSocietyRuntime } from '@aivilization/worker';
+import { createTownManifest, OpenSocietyRuntime } from '@aivilization/worker';
 import {
   ResidentPartitionExecution,
   PARTITION_SCHEDULER_VERSION,
@@ -18,7 +18,7 @@ afterEach(async () => {
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'partition-execution-'));
   cleanup.push(() => rmSync(root, { recursive: true, force: true }));
-  const manifest = createIntegratedSocietyManifest({ count: 2 });
+  const manifest = createTownManifest({ count: 2 });
   const runtime = new OpenSocietyRuntime(root, manifest);
   cleanup.push(() => runtime.close());
   const [a, b] = manifest.residents.map((r) => r.id) as [string, string];

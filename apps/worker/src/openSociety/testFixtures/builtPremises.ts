@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { OpenSocietyRuntime } from '../runtime';
 import { openPremisesFixture, premisesCleanup } from './openPremises';
 
-export function openPermitsFixture(
+/** A town with one finished production building, `home`, built by resident c. */
+export function builtPremisesFixture(
   rights = true,
   options: Parameters<typeof openPremisesFixture>[4] = {},
 ) {
@@ -24,22 +25,6 @@ export function openPermitsFixture(
   });
   t.time(t.project().plan.workMs);
   const building = () => t.r.state.world.premises!.buildings.home!;
-  const offer = (id = 'permit', extra: Record<string, unknown> = {}) => ({
-    id,
-    buildingId: 'home',
-    buildingRevision: building().revision,
-    granteeKind: 'resident',
-    granteeId: t.c,
-    users: [t.c],
-    scopes: ['operate', 'store'],
-    mode: 'shared',
-    title: '居民的工坊约定',
-    terms: '原文不自动变成劳动或评价',
-    startAt: t.r.state.world.clock.now,
-    endAt: t.r.state.world.clock.now + 3600000,
-    acceptBy: t.r.state.world.clock.now + 60000,
-    ...extra,
-  });
   const replay = () => {
     const state = t.r.state,
       journal = readFileSync(join(t.root, 'journal.jsonl'), 'utf8');
@@ -50,5 +35,5 @@ export function openPermitsFixture(
     expect(readFileSync(join(t.root, 'journal.jsonl'), 'utf8')).toBe(journal);
     return r;
   };
-  return { ...t, building, offer, replay };
+  return { ...t, building, replay };
 }

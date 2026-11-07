@@ -30,7 +30,6 @@ import {
 import { assertResourceSalesPolicy } from '@aivilization/commerce';
 import { enablePeriodicObligationsEvent, nextPeriodicBoundary } from '@aivilization/world';
 import { assertPeriodicObligationsState } from '@aivilization/commerce';
-import { executePeriodicTool } from './periodicTools';
 import {
   enableResourceSalesEvent,
   extendResourceSalesEvent,
@@ -74,11 +73,9 @@ import { enableHousingChoiceEvent } from '@aivilization/world';
 import { assertHousingChoiceState, HOUSING_CHOICE_POLICY } from '@aivilization/society';
 import { enableResidentCapitalEvent } from '@aivilization/world';
 import { CAPITAL_AGREEMENTS_POLICY, assertEnterpriseCapitalState } from '@aivilization/enterprise';
-import { executeCapitalTool } from './capitalTools';
 import { enablePublicEmploymentEvent } from '@aivilization/world';
 import { assertPublicEmploymentState } from '@aivilization/society';
 import { enablePublicLaborEvent } from '@aivilization/world';
-import { executeServiceBusinessTool } from './serviceBusinessTools';
 import {
   enableResidentExtractionEvent,
   assertResidentExtractionCompatibility,
@@ -107,7 +104,6 @@ import {
   advanceResidentPremisesRights,
   settleResidentPremisesProvisions,
 } from '@aivilization/world';
-import { executePermitTool } from './permitTools';
 import {
   EVIDENCE_TRADE_POLICY,
   TRADE_PUBLIC_FUNDING_POLICY,
@@ -120,21 +116,18 @@ import {
   upgradeResidentEvidenceTradeEvent,
   advanceResidentEvidenceTrade,
 } from '@aivilization/world';
-import { executeEvidenceTradeTool } from './evidenceTradeTools';
 import {
   LOGISTICS_POLICY,
   nextLogisticsBoundary,
   assertLogisticsPolicy,
 } from '@aivilization/logistics';
 import { enableResidentLogisticsEvent, advanceResidentLogistics } from '@aivilization/world';
-import { executeLogisticsTool } from './logisticsTools';
 
 import { SERVICE_ENGAGEMENTS_POLICY, nextServiceEngagementBoundary } from '@aivilization/services';
 import {
   enableResidentServiceEngagementsEvent,
   advanceResidentServiceEngagements,
 } from '@aivilization/world';
-import { executeEngagementTool } from './engagementTools';
 import {
   nextConstructionBoundary,
   nextPremisesWearBoundary,
@@ -159,14 +152,7 @@ import { MATERIALS_POLICY } from './materialPolicy';
 import { executeMaterialTool, advanceOpenMaterials } from './materialTools';
 import { GROUP_CONTROL_POLICY } from '@aivilization/information';
 import { executeResourceControlTool } from './resourceControlTools';
-import { stoppedReactionExperiences } from './reactionExecution';
-import { ProgramReactionRuntime } from './reactionRuntime';
-import { executeReactionTool } from './reactionTools';
-import {
-  PROGRAM_REACTIONS_POLICY,
-  nextReactionBoundary,
-  expireProgramWatches,
-} from '@aivilization/collaboration';
+import { PROGRAM_REACTIONS_POLICY, nextReactionBoundary } from '@aivilization/collaboration';
 import {
   PROGRAM_CONDITIONS_POLICY,
   PROGRAM_ACTIONS_POLICY,
@@ -189,14 +175,12 @@ import { executeDuePrograms, mergeProgramEffects } from './programExecution';
 import { executeRulebookTool } from './rulebook';
 import { SOCIETY_KERNEL_POLICY } from './kernelPolicy';
 import { RECORD_VIEWS_POLICY } from '@aivilization/information';
-import { executeRecordViewTool } from './recordViewTools';
 import {
   assertCapabilityEffects,
   validateCapabilityBoundaries,
   boundaryAvailability,
 } from './capabilityBoundaries';
 import { advanceResidentMobility } from '@aivilization/world';
-import { executeMobilityTool } from './mobilityTools';
 import { experiencePeople, readingExperiences, ORIGINAL_READS } from './readingExperiences';
 import { RESIDENT_LIFE_POLICIES } from './lifeState';
 import type { WorldEvent } from '@aivilization/world';
@@ -209,7 +193,6 @@ import { advanceCare, assertResidentRestPolicy } from '@aivilization/society';
 import { nextResidentLeaseBoundary, advanceResidentLeases } from '@aivilization/world';
 import { executeLifeTool } from './lifeTools';
 import { advanceServices, personalServiceAdministrator } from '@aivilization/services';
-import { executeServicesTool } from './servicesTools';
 import { executeCommerceTool } from './commerceTools';
 import { expireProposals } from '@aivilization/collaboration';
 import { executeCollaborationTool } from './collaborationTools';
@@ -220,7 +203,6 @@ import {
 } from '@aivilization/agent-runtime';
 import { validInformationId, DEFAULT_DISTRIBUTION_POLICY } from '@aivilization/information';
 import { executeCommunicationTool } from './communicationTools';
-import { executeDistributionTool } from './distributionTools';
 import { CITY_APPS_VERSION } from '@aivilization/content';
 import { prepareCityAppInstallation } from './cityApps';
 import { OPEN_SOCIETY_TOOLS, OPEN_CAPABILITY_CATALOG_VERSION } from './catalog';
@@ -243,11 +225,9 @@ import type {
 
 export class OpenSocietyRuntime {
   readonly journal: OpenSocietyJournal;
-  private readonly reactionRuntime: ProgramReactionRuntime;
   constructor(rootDir: string, manifest?: OpenSocietyManifest) {
     validateCapabilityBoundaries(OPEN_SOCIETY_TOOLS);
     this.journal = new OpenSocietyJournal(rootDir, manifest);
-    this.reactionRuntime = new ProgramReactionRuntime(this.journal);
     try {
       if (
         this.manifest.canonicalPolicyContinuation &&
@@ -486,7 +466,6 @@ export class OpenSocietyRuntime {
           throw new Error('unsupported-city-apps-version');
         this.installCityApps();
       }
-      this.reactionRuntime.activate();
     } catch (error) {
       this.journal.close();
       throw error;
@@ -500,9 +479,6 @@ export class OpenSocietyRuntime {
   }
   close() {
     this.journal.close();
-  }
-  resumeReactions() {
-    return this.reactionRuntime.resume();
   }
   registerConstructionSite(site: {
     id: string;
@@ -2365,7 +2341,7 @@ export class OpenSocietyRuntime {
           }),
     };
     const next = applyOpenSocietyEffects(this.state, effects);
-    return this.reactionRuntime.commit({
+    return this.journal.commit({
       actorId: 'system',
       requestId: 'enable-life-v1',
       fingerprint: digest(effects),
@@ -2398,7 +2374,7 @@ export class OpenSocietyRuntime {
         revision: this.state.revision,
         simulationTime: this.state.world.clock.now,
       };
-    return this.reactionRuntime.commit({
+    return this.journal.commit({
       actorId: 'system',
       requestId: 'enable-distribution-v1',
       fingerprint: digest(DEFAULT_DISTRIBUTION_POLICY),
@@ -2420,7 +2396,7 @@ export class OpenSocietyRuntime {
     if (cached !== undefined) return cached.result;
     if (this.state.cityApps !== undefined) throw new Error('city-app-upgrade-requires-migration');
     const effects = prepareCityAppInstallation(this.state, this.manifest);
-    return this.reactionRuntime.commit({
+    return this.journal.commit({
       actorId: 'city-services',
       requestId,
       fingerprint: digest({ version: CITY_APPS_VERSION, effects }),
@@ -2456,7 +2432,6 @@ export class OpenSocietyRuntime {
   }
   beginTurn(actorId: string, reason?: string): ResidentTurn {
     this.requireResident(actorId);
-    this.resumeReactions();
     const resident = this.state.residents[actorId]!;
     const previous =
       resident.activeTurnId === undefined ? undefined : this.state.turns[resident.activeTurnId];
@@ -2684,7 +2659,6 @@ export class OpenSocietyRuntime {
     }
   }
   nextResident(eligible?: ReadonlySet<string>): string | undefined {
-    this.resumeReactions();
     return Object.values(this.state.residents)
       .filter(
         (resident) =>
@@ -2706,7 +2680,6 @@ export class OpenSocietyRuntime {
     if (!validInformationId(request.requestId)) return this.failure('invalid-request-id');
     if (this.journal.isHistoricalRequest(request.requestId))
       return this.failure('historical-request-id');
-    this.resumeReactions();
     const fingerprint = digest({ name: request.name, arguments: request.arguments });
     const cached = this.journal.lookup(actorId, request.requestId);
     if (cached !== undefined)
@@ -2795,15 +2768,6 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (request.name.startsWith('capital.'))
-        execution = executeCapitalTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
       else if (request.name.startsWith('governance.'))
         execution = executePublicGovernanceTool(
           this.state,
@@ -2814,53 +2778,8 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (request.name.startsWith('permits.'))
-        execution = executePermitTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (request.name.startsWith('trades.'))
-        execution = executeEvidenceTradeTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (request.name.startsWith('freight.'))
-        execution = executeLogisticsTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
       else if (['business.labor-terms', 'business.change-labor-terms'].includes(request.name))
         execution = executeLaborTermsTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (request.name.startsWith('business.'))
-        execution = executeServiceBusinessTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (request.name.startsWith('engagements.'))
-        execution = executeEngagementTool(
           this.state,
           this.manifest,
           actorId,
@@ -2903,8 +2822,6 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (request.name.startsWith('reactions.'))
-        execution = executeReactionTool(this.state, actorId, request.name, args);
       else if (request.name.startsWith('funds.'))
         execution = executeCommonAccountTool(
           this.state,
@@ -2923,8 +2840,6 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (request.name.startsWith('views.'))
-        execution = executeRecordViewTool(this.state, actorId, request.name, args);
       else if (request.name.startsWith('registers.') || request.name.startsWith('records.'))
         execution = executeSharedRecordTool(
           this.state,
@@ -2987,54 +2902,8 @@ export class OpenSocietyRuntime {
           args,
           this.manifest.cognitionVersion,
         );
-      else if (['vehicles.', 'drivers.', 'rides.'].some((p) => request.name.startsWith(p)))
-        execution = executeMobilityTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (request.name === 'courses.start')
-        execution = executeServicesTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (
-        [
-          'population.',
-          'households.',
-          'care.',
-          'health.',
-          'courses.',
-          'leases.',
-          'housing.',
-          'civic.',
-        ].some((p) => request.name.startsWith(p))
-      )
-        execution = executeLifeTool(
-          this.state,
-          this.manifest,
-          this.policies(),
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
-      else if (['services.', 'bookings.', 'queues.'].some((p) => request.name.startsWith(p)))
-        execution = executeServicesTool(
-          this.state,
-          this.manifest,
-          actorId,
-          request.name,
-          args,
-          request.requestId,
-        );
+      else if (request.name === 'housing.list')
+        execution = executeLifeTool(this.state, actorId, request.name, args);
       else if (
         ['offers.', 'orders.', 'payments.', 'deposits.'].some((p) => request.name.startsWith(p))
       )
@@ -3046,8 +2915,6 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (request.name.startsWith('obligations.'))
-        execution = executePeriodicTool(this.state, this.manifest, actorId, request.name, args);
       else if (request.name.startsWith('proposals.') || request.name.startsWith('commitments.'))
         execution = executeCollaborationTool(
           this.state,
@@ -3069,12 +2936,6 @@ export class OpenSocietyRuntime {
           args,
           request.requestId,
         );
-      else if (
-        ['subscriptions.', 'feed.', 'notifications.'].some((prefix) =>
-          request.name.startsWith(prefix),
-        )
-      )
-        execution = executeDistributionTool(this.state, actorId, request.name, args);
       else if (request.name.startsWith('schedule.'))
         execution = executeScheduleTool(this.state, actorId, request.name, args);
       else
@@ -3223,7 +3084,7 @@ export class OpenSocietyRuntime {
       revision: this.state.revision + 1,
       simulationTime: after.world.clock.now,
     };
-    return this.reactionRuntime.commit({
+    return this.journal.commit({
       actorId,
       requestId: request.requestId,
       fingerprint,
@@ -3241,7 +3102,6 @@ export class OpenSocietyRuntime {
       !validInformationId(requestId)
     )
       return this.failure('invalid-time-advance');
-    this.resumeReactions();
     const cached = this.journal.lookup('system', requestId);
     const fingerprint = digest({ deltaMs });
     if (cached !== undefined)
@@ -3415,14 +3275,6 @@ export class OpenSocietyRuntime {
         ? advanceCollectives(working.collectives, working.world.clock.now)
         : [];
       appendEffects({ collectiveEvents: dueCollectives });
-      const expiredWatches = working.coordination?.reactions
-        ? expireProgramWatches(working.coordination.reactions, working.world.clock.now)
-        : [];
-      const reactionExpiryEffects = {
-        coordinationEvents: expiredWatches,
-        experiences: stoppedReactionExperiences(expiredWatches),
-      };
-      appendEffects(reactionExpiryEffects);
       const dueEffects = executeDuePrograms(working, this.manifest);
       appendEffects(dueEffects);
       if (until <= this.state.world.clock.now && leaseEvents.length === 0)
@@ -3499,7 +3351,7 @@ export class OpenSocietyRuntime {
           provenance: 'firsthand',
         });
     }
-    const advanced = this.reactionRuntime.commit({
+    const advanced = this.journal.commit({
       actorId: 'system',
       requestId,
       fingerprint,
@@ -3609,7 +3461,7 @@ export class OpenSocietyRuntime {
     effects: OpenSocietyEffects,
     data: unknown,
   ) {
-    return this.reactionRuntime.commit({
+    return this.journal.commit({
       actorId,
       requestId,
       fingerprint: digest({ capability, effects }),

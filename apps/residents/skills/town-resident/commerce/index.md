@@ -9,7 +9,6 @@
 - `payments transfer`：从你自己的账户向另一人真实转账。
 - `payments request --payers 居民ID --payers 另一ID --amount-each 金额`：等额分摊请求，每个人独立 `payments pay`，不能替别人扣款。
 - `deposits lock`：自愿锁入押金。受益人 `deposits release` 退回付款人；付款人 `deposits settle` 付给受益人。
-- 租约押金由 leases 管理，不能绕过租约接口提前处置。
 
 所有写入支持 --request-id 幂等重试。成功以真实事件、账户和库存为准，发帖不是下单。系统不判定“好吃”或统一评分；你可以保留自己的印象并发布原始评价。
 [报价](../commands/offers.md) · [订单](../commands/orders.md) · [付款](../commands/payments.md) · [押金](../commands/deposits.md) · [生活索引](../life/index.md)

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
 import { OpenSocietyRuntime } from './runtime';
-import { createIntegratedSocietyManifest } from './runProfile';
+import { createTownManifest } from './runProfile';
 import { OpenSocietyJournal, digest, recoverOpenSocietyJournal } from './journal';
 import { SocietyCommitReplica, readSocietyCommitPage } from './commitDelivery';
 const cleanup: (() => void)[] = [];
@@ -17,7 +17,7 @@ function directory() {
   return root;
 }
 function fixture() {
-  const manifest = createIntegratedSocietyManifest({ count: 2 });
+  const manifest = createTownManifest({ count: 2 });
   const source = new OpenSocietyRuntime(directory(), manifest);
   cleanup.push(() => source.close());
   const actor = manifest.residents[0]!.id;

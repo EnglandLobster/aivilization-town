@@ -8,7 +8,6 @@ import {
   sameController,
   type ControlAuthorizationPort,
 } from '@aivilization/authority';
-import { capitalAccountVisibleTo } from './capitalAccess';
 import { enterpriseControlEvent } from '@aivilization/world';
 import type { CollectiveResourceAction } from '@aivilization/collaboration';
 import type { OpenSocietyState, OpenSocietyManifest } from './types';
@@ -27,9 +26,7 @@ export function enterpriseControlMetadata(e: EnterpriseState) {
     controlVersion: enterpriseControlVersion(e),
     controller: enterpriseController(e),
     founderId: e.ownerAgentId,
-    ...(e.capital
-      ? { capitalPositions: e.capital.positions, equityVersion: e.capital.equityVersion }
-      : { capitalShares: e.ownershipShares ?? { [e.ownerAgentId]: 1 } }),
+    capitalShares: e.ownershipShares ?? { [e.ownerAgentId]: 1 },
     status: e.status,
     ...(e.control?.offer ? { offer: e.control.offer } : {}),
     note: 'Revision here means management control. Assets, capital rights, employees and earned wages do not transfer with management.',
@@ -39,9 +36,7 @@ export function enterpriseControlMetadata(e: EnterpriseState) {
 const visible = (s: OpenSocietyState, e: EnterpriseState, a: string) =>
   controllerVisibleTo(s, enterpriseController(e), a) ||
   (!!e.control?.offer && controllerVisibleTo(s, e.control.offer.target, a)) ||
-  (e.capital
-    ? e.capital.positions.some((p) => capitalAccountVisibleTo(s, p.account, a))
-    : (e.ownershipShares?.[a] ?? (e.ownerAgentId === a ? 1 : 0)) > 0) ||
+  (e.ownershipShares?.[a] ?? (e.ownerAgentId === a ? 1 : 0)) > 0 ||
   e.employeeAgentIds.some((id) => id === a);
 export const visibleEnterpriseResources = (s: OpenSocietyState, a: string) =>
   Object.values(s.world.enterprises)
